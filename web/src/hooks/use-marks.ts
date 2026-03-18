@@ -1,0 +1,162 @@
+"use client";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
+import { toast } from "sonner";
+
+// ─── Marks CRUD ──────────────────────────────────────────────────────────────
+
+export function useMarks(params?: Record<string, string>) {
+  const search = params ? new URLSearchParams(params).toString() : "";
+  return useQuery({
+    queryKey: ["marks", params],
+    queryFn: async () => (await api.get(`/marks?${search}`)).data,
+    enabled: !!params?.termId,
+  });
+}
+
+export function useCreateMark() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/marks", data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marks"] });
+      qc.invalidateQueries({ queryKey: ["marks-completion"] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to save mark"),
+  });
+}
+
+export function useUpdateMark() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/${id}`, data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marks"] });
+      qc.invalidateQueries({ queryKey: ["marks-completion"] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update mark"),
+  });
+}
+
+export function useBatchMarks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/marks/batch", data)).data,
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["marks"] });
+      qc.invalidateQueries({ queryKey: ["marks-completion"] });
+      toast.success(`${data.count} marks saved`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Batch save failed"),
+  });
+}
+
+// ─── Completion Tracker ──────────────────────────────────────────────────────
+
+export function useMarksCompletion(classSectionId?: string, termId?: string, subjectId?: string, assessmentTypeId?: string) {
+  return useQuery({
+    queryKey: ["marks-completion", classSectionId, termId, subjectId, assessmentTypeId],
+    queryFn: async () =>
+      (await api.get("/marks/completion", { params: { classSectionId, termId, subjectId, assessmentTypeId } })).data,
+    enabled: !!classSectionId && !!termId && !!subjectId && !!assessmentTypeId,
+  });
+}
+
+// ─── Term Results ────────────────────────────────────────────────────────────
+
+export function useTermResults(classSectionId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ["term-results", classSectionId, termId],
+    queryFn: async () =>
+      (await api.get("/marks/term-results/class", { params: { classSectionId, termId } })).data,
+    enabled: !!classSectionId && !!termId,
+  });
+}
+
+export function useStudentTermResult(studentId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ["student-term-result", studentId, termId],
+    queryFn: async () =>
+      (await api.get(`/marks/term-results/student/${studentId}`, { params: { termId } })).data,
+    enabled: !!studentId && !!termId,
+  });
+}
+
+export function useCalculateTermResults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/marks/term-results/calculate", data)).data,
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["term-results"] });
+      toast.success(`Calculated results for ${data.count} students`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+  });
+}
+
+export function usePublishTermResults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/marks/term-results/publish", data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["term-results"] });
+      toast.success("Results published");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Publish failed"),
+  });
+}
+
+export function useUpdateTermResultComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/term-results/${id}/comment`, data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["term-results"] });
+      toast.success("Comment saved");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+  });
+}
+
+// ─── Year Results ────────────────────────────────────────────────────────────
+
+export function useYearResults(classSectionId?: string, academicYearId?: string) {
+  return useQuery({
+    queryKey: ["year-results", classSectionId, academicYearId],
+    queryFn: async () =>
+      (await api.get("/marks/year-results/class", { params: { classSectionId, academicYearId } })).data,
+    enabled: !!classSectionId && !!academicYearId,
+  });
+}
+
+export function useStudentYearResult(studentId?: string, academicYearId?: string) {
+  return useQuery({
+    queryKey: ["student-year-result", studentId, academicYearId],
+    queryFn: async () =>
+      (await api.get(`/marks/year-results/student/${studentId}`, { params: { academicYearId } })).data,
+    enabled: !!studentId && !!academicYearId,
+  });
+}
+
+export function useCalculateYearResults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/marks/year-results/calculate", data)).data,
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["year-results"] });
+      toast.success(`Calculated year results for ${data.count} students`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+  });
+}
+
+// ─── Report Card ─────────────────────────────────────────────────────────────
+
+export function useReportCard(studentId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ["report-card", studentId, termId],
+    queryFn: async () => (await api.get(`/marks/report-card/${studentId}`, { params: { termId } })).data,
+    enabled: !!studentId && !!termId,
+  });
+}
