@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { SchoolConfigModule } from './modules/school-config/school-config.module';
 import { AcademicModule } from './modules/academic/academic.module';
 import { MarksModule } from './modules/marks/marks.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -18,6 +19,7 @@ import { AppService } from './app.service';
     SchoolConfigModule,
     AcademicModule,
     MarksModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
