@@ -36,6 +36,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         photoUrl: true,
         isActive: true,
         forcePasswordChange: true,
+        teacher: { select: { id: true } },
+        student: { select: { id: true } },
       },
     });
 
@@ -43,6 +45,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    return user;
+    return {
+      ...user,
+      teacherId: user.teacher?.id || null,
+      studentId: user.student?.id || null,
+    };
   }
 }

@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { SchoolConfigModule } from './modules/school-config/school-config.module';
 import { AcademicModule } from './modules/academic/academic.module';
+import { MarksModule } from './modules/marks/marks.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -16,6 +17,7 @@ import { AppService } from './app.service';
     UsersModule,
     SchoolConfigModule,
     AcademicModule,
+    MarksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
