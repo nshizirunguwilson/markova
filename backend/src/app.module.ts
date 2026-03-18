@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { SchoolConfigModule } from './modules/school-config/school-config.module';
+import { AcademicModule } from './modules/academic/academic.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -14,6 +15,7 @@ import { AppService } from './app.service';
     AuthModule,
     UsersModule,
     SchoolConfigModule,
+    AcademicModule,
   ],
   controllers: [AppController],
   providers: [AppService],
