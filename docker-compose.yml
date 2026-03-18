@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: markova-postgres
+    restart: unless-stopped
+    ports:
+      - '5434:5432'
+    environment:
+      POSTGRES_USER: markova
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: markova
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: markova-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
