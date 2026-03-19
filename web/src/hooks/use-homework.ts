@@ -29,6 +29,15 @@ export function useCreateHomework() {
   });
 }
 
+export function useUpdateHomework() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => (await api.put(`/homework/${id}`, data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework updated"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+  });
+}
+
 export function useDeleteHomework() {
   const qc = useQueryClient();
   return useMutation({
