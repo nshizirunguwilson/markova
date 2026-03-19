@@ -9,6 +9,7 @@ import { MarksModule } from './modules/marks/marks.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
 import { LibraryModule } from './modules/library/library.module';
+import { HomeworkModule } from './modules/homework/homework.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -24,6 +25,7 @@ import { AppService } from './app.service';
     AttendanceModule,
     DisciplineModule,
     LibraryModule,
+    HomeworkModule,
   ],
   controllers: [AppController],
   providers: [AppService],
