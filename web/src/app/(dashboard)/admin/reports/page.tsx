@@ -24,7 +24,8 @@ import {
   useGenerateClassReports,
   useGenerateDocument,
 } from "@/hooks/use-reports";
-import { FileText, Printer, Download, Users } from "lucide-react";
+import api from "@/lib/api";
+import { FileText, Printer, Download, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminReportsPage() {
@@ -33,6 +34,9 @@ export default function AdminReportsPage() {
   const [levelId, setLevelId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [tab, setTab] = useState<"report-cards" | "documents">("report-cards");
+  const [generatedReports, setGeneratedReports] = useState<any[]>([]);
+  const [viewingHtml, setViewingHtml] = useState<string | null>(null);
+  const [loadingReport, setLoadingReport] = useState<string | null>(null);
 
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
@@ -49,11 +53,67 @@ export default function AdminReportsPage() {
     generateClass.mutate(
       { classSectionId: sectionId, termId },
       {
-        onSuccess: (data: any) =>
-          toast.success(`Generated ${data.count} report cards`),
+        onSuccess: (data: any) => {
+          toast.success(`Generated ${data.count} report cards`);
+          setGeneratedReports(data.reports || []);
+          setViewingHtml(null);
+        },
         onError: () => toast.error("Failed to generate"),
       }
     );
+  };
+
+  const handleViewReport = async (studentId: string) => {
+    setLoadingReport(studentId);
+    try {
+      const res = await api.get(`/reports/term/${studentId}/html`, {
+        params: { termId },
+      });
+      setViewingHtml(res.data);
+    } catch {
+      toast.error("Failed to load report");
+    } finally {
+      setLoadingReport(null);
+    }
+  };
+
+  const handlePrintReport = (html: string) => {
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      w.print();
+    }
+  };
+
+  const handleDownloadReport = async (studentId: string, studentName: string) => {
+    setLoadingReport(studentId);
+    try {
+      const res = await api.get(`/reports/term/${studentId}/html`, {
+        params: { termId },
+      });
+      const blob = new Blob([res.data], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Report-Card-${studentName.replace(/\s+/g, "-")}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded report for ${studentName}`);
+    } catch {
+      toast.error("Failed to download report");
+    } finally {
+      setLoadingReport(null);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    for (const r of generatedReports) {
+      const name = r.data?.student?.name || "Student";
+      await handleDownloadReport(r.studentId, name);
+    }
   };
 
   const handleGenerateDocument = () => {
@@ -88,73 +148,183 @@ export default function AdminReportsPage() {
       </div>
 
       {tab === "report-cards" && (
-        <Card className="p-6 space-y-4">
-          <CardTitle>Generate Class Report Cards</CardTitle>
+        <>
+          <Card className="p-6 space-y-4">
+            <CardTitle>Generate Class Report Cards</CardTitle>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <select
-              className="border rounded-lg px-3 py-2 text-sm"
-              value={yearId}
-              onChange={(e) => {
-                setYearId(e.target.value);
-                setTermId("");
-              }}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <select
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={yearId}
+                onChange={(e) => {
+                  setYearId(e.target.value);
+                  setTermId("");
+                }}
+              >
+                <option value="">Academic Year</option>
+                {years?.map((y: any) => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
+
+              <select
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={termId}
+                onChange={(e) => setTermId(e.target.value)}
+              >
+                <option value="">Term</option>
+                {terms?.map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+
+              <select
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={levelId}
+                onChange={(e) => {
+                  setLevelId(e.target.value);
+                  setSectionId("");
+                }}
+              >
+                <option value="">Class Level</option>
+                {levels?.map((l: any) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+
+              <select
+                className="border rounded-lg px-3 py-2 text-sm"
+                value={sectionId}
+                onChange={(e) => setSectionId(e.target.value)}
+              >
+                <option value="">Section</option>
+                {sections?.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <Button
+              onClick={handleGenerateClassReports}
+              disabled={generateClass.isPending}
             >
-              <option value="">Academic Year</option>
-              {years?.map((y: any) => (
-                <option key={y.id} value={y.id}>{y.name}</option>
-              ))}
-            </select>
+              {generateClass.isPending ? (
+                <Spinner className="w-4 h-4" />
+              ) : (
+                <Users className="w-4 h-4 mr-2" />
+              )}
+              Generate Report Cards
+            </Button>
+          </Card>
 
-            <select
-              className="border rounded-lg px-3 py-2 text-sm"
-              value={termId}
-              onChange={(e) => setTermId(e.target.value)}
-            >
-              <option value="">Term</option>
-              {terms?.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+          {generatedReports.length > 0 && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <CardTitle>Generated Report Cards ({generatedReports.length})</CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleDownloadAll}>
+                    <Download className="w-4 h-4 mr-1" />
+                    Download All
+                  </Button>
+                </div>
+              </div>
 
-            <select
-              className="border rounded-lg px-3 py-2 text-sm"
-              value={levelId}
-              onChange={(e) => {
-                setLevelId(e.target.value);
-                setSectionId("");
-              }}
-            >
-              <option value="">Class Level</option>
-              {levels?.map((l: any) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Average</TableHead>
+                    <TableHead>Grade</TableHead>
+                    <TableHead>Rank</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {generatedReports.map((r: any, i: number) => (
+                    <TableRow key={r.studentId}>
+                      <TableCell>{i + 1}</TableCell>
+                      <TableCell className="font-medium">{r.data?.student?.name}</TableCell>
+                      <TableCell>{r.data?.student?.class}</TableCell>
+                      <TableCell>
+                        {r.data?.result?.average != null
+                          ? `${r.data.result.average.toFixed(1)}%`
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          r.data?.result?.letterGrade === "A" || r.data?.result?.letterGrade === "B"
+                            ? "success"
+                            : r.data?.result?.letterGrade === "C"
+                            ? "info"
+                            : "warning"
+                        }>
+                          {r.data?.result?.letterGrade || "—"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{r.data?.result?.rank || "—"} / {r.data?.classStats?.totalStudents || "—"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewReport(r.studentId)}
+                            disabled={loadingReport === r.studentId}
+                          >
+                            {loadingReport === r.studentId ? (
+                              <Spinner className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadReport(r.studentId, r.data?.student?.name || "Student")}
+                          >
+                            <Download className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const res = await api.get(`/reports/term/${r.studentId}/html`, { params: { termId } });
+                              handlePrintReport(res.data);
+                            }}
+                          >
+                            <Printer className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
 
-            <select
-              className="border rounded-lg px-3 py-2 text-sm"
-              value={sectionId}
-              onChange={(e) => setSectionId(e.target.value)}
-            >
-              <option value="">Section</option>
-              {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <Button
-            onClick={handleGenerateClassReports}
-            disabled={generateClass.isPending}
-          >
-            {generateClass.isPending ? (
-              <Spinner className="w-4 h-4" />
-            ) : (
-              <Users className="w-4 h-4 mr-2" />
-            )}
-            Generate Report Cards
-          </Button>
-        </Card>
+          {viewingHtml && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <CardTitle>Report Card Preview</CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handlePrintReport(viewingHtml)}>
+                    <Printer className="w-4 h-4 mr-1" />
+                    Print
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setViewingHtml(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+              <div
+                className="border rounded-lg p-4 bg-white"
+                dangerouslySetInnerHTML={{ __html: viewingHtml }}
+              />
+            </Card>
+          )}
+        </>
       )}
 
       {tab === "documents" && (
@@ -192,14 +362,34 @@ export default function AdminReportsPage() {
 
           {generateDoc.data && (
             <div className="mt-4 border rounded-lg p-4">
-              <div className="flex justify-end mb-2">
+              <div className="flex justify-end mb-2 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    const html = (generateDoc.data as any).html || generateDoc.data;
+                    const blob = new Blob([html as string], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${(generateDoc.data as any).title || "Document"}.html`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Download
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const html = (generateDoc.data as any).html || generateDoc.data;
                     const w = window.open("", "_blank");
                     if (w) {
-                      w.document.write(generateDoc.data as string);
+                      w.document.write(html as string);
                       w.document.close();
                       w.print();
                     }
@@ -211,7 +401,7 @@ export default function AdminReportsPage() {
               </div>
               <div
                 className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: generateDoc.data as string }}
+                dangerouslySetInnerHTML={{ __html: (generateDoc.data as any).html || (generateDoc.data as string) }}
               />
             </div>
           )}
