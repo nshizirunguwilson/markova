@@ -28,6 +28,7 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+.claude/
 
 # Prisma
 backend/prisma/*.db
