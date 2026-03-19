@@ -171,7 +171,7 @@ export default function AdminTimetablePage() {
             >
               <option value="">Select teacher</option>
               {teachers.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+                <option key={t.id} value={t.teacher?.id || t.id}>{t.firstName} {t.lastName}</option>
               ))}
             </select>
           </div>

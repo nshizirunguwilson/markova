@@ -21,10 +21,14 @@ export class HomeworkService {
   // HOMEWORK CRUD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async create(dto: CreateHomeworkDto, teacherId: string) {
+  async create(dto: CreateHomeworkDto, teacherId: string, role?: string) {
+    const resolvedTeacherId = teacherId || dto.teacherId;
+    if (!resolvedTeacherId) {
+      throw new ForbiddenException('Teacher ID is required');
+    }
     return this.prisma.homework.create({
       data: {
-        teacherId,
+        teacherId: resolvedTeacherId,
         subjectId: dto.subjectId,
         classSectionId: dto.classSectionId,
         termId: dto.termId,
@@ -41,10 +45,10 @@ export class HomeworkService {
     });
   }
 
-  async update(id: string, dto: UpdateHomeworkDto, teacherId: string) {
+  async update(id: string, dto: UpdateHomeworkDto, teacherId: string, role?: string) {
     const homework = await this.prisma.homework.findUnique({ where: { id } });
     if (!homework) throw new NotFoundException('Homework not found');
-    if (homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
+    if (role !== 'ADMIN' && homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
 
     return this.prisma.homework.update({
       where: { id },
@@ -58,10 +62,10 @@ export class HomeworkService {
     });
   }
 
-  async delete(id: string, teacherId: string) {
+  async delete(id: string, teacherId: string, role?: string) {
     const homework = await this.prisma.homework.findUnique({ where: { id } });
     if (!homework) throw new NotFoundException('Homework not found');
-    if (homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
+    if (role !== 'ADMIN' && homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
     return this.prisma.homework.delete({ where: { id } });
   }
 

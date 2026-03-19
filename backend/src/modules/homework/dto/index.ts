@@ -10,6 +10,7 @@ export class CreateHomeworkDto {
   @ApiProperty() @IsDateString() dueDate: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) maxMarks?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) lateDeductionPerDay?: number;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() teacherId?: string;
 }
 
 export class UpdateHomeworkDto {

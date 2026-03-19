@@ -29,7 +29,7 @@ import {
   useTerms,
 } from "@/hooks/use-academic";
 import { useUsers } from "@/hooks/use-users";
-import { Plus, Pencil, Trash2, ClipboardList, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminHomeworkPage() {
@@ -57,6 +57,7 @@ export default function AdminHomeworkPage() {
 
   const teachers = teacherData?.data || [];
 
+
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -72,11 +73,11 @@ export default function AdminHomeworkPage() {
     termId: "",
     teacherId: "",
     dueDate: "",
-    totalMarks: 100,
+    maxMarks: 100,
   });
 
   const resetForm = () => {
-    setForm({ title: "", description: "", subjectId: "", classSectionId: "", termId: "", teacherId: "", dueDate: "", totalMarks: 100 });
+    setForm({ title: "", description: "", subjectId: "", classSectionId: "", termId: "", teacherId: "", dueDate: "", maxMarks: 100 });
     setEditingId(null);
     setModalLevelId("");
     setShowModal(false);
@@ -91,7 +92,7 @@ export default function AdminHomeworkPage() {
       termId: hw.termId || "",
       teacherId: hw.teacherId || "",
       dueDate: hw.dueDate ? new Date(hw.dueDate).toISOString().slice(0, 10) : "",
-      totalMarks: hw.totalMarks || 100,
+      maxMarks: hw.maxMarks || 100,
     });
     if (hw.classSection?.classLevelId) setModalLevelId(hw.classSection.classLevelId);
     setEditingId(hw.id);
@@ -99,8 +100,8 @@ export default function AdminHomeworkPage() {
   };
 
   const handleSave = () => {
-    if (!form.title || !form.subjectId || !form.classSectionId) {
-      return toast.error("Title, subject, and class are required");
+    if (!form.title || !form.subjectId || !form.classSectionId || !form.termId || !form.dueDate || !form.teacherId) {
+      return toast.error("Title, subject, class, term, teacher, and due date are required");
     }
     const payload = { ...form, dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined };
     if (editingId) {
@@ -205,7 +206,7 @@ export default function AdminHomeworkPage() {
                   <TableCell>
                     {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "—"}
                   </TableCell>
-                  <TableCell>{hw.totalMarks ?? "—"}</TableCell>
+                  <TableCell>{hw.maxMarks ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(hw)}>
@@ -267,7 +268,7 @@ export default function AdminHomeworkPage() {
               >
                 <option value="">Select teacher</option>
                 {teachers.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+                  <option key={t.id} value={t.teacher?.id || t.id}>{t.firstName} {t.lastName}</option>
                 ))}
               </select>
             </div>
@@ -324,12 +325,12 @@ export default function AdminHomeworkPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Total Marks</label>
+              <label className="mb-1 block text-sm font-medium">Max Marks</label>
               <input
                 type="number"
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={form.totalMarks}
-                onChange={(e) => setForm({ ...form, totalMarks: Number(e.target.value) })}
+                value={form.maxMarks}
+                onChange={(e) => setForm({ ...form, maxMarks: Number(e.target.value) })}
               />
             </div>
           </div>

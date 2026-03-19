@@ -35,7 +35,7 @@ export class HomeworkController {
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Create homework' })
   create(@Body() dto: CreateHomeworkDto, @CurrentUser() user: any) {
-    return this.service.create(dto, user.teacherId);
+    return this.service.create(dto, user.teacherId, user.role);
   }
 
   @Get()
@@ -56,14 +56,14 @@ export class HomeworkController {
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Update homework' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateHomeworkDto, @CurrentUser() user: any) {
-    return this.service.update(id, dto, user.teacherId);
+    return this.service.update(id, dto, user.teacherId, user.role);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Delete homework' })
   delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
-    return this.service.delete(id, user.teacherId);
+    return this.service.delete(id, user.teacherId, user.role);
   }
 
   // ── Submissions ─────────────────────────────────────────────────────────

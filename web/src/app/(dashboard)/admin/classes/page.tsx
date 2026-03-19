@@ -45,23 +45,23 @@ export default function AdminClassesPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "level" | "section"; id: string } | null>(null);
   const [sectionParentId, setSectionParentId] = useState("");
 
-  const [levelForm, setLevelForm] = useState({ name: "", description: "", sortOrder: 0 });
-  const [sectionForm, setSectionForm] = useState({ name: "", capacity: 50, classLevelId: "" });
+  const [levelForm, setLevelForm] = useState({ name: "", order: 0 });
+  const [sectionForm, setSectionForm] = useState({ name: "", classLevelId: "" });
 
   const resetLevelForm = () => {
-    setLevelForm({ name: "", description: "", sortOrder: 0 });
+    setLevelForm({ name: "", order: 0 });
     setEditingLevelId(null);
     setShowLevelModal(false);
   };
 
   const resetSectionForm = () => {
-    setSectionForm({ name: "", capacity: 50, classLevelId: "" });
+    setSectionForm({ name: "", classLevelId: "" });
     setEditingSectionId(null);
     setShowSectionModal(false);
   };
 
   const handleEditLevel = (level: any) => {
-    setLevelForm({ name: level.name, description: level.description || "", sortOrder: level.sortOrder || 0 });
+    setLevelForm({ name: level.name, order: level.order || 0 });
     setEditingLevelId(level.id);
     setShowLevelModal(true);
   };
@@ -77,12 +77,12 @@ export default function AdminClassesPage() {
 
   const handleAddSection = (levelId: string) => {
     setSectionParentId(levelId);
-    setSectionForm({ name: "", capacity: 50, classLevelId: levelId });
+    setSectionForm({ name: "", classLevelId: levelId });
     setShowSectionModal(true);
   };
 
   const handleEditSection = (section: any) => {
-    setSectionForm({ name: section.name, capacity: section.capacity || 50, classLevelId: section.classLevelId });
+    setSectionForm({ name: section.name, classLevelId: section.classLevelId });
     setEditingSectionId(section.id);
     setShowSectionModal(true);
   };
@@ -144,9 +144,6 @@ export default function AdminClassesPage() {
                     )}
                     <div>
                       <p className="font-semibold">{level.name}</p>
-                      {level.description && (
-                        <p className="text-xs text-muted">{level.description}</p>
-                      )}
                     </div>
                     <Badge variant="default">{sections.length} section{sections.length !== 1 ? "s" : ""}</Badge>
                   </div>
@@ -169,7 +166,6 @@ export default function AdminClassesPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Section</TableHead>
-                          <TableHead>Capacity</TableHead>
                           <TableHead>Students</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -178,7 +174,6 @@ export default function AdminClassesPage() {
                         {sections.map((s: any) => (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium">{s.name}</TableCell>
-                            <TableCell>{s.capacity || "—"}</TableCell>
                             <TableCell>
                               <Badge variant="info">{s._count?.students ?? s.studentCount ?? "—"}</Badge>
                             </TableCell>
@@ -223,21 +218,13 @@ export default function AdminClassesPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Description</label>
-            <input
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={levelForm.description}
-              onChange={(e) => setLevelForm({ ...levelForm, description: e.target.value })}
-              placeholder="Optional description"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Sort Order</label>
+            <label className="mb-1 block text-sm font-medium">Order</label>
             <input
               type="number"
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={levelForm.sortOrder}
-              onChange={(e) => setLevelForm({ ...levelForm, sortOrder: Number(e.target.value) })}
+              value={levelForm.order}
+              onChange={(e) => setLevelForm({ ...levelForm, order: Number(e.target.value) })}
+              placeholder="Display order (e.g. 1, 2, 3)"
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -259,15 +246,6 @@ export default function AdminClassesPage() {
               value={sectionForm.name}
               onChange={(e) => setSectionForm({ ...sectionForm, name: e.target.value })}
               placeholder="e.g. A"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Capacity</label>
-            <input
-              type="number"
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={sectionForm.capacity}
-              onChange={(e) => setSectionForm({ ...sectionForm, capacity: Number(e.target.value) })}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
