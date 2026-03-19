@@ -5,9 +5,11 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import * as express from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
@@ -42,6 +44,23 @@ export class ReportsController {
     @Query('termId') termId: string,
   ) {
     return this.service.generateTermReportHtml(studentId, termId);
+  }
+
+  @Get('term/:studentId/pdf')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Download term report card as PDF' })
+  async getTermReportPdf(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Query('termId') termId: string,
+    @Res() res: express.Response,
+  ) {
+    const pdf = await this.service.generateTermReportPdf(studentId, termId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="report-card-${studentId}.pdf"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
   }
 
   @Post('term/class')

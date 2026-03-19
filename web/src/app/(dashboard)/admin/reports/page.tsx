@@ -89,19 +89,20 @@ export default function AdminReportsPage() {
   const handleDownloadReport = async (studentId: string, studentName: string) => {
     setLoadingReport(studentId);
     try {
-      const res = await api.get(`/reports/term/${studentId}/html`, {
+      const res = await api.get(`/reports/term/${studentId}/pdf`, {
         params: { termId },
+        responseType: "blob",
       });
-      const blob = new Blob([res.data], { type: "text/html" });
+      const blob = new Blob([res.data], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Report-Card-${studentName.replace(/\s+/g, "-")}.html`;
+      a.download = `Report-Card-${studentName.replace(/\s+/g, "-")}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success(`Downloaded report for ${studentName}`);
+      toast.success(`Downloaded PDF for ${studentName}`);
     } catch {
       toast.error("Failed to download report");
     } finally {
