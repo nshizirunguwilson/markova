@@ -17,6 +17,7 @@ import {
   Clock,
   UserCheck,
   Backpack,
+  CreditCard,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -53,6 +54,7 @@ const adminNav: NavSection[] = [
       { label: "Timetable", href: "/admin/timetable", icon: Clock },
       { label: "Marks", href: "/admin/marks", icon: ClipboardList },
       { label: "Report Cards", href: "/admin/reports", icon: FileText },
+      { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
     ],
   },
   {
@@ -76,7 +78,7 @@ const adminNav: NavSection[] = [
     items: [
       { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
       { label: "Settings", href: "/admin/settings", icon: Settings },
-      { label: "Support", href: "/admin/support", icon: HelpCircle },
+      { label: "Help & Support", href: "/admin/help", icon: HelpCircle },
     ],
   },
 ];
@@ -109,6 +111,13 @@ const teacherNav: NavSection[] = [
       { label: "Messages", href: "/teacher/messages", icon: MessageSquare },
     ],
   },
+  {
+    title: "Other",
+    items: [
+      { label: "Analytics", href: "/teacher/analytics", icon: BarChart3 },
+      { label: "Help", href: "/help", icon: HelpCircle },
+    ],
+  },
 ];
 
 const studentNav: NavSection[] = [
@@ -121,7 +130,7 @@ const studentNav: NavSection[] = [
     title: "Academics",
     items: [
       { label: "My Marks", href: "/student/marks", icon: ClipboardList },
-      { label: "Report Card", href: "/student/report", icon: FileText },
+      { label: "Report Card", href: "/student/reports", icon: FileText },
       { label: "Homework", href: "/student/homework", icon: BookOpen },
       { label: "Timetable", href: "/student/timetable", icon: Clock },
     ],
@@ -132,6 +141,8 @@ const studentNav: NavSection[] = [
       { label: "Attendance", href: "/student/attendance", icon: Calendar },
       { label: "Library", href: "/student/library", icon: Library },
       { label: "Messages", href: "/student/messages", icon: MessageSquare },
+      { label: "Analytics", href: "/student/analytics", icon: BarChart3 },
+      { label: "Help", href: "/help", icon: HelpCircle },
     ],
   },
 ];
@@ -150,12 +161,20 @@ const parentNav: NavSection[] = [
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Fees", href: "/parent/fees", icon: DollarSign },
       { label: "Homework", href: "/parent/homework", icon: FileText },
+      { label: "Report Cards", href: "/parent/reports", icon: FileText },
     ],
   },
   {
     title: "Communication",
     items: [
       { label: "Messages", href: "/parent/messages", icon: MessageSquare },
+    ],
+  },
+  {
+    title: "Other",
+    items: [
+      { label: "Analytics", href: "/parent/analytics", icon: BarChart3 },
+      { label: "Help", href: "/help", icon: HelpCircle },
     ],
   },
 ];
@@ -177,6 +196,11 @@ const librarianNav: NavSection[] = [
     title: "Communication",
     items: [
       { label: "Messages", href: "/librarian/messages", icon: MessageSquare },
+    ],
+  },
+  {
+    items: [
+      { label: "Help", href: "/help", icon: HelpCircle },
     ],
   },
 ];

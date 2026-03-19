@@ -39,24 +39,28 @@ export class NotificationsController {
   }
 
   @Get()
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Get user notifications' })
   getNotifications(@CurrentUser() user: any, @Query('limit') limit?: string) {
     return this.service.getUserNotifications(user.id, limit ? Number(limit) : 50);
   }
 
   @Get('unread')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Get unread notification count' })
   getUnreadCount(@CurrentUser() user: any) {
     return this.service.getUnreadCount(user.id);
   }
 
   @Put(':id/read')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Mark notification as read' })
   markAsRead(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
     return this.service.markAsRead(id, user.id);
   }
 
   @Put('read-all')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllAsRead(@CurrentUser() user: any) {
     return this.service.markAllAsRead(user.id);
