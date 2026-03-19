@@ -50,7 +50,7 @@ export default function AdminReportsPage() {
       { classSectionId: sectionId, termId },
       {
         onSuccess: (data: any) =>
-          toast.success(`Generated ${data.length} report cards`),
+          toast.success(`Generated ${data.count} report cards`),
         onError: () => toast.error("Failed to generate"),
       }
     );
