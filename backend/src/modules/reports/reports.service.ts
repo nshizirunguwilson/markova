@@ -287,39 +287,80 @@ export class ReportsService {
   }
 
   private renderTermReportHtml(data: any): string {
-    const subjectRows = data.subjects.map((s: any) =>
-      `<tr><td>${s.subject}</td>${s.assessments.map((a: any) => `<td>${a.score}/${a.maxScore}</td>`).join('')}<td><strong>${s.average}%</strong></td></tr>`
-    ).join('');
+    // Build assessment type headers dynamically
+    const allTypes = new Set<string>();
+    data.subjects.forEach((s: any) => s.assessments.forEach((a: any) => allTypes.add(a.type)));
+    const typeHeaders = Array.from(allTypes);
+
+    const subjectRows = data.subjects.map((s: any) => {
+      const typeScores = typeHeaders.map((t) => {
+        const a = s.assessments.find((a: any) => a.type === t);
+        return `<td style="text-align:center">${a ? a.score : '—'}</td>`;
+      }).join('');
+      return `<tr><td>${s.subject}</td>${typeScores}<td style="text-align:center;font-weight:bold">${s.average}%</td></tr>`;
+    }).join('');
+
+    const gradeKey = `<div style="margin:10px 0;font-size:12px;color:#666">
+      <strong>Grading:</strong> A (90-100) | B (80-89) | C (70-79) | D (60-69) | E (50-59) | F (0-49)
+    </div>`;
 
     return `<!DOCTYPE html><html><head><style>
-      body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-      .header { text-align: center; margin-bottom: 20px; }
-      .header h1 { color: ${data.school.primaryColor}; margin: 5px 0; }
-      .header p { margin: 2px 0; color: #666; }
-      .info { display: flex; justify-content: space-between; margin: 20px 0; }
-      table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      th { background: ${data.school.primaryColor}; color: white; }
-      .summary { margin: 20px 0; }
-      .comments { margin: 20px 0; }
-      .footer { margin-top: 40px; display: flex; justify-content: space-between; }
+      @media print { body { margin: 0; } @page { margin: 15mm; } }
+      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #333; background: #fff; max-width: 800px; margin: 30px auto; }
+      .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid ${data.school.primaryColor}; padding-bottom: 15px; }
+      .header h1 { color: ${data.school.primaryColor}; margin: 5px 0; font-size: 28px; }
+      .header h2 { color: ${data.school.primaryColor}; margin: 8px 0; font-size: 18px; letter-spacing: 2px; }
+      .header p { margin: 3px 0; color: #666; font-size: 14px; }
+      .info { display: flex; justify-content: space-between; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+      .info div { font-size: 14px; line-height: 1.8; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+      th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; }
+      th { background: ${data.school.primaryColor}; color: white; font-weight: 600; text-align: center; }
+      th:first-child { text-align: left; }
+      tr:nth-child(even) { background: #f8f9fa; }
+      .comments { margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; }
+      .comments p { margin: 8px 0; font-size: 14px; }
+      .footer { margin-top: 40px; display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #e0e0e0; font-size: 13px; color: #666; }
+      .signature { margin-top: 50px; display: flex; justify-content: space-between; }
+      .signature div { text-align: center; width: 200px; }
+      .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; }
     </style></head><body>
       <div class="header">
         <h1>${data.school.name}</h1>
         <p>${data.school.motto}</p>
         <h2>TERM REPORT CARD</h2>
-        <p>${data.term.name} — ${data.term.academicYear}</p>
+        <p>${data.term.name} — Academic Year ${data.term.academicYear}</p>
       </div>
       <div class="info">
-        <div><strong>Name:</strong> ${data.student.name}<br><strong>ID:</strong> ${data.student.studentIdNumber}<br><strong>Class:</strong> ${data.student.class}</div>
-        <div><strong>Average:</strong> ${data.result?.average?.toFixed(1) || '—'}%<br><strong>Grade:</strong> ${data.result?.letterGrade || '—'}<br><strong>Rank:</strong> ${data.result?.rank || '—'} / ${data.classStats.totalStudents}</div>
+        <div>
+          <strong>Name:</strong> ${data.student.name}<br>
+          <strong>Student ID:</strong> ${data.student.studentIdNumber}<br>
+          <strong>Class:</strong> ${data.student.class}
+        </div>
+        <div style="text-align:right">
+          <strong>Average:</strong> ${data.result?.average?.toFixed(1) || '—'}%<br>
+          <strong>Grade:</strong> ${data.result?.letterGrade || '—'}<br>
+          <strong>Rank:</strong> ${data.result?.rank || '—'} of ${data.classStats.totalStudents}
+        </div>
       </div>
-      <table><thead><tr><th>Subject</th><th>Score</th><th>Average</th></tr></thead><tbody>${subjectRows}</tbody></table>
+      <table>
+        <thead><tr><th style="width:30%">Subject</th>${typeHeaders.map((t) => `<th>${t}</th>`).join('')}<th>Average</th></tr></thead>
+        <tbody>${subjectRows}</tbody>
+      </table>
+      ${gradeKey}
       <div class="comments">
-        ${data.result?.teacherComment ? `<p><strong>Class Teacher:</strong> ${data.result.teacherComment}</p>` : ''}
-        ${data.result?.headmasterComment ? `<p><strong>Headmaster:</strong> ${data.result.headmasterComment}</p>` : ''}
+        <p><strong>Class Teacher's Comment:</strong> ${data.result?.teacherComment || '_______________________________________________'}</p>
+        <p><strong>Headmaster's Remark:</strong> ${data.result?.headmasterComment || '_______________________________________________'}</p>
       </div>
-      <div class="footer"><div>Class Average: ${data.classStats.classAverage?.toFixed(1) || '—'}%</div><div>Date: ${new Date().toLocaleDateString()}</div></div>
+      <div class="footer">
+        <div>Class Average: ${data.classStats.classAverage?.toFixed(1) || '—'}%</div>
+        <div>Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+      </div>
+      <div class="signature">
+        <div><div class="line">Class Teacher</div></div>
+        <div><div class="line">Headmaster</div></div>
+        <div><div class="line">School Stamp</div></div>
+      </div>
     </body></html>`;
   }
 
