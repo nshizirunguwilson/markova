@@ -12,6 +12,8 @@ import { LibraryModule } from './modules/library/library.module';
 import { HomeworkModule } from './modules/homework/homework.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { FeesModule } from './modules/fees/fees.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -30,6 +32,8 @@ import { AppService } from './app.service';
     HomeworkModule,
     MessagingModule,
     NotificationsModule,
+    ReportsModule,
+    FeesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

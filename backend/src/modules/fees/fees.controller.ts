@@ -1,0 +1,73 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FeesService } from './fees.service';
+import { RecordPaymentDto, UpdatePaymentDto, QueryFeesDto } from './dto';
+import { Roles } from '../../common/decorators';
+import { RolesGuard } from '../../common/guards';
+
+@ApiTags('Fees')
+@Controller('fees')
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@ApiBearerAuth()
+export class FeesController {
+  constructor(private readonly service: FeesService) {}
+
+  @Post()
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Record a fee payment' })
+  recordPayment(@Body() dto: RecordPaymentDto) {
+    return this.service.recordPayment(dto);
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update a fee payment' })
+  updatePayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePaymentDto,
+  ) {
+    return this.service.updatePayment(id, dto);
+  }
+
+  @Get()
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Query fee records' })
+  findAll(@Query() query: QueryFeesDto) {
+    return this.service.findAll(query);
+  }
+
+  @Get('summary')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Get fee collection summary' })
+  getSummary(
+    @Query('academicYearId') academicYearId?: string,
+    @Query('termId') termId?: string,
+  ) {
+    return this.service.getSummary(academicYearId, termId);
+  }
+
+  @Get('student/:studentId')
+  @Roles('ADMIN', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Get student fee records' })
+  getStudentFees(@Param('studentId', ParseUUIDPipe) studentId: string) {
+    return this.service.getStudentFees(studentId);
+  }
+
+  @Get(':id/receipt')
+  @Roles('ADMIN', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Generate payment receipt HTML' })
+  getReceipt(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.generateReceiptHtml(id);
+  }
+}
