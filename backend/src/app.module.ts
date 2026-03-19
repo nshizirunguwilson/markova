@@ -10,6 +10,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
 import { LibraryModule } from './modules/library/library.module';
 import { HomeworkModule } from './modules/homework/homework.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -26,6 +27,7 @@ import { AppService } from './app.service';
     DisciplineModule,
     LibraryModule,
     HomeworkModule,
+    MessagingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
