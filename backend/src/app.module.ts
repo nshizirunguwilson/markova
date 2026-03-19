@@ -14,6 +14,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FeesModule } from './modules/fees/fees.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -34,6 +35,7 @@ import { AppService } from './app.service';
     NotificationsModule,
     ReportsModule,
     FeesModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
