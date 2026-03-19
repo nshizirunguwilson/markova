@@ -46,7 +46,7 @@ export default function AdminHomeworkPage() {
   const { data: levels } = useClassLevels();
   const { data: subjects } = useSubjects();
   const { data: years } = useAcademicYears();
-  const { data: teacherData } = useUsers({ role: "TEACHER", limit: 200 });
+  const { data: teacherData } = useUsers({ role: "TEACHER", limit: 100 });
 
   const currentYear = years?.find((y: any) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);

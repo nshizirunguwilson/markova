@@ -32,7 +32,7 @@ export default function AdminTimetablePage() {
   const { data: years } = useAcademicYears();
   const { data: levels } = useClassLevels();
   const { data: subjects } = useSubjects();
-  const { data: teacherData } = useUsers({ role: "TEACHER", limit: 200 });
+  const { data: teacherData } = useUsers({ role: "TEACHER", limit: 100 });
 
   const currentYear = years?.find((y: any) => y.isCurrent);
   const [filterLevelId, setFilterLevelId] = useState("");

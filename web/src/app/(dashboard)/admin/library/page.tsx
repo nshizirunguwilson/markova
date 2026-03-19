@@ -64,14 +64,14 @@ export default function AdminLibraryPage() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
   const [bookForm, setBookForm] = useState({
-    title: "", author: "", isbn: "", category: "", totalCopies: 1, shelfLocation: "",
+    title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "",
   });
-  const [checkoutForm, setCheckoutForm] = useState({ bookId: "", borrowerId: "", dueDate: "" });
-  const { data: studentData } = useUsers({ role: "STUDENT", limit: 500 });
+  const [checkoutForm, setCheckoutForm] = useState({ bookIdentifier: "", studentIdentifier: "" });
+  const { data: studentData } = useUsers({ role: "STUDENT", limit: 100 });
   const students = studentData?.data || [];
 
   const resetBookForm = () => {
-    setBookForm({ title: "", author: "", isbn: "", category: "", totalCopies: 1, shelfLocation: "" });
+    setBookForm({ title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "" });
     setEditingBookId(null);
     setShowBookModal(false);
   };
@@ -79,7 +79,7 @@ export default function AdminLibraryPage() {
   const handleEditBook = (book: any) => {
     setBookForm({
       title: book.title, author: book.author || "", isbn: book.isbn || "",
-      category: book.category || "", totalCopies: book.totalCopies || 1, shelfLocation: book.shelfLocation || "",
+      category: book.category || "", quantity: book.quantity || 1, shelfLocation: book.shelfLocation || "",
     });
     setEditingBookId(book.id);
     setShowBookModal(true);
@@ -101,14 +101,14 @@ export default function AdminLibraryPage() {
   };
 
   const handleCheckout = () => {
-    if (!checkoutForm.bookId || !checkoutForm.borrowerId) return toast.error("All fields required");
+    if (!checkoutForm.bookIdentifier || !checkoutForm.studentIdentifier) return toast.error("All fields required");
     checkout.mutate(checkoutForm, {
-      onSuccess: () => { setShowCheckoutModal(false); setCheckoutForm({ bookId: "", borrowerId: "", dueDate: "" }); },
+      onSuccess: () => { setShowCheckoutModal(false); setCheckoutForm({ bookIdentifier: "", studentIdentifier: "" }); },
     });
   };
 
-  const handleReturn = (loanId: string) => {
-    returnBook.mutate({ loanId });
+  const handleReturn = (bookId: string) => {
+    returnBook.mutate({ bookIdentifier: bookId });
   };
 
   const tabs: { key: Tab; label: string }[] = [
@@ -204,10 +204,10 @@ export default function AdminLibraryPage() {
                       <TableCell>{b.author}</TableCell>
                       <TableCell><span className="font-mono text-sm">{b.isbn || "—"}</span></TableCell>
                       <TableCell>{b.category || "—"}</TableCell>
-                      <TableCell>{b.totalCopies}</TableCell>
+                      <TableCell>{b.quantity}</TableCell>
                       <TableCell>
-                        <Badge variant={b.availableCopies > 0 ? "success" : "danger"}>
-                          {b.availableCopies}
+                        <Badge variant={b.availableCount > 0 ? "success" : "danger"}>
+                          {b.availableCount}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -258,7 +258,7 @@ export default function AdminLibraryPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleReturn(l.id)}
+                        onClick={() => handleReturn(l.book?.id || l.bookId)}
                         isLoading={returnBook.isPending}
                       >
                         Return
@@ -305,7 +305,7 @@ export default function AdminLibraryPage() {
                         <Badge variant="danger">{daysOverdue} days</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => handleReturn(l.id)} isLoading={returnBook.isPending}>
+                        <Button variant="outline" size="sm" onClick={() => handleReturn(l.book?.id || l.bookId)} isLoading={returnBook.isPending}>
                           Return
                         </Button>
                       </TableCell>
@@ -411,8 +411,8 @@ export default function AdminLibraryPage() {
               <input
                 type="number"
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.totalCopies}
-                onChange={(e) => setBookForm({ ...bookForm, totalCopies: Number(e.target.value) })}
+                value={bookForm.quantity}
+                onChange={(e) => setBookForm({ ...bookForm, quantity: Number(e.target.value) })}
               />
             </div>
             <div>
@@ -441,12 +441,12 @@ export default function AdminLibraryPage() {
             <label className="mb-1 block text-sm font-medium">Book</label>
             <select
               className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={checkoutForm.bookId}
-              onChange={(e) => setCheckoutForm({ ...checkoutForm, bookId: e.target.value })}
+              value={checkoutForm.bookIdentifier}
+              onChange={(e) => setCheckoutForm({ ...checkoutForm, bookIdentifier: e.target.value })}
             >
               <option value="">Select book</option>
-              {books?.filter((b: any) => b.availableCopies > 0).map((b: any) => (
-                <option key={b.id} value={b.id}>{b.title} ({b.availableCopies} available)</option>
+              {books?.filter((b: any) => b.availableCount > 0).map((b: any) => (
+                <option key={b.id} value={b.id}>{b.title} ({b.availableCount} available)</option>
               ))}
             </select>
           </div>
@@ -454,23 +454,14 @@ export default function AdminLibraryPage() {
             <label className="mb-1 block text-sm font-medium">Borrower (Student)</label>
             <select
               className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={checkoutForm.borrowerId}
-              onChange={(e) => setCheckoutForm({ ...checkoutForm, borrowerId: e.target.value })}
+              value={checkoutForm.studentIdentifier}
+              onChange={(e) => setCheckoutForm({ ...checkoutForm, studentIdentifier: e.target.value })}
             >
               <option value="">Select student</option>
               {students.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                <option key={s.id} value={s.student?.studentIdNumber || s.id}>{s.firstName} {s.lastName} {s.student?.studentIdNumber ? `(${s.student.studentIdNumber})` : ""}</option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Due Date</label>
-            <input
-              type="date"
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={checkoutForm.dueDate}
-              onChange={(e) => setCheckoutForm({ ...checkoutForm, dueDate: e.target.value })}
-            />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setShowCheckoutModal(false)}>Cancel</Button>

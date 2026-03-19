@@ -33,10 +33,10 @@ export default function AdminSubjectsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", code: "", category: "CORE", maxMarks: 100 });
+  const [form, setForm] = useState({ name: "", category: "", maxMarks: 100 });
 
   const resetForm = () => {
-    setForm({ name: "", code: "", category: "CORE", maxMarks: 100 });
+    setForm({ name: "", category: "", maxMarks: 100 });
     setEditingId(null);
     setShowModal(false);
   };
@@ -44,8 +44,7 @@ export default function AdminSubjectsPage() {
   const handleEdit = (subject: any) => {
     setForm({
       name: subject.name,
-      code: subject.code || "",
-      category: subject.category || "CORE",
+      category: subject.category || "",
       maxMarks: subject.maxMarks || 100,
     });
     setEditingId(subject.id);
@@ -91,7 +90,6 @@ export default function AdminSubjectsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Subject</TableHead>
-              <TableHead>Code</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Max Marks</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -100,7 +98,7 @@ export default function AdminSubjectsPage() {
           <TableBody>
             {!subjects || subjects.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-muted">
+                <TableCell colSpan={4} className="py-12 text-center text-muted">
                   <BookOpen className="mx-auto mb-2 h-8 w-8 opacity-40" />
                   No subjects yet
                 </TableCell>
@@ -110,10 +108,7 @@ export default function AdminSubjectsPage() {
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>
-                    <span className="font-mono text-sm">{s.code || "—"}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={s.category === "CORE" ? "info" : s.category === "ELECTIVE" ? "warning" : "default"}>
+                    <Badge variant="info">
                       {s.category || "—"}
                     </Badge>
                   </TableCell>
@@ -152,25 +147,13 @@ export default function AdminSubjectsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Code</label>
+            <label className="mb-1 block text-sm font-medium">Category</label>
             <input
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value })}
-              placeholder="e.g. MATH"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Category</label>
-            <select
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-            >
-              <option value="CORE">Core</option>
-              <option value="ELECTIVE">Elective</option>
-              <option value="EXTRA_CURRICULAR">Extra-Curricular</option>
-            </select>
+              placeholder="e.g. Sciences, Languages, Humanities"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Max Marks</label>
