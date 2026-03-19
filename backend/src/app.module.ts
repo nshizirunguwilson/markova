@@ -8,6 +8,7 @@ import { AcademicModule } from './modules/academic/academic.module';
 import { MarksModule } from './modules/marks/marks.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
+import { LibraryModule } from './modules/library/library.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -22,6 +23,7 @@ import { AppService } from './app.service';
     MarksModule,
     AttendanceModule,
     DisciplineModule,
+    LibraryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
