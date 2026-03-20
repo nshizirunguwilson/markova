@@ -41,7 +41,7 @@ export default function AdminPromotionPage() {
   const { data: toSections } = useSections(toLevelId || undefined);
 
   // Get default pass threshold from school config
-  const defaultThreshold = config?.find((c: any) => c.key === "passThreshold")?.value;
+  const defaultThreshold = config?.map?.passThreshold;
 
   const handlePromote = () => {
     if (!fromSectionId || !toSectionId || !academicYearId) return;
