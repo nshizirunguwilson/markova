@@ -7,13 +7,12 @@ import {
   useCreateAcademicYear,
   useTerms,
   useCreateTerm,
+  useCloseTerm,
+  useReopenTerm,
   useAssessmentTypes,
   useCreateAssessmentType,
 } from "@/hooks/use-academic";
 import { Plus, Lock, Unlock } from "lucide-react";
-import api from "@/lib/api";
-import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 
 export function AcademicTab() {
   const { data: years } = useAcademicYears();
@@ -23,19 +22,18 @@ export function AcademicTab() {
   const createYear = useCreateAcademicYear();
   const createTerm = useCreateTerm();
   const createAT = useCreateAssessmentType();
-  const qc = useQueryClient();
+  const closeTerm = useCloseTerm();
+  const reopenTerm = useReopenTerm();
 
   const yearForm = useForm({ defaultValues: { name: "", startDate: "", endDate: "" } });
   const termForm = useForm({ defaultValues: { name: "", startDate: "", endDate: "" } });
   const atForm = useForm({ defaultValues: { name: "" } });
 
-  const toggleTerm = async (id: string, isClosed: boolean) => {
-    try {
-      await api.post(`/academic/terms/${id}/${isClosed ? "reopen" : "close"}`);
-      qc.invalidateQueries({ queryKey: ["terms"] });
-      toast.success(isClosed ? "Term reopened" : "Term closed");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed");
+  const toggleTerm = (id: string, isClosed: boolean) => {
+    if (isClosed) {
+      reopenTerm.mutate(id);
+    } else {
+      closeTerm.mutate(id);
     }
   };
 

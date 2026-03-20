@@ -43,6 +43,40 @@ export function useCreateTerm() {
   });
 }
 
+export function useCloseTerm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.patch(`/academic/terms/${id}/close`)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term closed"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to close term"),
+  });
+}
+
+export function useReopenTerm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.patch(`/academic/terms/${id}/reopen`)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term reopened"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to reopen term"),
+  });
+}
+
+// ─── Student Promotion ─────────────────────────────────────────────────────
+
+export function usePromoteStudents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      fromClassSectionId: string;
+      toClassSectionId: string;
+      academicYearId: string;
+      passThreshold?: number;
+    }) => (await api.post("/academic/promote", data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); toast.success("Students promoted successfully"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Promotion failed"),
+  });
+}
+
 // ─── Class Levels ───────────────────────────────────────────────────────────
 
 export function useClassLevels() {
