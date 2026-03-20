@@ -165,80 +165,40 @@ These features are fully implemented with backend endpoints and functional front
 
 ---
 
-## 2. What's INCOMPLETE or BROKEN
+## 2. What was FIXED (2026-03-20)
 
-### 2.1 Dashboard Home Pages ~~are Scaffolds~~ — FIXED (2026-03-20)
+All previously incomplete items have been resolved:
 
-All 5 dashboard home pages now show real data from the API:
+| # | Item | Details |
+|---|------|---------|
+| 2.1 | **Dashboard Home Pages** | All 5 roles show real API data (admin stats, teacher assignments, student discipline/loans, parent quick actions, librarian analytics) |
+| 2.2 | **Email Notifications** | nodemailer + Brevo SMTP relay, domain authenticated (SPF+DKIM+DMARC), HTML template with Markova branding, delivering to inboxes |
+| 2.3 | **Admin Form Validation** | react-hook-form + zod on Subjects, Classes, Homework, Library, Timetable — red borders + inline errors |
+| 2.4 | **Export** | All 7 admin pages export to JSON, CSV, PDF, Excel |
+| 2.5 | **Error Boundaries** | global-error.tsx, dashboard error.tsx, auth error.tsx, not-found.tsx |
+| 2.6 | **Notification Bell** | Connected to API, unread badge, dropdown panel, mark-as-read |
+| 2.7 | **Search Bar** | Filters sidebar navigation, keyboard support, click-to-navigate |
 
-| Page | Status |
-|------|--------|
-| Admin Dashboard | Live stat cards (students, teachers, users, subjects, attendance, fees, library), Quick Actions with navigation links, At a Glance with attendance rate, fee collection rate, library stats |
-| Teacher Dashboard | Welcome message, My Assignments card with count, schedule listing, quick links to Marks/Attendance/Homework |
-| Student Dashboard | Discipline points with progress bar, active loans count, quick links to Marks/Homework/Library/Attendance |
-| Parent Dashboard | Quick action cards linking to Marks/Attendance/Discipline/Fees/Reports |
-| Librarian Dashboard | 4 stat cards from library analytics (Total Books, Active Loans, Overdue, Total Checkouts), quick links |
+### Still pending: SMS Notifications
 
-### 2.2 SMS/Email Notifications — EMAIL DONE, SMS PENDING (2026-03-20)
+SMS integration logs to console instead of sending. Requires a paid SMS provider (Twilio phone number ~$1.15/mo or Africa's Talking). Email works fully.
 
-**Impact:** Schools expect parent email/SMS alerts for absences, discipline incidents, and marks publication.
+### Cross-Role Workflow Tests (2026-03-20)
 
-**Current state:**
-- Backend notification module exists with all endpoints (send, bulk, read, unread)
-- In-app notifications work (stored in DB, read/unread tracking)
-- Notification bell in topbar is now connected to API with dropdown panel (fixed in 2.6)
-- **EMAIL: DONE** — nodemailer configured with Brevo SMTP relay, domain authenticated (SPF+DKIM+DMARC), sending from `"Markova School" <noreply@wilsonn.tech>`, HTML email template with blue branding
-- SMS integration is still a TODO — logs to console instead of sending
+| Workflow | Result |
+|----------|--------|
+| **Messaging**: Admin creates conversation with teacher, sends message → Teacher sees it | WORKING |
+| **Timetable**: Admin creates teacher-subject-class assignment → Teacher sees their assignments | WORKING |
+| **Marks (Teacher)**: Teacher enters mark → Retrievable via marks API, term results, report cards | WORKING |
+| **Marks (Admin)**: Admin enters/edits/deletes marks → Auto-resolves teacher from assignment | WORKING (fixed) |
+| **Attendance**: Admin marks student present → Class view, student summary, dashboard all reflect it | WORKING |
+| **Access Control**: Teacher blocked from admin-only endpoints (attendance dashboard, user management) | WORKING (403) |
+| **Duplicate Prevention**: Duplicate timetable assignment rejected with 409 | WORKING |
+| **Messaging Validation**: Invalid conversation type rejected with 400 | WORKING (fixed) |
 
-**SMS blocked on:** SMS provider API key. Twilio requires buying a phone number (~$1.15/mo). Africa's Talking is cheaper for African numbers.
-
-### 2.3 Admin CRUD Forms ~~Lack Proper Validation~~ — FIXED (2026-03-20)
-
-Forms now use react-hook-form + zod with inline validation:
-
-| Page | Validation Added |
-|------|-----------------|
-| Subjects | name (required), category (optional), maxMarks (1-1000) |
-| Classes | Level: name (required), order (>= 0). Section: name (required), classLevelId (required) |
-| Homework | title, subjectId, classSectionId, termId, teacherId, dueDate (all required), maxMarks (1-1000) |
-| Library | Book: title + author (required), quantity (>= 1). Checkout: book + student (required) |
-| Timetable | teacherId, subjectId, classSectionId (all required) |
-
-All forms show red borders on invalid fields and inline error messages below each field.
-
-### 2.4 Export Feature ~~is Incomplete~~ — FIXED (already complete before this session)
-
-All 7 admin pages have full export integration (JSON, CSV, PDF table, Excel):
-- Students, Teachers, Subjects, Classes, Timetable, Library (tab-aware: books/loans/overdue), Homework
-
-### 2.5 ~~No~~ Error Boundaries — FIXED (2026-03-20)
-
-4 error boundary files created:
-
-| File | Purpose |
-|------|---------|
-| `app/global-error.tsx` | Root-level catch-all with own HTML/body tags, retry button |
-| `app/(dashboard)/error.tsx` | Dashboard error boundary with retry + "Go to Dashboard" link |
-| `app/(auth)/error.tsx` | Auth error boundary with retry + "Back to Login" link |
-| `app/not-found.tsx` | Custom 404 page with "Go Home" button, blue theme styling |
-
-### 2.6 Notification Bell ~~Not Connected~~ — FIXED (2026-03-20)
-
-- Created `use-notifications.ts` hook with `useNotifications`, `useUnreadCount` (polls every 30s), `useMarkRead`, `useMarkAllRead`
-- Topbar bell now shows numeric unread badge (hidden when 0)
-- Click opens dropdown panel with notification list (title, message, time ago)
-- Unread notifications have blue tint + dot indicator
-- "Mark all as read" button
-- Click-outside closes dropdown
-
-### 2.7 Search Bar ~~Not Functional~~ — FIXED (2026-03-20)
-
-- Search bar now filters sidebar navigation items by label (case-insensitive)
-- Dropdown shows matching page names with icons and paths
-- Click navigates to selected page
-- Enter key navigates to first result
-- Clear button (X) to reset
-- Shows "No pages found" for empty results
+### Bugs fixed (2026-03-20, workflow testing):
+10. Admin marks entry 500 error — admin users had no `teacherId`, causing null constraint crash. Fixed: admin now auto-resolves teacher from subject-class assignment, and bypasses ownership checks on update/delete
+11. Messaging crash on invalid type — `type: "DIRECT"` caused 500. Fixed: DTO now validates against `ONE_ON_ONE`, `GROUP`, `BROADCAST` only
 
 ---
 
