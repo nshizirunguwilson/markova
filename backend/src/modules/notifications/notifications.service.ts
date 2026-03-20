@@ -1,14 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
+  private transporter: nodemailer.Transporter | null = null;
+
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
   ) {}
+
+  onModuleInit() {
+    const host = this.config.get('SMTP_HOST');
+    if (host) {
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: parseInt(this.config.get('SMTP_PORT') || '587', 10),
+        secure: false,
+        auth: {
+          user: this.config.get('SMTP_USER'),
+          pass: this.config.get('SMTP_PASS'),
+        },
+      });
+      console.log(`[EMAIL] SMTP configured via ${host}`);
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CENTRALIZED SEND
@@ -127,14 +146,33 @@ export class NotificationsService {
   private async sendEmail(userId: string, subject: string, body: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, firstName: true },
     });
     if (!user?.email) return;
+    if (!this.transporter) return;
 
-    const smtpHost = this.config.get('SMTP_HOST');
-    if (!smtpHost) return; // Email not configured
+    const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+    const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
 
-    // TODO: Implement nodemailer with SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
-    console.log(`[EMAIL] Would send to ${user.email}: ${subject}`);
+    await this.transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: user.email,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
+          </div>
+          <div style="padding: 20px; background: #f9f9f9;">
+            <p>Dear ${user.firstName || 'User'},</p>
+            <div style="margin: 16px 0;">${body}</div>
+          </div>
+          <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
+            This is an automated message from ${fromName}. Please do not reply to this email.
+          </div>
+        </div>
+      `,
+    });
+    console.log(`[EMAIL] Sent to ${user.email}: ${subject}`);
   }
 }

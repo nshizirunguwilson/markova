@@ -54,3 +54,7 @@ docker-compose.override.yml
 
 # Redis
 dump.rdb
+
+
+readiness.md
+markova-implementation-plan-v2.md
