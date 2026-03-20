@@ -102,6 +102,12 @@ enum MessageContentType {
   VOICE
 }
 
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 enum NotificationType {
   SMS
   EMAIL
@@ -130,6 +136,7 @@ model User {
   isActive            Boolean  @default(true) @map("is_active")
   forcePasswordChange Boolean  @default(true) @map("force_password_change")
   lastLoginAt         DateTime? @map("last_login_at")
+  lastSeenAt          DateTime? @map("last_seen_at")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -695,6 +702,7 @@ model Message {
   senderUserId   String             @map("sender_user_id")
   content        String
   contentType    MessageContentType @default(TEXT) @map("content_type")
+  status         MessageStatus      @default(SENT)
   fileUrl        String?            @map("file_url")
   createdAt      DateTime           @default(now()) @map("created_at")
 
