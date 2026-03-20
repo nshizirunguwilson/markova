@@ -1,8 +1,8 @@
-import { IsString, IsOptional, IsUUID, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsArray, IsEnum, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateConversationDto {
-  @ApiProperty({ enum: ['ONE_ON_ONE', 'GROUP', 'BROADCAST'] }) @IsString() type: string;
+  @ApiProperty({ enum: ['ONE_ON_ONE', 'GROUP', 'BROADCAST'] }) @IsIn(['ONE_ON_ONE', 'GROUP', 'BROADCAST']) type: string;
   @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
   @ApiProperty({ type: [String] }) @IsArray() @IsUUID('all', { each: true }) participantUserIds: string[];
 }
