@@ -100,7 +100,7 @@ export default function AdminTimetablePage() {
       ],
       data: (assignments || []).map((a: any) => ({
         ...a,
-        _teacher: `${a.teacher?.firstName || ""} ${a.teacher?.lastName || ""}`.trim(),
+        _teacher: `${a.teacher?.user?.firstName || ""} ${a.teacher?.user?.lastName || ""}`.trim(),
       })),
     });
   };
@@ -178,7 +178,7 @@ export default function AdminTimetablePage() {
               assignments.map((a: any) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">
-                    {a.teacher?.firstName} {a.teacher?.lastName}
+                    {a.teacher?.user?.firstName} {a.teacher?.user?.lastName}
                   </TableCell>
                   <TableCell>
                     <Badge variant="info">{a.subject?.name}</Badge>
