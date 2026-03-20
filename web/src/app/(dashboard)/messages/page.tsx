@@ -1,25 +1,25 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Button, Badge, Spinner, Input, Modal, Avatar } from "@/components/ui";
 import {
   useConversations,
   useMessages,
   useCreateConversation,
   useSendMessage,
-  useMarkRead,
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
-import { MessageSquare, Plus, Send, Users } from "lucide-react";
+import { useChatStore } from "@/stores/chat-store";
+import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle } from "lucide-react";
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
   const [selectedConv, setSelectedConv] = useState<string | null>(null);
   const { data: messages } = useMessages(selectedConv || undefined);
-  const sendMessage = useSendMessage();
-  const markRead = useMarkRead();
+  const sendMessageRest = useSendMessage();
   const createConv = useCreateConversation();
+  const chatStore = useChatStore();
 
   const [messageText, setMessageText] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
@@ -27,26 +27,61 @@ export default function MessagesPage() {
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Mark as read when selecting a conversation
+  // Mark as read when selecting a conversation (via socket if connected, else REST)
   useEffect(() => {
     if (selectedConv) {
-      markRead.mutate(selectedConv);
+      if (chatStore.connected) {
+        chatStore.markRead(selectedConv);
+      }
     }
-  }, [selectedConv]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedConv, chatStore.connected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
+  // Get typing users for current conversation
+  const typingMap = selectedConv ? chatStore.getTypingUsers(selectedConv) : new Map();
+  const typingNames = Array.from(typingMap.values());
+
+  // Handle typing indicator
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setMessageText(value);
+      if (selectedConv && chatStore.connected) {
+        chatStore.startTyping(selectedConv);
+
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          if (selectedConv) chatStore.stopTyping(selectedConv);
+        }, 2000);
+      }
+    },
+    [selectedConv, chatStore]
+  );
+
+  const handleSend = async () => {
     if (!messageText.trim() || !selectedConv) return;
-    sendMessage.mutate({
-      conversationId: selectedConv,
-      content: messageText,
-    });
+    const text = messageText;
     setMessageText("");
+
+    // Stop typing indicator
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    chatStore.stopTyping(selectedConv);
+
+    if (chatStore.connected) {
+      try {
+        await chatStore.sendMessage(selectedConv, text);
+      } catch {
+        // Fallback to REST
+        sendMessageRest.mutate({ conversationId: selectedConv, content: text });
+      }
+    } else {
+      sendMessageRest.mutate({ conversationId: selectedConv, content: text });
+    }
   };
 
   const handleNewConversation = () => {
@@ -63,6 +98,7 @@ export default function MessagesPage() {
           setSelectedConv(conv.id);
           setNewConvUserId("");
           setNewConvName("");
+          chatStore.joinConversation(conv.id);
         },
       }
     );
@@ -77,6 +113,42 @@ export default function MessagesPage() {
       return other ? `${other.user.firstName} ${other.user.lastName}` : "Chat";
     }
     return `Group (${conv.participants?.length || 0})`;
+  };
+
+  const getOtherUser = (conv: any) => {
+    if (conv.type === "ONE_ON_ONE") {
+      return conv.participants?.find((p: any) => p.user.id !== user?.id)?.user;
+    }
+    return null;
+  };
+
+  // Format last seen
+  const formatLastSeen = (date: string | null) => {
+    if (!date) return "offline";
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+
+    if (diffMin < 1) return "last seen just now";
+    if (diffMin < 60) return `last seen ${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `last seen ${diffHr}h ago`;
+    return `last seen ${d.toLocaleDateString()}`;
+  };
+
+  // Message status ticks
+  const MessageTicks = ({ msg }: { msg: any }) => {
+    if (msg.sender?.id !== user?.id) return null;
+    const status = msg.status || "SENT";
+
+    if (status === "READ") {
+      return <CheckCheck className="inline h-3.5 w-3.5 text-blue-400" />;
+    }
+    if (status === "DELIVERED") {
+      return <CheckCheck className="inline h-3.5 w-3.5 text-white/50" />;
+    }
+    return <Check className="inline h-3.5 w-3.5 text-white/50" />;
   };
 
   return (
@@ -94,29 +166,48 @@ export default function MessagesPage() {
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : conversations?.length > 0 ? (
           <div className="space-y-1">
-            {conversations.map((conv: any) => (
-              <button
-                key={conv.id}
-                onClick={() => setSelectedConv(conv.id)}
-                className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  selectedConv === conv.id ? "bg-primary/10" : "hover:bg-muted/10"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground truncate">
-                    {getConvName(conv)}
-                  </span>
-                  {conv.unreadCount > 0 && (
-                    <Badge variant="danger" className="ml-2">{conv.unreadCount}</Badge>
+            {conversations.map((conv: any) => {
+              const otherUser = getOtherUser(conv);
+              const isOtherOnline = otherUser ? chatStore.isOnline(otherUser.id) : false;
+
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => setSelectedConv(conv.id)}
+                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+                    selectedConv === conv.id ? "bg-primary/10" : "hover:bg-muted/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                          {getConvName(conv).charAt(0).toUpperCase()}
+                        </div>
+                        {conv.type === "ONE_ON_ONE" && (
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
+                              isOtherOnline ? "bg-green-500" : "bg-gray-400"
+                            }`}
+                          />
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-foreground truncate max-w-[140px]">
+                        {getConvName(conv)}
+                      </span>
+                    </div>
+                    {conv.unreadCount > 0 && (
+                      <Badge variant="danger" className="ml-2">{conv.unreadCount}</Badge>
+                    )}
+                  </div>
+                  {conv.lastMessage && (
+                    <p className="mt-0.5 ml-10 text-xs text-muted truncate">
+                      {conv.lastMessage.sender.firstName}: {conv.lastMessage.content}
+                    </p>
                   )}
-                </div>
-                {conv.lastMessage && (
-                  <p className="mt-0.5 text-xs text-muted truncate">
-                    {conv.lastMessage.sender.firstName}: {conv.lastMessage.content}
-                  </p>
-                )}
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         ) : (
           <p className="text-center text-muted text-sm py-8">No conversations yet.</p>
@@ -127,12 +218,52 @@ export default function MessagesPage() {
       <div className="flex flex-1 flex-col rounded-xl border border-border bg-surface">
         {selectedConv && selectedConversation ? (
           <>
-            {/* Header */}
+            {/* Header with online status */}
             <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="font-medium text-foreground">{getConvName(selectedConversation)}</span>
-                <Badge>{selectedConversation.type.replace("_", " ")}</Badge>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+                    {getConvName(selectedConversation).charAt(0).toUpperCase()}
+                  </div>
+                  {(() => {
+                    const other = getOtherUser(selectedConversation);
+                    if (other && selectedConversation.type === "ONE_ON_ONE") {
+                      return (
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
+                            chatStore.isOnline(other.id) ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">{getConvName(selectedConversation)}</span>
+                  {(() => {
+                    const other = getOtherUser(selectedConversation);
+                    if (other && selectedConversation.type === "ONE_ON_ONE") {
+                      return (
+                        <p className="text-xs text-muted">
+                          {chatStore.isOnline(other.id)
+                            ? "online"
+                            : formatLastSeen(other.lastSeenAt)}
+                        </p>
+                      );
+                    }
+                    // Group: show online count
+                    const onlineCount = selectedConversation.participants?.filter(
+                      (p: any) => p.user.id !== user?.id && chatStore.isOnline(p.user.id)
+                    ).length || 0;
+                    return (
+                      <p className="text-xs text-muted">
+                        {selectedConversation.participants?.length} members{onlineCount > 0 ? `, ${onlineCount} online` : ""}
+                      </p>
+                    );
+                  })()}
+                </div>
+                <Badge className="ml-auto">{selectedConversation.type.replace("_", " ")}</Badge>
               </div>
             </div>
 
@@ -151,13 +282,31 @@ export default function MessagesPage() {
                         </p>
                       )}
                       <p className="text-sm">{msg.content}</p>
-                      <p className={`text-xs mt-1 ${isMe ? "text-white/60" : "text-muted"}`}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
+                      <div className={`flex items-center justify-end gap-1 mt-1 ${isMe ? "text-white/60" : "text-muted"}`}>
+                        <span className="text-xs">
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        <MessageTicks msg={msg} />
+                      </div>
                     </div>
                   </div>
                 );
               })}
+
+              {/* Typing indicator */}
+              {typingNames.length > 0 && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl bg-muted/10 px-4 py-2">
+                    <p className="text-xs text-muted italic">
+                      {typingNames.length === 1
+                        ? `${typingNames[0]} is typing`
+                        : `${typingNames.slice(0, 2).join(", ")} ${typingNames.length > 2 ? `and ${typingNames.length - 2} more ` : ""}are typing`}
+                      <span className="typing-dots">...</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -167,12 +316,12 @@ export default function MessagesPage() {
                 <input
                   type="text"
                   value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   placeholder="Type a message..."
                   className="flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm focus:border-primary focus:outline-none"
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 />
-                <Button onClick={handleSend} isLoading={sendMessage.isPending} className="rounded-full">
+                <Button onClick={handleSend} className="rounded-full">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
@@ -183,6 +332,11 @@ export default function MessagesPage() {
             <div className="text-center">
               <MessageSquare className="mx-auto h-12 w-12 text-muted/30" />
               <p className="mt-2 text-muted">Select a conversation or start a new one</p>
+              {chatStore.connected && (
+                <p className="mt-1 text-xs text-green-500 flex items-center justify-center gap-1">
+                  <Circle className="h-2 w-2 fill-green-500" /> Connected
+                </p>
+              )}
             </div>
           </div>
         )}

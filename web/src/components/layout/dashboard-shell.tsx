@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { useSocketConnection } from "@/hooks/use-socket";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageSpinner } from "@/components/ui/spinner";
@@ -20,6 +21,9 @@ export function DashboardShell({
   const router = useRouter();
   const { user, isAuthenticated, isLoading, setUser, setLoading, logout } =
     useAuthStore();
+
+  // Initialize WebSocket connection for real-time chat
+  useSocketConnection();
 
   useEffect(() => {
     async function checkAuth() {

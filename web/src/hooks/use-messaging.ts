@@ -8,7 +8,7 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations"],
     queryFn: async () => (await api.get("/messaging/conversations")).data,
-    refetchInterval: 10000, // Poll every 10s
+    // No polling — real-time updates come via WebSocket
   });
 }
 
@@ -17,7 +17,7 @@ export function useMessages(conversationId?: string) {
     queryKey: ["messages", conversationId],
     queryFn: async () => (await api.get(`/messaging/conversations/${conversationId}/messages`)).data,
     enabled: !!conversationId,
-    refetchInterval: 5000, // Poll every 5s
+    // No polling — real-time updates come via WebSocket
   });
 }
 
@@ -54,6 +54,7 @@ export function useUnreadMessageCount() {
   return useQuery({
     queryKey: ["unread-messages"],
     queryFn: async () => (await api.get("/messaging/unread")).data,
-    refetchInterval: 15000,
+    // Light fallback polling every 60s in case socket disconnects
+    refetchInterval: 60000,
   });
 }
