@@ -8,6 +8,7 @@ import {
   useCreateConversation,
   useSendMessage,
 } from "@/hooks/use-messaging";
+import { useUsers } from "@/hooks/use-users";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle } from "lucide-react";
@@ -23,9 +24,11 @@ export default function MessagesPage() {
 
   const [messageText, setMessageText] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
-  const [newConvUserId, setNewConvUserId] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const { data: usersData } = useUsers({ search: userSearch, limit: 20, isActive: true });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -85,19 +88,20 @@ export default function MessagesPage() {
   };
 
   const handleNewConversation = () => {
-    if (!newConvUserId.trim()) return;
+    if (selectedUserIds.length === 0) return;
     createConv.mutate(
       {
         type: newConvType,
         name: newConvName || undefined,
-        participantUserIds: newConvUserId.split(",").map((id) => id.trim()),
+        participantUserIds: selectedUserIds,
       },
       {
         onSuccess: (conv: any) => {
           setShowNewModal(false);
           setSelectedConv(conv.id);
-          setNewConvUserId("");
+          setSelectedUserIds([]);
           setNewConvName("");
+          setUserSearch("");
           chatStore.joinConversation(conv.id);
         },
       }
@@ -349,7 +353,10 @@ export default function MessagesPage() {
             <label className="mb-1 block text-sm font-medium text-foreground">Type</label>
             <select
               value={newConvType}
-              onChange={(e) => setNewConvType(e.target.value)}
+              onChange={(e) => {
+                setNewConvType(e.target.value);
+                if (e.target.value === "ONE_ON_ONE") setSelectedUserIds(selectedUserIds.slice(0, 1));
+              }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
             >
               <option value="ONE_ON_ONE">Direct Message</option>
@@ -360,15 +367,79 @@ export default function MessagesPage() {
           {newConvType !== "ONE_ON_ONE" && (
             <Input label="Group Name" value={newConvName} onChange={(e) => setNewConvName(e.target.value)} />
           )}
-          <Input
-            label="User ID(s)"
-            value={newConvUserId}
-            onChange={(e) => setNewConvUserId(e.target.value)}
-            placeholder="Enter user UUID (comma-separated for groups)"
-          />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              {newConvType === "ONE_ON_ONE" ? "Select User" : "Select Users"}
+            </label>
+            {/* Selected users */}
+            {selectedUserIds.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1">
+                {selectedUserIds.map((uid) => {
+                  const u = usersData?.data?.find((u: any) => u.id === uid);
+                  return (
+                    <span
+                      key={uid}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                    >
+                      {u ? `${u.firstName} ${u.lastName}` : uid}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUserIds(selectedUserIds.filter((id) => id !== uid))}
+                        className="ml-0.5 text-primary/60 hover:text-primary"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {/* Search input */}
+            <input
+              type="text"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Search users by name..."
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            />
+            {/* User dropdown list */}
+            {userSearch.trim() && (
+              <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-surface">
+                {usersData?.data?.filter((u: any) => u.id !== user?.id && !selectedUserIds.includes(u.id)).length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-muted">No users found</p>
+                ) : (
+                  usersData?.data
+                    ?.filter((u: any) => u.id !== user?.id && !selectedUserIds.includes(u.id))
+                    .map((u: any) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => {
+                          if (newConvType === "ONE_ON_ONE") {
+                            setSelectedUserIds([u.id]);
+                          } else {
+                            setSelectedUserIds([...selectedUserIds, u.id]);
+                          }
+                          setUserSearch("");
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/10 transition-colors"
+                      >
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                          {u.firstName?.charAt(0)?.toUpperCase() || "?"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">{u.firstName} {u.lastName}</span>
+                          <span className="ml-2 text-xs text-muted">{u.role}</span>
+                        </div>
+                      </button>
+                    ))
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowNewModal(false)}>Cancel</Button>
-            <Button onClick={handleNewConversation} isLoading={createConv.isPending}>Create</Button>
+            <Button onClick={handleNewConversation} isLoading={createConv.isPending} disabled={selectedUserIds.length === 0}>Create</Button>
           </div>
         </div>
       </Modal>
