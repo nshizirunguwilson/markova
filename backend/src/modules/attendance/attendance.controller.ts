@@ -116,6 +116,13 @@ export class AttendanceController {
     return this.service.getChronicallyAbsent(classSectionId, threshold ? Number(threshold) : undefined);
   }
 
+  @Post('chronic/notify')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Send email alerts to parents of chronically absent students' })
+  sendChronicAlerts() {
+    return this.service.sendChronicAbsenteeismAlerts();
+  }
+
   // ── Dashboard ───────────────────────────────────────────────────────────
 
   @Get('dashboard')

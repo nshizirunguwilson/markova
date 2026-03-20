@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   MarkAttendanceDto,
   QrScanDto,
@@ -16,7 +17,10 @@ import {
 
 @Injectable()
 export class AttendanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STUDENT ATTENDANCE — MANUAL
@@ -453,27 +457,97 @@ export class AttendanceService {
     const parentLinks = await this.prisma.parentStudent.findMany({
       where: { studentId },
       include: {
-        parent: { select: { phone: true, firstName: true } },
+        parent: { select: { phone: true, email: true, firstName: true } },
         student: { include: { user: { select: { firstName: true, lastName: true } } } },
       },
     });
 
+    const studentName = parentLinks[0]
+      ? `${parentLinks[0].student.user.firstName} ${parentLinks[0].student.user.lastName}`
+      : 'your child';
+    const title = 'Student Absence Alert';
+
     for (const link of parentLinks) {
-      if (!link.parent.phone) continue;
-      // TODO: Integrate actual SMS provider (SMS provider configured in school config)
-      // For now, create a notification record
-      try {
-        await this.prisma.notification.create({
-          data: {
+      const message = `Dear ${link.parent.firstName}, your child ${studentName} was marked absent on ${date}.`;
+
+      // Send SMS notification
+      if (link.parent.phone) {
+        try {
+          await this.notifications.send({
             userId: link.parentUserId,
             type: 'SMS',
-            title: 'Student Absence Alert',
-            message: `Dear ${link.parent.firstName}, your child ${link.student.user.firstName} ${link.student.user.lastName} was marked absent on ${date}.`,
-          },
-        });
-      } catch {
-        // Non-critical, don't fail the attendance operation
+            title,
+            message,
+          });
+        } catch {
+          // Non-critical, don't fail the attendance operation
+        }
+      }
+
+      // Send EMAIL notification
+      if (link.parent.email) {
+        try {
+          await this.notifications.send({
+            userId: link.parentUserId,
+            type: 'EMAIL',
+            title,
+            message,
+            relatedEntityType: 'attendance',
+          });
+        } catch {
+          // Non-critical, don't fail the attendance operation
+        }
       }
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHRONIC ABSENTEEISM ALERTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async sendChronicAbsenteeismAlerts() {
+    const { students, threshold } = await this.getChronicallyAbsent();
+    let alertsSent = 0;
+
+    for (const student of students) {
+      // Find parent links for each chronically absent student
+      const parentLinks = await this.prisma.parentStudent.findMany({
+        where: { studentId: student.studentId },
+        include: {
+          parent: { select: { email: true, firstName: true } },
+        },
+      });
+
+      for (const link of parentLinks) {
+        if (!link.parent.email) continue;
+
+        const message =
+          `Dear ${link.parent.firstName}, this is to inform you that your child <strong>${student.name}</strong> ` +
+          `(${student.class}) has been identified as chronically absent. ` +
+          `They have been absent <strong>${student.absentDays}</strong> out of <strong>${student.totalDays}</strong> school days, ` +
+          `resulting in an absence rate of <strong>${student.absenceRate}%</strong> (threshold: ${threshold}%). ` +
+          `<br><br>Please contact the school administration to discuss how we can support your child's attendance.`;
+
+        try {
+          await this.notifications.send({
+            userId: link.parentUserId,
+            type: 'EMAIL',
+            title: 'Chronic Absenteeism Alert',
+            message,
+            relatedEntityType: 'attendance',
+            relatedEntityId: student.studentId,
+          });
+          alertsSent++;
+        } catch {
+          // Log but continue with remaining alerts
+        }
+      }
+    }
+
+    return {
+      threshold,
+      studentsIdentified: students.length,
+      alertsSent,
+    };
   }
 }
