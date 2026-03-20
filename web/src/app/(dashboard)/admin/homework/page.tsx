@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Card,
   CardTitle,
@@ -14,6 +17,7 @@ import {
   TableCell,
   PageSpinner,
   Modal,
+  ExportDropdown,
 } from "@/components/ui";
 import {
   useHomeworks,
@@ -29,8 +33,32 @@ import {
   useTerms,
 } from "@/hooks/use-academic";
 import { useUsers } from "@/hooks/use-users";
+import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
+
+const homeworkSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  subjectId: z.string().min(1, "Subject is required"),
+  classSectionId: z.string().min(1, "Class section is required"),
+  termId: z.string().min(1, "Term is required"),
+  teacherId: z.string().min(1, "Teacher is required"),
+  dueDate: z.string().min(1, "Due date is required"),
+  maxMarks: z.number().min(1, "Must be at least 1").max(1000, "Max 1000"),
+});
+type HomeworkForm = z.infer<typeof homeworkSchema>;
+
+const defaultValues: HomeworkForm = {
+  title: "",
+  description: "",
+  subjectId: "",
+  classSectionId: "",
+  termId: "",
+  teacherId: "",
+  dueDate: "",
+  maxMarks: 100,
+};
 
 export default function AdminHomeworkPage() {
   const [filterLevelId, setFilterLevelId] = useState("");
@@ -65,26 +93,26 @@ export default function AdminHomeworkPage() {
   const [modalLevelId, setModalLevelId] = useState("");
   const { data: modalSections } = useSections(modalLevelId || undefined);
 
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    subjectId: "",
-    classSectionId: "",
-    termId: "",
-    teacherId: "",
-    dueDate: "",
-    maxMarks: 100,
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<HomeworkForm>({
+    resolver: zodResolver(homeworkSchema),
+    defaultValues,
   });
 
   const resetForm = () => {
-    setForm({ title: "", description: "", subjectId: "", classSectionId: "", termId: "", teacherId: "", dueDate: "", maxMarks: 100 });
+    reset(defaultValues);
     setEditingId(null);
     setModalLevelId("");
     setShowModal(false);
   };
 
   const handleEdit = (hw: any) => {
-    setForm({
+    reset({
       title: hw.title,
       description: hw.description || "",
       subjectId: hw.subjectId || "",
@@ -99,11 +127,8 @@ export default function AdminHomeworkPage() {
     setShowModal(true);
   };
 
-  const handleSave = () => {
-    if (!form.title || !form.subjectId || !form.classSectionId || !form.termId || !form.dueDate || !form.teacherId) {
-      return toast.error("Title, subject, class, term, teacher, and due date are required");
-    }
-    const payload = { ...form, dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined };
+  const onSubmit = (data: HomeworkForm) => {
+    const payload = { ...data, dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined };
     if (editingId) {
       updateHomework.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
     } else {
@@ -117,6 +142,27 @@ export default function AdminHomeworkPage() {
     }
   };
 
+  const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
+    exportData(format, {
+      filename: "homework",
+      title: "Homework",
+      columns: [
+        { header: "Title", key: "title" },
+        { header: "Subject", key: "subject.name" },
+        { header: "Class", key: "_class" },
+        { header: "Teacher", key: "_teacher" },
+        { header: "Due Date", key: "_dueDate" },
+        { header: "Max Marks", key: "maxMarks" },
+      ],
+      data: (homeworks || []).map((hw: any) => ({
+        ...hw,
+        _class: `${hw.classSection?.classLevel?.name || ""} ${hw.classSection?.name || ""}`.trim(),
+        _teacher: `${hw.teacher?.firstName || ""} ${hw.teacher?.lastName || ""}`.trim(),
+        _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "—",
+      })),
+    });
+  };
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -124,10 +170,13 @@ export default function AdminHomeworkPage() {
           <h1 className="text-2xl font-bold text-foreground">Homework</h1>
           <p className="mt-1 text-sm text-muted">Manage homework assignments</p>
         </div>
-        <Button onClick={() => { resetForm(); setShowModal(true); }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Homework
-        </Button>
+        <div className="flex gap-2">
+          <ExportDropdown onExport={handleExport} disabled={!homeworks || homeworks.length === 0} />
+          <Button onClick={() => { resetForm(); setShowModal(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Homework
+          </Button>
+        </div>
       </div>
 
       <Card padding="sm" className="mb-5">
@@ -226,51 +275,51 @@ export default function AdminHomeworkPage() {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={resetForm} title={editingId ? "Edit Homework" : "Create Homework"} size="lg">
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Title</label>
             <input
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className={`w-full rounded-lg border ${errors.title ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              {...register("title")}
               placeholder="Homework title"
             />
+            {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Description</label>
             <textarea
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+              className={`w-full rounded-lg border ${errors.description ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               rows={3}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              {...register("description")}
             />
+            {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Subject</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                value={form.subjectId}
-                onChange={(e) => setForm({ ...form, subjectId: e.target.value })}
+                className={`w-full rounded-lg border ${errors.subjectId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                {...register("subjectId")}
               >
                 <option value="">Select subject</option>
                 {subjects?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
+              {errors.subjectId && <p className="mt-1 text-xs text-red-500">{errors.subjectId.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Teacher</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                value={form.teacherId}
-                onChange={(e) => setForm({ ...form, teacherId: e.target.value })}
+                className={`w-full rounded-lg border ${errors.teacherId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                {...register("teacherId")}
               >
                 <option value="">Select teacher</option>
                 {teachers.map((t: any) => (
                   <option key={t.id} value={t.teacher?.id || t.id}>{t.firstName} {t.lastName}</option>
                 ))}
               </select>
+              {errors.teacherId && <p className="mt-1 text-xs text-red-500">{errors.teacherId.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -279,7 +328,7 @@ export default function AdminHomeworkPage() {
               <select
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                 value={modalLevelId}
-                onChange={(e) => { setModalLevelId(e.target.value); setForm({ ...form, classSectionId: "" }); }}
+                onChange={(e) => { setModalLevelId(e.target.value); setValue("classSectionId", ""); }}
               >
                 <option value="">Select level</option>
                 {levels?.map((l: any) => (
@@ -290,57 +339,57 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Section</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                value={form.classSectionId}
-                onChange={(e) => setForm({ ...form, classSectionId: e.target.value })}
+                className={`w-full rounded-lg border ${errors.classSectionId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                {...register("classSectionId")}
               >
                 <option value="">Select section</option>
                 {modalSections?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
+              {errors.classSectionId && <p className="mt-1 text-xs text-red-500">{errors.classSectionId.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Term</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-                value={form.termId}
-                onChange={(e) => setForm({ ...form, termId: e.target.value })}
+                className={`w-full rounded-lg border ${errors.termId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                {...register("termId")}
               >
                 <option value="">Select term</option>
                 {terms?.map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
+              {errors.termId && <p className="mt-1 text-xs text-red-500">{errors.termId.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Due Date</label>
               <input
                 type="date"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                className={`w-full rounded-lg border ${errors.dueDate ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...register("dueDate")}
               />
+              {errors.dueDate && <p className="mt-1 text-xs text-red-500">{errors.dueDate.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Max Marks</label>
               <input
                 type="number"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={form.maxMarks}
-                onChange={(e) => setForm({ ...form, maxMarks: Number(e.target.value) })}
+                className={`w-full rounded-lg border ${errors.maxMarks ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...register("maxMarks", { valueAsNumber: true })}
               />
+              {errors.maxMarks && <p className="mt-1 text-xs text-red-500">{errors.maxMarks.message}</p>}
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={resetForm}>Cancel</Button>
-            <Button onClick={handleSave} isLoading={createHomework.isPending || updateHomework.isPending}>
+            <Button variant="outline" type="button" onClick={resetForm}>Cancel</Button>
+            <Button type="submit" isLoading={createHomework.isPending || updateHomework.isPending}>
               {editingId ? "Update" : "Create"}
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Delete Confirmation */}

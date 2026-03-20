@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Card,
   CardTitle,
@@ -14,6 +17,7 @@ import {
   TableCell,
   PageSpinner,
   Modal,
+  ExportDropdown,
 } from "@/components/ui";
 import {
   useClassLevels,
@@ -25,8 +29,21 @@ import {
   useUpdateSection,
   useDeleteSection,
 } from "@/hooks/use-academic";
+import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, School, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+
+const levelSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  order: z.number().min(0, "Order must be 0 or greater"),
+});
+type LevelForm = z.infer<typeof levelSchema>;
+
+const sectionSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  classLevelId: z.string().min(1, "Class level is required"),
+});
+type SectionForm = z.infer<typeof sectionSchema>;
 
 export default function AdminClassesPage() {
   const { data: levels, isLoading } = useClassLevels();
@@ -43,56 +60,70 @@ export default function AdminClassesPage() {
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "level" | "section"; id: string } | null>(null);
-  const [sectionParentId, setSectionParentId] = useState("");
 
-  const [levelForm, setLevelForm] = useState({ name: "", order: 0 });
-  const [sectionForm, setSectionForm] = useState({ name: "", classLevelId: "" });
+  const {
+    register: registerLevel,
+    handleSubmit: handleSubmitLevel,
+    reset: resetLevel,
+    formState: { errors: levelErrors },
+  } = useForm<LevelForm>({
+    resolver: zodResolver(levelSchema),
+    defaultValues: { name: "", order: 0 },
+  });
+
+  const {
+    register: registerSection,
+    handleSubmit: handleSubmitSection,
+    reset: resetSection,
+    setValue: setSectionValue,
+    formState: { errors: sectionErrors },
+  } = useForm<SectionForm>({
+    resolver: zodResolver(sectionSchema),
+    defaultValues: { name: "", classLevelId: "" },
+  });
 
   const resetLevelForm = () => {
-    setLevelForm({ name: "", order: 0 });
+    resetLevel({ name: "", order: 0 });
     setEditingLevelId(null);
     setShowLevelModal(false);
   };
 
   const resetSectionForm = () => {
-    setSectionForm({ name: "", classLevelId: "" });
+    resetSection({ name: "", classLevelId: "" });
     setEditingSectionId(null);
     setShowSectionModal(false);
   };
 
   const handleEditLevel = (level: any) => {
-    setLevelForm({ name: level.name, order: level.order || 0 });
+    resetLevel({ name: level.name, order: level.order || 0 });
     setEditingLevelId(level.id);
     setShowLevelModal(true);
   };
 
-  const handleSaveLevel = () => {
-    if (!levelForm.name) return toast.error("Name is required");
+  const onSubmitLevel = (data: LevelForm) => {
     if (editingLevelId) {
-      updateLevel.mutate({ id: editingLevelId, ...levelForm }, { onSuccess: resetLevelForm });
+      updateLevel.mutate({ id: editingLevelId, ...data }, { onSuccess: resetLevelForm });
     } else {
-      createLevel.mutate(levelForm, { onSuccess: resetLevelForm });
+      createLevel.mutate(data, { onSuccess: resetLevelForm });
     }
   };
 
   const handleAddSection = (levelId: string) => {
-    setSectionParentId(levelId);
-    setSectionForm({ name: "", classLevelId: levelId });
+    resetSection({ name: "", classLevelId: levelId });
     setShowSectionModal(true);
   };
 
   const handleEditSection = (section: any) => {
-    setSectionForm({ name: section.name, classLevelId: section.classLevelId });
+    resetSection({ name: section.name, classLevelId: section.classLevelId });
     setEditingSectionId(section.id);
     setShowSectionModal(true);
   };
 
-  const handleSaveSection = () => {
-    if (!sectionForm.name) return toast.error("Name is required");
+  const onSubmitSection = (data: SectionForm) => {
     if (editingSectionId) {
-      updateSection.mutate({ id: editingSectionId, ...sectionForm }, { onSuccess: resetSectionForm });
+      updateSection.mutate({ id: editingSectionId, ...data }, { onSuccess: resetSectionForm });
     } else {
-      createSection.mutate(sectionForm, { onSuccess: resetSectionForm });
+      createSection.mutate(data, { onSuccess: resetSectionForm });
     }
   };
 
@@ -105,6 +136,34 @@ export default function AdminClassesPage() {
     }
   };
 
+  const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
+    const rows: Record<string, any>[] = [];
+    levels?.forEach((level: any) => {
+      const sections = level.sections || [];
+      if (sections.length === 0) {
+        rows.push({ _level: level.name, _section: "—", _students: "—" });
+      } else {
+        sections.forEach((s: any) => {
+          rows.push({
+            _level: level.name,
+            _section: s.name,
+            _students: s._count?.students ?? s.studentCount ?? "—",
+          });
+        });
+      }
+    });
+    exportData(format, {
+      filename: "classes",
+      title: "Classes",
+      columns: [
+        { header: "Class Level", key: "_level" },
+        { header: "Section", key: "_section" },
+        { header: "Students", key: "_students" },
+      ],
+      data: rows,
+    });
+  };
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -112,10 +171,13 @@ export default function AdminClassesPage() {
           <h1 className="text-2xl font-bold text-foreground">Classes</h1>
           <p className="mt-1 text-sm text-muted">Manage class levels and sections</p>
         </div>
-        <Button onClick={() => { resetLevelForm(); setShowLevelModal(true); }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Class Level
-        </Button>
+        <div className="flex gap-2">
+          <ExportDropdown onExport={handleExport} disabled={!levels || levels.length === 0} />
+          <Button onClick={() => { resetLevelForm(); setShowLevelModal(true); }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Class Level
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -211,25 +273,25 @@ export default function AdminClassesPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
             <input
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={levelForm.name}
-              onChange={(e) => setLevelForm({ ...levelForm, name: e.target.value })}
+              className={`w-full rounded-lg border ${levelErrors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              {...registerLevel("name")}
               placeholder="e.g. Senior 1"
             />
+            {levelErrors.name && <p className="mt-1 text-xs text-red-500">{levelErrors.name.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Order</label>
             <input
               type="number"
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={levelForm.order}
-              onChange={(e) => setLevelForm({ ...levelForm, order: Number(e.target.value) })}
+              className={`w-full rounded-lg border ${levelErrors.order ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              {...registerLevel("order", { valueAsNumber: true })}
               placeholder="Display order (e.g. 1, 2, 3)"
             />
+            {levelErrors.order && <p className="mt-1 text-xs text-red-500">{levelErrors.order.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={resetLevelForm}>Cancel</Button>
-            <Button onClick={handleSaveLevel} isLoading={createLevel.isPending || updateLevel.isPending}>
+            <Button onClick={handleSubmitLevel(onSubmitLevel)} isLoading={createLevel.isPending || updateLevel.isPending}>
               {editingLevelId ? "Update" : "Create"}
             </Button>
           </div>
@@ -242,15 +304,15 @@ export default function AdminClassesPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
             <input
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              value={sectionForm.name}
-              onChange={(e) => setSectionForm({ ...sectionForm, name: e.target.value })}
+              className={`w-full rounded-lg border ${sectionErrors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              {...registerSection("name")}
               placeholder="e.g. A"
             />
+            {sectionErrors.name && <p className="mt-1 text-xs text-red-500">{sectionErrors.name.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={resetSectionForm}>Cancel</Button>
-            <Button onClick={handleSaveSection} isLoading={createSection.isPending || updateSection.isPending}>
+            <Button onClick={handleSubmitSection(onSubmitSection)} isLoading={createSection.isPending || updateSection.isPending}>
               {editingSectionId ? "Update" : "Create"}
             </Button>
           </div>

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Card,
   CardTitle,
@@ -14,6 +17,7 @@ import {
   TableCell,
   PageSpinner,
   Modal,
+  ExportDropdown,
 } from "@/components/ui";
 import {
   useBooks,
@@ -37,9 +41,28 @@ import {
   AlertTriangle,
   BarChart3,
 } from "lucide-react";
+import { exportData } from "@/lib/export";
 import { toast } from "sonner";
 
 type Tab = "books" | "loans" | "overdue" | "analytics";
+
+const bookSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  author: z.string().min(1, "Author is required"),
+  isbn: z.string().optional(),
+  category: z.string().optional(),
+  quantity: z.number().min(1, "At least 1 copy"),
+  shelfLocation: z.string().optional(),
+});
+
+type BookFormValues = z.infer<typeof bookSchema>;
+
+const checkoutSchema = z.object({
+  bookIdentifier: z.string().min(1, "Select a book"),
+  studentIdentifier: z.string().min(1, "Select a student"),
+});
+
+type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 export default function AdminLibraryPage() {
   const [tab, setTab] = useState<Tab>("books");
@@ -63,21 +86,27 @@ export default function AdminLibraryPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-  const [bookForm, setBookForm] = useState({
-    title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "",
+  const bookForm = useForm<BookFormValues>({
+    resolver: zodResolver(bookSchema),
+    defaultValues: { title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "" },
   });
-  const [checkoutForm, setCheckoutForm] = useState({ bookIdentifier: "", studentIdentifier: "" });
+
+  const checkoutFormHook = useForm<CheckoutFormValues>({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: { bookIdentifier: "", studentIdentifier: "" },
+  });
+
   const { data: studentData } = useUsers({ role: "STUDENT", limit: 100 });
   const students = studentData?.data || [];
 
   const resetBookForm = () => {
-    setBookForm({ title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "" });
+    bookForm.reset({ title: "", author: "", isbn: "", category: "", quantity: 1, shelfLocation: "" });
     setEditingBookId(null);
     setShowBookModal(false);
   };
 
   const handleEditBook = (book: any) => {
-    setBookForm({
+    bookForm.reset({
       title: book.title, author: book.author || "", isbn: book.isbn || "",
       category: book.category || "", quantity: book.quantity || 1, shelfLocation: book.shelfLocation || "",
     });
@@ -85,14 +114,15 @@ export default function AdminLibraryPage() {
     setShowBookModal(true);
   };
 
-  const handleSaveBook = () => {
-    if (!bookForm.title || !bookForm.author) return toast.error("Title and author are required");
+  const onBookSubmit = (data: BookFormValues) => {
     if (editingBookId) {
-      updateBook.mutate({ id: editingBookId, ...bookForm }, { onSuccess: resetBookForm });
+      updateBook.mutate({ id: editingBookId, ...data }, { onSuccess: resetBookForm });
     } else {
-      createBook.mutate(bookForm, { onSuccess: resetBookForm });
+      createBook.mutate(data, { onSuccess: resetBookForm });
     }
   };
+
+  const handleSaveBook = bookForm.handleSubmit(onBookSubmit);
 
   const handleDeleteBook = () => {
     if (deleteTarget) {
@@ -100,15 +130,68 @@ export default function AdminLibraryPage() {
     }
   };
 
-  const handleCheckout = () => {
-    if (!checkoutForm.bookIdentifier || !checkoutForm.studentIdentifier) return toast.error("All fields required");
-    checkout.mutate(checkoutForm, {
-      onSuccess: () => { setShowCheckoutModal(false); setCheckoutForm({ bookIdentifier: "", studentIdentifier: "" }); },
+  const onCheckoutSubmit = (data: CheckoutFormValues) => {
+    checkout.mutate(data, {
+      onSuccess: () => { setShowCheckoutModal(false); checkoutFormHook.reset({ bookIdentifier: "", studentIdentifier: "" }); },
     });
   };
 
+  const handleCheckout = checkoutFormHook.handleSubmit(onCheckoutSubmit);
+
   const handleReturn = (bookId: string) => {
     returnBook.mutate({ bookIdentifier: bookId });
+  };
+
+  const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
+    if (tab === "books") {
+      exportData(format, {
+        filename: "library-books",
+        title: "Library Books",
+        columns: [
+          { header: "Title", key: "title" },
+          { header: "Author", key: "author" },
+          { header: "ISBN", key: "isbn" },
+          { header: "Category", key: "category" },
+          { header: "Copies", key: "quantity" },
+          { header: "Available", key: "availableCount" },
+        ],
+        data: books || [],
+      });
+    } else if (tab === "loans") {
+      exportData(format, {
+        filename: "active-loans",
+        title: "Active Loans",
+        columns: [
+          { header: "Book", key: "book.title" },
+          { header: "Borrower", key: "_borrower" },
+          { header: "Checkout Date", key: "_checkoutDate" },
+          { header: "Due Date", key: "_dueDate" },
+        ],
+        data: (activeLoans || []).map((l: any) => ({
+          ...l,
+          _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
+          _checkoutDate: new Date(l.checkoutDate).toLocaleDateString(),
+          _dueDate: new Date(l.dueDate).toLocaleDateString(),
+        })),
+      });
+    } else if (tab === "overdue") {
+      exportData(format, {
+        filename: "overdue-loans",
+        title: "Overdue Loans",
+        columns: [
+          { header: "Book", key: "book.title" },
+          { header: "Borrower", key: "_borrower" },
+          { header: "Due Date", key: "_dueDate" },
+          { header: "Days Overdue", key: "_daysOverdue" },
+        ],
+        data: (overdueLoans || []).map((l: any) => ({
+          ...l,
+          _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
+          _dueDate: new Date(l.dueDate).toLocaleDateString(),
+          _daysOverdue: Math.ceil((Date.now() - new Date(l.dueDate).getTime()) / (1000 * 60 * 60 * 24)),
+        })),
+      });
+    }
   };
 
   const tabs: { key: Tab; label: string }[] = [
@@ -126,6 +209,9 @@ export default function AdminLibraryPage() {
           <p className="mt-1 text-sm text-muted">Manage books, loans, and returns</p>
         </div>
         <div className="flex gap-2">
+          {tab !== "analytics" && (
+            <ExportDropdown onExport={handleExport} />
+          )}
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
             <ArrowRightLeft className="mr-2 h-4 w-4" />
             Checkout
@@ -367,42 +453,50 @@ export default function AdminLibraryPage() {
 
       {/* Add/Edit Book Modal */}
       <Modal isOpen={showBookModal} onClose={resetBookForm} title={editingBookId ? "Edit Book" : "Add Book"} size="lg">
-        <div className="space-y-4">
+        <form onSubmit={handleSaveBook} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Title</label>
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.title}
-                onChange={(e) => setBookForm({ ...bookForm, title: e.target.value })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.title ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("title")}
               />
+              {bookForm.formState.errors.title && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.title.message}</p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Author</label>
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.author}
-                onChange={(e) => setBookForm({ ...bookForm, author: e.target.value })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.author ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("author")}
               />
+              {bookForm.formState.errors.author && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.author.message}</p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">ISBN</label>
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.isbn}
-                onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.isbn ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("isbn")}
               />
+              {bookForm.formState.errors.isbn && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.isbn.message}</p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Category</label>
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.category}
-                onChange={(e) => setBookForm({ ...bookForm, category: e.target.value })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("category")}
                 placeholder="e.g. Fiction, Science, History"
               />
+              {bookForm.formState.errors.category && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.category.message}</p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -410,64 +504,72 @@ export default function AdminLibraryPage() {
               <label className="mb-1 block text-sm font-medium">Total Copies</label>
               <input
                 type="number"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.quantity}
-                onChange={(e) => setBookForm({ ...bookForm, quantity: Number(e.target.value) })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.quantity ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("quantity", { valueAsNumber: true })}
               />
+              {bookForm.formState.errors.quantity && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.quantity.message}</p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Shelf Location</label>
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                value={bookForm.shelfLocation}
-                onChange={(e) => setBookForm({ ...bookForm, shelfLocation: e.target.value })}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                {...bookForm.register("shelfLocation")}
                 placeholder="e.g. A-3-12"
               />
+              {bookForm.formState.errors.shelfLocation && (
+                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.shelfLocation.message}</p>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={resetBookForm}>Cancel</Button>
-            <Button onClick={handleSaveBook} isLoading={createBook.isPending || updateBook.isPending}>
+            <Button type="button" variant="outline" onClick={resetBookForm}>Cancel</Button>
+            <Button type="submit" isLoading={createBook.isPending || updateBook.isPending}>
               {editingBookId ? "Update" : "Add Book"}
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Checkout Modal */}
-      <Modal isOpen={showCheckoutModal} onClose={() => setShowCheckoutModal(false)} title="Checkout Book">
-        <div className="space-y-4">
+      <Modal isOpen={showCheckoutModal} onClose={() => { setShowCheckoutModal(false); checkoutFormHook.reset(); }} title="Checkout Book">
+        <form onSubmit={handleCheckout} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Book</label>
             <select
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={checkoutForm.bookIdentifier}
-              onChange={(e) => setCheckoutForm({ ...checkoutForm, bookIdentifier: e.target.value })}
+              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.bookIdentifier ? "border-red-500" : "border-border"} px-3 py-2 text-sm`}
+              {...checkoutFormHook.register("bookIdentifier")}
             >
               <option value="">Select book</option>
               {books?.filter((b: any) => b.availableCount > 0).map((b: any) => (
                 <option key={b.id} value={b.id}>{b.title} ({b.availableCount} available)</option>
               ))}
             </select>
+            {checkoutFormHook.formState.errors.bookIdentifier && (
+              <p className="mt-1 text-xs text-red-500">{checkoutFormHook.formState.errors.bookIdentifier.message}</p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Borrower (Student)</label>
             <select
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-              value={checkoutForm.studentIdentifier}
-              onChange={(e) => setCheckoutForm({ ...checkoutForm, studentIdentifier: e.target.value })}
+              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.studentIdentifier ? "border-red-500" : "border-border"} px-3 py-2 text-sm`}
+              {...checkoutFormHook.register("studentIdentifier")}
             >
               <option value="">Select student</option>
               {students.map((s: any) => (
                 <option key={s.id} value={s.student?.studentIdNumber || s.id}>{s.firstName} {s.lastName} {s.student?.studentIdNumber ? `(${s.student.studentIdNumber})` : ""}</option>
               ))}
             </select>
+            {checkoutFormHook.formState.errors.studentIdentifier && (
+              <p className="mt-1 text-xs text-red-500">{checkoutFormHook.formState.errors.studentIdentifier.message}</p>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => setShowCheckoutModal(false)}>Cancel</Button>
-            <Button onClick={handleCheckout} isLoading={checkout.isPending}>Checkout</Button>
+            <Button type="button" variant="outline" onClick={() => { setShowCheckoutModal(false); checkoutFormHook.reset(); }}>Cancel</Button>
+            <Button type="submit" isLoading={checkout.isPending}>Checkout</Button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       {/* Delete Confirmation */}
