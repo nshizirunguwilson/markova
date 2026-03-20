@@ -94,6 +94,15 @@ export function useMyLoans() {
   });
 }
 
+export function useBulkImportBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { books: any[] }) => (await api.post("/library/books/bulk", data)).data,
+    onSuccess: (data: any) => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success(`${data.count} books imported`); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Import failed"),
+  });
+}
+
 export function useLibraryAnalytics() {
   return useQuery({
     queryKey: ["library-analytics"],

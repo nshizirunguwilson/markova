@@ -29,6 +29,7 @@ import {
   useActiveLoans,
   useOverdueLoans,
   useLibraryAnalytics,
+  useBulkImportBooks,
 } from "@/hooks/use-library";
 import { useUsers } from "@/hooks/use-users";
 import {
@@ -40,6 +41,7 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   BarChart3,
+  Upload,
 } from "lucide-react";
 import { exportData } from "@/lib/export";
 import { toast } from "sonner";
@@ -80,11 +82,13 @@ export default function AdminLibraryPage() {
   const deleteBook = useDeleteBook();
   const checkout = useCheckout();
   const returnBook = useReturn();
+  const bulkImport = useBulkImportBooks();
 
   const [showBookModal, setShowBookModal] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const bookForm = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema),
@@ -215,6 +219,10 @@ export default function AdminLibraryPage() {
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
             <ArrowRightLeft className="mr-2 h-4 w-4" />
             Checkout
+          </Button>
+          <Button variant="outline" onClick={() => setShowBulkImport(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Import
           </Button>
           <Button onClick={() => { resetBookForm(); setShowBookModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
@@ -578,6 +586,71 @@ export default function AdminLibraryPage() {
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <Button variant="danger" onClick={handleDeleteBook} isLoading={deleteBook.isPending}>Delete</Button>
+        </div>
+      </Modal>
+
+      {/* Bulk Import Modal */}
+      <Modal isOpen={showBulkImport} onClose={() => setShowBulkImport(false)} title="Bulk Import Books" size="lg">
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Upload a CSV file to import multiple books at once. Download the template to see the expected format.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const csv = "title,author,isbn,category,quantity,shelfLocation\n";
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "books-import-template.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Download Template
+          </Button>
+          <div>
+            <label className="mb-1 block text-sm font-medium">CSV File</label>
+            <input
+              type="file"
+              accept=".csv"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const text = ev.target?.result as string;
+                  const lines = text.split("\n").filter((line) => line.trim());
+                  if (lines.length < 2) {
+                    toast.error("CSV file is empty or has no data rows");
+                    return;
+                  }
+                  const headers = lines[0].split(",").map((h) => h.trim());
+                  const books = lines.slice(1).map((line) => {
+                    const values = line.split(",").map((v) => v.trim());
+                    const obj: Record<string, any> = {};
+                    headers.forEach((header, i) => {
+                      obj[header] = values[i] || "";
+                    });
+                    if (obj.quantity) obj.quantity = Number(obj.quantity);
+                    return obj;
+                  });
+                  bulkImport.mutate({ books }, {
+                    onSuccess: () => {
+                      setShowBulkImport(false);
+                      e.target.value = "";
+                    },
+                  });
+                };
+                reader.readAsText(file);
+              }}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setShowBulkImport(false)}>Cancel</Button>
+          </div>
         </div>
       </Modal>
     </div>
