@@ -35,7 +35,7 @@ export class MessagingService {
         participants: {
           create: allParticipants.map((userId, i) => ({
             userId,
-            isAdmin: i === 0, // creator is admin
+            isAdmin: i === 0,
           })),
         },
       },
@@ -52,7 +52,7 @@ export class MessagingService {
       where: { participants: { some: { userId } } },
       include: {
         participants: {
-          include: { user: { select: { id: true, firstName: true, lastName: true, photoUrl: true, role: true } } },
+          include: { user: { select: { id: true, firstName: true, lastName: true, photoUrl: true, role: true, lastSeenAt: true } } },
         },
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -63,7 +63,6 @@ export class MessagingService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Calculate unread counts
     const result = await Promise.all(
       conversations.map(async (conv) => {
         const unreadCount = await this.prisma.message.count({
@@ -90,7 +89,6 @@ export class MessagingService {
   }
 
   async getMessages(conversationId: string, userId: string, limit = 50, before?: string) {
-    // Verify user is participant
     await this.ensureParticipant(conversationId, userId);
 
     const where: any = { conversationId };
@@ -116,6 +114,7 @@ export class MessagingService {
         senderUserId,
         content: dto.content,
         contentType: (dto.contentType as any) || 'TEXT',
+        status: 'SENT',
         fileUrl: dto.fileUrl,
       },
       include: {
@@ -133,10 +132,10 @@ export class MessagingService {
         senderUserId: { not: userId },
         reads: { none: { userId } },
       },
-      select: { id: true },
+      select: { id: true, senderUserId: true },
     });
 
-    if (unreadMessages.length === 0) return { count: 0 };
+    if (unreadMessages.length === 0) return { count: 0, readMessageIds: [] };
 
     await this.prisma.messageRead.createMany({
       data: unreadMessages.map((m) => ({
@@ -146,7 +145,16 @@ export class MessagingService {
       skipDuplicates: true,
     });
 
-    return { count: unreadMessages.length };
+    const readMessageIds = unreadMessages.map((m) => m.id);
+
+    // Update message status to READ for messages where all participants have read
+    // For simplicity: any read by a non-sender marks it as READ
+    await this.prisma.message.updateMany({
+      where: { id: { in: readMessageIds }, status: { not: 'READ' } },
+      data: { status: 'READ' },
+    });
+
+    return { count: unreadMessages.length, readMessageIds };
   }
 
   async getUnreadCount(userId: string) {
@@ -158,6 +166,54 @@ export class MessagingService {
       },
     });
     return { unreadCount: count };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DELIVERY STATUS METHODS (used by WebSocket gateway)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async markDelivered(userId: string) {
+    // Find all messages sent TO this user that are still in SENT status
+    const messages = await this.prisma.message.findMany({
+      where: {
+        status: 'SENT',
+        senderUserId: { not: userId },
+        conversation: { participants: { some: { userId } } },
+      },
+      select: { id: true, senderUserId: true, conversationId: true },
+    });
+
+    if (messages.length === 0) return [];
+
+    await this.prisma.message.updateMany({
+      where: { id: { in: messages.map((m) => m.id) } },
+      data: { status: 'DELIVERED' },
+    });
+
+    return messages;
+  }
+
+  async updateMessageStatus(messageId: string, status: 'SENT' | 'DELIVERED' | 'READ') {
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { status: status as any },
+    });
+  }
+
+  async getUserConversationIds(userId: string): Promise<string[]> {
+    const participants = await this.prisma.conversationParticipant.findMany({
+      where: { userId },
+      select: { conversationId: true },
+    });
+    return participants.map((p) => p.conversationId);
+  }
+
+  async getConversationParticipantIds(conversationId: string): Promise<string[]> {
+    const participants = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId },
+      select: { userId: true },
+    });
+    return participants.map((p) => p.userId);
   }
 
   private async ensureParticipant(conversationId: string, userId: string) {
