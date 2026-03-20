@@ -24,7 +24,7 @@ export class MarksService {
   // MARK CRUD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async create(dto: CreateMarkDto, teacherId: string) {
+  async create(dto: CreateMarkDto, teacherId: string | null, role: string = 'TEACHER') {
     // Validate term is not closed
     await this.ensureTermOpen(dto.termId);
 
@@ -36,6 +36,18 @@ export class MarksService {
       throw new BadRequestException(`Score ${dto.score} exceeds max ${maxScore}`);
     }
 
+    // Admin without a teacher profile: find the teacher assigned to this subject+class
+    let resolvedTeacherId = teacherId;
+    if (!resolvedTeacherId && role === 'ADMIN') {
+      const assignment = await this.prisma.teacherSubjectClass.findFirst({
+        where: { subjectId: dto.subjectId, classSectionId: dto.classSectionId },
+      });
+      if (assignment) resolvedTeacherId = assignment.teacherId;
+    }
+    if (!resolvedTeacherId) {
+      throw new BadRequestException('No teacher found for this subject and class');
+    }
+
     return this.prisma.mark.create({
       data: {
         studentId: dto.studentId,
@@ -45,7 +57,7 @@ export class MarksService {
         assessmentTypeId: dto.assessmentTypeId,
         score: dto.score,
         maxScore,
-        teacherId,
+        teacherId: resolvedTeacherId,
       },
       include: {
         student: { include: { user: { select: { firstName: true, lastName: true } } } },
@@ -55,13 +67,13 @@ export class MarksService {
     });
   }
 
-  async update(id: string, dto: UpdateMarkDto, teacherId: string) {
+  async update(id: string, dto: UpdateMarkDto, teacherId: string | null, role: string = 'TEACHER') {
     const mark = await this.prisma.mark.findUnique({
       where: { id },
       include: { subject: true, term: true },
     });
     if (!mark) throw new NotFoundException('Mark not found');
-    if (mark.teacherId !== teacherId) {
+    if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only edit your own marks');
     }
     await this.ensureTermOpen(mark.termId);
@@ -82,21 +94,33 @@ export class MarksService {
     });
   }
 
-  async delete(id: string, teacherId: string) {
+  async delete(id: string, teacherId: string | null, role: string = 'TEACHER') {
     const mark = await this.prisma.mark.findUnique({ where: { id }, include: { term: true } });
     if (!mark) throw new NotFoundException('Mark not found');
-    if (mark.teacherId !== teacherId) {
+    if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only delete your own marks');
     }
     await this.ensureTermOpen(mark.termId);
     return this.prisma.mark.delete({ where: { id } });
   }
 
-  async batchEntry(dto: BatchMarkEntryDto, teacherId: string) {
+  async batchEntry(dto: BatchMarkEntryDto, teacherId: string | null, role: string = 'TEACHER') {
     await this.ensureTermOpen(dto.termId);
 
     const subject = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } });
     if (!subject) throw new NotFoundException('Subject not found');
+
+    // Admin without a teacher profile: find the teacher assigned to this subject+class
+    let resolvedTeacherId = teacherId;
+    if (!resolvedTeacherId && role === 'ADMIN') {
+      const assignment = await this.prisma.teacherSubjectClass.findFirst({
+        where: { subjectId: dto.subjectId, classSectionId: dto.classSectionId },
+      });
+      if (assignment) resolvedTeacherId = assignment.teacherId;
+    }
+    if (!resolvedTeacherId) {
+      throw new BadRequestException('No teacher found for this subject and class');
+    }
 
     // Validate all scores
     for (const m of dto.marks) {
@@ -118,7 +142,7 @@ export class MarksService {
             assessmentTypeId: dto.assessmentTypeId,
           },
         },
-        update: { score: m.score, maxScore, teacherId },
+        update: { score: m.score, maxScore, teacherId: resolvedTeacherId },
         create: {
           studentId: m.studentId,
           subjectId: dto.subjectId,
@@ -127,7 +151,7 @@ export class MarksService {
           assessmentTypeId: dto.assessmentTypeId,
           score: m.score,
           maxScore,
-          teacherId,
+          teacherId: resolvedTeacherId,
         },
       });
       results.push(result);

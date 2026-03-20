@@ -40,14 +40,14 @@ export class MarksController {
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Create a single mark' })
   create(@Body() dto: CreateMarkDto, @CurrentUser() user: any) {
-    return this.service.create(dto, user.teacherId);
+    return this.service.create(dto, user.teacherId, user.role);
   }
 
   @Post('batch')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Batch entry of marks for a class' })
   batchEntry(@Body() dto: BatchMarkEntryDto, @CurrentUser() user: any) {
-    return this.service.batchEntry(dto, user.teacherId);
+    return this.service.batchEntry(dto, user.teacherId, user.role);
   }
 
   @Get()
@@ -80,14 +80,14 @@ export class MarksController {
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Update a mark' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMarkDto, @CurrentUser() user: any) {
-    return this.service.update(id, dto, user.teacherId);
+    return this.service.update(id, dto, user.teacherId, user.role);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Delete a mark' })
   delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
-    return this.service.delete(id, user.teacherId);
+    return this.service.delete(id, user.teacherId, user.role);
   }
 
   // ── Term Results ────────────────────────────────────────────────────────
