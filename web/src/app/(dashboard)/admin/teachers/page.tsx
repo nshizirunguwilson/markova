@@ -13,9 +13,11 @@ import {
   TableHead,
   TableCell,
   PageSpinner,
+  ExportDropdown,
 } from "@/components/ui";
 import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useAssignments, useAcademicYears } from "@/hooks/use-academic";
+import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, Users } from "lucide-react";
 
 export default function AdminTeachersPage() {
@@ -45,13 +47,36 @@ export default function AdminTeachersPage() {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
 
+  const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
+    exportData(format, {
+      filename: "teachers",
+      title: "Teachers",
+      columns: [
+        { header: "Name", key: "_name" },
+        { header: "Email", key: "email" },
+        { header: "Phone", key: "phone" },
+        { header: "Employee ID", key: "teacher.employeeId" },
+        { header: "Employment Status", key: "teacher.employmentStatus" },
+        { header: "Status", key: "_status" },
+      ],
+      data: teachers.map((u: any) => ({
+        ...u,
+        _name: `${u.firstName} ${u.lastName}`,
+        _status: u.isActive ? "Active" : "Inactive",
+      })),
+    });
+  };
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Teachers</h1>
-        <p className="mt-1 text-sm text-muted">
-          {meta.total} teachers in the system
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Teachers</h1>
+          <p className="mt-1 text-sm text-muted">
+            {meta.total} teachers in the system
+          </p>
+        </div>
+        <ExportDropdown onExport={handleExport} disabled={teachers.length === 0} />
       </div>
 
       <Card padding="sm" className="mb-5">

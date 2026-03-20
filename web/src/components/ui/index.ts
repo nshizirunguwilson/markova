@@ -13,3 +13,4 @@ export {
 export { Badge } from "./badge";
 export { Avatar } from "./avatar";
 export { Spinner, PageSpinner } from "./spinner";
+export { ExportDropdown } from "./export-dropdown";

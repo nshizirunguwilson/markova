@@ -13,9 +13,11 @@ import {
   TableHead,
   TableCell,
   PageSpinner,
+  ExportDropdown,
 } from "@/components/ui";
 import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
+import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 
 export default function AdminStudentsPage() {
@@ -38,17 +40,42 @@ export default function AdminStudentsPage() {
   const students = data?.data || [];
   const meta = data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 };
 
+  const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
+    exportData(format, {
+      filename: "students",
+      title: "Students",
+      columns: [
+        { header: "Name", key: "_name" },
+        { header: "Email", key: "email" },
+        { header: "Student ID", key: "student.studentIdNumber" },
+        { header: "Class", key: "_class" },
+        { header: "Gender", key: "student.gender" },
+        { header: "Phone", key: "phone" },
+        { header: "Status", key: "_status" },
+      ],
+      data: students.map((u: any) => ({
+        ...u,
+        _name: `${u.firstName} ${u.lastName}`,
+        _class: u.student?.classSection ? `${u.student.classSection.classLevel?.name} ${u.student.classSection.name}` : "",
+        _status: u.isActive ? "Active" : "Inactive",
+      })),
+    });
+  };
+
   const handleSearch = () => {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Students</h1>
-        <p className="mt-1 text-sm text-muted">
-          {meta.total} students enrolled
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Students</h1>
+          <p className="mt-1 text-sm text-muted">
+            {meta.total} students enrolled
+          </p>
+        </div>
+        <ExportDropdown onExport={handleExport} disabled={students.length === 0} />
       </div>
 
       <Card padding="sm" className="mb-5">
