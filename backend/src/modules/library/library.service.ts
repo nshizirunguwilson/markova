@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateBookDto,
   UpdateBookDto,
@@ -16,7 +17,10 @@ import {
 
 @Injectable()
 export class LibraryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // BOOK CRUD
@@ -290,6 +294,26 @@ export class LibraryService {
         borrower: { select: { firstName: true, lastName: true, email: true } },
       },
     });
+  }
+
+  async sendDueReminders() {
+    const loans = await this.getDueReminders();
+    let sentCount = 0;
+
+    for (const loan of loans) {
+      const dueDate = new Date(loan.dueDate).toLocaleDateString();
+      await this.notifications.send({
+        userId: loan.borrowerUserId,
+        title: 'Library Book Due Soon',
+        message: `Your borrowed book <strong>"${loan.book.title}"</strong> is due on <strong>${dueDate}</strong>. Please return it on time to avoid penalties.`,
+        type: 'EMAIL',
+        relatedEntityType: 'BOOK_LOAN',
+        relatedEntityId: loan.id,
+      });
+      sentCount++;
+    }
+
+    return { sent: sentCount };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

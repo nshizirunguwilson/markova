@@ -123,6 +123,13 @@ export class LibraryController {
     return this.service.getDueReminders();
   }
 
+  @Post('reminders/send')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Send due-date reminder emails to borrowers' })
+  sendDueReminders() {
+    return this.service.sendDueReminders();
+  }
+
   @Get('loans/my')
   @Roles('STUDENT', 'TEACHER')
   @ApiOperation({ summary: 'Get current user loans' })
