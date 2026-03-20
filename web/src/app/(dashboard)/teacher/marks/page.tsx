@@ -8,10 +8,11 @@ import {
   useAssessmentTypes,
 } from "@/hooks/use-academic";
 import { useMarksCompletion, useBatchMarks } from "@/hooks/use-marks";
-import { ClipboardList, Save, CheckCircle, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { ClipboardList, Save, CheckCircle, AlertCircle, Wifi, WifiOff, Database } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
+import { savePendingMarks, getPendingMarks, clearPendingMarks, getPendingCount } from "@/lib/offline-db";
 
 interface Assignment {
   id: string;
@@ -40,7 +41,8 @@ export default function TeacherMarksPage() {
   const [selectedAT, setSelectedAT] = useState<string>("");
   const [scores, setScores] = useState<ScoreEntry[]>([]);
   const [isOnline, setIsOnline] = useState(true);
-  const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   const batchMarks = useBatchMarks();
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -99,16 +101,49 @@ export default function TeacherMarksPage() {
     };
   }, []);
 
-  // Sync offline queue when back online
+  // Load pending count from IndexedDB on mount
   useEffect(() => {
-    if (isOnline && offlineQueue.length > 0) {
-      toast.info("Syncing offline marks...");
-      for (const payload of offlineQueue) {
-        batchMarks.mutate(payload);
-      }
-      setOfflineQueue([]);
-    }
+    getPendingCount().then(setPendingCount).catch(() => {});
+  }, []);
+
+  // Sync IndexedDB queue when back online
+  useEffect(() => {
+    if (!isOnline || syncing) return;
+    syncOfflineMarks();
   }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncOfflineMarks = async () => {
+    try {
+      const pending = await getPendingMarks();
+      if (pending.length === 0) return;
+
+      setSyncing(true);
+      toast.info(`Syncing ${pending.length} offline entries...`);
+
+      let successCount = 0;
+      for (const entry of pending) {
+        const { id: _id, savedAt: _savedAt, ...payload } = entry;
+        try {
+          await api.post("/marks/batch", payload);
+          successCount++;
+        } catch {
+          // Keep failed entries — they'll retry next time
+        }
+      }
+
+      if (successCount === pending.length) {
+        await clearPendingMarks();
+        setPendingCount(0);
+        toast.success(`All ${successCount} offline entries synced`);
+      } else {
+        toast.warning(`Synced ${successCount}/${pending.length} — retrying failed ones later`);
+      }
+    } catch {
+      // IndexedDB access failed
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleScoreChange = useCallback(
     (index: number, value: string) => {
@@ -146,9 +181,14 @@ export default function TeacherMarksPage() {
     };
 
     if (!isOnline) {
-      setOfflineQueue((q) => [...q, payload]);
-      setScores((prev) => prev.map((s) => ({ ...s, dirty: false })));
-      toast.info("Saved offline — will sync when connected");
+      savePendingMarks(payload)
+        .then(() => getPendingCount())
+        .then((count) => {
+          setPendingCount(count);
+          setScores((prev) => prev.map((s) => ({ ...s, dirty: false })));
+          toast.info("Saved to device — will sync when connected");
+        })
+        .catch(() => toast.error("Failed to save offline"));
       return;
     }
 
@@ -176,9 +216,12 @@ export default function TeacherMarksPage() {
           ) : (
             <Badge variant="danger"><WifiOff className="mr-1 h-3 w-3" /> Offline</Badge>
           )}
-          {offlineQueue.length > 0 && (
-            <Badge>{offlineQueue.length} pending sync</Badge>
+          {pendingCount > 0 && (
+            <Badge variant="warning">
+              <Database className="mr-1 h-3 w-3" /> {pendingCount} pending sync
+            </Badge>
           )}
+          {syncing && <Spinner className="h-4 w-4" />}
         </div>
       </div>
 
