@@ -76,7 +76,7 @@ export default function AdminFeesPage() {
   };
 
   const handlePrintReceipt = (id: string) => {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/fees/${id}/receipt`;
+    const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/fees/${id}/receipt/pdf`;
     window.open(url, "_blank");
   };
 

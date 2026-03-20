@@ -8,7 +8,9 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FeesService } from './fees.service';
@@ -69,5 +71,20 @@ export class FeesController {
   @ApiOperation({ summary: 'Generate payment receipt HTML' })
   getReceipt(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.generateReceiptHtml(id);
+  }
+
+  @Get(':id/receipt/pdf')
+  @Roles('ADMIN', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Download payment receipt as PDF' })
+  async getReceiptPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.generateReceiptPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename=receipt-${id}.pdf`,
+    });
+    res.send(buffer);
   }
 }
