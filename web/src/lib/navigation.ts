@@ -18,6 +18,7 @@ import {
   UserCheck,
   Backpack,
   CreditCard,
+  ArrowUpCircle,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -55,6 +56,7 @@ const adminNav: NavSection[] = [
       { label: "Marks", href: "/admin/marks", icon: ClipboardList },
       { label: "Report Cards", href: "/admin/reports", icon: FileText },
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
+      { label: "Promotion", href: "/admin/promotion", icon: ArrowUpCircle },
     ],
   },
   {
