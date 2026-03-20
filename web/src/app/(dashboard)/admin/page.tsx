@@ -2,6 +2,7 @@
 
 import { useAuthStore } from "@/stores/auth-store";
 import { Card, CardTitle, PageSpinner } from "@/components/ui";
+import { TooltipGuide } from "@/components/ui/tooltip-guide";
 import { useAdminDashboard } from "@/hooks/use-analytics";
 import { useAttendanceDashboard } from "@/hooks/use-attendance";
 import { useFeeSummary } from "@/hooks/use-fees";
@@ -108,7 +109,7 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-5">
+      <div data-guide="stat-cards" className="grid grid-cols-4 gap-5">
         {statCards.map((card) => (
           <Card key={card.label} padding="md" className="flex items-center gap-4">
             <div
@@ -126,7 +127,7 @@ export default function AdminDashboard() {
 
       <div className="mt-8 grid grid-cols-2 gap-5">
         <Card>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle data-guide="quick-actions">Quick Actions</CardTitle>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {quickActions.map((action) => (
               <Link
@@ -142,7 +143,7 @@ export default function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle data-guide="at-a-glance" className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             At a Glance
           </CardTitle>
@@ -188,6 +189,26 @@ export default function AdminDashboard() {
           </div>
         </Card>
       </div>
+      <TooltipGuide
+        id="admin-dashboard"
+        steps={[
+          {
+            target: "[data-guide='stat-cards']",
+            title: "School Overview",
+            content: "These cards show real-time stats for your school — students, teachers, attendance, and fees at a glance.",
+          },
+          {
+            target: "[data-guide='quick-actions']",
+            title: "Quick Actions",
+            content: "Jump to common tasks like adding students, recording attendance, or entering marks.",
+          },
+          {
+            target: "[data-guide='at-a-glance']",
+            title: "Performance Snapshot",
+            content: "Track attendance rates, fee collection, and library status in real time.",
+          },
+        ]}
+      />
     </div>
   );
 }
