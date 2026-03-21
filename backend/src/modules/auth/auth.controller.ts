@@ -8,6 +8,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
@@ -27,6 +28,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Login with email/phone and password' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
@@ -35,6 +37,7 @@ export class AuthController {
   }
 
   @Post('verify-otp')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Verify OTP to complete login' })
   async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
@@ -60,6 +63,7 @@ export class AuthController {
   }
 
   @Post('request-reset')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Request password reset via email or SMS' })
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
     return this.authService.requestPasswordReset(dto);

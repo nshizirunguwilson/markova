@@ -19,9 +19,10 @@ Everything below is fully implemented, tested, and production-ready.
 | **Audit Logging** | All non-GET requests logged via NestJS interceptor (user, action, entity, IP address) |
 | **Role-Based Access** | `@Roles()` guard on all endpoints, role-based sidebar navigation, per-role dashboard pages |
 | **API Documentation** | Swagger/OpenAPI auto-generated at `/api/docs` |
-| **Security** | Helmet HTTP headers, CORS, compression, global validation pipe, global exception filter |
+| **Security** | Helmet HTTP headers, CORS, compression, global validation pipe, global exception filter, API rate limiting (100 req/min global, 5 req/min on auth endpoints) |
 | **CI/CD** | GitHub Actions pipeline for lint, type-check, test, build on push |
 | **Deployment Guide** | Comprehensive docs at `/docs/deployment-guide.md` (Ubuntu 22+, Nginx, SSL, systemd, backups) |
+| **Backup Automation** | `scripts/backup-db.sh` — daily pg_dump with gzip compression, 30-day rotation, cron-ready (`0 2 * * *`) |
 | **Email Notifications** | nodemailer + Brevo SMTP relay, domain authenticated (SPF+DKIM+DMARC on wilsonn.tech), HTML template with Markova blue branding |
 
 ### Academic & School Setup
@@ -202,6 +203,10 @@ SMS integration is the **only** feature not yet working. It requires a paid phon
 ---
 
 ## 4. Changelog
+
+### 2026-03-21 — Rate limiting & backup automation
+1. Global API rate limiting via @nestjs/throttler (100 req/min, 5 req/min on login/OTP/reset)
+2. Database backup script with daily cron, gzip compression, 30-day rotation
 
 ### 2026-03-21 — All P2/P3 features implemented
 1. Receipt PDF generation for fees (puppeteer PDF download endpoint + frontend button)
