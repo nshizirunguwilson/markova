@@ -1,23 +1,133 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View, Text, FlatList, StyleSheet, Pressable, RefreshControl,
+} from 'react-native';
+import {
+  Bell, Calendar, TrendingUp, DollarSign, AlertTriangle, BookOpen, MessageSquare,
+  CheckCircle,
+} from 'lucide-react-native';
+import { useNotifications, useMarkNotificationRead } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { colors, fontSize, fontWeight, spacing } from '@/constants/theme';
-import { Bell } from 'lucide-react-native';
+import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import type { Notification } from '@/types';
 
 export default function NotificationsScreen() {
+  const { data: notifications, isLoading, refetch } = useNotifications();
+  const markRead = useMarkNotificationRead();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  const handlePress = (notification: Notification) => {
+    if (!notification.isRead) {
+      markRead.mutate(notification.id);
+    }
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'ATTENDANCE': return <Calendar size={20} color={colors.primaryLight} />;
+      case 'MARKS': return <TrendingUp size={20} color={colors.success} />;
+      case 'FEES': return <DollarSign size={20} color={colors.warning} />;
+      case 'DISCIPLINE': return <AlertTriangle size={20} color={colors.danger} />;
+      case 'HOMEWORK': return <BookOpen size={20} color={colors.primary} />;
+      case 'MESSAGE': return <MessageSquare size={20} color={colors.primaryLight} />;
+      default: return <Bell size={20} color={colors.muted} />;
+    }
+  };
+
+  const getIconBg = (type: string) => {
+    switch (type) {
+      case 'ATTENDANCE': return colors.accentLight;
+      case 'MARKS': return colors.successLight;
+      case 'FEES': return colors.warningLight;
+      case 'DISCIPLINE': return colors.dangerLight;
+      case 'HOMEWORK': return colors.accentLight;
+      default: return colors.borderLight;
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Notifications" />
-      <View style={styles.empty}>
-        <Bell size={48} color={colors.mutedLight} />
-        <Text style={styles.emptyTitle}>Notifications</Text>
-        <Text style={styles.emptyText}>Push notifications coming in Sprint 3</Text>
-      </View>
+      <ScreenHeader title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread` : undefined} />
+      {notifications && notifications.length > 0 ? (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              style={[styles.notifRow, !item.isRead && styles.notifUnread]}
+              onPress={() => handlePress(item)}
+            >
+              <View style={[styles.notifIcon, { backgroundColor: getIconBg(item.type) }]}>
+                {getIcon(item.type)}
+              </View>
+              <View style={styles.notifContent}>
+                <View style={styles.notifTopRow}>
+                  <Text style={[styles.notifTitle, !item.isRead && styles.notifTitleBold]} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.notifTime}>{formatTime(item.createdAt)}</Text>
+                </View>
+                <Text style={styles.notifMessage} numberOfLines={2}>
+                  {item.message}
+                </Text>
+              </View>
+              {!item.isRead && <View style={styles.unreadDot} />}
+            </Pressable>
+          )}
+        />
+      ) : (
+        <View style={styles.empty}>
+          <CheckCircle size={48} color={colors.mutedLight} />
+          <Text style={styles.emptyTitle}>All Caught Up</Text>
+          <Text style={styles.emptyText}>No notifications at the moment.</Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  notifRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    backgroundColor: colors.white,
+  },
+  notifUnread: { backgroundColor: colors.accentLight },
+  notifIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  notifContent: { flex: 1 },
+  notifTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  notifTitle: { fontSize: fontSize.sm, color: colors.foreground, flex: 1 },
+  notifTitleBold: { fontWeight: fontWeight.bold },
+  notifTime: { fontSize: fontSize.xs, color: colors.muted },
+  notifMessage: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
   emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
   emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm },
