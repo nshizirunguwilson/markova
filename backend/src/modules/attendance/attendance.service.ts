@@ -15,6 +15,8 @@ import {
   MarkTeacherAttendanceDto,
   TeacherQrScanDto,
   QueryAttendanceDto,
+  NfcScanDto,
+  RegisterNfcCardDto,
 } from './dto';
 
 @Injectable()
@@ -180,6 +182,107 @@ export class AttendanceService {
       record,
       student: { name: `${student.user.firstName} ${student.user.lastName}` },
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NFC ATTENDANCE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async processNfcScan(dto: NfcScanDto, markedByUserId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { nfcCardId: dto.nfcCardId },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
+    if (!student) {
+      throw new NotFoundException(`No student registered with this NFC card`);
+    }
+
+    if (student.classSectionId !== dto.classSectionId) {
+      throw new BadRequestException('Student is not in this class section');
+    }
+
+    const now = new Date();
+    const today = new Date(now.toISOString().slice(0, 10));
+    const type = dto.type || 'daily';
+
+    const existing = await this.prisma.attendance.findFirst({
+      where: {
+        studentId: student.id,
+        date: today,
+        type,
+        subjectId: dto.subjectId || null,
+      },
+    });
+    if (existing) {
+      return { duplicate: true, record: existing, student: { name: `${student.user.firstName} ${student.user.lastName}`, id: student.id } };
+    }
+
+    const isLate = type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
+
+    const record = await this.prisma.attendance.create({
+      data: {
+        studentId: student.id,
+        classSectionId: dto.classSectionId,
+        date: today,
+        type,
+        subjectId: dto.subjectId || null,
+        status: isLate ? 'LATE' : 'PRESENT',
+        scannedAt: now,
+        markedByUserId,
+      },
+    });
+
+    return {
+      duplicate: false,
+      record,
+      student: { name: `${student.user.firstName} ${student.user.lastName}`, id: student.id },
+    };
+  }
+
+  async registerNfcCard(dto: RegisterNfcCardDto) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: dto.studentId },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+
+    // Check if card is already registered to another student
+    const existing = await this.prisma.student.findFirst({
+      where: { nfcCardId: dto.nfcCardId, id: { not: dto.studentId } },
+    });
+    if (existing) {
+      throw new ConflictException('This NFC card is already registered to another student');
+    }
+
+    await this.prisma.student.update({
+      where: { id: dto.studentId },
+      data: { nfcCardId: dto.nfcCardId },
+    });
+
+    return {
+      message: `NFC card registered for ${student.user.firstName} ${student.user.lastName}`,
+      studentId: student.id,
+      nfcCardId: dto.nfcCardId,
+    };
+  }
+
+  async getClassStudentsWithNfc(classSectionId: string) {
+    const students = await this.prisma.student.findMany({
+      where: { classSectionId, status: 'ACTIVE' },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { user: { firstName: 'asc' } },
+    });
+
+    return students.map((s) => ({
+      id: s.id,
+      studentIdNumber: s.studentIdNumber,
+      nfcCardId: s.nfcCardId,
+      firstName: s.user.firstName,
+      lastName: s.user.lastName,
+      userId: s.user.id,
+    }));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

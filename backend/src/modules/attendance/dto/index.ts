@@ -58,6 +58,18 @@ export class TeacherQrScanDto {
   @ApiProperty({ description: 'Teacher QR code data' }) @IsString() @MaxLength(255) qrData: string;
 }
 
+export class NfcScanDto {
+  @ApiProperty({ description: 'Raw NFC card UID string' }) @IsString() @MaxLength(255) nfcCardId: string;
+  @ApiProperty() @IsUUID() classSectionId: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() subjectId?: string;
+  @ApiPropertyOptional({ enum: AttendanceType }) @IsOptional() @IsEnum(AttendanceType) type?: AttendanceType;
+}
+
+export class RegisterNfcCardDto {
+  @ApiProperty() @IsUUID() studentId: string;
+  @ApiProperty({ description: 'Raw NFC card UID string' }) @IsString() @MaxLength(255) nfcCardId: string;
+}
+
 export class QueryAttendanceDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() studentId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() classSectionId?: string;

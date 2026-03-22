@@ -17,6 +17,8 @@ import {
   MarkTeacherAttendanceDto,
   TeacherQrScanDto,
   QueryAttendanceDto,
+  NfcScanDto,
+  RegisterNfcCardDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -85,6 +87,29 @@ export class AttendanceController {
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentSummary(studentId, dateFrom, dateTo);
+  }
+
+  // ── NFC Attendance ─────────────────────────────────────────────────────
+
+  @Post('nfc-scan')
+  @Roles('ADMIN', 'TEACHER')
+  @ApiOperation({ summary: 'Process NFC card scan for attendance' })
+  nfcScan(@Body() dto: NfcScanDto, @CurrentUser() user: any) {
+    return this.service.processNfcScan(dto, user.id);
+  }
+
+  @Post('register-nfc')
+  @Roles('ADMIN', 'TEACHER')
+  @ApiOperation({ summary: 'Register NFC card to a student' })
+  registerNfc(@Body() dto: RegisterNfcCardDto) {
+    return this.service.registerNfcCard(dto);
+  }
+
+  @Get('class-students')
+  @Roles('ADMIN', 'TEACHER')
+  @ApiOperation({ summary: 'Get class students with NFC card IDs for local cache' })
+  getClassStudentsWithNfc(@Query('classSectionId') classSectionId: string) {
+    return this.service.getClassStudentsWithNfc(classSectionId);
   }
 
   // ── Teacher Attendance ──────────────────────────────────────────────────

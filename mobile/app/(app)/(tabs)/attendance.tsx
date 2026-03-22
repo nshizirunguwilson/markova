@@ -1,16 +1,18 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Alert, FlatList,
+  View, Text, ScrollView, StyleSheet, Pressable, Alert, FlatList,
+  Platform, Vibration,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Smartphone, List, CheckCircle, XCircle, Clock, Send, ChevronDown,
-  Users,
+  Users, Wifi, WifiOff, CreditCard,
 } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import {
-  useTeacherAssignments, useClassStudents, useClassAttendance, useBulkAttendance, useCurrentTerm,
+  useTeacherAssignments, useClassStudents, useClassAttendance, useBulkAttendance,
+  useCurrentTerm, useClassStudentsNfc, useNfcScan,
 } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -30,19 +32,36 @@ export default function AttendanceScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
 
-  // Step state
-  const [step, setStep] = useState<'select-class' | 'take-attendance' | 'review'>('select-class');
+  const [step, setStep] = useState<'select-class' | 'take-attendance'>('select-class');
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedClassName, setSelectedClassName] = useState('');
   const [mode, setMode] = useState<'manual' | 'nfc'>('manual');
   const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>({});
+
+  // NFC state
+  const [nfcScanning, setNfcScanning] = useState(false);
+  const [scannedStudents, setScannedStudents] = useState<Set<string>>(new Set());
+  const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const { data: currentTerm } = useCurrentTerm();
   const { data: assignments, isLoading: loadingAssignments } = useTeacherAssignments(user?.teacherId);
   const { data: students, isLoading: loadingStudents } = useClassStudents(selectedClassId ?? undefined);
   const { data: existingAttendance } = useClassAttendance(selectedClassId ?? undefined, today);
+  const { data: nfcStudents } = useClassStudentsNfc(selectedClassId ?? undefined);
   const bulkAttendance = useBulkAttendance();
+  const nfcScanMutation = useNfcScan();
+
+  // Check NFC support
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      setNfcSupported(false);
+    } else {
+      // On native, NFC would be checked via expo-nfc
+      // For now, mark as supported on native platforms
+      setNfcSupported(true);
+    }
+  }, []);
 
   // Unique classes from assignments
   const classes = useMemo(() => {
@@ -59,7 +78,7 @@ export default function AttendanceScreen() {
     return Array.from(map.values());
   }, [assignments]);
 
-  // Initialize attendance map when students load
+  // Student list for manual mode
   const studentsList = useMemo(() => {
     if (!students) return [];
     return students.map((s) => {
@@ -72,10 +91,21 @@ export default function AttendanceScreen() {
     });
   }, [students, existingAttendance, attendanceMap]);
 
+  // NFC student list with scan status
+  const nfcStudentList = useMemo(() => {
+    if (!nfcStudents) return [];
+    return nfcStudents.map((s) => ({
+      ...s,
+      scanned: scannedStudents.has(s.id),
+      hasCard: !!s.nfcCardId,
+    }));
+  }, [nfcStudents, scannedStudents]);
+
   const selectClass = (classId: string, className: string) => {
     setSelectedClassId(classId);
     setSelectedClassName(className);
     setAttendanceMap({});
+    setScannedStudents(new Set());
     setStep('take-attendance');
   };
 
@@ -94,7 +124,39 @@ export default function AttendanceScreen() {
     setAttendanceMap(map);
   };
 
-  const handleSubmit = () => {
+  // NFC scan handler — processes a scanned card ID
+  const handleNfcCardScanned = async (cardId: string) => {
+    if (!selectedClassId) return;
+
+    // Match against local cache first
+    const matched = nfcStudents?.find((s) => s.nfcCardId === cardId);
+    if (!matched) {
+      toast.error('Unrecognized card');
+      return;
+    }
+
+    if (scannedStudents.has(matched.id)) {
+      toast.info(`${matched.firstName} ${matched.lastName} already scanned`);
+      return;
+    }
+
+    try {
+      const result = await nfcScanMutation.mutateAsync({
+        nfcCardId: cardId,
+        classSectionId: selectedClassId,
+      });
+
+      setScannedStudents((prev) => new Set([...prev, matched.id]));
+      if (Platform.OS !== 'web') Vibration.vibrate(100);
+
+      const status = result.record?.status === 'LATE' ? '(Late)' : '';
+      toast.success(`${matched.firstName} ${matched.lastName} ${status}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Scan failed');
+    }
+  };
+
+  const handleSubmitManual = () => {
     const records = studentsList.map((s) => ({
       studentId: s.studentId,
       status: attendanceMap[s.studentId] ?? s.status,
@@ -105,7 +167,7 @@ export default function AttendanceScreen() {
 
     Alert.alert(
       'Submit Attendance',
-      `${records.length} students:\n• Present: ${records.length - absent - late}\n• Absent: ${absent}\n• Late: ${late}\n\nSubmit?`,
+      `${records.length} students:\n\u2022 Present: ${records.length - absent - late}\n\u2022 Absent: ${absent}\n\u2022 Late: ${late}\n\nSubmit?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -136,6 +198,58 @@ export default function AttendanceScreen() {
     );
   };
 
+  const handleFinishNfc = () => {
+    const total = nfcStudentList.length;
+    const scanned = scannedStudents.size;
+    const unscanned = total - scanned;
+
+    if (unscanned > 0) {
+      Alert.alert(
+        'Finish NFC Attendance',
+        `${scanned} scanned, ${unscanned} not scanned.\n\nUnscanned students will be marked as ABSENT. Continue?`,
+        [
+          { text: 'Keep Scanning', style: 'cancel' },
+          {
+            text: 'Finish',
+            onPress: () => {
+              // Mark unscanned students as absent via bulk endpoint
+              const records = nfcStudentList
+                .filter((s) => !s.scanned)
+                .map((s) => ({ studentId: s.id, status: 'ABSENT' as AttendanceStatus }));
+
+              if (records.length > 0) {
+                bulkAttendance.mutate(
+                  { classSectionId: selectedClassId!, date: today, type: 'DAILY', records },
+                  {
+                    onSuccess: () => {
+                      toast.success('Attendance completed');
+                      setStep('select-class');
+                      setSelectedClassId(null);
+                      setScannedStudents(new Set());
+                    },
+                    onError: (err: any) => {
+                      toast.error(err?.response?.data?.message ?? 'Failed to submit');
+                    },
+                  }
+                );
+              } else {
+                toast.success('Attendance completed');
+                setStep('select-class');
+                setSelectedClassId(null);
+                setScannedStudents(new Set());
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      toast.success('All students scanned!');
+      setStep('select-class');
+      setSelectedClassId(null);
+      setScannedStudents(new Set());
+    }
+  };
+
   const presentCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'PRESENT').length;
   const absentCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'ABSENT').length;
   const lateCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'LATE').length;
@@ -164,11 +278,20 @@ export default function AttendanceScreen() {
             </Pressable>
           </View>
 
-          {mode === 'nfc' && (
+          {mode === 'nfc' && !nfcSupported && (
             <View style={styles.nfcNotice}>
-              <Smartphone size={24} color={colors.primaryLight} />
+              <WifiOff size={24} color={colors.warning} />
               <Text style={styles.nfcText}>
-                NFC attendance requires the student NFC cards to be registered first. This feature will be available once the card registration is complete.
+                NFC is not available on this device. Please use a phone with NFC support, or switch to manual mode.
+              </Text>
+            </View>
+          )}
+
+          {mode === 'nfc' && nfcSupported && (
+            <View style={styles.nfcNotice}>
+              <CreditCard size={24} color={colors.primaryLight} />
+              <Text style={styles.nfcText}>
+                Select a class to start NFC scanning. Students will tap their cards on your phone to mark attendance.
               </Text>
             </View>
           )}
@@ -182,11 +305,14 @@ export default function AttendanceScreen() {
                 key={cls.id}
                 style={styles.classCard}
                 onPress={() => selectClass(cls.id, cls.name)}
+                disabled={mode === 'nfc' && !nfcSupported}
               >
                 <Users size={22} color={colors.primary} />
                 <View style={styles.classInfo}>
                   <Text style={styles.className}>{cls.name}</Text>
-                  <Text style={styles.classSubtitle}>Tap to take attendance</Text>
+                  <Text style={styles.classSubtitle}>
+                    {mode === 'nfc' ? 'Tap to start NFC scanning' : 'Tap to take attendance'}
+                  </Text>
                 </View>
                 <ChevronDown size={20} color={colors.mutedLight} style={{ transform: [{ rotate: '-90deg' }] }} />
               </Pressable>
@@ -199,7 +325,97 @@ export default function AttendanceScreen() {
     );
   }
 
-  // ─── Take Attendance Step ───
+  // ─── NFC Mode ───
+  if (mode === 'nfc') {
+    const scannedCount = scannedStudents.size;
+    const totalCount = nfcStudentList.length;
+    const unregisteredCount = nfcStudentList.filter((s) => !s.hasCard).length;
+
+    return (
+      <View style={styles.container}>
+        <ScreenHeader
+          title={selectedClassName}
+          subtitle="NFC Attendance"
+          onBack={() => { setStep('select-class'); setSelectedClassId(null); setScannedStudents(new Set()); }}
+        />
+        <View style={styles.content}>
+          {/* NFC scan header */}
+          <View style={styles.nfcHeader}>
+            <View style={styles.nfcIconContainer}>
+              <Smartphone size={40} color={colors.primary} />
+            </View>
+            <Text style={styles.nfcHeaderTitle}>
+              {nfcScanning ? 'Waiting for card...' : 'Ready to Scan'}
+            </Text>
+            <Text style={styles.nfcHeaderSub}>
+              {scannedCount}/{totalCount} students scanned
+            </Text>
+            {unregisteredCount > 0 && (
+              <Text style={styles.nfcWarning}>
+                {unregisteredCount} student{unregisteredCount > 1 ? 's' : ''} without NFC cards registered
+              </Text>
+            )}
+          </View>
+
+          {/* Progress bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBg}>
+              <View
+                style={[styles.progressFill, { width: totalCount > 0 ? `${(scannedCount / totalCount) * 100}%` : '0%' }]}
+              />
+            </View>
+          </View>
+
+          {/* Student scan list */}
+          <FlatList
+            data={nfcStudentList}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={[styles.nfcStudentRow, item.scanned && styles.nfcStudentScanned]}>
+                <View style={[styles.nfcStudentIcon, {
+                  backgroundColor: item.scanned ? colors.successLight : item.hasCard ? colors.borderLight : colors.warningLight,
+                }]}>
+                  {item.scanned ? (
+                    <CheckCircle size={20} color={colors.success} />
+                  ) : item.hasCard ? (
+                    <CreditCard size={20} color={colors.muted} />
+                  ) : (
+                    <XCircle size={20} color={colors.warning} />
+                  )}
+                </View>
+                <View style={styles.nfcStudentInfo}>
+                  <Text style={styles.nfcStudentName}>{item.firstName} {item.lastName}</Text>
+                  <Text style={styles.nfcStudentSub}>
+                    {item.scanned ? 'Scanned' : item.hasCard ? 'Waiting...' : 'No NFC card'}
+                  </Text>
+                </View>
+                {item.scanned && (
+                  <View style={[styles.statusChip, { backgroundColor: colors.success }]}>
+                    <Text style={styles.statusChipText}>PRESENT</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          />
+
+          {/* Action bar */}
+          <View style={styles.submitBar}>
+            <Button
+              title={`Finish (${scannedCount}/${totalCount})`}
+              onPress={handleFinishNfc}
+              loading={bulkAttendance.isPending}
+              fullWidth
+              size="lg"
+              icon={<Send size={18} color={colors.white} />}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ─── Manual Mode ───
   return (
     <View style={styles.container}>
       <ScreenHeader
@@ -258,7 +474,7 @@ export default function AttendanceScreen() {
         <View style={styles.submitBar}>
           <Button
             title="Submit Attendance"
-            onPress={handleSubmit}
+            onPress={handleSubmitManual}
             loading={bulkAttendance.isPending}
             fullWidth
             size="lg"
@@ -343,4 +559,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border,
     shadowColor: colors.black, shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 5,
   },
+
+  // NFC mode
+  nfcHeader: {
+    alignItems: 'center', padding: spacing.xl, backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  nfcIconContainer: {
+    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.accentLight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
+  },
+  nfcHeaderTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.foreground },
+  nfcHeaderSub: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs },
+  nfcWarning: { fontSize: fontSize.xs, color: colors.warning, marginTop: spacing.sm },
+  progressContainer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.white },
+  progressBg: { height: 6, borderRadius: 3, backgroundColor: colors.borderLight },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
+  nfcStudentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    backgroundColor: colors.white,
+  },
+  nfcStudentScanned: { backgroundColor: colors.successLight + '20' },
+  nfcStudentIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  nfcStudentInfo: { flex: 1 },
+  nfcStudentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
+  nfcStudentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
 });

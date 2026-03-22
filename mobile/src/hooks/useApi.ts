@@ -132,6 +132,39 @@ export function useBulkAttendance() {
   });
 }
 
+// ─── NFC Attendance ─────────────────────────────────────
+
+export function useClassStudentsNfc(classSectionId?: string) {
+  return useQuery<{ id: string; studentIdNumber: string; nfcCardId: string | null; firstName: string; lastName: string; userId: string }[]>({
+    queryKey: ['class-students-nfc', classSectionId],
+    queryFn: () =>
+      api.get('/attendance/class-students', { params: { classSectionId } }).then((r) => r.data),
+    enabled: !!classSectionId,
+  });
+}
+
+export function useNfcScan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { nfcCardId: string; classSectionId: string; subjectId?: string; type?: string }) =>
+      api.post('/attendance/nfc-scan', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['class-attendance'] });
+    },
+  });
+}
+
+export function useRegisterNfcCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { studentId: string; nfcCardId: string }) =>
+      api.post('/attendance/register-nfc', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['class-students-nfc'] });
+    },
+  });
+}
+
 // ─── Marks ──────────────────────────────────────────────
 
 export function useStudentMarks(studentId?: string, termId?: string) {
