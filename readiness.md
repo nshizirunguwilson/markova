@@ -1,6 +1,6 @@
 # Markova Phase 1 — Production Readiness Assessment
 
-**Date:** 2026-03-21
+**Date:** 2026-03-22
 **Assessed by:** Claude Code
 **Scope:** Phase 1 (Backend + Web Dashboard MVP)
 
@@ -19,7 +19,11 @@ Everything below is fully implemented, tested, and production-ready.
 | **Audit Logging** | All non-GET requests logged via NestJS interceptor (user, action, entity, IP address) |
 | **Role-Based Access** | `@Roles()` guard on all endpoints, role-based sidebar navigation, per-role dashboard pages |
 | **API Documentation** | Swagger/OpenAPI auto-generated at `/api/docs` |
-| **Security** | Helmet HTTP headers, CORS, compression, global validation pipe, global exception filter, API rate limiting (100 req/min global, 5 req/min on auth endpoints) |
+| **Security** | Helmet HTTP headers, CORS (env-configurable origins), compression, global validation pipe, global exception filter with logging, API rate limiting (100 req/min global, 5 req/min on auth endpoints), XSS sanitization in PDF HTML, password complexity enforcement, JWT secret required (no fallback) |
+| **Redis** | OTP sessions (5 min TTL), failed login attempts (15 min TTL), password reset tokens (1 hour TTL) — no more in-memory Maps |
+| **Database Integrity** | Prisma transactions on multi-step operations (marks calculation, year results, promotion, bulk import), duplicate payment prevention |
+| **Session Management** | Max 3 concurrent sessions, daily cleanup cron (3 AM), WebSocket auth verifies user exists and is active |
+| **Input Validation** | @IsUUID on all ID fields, @MaxLength on all strings, @IsEnum on all status/type fields, pagination params on query DTOs |
 | **CI/CD** | GitHub Actions pipeline for lint, type-check, test, build on push |
 | **Deployment Guide** | Comprehensive docs at `/docs/deployment-guide.md` (Ubuntu 22+, Nginx, SSL, systemd, backups) |
 | **Backup Automation** | `scripts/backup-db.sh` — daily pg_dump with gzip compression, 30-day rotation, cron-ready (`0 2 * * *`) |
@@ -172,7 +176,10 @@ Everything below is fully implemented, tested, and production-ready.
 | **State Management** | Zustand auth store with JWT token handling |
 | **API Client** | Axios with automatic JWT attachment and token refresh on 401 |
 | **Styling** | Tailwind CSS v4 with blue theme (#1B4F72 primary) |
-| **Toasts** | Sonner for success/error notifications |
+| **Toasts** | Sonner for success/error notifications on all mutations |
+| **UX** | Confirmation dialogs on all destructive actions, friendly empty states with icons, required field indicators on forms, responsive mobile layouts, overflow-x-auto on all tables |
+| **Error Handling** | Global error toast on mutation failures, session expiry toast on 401, consistent API error shape `{ statusCode, message, error, timestamp }` |
+| **Health Check** | `GET /health` endpoint (no auth) — verifies database connectivity |
 
 ---
 
@@ -183,6 +190,12 @@ SMS integration is the **only** feature not yet working. It requires a paid phon
 **Current state:** SMS notifications log to console. Email notifications work fully.
 
 **Impact:** OTP delivery to parents relies on SMS. Workaround: use email-based OTP or manual OTP sharing until SMS is configured.
+
+### Production server setup needed
+- **Redis** — Install and start Redis on 34.239.0.61 (see deployment guide)
+- **Chromium** — Install for PDF generation (see deployment guide)
+- **Backup cron** — Set up `crontab -e` with `0 2 * * * /path/to/scripts/backup-db.sh`
+- **CORS_ORIGINS** — Set to your production domain in `.env`
 
 ---
 
@@ -203,6 +216,27 @@ SMS integration is the **only** feature not yet working. It requires a paid phon
 ---
 
 ## 4. Changelog
+
+### 2026-03-22 — Production hardening (security, validation, UX, reliability)
+1. Redis for OTP/reset tokens/failed attempts (replaces in-memory Maps)
+2. CORS configurable via CORS_ORIGINS env var (backend + WebSocket)
+3. Global exception filter with server-side logging
+4. XSS sanitization in all PDF HTML generation
+5. Password complexity enforcement (8+ chars, upper/lower/digit/special)
+6. JWT fallback secret removed — requires JWT_SECRET env var
+7. @IsUUID, @MaxLength, @IsEnum validation on all DTOs
+8. Prisma transactions on marks calculation, year results, promotion, bulk import
+9. Duplicate payment prevention (ConflictException)
+10. Health check endpoint (GET /health)
+11. Session cleanup cron (daily 3 AM)
+12. File cleanup on avatar/logo replacement
+13. WebSocket auth verifies user exists and is active
+14. Confirmation dialogs on all destructive actions (delete book, incident, subject, class, homework)
+15. Friendly empty states with icons on all list pages
+16. Responsive mobile layouts across all admin pages
+17. Error toast on all mutation failures + session expiry
+18. Required field indicators on forms
+19. Deployment guide updated with Redis + Chromium install
 
 ### 2026-03-21 — Rate limiting & backup automation
 1. Global API rate limiting via @nestjs/throttler (100 req/min, 5 req/min on login/OTP/reset)
