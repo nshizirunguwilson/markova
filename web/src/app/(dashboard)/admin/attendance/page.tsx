@@ -14,6 +14,7 @@ import {
   TableCell,
 } from "@/components/ui";
 import { useAttendanceDashboard, useChronicallyAbsent } from "@/hooks/use-attendance";
+import { Button } from "@/components/ui";
 import { Calendar, AlertTriangle, Users, TrendingDown } from "lucide-react";
 
 export default function AdminAttendancePage() {
@@ -30,12 +31,23 @@ export default function AdminAttendancePage() {
           <h1 className="text-2xl font-bold text-foreground">Attendance Dashboard</h1>
           <p className="text-sm text-muted">Real-time attendance monitoring</p>
         </div>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+          />
+          {date !== new Date().toISOString().slice(0, 10) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDate(new Date().toISOString().slice(0, 10))}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}

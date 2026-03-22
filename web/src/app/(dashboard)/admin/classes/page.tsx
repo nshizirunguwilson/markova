@@ -59,7 +59,7 @@ export default function AdminClassesPage() {
   const [showSectionModal, setShowSectionModal] = useState(false);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "level" | "section"; id: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "level" | "section"; id: string; name: string } | null>(null);
 
   const {
     register: registerLevel,
@@ -216,7 +216,7 @@ export default function AdminClassesPage() {
                     <Button variant="ghost" size="sm" onClick={() => handleEditLevel(level)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: "level", id: level.id })}>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: "level", id: level.id, name: level.name })}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </div>
@@ -244,7 +244,7 @@ export default function AdminClassesPage() {
                                 <Button variant="ghost" size="sm" onClick={() => handleEditSection(s)}>
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: "section", id: s.id })}>
+                                <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: "section", id: s.id, name: s.name })}>
                                   <Trash2 className="h-4 w-4 text-danger" />
                                 </Button>
                               </div>
@@ -322,7 +322,7 @@ export default function AdminClassesPage() {
       {/* Delete Confirmation */}
       <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirm Delete" size="sm">
         <p className="mb-4 text-sm text-muted">
-          Are you sure you want to delete this {deleteTarget?.type === "level" ? "class level" : "section"}? This cannot be undone.
+          Are you sure you want to delete {deleteTarget?.type === "level" ? "class level" : "section"} <strong>{deleteTarget?.name}</strong>? This cannot be undone.
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>

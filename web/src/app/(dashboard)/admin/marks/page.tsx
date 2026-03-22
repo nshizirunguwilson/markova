@@ -158,6 +158,21 @@ export default function AdminMarksPage() {
             </select>
           </div>
         </div>
+        {(selectedLevel || selectedSection || selectedTerm) && (
+          <div className="mt-3 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedLevel("");
+                setSelectedSection("");
+                setSelectedTerm("");
+              }}
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* Summary Stats */}
@@ -192,6 +207,10 @@ export default function AdminMarksPage() {
                 size="sm"
                 variant={isPublished ? "danger" : "primary"}
                 onClick={() => {
+                  const msg = isPublished
+                    ? 'Are you sure you want to unpublish these results? They will no longer be visible to students and parents.'
+                    : 'Are you sure you want to publish these results? All students and parents will be able to view them.';
+                  if (!window.confirm(msg)) return;
                   publishResults.mutate({
                     classSectionId: selectedSection,
                     termId: selectedTerm,

@@ -48,7 +48,7 @@ export default function UsersPage() {
   const [searchInput, setSearchInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useUsers(filters);
   const deleteMutation = useDeleteUser();
@@ -70,7 +70,7 @@ export default function UsersPage() {
 
   const handleDelete = async () => {
     if (deleteTarget) {
-      await deleteMutation.mutateAsync(deleteTarget);
+      await deleteMutation.mutateAsync(deleteTarget.id);
       setDeleteTarget(null);
     }
   };
@@ -222,14 +222,15 @@ export default function UsersPage() {
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Link href={`/admin/users/${user.id}`}>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" aria-label="View user">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </Link>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDeleteTarget(user.id)}
+                          aria-label="Delete user"
+                          onClick={() => setDeleteTarget({ id: user.id, name: `${user.firstName} ${user.lastName}` })}
                         >
                           <Trash2 className="h-4 w-4 text-danger" />
                         </Button>
@@ -297,7 +298,7 @@ export default function UsersPage() {
         size="sm"
       >
         <p className="mb-4 text-sm text-muted">
-          Are you sure you want to deactivate this user? They will lose access
+          Are you sure you want to deactivate <strong>{deleteTarget?.name}</strong>? They will lose access
           but their data will be preserved.
         </p>
         <div className="flex justify-end gap-3">

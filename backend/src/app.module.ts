@@ -23,6 +23,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ScheduledTasksService } from './common/scheduled-tasks.service';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { AppService } from './app.service';
   controllers: [AppController],
   providers: [
     AppService,
+    ScheduledTasksService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

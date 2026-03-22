@@ -23,7 +23,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">
         {sections.map((section, si) => (
           <div key={si} className={cn(si > 0 && "mt-5")}>
             {section.title && (

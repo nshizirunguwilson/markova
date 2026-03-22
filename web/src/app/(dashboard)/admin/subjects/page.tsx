@@ -44,7 +44,7 @@ export default function AdminSubjectsPage() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SubjectForm>({
     resolver: zodResolver(subjectSchema),
@@ -77,7 +77,7 @@ export default function AdminSubjectsPage() {
 
   const handleDelete = () => {
     if (deleteTarget) {
-      deleteSubject.mutate(deleteTarget, {
+      deleteSubject.mutate(deleteTarget.id, {
         onSuccess: () => setDeleteTarget(null),
       });
     }
@@ -149,7 +149,7 @@ export default function AdminSubjectsPage() {
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(s)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(s.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: s.id, name: s.name })}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </div>
@@ -215,7 +215,7 @@ export default function AdminSubjectsPage() {
         size="sm"
       >
         <p className="mb-4 text-sm text-muted">
-          Are you sure you want to delete this subject? This cannot be undone.
+          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This cannot be undone.
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>

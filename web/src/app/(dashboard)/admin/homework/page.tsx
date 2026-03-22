@@ -88,7 +88,7 @@ export default function AdminHomeworkPage() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   const [modalLevelId, setModalLevelId] = useState("");
   const { data: modalSections } = useSections(modalLevelId || undefined);
@@ -138,7 +138,7 @@ export default function AdminHomeworkPage() {
 
   const handleDelete = () => {
     if (deleteTarget) {
-      deleteHomework.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) });
+      deleteHomework.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
     }
   };
 
@@ -261,7 +261,7 @@ export default function AdminHomeworkPage() {
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(hw)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(hw.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: hw.id, title: hw.title })}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </div>
@@ -394,7 +394,7 @@ export default function AdminHomeworkPage() {
 
       {/* Delete Confirmation */}
       <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Homework" size="sm">
-        <p className="mb-4 text-sm text-muted">Are you sure you want to delete this homework?</p>
+        <p className="mb-4 text-sm text-muted">Are you sure you want to delete <strong>{deleteTarget?.title}</strong>?</p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <Button variant="danger" onClick={handleDelete} isLoading={deleteHomework.isPending}>Delete</Button>

@@ -86,7 +86,7 @@ export default function AdminLibraryPage() {
 
   const [showBookModal, setShowBookModal] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
 
@@ -130,7 +130,7 @@ export default function AdminLibraryPage() {
 
   const handleDeleteBook = () => {
     if (deleteTarget) {
-      deleteBook.mutate(deleteTarget, { onSuccess: () => setDeleteTarget(null) });
+      deleteBook.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
     }
   };
 
@@ -268,6 +268,12 @@ export default function AdminLibraryPage() {
             </div>
           </Card>
 
+          {!loadingBooks && books && (
+            <p className="mb-3 text-sm text-muted">
+              Showing {Array.isArray(books) ? books.length : (books?.meta?.total ?? books?.data?.length ?? 0)} books
+            </p>
+          )}
+
           {loadingBooks ? (
             <PageSpinner />
           ) : (
@@ -310,7 +316,7 @@ export default function AdminLibraryPage() {
                           <Button variant="ghost" size="sm" onClick={() => handleEditBook(b)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(b.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: b.id, title: b.title })}>
                             <Trash2 className="h-4 w-4 text-danger" />
                           </Button>
                         </div>
@@ -594,7 +600,7 @@ export default function AdminLibraryPage() {
 
       {/* Delete Confirmation */}
       <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Book" size="sm">
-        <p className="mb-4 text-sm text-muted">Are you sure you want to delete this book?</p>
+        <p className="mb-4 text-sm text-muted">Are you sure you want to delete <strong>{deleteTarget?.title}</strong>?</p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
           <Button variant="danger" onClick={handleDeleteBook} isLoading={deleteBook.isPending}>Delete</Button>

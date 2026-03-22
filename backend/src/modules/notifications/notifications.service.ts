@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
@@ -6,6 +6,7 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
+  private readonly logger = new Logger(NotificationsService.name);
   private transporter: nodemailer.Transporter | null = null;
 
   constructor(
@@ -25,7 +26,7 @@ export class NotificationsService implements OnModuleInit {
           pass: this.config.get('SMTP_PASS'),
         },
       });
-      console.log(`[EMAIL] SMTP configured via ${host}`);
+      this.logger.log(`SMTP configured via ${host}`);
     }
   }
 
@@ -61,7 +62,7 @@ export class NotificationsService implements OnModuleInit {
       }
     } catch (e) {
       // Log failure but don't fail the notification creation
-      console.error(`Failed to send ${dto.type} notification:`, e);
+      this.logger.error(`Failed to send ${dto.type} notification`, e instanceof Error ? e.stack : undefined);
     }
 
     return notification;
@@ -136,7 +137,7 @@ export class NotificationsService implements OnModuleInit {
     // TODO: Implement actual SMS providers
     // Africa's Talking: uses AT_API_KEY, AT_USERNAME, AT_SENDER_ID
     // Twilio: uses TWILIO_SID, TWILIO_TOKEN, TWILIO_PHONE
-    console.log(`[SMS] Would send to ${user.phone}: ${message}`);
+    this.logger.log(`[SMS] Would send to ${user.phone}: ${message}`);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -173,6 +174,6 @@ export class NotificationsService implements OnModuleInit {
         </div>
       `,
     });
-    console.log(`[EMAIL] Sent to ${user.email}: ${subject}`);
+    this.logger.log(`Email sent to ${user.email}: ${subject}`);
   }
 }

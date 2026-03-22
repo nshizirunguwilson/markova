@@ -102,6 +102,7 @@ export function Topbar() {
   }, []);
 
   const handleLogout = () => {
+    if (!window.confirm("Are you sure you want to sign out?")) return;
     logout();
     router.push("/login");
   };
@@ -156,6 +157,7 @@ export function Topbar() {
               setSearchQuery("");
               setSearchOpen(false);
             }}
+            aria-label="Clear search"
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
@@ -196,6 +198,7 @@ export function Topbar() {
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen(!notifOpen)}
+            aria-label="Notifications"
             className="relative rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground transition-colors"
           >
             <Bell className="h-5 w-5" />

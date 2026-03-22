@@ -128,7 +128,27 @@ export default function AdminFeesPage() {
           <option value="PARTIAL">Partial</option>
           <option value="UNPAID">Unpaid</option>
         </select>
+        {(yearId || termId || statusFilter) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setYearId("");
+              setTermId("");
+              setStatusFilter("");
+            }}
+          >
+            Clear Filters
+          </Button>
+        )}
       </div>
+
+      {/* Result Count */}
+      {!isLoading && records && (
+        <p className="text-sm text-gray-500">
+          Showing {Array.isArray(records) ? records.length : (records?.meta?.total ?? records?.data?.length ?? 0)} records
+        </p>
+      )}
 
       {/* Records Table */}
       <Card className="p-0 overflow-hidden">
@@ -166,7 +186,7 @@ export default function AdminFeesPage() {
                   </TableCell>
                   <TableCell>{r.paymentMethod}</TableCell>
                   <TableCell>
-                    <button onClick={() => handlePrintReceipt(r.id)} className="text-[#2E86C1] hover:underline text-sm">
+                    <button onClick={() => handlePrintReceipt(r.id)} aria-label="Print receipt" className="text-[#2E86C1] hover:underline text-sm">
                       <Printer className="w-4 h-4" />
                     </button>
                   </TableCell>
