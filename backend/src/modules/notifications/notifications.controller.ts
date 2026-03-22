@@ -65,4 +65,14 @@ export class NotificationsController {
   markAllAsRead(@CurrentUser() user: any) {
     return this.service.markAllAsRead(user.id);
   }
+
+  @Post('push-token')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @ApiOperation({ summary: 'Register push notification token' })
+  registerPushToken(
+    @Body() body: { token: string; platform: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.service.registerPushToken(user.id, body.token, body.platform);
+  }
 }

@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Toaster } from 'sonner-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth-store';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -24,6 +25,7 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const checkAuth = useAuthStore((s) => s.checkAuth);
   const isLoading = useAuthStore((s) => s.isLoading);
+  usePushNotifications();
 
   useEffect(() => {
     checkAuth().finally(() => {

@@ -157,6 +157,7 @@ model User {
   sentMessages            Message[]
   messageReads            MessageRead[]
   notifications           Notification[]
+  pushTokens              PushToken[]
   supportTickets          SupportTicket[]
 
   @@index([role])
@@ -772,6 +773,20 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String   // 'ios', 'android'
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 // ─── SUPPORT ────────────────────────────────────────────────────────────────────

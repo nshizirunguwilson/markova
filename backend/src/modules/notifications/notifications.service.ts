@@ -177,6 +177,51 @@ export class NotificationsService implements OnModuleInit {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // PUSH TOKEN MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async registerPushToken(userId: string, token: string, platform: string) {
+    // Upsert — same token might be re-registered on app restart
+    await this.prisma.pushToken.upsert({
+      where: { token },
+      update: { userId, platform, updatedAt: new Date() },
+      create: { userId, token, platform },
+    });
+    return { success: true };
+  }
+
+  async sendPushNotification(userId: string, title: string, body: string, data?: Record<string, string>) {
+    const tokens = await this.prisma.pushToken.findMany({
+      where: { userId },
+      select: { token: true },
+    });
+
+    if (tokens.length === 0) return;
+
+    // Send via Expo Push API
+    const messages = tokens.map((t) => ({
+      to: t.token,
+      sound: 'default' as const,
+      title,
+      body,
+      data: data || {},
+    }));
+
+    try {
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messages),
+      });
+      const result = await response.json();
+      this.logger.log(`Push sent to ${tokens.length} devices for user ${userId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Push notification failed for user ${userId}:`, error);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // SMS PROVIDER (configurable via env vars)
   // ═══════════════════════════════════════════════════════════════════════════
 
