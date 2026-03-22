@@ -16,9 +16,10 @@ import {
 import { useAttendanceDashboard, useChronicallyAbsent } from "@/hooks/use-attendance";
 import { Button } from "@/components/ui";
 import { Calendar, AlertTriangle, Users, TrendingDown } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 
 export default function AdminAttendancePage() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(toLocalDateString(new Date()));
   const [tab, setTab] = useState<"dashboard" | "chronic">("dashboard");
 
   const { data: dashboard, isLoading } = useAttendanceDashboard(date);
@@ -38,11 +39,11 @@ export default function AdminAttendancePage() {
             onChange={(e) => setDate(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
           />
-          {date !== new Date().toISOString().slice(0, 10) && (
+          {date !== toLocalDateString(new Date()) && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setDate(new Date().toISOString().slice(0, 10))}
+              onClick={() => setDate(toLocalDateString(new Date()))}
             >
               Clear Filters
             </Button>

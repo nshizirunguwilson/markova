@@ -22,6 +22,7 @@ import { MessagingService } from './messaging.service';
     credentials: true,
   },
   namespace: '/chat',
+  maxHttpBufferSize: 1024 * 1024, // 1MB
 })
 export class MessagingGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -31,6 +32,11 @@ export class MessagingGateway
 
   // userId -> Set<socketId>
   private onlineUsers = new Map<string, Set<string>>();
+
+  // Rate limiting: userId -> timestamps of recent messages
+  private messageTimestamps = new Map<string, number[]>();
+  private readonly MSG_RATE_LIMIT = 30;
+  private readonly MSG_RATE_WINDOW_MS = 60000; // 1 minute
 
   constructor(
     private jwtService: JwtService,
@@ -134,6 +140,19 @@ export class MessagingGateway
   // MESSAGE EVENTS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  private checkMessageRateLimit(userId: string): boolean {
+    const now = Date.now();
+    const timestamps = this.messageTimestamps.get(userId) || [];
+    const recent = timestamps.filter((t) => now - t < this.MSG_RATE_WINDOW_MS);
+    if (recent.length >= this.MSG_RATE_LIMIT) {
+      this.messageTimestamps.set(userId, recent);
+      return false;
+    }
+    recent.push(now);
+    this.messageTimestamps.set(userId, recent);
+    return true;
+  }
+
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
@@ -146,6 +165,10 @@ export class MessagingGateway
     },
   ) {
     const userId = client.data.user.sub;
+
+    if (!this.checkMessageRateLimit(userId)) {
+      return { error: 'Rate limit exceeded. Max 30 messages per minute.' };
+    }
 
     const message = await this.messagingService.sendMessage(
       {

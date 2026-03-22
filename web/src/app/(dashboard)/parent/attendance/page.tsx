@@ -5,6 +5,7 @@ import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
 import { Calendar, Check, X, Clock, Users } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 import api from "@/lib/api";
 
 interface Child {
@@ -43,7 +44,7 @@ export default function ParentAttendancePage() {
     if (!data?.records) return [];
     const recordMap = new Map<string, string>();
     for (const r of data.records) {
-      recordMap.set(new Date(r.date).toISOString().slice(0, 10), r.status);
+      recordMap.set(toLocalDateString(new Date(r.date)), r.status);
     }
     const now = new Date();
     const year = now.getFullYear();
@@ -68,7 +69,11 @@ export default function ParentAttendancePage() {
           <h1 className="text-2xl font-bold text-foreground">Child&apos;s Attendance</h1>
           <p className="text-sm text-muted">Monitor your child&apos;s attendance</p>
         </div>
-        {children.length > 1 && (
+        {children.length === 1 ? (
+          <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
+            Viewing attendance for: <strong className="ml-1">{children[0].name}</strong>
+          </span>
+        ) : children.length > 1 ? (
           <select
             value={selectedChild}
             onChange={(e) => setSelectedChild(e.target.value)}
@@ -78,7 +83,7 @@ export default function ParentAttendancePage() {
               <option key={c.id} value={c.id}>{c.name} ({c.className})</option>
             ))}
           </select>
-        )}
+        ) : null}
       </div>
 
       {children.length > 0 && (

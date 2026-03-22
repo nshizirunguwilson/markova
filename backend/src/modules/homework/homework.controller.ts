@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HomeworkService } from './homework.service';
+import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateHomeworkDto,
   UpdateHomeworkDto,
@@ -29,7 +30,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class HomeworkController {
-  constructor(private readonly service: HomeworkService) {}
+  constructor(
+    private readonly service: HomeworkService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   @Post()
   @Roles('ADMIN', 'TEACHER')
@@ -48,7 +52,8 @@ export class HomeworkController {
   @Get(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Get homework details with submissions' })
-  findById(@Param('id', ParseUUIDPipe) id: string) {
+  async findById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    await this.ownership.verifyTeacherHomeworkAccess(user.id, user.role, id);
     return this.service.findById(id);
   }
 
@@ -87,10 +92,12 @@ export class HomeworkController {
   @Get('student/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get homework for a student' })
-  getStudentHomework(
+  async getStudentHomework(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('classSectionId') classSectionId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentHomework(studentId, classSectionId);
   }
 }

@@ -13,36 +13,45 @@ import * as express from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
+import { OwnershipService } from '../../common/ownership.service';
 import { GenerateReportCardDto, GenerateClassReportCardsDto, GenerateYearReportDto, GenerateDocumentDto, GenerateIdCardDto, BulkIdCardsDto } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Reports')
 @Controller('reports')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class ReportsController {
-  constructor(private readonly service: ReportsService) {}
+  constructor(
+    private readonly service: ReportsService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   // ── Report Cards ────────────────────────────────────────────────────────
 
   @Get('term/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card data' })
-  getTermReport(
+  async getTermReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getTermReportData(studentId, termId);
   }
 
   @Get('term/:studentId/html')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card as HTML' })
-  getTermReportHtml(
+  async getTermReportHtml(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.generateTermReportHtml(studentId, termId);
   }
 
@@ -53,7 +62,9 @@ export class ReportsController {
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
     @Res() res: express.Response,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     const pdf = await this.service.generateTermReportPdf(studentId, termId);
     res.set({
       'Content-Type': 'application/pdf',
@@ -73,10 +84,12 @@ export class ReportsController {
   @Get('year/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get year report data' })
-  getYearReport(
+  async getYearReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('academicYearId') academicYearId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getYearReportData(studentId, academicYearId);
   }
 

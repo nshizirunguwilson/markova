@@ -22,19 +22,36 @@ import {
   PenLine,
   BarChart3,
 } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 
 export default function AdminDashboard() {
   const user = useAuthStore((s) => s.user);
-  const { data: dashboard, isLoading: loadingDashboard } = useAdminDashboard();
-  const { data: attendance, isLoading: loadingAttendance } = useAttendanceDashboard(
-    new Date().toISOString().slice(0, 10)
+  const { data: dashboard, isLoading: loadingDashboard, isError: dashboardError, refetch: refetchDashboard } = useAdminDashboard();
+  const { data: attendance, isLoading: loadingAttendance, isError: attendanceError, refetch: refetchAttendance } = useAttendanceDashboard(
+    toLocalDateString(new Date())
   );
-  const { data: fees, isLoading: loadingFees } = useFeeSummary();
-  const { data: library, isLoading: loadingLibrary } = useLibraryAnalytics();
+  const { data: fees, isLoading: loadingFees, isError: feesError, refetch: refetchFees } = useFeeSummary();
+  const { data: library, isLoading: loadingLibrary, isError: libraryError, refetch: refetchLibrary } = useLibraryAnalytics();
 
   const isLoading = loadingDashboard && loadingAttendance && loadingFees && loadingLibrary;
+  const isError = dashboardError || attendanceError || feesError || libraryError;
 
   if (isLoading) return <PageSpinner />;
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <p className="text-lg font-semibold text-foreground">Something went wrong</p>
+        <p className="mt-1 text-sm text-muted">We could not load the dashboard data.</p>
+        <button
+          onClick={() => { refetchDashboard(); refetchAttendance(); refetchFees(); refetchLibrary(); }}
+          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const attendanceRate =
     attendance?.totalStudents > 0

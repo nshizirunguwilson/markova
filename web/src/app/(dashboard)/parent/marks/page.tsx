@@ -83,7 +83,11 @@ export default function ParentMarksPage() {
           <p className="text-sm text-muted">View your child&apos;s academic performance</p>
         </div>
         <div className="flex gap-3">
-          {children.length > 1 && (
+          {children.length === 1 ? (
+            <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
+              Viewing marks for: <strong className="ml-1">{children[0].name}</strong>
+            </span>
+          ) : children.length > 1 ? (
             <select
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
@@ -95,7 +99,7 @@ export default function ParentMarksPage() {
                 </option>
               ))}
             </select>
-          )}
+          ) : null}
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}

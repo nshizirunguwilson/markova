@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MarksService } from './marks.service';
+import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateMarkDto,
   UpdateMarkDto,
@@ -32,7 +33,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class MarksController {
-  constructor(private readonly service: MarksService) {}
+  constructor(
+    private readonly service: MarksService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   // ── Mark CRUD ───────────────────────────────────────────────────────────
 
@@ -112,10 +116,12 @@ export class MarksController {
   @Get('term-results/student/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term result for a student' })
-  getStudentTermResult(
+  async getStudentTermResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentTermResult(studentId, termId);
   }
 
@@ -158,10 +164,12 @@ export class MarksController {
   @Get('year-results/student/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get year result for a student' })
-  getStudentYearResult(
+  async getStudentYearResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('academicYearId') academicYearId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentYearResult(studentId, academicYearId);
   }
 
@@ -170,10 +178,12 @@ export class MarksController {
   @Get('report-card/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get full report card data for a student' })
-  getReportCard(
+  async getReportCard(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
+    @CurrentUser() user: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getReportCardData(studentId, termId);
   }
 }

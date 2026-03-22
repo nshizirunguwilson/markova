@@ -9,6 +9,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
+import { OwnershipService } from '../../common/ownership.service';
 import {
   MarkAttendanceDto,
   QrScanDto,
@@ -26,7 +27,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class AttendanceController {
-  constructor(private readonly service: AttendanceService) {}
+  constructor(
+    private readonly service: AttendanceService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   // ── Student Attendance ──────────────────────────────────────────────────
 
@@ -73,11 +77,13 @@ export class AttendanceController {
   @Get('student-summary')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student attendance summary' })
-  getStudentSummary(
+  async getStudentSummary(
     @Query('studentId') studentId: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @CurrentUser() user?: any,
   ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentSummary(studentId, dateFrom, dateTo);
   }
 

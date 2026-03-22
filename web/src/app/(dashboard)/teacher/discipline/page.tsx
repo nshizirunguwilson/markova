@@ -19,6 +19,7 @@ import {
 import { useIncidents, useCreateIncident } from "@/hooks/use-discipline";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
 import { AlertTriangle, Plus } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -40,7 +41,7 @@ export default function TeacherDisciplinePage() {
 
   const [form, setForm] = useState({
     studentId: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: toLocalDateString(new Date()),
     time: "",
     location: "",
     description: "",

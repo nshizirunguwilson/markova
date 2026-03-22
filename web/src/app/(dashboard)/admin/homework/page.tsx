@@ -35,6 +35,7 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 import { toast } from "sonner";
 
 const homeworkSchema = z.object({
@@ -119,7 +120,7 @@ export default function AdminHomeworkPage() {
       classSectionId: hw.classSectionId || "",
       termId: hw.termId || "",
       teacherId: hw.teacherId || "",
-      dueDate: hw.dueDate ? new Date(hw.dueDate).toISOString().slice(0, 10) : "",
+      dueDate: hw.dueDate ? toLocalDateString(new Date(hw.dueDate)) : "",
       maxMarks: hw.maxMarks || 100,
     });
     if (hw.classSection?.classLevelId) setModalLevelId(hw.classSection.classLevelId);

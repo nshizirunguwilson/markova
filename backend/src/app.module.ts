@@ -21,6 +21,7 @@ import { HelpModule } from './modules/help/help.module';
 import { HealthModule } from './modules/health/health.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
+import { CommonModule } from './common/common.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduledTasksService } from './common/scheduled-tasks.service';
@@ -38,6 +39,7 @@ import { ScheduledTasksService } from './common/scheduled-tasks.service';
     ]),
     RedisModule,
     PrismaModule,
+    CommonModule,
     AuthModule,
     UsersModule,
     SchoolConfigModule,

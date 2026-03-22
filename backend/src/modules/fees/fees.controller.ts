@@ -14,16 +14,21 @@ import type { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FeesService } from './fees.service';
+import { OwnershipService } from '../../common/ownership.service';
 import { RecordPaymentDto, UpdatePaymentDto, QueryFeesDto } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Fees')
 @Controller('fees')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class FeesController {
-  constructor(private readonly service: FeesService) {}
+  constructor(
+    private readonly service: FeesService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   @Post()
   @Roles('ADMIN')
@@ -62,7 +67,11 @@ export class FeesController {
   @Get('student/:studentId')
   @Roles('ADMIN', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student fee records' })
-  getStudentFees(@Param('studentId', ParseUUIDPipe) studentId: string) {
+  async getStudentFees(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentFees(studentId);
   }
 

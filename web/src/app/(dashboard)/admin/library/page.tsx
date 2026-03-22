@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -608,69 +608,172 @@ export default function AdminLibraryPage() {
       </Modal>
 
       {/* Bulk Import Modal */}
-      <Modal isOpen={showBulkImport} onClose={() => setShowBulkImport(false)} title="Bulk Import Books" size="lg">
+      <BulkImportBooksModal
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+        bulkImport={bulkImport}
+      />
+    </div>
+  );
+}
+
+/* ---------- Bulk Import Books Modal with Preview ---------- */
+
+interface ParsedBook {
+  title: string;
+  author: string;
+  isbn: string;
+  quantity: number;
+}
+
+function BulkImportBooksModal({
+  isOpen,
+  onClose,
+  bulkImport,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  bulkImport: ReturnType<typeof useBulkImportBooks>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [parsedBooks, setParsedBooks] = useState<ParsedBook[]>([]);
+  const [step, setStep] = useState<"upload" | "preview">("upload");
+
+  const reset = () => {
+    setParsedBooks([]);
+    setStep("upload");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        toast.error("CSV must have a header row and at least one data row");
+        return;
+      }
+
+      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+      const titleIdx = headers.indexOf("title");
+      const authorIdx = headers.indexOf("author");
+      const isbnIdx = headers.indexOf("isbn");
+      const qtyIdx = headers.findIndex((h) => h === "quantity" || h === "qty" || h === "copies");
+
+      if (titleIdx === -1 || authorIdx === -1) {
+        toast.error("CSV must have at least 'title' and 'author' columns");
+        return;
+      }
+
+      const books: ParsedBook[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map((c) => c.trim().replace(/"/g, ""));
+        const title = cols[titleIdx] || "";
+        const author = cols[authorIdx] || "";
+        if (!title || !author) continue;
+        books.push({
+          title,
+          author,
+          isbn: isbnIdx >= 0 ? cols[isbnIdx] || "" : "",
+          quantity: qtyIdx >= 0 ? parseInt(cols[qtyIdx], 10) || 1 : 1,
+        });
+      }
+
+      if (books.length === 0) {
+        toast.error("No valid book rows found in CSV");
+        return;
+      }
+
+      setParsedBooks(books);
+      setStep("preview");
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = () => {
+    bulkImport.mutate(
+      { books: parsedBooks },
+      {
+        onSuccess: () => {
+          handleClose();
+        },
+      }
+    );
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Bulk Import Books" size="lg">
+      {step === "upload" && (
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            Upload a CSV file to import multiple books at once. Download the template to see the expected format.
+            Upload a CSV file with columns: <strong>title</strong>, <strong>author</strong>, isbn, quantity
           </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const csv = "title,author,isbn,category,quantity,shelfLocation\n";
-              const blob = new Blob([csv], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "books-import-template.csv";
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            Download Template
-          </Button>
-          <div>
-            <label className="mb-1 block text-sm font-medium">CSV File</label>
-            <input
-              type="file"
-              accept=".csv"
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  const text = ev.target?.result as string;
-                  const lines = text.split("\n").filter((line) => line.trim());
-                  if (lines.length < 2) {
-                    toast.error("CSV file is empty or has no data rows");
-                    return;
-                  }
-                  const headers = lines[0].split(",").map((h) => h.trim());
-                  const books = lines.slice(1).map((line) => {
-                    const values = line.split(",").map((v) => v.trim());
-                    const obj: Record<string, any> = {};
-                    headers.forEach((header, i) => {
-                      obj[header] = values[i] || "";
-                    });
-                    if (obj.quantity) obj.quantity = Number(obj.quantity);
-                    return obj;
-                  });
-                  bulkImport.mutate({ books }, {
-                    onSuccess: () => {
-                      setShowBulkImport(false);
-                      e.target.value = "";
-                    },
-                  });
-                };
-                reader.readAsText(file);
-              }}
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => setShowBulkImport(false)}>Cancel</Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            className="block w-full text-sm text-muted file:mr-4 file:rounded-lg file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20"
+          />
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={handleClose}>Cancel</Button>
           </div>
         </div>
-      </Modal>
-    </div>
+      )}
+
+      {step === "preview" && (
+        <div className="space-y-4">
+          <p className="text-sm font-medium text-foreground">
+            {parsedBooks.length} book{parsedBooks.length !== 1 ? "s" : ""} will be imported
+          </p>
+          <div className="max-h-60 overflow-auto rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Author</TableHead>
+                  <TableHead>ISBN</TableHead>
+                  <TableHead>Quantity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {parsedBooks.slice(0, 5).map((b, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">{b.title}</TableCell>
+                    <TableCell>{b.author}</TableCell>
+                    <TableCell><span className="font-mono text-sm">{b.isbn || "—"}</span></TableCell>
+                    <TableCell>{b.quantity}</TableCell>
+                  </TableRow>
+                ))}
+                {parsedBooks.length > 5 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-xs text-muted">
+                      ...and {parsedBooks.length - 5} more
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={reset}>Cancel</Button>
+            <Button onClick={handleConfirmImport} isLoading={bulkImport.isPending}>
+              Confirm Import
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

@@ -5,6 +5,7 @@ import { Card, CardTitle, Button } from "@/components/ui";
 import { Download, FileText } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { toLocalDateString } from "@/lib/utils";
 
 const EXPORTS = [
   { key: "users", label: "All Users", description: "Export all users with roles and status" },
@@ -47,7 +48,7 @@ export function DataExportTab() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${key}_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `${key}_export_${toLocalDateString(new Date())}.csv`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -82,8 +83,13 @@ export function DataExportTab() {
               variant="outline"
               onClick={() => handleExport(exp.key)}
               isLoading={loading === exp.key}
+              disabled={loading !== null}
             >
-              <Download className="mr-1 h-4 w-4" /> Export
+              {loading === exp.key ? (
+                "Exporting..."
+              ) : (
+                <><Download className="mr-1 h-4 w-4" /> Export</>
+              )}
             </Button>
           </div>
         ))}

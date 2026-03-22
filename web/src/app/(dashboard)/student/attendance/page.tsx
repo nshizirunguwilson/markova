@@ -1,28 +1,36 @@
 "use client";
 
-import { useMemo } from "react";
-import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
+import { useState, useMemo } from "react";
+import { Card, CardTitle, Badge, Button, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
-import { Calendar, Check, X, Clock } from "lucide-react";
+import { Calendar, Check, X, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 
 export default function StudentAttendancePage() {
   const { user } = useAuthStore();
   const studentId = (user as any)?.studentId;
   const { data, isLoading } = useStudentAttendanceSummary(studentId);
+  const [viewDate, setViewDate] = useState(new Date());
 
-  // Build calendar grid for current month
+  const goToPrevMonth = () => {
+    setViewDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  };
+  const goToNextMonth = () => {
+    setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  };
+
+  // Build calendar grid for viewed month
   const calendarData = useMemo(() => {
     if (!data?.records) return [];
     const recordMap = new Map<string, string>();
     for (const r of data.records) {
-      const dateStr = new Date(r.date).toISOString().slice(0, 10);
+      const dateStr = toLocalDateString(new Date(r.date));
       recordMap.set(dateStr, r.status);
     }
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -34,9 +42,9 @@ export default function StudentAttendancePage() {
       days.push({ day: d, status: recordMap.get(dateStr) || null });
     }
     return days;
-  }, [data]);
+  }, [data, viewDate]);
 
-  const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const monthName = viewDate.toLocaleString("default", { month: "long", year: "numeric" });
 
   return (
     <div className="space-y-6">
@@ -73,7 +81,17 @@ export default function StudentAttendancePage() {
 
           {/* Calendar View */}
           <Card>
-            <CardTitle><Calendar className="mr-2 inline h-5 w-5" /> {monthName}</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle><Calendar className="mr-2 inline h-5 w-5" /> {monthName}</CardTitle>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={goToPrevMonth}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={goToNextMonth}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <div className="mt-4">
               <div className="grid grid-cols-7 gap-1 mb-2">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (

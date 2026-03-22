@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, Button, Badge, Spinner, Input, Modal, Avatar } from "@/components/ui";
 import {
   useConversations,
@@ -11,7 +11,8 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle, ArrowLeft } from "lucide-react";
+import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -28,7 +29,8 @@ export default function MessagesPage() {
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
-  const { data: usersData } = useUsers({ search: userSearch, limit: 20, isActive: true });
+  const debouncedUserSearch = useDebounce(userSearch, 300);
+  const { data: usersData } = useUsers({ search: debouncedUserSearch, limit: 20, isActive: true });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -46,6 +48,12 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Memoize reversed messages to avoid re-computing every render
+  const reversedMessages = useMemo(
+    () => (messages ? [...messages].reverse() : []),
+    [messages]
+  );
+
   // Get typing users for current conversation
   const typingMap = selectedConv ? chatStore.getTypingUsers(selectedConv) : new Map();
   const typingNames = Array.from(typingMap.values());
@@ -60,7 +68,7 @@ export default function MessagesPage() {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
           if (selectedConv) chatStore.stopTyping(selectedConv);
-        }, 2000);
+        }, 5000);
       }
     },
     [selectedConv, chatStore]
@@ -156,7 +164,16 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-0 md:gap-4">
+    <div className="flex h-[calc(100vh-8rem)] flex-col gap-0">
+      {/* WebSocket disconnect indicator */}
+      {!chatStore.connected && (
+        <div className="flex items-center justify-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-2 text-sm text-yellow-700">
+          <WifiOff className="h-4 w-4" />
+          Reconnecting...
+        </div>
+      )}
+
+    <div className="flex flex-1 gap-0 md:gap-4 min-h-0">
       {/* Conversation List */}
       <div className={`${selectedConv ? "hidden md:block" : "block"} w-full md:w-80 flex-shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-3`}>
         <div className="flex items-center justify-between mb-3">
@@ -283,7 +300,7 @@ export default function MessagesPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages && [...messages].reverse().map((msg: any) => {
+              {reversedMessages.map((msg: any) => {
                 const isMe = msg.sender.id === user?.id;
                 return (
                   <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
@@ -453,6 +470,7 @@ export default function MessagesPage() {
           </div>
         </div>
       </Modal>
+    </div>
     </div>
   );
 }

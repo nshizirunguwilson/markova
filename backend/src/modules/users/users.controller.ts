@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -26,6 +27,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
+import { validateUploadedImage } from '../../common/file-validation';
 
 const photoStorage = diskStorage({
   destination: './uploads/photos',
@@ -82,6 +84,7 @@ export class UsersController {
 
   @Post(':id/photo')
   @Roles('ADMIN')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorage,
@@ -103,6 +106,7 @@ export class UsersController {
     if (!file) {
       throw new Error('Photo file is required');
     }
+    validateUploadedImage(join(process.cwd(), 'uploads/photos', file.filename));
     // Delete old photo file if it exists
     const user = await this.usersService.findOne(id);
     if (user.photoUrl) {

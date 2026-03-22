@@ -5,6 +5,7 @@ import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
 import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
+import { toLocalDateString } from "@/lib/utils";
 
 type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 
@@ -12,7 +13,7 @@ export default function TeacherAttendancePage() {
   const { data: classLevels } = useClassLevels();
   const [selectedLevel, setSelectedLevel] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(toLocalDateString(new Date()));
   const [showScanner, setShowScanner] = useState(false);
   const [qrInput, setQrInput] = useState("");
   const [localStatuses, setLocalStatuses] = useState<Record<string, Status>>({});

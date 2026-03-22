@@ -37,7 +37,7 @@ export default function AdminFeesPage() {
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
   const { data: summary } = useFeeSummary(yearId || undefined, termId || undefined);
-  const { data: records, isLoading } = useFees({
+  const { data: records, isLoading, isError, refetch } = useFees({
     academicYearId: yearId || undefined,
     termId: termId || undefined,
     status: statusFilter || undefined,
@@ -150,8 +150,22 @@ export default function AdminFeesPage() {
         </p>
       )}
 
+      {/* Error state */}
+      {isError && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-lg font-semibold text-foreground">Something went wrong</p>
+          <p className="mt-1 text-sm text-muted">We could not load the fee records.</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Records Table */}
-      <Card className="p-0 overflow-hidden">
+      {!isError && <Card className="p-0 overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center"><Spinner /></div>
         ) : (
@@ -205,7 +219,7 @@ export default function AdminFeesPage() {
           </Table>
           </div>
         )}
-      </Card>
+      </Card>}
 
       {/* Record Payment Modal */}
       <Modal isOpen={showRecord} onClose={() => setShowRecord(false)} title="Record Payment">

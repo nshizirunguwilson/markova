@@ -142,7 +142,7 @@ export default function StudentMarksPage() {
           {subjectMap.length > 0 && (
             <Card>
               <CardTitle><TrendingUp className="mr-2 inline h-5 w-5" /> Performance Comparison</CardTitle>
-              <div className="mt-4 flex items-end gap-3 h-48">
+              <div className="mt-4 flex items-end gap-3 min-h-[200px] h-auto" style={{ height: "max(200px, 30vw)", maxHeight: "320px" }}>
                 {subjectMap.map((s, i) => (
                   <div key={i} className="flex flex-1 flex-col items-center">
                     <span className="mb-1 text-xs font-bold text-foreground">{s.average}%</span>

@@ -33,6 +33,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import api from "@/lib/api";
+import { toLocalDateString } from "@/lib/utils";
 
 export default function AdminMarksPage() {
   const { data: years } = useAcademicYears();
@@ -73,7 +74,7 @@ export default function AdminMarksPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `term_results_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `term_results_${toLocalDateString(new Date())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

@@ -10,7 +10,9 @@ import {
   Search,
   CheckCheck,
   X,
+  Menu,
 } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useAuthStore } from "@/stores/auth-store";
 import { getNavigation, type NavItem } from "@/lib/navigation";
 import {
@@ -37,7 +39,11 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-export function Topbar() {
+interface TopbarProps {
+  onToggleSidebar?: () => void;
+}
+
+export function Topbar({ onToggleSidebar }: TopbarProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
@@ -56,6 +62,7 @@ export function Topbar() {
 
   // --- Search ---
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -66,10 +73,10 @@ export function Topbar() {
   }, [user?.role]);
 
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase();
+    if (!debouncedSearchQuery.trim()) return [];
+    const q = debouncedSearchQuery.toLowerCase();
     return allNavItems.filter((item) => item.label.toLowerCase().includes(q));
-  }, [searchQuery, allNavItems]);
+  }, [debouncedSearchQuery, allNavItems]);
 
   // Click-outside handler for all three dropdowns
   useEffect(() => {
@@ -113,8 +120,22 @@ export function Topbar() {
     router.push(href);
   };
 
-  const handleNotificationClick = (id: string) => {
-    markRead.mutate(id);
+  const handleNotificationClick = (notif: { id: string; type?: string }) => {
+    markRead.mutate(notif.id);
+    setNotifOpen(false);
+
+    const role = user?.role?.toLowerCase() || "admin";
+    const type = (notif.type || "").toUpperCase();
+
+    if (type.includes("ATTENDANCE")) {
+      router.push(`/${role}/attendance`);
+    } else if (type.includes("MARKS") || type.includes("RESULT")) {
+      router.push(`/${role}/marks`);
+    } else if (type.includes("FEE")) {
+      router.push(`/${role}/fees`);
+    } else if (type.includes("MESSAGE")) {
+      router.push(`/messages`);
+    }
   };
 
   const roleBadgeVariant = {
@@ -126,7 +147,16 @@ export function Topbar() {
   };
 
   return (
-    <header className="fixed left-60 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-white px-6">
+    <header className="fixed left-0 md:left-60 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-white px-4 md:px-6">
+      {/* Mobile hamburger */}
+      <button
+        onClick={onToggleSidebar}
+        className="mr-3 rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground transition-colors md:hidden"
+        aria-label="Toggle sidebar"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       {/* Search */}
       <div className="relative w-80" ref={searchRef}>
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -231,7 +261,7 @@ export function Topbar() {
                   notifications.map((notif) => (
                     <button
                       key={notif.id}
-                      onClick={() => handleNotificationClick(notif.id)}
+                      onClick={() => handleNotificationClick(notif)}
                       className={cn(
                         "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left hover:bg-accent-light last:border-0",
                         !notif.read && "bg-primary/5"

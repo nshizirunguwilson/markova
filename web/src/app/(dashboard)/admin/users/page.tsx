@@ -32,6 +32,9 @@ import { BulkImportModal } from "./bulk-import-modal";
 
 const ROLES = ["ALL", "ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"];
 
+type SortField = "name" | "role" | "status" | "lastLogin";
+type SortDir = "asc" | "desc";
+
 const roleBadge: Record<string, "info" | "success" | "default" | "warning"> = {
   ADMIN: "info",
   TEACHER: "success",
@@ -49,11 +52,45 @@ export default function UsersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const { data, isLoading } = useUsers(filters);
+  const { data, isLoading, isError, refetch } = useUsers(filters);
   const deleteMutation = useDeleteUser();
 
-  const users = data?.data || [];
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortIndicator = (field: SortField) =>
+    sortField === field ? (sortDir === "asc" ? " \u25B2" : " \u25BC") : "";
+
+  const rawUsers = data?.data || [];
+  const users = useMemo(() => {
+    const sorted = [...rawUsers].sort((a: any, b: any) => {
+      let valA: string, valB: string;
+      if (sortField === "name") {
+        valA = `${a.firstName} ${a.lastName}`.toLowerCase();
+        valB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      } else if (sortField === "role") {
+        valA = (a.role || "").toLowerCase();
+        valB = (b.role || "").toLowerCase();
+      } else if (sortField === "lastLogin") {
+        valA = a.lastLoginAt || "";
+        valB = b.lastLoginAt || "";
+      } else {
+        valA = a.isActive ? "active" : "inactive";
+        valB = b.isActive ? "active" : "inactive";
+      }
+      return valA < valB ? -1 : valA > valB ? 1 : 0;
+    });
+    return sortDir === "desc" ? sorted.reverse() : sorted;
+  }, [rawUsers, sortField, sortDir]);
   const meta = data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 };
 
   const handleSearch = () => {
@@ -136,7 +173,18 @@ export default function UsersPage() {
       </Card>
 
       {/* Table */}
-      {isLoading ? (
+      {isError ? (
+        <div className="flex flex-col items-center justify-center py-24">
+          <p className="text-lg font-semibold text-foreground">Something went wrong</p>
+          <p className="mt-1 text-sm text-muted">We could not load the users list.</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
         <PageSpinner />
       ) : (
         <>
@@ -144,12 +192,28 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort("name")} className="font-semibold hover:text-primary transition-colors">
+                    User{sortIndicator("name")}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort("role")} className="font-semibold hover:text-primary transition-colors">
+                    Role{sortIndicator("role")}
+                  </button>
+                </TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort("status")} className="font-semibold hover:text-primary transition-colors">
+                    Status{sortIndicator("status")}
+                  </button>
+                </TableHead>
                 <TableHead>Class</TableHead>
-                <TableHead>Last Login</TableHead>
+                <TableHead>
+                  <button type="button" onClick={() => toggleSort("lastLogin")} className="font-semibold hover:text-primary transition-colors">
+                    Last Login{sortIndicator("lastLogin")}
+                  </button>
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -245,10 +309,24 @@ export default function UsersPage() {
 
           {/* Pagination */}
           <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-muted">
-              Showing {(meta.page - 1) * meta.limit + 1}–
-              {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted">
+                Showing {(meta.page - 1) * meta.limit + 1}–
+                {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+              </p>
+              <select
+                value={filters.limit}
+                onChange={(e) => {
+                  const newLimit = Number(e.target.value);
+                  setFilters((f) => ({ ...f, limit: newLimit, page: 1 }));
+                }}
+                className="rounded-lg border border-border bg-surface px-2 py-1 text-sm focus:border-primary focus:outline-none"
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>{n} per page</option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"

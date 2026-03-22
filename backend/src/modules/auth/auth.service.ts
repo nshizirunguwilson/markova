@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -145,6 +146,7 @@ export class AuthService {
     }
 
     if (session.otp !== dto.otp) {
+      await this.redis.del('otp:' + dto.sessionId);
       throw new UnauthorizedException('Invalid OTP');
     }
 
@@ -190,6 +192,18 @@ export class AuthService {
 
       if (!user || !user.isActive) {
         throw new UnauthorizedException('User not found or inactive');
+      }
+
+      // Use Redis to prevent race conditions on refresh token reuse
+      const lockKey = `refresh_lock:${session.id}`;
+      const acquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
+      if (!acquired) {
+        // Another request is already refreshing this token — possible replay
+        await this.prisma.userSession.update({
+          where: { id: session.id },
+          data: { isActive: false },
+        });
+        throw new UnauthorizedException('Refresh token already used');
       }
 
       // Deactivate old session
@@ -448,7 +462,7 @@ export class AuthService {
   }
 
   private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 999999).toString();
   }
 
   private async recordFailedAttempt(identifier: string) {

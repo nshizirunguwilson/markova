@@ -41,7 +41,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
     resolver: zodResolver(schema),
     defaultValues: {
       role: "STUDENT",
-      password: "Markova2025!",
+      password: "",
     },
   });
 
@@ -119,13 +119,17 @@ export function AddUserModal({ isOpen, onClose }: Props) {
               <option value="LIBRARIAN">Librarian</option>
             </select>
           </div>
-          <Input
-            id="password"
-            label={<>Password <span className="text-red-500">*</span></>}
-            type="text"
-            error={errors.password?.message}
-            {...register("password")}
-          />
+          <div>
+            <Input
+              id="password"
+              label={<>Password <span className="text-red-500">*</span></>}
+              type="password"
+              placeholder="Min 8 characters"
+              error={errors.password?.message}
+              {...register("password")}
+            />
+            <p className="mt-1 text-xs text-muted">Leave blank is not allowed. Set a secure password for the user.</p>
+          </div>
         </div>
 
         {/* Student-specific fields */}

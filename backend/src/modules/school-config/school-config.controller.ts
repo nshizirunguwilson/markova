@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
@@ -21,6 +22,7 @@ import { SchoolConfigService } from './school-config.service';
 import { UpsertConfigDto, BulkUpsertConfigDto, UpdateOnboardingDto } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
+import { validateUploadedImage } from '../../common/file-validation';
 
 const brandingStorage = diskStorage({
   destination: './uploads/branding',
@@ -100,6 +102,7 @@ export class SchoolConfigController {
 
   @Post('upload/logo')
   @Roles('ADMIN')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
@@ -115,6 +118,7 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school logo' })
   async uploadLogo(@UploadedFile() file: Express.Multer.File) {
+    validateUploadedImage(join(process.cwd(), 'uploads/branding', file.filename));
     const oldConfig = await this.configService.findByKey('logo_url').catch(() => null);
     this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
@@ -123,6 +127,7 @@ export class SchoolConfigController {
 
   @Post('upload/stamp')
   @Roles('ADMIN')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
@@ -138,6 +143,7 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school stamp' })
   async uploadStamp(@UploadedFile() file: Express.Multer.File) {
+    validateUploadedImage(join(process.cwd(), 'uploads/branding', file.filename));
     const oldConfig = await this.configService.findByKey('stamp_url').catch(() => null);
     this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
@@ -146,6 +152,7 @@ export class SchoolConfigController {
 
   @Post('upload/signature')
   @Roles('ADMIN')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
@@ -161,6 +168,7 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload headmaster signature' })
   async uploadSignature(@UploadedFile() file: Express.Multer.File) {
+    validateUploadedImage(join(process.cwd(), 'uploads/branding', file.filename));
     const oldConfig = await this.configService.findByKey('signature_url').catch(() => null);
     this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;

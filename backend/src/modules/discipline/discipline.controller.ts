@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DisciplineService } from './discipline.service';
+import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateIncidentDto,
   UpdateIncidentDto,
@@ -30,7 +31,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class DisciplineController {
-  constructor(private readonly service: DisciplineService) {}
+  constructor(
+    private readonly service: DisciplineService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   // ── Incidents ───────────────────────────────────────────────────────────
 
@@ -51,7 +55,12 @@ export class DisciplineController {
   @Get('incidents/:id')
   @Roles('ADMIN', 'TEACHER', 'PARENT')
   @ApiOperation({ summary: 'Get incident details' })
-  getIncident(@Param('id', ParseUUIDPipe) id: string) {
+  async getIncident(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    if (user.role === 'PARENT') {
+      const incident = await this.service.getIncidentById(id);
+      await this.ownership.verifyStudentAccess(user.id, user.role, (incident as any).studentId);
+      return incident;
+    }
     return this.service.getIncidentById(id);
   }
 
@@ -74,7 +83,11 @@ export class DisciplineController {
   @Get('student/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student discipline summary' })
-  getStudentDiscipline(@Param('studentId', ParseUUIDPipe) studentId: string) {
+  async getStudentDiscipline(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentDiscipline(studentId);
   }
 
