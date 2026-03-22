@@ -1,11 +1,13 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Alert, Modal } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AlertTriangle, CheckCircle, MapPin, Clock as ClockIcon } from 'lucide-react-native';
-import { useStudentDiscipline, useAcknowledgeIncident } from '@/hooks/useApi';
+import { AlertTriangle, CheckCircle, MapPin, Clock as ClockIcon, X, Send, FileText } from 'lucide-react-native';
+import { toast } from 'sonner-native';
+import { useStudentDiscipline, useAcknowledgeIncident, useCreateAppeal } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/ui';
+import { Input } from '@/components/ui/Input';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 export default function ChildDisciplineScreen() {
@@ -14,6 +16,10 @@ export default function ChildDisciplineScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const { data, isLoading, refetch } = useStudentDiscipline(studentId);
   const acknowledge = useAcknowledgeIncident();
+  const createAppeal = useCreateAppeal();
+  const [appealModalVisible, setAppealModalVisible] = useState(false);
+  const [appealIncidentId, setAppealIncidentId] = useState('');
+  const [appealReason, setAppealReason] = useState('');
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -101,27 +107,88 @@ export default function ChildDisciplineScreen() {
                 )}
               </View>
 
-              {/* Acknowledge button for parent */}
-              {!incident.isAcknowledged ? (
-                <Button
-                  title="Acknowledge"
-                  onPress={() => handleAcknowledge(incident.id)}
-                  variant="outline"
-                  size="sm"
-                  loading={acknowledge.isPending}
-                />
-              ) : (
-                <View style={styles.acknowledged}>
-                  <CheckCircle size={16} color={colors.success} />
-                  <Text style={styles.acknowledgedText}>Acknowledged</Text>
-                </View>
-              )}
+              {/* Acknowledge + Appeal buttons for parent */}
+              <View style={styles.incidentActions}>
+                {!incident.isAcknowledged ? (
+                  <Button
+                    title="Acknowledge"
+                    onPress={() => handleAcknowledge(incident.id)}
+                    variant="outline"
+                    size="sm"
+                    loading={acknowledge.isPending}
+                  />
+                ) : (
+                  <View style={styles.acknowledged}>
+                    <CheckCircle size={16} color={colors.success} />
+                    <Text style={styles.acknowledgedText}>Acknowledged</Text>
+                  </View>
+                )}
+                <Pressable
+                  style={styles.appealBtn}
+                  onPress={() => {
+                    setAppealIncidentId(incident.id);
+                    setAppealReason('');
+                    setAppealModalVisible(true);
+                  }}
+                >
+                  <FileText size={14} color={colors.primary} />
+                  <Text style={styles.appealBtnText}>Appeal</Text>
+                </Pressable>
+              </View>
             </View>
           ))
         ) : (
           <Text style={styles.noData}>No discipline incidents on record.</Text>
         )}
       </ScrollView>
+
+      {/* Appeal Modal */}
+      <Modal visible={appealModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Submit Appeal</Text>
+              <Pressable onPress={() => setAppealModalVisible(false)}>
+                <X size={24} color={colors.muted} />
+              </Pressable>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Explain why you believe this incident should be reviewed.
+            </Text>
+            <Input
+              label="Reason for Appeal"
+              placeholder="Describe your reason..."
+              value={appealReason}
+              onChangeText={setAppealReason}
+              multiline
+              numberOfLines={4}
+            />
+            <Button
+              title="Submit Appeal"
+              onPress={async () => {
+                if (!appealReason.trim()) {
+                  toast.error('Please provide a reason');
+                  return;
+                }
+                try {
+                  await createAppeal.mutateAsync({
+                    incidentId: appealIncidentId,
+                    reason: appealReason.trim(),
+                  });
+                  toast.success('Appeal submitted');
+                  setAppealModalVisible(false);
+                  refetch();
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.message ?? 'Failed to submit appeal');
+                }
+              }}
+              loading={createAppeal.isPending}
+              fullWidth
+              icon={<Send size={18} color={colors.white} />}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -149,7 +216,24 @@ const styles = StyleSheet.create({
   incidentMeta: { gap: spacing.xs, marginBottom: spacing.md },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   metaText: { fontSize: fontSize.xs, color: colors.muted },
+  incidentActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   acknowledged: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   acknowledgedText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.medium },
+  appealBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.accentLight, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+  },
+  appealBtnText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: spacing.xl, paddingBottom: spacing['3xl'],
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm,
+  },
+  modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
+  modalSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.lg, lineHeight: 20 },
   noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
 });

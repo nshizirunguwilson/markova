@@ -1,11 +1,13 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, Pressable, Alert, Modal, RefreshControl,
+  View, Text, ScrollView, StyleSheet, Pressable, Alert, Modal, RefreshControl, Image, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   User, Mail, Phone, Shield, LogOut, Edit3, Lock, Camera, X, Check,
+  HelpCircle, LifeBuoy, FileText,
 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/lib/api';
@@ -35,11 +37,48 @@ export default function ProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadProfile();
     setRefreshing(false);
   }, [loadProfile]);
+
+  const handlePhotoUpload = async () => {
+    const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permResult.granted) {
+      toast.error('Permission to access photos is required');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingPhoto(true);
+    try {
+      const asset = result.assets[0];
+      const formData = new FormData();
+      formData.append('photo', {
+        uri: asset.uri,
+        name: 'profile.jpg',
+        type: 'image/jpeg',
+      } as any);
+      await api.post(`/users/${user?.id}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await loadProfile();
+      toast.success('Profile photo updated');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const openEditProfile = () => {
     setFirstName(user?.firstName ?? '');
@@ -127,19 +166,20 @@ export default function ProfileScreen() {
       >
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarContainer}>
+          <Pressable style={styles.avatarContainer} onPress={handlePhotoUpload} disabled={uploadingPhoto}>
             <View style={styles.avatar}>
               {user?.photoUrl ? (
-                <Text style={styles.avatarText}>
-                  {user.firstName?.[0]}{user.lastName?.[0]}
-                </Text>
+                <Image source={{ uri: user.photoUrl }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </Text>
               )}
             </View>
-          </View>
+            <View style={styles.cameraBtn}>
+              <Camera size={14} color={colors.white} />
+            </View>
+          </Pressable>
           <Text style={styles.name}>{user?.firstName} {user?.lastName}</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleText}>{user?.role}</Text>
@@ -165,6 +205,19 @@ export default function ProfileScreen() {
           <Pressable onPress={() => setPasswordVisible(true)} style={styles.actionRow}>
             <Lock size={20} color={colors.primary} />
             <Text style={styles.actionText}>Change Password</Text>
+          </Pressable>
+        </View>
+
+        {/* Help & Support */}
+        <View style={styles.actionsCard}>
+          <Pressable onPress={() => router.push('/(app)/help')} style={styles.actionRow}>
+            <HelpCircle size={20} color={colors.primary} />
+            <Text style={styles.actionText}>FAQ & Help</Text>
+          </Pressable>
+          <View style={styles.actionDivider} />
+          <Pressable onPress={() => router.push('/(app)/support')} style={styles.actionRow}>
+            <LifeBuoy size={20} color={colors.primary} />
+            <Text style={styles.actionText}>Support Tickets</Text>
           </Pressable>
         </View>
 
@@ -281,8 +334,16 @@ const styles = StyleSheet.create({
   avatar: {
     width: 90, height: 90, borderRadius: 45,
     backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
+  avatarImage: { width: 90, height: 90, borderRadius: 45 },
   avatarText: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.white },
+  cameraBtn: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.white,
+  },
   name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginTop: spacing.md },
   roleBadge: {
     backgroundColor: colors.accent, borderRadius: radius.full,

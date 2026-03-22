@@ -1,8 +1,12 @@
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable, Platform } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Award, TrendingUp } from 'lucide-react-native';
+import { Award, TrendingUp, Download } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { toast } from 'sonner-native';
 import { useStudentMarks, useStudentTermResult, useCurrentTerm } from '@/hooks/useApi';
+import { useAuthStore } from '@/stores/auth-store';
+import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -12,6 +16,7 @@ export default function ChildMarksScreen() {
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
   const [refreshing, setRefreshing] = useState(false);
 
+  const tokens = useAuthStore((s) => s.tokens);
   const { data: currentTerm } = useCurrentTerm();
   const termId = currentTerm?.id;
 
@@ -46,9 +51,28 @@ export default function ChildMarksScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {/* Term info */}
-        <View style={styles.termBadge}>
-          <Text style={styles.termText}>{currentTerm?.name ?? 'Current Term'}</Text>
+        {/* Term info + download */}
+        <View style={styles.termRow}>
+          <View style={styles.termBadge}>
+            <Text style={styles.termText}>{currentTerm?.name ?? 'Current Term'}</Text>
+          </View>
+          {termResult && (
+            <Pressable
+              style={styles.downloadBtn}
+              onPress={async () => {
+                try {
+                  const baseUrl = api.defaults.baseURL ?? '';
+                  const url = `${baseUrl}/reports/term/${studentId}/pdf${termId ? `?termId=${termId}` : ''}`;
+                  await WebBrowser.openBrowserAsync(url);
+                } catch {
+                  toast.error('Could not open report card');
+                }
+              }}
+            >
+              <Download size={14} color={colors.primary} />
+              <Text style={styles.downloadText}>Report Card</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Result summary */}
@@ -121,10 +145,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
+  termRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
   termBadge: {
     alignSelf: 'flex-start', backgroundColor: colors.accent, borderRadius: radius.full,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
   },
+  downloadBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.accentLight, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+  },
+  downloadText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
   termText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
   resultCard: {
     backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.xl,

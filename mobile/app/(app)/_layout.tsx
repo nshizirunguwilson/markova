@@ -22,6 +22,7 @@ export default function AppLayout() {
       <Stack.Screen name="homework-manage" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="discipline-log" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="nfc-register" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="class-analytics" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="help" options={{ animation: 'slide_from_right' }} />
     </Stack>

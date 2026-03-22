@@ -1,8 +1,11 @@
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { DollarSign, CheckCircle, AlertCircle, Clock } from 'lucide-react-native';
+import { DollarSign, CheckCircle, AlertCircle, Clock, Download } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { toast } from 'sonner-native';
 import { useStudentFees } from '@/hooks/useApi';
+import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -97,6 +100,22 @@ export default function ChildFeesScreen() {
                   <FeeRow label="Receipt #" value={fee.receiptNumber} />
                 )}
               </View>
+              {fee.status !== 'UNPAID' && (
+                <Pressable
+                  style={styles.receiptBtn}
+                  onPress={async () => {
+                    try {
+                      const baseUrl = api.defaults.baseURL ?? '';
+                      await WebBrowser.openBrowserAsync(`${baseUrl}/fees/${fee.id}/receipt/pdf`);
+                    } catch {
+                      toast.error('Could not open receipt');
+                    }
+                  }}
+                >
+                  <Download size={14} color={colors.primary} />
+                  <Text style={styles.receiptText}>Download Receipt</Text>
+                </Pressable>
+              )}
             </View>
           ))
         ) : (
@@ -142,5 +161,11 @@ const styles = StyleSheet.create({
   feeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   feeLabel: { fontSize: fontSize.sm, color: colors.muted },
   feeValue: { fontSize: fontSize.sm, color: colors.foreground, fontWeight: fontWeight.medium },
+  receiptBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    backgroundColor: colors.accentLight, borderRadius: radius.sm,
+    paddingVertical: spacing.sm, marginTop: spacing.md,
+  },
+  receiptText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
   noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
 });
