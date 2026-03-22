@@ -152,7 +152,7 @@ export default function LibrarianBooksPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => deleteBook.mutate(book.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this book?")) deleteBook.mutate(book.id); }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </TableCell>
@@ -162,7 +162,13 @@ export default function LibrarianBooksPage() {
           </Table>
         </Card>
       ) : (
-        <Card><p className="text-center text-muted py-8">No books found.</p></Card>
+        <Card>
+          <div className="py-12 text-center text-muted">
+            <BookOpen className="mx-auto mb-2 h-8 w-8 opacity-40" />
+            <p className="font-medium">No books found</p>
+            <p className="mt-1 text-xs">Add books to the library to get started</p>
+          </div>
+        </Card>
       )}
 
       {/* Add Book Modal */}

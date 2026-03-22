@@ -65,7 +65,15 @@ export default function AdminAttendancePage() {
         <>
           {isLoading ? (
             <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-          ) : dashboard ? (
+          ) : !dashboard ? (
+            <Card>
+              <div className="py-12 text-center text-muted">
+                <Calendar className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                <p className="font-medium">No attendance data</p>
+                <p className="mt-1 text-xs">No attendance records found for this date</p>
+              </div>
+            </Card>
+          ) : (
             <>
               {/* Overall Stats */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -157,7 +165,7 @@ export default function AdminAttendancePage() {
                 </div>
               </Card>
             </>
-          ) : null}
+          )}
         </>
       )}
 

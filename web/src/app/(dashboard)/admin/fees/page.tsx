@@ -25,7 +25,7 @@ import {
   useFeeSummary,
   useRecordPayment,
 } from "@/hooks/use-fees";
-import { DollarSign, Plus, Printer, TrendingUp } from "lucide-react";
+import { DollarSign, Plus, Printer, TrendingUp, Receipt } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminFeesPage() {
@@ -174,8 +174,10 @@ export default function AdminFeesPage() {
               ))}
               {(!records || records.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-500 py-8">
-                    No fee records found
+                  <TableCell colSpan={9} className="text-center text-gray-500 py-12">
+                    <Receipt className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                    <p className="font-medium">No fee records found</p>
+                    <p className="mt-1 text-xs">Try adjusting the year, term, or status filters</p>
                   </TableCell>
                 </TableRow>
               )}

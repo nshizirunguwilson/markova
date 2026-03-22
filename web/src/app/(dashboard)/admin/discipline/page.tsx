@@ -151,7 +151,7 @@ export default function AdminDisciplinePage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => deleteIncident.mutate(inc.id)}>
+                      <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this incident?")) deleteIncident.mutate(inc.id); }}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </TableCell>

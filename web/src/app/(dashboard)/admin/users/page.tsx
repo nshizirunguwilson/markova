@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Eye,
   Trash2,
+  Users as UsersIcon,
 } from "lucide-react";
 import {
   Button,
@@ -156,7 +157,9 @@ export default function UsersPage() {
               {users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-12 text-center text-muted">
-                    No users found
+                    <UsersIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                    <p className="font-medium">No users found</p>
+                    <p className="mt-1 text-xs">Try adjusting your search or filters</p>
                   </TableCell>
                 </TableRow>
               ) : (

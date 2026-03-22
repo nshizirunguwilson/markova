@@ -342,7 +342,11 @@ export default function AdminLibraryPage() {
             <TableBody>
               {!activeLoans || activeLoans.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12 text-center text-muted">No active loans</TableCell>
+                  <TableCell colSpan={5} className="py-12 text-center text-muted">
+                    <ArrowRightLeft className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                    <p className="font-medium">No active loans</p>
+                    <p className="mt-1 text-xs">All books have been returned</p>
+                  </TableCell>
                 </TableRow>
               ) : (
                 activeLoans.map((l: any) => (

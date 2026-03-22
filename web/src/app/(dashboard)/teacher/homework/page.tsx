@@ -131,7 +131,7 @@ export default function TeacherHomeworkPage() {
                         <Button size="sm" variant="ghost" onClick={() => setViewingId(hw.id)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteHomework.mutate(hw.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this homework?")) deleteHomework.mutate(hw.id); }}>
                           <Trash2 className="h-4 w-4 text-danger" />
                         </Button>
                       </div>

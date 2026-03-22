@@ -214,7 +214,11 @@ export default function MessagesPage() {
             })}
           </div>
         ) : (
-          <p className="text-center text-muted text-sm py-8">No conversations yet.</p>
+          <div className="text-center text-muted py-8">
+            <MessageSquare className="mx-auto mb-2 h-8 w-8 opacity-40" />
+            <p className="text-sm font-medium">No conversations yet</p>
+            <p className="mt-1 text-xs">Start a new conversation using the + button above</p>
+          </div>
         )}
       </div>
 

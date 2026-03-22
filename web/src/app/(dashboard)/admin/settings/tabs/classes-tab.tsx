@@ -61,7 +61,7 @@ export function ClassesTab() {
               <CardTitle>{level.name}</CardTitle>
               <Badge>Order: {level.order}</Badge>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => deleteLevel(level.id)}>
+            <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this class level? This cannot be undone.")) deleteLevel(level.id); }}>
               <Trash2 className="h-4 w-4 text-danger" />
             </Button>
           </div>
@@ -71,7 +71,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {s.name} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => deleteSection(s.id)} className="text-danger hover:text-red-700">
+                <button onClick={() => { if (window.confirm("Are you sure you want to delete this section?")) deleteSection(s.id); }} className="text-danger hover:text-red-700">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>

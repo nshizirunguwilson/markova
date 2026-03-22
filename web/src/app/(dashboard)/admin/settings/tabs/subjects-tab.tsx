@@ -85,7 +85,7 @@ export function SubjectsTab() {
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => deleteSubject(s.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this subject?")) deleteSubject(s.id); }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </TableCell>
