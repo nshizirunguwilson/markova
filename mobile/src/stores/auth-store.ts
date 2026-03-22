@@ -47,7 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     // Direct login (no OTP required)
-    await setTokens(data.access_token, data.refresh_token);
+    await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
     set({ isAuthenticated: true, needsOtp: false, pendingEmail: null });
     await get().loadProfile();
     return { needsOtp: false };
@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   verifyOtp: async (email, otp) => {
     const { data } = await api.post('/auth/verify-otp', { email, otp });
-    await setTokens(data.access_token, data.refresh_token);
+    await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
     set({ isAuthenticated: true, needsOtp: false, pendingEmail: null });
     await get().loadProfile();
   },

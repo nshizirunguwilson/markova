@@ -1,6 +1,13 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
+import { useAuthStore } from '@/stores/auth-store';
 
 export default function AuthLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (isAuthenticated) {
+    return <Redirect href="/(app)/(tabs)" />;
+  }
+
   return (
     <Stack
       screenOptions={{
@@ -10,6 +17,7 @@ export default function AuthLayout() {
     >
       <Stack.Screen name="login" />
       <Stack.Screen name="verify-otp" />
+      <Stack.Screen name="forgot-password" />
     </Stack>
   );
 }

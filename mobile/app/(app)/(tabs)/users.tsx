@@ -42,8 +42,8 @@ export default function UsersScreen() {
       }).then((r) => r.data),
   });
 
-  const users: UserItem[] = data?.users ?? data ?? [];
-  const total = data?.total ?? users.length;
+  const users: UserItem[] = data?.data ?? data?.users ?? (Array.isArray(data) ? data : []);
+  const total = data?.meta?.total ?? data?.total ?? users.length;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

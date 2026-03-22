@@ -27,7 +27,7 @@ export default function SettingsScreen() {
 
   const { data: configs, isLoading, refetch } = useQuery<ConfigItem[]>({
     queryKey: ['school-config'],
-    queryFn: () => api.get('/school-config').then((r) => r.data),
+    queryFn: () => api.get('/school-config').then((r) => r.data?.configs ?? r.data),
   });
 
   const onRefresh = useCallback(async () => {
