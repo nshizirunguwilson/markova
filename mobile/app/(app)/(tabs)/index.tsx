@@ -2,17 +2,11 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'r
 import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
-  Calendar,
-  BookOpen,
-  TrendingUp,
-  DollarSign,
-  AlertTriangle,
-  ClipboardList,
-  Users,
-  Settings,
+  Calendar, BookOpen, TrendingUp, DollarSign, AlertTriangle, ClipboardList,
+  Users, Settings, BarChart3, GraduationCap, CreditCard,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth-store';
-import { useParentChildren, useNotifications } from '@/hooks/useApi';
+import { useParentChildren, useAdminDashboard, useNotifications } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -23,6 +17,7 @@ export default function DashboardScreen() {
 
   if (role === 'PARENT') return <ParentDashboard />;
   if (role === 'TEACHER') return <TeacherDashboard />;
+  if (role === 'ADMIN') return <AdminDashboard />;
   return <GenericDashboard />;
 }
 
@@ -50,7 +45,6 @@ function ParentDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {/* Welcome */}
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeTitle}>My Children</Text>
           <Text style={styles.welcomeText}>
@@ -173,7 +167,116 @@ function TeacherDashboard() {
   );
 }
 
-// ─── Generic Dashboard (Admin, Librarian) ──────────────
+// ─── Admin Dashboard (with real analytics) ───────────
+
+function AdminDashboard() {
+  const user = useAuthStore((s) => s.user);
+  const router = useRouter();
+  const { data: dashboard, isLoading, refetch } = useAdminDashboard();
+  const { data: notifications } = useNotifications();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  const quickActions = [
+    { icon: <Users size={24} color={colors.white} />, label: 'Users', bg: colors.primary, onPress: () => router.push('/(app)/(tabs)/users') },
+    { icon: <CreditCard size={24} color={colors.white} />, label: 'NFC Cards', bg: colors.success, onPress: () => router.push('/(app)/nfc-register') },
+    { icon: <BarChart3 size={24} color={colors.white} />, label: 'Analytics', bg: colors.warning, onPress: () => {} },
+    { icon: <Settings size={24} color={colors.white} />, label: 'Settings', bg: colors.primaryLight, onPress: () => router.push('/(app)/(tabs)/settings') },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <ScreenHeader title="Dashboard" subtitle={`${getTimeGreeting()}, ${user?.firstName}`} />
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+        }
+      >
+        <View style={styles.welcomeCard}>
+          <Text style={styles.welcomeTitle}>School Overview</Text>
+          <Text style={styles.welcomeText}>Manage your school from anywhere.</Text>
+        </View>
+
+        {isLoading ? (
+          <LoadingScreen />
+        ) : (
+          <>
+            <Text style={styles.sectionTitle}>Key Metrics</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                title="Students"
+                value={dashboard?.totalStudents ?? '--'}
+                color={colors.primary}
+                icon={<GraduationCap size={18} color={colors.primary} />}
+              />
+              <StatCard
+                title="Teachers"
+                value={dashboard?.totalTeachers ?? '--'}
+                color={colors.success}
+                icon={<Users size={18} color={colors.success} />}
+              />
+              <StatCard
+                title="Parents"
+                value={dashboard?.totalParents ?? '--'}
+                color={colors.warning}
+                icon={<Users size={18} color={colors.warning} />}
+              />
+              <StatCard
+                title="Classes"
+                value={dashboard?.totalClasses ?? '--'}
+                color={colors.primaryLight}
+                icon={<BookOpen size={18} color={colors.primaryLight} />}
+              />
+            </View>
+
+            {(dashboard?.attendanceRate !== undefined || dashboard?.averagePerformance !== undefined) && (
+              <>
+                <Text style={styles.sectionTitle}>Performance</Text>
+                <View style={styles.statsGrid}>
+                  {dashboard?.attendanceRate !== undefined && (
+                    <StatCard
+                      title="Attendance Rate"
+                      value={`${Math.round(dashboard.attendanceRate)}%`}
+                      color={colors.success}
+                    />
+                  )}
+                  {dashboard?.averagePerformance !== undefined && (
+                    <StatCard
+                      title="Avg Performance"
+                      value={`${Math.round(dashboard.averagePerformance)}%`}
+                      color={colors.primary}
+                    />
+                  )}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.actionGrid}>
+          {quickActions.map((action, i) => (
+            <Pressable key={i} style={[styles.actionCard, { backgroundColor: action.bg }]} onPress={action.onPress}>
+              {action.icon}
+              <Text style={styles.actionLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Generic Dashboard (Librarian) ──────────────────
 
 function GenericDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -197,7 +300,6 @@ function GenericDashboard() {
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeTitle}>Welcome to Markova</Text>
           <Text style={styles.welcomeText}>
-            {user?.role === 'ADMIN' && 'Manage your school from anywhere.'}
             {user?.role === 'LIBRARIAN' && 'Manage the library catalog and loans.'}
           </Text>
         </View>
@@ -216,9 +318,10 @@ function GenericDashboard() {
 
 // ─── Shared Components ────────────────────────────────
 
-function StatCard({ title, value, color }: { title: string; value: string; color: string }) {
+function StatCard({ title, value, color, icon }: { title: string; value: string | number; color: string; icon?: React.ReactNode }) {
   return (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
+      {icon && <View style={styles.statIcon}>{icon}</View>}
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statTitle}>{title}</Text>
     </View>
@@ -269,7 +372,7 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'], alignItems: 'center' },
   emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center' },
 
-  // Action grid (Teacher)
+  // Action grid (Teacher/Admin)
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
   actionCard: {
     width: '47%', borderRadius: radius.xl, padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
@@ -284,6 +387,7 @@ const styles = StyleSheet.create({
     width: '47%', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, borderLeftWidth: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
+  statIcon: { marginBottom: spacing.xs },
   statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
   statTitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
 });

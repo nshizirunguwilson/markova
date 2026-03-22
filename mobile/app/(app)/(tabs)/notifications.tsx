@@ -6,7 +6,7 @@ import {
   Bell, Calendar, TrendingUp, DollarSign, AlertTriangle, BookOpen, MessageSquare,
   CheckCircle,
 } from 'lucide-react-native';
-import { useNotifications, useMarkNotificationRead } from '@/hooks/useApi';
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 import type { Notification } from '@/types';
@@ -14,6 +14,7 @@ import type { Notification } from '@/types';
 export default function NotificationsScreen() {
   const { data: notifications, isLoading, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
@@ -70,6 +71,18 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread` : undefined} />
+      {unreadCount > 0 && (
+        <Pressable
+          style={styles.markAllBtn}
+          onPress={() => markAllRead.mutate()}
+          disabled={markAllRead.isPending}
+        >
+          <CheckCircle size={16} color={colors.primary} />
+          <Text style={styles.markAllText}>
+            {markAllRead.isPending ? 'Marking...' : 'Mark All as Read'}
+          </Text>
+        </Pressable>
+      )}
       {notifications && notifications.length > 0 ? (
         <FlatList
           data={notifications}
@@ -113,6 +126,12 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  markAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    paddingVertical: spacing.sm, backgroundColor: colors.accentLight,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  markAllText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
   notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,

@@ -306,6 +306,111 @@ export function useMarkNotificationRead() {
   });
 }
 
+// ─── Library ────────────────────────────────────────────
+
+export function useCheckoutBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { bookId: string; userId: string; dueDate?: string }) =>
+      api.post('/library/checkout', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['library-books'] });
+      qc.invalidateQueries({ queryKey: ['library-active-loans'] });
+    },
+  });
+}
+
+export function useReturnBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (loanId: string) =>
+      api.post('/library/return', { loanId }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['library-books'] });
+      qc.invalidateQueries({ queryKey: ['library-active-loans'] });
+      qc.invalidateQueries({ queryKey: ['library-overdue-loans'] });
+    },
+  });
+}
+
+export function useLibraryAnalytics() {
+  return useQuery({
+    queryKey: ['library-analytics'],
+    queryFn: () => api.get('/library/analytics').then((r) => r.data),
+  });
+}
+
+// ─── Analytics ──────────────────────────────────────────
+
+export function useAdminDashboard() {
+  return useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: () => api.get('/analytics/admin/dashboard').then((r) => r.data),
+  });
+}
+
+export function useTeacherClassAnalytics(classSectionId?: string) {
+  return useQuery({
+    queryKey: ['teacher-class-analytics', classSectionId],
+    queryFn: () =>
+      api.get(`/analytics/teacher/class/${classSectionId}`).then((r) => r.data),
+    enabled: !!classSectionId,
+  });
+}
+
+// ─── Help & Support ─────────────────────────────────────
+
+export function useFaqs(search?: string) {
+  return useQuery({
+    queryKey: ['faqs', search],
+    queryFn: () =>
+      api.get('/help/faqs', { params: { search: search?.trim() || undefined } }).then((r) => r.data),
+  });
+}
+
+export function useMyTickets() {
+  return useQuery({
+    queryKey: ['my-tickets'],
+    queryFn: () => api.get('/help/tickets/mine').then((r) => r.data),
+  });
+}
+
+export function useCreateTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { subject: string; description: string; category?: string }) =>
+      api.post('/help/tickets', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-tickets'] });
+    },
+  });
+}
+
+// ─── Discipline Appeals ─────────────────────────────────
+
+export function useCreateAppeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { incidentId: string; reason: string }) =>
+      api.post('/discipline/appeals', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['student-discipline'] });
+    },
+  });
+}
+
+// ─── Notifications (extended) ───────────────────────────
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.put('/notifications/read-all').then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
 // ─── Parent ─────────────────────────────────────────────
 
 export function useParentChildren() {
