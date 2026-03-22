@@ -2,10 +2,12 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsUUID,
   IsBoolean,
   IsEnum,
   IsDateString,
   IsArray,
+  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, EmploymentStatus, StudentStatus } from '@prisma/client';
@@ -24,11 +26,13 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   firstName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   lastName?: string;
 
   @ApiPropertyOptional()
@@ -39,7 +43,7 @@ export class UpdateUserDto {
   // Student fields
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   classSectionId?: string;
 
   @ApiPropertyOptional()
@@ -60,16 +64,19 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   bloodType?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   allergies?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   medicalConditions?: string;
 
   // Teacher fields
@@ -88,5 +95,6 @@ export class UpdateUserDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   relationship?: string;
 }

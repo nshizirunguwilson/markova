@@ -1,5 +1,12 @@
-import { IsUUID, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsUUID, IsOptional, IsString, IsBoolean, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export enum DocumentType {
+  TRANSFER_LETTER = 'transfer_letter',
+  ENROLLMENT_CONFIRMATION = 'enrollment_confirmation',
+  DISCIPLINE_REPORT = 'discipline_report',
+  TRANSCRIPT = 'transcript',
+}
 
 export class GenerateReportCardDto {
   @ApiProperty() @IsUUID() studentId: string;
@@ -18,9 +25,9 @@ export class GenerateYearReportDto {
 
 export class GenerateDocumentDto {
   @ApiProperty() @IsUUID() studentId: string;
-  @ApiProperty({ enum: ['transfer_letter', 'enrollment_confirmation', 'discipline_report', 'transcript'] })
-  @IsString()
-  type: string;
+  @ApiProperty({ enum: DocumentType })
+  @IsEnum(DocumentType)
+  type: DocumentType;
 }
 
 export class GenerateIdCardDto {

@@ -49,7 +49,7 @@ export default function TeacherDashboard() {
         <p className="mt-1 text-sm text-muted">Teacher Dashboard</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <Card>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
@@ -63,7 +63,7 @@ export default function TeacherDashboard() {
           </p>
         </Card>
 
-        <Card className="col-span-2">
+        <Card className="sm:col-span-1 lg:col-span-2">
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
             My Schedule
@@ -101,7 +101,7 @@ export default function TeacherDashboard() {
       <div className="mt-8">
         <Card>
           <CardTitle>Quick Links</CardTitle>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {quickLinks.map((link) => (
               <Link
                 key={link.href}

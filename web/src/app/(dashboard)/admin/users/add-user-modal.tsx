@@ -70,22 +70,22 @@ export function AddUserModal({ isOpen, onClose }: Props) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add New User" size="lg">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             id="firstName"
-            label="First Name"
+            label={<>First Name <span className="text-red-500">*</span></>}
             error={errors.firstName?.message}
             {...register("firstName")}
           />
           <Input
             id="lastName"
-            label="Last Name"
+            label={<>Last Name <span className="text-red-500">*</span></>}
             error={errors.lastName?.message}
             {...register("lastName")}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             id="email"
             label="Email"
@@ -103,10 +103,10 @@ export function AddUserModal({ isOpen, onClose }: Props) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Role
+              Role <span className="text-red-500">*</span>
             </label>
             <select
               {...register("role")}
@@ -121,7 +121,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
           </div>
           <Input
             id="password"
-            label="Password"
+            label={<>Password <span className="text-red-500">*</span></>}
             type="text"
             error={errors.password?.message}
             {...register("password")}
@@ -130,7 +130,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
 
         {/* Student-specific fields */}
         {role === "STUDENT" && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               id="classSectionId"
               label="Class Section ID"

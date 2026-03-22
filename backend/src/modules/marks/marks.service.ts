@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginatedResponse } from '../../common/dto';
 import {
   CreateMarkDto,
   UpdateMarkDto,
@@ -161,6 +162,9 @@ export class MarksService {
   }
 
   async findAll(query: QueryMarksDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
     const where: any = {};
     if (query.studentId) where.studentId = query.studentId;
     if (query.subjectId) where.subjectId = query.subjectId;
@@ -169,16 +173,23 @@ export class MarksService {
     if (query.assessmentTypeId) where.assessmentTypeId = query.assessmentTypeId;
     if (query.teacherId) where.teacherId = query.teacherId;
 
-    return this.prisma.mark.findMany({
-      where,
-      include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
-        subject: true,
-        assessmentType: true,
-        teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
-      },
-      orderBy: [{ subject: { name: 'asc' } }, { createdAt: 'desc' }],
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.mark.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          subject: true,
+          assessmentType: true,
+          teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        },
+        orderBy: [{ subject: { name: 'asc' } }, { createdAt: 'desc' }],
+      }),
+      this.prisma.mark.count({ where }),
+    ]);
+
+    return new PaginatedResponse(data, total, page, limit);
   }
 
   async findById(id: string) {
@@ -239,76 +250,78 @@ export class MarksService {
   async calculateTermResults(dto: CalculateTermResultDto) {
     const { classSectionId, termId } = dto;
 
-    // Get all active students in section
-    const students = await this.prisma.student.findMany({
-      where: { classSectionId, status: 'ACTIVE' },
-    });
-
-    // Get grading scale from school config
-    const gradingScale = await this.getGradingScale();
-
-    const results = [];
-    for (const student of students) {
-      // Get all marks for this student in this term
-      const marks = await this.prisma.mark.findMany({
-        where: { studentId: student.id, termId },
-        include: { subject: true },
+    return this.prisma.$transaction(async (tx) => {
+      // Get all active students in section
+      const students = await tx.student.findMany({
+        where: { classSectionId, status: 'ACTIVE' },
       });
 
-      if (marks.length === 0) continue;
+      // Get grading scale from school config
+      const gradingScale = await this.getGradingScale();
 
-      // Calculate average: sum of (score/maxScore*subjectMaxMarks) / number of subjects
-      // Group by subject, take average across assessment types per subject
-      const subjectAverages = new Map<string, { total: number; count: number; maxMarks: number }>();
-      for (const mark of marks) {
-        const existing = subjectAverages.get(mark.subjectId) || { total: 0, count: 0, maxMarks: mark.subject.maxMarks };
-        existing.total += (mark.score / mark.maxScore) * mark.subject.maxMarks;
-        existing.count += 1;
-        subjectAverages.set(mark.subjectId, existing);
-      }
+      const results = [];
+      for (const student of students) {
+        // Get all marks for this student in this term
+        const marks = await tx.mark.findMany({
+          where: { studentId: student.id, termId },
+          include: { subject: true },
+        });
 
-      let totalMarks = 0;
-      let subjectCount = 0;
-      for (const [, val] of subjectAverages) {
-        totalMarks += val.total / val.count;
-        subjectCount++;
-      }
+        if (marks.length === 0) continue;
 
-      const average = subjectCount > 0 ? totalMarks / subjectCount : 0;
-      const letterGrade = this.getLetterGrade(average, gradingScale);
+        // Calculate average: sum of (score/maxScore*subjectMaxMarks) / number of subjects
+        // Group by subject, take average across assessment types per subject
+        const subjectAverages = new Map<string, { total: number; count: number; maxMarks: number }>();
+        for (const mark of marks) {
+          const existing = subjectAverages.get(mark.subjectId) || { total: 0, count: 0, maxMarks: mark.subject.maxMarks };
+          existing.total += (mark.score / mark.maxScore) * mark.subject.maxMarks;
+          existing.count += 1;
+          subjectAverages.set(mark.subjectId, existing);
+        }
 
-      const result = await this.prisma.termResult.upsert({
-        where: {
-          studentId_classSectionId_termId: {
+        let totalMarks = 0;
+        let subjectCount = 0;
+        for (const [, val] of subjectAverages) {
+          totalMarks += val.total / val.count;
+          subjectCount++;
+        }
+
+        const average = subjectCount > 0 ? totalMarks / subjectCount : 0;
+        const letterGrade = this.getLetterGrade(average, gradingScale);
+
+        const result = await tx.termResult.upsert({
+          where: {
+            studentId_classSectionId_termId: {
+              studentId: student.id,
+              classSectionId,
+              termId,
+            },
+          },
+          update: { totalMarks, average, letterGrade },
+          create: {
             studentId: student.id,
             classSectionId,
             termId,
+            totalMarks,
+            average,
+            letterGrade,
           },
-        },
-        update: { totalMarks, average, letterGrade },
-        create: {
-          studentId: student.id,
-          classSectionId,
-          termId,
-          totalMarks,
-          average,
-          letterGrade,
-        },
-      });
-      results.push(result);
-    }
+        });
+        results.push(result);
+      }
 
-    // Calculate ranks
-    results.sort((a, b) => (b.average || 0) - (a.average || 0));
-    for (let i = 0; i < results.length; i++) {
-      await this.prisma.termResult.update({
-        where: { id: results[i].id },
-        data: { rank: i + 1 },
-      });
-      results[i].rank = i + 1;
-    }
+      // Calculate ranks
+      results.sort((a, b) => (b.average || 0) - (a.average || 0));
+      for (let i = 0; i < results.length; i++) {
+        await tx.termResult.update({
+          where: { id: results[i].id },
+          data: { rank: i + 1 },
+        });
+        results[i].rank = i + 1;
+      }
 
-    return { count: results.length, results };
+      return { count: results.length, results };
+    });
   }
 
   async getTermResults(classSectionId: string, termId: string) {
@@ -386,75 +399,77 @@ export class MarksService {
       throw new BadRequestException('No terms found for this academic year');
     }
 
-    // Get active students
-    const students = await this.prisma.student.findMany({
-      where: { classSectionId, status: 'ACTIVE' },
-    });
-
     // Get pass threshold from config
     const passThreshold = await this.getPassThreshold();
     const gradingScale = await this.getGradingScale();
+    const startingPoints = await this.getStartingDisciplinePoints();
 
-    const results = [];
-    for (const student of students) {
-      // Get term results
-      const termResults = await this.prisma.termResult.findMany({
-        where: { studentId: student.id, termId: { in: terms.map((t) => t.id) } },
-        orderBy: { term: { startDate: 'asc' } },
+    return this.prisma.$transaction(async (tx) => {
+      // Get active students
+      const students = await tx.student.findMany({
+        where: { classSectionId, status: 'ACTIVE' },
       });
 
-      const term1Avg = termResults[0]?.average || null;
-      const term2Avg = termResults[1]?.average || null;
-      const term3Avg = termResults[2]?.average || null;
+      const results = [];
+      for (const student of students) {
+        // Get term results
+        const termResults = await tx.termResult.findMany({
+          where: { studentId: student.id, termId: { in: terms.map((t) => t.id) } },
+          orderBy: { term: { startDate: 'asc' } },
+        });
 
-      const validAvgs = [term1Avg, term2Avg, term3Avg].filter((a) => a !== null) as number[];
-      const yearlyAverage = validAvgs.length > 0 ? validAvgs.reduce((s, a) => s + a, 0) / validAvgs.length : null;
+        const term1Avg = termResults[0]?.average || null;
+        const term2Avg = termResults[1]?.average || null;
+        const term3Avg = termResults[2]?.average || null;
 
-      // Discipline average (current points / starting points * 100)
-      const startingPoints = await this.getStartingDisciplinePoints();
-      const disciplineAverage = startingPoints > 0
-        ? (student.disciplinePoints / startingPoints) * 100
-        : null;
+        const validAvgs = [term1Avg, term2Avg, term3Avg].filter((a) => a !== null) as number[];
+        const yearlyAverage = validAvgs.length > 0 ? validAvgs.reduce((s, a) => s + a, 0) / validAvgs.length : null;
 
-      const letterGrade = yearlyAverage !== null ? this.getLetterGrade(yearlyAverage, gradingScale) : null;
-      const isPromoted = yearlyAverage !== null && yearlyAverage >= passThreshold;
+        // Discipline average (current points / starting points * 100)
+        const disciplineAverage = startingPoints > 0
+          ? (student.disciplinePoints / startingPoints) * 100
+          : null;
 
-      const result = await this.prisma.yearResult.upsert({
-        where: {
-          studentId_classSectionId_academicYearId: {
+        const letterGrade = yearlyAverage !== null ? this.getLetterGrade(yearlyAverage, gradingScale) : null;
+        const isPromoted = yearlyAverage !== null && yearlyAverage >= passThreshold;
+
+        const result = await tx.yearResult.upsert({
+          where: {
+            studentId_classSectionId_academicYearId: {
+              studentId: student.id,
+              classSectionId,
+              academicYearId,
+            },
+          },
+          update: { term1Avg, term2Avg, term3Avg, yearlyAverage, letterGrade, disciplineAverage, isPromoted },
+          create: {
             studentId: student.id,
             classSectionId,
             academicYearId,
+            term1Avg,
+            term2Avg,
+            term3Avg,
+            yearlyAverage,
+            letterGrade,
+            disciplineAverage,
+            isPromoted,
           },
-        },
-        update: { term1Avg, term2Avg, term3Avg, yearlyAverage, letterGrade, disciplineAverage, isPromoted },
-        create: {
-          studentId: student.id,
-          classSectionId,
-          academicYearId,
-          term1Avg,
-          term2Avg,
-          term3Avg,
-          yearlyAverage,
-          letterGrade,
-          disciplineAverage,
-          isPromoted,
-        },
-      });
-      results.push(result);
-    }
+        });
+        results.push(result);
+      }
 
-    // Calculate ranks
-    results.sort((a, b) => (b.yearlyAverage || 0) - (a.yearlyAverage || 0));
-    for (let i = 0; i < results.length; i++) {
-      await this.prisma.yearResult.update({
-        where: { id: results[i].id },
-        data: { rank: i + 1 },
-      });
-      results[i].rank = i + 1;
-    }
+      // Calculate ranks
+      results.sort((a, b) => (b.yearlyAverage || 0) - (a.yearlyAverage || 0));
+      for (let i = 0; i < results.length; i++) {
+        await tx.yearResult.update({
+          where: { id: results[i].id },
+          data: { rank: i + 1 },
+        });
+        results[i].rank = i + 1;
+      }
 
-    return { count: results.length, results };
+      return { count: results.length, results };
+    });
   }
 
   async getYearResults(classSectionId: string, academicYearId: string) {

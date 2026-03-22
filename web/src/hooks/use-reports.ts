@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { toast } from "sonner";
 
 export function useTermReport(studentId: string, termId: string) {
   return useQuery({
@@ -23,6 +24,9 @@ export function useGenerateClassReports() {
   return useMutation({
     mutationFn: async (data: { classSectionId: string; termId: string }) =>
       (await api.post("/reports/term/class", data)).data,
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }
 
@@ -38,6 +42,9 @@ export function useGenerateDocument() {
   return useMutation({
     mutationFn: async (data: { studentId: string; type: string }) =>
       (await api.post("/reports/document", data)).data,
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }
 
@@ -53,5 +60,8 @@ export function useBulkIdCards() {
   return useMutation({
     mutationFn: async (data: { classSectionId: string }) =>
       (await api.post("/reports/id-cards/bulk", data)).data,
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }

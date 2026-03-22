@@ -207,12 +207,12 @@ export default function AdminLibraryPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Library</h1>
           <p className="mt-1 text-sm text-muted">Manage books, loans, and returns</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {tab !== "analytics" && (
             <ExportDropdown onExport={handleExport} />
           )}
@@ -231,7 +231,7 @@ export default function AdminLibraryPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 mb-5">
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-5">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -271,6 +271,7 @@ export default function AdminLibraryPage() {
           {loadingBooks ? (
             <PageSpinner />
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -319,6 +320,7 @@ export default function AdminLibraryPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </>
       )}
@@ -326,6 +328,7 @@ export default function AdminLibraryPage() {
       {/* Active Loans Tab */}
       {tab === "loans" && (
         loadingLoans ? <PageSpinner /> : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -363,12 +366,14 @@ export default function AdminLibraryPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         )
       )}
 
       {/* Overdue Tab */}
       {tab === "overdue" && (
         loadingOverdue ? <PageSpinner /> : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -409,6 +414,7 @@ export default function AdminLibraryPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         )
       )}
 
@@ -435,6 +441,7 @@ export default function AdminLibraryPage() {
             {analytics?.popularBooks && analytics.popularBooks.length > 0 && (
               <Card className="p-6 col-span-full">
                 <CardTitle className="mb-4">Most Popular Books</CardTitle>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -453,6 +460,7 @@ export default function AdminLibraryPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </Card>
             )}
           </div>
@@ -462,9 +470,9 @@ export default function AdminLibraryPage() {
       {/* Add/Edit Book Modal */}
       <Modal isOpen={showBookModal} onClose={resetBookForm} title={editingBookId ? "Edit Book" : "Add Book"} size="lg">
         <form onSubmit={handleSaveBook} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Title</label>
+              <label className="mb-1 block text-sm font-medium">Title <span className="text-red-500">*</span></label>
               <input
                 className={`w-full rounded-lg border ${bookForm.formState.errors.title ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("title")}
@@ -474,7 +482,7 @@ export default function AdminLibraryPage() {
               )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Author</label>
+              <label className="mb-1 block text-sm font-medium">Author <span className="text-red-500">*</span></label>
               <input
                 className={`w-full rounded-lg border ${bookForm.formState.errors.author ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("author")}
@@ -484,7 +492,7 @@ export default function AdminLibraryPage() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">ISBN</label>
               <input
@@ -507,7 +515,7 @@ export default function AdminLibraryPage() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Total Copies</label>
               <input

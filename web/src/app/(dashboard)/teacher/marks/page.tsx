@@ -205,12 +205,12 @@ export default function TeacherMarksPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Marks Entry</h1>
           <p className="text-sm text-muted">Enter and manage student marks</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isOnline ? (
             <Badge variant="success"><Wifi className="mr-1 h-3 w-3" /> Online</Badge>
           ) : (

@@ -4,7 +4,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateConversationDto, SendMessageDto } from './dto';
+import { PaginatedResponse } from '../../common/dto';
+import { CreateConversationDto, SendMessageDto, QueryConversationsDto, QueryMessagesDto } from './dto';
 
 @Injectable()
 export class MessagingService {

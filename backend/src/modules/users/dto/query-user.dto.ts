@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsBoolean, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
@@ -18,6 +18,6 @@ export class QueryUserDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   classSectionId?: string;
 }

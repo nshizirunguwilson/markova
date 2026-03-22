@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { Role } from '@prisma/client';
 import {
   LoginDto,
@@ -27,28 +28,19 @@ const OTP_EXPIRY_MINUTES = 5;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
+const OTP_TTL_SECONDS = OTP_EXPIRY_MINUTES * 60; // 300s (5 min)
+const FAILED_ATTEMPTS_TTL_SECONDS = 900; // 15 min
+const RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  // In-memory store for OTP sessions and failed attempts
-  // In production, use Redis
-  private otpStore = new Map<
-    string,
-    { userId: string; otp: string; expiresAt: Date }
-  >();
-  private failedAttempts = new Map<
-    string,
-    { count: number; lockedUntil: Date | null }
-  >();
-  private resetTokens = new Map<
-    string,
-    { userId: string; expiresAt: Date }
-  >();
 
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private redis: RedisService,
   ) {}
 
   // ─── LOGIN (Step 1) ────────────────────────────────────────────────────────
@@ -73,10 +65,14 @@ export class AuthService {
 
     // Check lockout
     const identifier = user.id;
-    const attempts = this.failedAttempts.get(identifier);
-    if (attempts?.lockedUntil && attempts.lockedUntil > new Date()) {
+    const attemptsRaw = await this.redis.get('failed:' + identifier);
+    const attempts = attemptsRaw
+      ? JSON.parse(attemptsRaw)
+      : { count: 0, lockedUntil: null };
+
+    if (attempts.lockedUntil && new Date(attempts.lockedUntil) > new Date()) {
       const minutesLeft = Math.ceil(
-        (attempts.lockedUntil.getTime() - Date.now()) / 60000,
+        (new Date(attempts.lockedUntil).getTime() - Date.now()) / 60000,
       );
       throw new ForbiddenException(
         `Account locked. Try again in ${minutesLeft} minutes.`,
@@ -90,12 +86,12 @@ export class AuthService {
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
-      this.recordFailedAttempt(identifier);
+      await this.recordFailedAttempt(identifier);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Clear failed attempts on success
-    this.failedAttempts.delete(identifier);
+    await this.redis.del('failed:' + identifier);
 
     // Students login directly (no OTP)
     if (user.role === Role.STUDENT) {
@@ -105,11 +101,12 @@ export class AuthService {
     // For admin/teacher/parent/librarian — generate OTP
     const otp = this.generateOtp();
     const sessionId = uuidv4();
-    this.otpStore.set(sessionId, {
-      userId: user.id,
-      otp,
-      expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
-    });
+    await this.redis.set(
+      'otp:' + sessionId,
+      JSON.stringify({ userId: user.id, otp, expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString() }),
+      'EX',
+      OTP_TTL_SECONDS,
+    );
 
     // In production, send OTP via SMS/email
     this.logger.log(
@@ -134,14 +131,16 @@ export class AuthService {
     ipAddress?: string,
     deviceInfo?: string,
   ) {
-    const session = this.otpStore.get(dto.sessionId);
+    const sessionRaw = await this.redis.get('otp:' + dto.sessionId);
 
-    if (!session) {
+    if (!sessionRaw) {
       throw new UnauthorizedException('Invalid or expired OTP session');
     }
 
-    if (session.expiresAt < new Date()) {
-      this.otpStore.delete(dto.sessionId);
+    const session = JSON.parse(sessionRaw);
+
+    if (new Date(session.expiresAt) < new Date()) {
+      await this.redis.del('otp:' + dto.sessionId);
       throw new UnauthorizedException('OTP has expired');
     }
 
@@ -150,7 +149,7 @@ export class AuthService {
     }
 
     // OTP valid — clean up and issue tokens
-    this.otpStore.delete(dto.sessionId);
+    await this.redis.del('otp:' + dto.sessionId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: session.userId },
@@ -256,10 +255,12 @@ export class AuthService {
     }
 
     const token = uuidv4();
-    this.resetTokens.set(token, {
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min
-    });
+    await this.redis.set(
+      'reset:' + token,
+      JSON.stringify({ userId: user.id, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() }),
+      'EX',
+      RESET_TOKEN_TTL_SECONDS,
+    );
 
     // In production, send via email/SMS
     this.logger.log(`Password reset token for ${user.email || user.phone}: ${token}`);
@@ -275,14 +276,16 @@ export class AuthService {
   // ─── RESET PASSWORD ───────────────────────────────────────────────────────
 
   async resetPassword(dto: ResetPasswordDto) {
-    const resetData = this.resetTokens.get(dto.token);
+    const resetRaw = await this.redis.get('reset:' + dto.token);
 
-    if (!resetData) {
+    if (!resetRaw) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
-    if (resetData.expiresAt < new Date()) {
-      this.resetTokens.delete(dto.token);
+    const resetData = JSON.parse(resetRaw);
+
+    if (new Date(resetData.expiresAt) < new Date()) {
+      await this.redis.del('reset:' + dto.token);
       throw new BadRequestException('Reset token has expired');
     }
 
@@ -295,7 +298,7 @@ export class AuthService {
       },
     });
 
-    this.resetTokens.delete(dto.token);
+    await this.redis.del('reset:' + dto.token);
 
     // Invalidate all sessions
     await this.prisma.userSession.updateMany({
@@ -448,20 +451,26 @@ export class AuthService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  private recordFailedAttempt(identifier: string) {
-    const current = this.failedAttempts.get(identifier) || {
-      count: 0,
-      lockedUntil: null,
-    };
+  private async recordFailedAttempt(identifier: string) {
+    const currentRaw = await this.redis.get('failed:' + identifier);
+    const current = currentRaw
+      ? JSON.parse(currentRaw)
+      : { count: 0, lockedUntil: null };
+
     current.count += 1;
 
     if (current.count >= MAX_FAILED_ATTEMPTS) {
       current.lockedUntil = new Date(
         Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000,
-      );
+      ).toISOString();
       this.logger.warn(`Account locked for user ${identifier}`);
     }
 
-    this.failedAttempts.set(identifier, current);
+    await this.redis.set(
+      'failed:' + identifier,
+      JSON.stringify(current),
+      'EX',
+      FAILED_ATTEMPTS_TTL_SECONDS,
+    );
   }
 }

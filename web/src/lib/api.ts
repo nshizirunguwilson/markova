@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "sonner";
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api",
@@ -33,6 +34,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem("refresh_token");
         if (!refreshToken) {
+          toast.error('Your session has expired. Please log in again.');
           redirectToLogin();
           return Promise.reject(error);
         }
@@ -48,6 +50,7 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(originalRequest);
       } catch {
+        toast.error('Your session has expired. Please log in again.');
         redirectToLogin();
         return Promise.reject(error);
       }

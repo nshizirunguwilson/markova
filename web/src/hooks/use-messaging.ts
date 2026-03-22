@@ -47,6 +47,9 @@ export function useMarkRead() {
   return useMutation({
     mutationFn: async (conversationId: string) => (await api.post("/messaging/read", { conversationId })).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }
 

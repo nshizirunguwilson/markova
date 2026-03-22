@@ -77,14 +77,14 @@ export default function UsersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Users</h1>
           <p className="mt-1 text-sm text-muted">
             Manage all users in the system
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => setShowImportModal(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
@@ -98,7 +98,7 @@ export default function UsersPage() {
 
       {/* Filters */}
       <Card padding="sm" className="mb-5">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -116,7 +116,7 @@ export default function UsersPage() {
           </Button>
 
           {/* Role tabs */}
-          <div className="flex gap-1 rounded-lg border border-border p-1">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
             {ROLES.map((role) => (
               <button
                 key={role}
@@ -139,6 +139,7 @@ export default function UsersPage() {
         <PageSpinner />
       ) : (
         <>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -236,6 +237,7 @@ export default function UsersPage() {
               )}
             </TableBody>
           </Table>
+          </div>
 
           {/* Pagination */}
           <div className="mt-4 flex items-center justify-between">

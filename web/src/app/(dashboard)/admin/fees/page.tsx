@@ -82,7 +82,7 @@ export default function AdminFeesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h1 className="text-2xl font-bold text-[#1B4F72]">Fee Management</h1>
         <Button onClick={() => setShowRecord(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -113,7 +113,7 @@ export default function AdminFeesPage() {
       )}
 
       {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
+      <div className="flex flex-wrap gap-2 sm:gap-4">
         <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
           <option value="">All Years</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
@@ -135,6 +135,7 @@ export default function AdminFeesPage() {
         {isLoading ? (
           <div className="p-8 text-center"><Spinner /></div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -180,32 +181,33 @@ export default function AdminFeesPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 
       {/* Record Payment Modal */}
       <Modal isOpen={showRecord} onClose={() => setShowRecord(false)} title="Record Payment">
         <div className="space-y-4">
-          <Input label="Student ID" value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })} />
-          <div className="grid grid-cols-2 gap-4">
+          <Input label={<>Student ID <span className="text-red-500">*</span></>} value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Academic Year</label>
+              <label className="text-sm font-medium">Academic Year <span className="text-red-500">*</span></label>
               <select className="w-full border rounded-lg px-3 py-2 text-sm mt-1" value={form.academicYearId} onChange={(e) => setForm({ ...form, academicYearId: e.target.value })}>
                 <option value="">Select</option>
                 {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">Term</label>
+              <label className="text-sm font-medium">Term <span className="text-red-500">*</span></label>
               <select className="w-full border rounded-lg px-3 py-2 text-sm mt-1" value={form.termId} onChange={(e) => setForm({ ...form, termId: e.target.value })}>
                 <option value="">Select</option>
                 {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Amount Due" type="number" value={form.amountDue} onChange={(e) => setForm({ ...form, amountDue: +e.target.value })} />
-            <Input label="Amount Paid" type="number" value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: +e.target.value })} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label={<>Amount Due <span className="text-red-500">*</span></>} type="number" value={form.amountDue} onChange={(e) => setForm({ ...form, amountDue: +e.target.value })} />
+            <Input label={<>Amount Paid <span className="text-red-500">*</span></>} type="number" value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: +e.target.value })} />
           </div>
           <div>
             <label className="text-sm font-medium">Payment Method</label>

@@ -273,5 +273,8 @@ export function useUpdateOnboarding() {
     mutationFn: async (data: { currentStep: string; completed?: string }) =>
       (await api.put("/school-config/onboarding", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["school-config"] }),
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }

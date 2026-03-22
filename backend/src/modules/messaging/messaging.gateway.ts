@@ -55,6 +55,12 @@ export class MessagingGateway
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user || !user.isActive) {
+        client.disconnect();
+        return;
+      }
+
       client.data.user = payload;
       const userId = payload.sub;
 
@@ -142,7 +148,7 @@ export class MessagingGateway
       {
         conversationId: data.conversationId,
         content: data.content,
-        contentType: data.contentType,
+        contentType: data.contentType as any,
         fileUrl: data.fileUrl,
       },
       userId,

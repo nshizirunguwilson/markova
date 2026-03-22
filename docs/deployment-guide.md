@@ -48,9 +48,47 @@ GRANT ALL PRIVILEGES ON DATABASE markova_db TO markova;
 ### Redis 7+
 
 ```bash
+sudo apt update
 sudo apt install -y redis-server
 sudo systemctl enable redis-server
 sudo systemctl start redis-server
+```
+
+Verify Redis is running:
+
+```bash
+redis-cli ping
+# Should return PONG
+```
+
+Add to your `.env`:
+
+```env
+REDIS_URL=redis://localhost:6379
+```
+
+### Chromium (PDF Generation)
+
+Chromium is required for server-side PDF generation (report cards, transcripts, etc.).
+
+```bash
+sudo apt install -y chromium-browser
+
+# Or on newer Ubuntu (22.04+):
+sudo snap install chromium
+```
+
+Find the installed path:
+
+```bash
+which chromium-browser || which chromium
+```
+
+Add to your `.env`:
+
+```env
+CHROME_PATH=/usr/bin/chromium-browser
+# or /snap/bin/chromium depending on install method
 ```
 
 ## 3. Clone/Download Markova
@@ -87,6 +125,9 @@ JWT_REFRESH_SECRET="generate-another-long-random-string"
 # Server
 PORT=3000
 NODE_ENV=production
+
+# PDF Generation (Chromium)
+CHROME_PATH="/usr/bin/chromium-browser"
 
 # SMS Provider (optional)
 SMS_PROVIDER=africas_talking
@@ -395,6 +436,13 @@ sudo systemctl restart markova-web
 
 1. Ensure `uploads/` directory exists and is writable: `sudo mkdir -p /opt/markova/backend/uploads && sudo chown www-data:www-data /opt/markova/backend/uploads`
 2. Check Nginx `client_max_body_size` is sufficient
+
+### PDF generation not working
+
+1. Verify Chromium is installed: `which chromium-browser || which chromium`
+2. Check `CHROME_PATH` in `.env` matches the actual binary path
+3. Ensure required libraries are installed: `sudo apt install -y libnss3 libatk-bridge2.0-0 libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libgtk-3-0`
+4. Test Chromium headless: `chromium-browser --headless --disable-gpu --print-to-pdf=/tmp/test.pdf https://example.com`
 
 ### Slow performance
 

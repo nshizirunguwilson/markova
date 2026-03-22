@@ -409,33 +409,35 @@ export class AcademicService {
     const promoted: string[] = [];
     const retained: string[] = [];
 
-    for (const student of students) {
-      const yearResult = student.yearResults[0];
-      const avg = yearResult?.yearlyAverage || 0;
+    await this.prisma.$transaction(async (tx) => {
+      for (const student of students) {
+        const yearResult = student.yearResults[0];
+        const avg = yearResult?.yearlyAverage || 0;
 
-      if (avg >= threshold) {
-        // Promote
-        await this.prisma.student.update({
-          where: { id: student.id },
-          data: { classSectionId: dto.toClassSectionId },
-        });
-
-        if (yearResult) {
-          await this.prisma.yearResult.update({
-            where: { id: yearResult.id },
-            data: { isPromoted: true },
+        if (avg >= threshold) {
+          // Promote
+          await tx.student.update({
+            where: { id: student.id },
+            data: { classSectionId: dto.toClassSectionId },
           });
-        }
 
-        promoted.push(
-          `${student.user.firstName} ${student.user.lastName} (${avg.toFixed(1)}%)`,
-        );
-      } else {
-        retained.push(
-          `${student.user.firstName} ${student.user.lastName} (${avg.toFixed(1)}%)`,
-        );
+          if (yearResult) {
+            await tx.yearResult.update({
+              where: { id: yearResult.id },
+              data: { isPromoted: true },
+            });
+          }
+
+          promoted.push(
+            `${student.user.firstName} ${student.user.lastName} (${avg.toFixed(1)}%)`,
+          );
+        } else {
+          retained.push(
+            `${student.user.firstName} ${student.user.lastName} (${avg.toFixed(1)}%)`,
+          );
+        }
       }
-    }
+    });
 
     return {
       total: students.length,

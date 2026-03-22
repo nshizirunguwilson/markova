@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { toast } from "sonner";
 
 export function useFees(params?: { studentId?: string; academicYearId?: string; termId?: string; status?: string }) {
   return useQuery({
@@ -30,6 +31,9 @@ export function useRecordPayment() {
   return useMutation({
     mutationFn: async (data: Record<string, unknown>) => (await api.post("/fees", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fees"] }),
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }
 
@@ -39,6 +43,9 @@ export function useUpdatePayment() {
     mutationFn: async ({ id, ...data }: Record<string, unknown>) =>
       (await api.patch(`/fees/${id}`, data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fees"] }),
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Something went wrong');
+    },
   });
 }
 

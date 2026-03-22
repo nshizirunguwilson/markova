@@ -82,12 +82,12 @@ export default function AdminMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Marks Overview</h1>
           <p className="text-sm text-muted">View and manage class results</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -220,7 +220,7 @@ export default function AdminMarksPage() {
             <ClipboardList className="mr-2 inline h-5 w-5" />
             Term Results ({results.length} students)
           </CardTitle>
-          <div className="mt-4">
+          <div className="mt-4 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

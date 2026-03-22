@@ -5,7 +5,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginatedResponse } from '../../common/dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/dto';
 import {
   CreateBookDto,
   UpdateBookDto,
@@ -91,6 +93,9 @@ export class LibraryService {
   }
 
   async findAll(query: QueryBooksDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
     const where: any = { isActive: true };
     if (query.search) {
       where.OR = [
@@ -102,10 +107,17 @@ export class LibraryService {
     if (query.category) where.category = query.category;
     if (query.available) where.availableCount = { gt: 0 };
 
-    return this.prisma.book.findMany({
-      where,
-      orderBy: { title: 'asc' },
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.book.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { title: 'asc' },
+      }),
+      this.prisma.book.count({ where }),
+    ]);
+
+    return new PaginatedResponse(data, total, page, limit);
   }
 
   async findById(id: string) {
@@ -306,7 +318,7 @@ export class LibraryService {
         userId: loan.borrowerUserId,
         title: 'Library Book Due Soon',
         message: `Your borrowed book <strong>"${loan.book.title}"</strong> is due on <strong>${dueDate}</strong>. Please return it on time to avoid penalties.`,
-        type: 'EMAIL',
+        type: NotificationType.EMAIL,
         relatedEntityType: 'BOOK_LOAN',
         relatedEntityId: loan.id,
       });

@@ -2,6 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer from 'puppeteer-core';
 
+function escapeHtml(str: string | null | undefined): string {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function sanitizeColor(color: string | null | undefined): string {
+  if (!color) return '#1B4F72';
+  return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(color) ? color : '#1B4F72';
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
@@ -191,13 +201,13 @@ export class ReportsService {
         return {
           title: `Transfer Letter - ${student.user.firstName} ${student.user.lastName}`,
           html: this.renderLetterHtml(school, student, 'Transfer Letter',
-            `This is to certify that ${student.user.firstName} ${student.user.lastName} (Student ID: ${student.studentIdNumber}) was a student of ${school.name} in ${student.classSection.classLevel.name} ${student.classSection.name}. The student is hereby transferred from our institution as of ${today}.`),
+            `This is to certify that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) was a student of ${school.name} in ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)}. The student is hereby transferred from our institution as of ${today}.`),
         };
       case 'enrollment_confirmation':
         return {
           title: `Enrollment Confirmation - ${student.user.firstName} ${student.user.lastName}`,
           html: this.renderLetterHtml(school, student, 'Enrollment Confirmation',
-            `This is to confirm that ${student.user.firstName} ${student.user.lastName} (Student ID: ${student.studentIdNumber}) is currently enrolled at ${school.name} in ${student.classSection.classLevel.name} ${student.classSection.name} since ${student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A'}.`),
+            `This is to confirm that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) is currently enrolled at ${school.name} in ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} since ${student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A'}.`),
         };
       case 'discipline_report': {
         const incidents = await this.prisma.disciplineIncident.findMany({
@@ -271,12 +281,12 @@ export class ReportsService {
     const map: Record<string, string> = {};
     for (const c of configs) map[c.key] = c.value;
     return {
-      name: map['school_name'] || '',
-      motto: map['motto'] || '',
+      name: escapeHtml(map['school_name']),
+      motto: escapeHtml(map['motto']),
       logoUrl: map['logo_url'] || null,
       stampUrl: map['stamp_url'] || null,
       signatureUrl: map['signature_url'] || null,
-      primaryColor: map['primary_color'] || '#1B4F72',
+      primaryColor: sanitizeColor(map['primary_color']),
     };
   }
 
@@ -323,7 +333,7 @@ export class ReportsService {
         const a = s.assessments.find((a: any) => a.type === t);
         return `<td style="text-align:center">${a ? a.score : '—'}</td>`;
       }).join('');
-      return `<tr><td>${s.subject}</td>${typeScores}<td style="text-align:center;font-weight:bold">${s.average}%</td></tr>`;
+      return `<tr><td>${escapeHtml(s.subject)}</td>${typeScores}<td style="text-align:center;font-weight:bold">${s.average}%</td></tr>`;
     }).join('');
 
     const gradeKey = `<div style="margin:10px 0;font-size:12px;color:#666">
@@ -355,13 +365,13 @@ export class ReportsService {
         <h1>${data.school.name}</h1>
         <p>${data.school.motto}</p>
         <h2>TERM REPORT CARD</h2>
-        <p>${data.term.name} — Academic Year ${data.term.academicYear}</p>
+        <p>${escapeHtml(data.term.name)} — Academic Year ${escapeHtml(data.term.academicYear)}</p>
       </div>
       <div class="info">
         <div>
-          <strong>Name:</strong> ${data.student.name}<br>
-          <strong>Student ID:</strong> ${data.student.studentIdNumber}<br>
-          <strong>Class:</strong> ${data.student.class}
+          <strong>Name:</strong> ${escapeHtml(data.student.name)}<br>
+          <strong>Student ID:</strong> ${escapeHtml(data.student.studentIdNumber)}<br>
+          <strong>Class:</strong> ${escapeHtml(data.student.class)}
         </div>
         <div style="text-align:right">
           <strong>Average:</strong> ${data.result?.average?.toFixed(1) || '—'}%<br>
@@ -370,13 +380,13 @@ export class ReportsService {
         </div>
       </div>
       <table>
-        <thead><tr><th style="width:30%">Subject</th>${typeHeaders.map((t) => `<th>${t}</th>`).join('')}<th>Average</th></tr></thead>
+        <thead><tr><th style="width:30%">Subject</th>${typeHeaders.map((t) => `<th>${escapeHtml(t)}</th>`).join('')}<th>Average</th></tr></thead>
         <tbody>${subjectRows}</tbody>
       </table>
       ${gradeKey}
       <div class="comments">
-        <p><strong>Class Teacher's Comment:</strong> ${data.result?.teacherComment || '_______________________________________________'}</p>
-        <p><strong>Headmaster's Remark:</strong> ${data.result?.headmasterComment || '_______________________________________________'}</p>
+        <p><strong>Class Teacher's Comment:</strong> ${escapeHtml(data.result?.teacherComment) || '_______________________________________________'}</p>
+        <p><strong>Headmaster's Remark:</strong> ${escapeHtml(data.result?.headmasterComment) || '_______________________________________________'}</p>
       </div>
       <div class="footer">
         <div>Class Average: ${data.classStats.classAverage?.toFixed(1) || '—'}%</div>
@@ -398,7 +408,7 @@ export class ReportsService {
       .content { margin: 30px 0; line-height: 1.8; }
       .footer { margin-top: 60px; }
     </style></head><body>
-      <div class="header"><h1>${school.name}</h1><p>${school.motto}</p><h2>${title}</h2></div>
+      <div class="header"><h1>${school.name}</h1><p>${school.motto}</p><h2>${escapeHtml(title)}</h2></div>
       <div class="content"><p>${body}</p></div>
       <div class="footer"><p>Authorized Signature: _______________</p><p>Date: ${new Date().toLocaleDateString()}</p></div>
     </body></html>`;
@@ -406,7 +416,7 @@ export class ReportsService {
 
   private renderDisciplineReportHtml(school: any, student: any, incidents: any[]): string {
     const rows = incidents.map((i) =>
-      `<tr><td>${new Date(i.date).toLocaleDateString()}</td><td>${i.description}</td><td>${i.pointsDeducted}</td><td>${i.actionTaken}</td></tr>`
+      `<tr><td>${new Date(i.date).toLocaleDateString()}</td><td>${escapeHtml(i.description)}</td><td>${i.pointsDeducted}</td><td>${escapeHtml(i.actionTaken)}</td></tr>`
     ).join('');
     return `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; margin: 40px; }
@@ -415,15 +425,15 @@ export class ReportsService {
       th { background: ${school.primaryColor}; color: white; }
     </style></head><body>
       <h1 style="color:${school.primaryColor}">${school.name}</h1>
-      <h2>Discipline Report — ${student.user.firstName} ${student.user.lastName}</h2>
-      <p>ID: ${student.studentIdNumber} | Class: ${student.classSection.classLevel.name} ${student.classSection.name} | Points: ${student.disciplinePoints}</p>
+      <h2>Discipline Report — ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</h2>
+      <p>ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} | Points: ${student.disciplinePoints}</p>
       <table><thead><tr><th>Date</th><th>Description</th><th>Points</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`;
   }
 
   private renderTranscriptHtml(school: any, student: any, termResults: any[]): string {
     const rows = termResults.map((tr) =>
-      `<tr><td>${tr.term.academicYear.name}</td><td>${tr.term.name}</td><td>${tr.average?.toFixed(1) || '—'}%</td><td>${tr.letterGrade || '—'}</td><td>${tr.rank || '—'}</td></tr>`
+      `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td>${tr.average?.toFixed(1) || '—'}%</td><td>${escapeHtml(tr.letterGrade) || '—'}</td><td>${tr.rank || '—'}</td></tr>`
     ).join('');
     return `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; margin: 40px; }
@@ -433,7 +443,7 @@ export class ReportsService {
     </style></head><body>
       <h1 style="color:${school.primaryColor}">${school.name}</h1>
       <h2>Academic Transcript</h2>
-      <p>${student.user.firstName} ${student.user.lastName} | ID: ${student.studentIdNumber}</p>
+      <p>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} | ID: ${escapeHtml(student.studentIdNumber)}</p>
       <table><thead><tr><th>Year</th><th>Term</th><th>Average</th><th>Grade</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`;
   }

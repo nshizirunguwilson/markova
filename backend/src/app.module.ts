@@ -18,12 +18,16 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HelpModule } from './modules/help/help.module';
+import { HealthModule } from './modules/health/health.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -31,6 +35,7 @@ import { AppService } from './app.service';
         limit: 100,
       },
     ]),
+    RedisModule,
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -47,6 +52,7 @@ import { AppService } from './app.service';
     FeesModule,
     AnalyticsModule,
     HelpModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

@@ -5,7 +5,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginatedResponse } from '../../common/dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/dto';
 import {
   MarkAttendanceDto,
   QrScanDto,
@@ -260,6 +262,9 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async findAll(query: QueryAttendanceDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
     const where: any = {};
     if (query.studentId) where.studentId = query.studentId;
     if (query.classSectionId) where.classSectionId = query.classSectionId;
@@ -271,14 +276,21 @@ export class AttendanceService {
       if (query.dateTo) where.date.lte = new Date(query.dateTo);
     }
 
-    return this.prisma.attendance.findMany({
-      where,
-      include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
-        subject: { select: { name: true } },
-      },
-      orderBy: [{ date: 'desc' }, { student: { user: { firstName: 'asc' } } }],
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.attendance.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          subject: { select: { name: true } },
+        },
+        orderBy: [{ date: 'desc' }, { student: { user: { firstName: 'asc' } } }],
+      }),
+      this.prisma.attendance.count({ where }),
+    ]);
+
+    return new PaginatedResponse(data, total, page, limit);
   }
 
   async getClassAttendance(classSectionId: string, date: string) {
@@ -355,26 +367,45 @@ export class AttendanceService {
   // CHRONIC ABSENTEEISM
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getChronicallyAbsent(classSectionId?: string, threshold?: number) {
+  async getChronicallyAbsent(classSectionId?: string, threshold?: number, page = 1, limit = 20) {
     const absenceThreshold = threshold || 20; // Default: 20% absence rate
+    const skip = (page - 1) * limit;
 
     // Get all active students
-    const where: any = { status: 'ACTIVE' as any };
-    if (classSectionId) where.classSectionId = classSectionId;
+    const studentWhere: any = { status: 'ACTIVE' as any };
+    if (classSectionId) studentWhere.classSectionId = classSectionId;
 
     const students = await this.prisma.student.findMany({
-      where,
+      where: studentWhere,
       include: {
         user: { select: { firstName: true, lastName: true } },
         classSection: { include: { classLevel: true } },
-        attendances: { where: { type: 'daily' } },
+        _count: {
+          select: { attendances: { where: { type: 'daily' } } },
+        },
       },
     });
 
+    // Get absent counts per student using groupBy
+    const absentCounts = await this.prisma.attendance.groupBy({
+      by: ['studentId'],
+      where: {
+        type: 'daily',
+        status: 'ABSENT' as any,
+        studentId: { in: students.map((s) => s.id) },
+      },
+      _count: true,
+    });
+
+    const absentMap: Record<string, number> = {};
+    for (const a of absentCounts) {
+      absentMap[a.studentId] = a._count;
+    }
+
     const chronic = students
       .map((s) => {
-        const total = s.attendances.length;
-        const absent = s.attendances.filter((a) => a.status === 'ABSENT').length;
+        const total = s._count.attendances;
+        const absent = absentMap[s.id] || 0;
         const rate = total > 0 ? Math.round((absent / total) * 100) : 0;
         return {
           studentId: s.id,
@@ -389,7 +420,17 @@ export class AttendanceService {
       .filter((s) => s.absenceRate >= absenceThreshold)
       .sort((a, b) => b.absenceRate - a.absenceRate);
 
-    return { threshold: absenceThreshold, count: chronic.length, students: chronic };
+    const total = chronic.length;
+    const paginatedStudents = chronic.slice(skip, skip + limit);
+
+    return {
+      threshold: absenceThreshold,
+      count: total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      students: paginatedStudents,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -399,37 +440,49 @@ export class AttendanceService {
   async getDashboardData(date?: string) {
     const targetDate = date ? new Date(date) : new Date(new Date().toISOString().slice(0, 10));
 
-    // Get all class sections with attendance stats
+    // Get all class sections with student counts
     const sections = await this.prisma.classSection.findMany({
       include: {
         classLevel: true,
-        students: { where: { status: 'ACTIVE' } },
+        _count: { select: { students: { where: { status: 'ACTIVE' } } } },
       },
     });
 
-    const sectionStats = await Promise.all(
-      sections.map(async (section) => {
-        const totalStudents = section.students.length;
-        const attendances = await this.prisma.attendance.findMany({
-          where: { classSectionId: section.id, date: targetDate, type: 'daily' },
-        });
+    // Single query: group attendance by classSectionId + status for the target date
+    const attendanceGroups = await this.prisma.attendance.groupBy({
+      by: ['classSectionId', 'status'],
+      where: { date: targetDate, type: 'daily' },
+      _count: true,
+    });
 
-        const present = attendances.filter((a) => a.status === 'PRESENT').length;
-        const late = attendances.filter((a) => a.status === 'LATE').length;
-        const absent = totalStudents - present - late;
+    // Build lookup: { sectionId -> { PRESENT: n, LATE: n, ABSENT: n } }
+    const attMap: Record<string, Record<string, number>> = {};
+    for (const g of attendanceGroups) {
+      if (!attMap[g.classSectionId]) attMap[g.classSectionId] = {};
+      attMap[g.classSectionId][g.status] = g._count;
+    }
 
-        return {
-          sectionId: section.id,
-          className: `${section.classLevel.name} ${section.name}`,
-          total: totalStudents,
-          present,
-          late,
-          absent,
-          rate: totalStudents > 0 ? Math.round(((present + late) / totalStudents) * 100) : 0,
-          marked: attendances.length > 0,
-        };
-      })
-    );
+    // Also get which sections have any attendance marked
+    const markedSections = new Set(attendanceGroups.map((g) => g.classSectionId));
+
+    const sectionStats = sections.map((section) => {
+      const totalStudents = section._count.students;
+      const sectionAtt = attMap[section.id] || {};
+      const present = sectionAtt['PRESENT'] || 0;
+      const late = sectionAtt['LATE'] || 0;
+      const absent = totalStudents - present - late;
+
+      return {
+        sectionId: section.id,
+        className: `${section.classLevel.name} ${section.name}`,
+        total: totalStudents,
+        present,
+        late,
+        absent,
+        rate: totalStudents > 0 ? Math.round(((present + late) / totalStudents) * 100) : 0,
+        marked: markedSections.has(section.id),
+      };
+    });
 
     const totalStudents = sectionStats.reduce((s, c) => s + c.total, 0);
     const totalPresent = sectionStats.reduce((s, c) => s + c.present, 0);
@@ -475,7 +528,7 @@ export class AttendanceService {
         try {
           await this.notifications.send({
             userId: link.parentUserId,
-            type: 'SMS',
+            type: NotificationType.SMS,
             title,
             message,
           });
@@ -489,7 +542,7 @@ export class AttendanceService {
         try {
           await this.notifications.send({
             userId: link.parentUserId,
-            type: 'EMAIL',
+            type: NotificationType.EMAIL,
             title,
             message,
             relatedEntityType: 'attendance',
@@ -531,7 +584,7 @@ export class AttendanceService {
         try {
           await this.notifications.send({
             userId: link.parentUserId,
-            type: 'EMAIL',
+            type: NotificationType.EMAIL,
             title: 'Chronic Absenteeism Alert',
             message,
             relatedEntityType: 'attendance',

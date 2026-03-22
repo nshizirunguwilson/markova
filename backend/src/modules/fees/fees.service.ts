@@ -1,13 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PaginatedResponse } from '../../common/dto';
 import { RecordPaymentDto, UpdatePaymentDto, QueryFeesDto } from './dto';
 import puppeteer from 'puppeteer-core';
+
+function escapeHtml(str: string | null | undefined): string {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 @Injectable()
 export class FeesService {
   constructor(private prisma: PrismaService) {}
 
   async recordPayment(dto: RecordPaymentDto) {
+    // Check for duplicate payment record
+    const existing = await this.prisma.feeRecord.findFirst({
+      where: {
+        studentId: dto.studentId,
+        termId: dto.termId,
+        academicYearId: dto.academicYearId,
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'A fee record already exists for this student and term. Use the update endpoint instead.',
+      );
+    }
+
     const balance = dto.amountDue - dto.amountPaid;
     const status = balance <= 0 ? 'PAID' : dto.amountPaid > 0 ? 'PARTIAL' : 'UNPAID';
 
@@ -51,21 +71,31 @@ export class FeesService {
   }
 
   async findAll(query: QueryFeesDto) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
     const where: any = {};
     if (query.studentId) where.studentId = query.studentId;
     if (query.academicYearId) where.academicYearId = query.academicYearId;
     if (query.termId) where.termId = query.termId;
     if (query.status) where.status = query.status;
 
-    return this.prisma.feeRecord.findMany({
-      where,
-      include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } }, classSection: { include: { classLevel: true } } } },
-        term: { select: { name: true } },
-        academicYear: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [data, total] = await Promise.all([
+      this.prisma.feeRecord.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          student: { include: { user: { select: { firstName: true, lastName: true } }, classSection: { include: { classLevel: true } } } },
+          term: { select: { name: true } },
+          academicYear: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.feeRecord.count({ where }),
+    ]);
+
+    return new PaginatedResponse(data, total, page, limit);
   }
 
   async getStudentFees(studentId: string) {
@@ -89,15 +119,36 @@ export class FeesService {
     if (academicYearId) where.academicYearId = academicYearId;
     if (termId) where.termId = termId;
 
-    const records = await this.prisma.feeRecord.findMany({ where });
+    const [agg, statusCounts] = await Promise.all([
+      this.prisma.feeRecord.aggregate({
+        where,
+        _sum: { amountDue: true, amountPaid: true },
+        _count: true,
+      }),
+      this.prisma.feeRecord.groupBy({
+        by: ['status'],
+        where,
+        _count: true,
+      }),
+    ]);
 
-    const totalDue = records.reduce((s, r) => s + r.amountDue, 0);
-    const totalPaid = records.reduce((s, r) => s + r.amountPaid, 0);
-    const paid = records.filter((r) => r.status === 'PAID').length;
-    const partial = records.filter((r) => r.status === 'PARTIAL').length;
-    const unpaid = records.filter((r) => r.status === 'UNPAID').length;
+    const totalDue = agg._sum.amountDue || 0;
+    const totalPaid = agg._sum.amountPaid || 0;
+    const statusMap: Record<string, number> = {};
+    for (const s of statusCounts) {
+      statusMap[s.status] = s._count;
+    }
 
-    return { totalStudents: records.length, totalDue, totalPaid, totalBalance: totalDue - totalPaid, paid, partial, unpaid, collectionRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 100) : 0 };
+    return {
+      totalStudents: agg._count,
+      totalDue,
+      totalPaid,
+      totalBalance: totalDue - totalPaid,
+      paid: statusMap['PAID'] || 0,
+      partial: statusMap['PARTIAL'] || 0,
+      unpaid: statusMap['UNPAID'] || 0,
+      collectionRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 100) : 0,
+    };
   }
 
   async generateReceiptHtml(id: string): Promise<string> {
@@ -121,16 +172,16 @@ export class FeesService {
       table { width: 100%; margin: 20px 0; border-collapse: collapse; }
       td { padding: 8px; border-bottom: 1px solid #eee; }
     </style></head><body>
-      <div class="header"><h1>${map['school_name'] || ''}</h1><h2>Payment Receipt</h2></div>
+      <div class="header"><h1>${escapeHtml(map['school_name'])}</h1><h2>Payment Receipt</h2></div>
       <table>
-        <tr><td><strong>Receipt #</strong></td><td>${record.receiptNumber || record.id.slice(0, 8)}</td></tr>
-        <tr><td><strong>Student</strong></td><td>${record.student.user.firstName} ${record.student.user.lastName}</td></tr>
-        <tr><td><strong>Class</strong></td><td>${record.student.classSection.classLevel.name} ${record.student.classSection.name}</td></tr>
-        <tr><td><strong>Term</strong></td><td>${record.term.name} — ${record.academicYear.name}</td></tr>
+        <tr><td><strong>Receipt #</strong></td><td>${escapeHtml(record.receiptNumber) || escapeHtml(record.id.slice(0, 8))}</td></tr>
+        <tr><td><strong>Student</strong></td><td>${escapeHtml(record.student.user.firstName)} ${escapeHtml(record.student.user.lastName)}</td></tr>
+        <tr><td><strong>Class</strong></td><td>${escapeHtml(record.student.classSection.classLevel.name)} ${escapeHtml(record.student.classSection.name)}</td></tr>
+        <tr><td><strong>Term</strong></td><td>${escapeHtml(record.term.name)} — ${escapeHtml(record.academicYear.name)}</td></tr>
         <tr><td><strong>Amount Due</strong></td><td>${record.amountDue.toLocaleString()}</td></tr>
         <tr><td><strong>Amount Paid</strong></td><td>${record.amountPaid.toLocaleString()}</td></tr>
         <tr><td><strong>Balance</strong></td><td>${record.balance.toLocaleString()}</td></tr>
-        <tr><td><strong>Method</strong></td><td>${record.paymentMethod}</td></tr>
+        <tr><td><strong>Method</strong></td><td>${escapeHtml(record.paymentMethod)}</td></tr>
         <tr><td><strong>Date</strong></td><td>${record.paymentDate ? new Date(record.paymentDate).toLocaleDateString() : ''}</td></tr>
       </table>
     </body></html>`;

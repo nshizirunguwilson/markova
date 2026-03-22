@@ -109,7 +109,7 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      <div data-guide="stat-cards" className="grid grid-cols-4 gap-5">
+      <div data-guide="stat-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {statCards.map((card) => (
           <Card key={card.label} padding="md" className="flex items-center gap-4">
             <div
@@ -125,7 +125,7 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-5">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card>
           <CardTitle data-guide="quick-actions">Quick Actions</CardTitle>
           <div className="mt-4 grid grid-cols-2 gap-3">

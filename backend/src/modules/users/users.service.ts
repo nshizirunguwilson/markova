@@ -346,29 +346,28 @@ export class UsersService {
       studentIds?: string[];
     }>,
   ) {
-    const results = { created: 0, errors: [] as string[] };
     const passwordHash = await bcrypt.hash('Markova2025!', 10);
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      try {
+    return this.prisma.$transaction(async (tx) => {
+      const results = { created: 0, errors: [] as string[] };
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         // Check for duplicates
         if (row.email) {
-          const existing = await this.prisma.user.findUnique({ where: { email: row.email } });
+          const existing = await tx.user.findUnique({ where: { email: row.email } });
           if (existing) {
-            results.errors.push(`Row ${i + 1}: Email ${row.email} already exists`);
-            continue;
+            throw new BadRequestException(`Row ${i + 1}: Email ${row.email} already exists`);
           }
         }
         if (row.phone) {
-          const existing = await this.prisma.user.findUnique({ where: { phone: row.phone } });
+          const existing = await tx.user.findUnique({ where: { phone: row.phone } });
           if (existing) {
-            results.errors.push(`Row ${i + 1}: Phone ${row.phone} already exists`);
-            continue;
+            throw new BadRequestException(`Row ${i + 1}: Phone ${row.phone} already exists`);
           }
         }
 
-        const user = await this.prisma.user.create({
+        const user = await tx.user.create({
           data: {
             email: row.email || null,
             phone: row.phone || null,
@@ -383,11 +382,10 @@ export class UsersService {
 
         if (row.role === Role.STUDENT) {
           if (!row.classSectionId) {
-            results.errors.push(`Row ${i + 1}: classSectionId required for students`);
-            continue;
+            throw new BadRequestException(`Row ${i + 1}: classSectionId required for students`);
           }
           const studentIdNumber = await this.generateStudentId();
-          await this.prisma.student.create({
+          await tx.student.create({
             data: {
               userId: user.id,
               studentIdNumber,
@@ -401,7 +399,7 @@ export class UsersService {
         }
 
         if (row.role === Role.TEACHER) {
-          await this.prisma.teacher.create({
+          await tx.teacher.create({
             data: {
               userId: user.id,
               employmentStatus: 'FULL_TIME',
@@ -412,7 +410,7 @@ export class UsersService {
 
         if (row.role === Role.PARENT && row.studentIds?.length) {
           for (const studentId of row.studentIds) {
-            await this.prisma.parentStudent.create({
+            await tx.parentStudent.create({
               data: {
                 parentUserId: user.id,
                 studentId,
@@ -423,12 +421,10 @@ export class UsersService {
         }
 
         results.created++;
-      } catch (error: any) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`);
       }
-    }
 
-    return results;
+      return results;
+    });
   }
 
   // ─── CSV TEMPLATE ───────────────────────────────────────────────────────────

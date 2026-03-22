@@ -6,7 +6,9 @@ import {
   IsDateString,
   IsArray,
   IsEnum,
+  IsUUID,
   Min,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -17,6 +19,7 @@ import { Type } from 'class-transformer';
 export class CreateAcademicYearDto {
   @ApiProperty({ example: '2025-2026' })
   @IsString()
+  @MaxLength(255)
   name: string;
 
   @ApiProperty({ example: '2025-02-01' })
@@ -37,6 +40,7 @@ export class UpdateAcademicYearDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiPropertyOptional()
@@ -59,11 +63,12 @@ export class UpdateAcademicYearDto {
 
 export class CreateTermDto {
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   academicYearId: string;
 
   @ApiProperty({ example: 'Term 1' })
   @IsString()
+  @MaxLength(255)
   name: string;
 
   @ApiProperty({ example: '2025-02-01' })
@@ -84,6 +89,7 @@ export class UpdateTermDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiPropertyOptional()
@@ -112,6 +118,7 @@ export class UpdateTermDto {
 export class CreateClassLevelDto {
   @ApiProperty({ example: 'Senior 1' })
   @IsString()
+  @MaxLength(255)
   name: string;
 
   @ApiProperty({ example: 1 })
@@ -124,6 +131,7 @@ export class UpdateClassLevelDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiPropertyOptional()
@@ -137,11 +145,12 @@ export class UpdateClassLevelDto {
 
 export class CreateClassSectionDto {
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   classLevelId: string;
 
   @ApiProperty({ example: 'A' })
   @IsString()
+  @MaxLength(255)
   name: string;
 }
 
@@ -149,11 +158,12 @@ export class UpdateClassSectionDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUUID()
   classLevelId?: string;
 }
 
@@ -162,11 +172,13 @@ export class UpdateClassSectionDto {
 export class CreateSubjectDto {
   @ApiProperty({ example: 'Mathematics' })
   @IsString()
+  @MaxLength(255)
   name: string;
 
   @ApiPropertyOptional({ example: 'Sciences' })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   category?: string;
 
   @ApiPropertyOptional({ example: 100 })
@@ -179,11 +191,13 @@ export class UpdateSubjectDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   category?: string;
 
   @ApiPropertyOptional()
@@ -202,6 +216,7 @@ export class UpdateSubjectDto {
 export class CreateAssessmentTypeDto {
   @ApiProperty({ example: 'Midterm Exam' })
   @IsString()
+  @MaxLength(255)
   name: string;
 }
 
@@ -209,19 +224,19 @@ export class CreateAssessmentTypeDto {
 
 export class CreateAssignmentDto {
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   teacherId: string;
 
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   subjectId: string;
 
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   classSectionId: string;
 
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   academicYearId: string;
 }
 
@@ -237,15 +252,15 @@ export class BulkAssignmentDto {
 
 export class PromoteStudentsDto {
   @ApiProperty({ description: 'Source class section ID' })
-  @IsString()
+  @IsUUID()
   fromClassSectionId: string;
 
   @ApiProperty({ description: 'Target class section ID' })
-  @IsString()
+  @IsUUID()
   toClassSectionId: string;
 
   @ApiProperty({ description: 'Academic year ID to check results' })
-  @IsString()
+  @IsUUID()
   academicYearId: string;
 
   @ApiPropertyOptional({ description: 'Pass threshold (default 50)', example: 50 })

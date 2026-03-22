@@ -11,7 +11,7 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle } from "lucide-react";
+import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle, ArrowLeft } from "lucide-react";
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -156,9 +156,9 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
+    <div className="flex h-[calc(100vh-8rem)] gap-0 md:gap-4">
       {/* Conversation List */}
-      <div className="w-80 flex-shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-3">
+      <div className={`${selectedConv ? "hidden md:block" : "block"} w-full md:w-80 flex-shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-3`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-foreground">Messages</h2>
           <Button size="sm" variant="ghost" onClick={() => setShowNewModal(true)}>
@@ -219,12 +219,18 @@ export default function MessagesPage() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex flex-1 flex-col rounded-xl border border-border bg-surface">
+      <div className={`${selectedConv ? "flex" : "hidden md:flex"} flex-1 flex-col rounded-xl border border-border bg-surface`}>
         {selectedConv && selectedConversation ? (
           <>
             {/* Header with online status */}
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedConv(null)}
+                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/10"
+                >
+                  <ArrowLeft className="h-5 w-5 text-foreground" />
+                </button>
                 <div className="relative">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
                     {getConvName(selectedConversation).charAt(0).toUpperCase()}

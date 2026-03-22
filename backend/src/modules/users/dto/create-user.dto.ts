@@ -3,7 +3,10 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
+  Matches,
   MinLength,
+  MaxLength,
   IsDateString,
   IsArray,
 } from 'class-validator';
@@ -24,6 +27,9 @@ export class CreateUserDto {
   @ApiProperty({ example: 'Password123!' })
   @IsString()
   @MinLength(8)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/, {
+    message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number, and one special character',
+  })
   password: string;
 
   @ApiProperty({ enum: Role })
@@ -32,16 +38,18 @@ export class CreateUserDto {
 
   @ApiProperty({ example: 'John' })
   @IsString()
+  @MaxLength(255)
   firstName: string;
 
   @ApiProperty({ example: 'Doe' })
   @IsString()
+  @MaxLength(255)
   lastName: string;
 
   // ─── Student-specific fields ──────────────────────────────────────────────
   @ApiPropertyOptional({ example: 'class-section-uuid' })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   classSectionId?: string;
 
   @ApiPropertyOptional({ example: '2008-05-15' })
@@ -78,5 +86,6 @@ export class CreateUserDto {
   @ApiPropertyOptional({ example: 'Father' })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   relationship?: string;
 }

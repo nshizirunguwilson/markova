@@ -25,7 +25,7 @@ export default function AdminAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Attendance Dashboard</h1>
           <p className="text-sm text-muted">Real-time attendance monitoring</p>
@@ -39,7 +39,7 @@ export default function AdminAttendancePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-border">
+      <div className="flex flex-wrap gap-2 border-b border-border">
         <button
           onClick={() => setTab("dashboard")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -96,7 +96,7 @@ export default function AdminAttendancePage() {
                 <CardTitle>
                   <Users className="mr-2 inline h-5 w-5" /> Class Breakdown
                 </CardTitle>
-                <div className="mt-4">
+                <div className="mt-4 overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -171,7 +171,7 @@ export default function AdminAttendancePage() {
             Students with absence rate above {chronic?.threshold || 20}%
           </p>
           {chronic?.students?.length > 0 ? (
-            <div className="mt-4">
+            <div className="mt-4 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

@@ -17,7 +17,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import { existsSync, unlinkSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -101,6 +102,18 @@ export class UsersController {
   ) {
     if (!file) {
       throw new Error('Photo file is required');
+    }
+    // Delete old photo file if it exists
+    const user = await this.usersService.findOne(id);
+    if (user.photoUrl) {
+      try {
+        const oldPath = join(process.cwd(), user.photoUrl);
+        if (existsSync(oldPath)) {
+          unlinkSync(oldPath);
+        }
+      } catch {
+        // Ignore cleanup errors — the old file may already be gone
+      }
     }
     const photoUrl = `/uploads/photos/${file.filename}`;
     return this.usersService.updatePhoto(id, photoUrl);

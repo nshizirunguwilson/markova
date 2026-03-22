@@ -1,12 +1,12 @@
-import { IsString, IsOptional, IsNumber, Min, IsUUID, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsNumber, Min, IsUUID, IsDateString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateHomeworkDto {
   @ApiProperty() @IsUUID() subjectId: string;
   @ApiProperty() @IsUUID() classSectionId: string;
   @ApiProperty() @IsUUID() termId: string;
-  @ApiProperty() @IsString() title: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiProperty() @IsString() @MaxLength(255) title: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @ApiProperty() @IsDateString() dueDate: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) maxMarks?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) lateDeductionPerDay?: number;
@@ -14,8 +14,8 @@ export class CreateHomeworkDto {
 }
 
 export class UpdateHomeworkDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255) title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) description?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() dueDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) maxMarks?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) lateDeductionPerDay?: number;

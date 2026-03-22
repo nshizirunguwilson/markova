@@ -14,7 +14,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
+import { existsSync, unlinkSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { SchoolConfigService } from './school-config.service';
 import { UpsertConfigDto, BulkUpsertConfigDto, UpdateOnboardingDto } from './dto';
@@ -35,6 +36,18 @@ const brandingStorage = diskStorage({
 @ApiBearerAuth()
 export class SchoolConfigController {
   constructor(private readonly configService: SchoolConfigService) {}
+
+  private deleteOldFile(fileUrl: string | null | undefined) {
+    if (!fileUrl) return;
+    try {
+      const filePath = join(process.cwd(), fileUrl);
+      if (existsSync(filePath)) {
+        unlinkSync(filePath);
+      }
+    } catch {
+      // Ignore cleanup errors — the old file may already be gone
+    }
+  }
 
   @Get()
   @Roles('ADMIN')
@@ -91,7 +104,7 @@ export class SchoolConfigController {
     FileInterceptor('file', {
       storage: brandingStorage,
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg)$/)) {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
           return cb(new Error('Only image files are allowed'), false);
         }
         cb(null, true);
@@ -102,6 +115,8 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school logo' })
   async uploadLogo(@UploadedFile() file: Express.Multer.File) {
+    const oldConfig = await this.configService.findByKey('logo_url').catch(() => null);
+    this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
     return this.configService.updateBrandingFile('logo_url', url);
   }
@@ -112,7 +127,7 @@ export class SchoolConfigController {
     FileInterceptor('file', {
       storage: brandingStorage,
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg)$/)) {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
           return cb(new Error('Only image files are allowed'), false);
         }
         cb(null, true);
@@ -123,6 +138,8 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school stamp' })
   async uploadStamp(@UploadedFile() file: Express.Multer.File) {
+    const oldConfig = await this.configService.findByKey('stamp_url').catch(() => null);
+    this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
     return this.configService.updateBrandingFile('stamp_url', url);
   }
@@ -133,7 +150,7 @@ export class SchoolConfigController {
     FileInterceptor('file', {
       storage: brandingStorage,
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|svg)$/)) {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
           return cb(new Error('Only image files are allowed'), false);
         }
         cb(null, true);
@@ -144,6 +161,8 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload headmaster signature' })
   async uploadSignature(@UploadedFile() file: Express.Multer.File) {
+    const oldConfig = await this.configService.findByKey('signature_url').catch(() => null);
+    this.deleteOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
     return this.configService.updateBrandingFile('signature_url', url);
   }
