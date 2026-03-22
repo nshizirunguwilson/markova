@@ -28,7 +28,7 @@ export default function StudentLibraryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Library</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Library</h1>
         <p className="text-sm text-muted">Your loans and book catalog</p>
       </div>
 

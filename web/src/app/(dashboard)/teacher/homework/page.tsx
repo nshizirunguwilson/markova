@@ -48,6 +48,7 @@ export default function TeacherHomeworkPage() {
   const deleteHomework = useDeleteHomework();
   const gradeSubmission = useGradeSubmission();
 
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const { data: viewingHw } = useHomework(viewingId || undefined);
@@ -89,7 +90,7 @@ export default function TeacherHomeworkPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Homework</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
           <p className="text-sm text-muted">Create and manage assignments</p>
         </div>
         <Button onClick={() => setShowAddModal(true)}>
@@ -131,7 +132,7 @@ export default function TeacherHomeworkPage() {
                         <Button size="sm" variant="ghost" onClick={() => setViewingId(hw.id)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this homework?")) deleteHomework.mutate(hw.id); }}>
+                        <Button size="sm" variant="ghost" onClick={() => { setConfirmAction(() => () => deleteHomework.mutate(hw.id)); }}>
                           <Trash2 className="h-4 w-4 text-danger" />
                         </Button>
                       </div>
@@ -202,6 +203,15 @@ export default function TeacherHomeworkPage() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* Confirm Delete Modal */}
+      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title="Confirm Action">
+        <p className="text-sm text-muted mb-4">Are you sure you want to delete this homework?</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button variant="danger" onClick={() => { confirmAction?.(); setConfirmAction(null); }}>Confirm</Button>
+        </div>
       </Modal>
 
       {/* Create Homework Modal */}

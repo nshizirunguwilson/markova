@@ -376,6 +376,17 @@ export class AuthService {
         forcePasswordChange: true,
         lastLoginAt: true,
         createdAt: true,
+        student: {
+          select: {
+            id: true,
+            classSectionId: true,
+          },
+        },
+        teacher: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -383,7 +394,13 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return user;
+    // Flatten role-specific IDs onto the user object for convenience
+    const { student, teacher, ...rest } = user as any;
+    return {
+      ...rest,
+      ...(student && { studentId: student.id, classSectionId: student.classSectionId }),
+      ...(teacher && { teacherId: teacher.id }),
+    };
   }
 
   // ─── PRIVATE HELPERS ───────────────────────────────────────────────────────

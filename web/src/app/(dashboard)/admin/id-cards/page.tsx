@@ -44,7 +44,7 @@ export default function AdminIdCardsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#1B4F72]">Student ID Cards</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Student ID Cards</h1>
 
       <Card className="p-6 space-y-4">
         <CardTitle>Generate ID Cards</CardTitle>

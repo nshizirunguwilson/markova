@@ -209,7 +209,7 @@ export default function AdminLibraryPage() {
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Library</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Library</h1>
           <p className="mt-1 text-sm text-muted">Manage books, loans, and returns</p>
         </div>
         <div className="flex flex-wrap gap-2">

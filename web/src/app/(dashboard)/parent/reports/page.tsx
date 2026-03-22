@@ -41,7 +41,7 @@ export default function ParentReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#1B4F72]">Report Cards</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Report Cards</h1>
 
       <div className="flex gap-4 flex-wrap">
         {children.length > 1 && (

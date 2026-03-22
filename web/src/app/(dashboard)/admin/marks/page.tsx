@@ -13,6 +13,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  Modal,
 } from "@/components/ui";
 import {
   useAcademicYears,
@@ -40,6 +41,9 @@ export default function AdminMarksPage() {
   const currentYear = years?.find((y: any) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
   const { data: classLevels } = useClassLevels();
+
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmMessage, setConfirmMessage] = useState("");
 
   const [selectedLevel, setSelectedLevel] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
@@ -85,7 +89,7 @@ export default function AdminMarksPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Marks Overview</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Marks Overview</h1>
           <p className="text-sm text-muted">View and manage class results</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -211,12 +215,12 @@ export default function AdminMarksPage() {
                   const msg = isPublished
                     ? 'Are you sure you want to unpublish these results? They will no longer be visible to students and parents.'
                     : 'Are you sure you want to publish these results? All students and parents will be able to view them.';
-                  if (!window.confirm(msg)) return;
-                  publishResults.mutate({
+                  setConfirmMessage(msg);
+                  setConfirmAction(() => () => publishResults.mutate({
                     classSectionId: selectedSection,
                     termId: selectedTerm,
                     isPublished: !isPublished,
-                  });
+                  }));
                 }}
                 isLoading={publishResults.isPending}
               >
@@ -317,6 +321,15 @@ export default function AdminMarksPage() {
           </p>
         </Card>
       )}
+
+      {/* Confirm Action Modal */}
+      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title="Confirm Action">
+        <p className="text-sm text-muted mb-4">{confirmMessage}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button variant="danger" onClick={() => { confirmAction?.(); setConfirmAction(null); }}>Confirm</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

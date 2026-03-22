@@ -58,6 +58,9 @@ export default function AdminDisciplinePage() {
   const deleteIncident = useDeleteIncident();
   const reviewAppeal = useReviewAppeal();
 
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmMessage, setConfirmMessage] = useState("");
+
   const [form, setForm] = useState({
     studentId: "",
     date: toLocalDateString(new Date()),
@@ -80,7 +83,7 @@ export default function AdminDisciplinePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Discipline</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Discipline</h1>
           <p className="text-sm text-muted">Manage incidents and appeals</p>
         </div>
         <Button onClick={() => setShowAddModal(true)}>
@@ -152,7 +155,7 @@ export default function AdminDisciplinePage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this incident?")) deleteIncident.mutate(inc.id); }}>
+                      <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage("Are you sure you want to delete this incident?"); setConfirmAction(() => () => deleteIncident.mutate(inc.id)); }}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </TableCell>
@@ -255,6 +258,15 @@ export default function AdminDisciplinePage() {
           </Card>
         </>
       )}
+
+      {/* Confirm Action Modal */}
+      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title="Confirm Action">
+        <p className="text-sm text-muted mb-4">{confirmMessage}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button variant="danger" onClick={() => { confirmAction?.(); setConfirmAction(null); }}>Confirm</Button>
+        </div>
+      </Modal>
 
       {/* Add Incident Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Record Incident">

@@ -79,7 +79,7 @@ export default function ParentMarksPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Child&apos;s Marks</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Marks</h1>
           <p className="text-sm text-muted">View your child&apos;s academic performance</p>
         </div>
         <div className="flex gap-3">

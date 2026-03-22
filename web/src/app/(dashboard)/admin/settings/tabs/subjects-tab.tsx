@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Card,
@@ -13,6 +14,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  Modal,
 } from "@/components/ui";
 import { useSubjects, useCreateSubject } from "@/hooks/use-academic";
 import { Plus, Trash2 } from "lucide-react";
@@ -24,6 +26,8 @@ export function SubjectsTab() {
   const { data: subjects } = useSubjects();
   const createSubject = useCreateSubject();
   const qc = useQueryClient();
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmMessage, setConfirmMessage] = useState("");
 
   const { register, handleSubmit, reset } = useForm({
     defaultValues: { name: "", category: "", maxMarks: 100 },
@@ -85,7 +89,7 @@ export function SubjectsTab() {
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this subject?")) deleteSubject(s.id); }}>
+                    <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${s.name}"?`); setConfirmAction(() => () => deleteSubject(s.id)); }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </TableCell>
@@ -105,6 +109,15 @@ export function SubjectsTab() {
           <Button type="submit" isLoading={createSubject.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
         </form>
       </Card>
+
+      {/* Confirm Action Modal */}
+      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title="Confirm Action">
+        <p className="text-sm text-muted mb-4">{confirmMessage}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button variant="danger" onClick={() => { confirmAction?.(); setConfirmAction(null); }}>Confirm</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

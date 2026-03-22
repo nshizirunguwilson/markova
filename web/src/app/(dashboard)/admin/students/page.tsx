@@ -70,7 +70,7 @@ export default function AdminStudentsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Students</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Students</h1>
           <p className="mt-1 text-sm text-muted">
             {meta.total} students enrolled
           </p>

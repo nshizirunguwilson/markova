@@ -100,7 +100,7 @@ export default function AdminSubjectsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Subjects</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Subjects</h1>
           <p className="mt-1 text-sm text-muted">
             Manage curriculum subjects
           </p>

@@ -71,7 +71,7 @@ export default function AdminTeachersPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Teachers</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Teachers</h1>
           <p className="mt-1 text-sm text-muted">
             {meta.total} teachers in the system
           </p>

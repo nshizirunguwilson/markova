@@ -168,7 +168,7 @@ export default function AdminHomeworkPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Homework</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
           <p className="mt-1 text-sm text-muted">Manage homework assignments</p>
         </div>
         <div className="flex gap-2">

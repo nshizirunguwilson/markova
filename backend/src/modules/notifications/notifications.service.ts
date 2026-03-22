@@ -69,17 +69,73 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async sendBulk(dto: BulkNotificationDto) {
-    const results = [];
-    for (const userId of dto.userIds) {
-      const notification = await this.send({
+    // Batch-create all DB notifications at once (avoids N+1)
+    await this.prisma.notification.createMany({
+      data: dto.userIds.map((userId) => ({
         userId,
         title: dto.title,
         message: dto.message,
-        type: dto.type,
+        type: dto.type as any,
+      })),
+    });
+
+    // Dispatch external notifications in parallel
+    if (dto.type === 'EMAIL') {
+      // Batch fetch all user emails at once, then send in parallel
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: dto.userIds } },
+        select: { id: true, email: true, firstName: true },
       });
-      results.push(notification);
+
+      if (this.transporter) {
+        const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+        const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+
+        const emailPromises = users
+          .filter((u) => u.email)
+          .map((u) =>
+            this.transporter!.sendMail({
+              from: `"${fromName}" <${fromEmail}>`,
+              to: u.email!,
+              subject: dto.title,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
+                  </div>
+                  <div style="padding: 20px; background: #f9f9f9;">
+                    <p>Dear ${u.firstName || 'User'},</p>
+                    <div style="margin: 16px 0;">${dto.message}</div>
+                  </div>
+                  <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
+                    This is an automated message from ${fromName}. Please do not reply to this email.
+                  </div>
+                </div>
+              `,
+            }),
+          );
+
+        const results = await Promise.allSettled(emailPromises);
+        const failures = results.filter((r) => r.status === 'rejected');
+        if (failures.length > 0) {
+          this.logger.error(`Failed to send ${failures.length}/${emailPromises.length} bulk emails`);
+        }
+      }
+    } else if (dto.type === 'SMS' || dto.type === 'PUSH') {
+      // SMS/PUSH require per-user API calls — send in parallel
+      const sendPromises = dto.userIds.map((userId) =>
+        dto.type === 'SMS'
+          ? this.sendSMS(userId, dto.message)
+          : Promise.resolve(), // PUSH placeholder
+      );
+      const results = await Promise.allSettled(sendPromises);
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        this.logger.error(`Failed to send ${failures.length}/${dto.userIds.length} bulk ${dto.type} notifications`);
+      }
     }
-    return { count: results.length, notifications: results };
+
+    return { count: dto.userIds.length };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -168,7 +168,7 @@ export default function AdminClassesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Classes</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Classes</h1>
           <p className="mt-1 text-sm text-muted">Manage class levels and sections</p>
         </div>
         <div className="flex gap-2">

@@ -9,6 +9,10 @@ export interface User {
   lastName: string;
   photoUrl: string | null;
   forcePasswordChange: boolean;
+  // Flattened from student/teacher relations (set by getProfile)
+  studentId?: string;
+  classSectionId?: string;
+  teacherId?: string;
 }
 
 interface AuthState {

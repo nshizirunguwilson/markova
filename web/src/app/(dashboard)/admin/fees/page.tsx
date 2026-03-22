@@ -76,14 +76,14 @@ export default function AdminFeesPage() {
   };
 
   const handlePrintReceipt = (id: string) => {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/fees/${id}/receipt/pdf`;
+    const url = `${process.env.NEXT_PUBLIC_API_URL || ""}/fees/${id}/receipt/pdf`;
     window.open(url, "_blank");
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-2xl font-bold text-[#1B4F72]">Fee Management</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Fee Management</h1>
         <Button onClick={() => setShowRecord(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Record Payment

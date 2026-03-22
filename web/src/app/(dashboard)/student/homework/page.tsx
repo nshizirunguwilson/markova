@@ -7,9 +7,9 @@ import { FileText, Upload, Check, Clock, AlertCircle } from "lucide-react";
 
 export default function StudentHomeworkPage() {
   const { user } = useAuthStore();
-  const studentId = (user as any)?.studentId;
-  // TODO: get classSectionId from student profile
-  const { data: homeworks, isLoading } = useStudentHomework(studentId, (user as any)?.student?.classSectionId);
+  const studentId = user?.studentId;
+  const classSectionId = user?.classSectionId;
+  const { data: homeworks, isLoading } = useStudentHomework(studentId, classSectionId);
   const submitHomework = useSubmitHomework();
 
   const handleSubmit = (homeworkId: string) => {
@@ -19,7 +19,7 @@ export default function StudentHomeworkPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Homework</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
         <p className="text-sm text-muted">View assignments and submit work</p>
       </div>
 

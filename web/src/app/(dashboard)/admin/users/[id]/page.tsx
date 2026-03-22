@@ -106,7 +106,7 @@ export default function UserDetailPage() {
               size="lg"
             />
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">
                 {user.firstName} {user.lastName}
               </h1>
               <div className="mt-1 flex items-center gap-2">

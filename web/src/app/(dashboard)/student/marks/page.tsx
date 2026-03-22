@@ -51,7 +51,7 @@ export default function StudentMarksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Marks</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">My Marks</h1>
           <p className="text-sm text-muted">View your academic performance</p>
         </div>
         <select

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Card, CardTitle, Input, Button, Badge } from "@/components/ui";
+import { Card, CardTitle, Input, Button, Badge, Modal } from "@/components/ui";
 import { useClassLevels, useCreateClassLevel, useCreateSection } from "@/hooks/use-academic";
 import { Plus, Layers, Trash2 } from "lucide-react";
 import api from "@/lib/api";
@@ -14,6 +14,8 @@ export function ClassesTab() {
   const createLevel = useCreateClassLevel();
   const createSection = useCreateSection();
   const qc = useQueryClient();
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmMessage, setConfirmMessage] = useState("");
   const [sectionInputs, setSectionInputs] = useState<Record<string, string>>({});
 
   const { register, handleSubmit, reset } = useForm({
@@ -61,7 +63,7 @@ export function ClassesTab() {
               <CardTitle>{level.name}</CardTitle>
               <Badge>Order: {level.order}</Badge>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => { if (window.confirm("Are you sure you want to delete this class level? This cannot be undone.")) deleteLevel(level.id); }}>
+            <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${level.name}"? This cannot be undone.`); setConfirmAction(() => () => deleteLevel(level.id)); }}>
               <Trash2 className="h-4 w-4 text-danger" />
             </Button>
           </div>
@@ -71,7 +73,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {s.name} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => { if (window.confirm("Are you sure you want to delete this section?")) deleteSection(s.id); }} className="text-danger hover:text-red-700">
+                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-red-700">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
@@ -101,6 +103,15 @@ export function ClassesTab() {
           <Button type="submit" isLoading={createLevel.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
         </form>
       </Card>
+
+      {/* Confirm Action Modal */}
+      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title="Confirm Action">
+        <p className="text-sm text-muted mb-4">{confirmMessage}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button variant="danger" onClick={() => { confirmAction?.(); setConfirmAction(null); }}>Confirm</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

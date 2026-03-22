@@ -27,7 +27,7 @@ export default function LibrarianLoansPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Loans</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Loans</h1>
         <p className="text-sm text-muted">Track active and overdue book loans</p>
       </div>
 

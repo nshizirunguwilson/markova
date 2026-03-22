@@ -75,7 +75,7 @@ export default function AdminPromotionPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Student Promotion</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Student Promotion</h1>
         <p className="mt-1 text-sm text-muted">
           Promote students from one class section to another based on academic performance
         </p>

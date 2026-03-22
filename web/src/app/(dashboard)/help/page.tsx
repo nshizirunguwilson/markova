@@ -59,7 +59,7 @@ export default function HelpPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-[#1B4F72]">Help Center</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Help Center</h1>
         <Button onClick={() => setShowNewTicket(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Submit Ticket

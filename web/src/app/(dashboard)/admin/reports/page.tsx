@@ -130,7 +130,7 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#1B4F72]">Reports & Documents</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Reports & Documents</h1>
 
       <div className="flex gap-2 border-b border-gray-200">
         {(["report-cards", "documents"] as const).map((t) => (

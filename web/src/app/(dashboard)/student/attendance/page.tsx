@@ -49,7 +49,7 @@ export default function StudentAttendancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">My Attendance</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">My Attendance</h1>
         <p className="text-sm text-muted">View your attendance record</p>
       </div>
 

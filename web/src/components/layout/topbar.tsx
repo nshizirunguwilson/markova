@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuthStore } from "@/stores/auth-store";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 import { getNavigation, type NavItem } from "@/lib/navigation";
 import {
   useUnreadCount,
@@ -59,6 +61,9 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   const markAllRead = useMarkAllRead();
   const markRead = useMarkRead();
   const unreadCount = unreadData?.count ?? 0;
+
+  // --- Logout confirmation ---
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // --- Search ---
   const [searchQuery, setSearchQuery] = useState("");
@@ -109,7 +114,11 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   }, []);
 
   const handleLogout = () => {
-    if (!window.confirm("Are you sure you want to sign out?")) return;
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
     logout();
     router.push("/login");
   };
@@ -353,6 +362,14 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           )}
         </div>
       </div>
+
+      <Modal isOpen={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Sign Out">
+        <p className="text-sm text-muted mb-4">Are you sure you want to sign out?</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>Cancel</Button>
+          <Button variant="danger" onClick={confirmLogout}>Sign Out</Button>
+        </div>
+      </Modal>
     </header>
   );
 }

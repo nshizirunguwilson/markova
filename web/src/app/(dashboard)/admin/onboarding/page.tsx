@@ -94,7 +94,7 @@ export default function OnboardingPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">School Setup Wizard</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">School Setup Wizard</h1>
         <p className="mt-1 text-sm text-muted">
           Configure your school in {STEPS.length} easy steps
         </p>
