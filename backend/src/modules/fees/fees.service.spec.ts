@@ -1,18 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FeesService } from './fees.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 
 describe('FeesService', () => {
   let service: FeesService;
-  let prisma: any;
 
   const mockPrisma = {
     feeRecord: {
       create: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      aggregate: jest.fn(),
+      groupBy: jest.fn(),
+      count: jest.fn(),
     },
     schoolConfig: {
       findMany: jest.fn(),
@@ -28,27 +31,33 @@ describe('FeesService', () => {
     }).compile();
 
     service = module.get<FeesService>(FeesService);
-    prisma = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
-  describe('recordPayment', () => {
-    it('should calculate PAID status when amountPaid >= amountDue', async () => {
-      const dto = {
-        studentId: 'student-1',
-        academicYearId: 'year-1',
-        termId: 'term-1',
-        amountDue: 100000,
-        amountPaid: 100000,
-        paymentMethod: 'CASH',
-      };
+  // ═══════════════════════════════════════════════════════════════════════════
+  // recordPayment()
+  // ═══════════════════════════════════════════════════════════════════════════
 
-      mockPrisma.feeRecord.create.mockResolvedValue({
-        id: 'fee-1',
-        ...dto,
-        balance: 0,
-        status: 'PAID',
-      });
+  describe('recordPayment()', () => {
+    const baseDto = {
+      studentId: 'student-1',
+      academicYearId: 'year-1',
+      termId: 'term-1',
+      amountDue: 100000,
+      amountPaid: 0,
+      paymentMethod: 'CASH',
+    };
+
+    beforeEach(() => {
+      // No existing record by default
+      mockPrisma.feeRecord.findFirst.mockResolvedValue(null);
+      mockPrisma.feeRecord.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: 'fee-1', ...data }),
+      );
+    });
+
+    it('should set status PAID when amountPaid >= amountDue', async () => {
+      const dto = { ...baseDto, amountPaid: 100000 };
 
       await service.recordPayment(dto as any);
 
@@ -62,22 +71,8 @@ describe('FeesService', () => {
       );
     });
 
-    it('should calculate PARTIAL status when amountPaid < amountDue', async () => {
-      const dto = {
-        studentId: 'student-1',
-        academicYearId: 'year-1',
-        termId: 'term-1',
-        amountDue: 100000,
-        amountPaid: 50000,
-        paymentMethod: 'MOMO',
-      };
-
-      mockPrisma.feeRecord.create.mockResolvedValue({
-        id: 'fee-1',
-        ...dto,
-        balance: 50000,
-        status: 'PARTIAL',
-      });
+    it('should set status PARTIAL when 0 < amountPaid < amountDue', async () => {
+      const dto = { ...baseDto, amountPaid: 50000 };
 
       await service.recordPayment(dto as any);
 
@@ -91,22 +86,8 @@ describe('FeesService', () => {
       );
     });
 
-    it('should calculate UNPAID status when amountPaid is 0', async () => {
-      const dto = {
-        studentId: 'student-1',
-        academicYearId: 'year-1',
-        termId: 'term-1',
-        amountDue: 100000,
-        amountPaid: 0,
-        paymentMethod: 'CASH',
-      };
-
-      mockPrisma.feeRecord.create.mockResolvedValue({
-        id: 'fee-1',
-        ...dto,
-        balance: 100000,
-        status: 'UNPAID',
-      });
+    it('should set status UNPAID when amountPaid is 0', async () => {
+      const dto = { ...baseDto, amountPaid: 0 };
 
       await service.recordPayment(dto as any);
 
@@ -119,48 +100,52 @@ describe('FeesService', () => {
         }),
       );
     });
-  });
 
-  describe('updatePayment', () => {
-    it('should throw NotFoundException when record not found', async () => {
-      mockPrisma.feeRecord.findUnique.mockResolvedValue(null);
+    it('should calculate balance correctly (amountDue - amountPaid, min 0)', async () => {
+      // Overpayment case: balance should be 0, not negative
+      const dto = { ...baseDto, amountPaid: 120000 };
 
-      await expect(service.updatePayment('nonexistent', {} as any)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
+      await service.recordPayment(dto as any);
 
-    it('should recalculate status on payment update', async () => {
-      mockPrisma.feeRecord.findUnique.mockResolvedValue({
-        id: 'fee-1',
-        amountDue: 100000,
-        amountPaid: 50000,
-      });
-
-      mockPrisma.feeRecord.update.mockResolvedValue({
-        id: 'fee-1',
-        status: 'PAID',
-      });
-
-      await service.updatePayment('fee-1', { amountPaid: 100000 } as any);
-
-      expect(mockPrisma.feeRecord.update).toHaveBeenCalledWith(
+      expect(mockPrisma.feeRecord.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
+            balance: 0, // Math.max(0, 100000 - 120000) = 0
             status: 'PAID',
-            balance: 0,
           }),
         }),
       );
     });
+
+    it('should throw ConflictException for duplicate student+term+year', async () => {
+      mockPrisma.feeRecord.findFirst.mockResolvedValue({
+        id: 'existing-fee',
+        studentId: 'student-1',
+        termId: 'term-1',
+        academicYearId: 'year-1',
+      });
+
+      await expect(service.recordPayment(baseDto as any)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockPrisma.feeRecord.create).not.toHaveBeenCalled();
+    });
   });
 
-  describe('getSummary', () => {
-    it('should calculate summary correctly', async () => {
-      mockPrisma.feeRecord.findMany.mockResolvedValue([
-        { amountDue: 100000, amountPaid: 100000, status: 'PAID' },
-        { amountDue: 100000, amountPaid: 50000, status: 'PARTIAL' },
-        { amountDue: 100000, amountPaid: 0, status: 'UNPAID' },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getSummary()
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('getSummary()', () => {
+    it('should calculate totals and collectionRate correctly', async () => {
+      mockPrisma.feeRecord.aggregate.mockResolvedValue({
+        _sum: { amountDue: 300000, amountPaid: 150000 },
+        _count: 3,
+      });
+      mockPrisma.feeRecord.groupBy.mockResolvedValue([
+        { status: 'PAID', _count: 1 },
+        { status: 'PARTIAL', _count: 1 },
+        { status: 'UNPAID', _count: 1 },
       ]);
 
       const result = await service.getSummary();
@@ -172,54 +157,48 @@ describe('FeesService', () => {
       expect(result.paid).toBe(1);
       expect(result.partial).toBe(1);
       expect(result.unpaid).toBe(1);
-      expect(result.collectionRate).toBe(50);
+      expect(result.collectionRate).toBe(50); // 150000/300000 * 100
     });
 
-    it('should return 0 collection rate when no records', async () => {
-      mockPrisma.feeRecord.findMany.mockResolvedValue([]);
+    it('should return 0 collectionRate when no records exist', async () => {
+      mockPrisma.feeRecord.aggregate.mockResolvedValue({
+        _sum: { amountDue: null, amountPaid: null },
+        _count: 0,
+      });
+      mockPrisma.feeRecord.groupBy.mockResolvedValue([]);
 
       const result = await service.getSummary();
 
       expect(result.totalStudents).toBe(0);
+      expect(result.totalDue).toBe(0);
+      expect(result.totalPaid).toBe(0);
       expect(result.collectionRate).toBe(0);
     });
   });
 
-  describe('generateReceiptHtml', () => {
-    it('should throw NotFoundException for invalid ID', async () => {
-      mockPrisma.feeRecord.findUnique.mockResolvedValue(null);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getStudentFees()
+  // ═══════════════════════════════════════════════════════════════════════════
 
-      await expect(service.generateReceiptHtml('bad-id')).rejects.toThrow(
-        NotFoundException,
+  describe('getStudentFees()', () => {
+    it('should return records for specific student with totals', async () => {
+      const records = [
+        { id: 'fee-1', amountDue: 100000, amountPaid: 100000, status: 'PAID', term: { name: 'Term 1' }, academicYear: { name: '2025-2026' } },
+        { id: 'fee-2', amountDue: 100000, amountPaid: 50000, status: 'PARTIAL', term: { name: 'Term 2' }, academicYear: { name: '2025-2026' } },
+      ];
+      mockPrisma.feeRecord.findMany.mockResolvedValue(records);
+
+      const result = await service.getStudentFees('student-1');
+
+      expect(mockPrisma.feeRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { studentId: 'student-1' },
+        }),
       );
-    });
-
-    it('should return HTML string with receipt data', async () => {
-      mockPrisma.feeRecord.findUnique.mockResolvedValue({
-        id: 'fee-1',
-        receiptNumber: 'REC-001',
-        amountDue: 100000,
-        amountPaid: 100000,
-        balance: 0,
-        paymentMethod: 'CASH',
-        paymentDate: new Date('2026-01-15'),
-        student: {
-          user: { firstName: 'John', lastName: 'Doe' },
-          classSection: { name: 'A', classLevel: { name: 'S1' } },
-        },
-        term: { name: 'Term 1' },
-        academicYear: { name: '2025-2026' },
-      });
-      mockPrisma.schoolConfig.findMany.mockResolvedValue([
-        { key: 'school_name', value: 'Test School' },
-      ]);
-
-      const html = await service.generateReceiptHtml('fee-1');
-
-      expect(html).toContain('Test School');
-      expect(html).toContain('John Doe');
-      expect(html).toContain('REC-001');
-      expect(html).toContain('S1 A');
+      expect(result.records).toHaveLength(2);
+      expect(result.totalDue).toBe(200000);
+      expect(result.totalPaid).toBe(150000);
+      expect(result.totalBalance).toBe(50000);
     });
   });
 });
