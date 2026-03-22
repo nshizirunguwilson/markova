@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { Mail, Lock } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
@@ -111,6 +111,10 @@ export default function LoginScreen() {
             fullWidth
             size="lg"
           />
+
+          <Link href="/(auth)/forgot-password" style={styles.forgotLink}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </Link>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -175,5 +179,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     marginBottom: spacing['2xl'],
+  },
+  forgotLink: {
+    alignSelf: 'center',
+    marginTop: spacing.lg,
+  },
+  forgotText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: fontWeight.medium,
   },
 });
