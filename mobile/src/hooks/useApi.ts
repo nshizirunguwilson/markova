@@ -82,6 +82,46 @@ export function useTeacherAssignments(teacherId?: string) {
   });
 }
 
+export function useClassTeachers(classSectionId?: string) {
+  return useQuery<TeacherAssignment[]>({
+    queryKey: ['class-teachers', classSectionId],
+    queryFn: () =>
+      api.get('/academic/assignments', { params: { classSectionId } }).then((r) => r.data),
+    enabled: !!classSectionId,
+  });
+}
+
+// ─── Timetable ──────────────────────────────────────────
+
+export function useTimetable(classSectionId?: string) {
+  return useQuery({
+    queryKey: ['timetable', classSectionId],
+    queryFn: () =>
+      api.get('/academic/timetable', { params: { classSectionId } }).then((r) => r.data),
+    enabled: !!classSectionId,
+  });
+}
+
+export function useTeacherTimetable(teacherId?: string) {
+  return useQuery({
+    queryKey: ['teacher-timetable', teacherId],
+    queryFn: () =>
+      api.get(`/academic/timetable/teacher/${teacherId}`).then((r) => r.data),
+    enabled: !!teacherId,
+  });
+}
+
+// ─── Exam Schedule ──────────────────────────────────────
+
+export function useExamSchedule(classSectionId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ['exam-schedule', classSectionId, termId],
+    queryFn: () =>
+      api.get('/academic/exams', { params: { classSectionId, termId } }).then((r) => r.data),
+    enabled: !!classSectionId,
+  });
+}
+
 // ─── Attendance ─────────────────────────────────────────
 
 export function useAttendanceSummary(studentId?: string, dateFrom?: string, dateTo?: string) {

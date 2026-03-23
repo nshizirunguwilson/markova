@@ -234,6 +234,7 @@ model Term {
   disciplineIncidents DisciplineIncident[]
   homeworks           Homework[]
   feeRecords          FeeRecord[]
+  examSchedules       ExamSchedule[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -265,6 +266,7 @@ model ClassSection {
   yearResults           YearResult[]
   attendances           Attendance[]
   homeworks             Homework[]
+  examSchedules         ExamSchedule[]
 
   @@unique([classLevelId, name])
   @@map("class_sections")
@@ -282,6 +284,7 @@ model Subject {
   marks                 Mark[]
   attendances           Attendance[]
   homeworks             Homework[]
+  examSchedules         ExamSchedule[]
 
   @@map("subjects")
 }
@@ -807,6 +810,27 @@ model SupportTicket {
   @@index([userId])
   @@index([status])
   @@map("support_tickets")
+}
+
+model ExamSchedule {
+  id             String   @id @default(uuid())
+  classSectionId String   @map("class_section_id")
+  subjectId      String   @map("subject_id")
+  termId         String   @map("term_id")
+  examDate       DateTime @map("exam_date") @db.Date
+  startTime      String   @map("start_time")
+  endTime        String   @map("end_time")
+  room           String?
+  syllabus       String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@index([classSectionId, termId])
+  @@index([examDate])
+  @@map("exam_schedules")
 }
 
 model FaqArticle {

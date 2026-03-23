@@ -65,9 +65,9 @@ export class AttendanceService {
         },
       });
 
-      // Send SMS for absences
-      if (dto.status === 'ABSENT') {
-        await this.notifyParentAbsence(dto.studentId, dto.date);
+      // Send notifications for absences and late arrivals
+      if (dto.status === 'ABSENT' || dto.status === 'LATE') {
+        await this.notifyParentAbsence(dto.studentId, dto.date, dto.status);
       }
 
       return record;
@@ -81,7 +81,7 @@ export class AttendanceService {
 
   async bulkMarkAttendance(dto: BulkAttendanceDto, markedByUserId: string) {
     const results = [];
-    const absentStudentIds: string[] = [];
+    const notifyStudents: { studentId: string; status: string }[] = [];
 
     for (const record of dto.records) {
       try {
@@ -111,15 +111,17 @@ export class AttendanceService {
           },
         });
         results.push(att);
-        if (record.status === 'ABSENT') absentStudentIds.push(record.studentId);
+        if (record.status === 'ABSENT' || record.status === 'LATE') {
+          notifyStudents.push({ studentId: record.studentId, status: record.status });
+        }
       } catch {
         // Skip duplicates
       }
     }
 
-    // Notify parents of absent students
-    for (const studentId of absentStudentIds) {
-      await this.notifyParentAbsence(studentId, dto.date);
+    // Notify parents of absent/late students
+    for (const { studentId, status } of notifyStudents) {
+      await this.notifyParentAbsence(studentId, dto.date, status);
     }
 
     return { count: results.length, records: results };
@@ -608,7 +610,7 @@ export class AttendanceService {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async notifyParentAbsence(studentId: string, date: string) {
+  private async notifyParentAbsence(studentId: string, date: string, status: string = 'ABSENT') {
     // Find parent links
     const parentLinks = await this.prisma.parentStudent.findMany({
       where: { studentId },
@@ -621,10 +623,11 @@ export class AttendanceService {
     const studentName = parentLinks[0]
       ? `${parentLinks[0].student.user.firstName} ${parentLinks[0].student.user.lastName}`
       : 'your child';
-    const title = 'Student Absence Alert';
+    const statusLabel = status === 'LATE' ? 'late' : 'absent';
+    const title = status === 'LATE' ? 'Student Late Arrival Alert' : 'Student Absence Alert';
 
     for (const link of parentLinks) {
-      const message = `Dear ${link.parent.firstName}, your child ${studentName} was marked absent on ${date}.`;
+      const message = `Dear ${link.parent.firstName}, your child ${studentName} was marked ${statusLabel} on ${date}.`;
 
       // Send SMS notification
       if (link.parent.phone) {
@@ -653,6 +656,20 @@ export class AttendanceService {
         } catch {
           // Non-critical, don't fail the attendance operation
         }
+      }
+
+      // Send PUSH notification
+      try {
+        await this.notifications.send({
+          userId: link.parentUserId,
+          type: NotificationType.PUSH,
+          title,
+          message,
+          relatedEntityType: 'attendance',
+          relatedEntityId: studentId,
+        });
+      } catch {
+        // Non-critical, don't fail the attendance operation
       }
     }
   }

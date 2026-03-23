@@ -3,7 +3,8 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
   Calendar, BookOpen, TrendingUp, DollarSign, AlertTriangle, ClipboardList,
-  Users, Settings, BarChart3, GraduationCap, CreditCard,
+  Users, Settings, BarChart3, GraduationCap, CreditCard, MessageSquare, Clock,
+  FileText,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth-store';
 import { useParentChildren, useAdminDashboard, useNotifications } from '@/hooks/useApi';
@@ -89,6 +90,31 @@ function ParentDashboard() {
                 <QuickAction icon={<TrendingUp size={16} color={colors.success} />} label="Marks" />
                 <QuickAction icon={<DollarSign size={16} color={colors.warning} />} label="Fees" />
               </View>
+              <View style={[styles.childActions, { marginTop: spacing.sm }]}>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/timetable',
+                      params: {
+                        classSectionId: child.classSectionId,
+                        studentName: `${child.user?.firstName} ${child.user?.lastName}`,
+                      },
+                    })
+                  }
+                >
+                  <QuickAction icon={<Clock size={16} color={colors.primaryLight} />} label="Timetable" />
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/exam-schedule',
+                      params: { classSectionId: child.classSectionId },
+                    })
+                  }
+                >
+                  <QuickAction icon={<FileText size={16} color={colors.danger} />} label="Exams" />
+                </Pressable>
+              </View>
             </Pressable>
           ))
         ) : (
@@ -97,6 +123,20 @@ function ParentDashboard() {
             <Text style={styles.emptyText}>No children linked to your account yet.</Text>
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Pressable
+          style={styles.chatWithTeachersBtn}
+          onPress={() => router.push('/(app)/parent-teacher-chat')}
+        >
+          <View style={styles.chatWithTeachersIcon}>
+            <MessageSquare size={22} color={colors.white} />
+          </View>
+          <View style={styles.chatWithTeachersInfo}>
+            <Text style={styles.chatWithTeachersTitle}>Chat with Teachers</Text>
+            <Text style={styles.chatWithTeachersText}>Send a direct message to your child's teachers</Text>
+          </View>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -128,6 +168,8 @@ function TeacherDashboard() {
     { icon: <TrendingUp size={24} color={colors.white} />, label: 'Enter Marks', bg: colors.success, onPress: () => router.push('/(app)/marks-entry') },
     { icon: <BookOpen size={24} color={colors.white} />, label: 'Homework', bg: colors.warning, onPress: () => router.push('/(app)/homework-manage') },
     { icon: <AlertTriangle size={24} color={colors.white} />, label: 'Discipline', bg: colors.danger, onPress: () => router.push('/(app)/discipline-log') },
+    { icon: <Clock size={24} color={colors.white} />, label: 'My Timetable', bg: colors.primaryLight, onPress: () => router.push('/(app)/timetable') },
+    { icon: <FileText size={24} color={colors.white} />, label: 'Exam Schedule', bg: '#7D3C98', onPress: () => router.push('/(app)/exam-schedule') },
   ];
 
   return (
@@ -371,6 +413,19 @@ const styles = StyleSheet.create({
   quickActionText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.medium },
   emptyCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'], alignItems: 'center' },
   emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center' },
+  chatWithTeachersBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    marginBottom: spacing.md,
+    shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
+  },
+  chatWithTeachersIcon: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  chatWithTeachersInfo: { flex: 1 },
+  chatWithTeachersTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
+  chatWithTeachersText: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
 
   // Action grid (Teacher/Admin)
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },

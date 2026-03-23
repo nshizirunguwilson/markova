@@ -20,6 +20,12 @@ import {
   CreateAssignmentDto,
   BulkAssignmentDto,
   PromoteStudentsDto,
+  CreateTimetableDto,
+  UpdateTimetableDto,
+  BulkTimetableDto,
+  CreateExamScheduleDto,
+  UpdateExamScheduleDto,
+  BulkExamScheduleDto,
 } from './dto';
 
 @Injectable()
@@ -383,6 +389,192 @@ export class AcademicService {
   async deleteAssignment(id: string) {
     await this.prisma.teacherSubjectClass.delete({ where: { id } });
     return { message: 'Assignment deleted' };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TIMETABLE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async findTimetable(classSectionId: string, teacherId?: string) {
+    const where: any = { classSectionId };
+    if (teacherId) where.teacherId = teacherId;
+
+    return this.prisma.timetable.findMany({
+      where,
+      include: {
+        subject: { select: { name: true } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+  }
+
+  async findTeacherTimetable(teacherId: string) {
+    return this.prisma.timetable.findMany({
+      where: { teacherId },
+      include: {
+        subject: { select: { name: true } },
+        classSection: {
+          include: { classLevel: { select: { name: true } } },
+        },
+      },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+  }
+
+  async createTimetable(dto: CreateTimetableDto) {
+    return this.prisma.timetable.create({
+      data: dto,
+      include: {
+        subject: { select: { name: true } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+        classSection: {
+          include: { classLevel: { select: { name: true } } },
+        },
+      },
+    });
+  }
+
+  async updateTimetable(id: string, dto: UpdateTimetableDto) {
+    const entry = await this.prisma.timetable.findUnique({ where: { id } });
+    if (!entry) throw new NotFoundException('Timetable entry not found');
+
+    return this.prisma.timetable.update({
+      where: { id },
+      data: {
+        ...(dto.classSectionId && { classSectionId: dto.classSectionId }),
+        ...(dto.subjectId && { subjectId: dto.subjectId }),
+        ...(dto.teacherId && { teacherId: dto.teacherId }),
+        ...(dto.dayOfWeek !== undefined && { dayOfWeek: dto.dayOfWeek }),
+        ...(dto.startTime && { startTime: dto.startTime }),
+        ...(dto.endTime && { endTime: dto.endTime }),
+        ...(dto.room !== undefined && { room: dto.room }),
+      },
+      include: {
+        subject: { select: { name: true } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    });
+  }
+
+  async deleteTimetable(id: string) {
+    const entry = await this.prisma.timetable.findUnique({ where: { id } });
+    if (!entry) throw new NotFoundException('Timetable entry not found');
+    await this.prisma.timetable.delete({ where: { id } });
+    return { message: 'Timetable entry deleted' };
+  }
+
+  async bulkCreateTimetable(dto: BulkTimetableDto) {
+    const results = { created: 0, errors: [] as string[] };
+
+    for (let i = 0; i < dto.entries.length; i++) {
+      try {
+        await this.createTimetable(dto.entries[i]);
+        results.created++;
+      } catch (error: any) {
+        results.errors.push(`Row ${i + 1}: ${error.message}`);
+      }
+    }
+
+    return results;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXAM SCHEDULES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async findExamSchedules(classSectionId?: string, termId?: string) {
+    const where: any = {};
+    if (classSectionId) where.classSectionId = classSectionId;
+    if (termId) where.termId = termId;
+
+    return this.prisma.examSchedule.findMany({
+      where,
+      include: {
+        subject: { select: { name: true } },
+        classSection: {
+          include: { classLevel: { select: { name: true } } },
+        },
+        term: { select: { name: true } },
+      },
+      orderBy: [{ examDate: 'asc' }, { startTime: 'asc' }],
+    });
+  }
+
+  async createExamSchedule(dto: CreateExamScheduleDto) {
+    return this.prisma.examSchedule.create({
+      data: {
+        classSectionId: dto.classSectionId,
+        subjectId: dto.subjectId,
+        termId: dto.termId,
+        examDate: new Date(dto.examDate),
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        room: dto.room,
+        syllabus: dto.syllabus,
+      },
+      include: {
+        subject: { select: { name: true } },
+        classSection: {
+          include: { classLevel: { select: { name: true } } },
+        },
+        term: { select: { name: true } },
+      },
+    });
+  }
+
+  async updateExamSchedule(id: string, dto: UpdateExamScheduleDto) {
+    const entry = await this.prisma.examSchedule.findUnique({ where: { id } });
+    if (!entry) throw new NotFoundException('Exam schedule not found');
+
+    return this.prisma.examSchedule.update({
+      where: { id },
+      data: {
+        ...(dto.classSectionId && { classSectionId: dto.classSectionId }),
+        ...(dto.subjectId && { subjectId: dto.subjectId }),
+        ...(dto.termId && { termId: dto.termId }),
+        ...(dto.examDate && { examDate: new Date(dto.examDate) }),
+        ...(dto.startTime && { startTime: dto.startTime }),
+        ...(dto.endTime && { endTime: dto.endTime }),
+        ...(dto.room !== undefined && { room: dto.room }),
+        ...(dto.syllabus !== undefined && { syllabus: dto.syllabus }),
+      },
+      include: {
+        subject: { select: { name: true } },
+        classSection: {
+          include: { classLevel: { select: { name: true } } },
+        },
+        term: { select: { name: true } },
+      },
+    });
+  }
+
+  async deleteExamSchedule(id: string) {
+    const entry = await this.prisma.examSchedule.findUnique({ where: { id } });
+    if (!entry) throw new NotFoundException('Exam schedule not found');
+    await this.prisma.examSchedule.delete({ where: { id } });
+    return { message: 'Exam schedule deleted' };
+  }
+
+  async bulkCreateExamSchedules(dto: BulkExamScheduleDto) {
+    const results = { created: 0, errors: [] as string[] };
+
+    for (let i = 0; i < dto.entries.length; i++) {
+      try {
+        await this.createExamSchedule(dto.entries[i]);
+        results.created++;
+      } catch (error: any) {
+        results.errors.push(`Row ${i + 1}: ${error.message}`);
+      }
+    }
+
+    return results;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

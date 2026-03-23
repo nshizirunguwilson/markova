@@ -248,6 +248,174 @@ export class BulkAssignmentDto {
   assignments: CreateAssignmentDto[];
 }
 
+// ─── TIMETABLE ───────────────────────────────────────────────────────────────
+
+export class CreateTimetableDto {
+  @ApiProperty()
+  @IsUUID()
+  classSectionId: string;
+
+  @ApiProperty()
+  @IsUUID()
+  subjectId: string;
+
+  @ApiProperty()
+  @IsUUID()
+  teacherId: string;
+
+  @ApiProperty({ example: 1, description: '1=Monday, 7=Sunday' })
+  @IsInt()
+  @Min(1)
+  dayOfWeek: number;
+
+  @ApiProperty({ example: '08:00' })
+  @IsString()
+  startTime: string;
+
+  @ApiProperty({ example: '09:00' })
+  @IsString()
+  endTime: string;
+
+  @ApiPropertyOptional({ example: 'Room 101' })
+  @IsOptional()
+  @IsString()
+  room?: string;
+}
+
+export class UpdateTimetableDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  classSectionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  teacherId?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  dayOfWeek?: number;
+
+  @ApiPropertyOptional({ example: '08:00' })
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @ApiPropertyOptional({ example: '09:00' })
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  room?: string;
+}
+
+export class BulkTimetableDto {
+  @ApiProperty({ type: [CreateTimetableDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTimetableDto)
+  entries: CreateTimetableDto[];
+}
+
+// ─── EXAM SCHEDULE ───────────────────────────────────────────────────────────
+
+export class CreateExamScheduleDto {
+  @ApiProperty()
+  @IsUUID()
+  classSectionId: string;
+
+  @ApiProperty()
+  @IsUUID()
+  subjectId: string;
+
+  @ApiProperty()
+  @IsUUID()
+  termId: string;
+
+  @ApiProperty({ example: '2025-06-15' })
+  @IsDateString()
+  examDate: string;
+
+  @ApiProperty({ example: '08:00' })
+  @IsString()
+  startTime: string;
+
+  @ApiProperty({ example: '10:00' })
+  @IsString()
+  endTime: string;
+
+  @ApiPropertyOptional({ example: 'Room 101' })
+  @IsOptional()
+  @IsString()
+  room?: string;
+
+  @ApiPropertyOptional({ example: 'Chapters 1-5' })
+  @IsOptional()
+  @IsString()
+  syllabus?: string;
+}
+
+export class UpdateExamScheduleDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  classSectionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  termId?: string;
+
+  @ApiPropertyOptional({ example: '2025-06-15' })
+  @IsOptional()
+  @IsDateString()
+  examDate?: string;
+
+  @ApiPropertyOptional({ example: '08:00' })
+  @IsOptional()
+  @IsString()
+  startTime?: string;
+
+  @ApiPropertyOptional({ example: '10:00' })
+  @IsOptional()
+  @IsString()
+  endTime?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  room?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  syllabus?: string;
+}
+
+export class BulkExamScheduleDto {
+  @ApiProperty({ type: [CreateExamScheduleDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateExamScheduleDto)
+  entries: CreateExamScheduleDto[];
+}
+
 // ─── PROMOTION ────────────────────────────────────────────────────────────────
 
 export class PromoteStudentsDto {

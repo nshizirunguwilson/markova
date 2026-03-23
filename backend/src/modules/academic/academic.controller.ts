@@ -28,6 +28,12 @@ import {
   CreateAssignmentDto,
   BulkAssignmentDto,
   PromoteStudentsDto,
+  CreateTimetableDto,
+  UpdateTimetableDto,
+  BulkTimetableDto,
+  CreateExamScheduleDto,
+  UpdateExamScheduleDto,
+  BulkExamScheduleDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -272,6 +278,93 @@ export class AcademicController {
   @ApiOperation({ summary: 'Delete assignment' })
   deleteAssignment(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.deleteAssignment(id);
+  }
+
+  // ─── TIMETABLE ─────────────────────────────────────────────────────────────
+
+  @Get('timetable')
+  @Roles('ADMIN', 'TEACHER', 'PARENT', 'STUDENT')
+  @ApiOperation({ summary: 'Get timetable for a class section' })
+  findTimetable(
+    @Query('classSectionId', ParseUUIDPipe) classSectionId: string,
+    @Query('teacherId') teacherId?: string,
+  ) {
+    return this.service.findTimetable(classSectionId, teacherId);
+  }
+
+  @Get('timetable/teacher/:teacherId')
+  @Roles('ADMIN', 'TEACHER')
+  @ApiOperation({ summary: 'Get timetable for a specific teacher' })
+  findTeacherTimetable(@Param('teacherId', ParseUUIDPipe) teacherId: string) {
+    return this.service.findTeacherTimetable(teacherId);
+  }
+
+  @Post('timetable')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Create a timetable entry' })
+  createTimetable(@Body() dto: CreateTimetableDto) {
+    return this.service.createTimetable(dto);
+  }
+
+  @Put('timetable/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update a timetable entry' })
+  updateTimetable(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTimetableDto) {
+    return this.service.updateTimetable(id, dto);
+  }
+
+  @Delete('timetable/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Delete a timetable entry' })
+  deleteTimetable(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.deleteTimetable(id);
+  }
+
+  @Post('timetable/bulk')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Bulk create timetable entries' })
+  bulkCreateTimetable(@Body() dto: BulkTimetableDto) {
+    return this.service.bulkCreateTimetable(dto);
+  }
+
+  // ─── EXAM SCHEDULES ──────────────────────────────────────────────────────────
+
+  @Get('exams')
+  @Roles('ADMIN', 'TEACHER', 'PARENT', 'STUDENT')
+  @ApiOperation({ summary: 'Get exam schedules' })
+  findExamSchedules(
+    @Query('classSectionId') classSectionId?: string,
+    @Query('termId') termId?: string,
+  ) {
+    return this.service.findExamSchedules(classSectionId, termId);
+  }
+
+  @Post('exams')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Create exam schedule entry' })
+  createExamSchedule(@Body() dto: CreateExamScheduleDto) {
+    return this.service.createExamSchedule(dto);
+  }
+
+  @Put('exams/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update exam schedule entry' })
+  updateExamSchedule(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExamScheduleDto) {
+    return this.service.updateExamSchedule(id, dto);
+  }
+
+  @Delete('exams/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Delete exam schedule entry' })
+  deleteExamSchedule(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.deleteExamSchedule(id);
+  }
+
+  @Post('exams/bulk')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Bulk create exam schedule entries' })
+  bulkCreateExamSchedules(@Body() dto: BulkExamScheduleDto) {
+    return this.service.bulkCreateExamSchedules(dto);
   }
 
   // ─── STUDENT PROMOTION ──────────────────────────────────────────────────────

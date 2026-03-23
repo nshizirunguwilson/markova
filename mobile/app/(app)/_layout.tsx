@@ -25,6 +25,9 @@ export default function AppLayout() {
       <Stack.Screen name="class-analytics" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="help" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="parent-teacher-chat" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="timetable" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="exam-schedule" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
