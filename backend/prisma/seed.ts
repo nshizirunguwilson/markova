@@ -604,8 +604,8 @@ async function main() {
       },
       {
         userId: parentUsers[0].id,
-        title: 'Fee Reminder',
-        message: 'Term 1 fees for your child are due by February 28, 2025.',
+        title: 'Attendance Alert',
+        message: 'Your child was marked absent today. Please contact the school if needed.',
         type: NotificationType.SMS,
       },
     ],
