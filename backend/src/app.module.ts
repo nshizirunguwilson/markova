@@ -15,7 +15,6 @@ import { HomeworkModule } from './modules/homework/homework.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
-import { FeesModule } from './modules/fees/fees.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HelpModule } from './modules/help/help.module';
 import { HealthModule } from './modules/health/health.module';
@@ -53,7 +52,6 @@ import { AuditLogInterceptor } from './common/interceptors';
     MessagingModule,
     NotificationsModule,
     ReportsModule,
-    FeesModule,
     AnalyticsModule,
     HelpModule,
     HealthModule,

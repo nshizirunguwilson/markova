@@ -76,20 +76,6 @@ enum AppealStatus {
   REJECTED
 }
 
-enum FeeStatus {
-  PAID
-  UNPAID
-  PARTIAL
-}
-
-enum PaymentMethod {
-  MOMO
-  AIRTEL
-  CARD
-  CASH
-  BANK
-}
-
 enum ConversationType {
   ONE_ON_ONE
   GROUP
@@ -213,8 +199,6 @@ model AcademicYear {
   terms               Term[]
   teacherSubjectClasses TeacherSubjectClass[]
   yearResults          YearResult[]
-  feeRecords           FeeRecord[]
-
   @@map("academic_years")
 }
 
@@ -233,7 +217,6 @@ model Term {
   termResults         TermResult[]
   disciplineIncidents DisciplineIncident[]
   homeworks           Homework[]
-  feeRecords          FeeRecord[]
   examSchedules       ExamSchedule[]
 
   @@unique([academicYearId, name])
@@ -347,8 +330,6 @@ model Student {
   attendances         Attendance[]
   disciplineIncidents DisciplineIncident[]
   homeworkSubmissions HomeworkSubmission[]
-  feeRecords          FeeRecord[]
-
   @@index([classSectionId])
   @@index([status])
   @@map("students")
@@ -732,50 +713,6 @@ model MessageRead {
   @@map("message_reads")
 }
 
-// ─── FEES ───────────────────────────────────────────────────────────────────────
-
-model FeeRecord {
-  id             String         @id @default(uuid())
-  studentId      String         @map("student_id")
-  academicYearId String         @map("academic_year_id")
-  termId         String         @map("term_id")
-  amountDue      Float          @map("amount_due")
-  amountPaid     Float          @default(0) @map("amount_paid")
-  balance        Float          @default(0)
-  status         FeeStatus      @default(UNPAID)
-  paymentMethod  PaymentMethod? @map("payment_method")
-  paymentDate    DateTime?      @map("payment_date")
-  receiptNumber  String?        @unique @map("receipt_number")
-  notes          String?
-  createdAt      DateTime       @default(now()) @map("created_at")
-
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
-  term         Term         @relation(fields: [termId], references: [id])
-  payments     PaymentTransaction[]
-
-  @@index([studentId])
-  @@index([status])
-  @@map("fee_records")
-}
-
-model PaymentTransaction {
-  id                String    @id @default(uuid())
-  feeRecordId       String    @map("fee_record_id")
-  feeRecord         FeeRecord @relation(fields: [feeRecordId], references: [id])
-  amount            Float
-  method            String    // MOMO, AIRTEL, CARD
-  phoneNumber       String?   @map("phone_number")
-  reference         String    @unique
-  providerReference String?   @map("provider_reference")
-  status            String    @default("PENDING") // PENDING, SUCCESS, FAILED
-  completedAt       DateTime? @map("completed_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-
-  @@index([feeRecordId])
-  @@index([reference])
-  @@map("payment_transactions")
-}
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────────
 

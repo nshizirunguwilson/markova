@@ -4,13 +4,12 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   Calendar,
   TrendingUp,
-  DollarSign,
   AlertTriangle,
   BookOpen,
   FileText,
   ChevronRight,
 } from 'lucide-react-native';
-import { useAttendanceSummary, useStudentFees, useStudentDiscipline } from '@/hooks/useApi';
+import { useAttendanceSummary, useStudentDiscipline } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -21,16 +20,13 @@ export default function ChildDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: attendance, refetch: refetchAttendance } = useAttendanceSummary(studentId);
-  const { data: fees, refetch: refetchFees } = useStudentFees(studentId);
   const { data: discipline, refetch: refetchDiscipline } = useStudentDiscipline(studentId);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchAttendance(), refetchFees(), refetchDiscipline()]);
+    await Promise.all([refetchAttendance(), refetchDiscipline()]);
     setRefreshing(false);
-  }, [refetchAttendance, refetchFees, refetchDiscipline]);
-
-  const totalFeesDue = fees?.reduce((sum, f) => sum + (f.amountDue - f.amountPaid), 0) ?? 0;
+  }, [refetchAttendance, refetchDiscipline]);
   const attendanceRate = attendance?.attendanceRate ?? 0;
 
   const menuItems = [
@@ -47,13 +43,6 @@ export default function ChildDetailScreen() {
       subtitle: 'View term results and report cards',
       color: colors.successLight,
       onPress: () => router.push({ pathname: '/(app)/child/marks', params: { studentId, name } }),
-    },
-    {
-      icon: <DollarSign size={22} color={colors.warning} />,
-      title: 'Fee Records',
-      subtitle: totalFeesDue > 0 ? `Balance: ${totalFeesDue.toLocaleString()} RWF` : 'All fees paid',
-      color: colors.warningLight,
-      onPress: () => router.push({ pathname: '/(app)/child/fees', params: { studentId, name } }),
     },
     {
       icon: <AlertTriangle size={22} color={colors.danger} />,
@@ -94,9 +83,9 @@ export default function ChildDetailScreen() {
             color={colors.danger}
           />
           <SummaryCard
-            label="Fee Balance"
-            value={totalFeesDue > 0 ? `${(totalFeesDue / 1000).toFixed(0)}K` : '0'}
-            color={totalFeesDue > 0 ? colors.warning : colors.success}
+            label="Incidents"
+            value={String(discipline?.incidents?.length ?? 0)}
+            color={discipline?.incidents?.length ? colors.warning : colors.success}
           />
         </View>
 

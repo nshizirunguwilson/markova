@@ -7,7 +7,6 @@ import {
   ClipboardList,
   Calendar,
   Award,
-  DollarSign,
   FileText,
   ArrowRight,
 } from "lucide-react";
@@ -19,7 +18,6 @@ export default function ParentDashboard() {
     { label: "View Marks", href: "/parent/marks", icon: ClipboardList },
     { label: "Attendance", href: "/parent/attendance", icon: Calendar },
     { label: "Discipline", href: "/parent/discipline", icon: Award },
-    { label: "Fees", href: "/parent/fees", icon: DollarSign },
     { label: "Reports", href: "/parent/reports", icon: FileText },
   ];
 
@@ -59,7 +57,7 @@ export default function ParentDashboard() {
           <CardTitle>My Children</CardTitle>
           <p className="mt-1 text-sm text-muted">
             Use the links on the left to view marks, attendance, discipline records,
-            fees, and report cards for your children.
+            and report cards for your children.
           </p>
         </Card>
       </div>

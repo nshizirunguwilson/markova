@@ -9,8 +9,6 @@ import {
   AbsenceReason,
   LoanStatus,
   DisciplineAction,
-  FeeStatus,
-  PaymentMethod,
   ConversationType,
   MessageContentType,
   NotificationType,
@@ -588,26 +586,6 @@ async function main() {
     },
   });
   console.log('  ✅ Sample conversations + messages seeded');
-
-  // ─── SAMPLE FEE RECORDS ─────────────────────────────────────────────────────
-  for (let i = 0; i < 10; i++) {
-    const isPaid = i < 6;
-    await prisma.feeRecord.create({
-      data: {
-        studentId: students[i].id,
-        academicYearId: academicYear.id,
-        termId: terms[0].id,
-        amountDue: 500000,
-        amountPaid: isPaid ? 500000 : i < 8 ? 250000 : 0,
-        balance: isPaid ? 0 : i < 8 ? 250000 : 500000,
-        status: isPaid ? FeeStatus.PAID : i < 8 ? FeeStatus.PARTIAL : FeeStatus.UNPAID,
-        paymentMethod: isPaid ? PaymentMethod.MOMO : i < 8 ? PaymentMethod.CASH : null,
-        paymentDate: isPaid ? new Date('2025-02-01') : i < 8 ? new Date('2025-02-10') : null,
-        receiptNumber: isPaid || i < 8 ? `RCP-2025-${String(i + 1).padStart(4, '0')}` : null,
-      },
-    });
-  }
-  console.log('  ✅ 10 fee records seeded');
 
   // ─── SAMPLE NOTIFICATIONS ───────────────────────────────────────────────────
   await prisma.notification.createMany({

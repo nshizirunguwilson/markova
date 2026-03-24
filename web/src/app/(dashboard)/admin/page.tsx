@@ -5,7 +5,6 @@ import { Card, CardTitle, PageSpinner } from "@/components/ui";
 import { TooltipGuide } from "@/components/ui/tooltip-guide";
 import { useAdminDashboard } from "@/hooks/use-analytics";
 import { useAttendanceDashboard } from "@/hooks/use-attendance";
-import { useFeeSummary } from "@/hooks/use-fees";
 import { useLibraryAnalytics } from "@/hooks/use-library";
 import Link from "next/link";
 import {
@@ -14,7 +13,6 @@ import {
   UserCheck,
   BookOpen,
   Calendar,
-  DollarSign,
   Library,
   UserPlus,
   ClipboardList,
@@ -30,11 +28,10 @@ export default function AdminDashboard() {
   const { data: attendance, isLoading: loadingAttendance, isError: attendanceError, refetch: refetchAttendance } = useAttendanceDashboard(
     toLocalDateString(new Date())
   );
-  const { data: fees, isLoading: loadingFees, isError: feesError, refetch: refetchFees } = useFeeSummary();
   const { data: library, isLoading: loadingLibrary, isError: libraryError, refetch: refetchLibrary } = useLibraryAnalytics();
 
-  const isLoading = loadingDashboard && loadingAttendance && loadingFees && loadingLibrary;
-  const isError = dashboardError || attendanceError || feesError || libraryError;
+  const isLoading = loadingDashboard && loadingAttendance && loadingLibrary;
+  const isError = dashboardError || attendanceError || libraryError;
 
   if (isLoading) return <PageSpinner />;
 
@@ -44,7 +41,7 @@ export default function AdminDashboard() {
         <p className="text-lg font-semibold text-foreground">Something went wrong</p>
         <p className="mt-1 text-sm text-muted">We could not load the dashboard data.</p>
         <button
-          onClick={() => { refetchDashboard(); refetchAttendance(); refetchFees(); refetchLibrary(); }}
+          onClick={() => { refetchDashboard(); refetchAttendance(); refetchLibrary(); }}
           className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
         >
           Retry
@@ -56,11 +53,6 @@ export default function AdminDashboard() {
   const attendanceRate =
     attendance?.totalStudents > 0
       ? Math.round((attendance.presentCount / attendance.totalStudents) * 100)
-      : 0;
-
-  const feeCollectionRate =
-    fees?.totalExpected > 0
-      ? Math.round((fees.totalCollected / fees.totalExpected) * 100)
       : 0;
 
   const statCards = [
@@ -93,12 +85,6 @@ export default function AdminDashboard() {
       value: attendance ? `${attendanceRate}%` : "—",
       icon: Calendar,
       color: "text-cyan-600 bg-cyan-50",
-    },
-    {
-      label: "Fee Collection",
-      value: fees ? `${feeCollectionRate}%` : "—",
-      icon: DollarSign,
-      color: "text-green-600 bg-green-50",
     },
     {
       label: "Books on Loan",
@@ -179,19 +165,6 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted">Fee Collection Rate</span>
-              <span className="text-sm font-semibold text-foreground">
-                {fees ? `${feeCollectionRate}%` : "—"}
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-gray-100">
-              <div
-                className="h-2 rounded-full bg-green-500 transition-all"
-                style={{ width: `${feeCollectionRate}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Library: Active Loans</span>
               <span className="text-sm font-semibold text-foreground">
                 {library?.activeLoans ?? "—"}
@@ -212,7 +185,7 @@ export default function AdminDashboard() {
           {
             target: "[data-guide='stat-cards']",
             title: "School Overview",
-            content: "These cards show real-time stats for your school — students, teachers, attendance, and fees at a glance.",
+            content: "These cards show real-time stats for your school — students, teachers, and attendance at a glance.",
           },
           {
             target: "[data-guide='quick-actions']",
@@ -222,7 +195,7 @@ export default function AdminDashboard() {
           {
             target: "[data-guide='at-a-glance']",
             title: "Performance Snapshot",
-            content: "Track attendance rates, fee collection, and library status in real time.",
+            content: "Track attendance rates and library status in real time.",
           },
         ]}
       />

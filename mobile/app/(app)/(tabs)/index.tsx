@@ -2,7 +2,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'r
 import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import {
-  Calendar, BookOpen, TrendingUp, DollarSign, AlertTriangle, ClipboardList,
+  Calendar, BookOpen, TrendingUp, AlertTriangle, ClipboardList,
   Users, Settings, BarChart3, GraduationCap, CreditCard, MessageSquare, Clock,
   FileText,
 } from 'lucide-react-native';
@@ -54,7 +54,7 @@ function ParentDashboard() {
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeTitle}>My Children</Text>
           <Text style={styles.welcomeText}>
-            Tap a child to view their attendance, marks, fees, and more.
+            Tap a child to view their attendance, marks, and more.
           </Text>
         </View>
 
@@ -95,7 +95,6 @@ function ParentDashboard() {
               <View style={styles.childActions}>
                 <QuickAction icon={<Calendar size={16} color={colors.primary} />} label="Attendance" />
                 <QuickAction icon={<TrendingUp size={16} color={colors.success} />} label="Marks" />
-                <QuickAction icon={<DollarSign size={16} color={colors.warning} />} label="Fees" />
               </View>
               <View style={[styles.childActions, { marginTop: spacing.sm }]}>
                 <Pressable

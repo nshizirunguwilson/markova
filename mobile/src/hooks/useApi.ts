@@ -11,7 +11,6 @@ import type {
   AttendanceSummary,
   Mark,
   TermResult,
-  FeeRecord,
   DisciplineIncident,
   Homework,
   Notification,
@@ -246,42 +245,6 @@ export function useBatchMarks() {
     }) => api.post('/marks/batch', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['student-marks'] });
-    },
-  });
-}
-
-// ─── Fees ───────────────────────────────────────────────
-
-export function useStudentFees(studentId?: string) {
-  return useQuery<FeeRecord[]>({
-    queryKey: ['student-fees', studentId],
-    queryFn: () => api.get(`/fees/student/${studentId}`).then((r) => r.data),
-    enabled: !!studentId,
-  });
-}
-
-// ─── Payments ──────────────────────────────────────────
-
-export function useInitiatePayment() {
-  return useMutation({
-    mutationFn: (data: {
-      feeRecordId: string;
-      amount: number;
-      method: string;
-      phoneNumber?: string;
-    }) => api.post('/payments/initiate', data).then((r) => r.data),
-  });
-}
-
-export function usePaymentStatus(paymentId?: string) {
-  return useQuery({
-    queryKey: ['payment-status', paymentId],
-    queryFn: () =>
-      api.get(`/payments/${paymentId}/status`).then((r) => r.data),
-    enabled: !!paymentId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === 'PENDING' ? 3000 : false;
     },
   });
 }

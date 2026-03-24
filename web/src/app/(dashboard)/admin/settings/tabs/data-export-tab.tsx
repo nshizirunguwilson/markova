@@ -13,7 +13,6 @@ const EXPORTS = [
   { key: "teachers", label: "Teachers", description: "Export teachers with employment status" },
   { key: "marks", label: "Marks", description: "Export all marks for current term" },
   { key: "attendance", label: "Attendance", description: "Export attendance records" },
-  { key: "fees", label: "Fee Records", description: "Export fee payment records" },
 ];
 
 export function DataExportTab() {

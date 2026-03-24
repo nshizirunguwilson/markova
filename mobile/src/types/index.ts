@@ -117,23 +117,6 @@ export interface TermResult {
   isPublished: boolean;
 }
 
-// Fees
-export interface FeeRecord {
-  id: string;
-  studentId: string;
-  academicYearId: string;
-  termId: string;
-  amountDue: number;
-  amountPaid: number;
-  balance: number;
-  status: 'PAID' | 'PARTIAL' | 'UNPAID';
-  paymentMethod?: string;
-  paymentDate?: string;
-  receiptNumber?: string;
-  notes?: string;
-  term?: Term;
-}
-
 // Discipline
 export interface DisciplineIncident {
   id: string;

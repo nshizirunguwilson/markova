@@ -140,8 +140,6 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
       router.push(`/${role}/attendance`);
     } else if (type.includes("MARKS") || type.includes("RESULT")) {
       router.push(`/${role}/marks`);
-    } else if (type.includes("FEE")) {
-      router.push(`/${role}/fees`);
     } else if (type.includes("MESSAGE")) {
       router.push(`/messages`);
     }

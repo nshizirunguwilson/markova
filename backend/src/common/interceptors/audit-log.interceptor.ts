@@ -8,7 +8,7 @@ import {
 import { Observable, tap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const SENSITIVE_PATHS = ['marks', 'attendance', 'discipline', 'fees', 'users'];
+const SENSITIVE_PATHS = ['marks', 'attendance', 'discipline', 'users'];
 
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {

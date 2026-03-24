@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, Pressable, RefreshControl,
 } from 'react-native';
 import {
-  Bell, Calendar, TrendingUp, DollarSign, AlertTriangle, BookOpen, MessageSquare,
+  Bell, Calendar, TrendingUp, AlertTriangle, BookOpen, MessageSquare,
   CheckCircle,
 } from 'lucide-react-native';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useApi';
@@ -36,7 +36,6 @@ export default function NotificationsScreen() {
     switch (type) {
       case 'ATTENDANCE': return <Calendar size={20} color={colors.primaryLight} />;
       case 'MARKS': return <TrendingUp size={20} color={colors.success} />;
-      case 'FEES': return <DollarSign size={20} color={colors.warning} />;
       case 'DISCIPLINE': return <AlertTriangle size={20} color={colors.danger} />;
       case 'HOMEWORK': return <BookOpen size={20} color={colors.primary} />;
       case 'MESSAGE': return <MessageSquare size={20} color={colors.primaryLight} />;
@@ -48,7 +47,6 @@ export default function NotificationsScreen() {
     switch (type) {
       case 'ATTENDANCE': return colors.accentLight;
       case 'MARKS': return colors.successLight;
-      case 'FEES': return colors.warningLight;
       case 'DISCIPLINE': return colors.dangerLight;
       case 'HOMEWORK': return colors.accentLight;
       default: return colors.borderLight;
