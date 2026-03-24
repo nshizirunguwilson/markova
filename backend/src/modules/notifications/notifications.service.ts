@@ -3,11 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
+import { Twilio } from 'twilio';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
   private transporter: nodemailer.Transporter | null = null;
+  private twilioClient: Twilio | null = null;
+  private twilioSenderId: string | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -27,6 +30,14 @@ export class NotificationsService implements OnModuleInit {
         },
       });
       this.logger.log(`SMTP configured via ${host}`);
+    }
+
+    const twilioSid = this.config.get('TWILIO_SID');
+    const twilioToken = this.config.get('TWILIO_TOKEN');
+    if (twilioSid && twilioToken) {
+      this.twilioClient = new Twilio(twilioSid, twilioToken);
+      this.twilioSenderId = this.config.get('TWILIO_SENDER_ID') || 'Markova';
+      this.logger.log(`Twilio SMS configured with sender ID: ${this.twilioSenderId}`);
     }
   }
 
@@ -232,13 +243,25 @@ export class NotificationsService implements OnModuleInit {
     });
     if (!user?.phone) return;
 
-    const provider = this.config.get('SMS_PROVIDER'); // 'africastalking' or 'twilio'
-    if (!provider) return; // SMS not configured
+    await this.sendSMSToPhone(user.phone, message);
+  }
 
-    // TODO: Implement actual SMS providers
-    // Africa's Talking: uses AT_API_KEY, AT_USERNAME, AT_SENDER_ID
-    // Twilio: uses TWILIO_SID, TWILIO_TOKEN, TWILIO_PHONE
-    this.logger.log(`[SMS] Would send to ${user.phone}: ${message}`);
+  async sendSMSToPhone(phone: string, message: string) {
+    if (!this.twilioClient) {
+      this.logger.log(`[SMS] Twilio not configured — would send to ${phone}: ${message}`);
+      return;
+    }
+
+    try {
+      await this.twilioClient.messages.create({
+        body: message,
+        from: this.twilioSenderId!,
+        to: phone,
+      });
+      this.logger.log(`[SMS] Sent to ${phone}`);
+    } catch (error) {
+      this.logger.error(`[SMS] Failed to send to ${phone}:`, error.message);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

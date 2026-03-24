@@ -12,6 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Role } from '@prisma/client';
 import {
   LoginDto,
@@ -42,6 +43,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private redis: RedisService,
+    private notificationsService: NotificationsService,
   ) {}
 
   // ─── LOGIN (Step 1) ────────────────────────────────────────────────────────
@@ -109,10 +111,14 @@ export class AuthService {
       OTP_TTL_SECONDS,
     );
 
-    // In production, send OTP via SMS/email
-    this.logger.log(
-      `OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`,
-    );
+    // Send OTP via SMS
+    if (user.phone) {
+      await this.notificationsService.sendSMSToPhone(
+        user.phone,
+        `Your Markova verification code is: ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+      );
+    }
+    this.logger.log(`OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`);
 
     return {
       requiresOtp: true,
@@ -276,7 +282,12 @@ export class AuthService {
       RESET_TOKEN_TTL_SECONDS,
     );
 
-    // In production, send via email/SMS
+    if (user.phone) {
+      await this.notificationsService.sendSMSToPhone(
+        user.phone,
+        `Your Markova password reset code is: ${token.slice(0, 8).toUpperCase()}. It expires in 30 minutes.`,
+      );
+    }
     this.logger.log(`Password reset token for ${user.email || user.phone}: ${token}`);
 
     return {

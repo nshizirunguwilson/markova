@@ -20,8 +20,6 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@sentry/nestjs": "^9.0.0",
-    "@sentry/node": "^9.0.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
@@ -29,12 +27,14 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
-    "@nestjs/schedule": "^4.1.0",
     "@nestjs/platform-socket.io": "^11.1.17",
+    "@nestjs/schedule": "^4.1.0",
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.17",
     "@prisma/client": "^6.19.2",
+    "@sentry/nestjs": "^9.0.0",
+    "@sentry/node": "^9.0.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.0",
     "class-transformer": "^0.5.1",
@@ -54,6 +54,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.13.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
