@@ -37,11 +37,13 @@ export default function AdminFeesPage() {
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
   const { data: summary } = useFeeSummary(yearId || undefined, termId || undefined);
-  const { data: records, isLoading, isError, refetch } = useFees({
+  const { data: feesResponse, isLoading, isError, refetch } = useFees({
     academicYearId: yearId || undefined,
     termId: termId || undefined,
     status: statusFilter || undefined,
   });
+  const records = Array.isArray(feesResponse) ? feesResponse : (feesResponse?.data ?? []);
+  const feesMeta = feesResponse?.meta;
   const recordPayment = useRecordPayment();
 
   const [form, setForm] = useState({
@@ -146,7 +148,7 @@ export default function AdminFeesPage() {
       {/* Result Count */}
       {!isLoading && records && (
         <p className="text-sm text-gray-500">
-          Showing {Array.isArray(records) ? records.length : (records?.meta?.total ?? records?.data?.length ?? 0)} records
+          Showing {feesMeta?.total ?? records.length} records
         </p>
       )}
 

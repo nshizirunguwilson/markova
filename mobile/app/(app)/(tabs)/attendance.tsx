@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import {
   Smartphone, List, CheckCircle, XCircle, Clock, Send, ChevronDown,
-  Users, Wifi, WifiOff, CreditCard,
+  Users, Wifi, WifiOff, CreditCard, RefreshCw, CloudOff,
 } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
@@ -14,8 +14,11 @@ import {
   useTeacherAssignments, useClassStudents, useClassAttendance, useBulkAttendance,
   useCurrentTerm, useClassStudentsNfc, useNfcScan,
 } from '@/hooks/useApi';
+import { useOfflineQueue } from '@/hooks/useOfflineQueue';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Button } from '@/components/ui';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 import type { Student } from '@/types';
@@ -45,12 +48,13 @@ export default function AttendanceScreen() {
 
   const today = new Date().toISOString().split('T')[0];
   const { data: currentTerm } = useCurrentTerm();
-  const { data: assignments, isLoading: loadingAssignments } = useTeacherAssignments(user?.teacherId);
+  const { data: assignments, isLoading: loadingAssignments, error: assignmentsError, refetch: refetchAssignments } = useTeacherAssignments(user?.teacherId);
   const { data: students, isLoading: loadingStudents } = useClassStudents(selectedClassId ?? undefined);
   const { data: existingAttendance } = useClassAttendance(selectedClassId ?? undefined, today);
   const { data: nfcStudents } = useClassStudentsNfc(selectedClassId ?? undefined);
   const bulkAttendance = useBulkAttendance();
   const nfcScanMutation = useNfcScan();
+  const { queueSize, isProcessing, processNow, enqueue, isNetworkError: checkNetworkError } = useOfflineQueue();
 
   // Check NFC support
   useEffect(() => {
@@ -173,25 +177,31 @@ export default function AttendanceScreen() {
         {
           text: 'Submit',
           onPress: () => {
-            bulkAttendance.mutate(
-              {
-                classSectionId: selectedClassId!,
-                date: today,
-                type: 'DAILY',
-                records,
+            const payload = {
+              classSectionId: selectedClassId!,
+              date: today,
+              type: 'DAILY' as const,
+              records,
+            };
+            bulkAttendance.mutate(payload, {
+              onSuccess: () => {
+                toast.success('Attendance submitted successfully');
+                setStep('select-class');
+                setSelectedClassId(null);
+                setAttendanceMap({});
               },
-              {
-                onSuccess: () => {
-                  toast.success('Attendance submitted successfully');
+              onError: (err: any) => {
+                if (checkNetworkError(err)) {
+                  enqueue(payload);
+                  toast.info('Saved offline — will sync when connected');
                   setStep('select-class');
                   setSelectedClassId(null);
                   setAttendanceMap({});
-                },
-                onError: (err: any) => {
+                } else {
                   toast.error(err?.response?.data?.message ?? 'Failed to submit attendance');
-                },
-              }
-            );
+                }
+              },
+            });
           },
         },
       ]
@@ -218,20 +228,26 @@ export default function AttendanceScreen() {
                 .map((s) => ({ studentId: s.id, status: 'ABSENT' as AttendanceStatus }));
 
               if (records.length > 0) {
-                bulkAttendance.mutate(
-                  { classSectionId: selectedClassId!, date: today, type: 'DAILY', records },
-                  {
-                    onSuccess: () => {
-                      toast.success('Attendance completed');
+                const payload = { classSectionId: selectedClassId!, date: today, type: 'DAILY' as const, records };
+                bulkAttendance.mutate(payload, {
+                  onSuccess: () => {
+                    toast.success('Attendance completed');
+                    setStep('select-class');
+                    setSelectedClassId(null);
+                    setScannedStudents(new Set());
+                  },
+                  onError: (err: any) => {
+                    if (checkNetworkError(err)) {
+                      enqueue(payload);
+                      toast.info('Saved offline — will sync when connected');
                       setStep('select-class');
                       setSelectedClassId(null);
                       setScannedStudents(new Set());
-                    },
-                    onError: (err: any) => {
+                    } else {
                       toast.error(err?.response?.data?.message ?? 'Failed to submit');
-                    },
-                  }
-                );
+                    }
+                  },
+                });
               } else {
                 toast.success('Attendance completed');
                 setStep('select-class');
@@ -259,6 +275,32 @@ export default function AttendanceScreen() {
     return (
       <View style={styles.container}>
         <ScreenHeader title="Take Attendance" subtitle={today} />
+
+        {/* Offline queue banner */}
+        {queueSize > 0 && (
+          <View style={styles.offlineBanner}>
+            <CloudOff size={18} color={colors.warning} />
+            <Text style={styles.offlineBannerText}>
+              {queueSize} attendance record{queueSize > 1 ? 's' : ''} pending sync
+            </Text>
+            <Pressable
+              style={styles.syncButton}
+              onPress={async () => {
+                const processed = await processNow();
+                if (processed > 0) {
+                  toast.success(`Synced ${processed} record${processed > 1 ? 's' : ''}`);
+                } else {
+                  toast.error('Sync failed — will retry later');
+                }
+              }}
+              disabled={isProcessing}
+            >
+              <RefreshCw size={14} color={colors.white} />
+              <Text style={styles.syncButtonText}>{isProcessing ? 'Syncing...' : 'Sync Now'}</Text>
+            </Pressable>
+          </View>
+        )}
+
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Mode selector */}
           <View style={styles.modeRow}>
@@ -299,6 +341,8 @@ export default function AttendanceScreen() {
           <Text style={styles.sectionTitle}>Select Class</Text>
           {loadingAssignments ? (
             <LoadingScreen />
+          ) : assignmentsError ? (
+            <ErrorScreen type={getErrorType(assignmentsError)} message={getErrorMessage(assignmentsError)} onRetry={() => refetchAssignments()} />
           ) : classes.length > 0 ? (
             classes.map((cls) => (
               <Pressable
@@ -586,4 +630,20 @@ const styles = StyleSheet.create({
   nfcStudentInfo: { flex: 1 },
   nfcStudentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
   nfcStudentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+
+  // Offline queue banner
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.warningLight, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.warning + '40',
+  },
+  offlineBannerText: {
+    flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground,
+  },
+  syncButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.warning, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+  },
+  syncButtonText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.white },
 });

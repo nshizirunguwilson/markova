@@ -76,8 +76,8 @@ api.interceptors.response.use(
         refreshToken,
       });
 
-      const newAccess = data.access_token;
-      const newRefresh = data.refresh_token;
+      const newAccess = data.accessToken;
+      const newRefresh = data.refreshToken;
       await setTokens(newAccess, newRefresh);
 
       processQueue(null, newAccess);

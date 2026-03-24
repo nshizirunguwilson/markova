@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAttendanceSummary } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 import type { AttendanceRecord } from '@/types';
 
@@ -21,7 +23,7 @@ export default function ChildAttendanceScreen() {
   const lastDay = new Date(year, month + 1, 0).getDate();
   const dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
 
-  const { data: summary, refetch: refetchSummary } = useAttendanceSummary(studentId, dateFrom, dateTo);
+  const { data: summary, error: summaryError, refetch: refetchSummary } = useAttendanceSummary(studentId, dateFrom, dateTo);
   const { data: records, refetch: refetchRecords } = useQuery<AttendanceRecord[]>({
     queryKey: ['attendance-records', studentId, dateFrom, dateTo],
     queryFn: () =>

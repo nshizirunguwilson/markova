@@ -70,11 +70,15 @@ export default function AdminLibraryPage() {
   const [tab, setTab] = useState<Tab>("books");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: books, isLoading: loadingBooks } = useBooks(
+  const { data: booksResponse, isLoading: loadingBooks } = useBooks(
     searchQuery ? { search: searchQuery } : undefined
   );
-  const { data: activeLoans, isLoading: loadingLoans } = useActiveLoans();
-  const { data: overdueLoans, isLoading: loadingOverdue } = useOverdueLoans();
+  const books = Array.isArray(booksResponse) ? booksResponse : (booksResponse?.data ?? []);
+  const booksMeta = booksResponse?.meta;
+  const { data: loansResponse, isLoading: loadingLoans } = useActiveLoans();
+  const activeLoans = Array.isArray(loansResponse) ? loansResponse : (loansResponse?.data ?? []);
+  const { data: overdueResponse, isLoading: loadingOverdue } = useOverdueLoans();
+  const overdueLoans = Array.isArray(overdueResponse) ? overdueResponse : (overdueResponse?.data ?? []);
   const { data: analytics, isLoading: loadingAnalytics } = useLibraryAnalytics();
 
   const createBook = useCreateBook();
@@ -270,7 +274,7 @@ export default function AdminLibraryPage() {
 
           {!loadingBooks && books && (
             <p className="mb-3 text-sm text-muted">
-              Showing {Array.isArray(books) ? books.length : (books?.meta?.total ?? books?.data?.length ?? 0)} books
+              Showing {booksMeta?.total ?? books.length} books
             </p>
           )}
 

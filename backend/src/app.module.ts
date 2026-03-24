@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
@@ -25,6 +25,7 @@ import { CommonModule } from './common/common.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduledTasksService } from './common/scheduled-tasks.service';
+import { AuditLogInterceptor } from './common/interceptors';
 
 @Module({
   imports: [
@@ -64,6 +65,10 @@ import { ScheduledTasksService } from './common/scheduled-tasks.service';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
     },
   ],
 })

@@ -9,9 +9,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { setupGlobalErrorHandling, errorReporter } from '@/lib/error-reporting';
 import { colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
+setupGlobalErrorHandling();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,6 +28,7 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const checkAuth = useAuthStore((s) => s.checkAuth);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const userId = useAuthStore((s) => s.user?.id);
   usePushNotifications();
 
   useEffect(() => {
@@ -33,6 +36,10 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     });
   }, []);
+
+  useEffect(() => {
+    errorReporter.setUser(userId ?? null);
+  }, [userId]);
 
   if (isLoading) return null;
 

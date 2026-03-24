@@ -13,6 +13,8 @@ import {
 } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Button, Input } from '@/components/ui';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 import type { Homework } from '@/types';
@@ -23,7 +25,7 @@ export default function HomeworkManageScreen() {
 
   const { data: currentTerm } = useCurrentTerm();
   const { data: assignments } = useTeacherAssignments(user?.teacherId);
-  const { data: homework, isLoading, refetch } = useHomeworkList({ termId: currentTerm?.id });
+  const { data: homework, isLoading, error, refetch } = useHomeworkList({ termId: currentTerm?.id });
   const createHomework = useCreateHomework();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -45,7 +47,13 @@ export default function HomeworkManageScreen() {
 
   const handleCreate = () => {
     if (!title.trim()) { toast.error('Title is required'); return; }
+    if (title.trim().length < 3) { toast.error('Title must be at least 3 characters'); return; }
     if (!dueDate.trim()) { toast.error('Due date is required (YYYY-MM-DD)'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate.trim())) { toast.error('Due date must be in YYYY-MM-DD format'); return; }
+    const parsedDate = new Date(dueDate.trim());
+    if (isNaN(parsedDate.getTime())) { toast.error('Invalid date'); return; }
+    if (parsedDate < new Date(new Date().toISOString().split('T')[0])) { toast.error('Due date cannot be in the past'); return; }
+    if (maxMarks && (isNaN(Number(maxMarks)) || Number(maxMarks) <= 0 || Number(maxMarks) > 1000)) { toast.error('Max marks must be between 1 and 1000'); return; }
     if (!selectedAssignment) { toast.error('Select a class and subject'); return; }
     if (!currentTerm) { toast.error('No current term found'); return; }
 
@@ -99,6 +107,8 @@ export default function HomeworkManageScreen() {
       >
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : homework && homework.length > 0 ? (
           homework.map((hw) => {
             const isOverdue = new Date(hw.dueDate) < now;

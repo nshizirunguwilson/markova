@@ -12,6 +12,8 @@ import { useCheckoutBook, useReturnBook, useLibraryAnalytics } from '@/hooks/use
 import { useAuthStore } from '@/stores/auth-store';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -57,26 +59,29 @@ export default function LibraryScreen() {
   const checkout = useCheckoutBook();
   const returnBook = useReturnBook();
 
-  const { data: booksData, isLoading: loadingBooks, refetch: refetchBooks } = useQuery({
+  const { data: booksData, isLoading: loadingBooks, error: booksError, refetch: refetchBooks } = useQuery({
     queryKey: ['library-books', search],
     queryFn: () =>
       api.get('/library/books', { params: { search: search.trim() || undefined, limit: 50 } }).then((r) => r.data),
     enabled: tab === 'catalog',
   });
 
-  const { data: activeLoans, isLoading: loadingActive, refetch: refetchActive } = useQuery<Loan[]>({
+  const { data: activeLoans, isLoading: loadingActive, error: activeError, refetch: refetchActive } = useQuery<Loan[]>({
     queryKey: ['library-active-loans'],
     queryFn: () => api.get('/library/loans/active').then((r) => r.data),
     enabled: tab === 'active',
   });
 
-  const { data: overdueLoans, isLoading: loadingOverdue, refetch: refetchOverdue } = useQuery<Loan[]>({
+  const { data: overdueLoans, isLoading: loadingOverdue, error: overdueError, refetch: refetchOverdue } = useQuery<Loan[]>({
     queryKey: ['library-overdue-loans'],
     queryFn: () => api.get('/library/loans/overdue').then((r) => r.data),
     enabled: tab === 'overdue',
   });
 
-  const { data: analytics, isLoading: loadingStats, refetch: refetchStats } = useLibraryAnalytics();
+  const { data: analytics, isLoading: loadingStats, error: statsError, refetch: refetchStats } = useLibraryAnalytics();
+
+  const currentError = tab === 'catalog' ? booksError : tab === 'active' ? activeError : tab === 'overdue' ? overdueError : statsError;
+  const currentRefetch = tab === 'catalog' ? refetchBooks : tab === 'active' ? refetchActive : tab === 'overdue' ? refetchOverdue : refetchStats;
 
   const books: Book[] = booksData?.data ?? booksData ?? [];
 
@@ -185,8 +190,13 @@ export default function LibraryScreen() {
         </View>
       )}
 
+      {/* Error state */}
+      {currentError && (
+        <ErrorScreen type={getErrorType(currentError)} message={getErrorMessage(currentError)} onRetry={() => currentRefetch()} />
+      )}
+
       {/* Catalog */}
-      {tab === 'catalog' && (
+      {tab === 'catalog' && !currentError && (
         loadingBooks ? <LoadingScreen /> : (
           <FlatList
             data={books}
@@ -224,7 +234,7 @@ export default function LibraryScreen() {
       )}
 
       {/* Active Loans */}
-      {tab === 'active' && (
+      {tab === 'active' && !currentError && (
         loadingActive ? <LoadingScreen /> : (
           <FlatList
             data={activeLoans ?? []}
@@ -240,7 +250,7 @@ export default function LibraryScreen() {
       )}
 
       {/* Overdue */}
-      {tab === 'overdue' && (
+      {tab === 'overdue' && !currentError && (
         loadingOverdue ? <LoadingScreen /> : (
           <FlatList
             data={overdueLoans ?? []}
@@ -262,7 +272,7 @@ export default function LibraryScreen() {
       )}
 
       {/* Stats */}
-      {tab === 'stats' && (
+      {tab === 'stats' && !currentError && (
         loadingStats ? <LoadingScreen /> : (
           <View style={styles.statsContainer}>
             <View style={styles.statsGrid}>
@@ -271,10 +281,10 @@ export default function LibraryScreen() {
               <StatBox label="Active Loans" value={analytics?.activeLoans ?? '--'} color={colors.warning} />
               <StatBox label="Overdue" value={analytics?.overdueLoans ?? '--'} color={colors.danger} />
             </View>
-            {analytics?.popularBooks?.length > 0 && (
+            {(analytics?.popularBooks?.length ?? 0) > 0 && (
               <View style={styles.popularSection}>
                 <Text style={styles.popularTitle}>Popular Books</Text>
-                {analytics.popularBooks.slice(0, 5).map((b: any, i: number) => (
+                {analytics!.popularBooks.slice(0, 5).map((b: any, i: number) => (
                   <View key={i} style={styles.popularRow}>
                     <Text style={styles.popularRank}>#{i + 1}</Text>
                     <Text style={styles.popularName} numberOfLines={1}>{b.title ?? b.book?.title ?? 'Unknown'}</Text>

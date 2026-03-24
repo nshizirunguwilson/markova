@@ -5,10 +5,11 @@ import { Award, TrendingUp, Download } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { toast } from 'sonner-native';
 import { useStudentMarks, useStudentTermResult, useCurrentTerm } from '@/hooks/useApi';
-import { useAuthStore } from '@/stores/auth-store';
 import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 export default function ChildMarksScreen() {
@@ -16,11 +17,10 @@ export default function ChildMarksScreen() {
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
   const [refreshing, setRefreshing] = useState(false);
 
-  const tokens = useAuthStore((s) => s.tokens);
   const { data: currentTerm } = useCurrentTerm();
   const termId = currentTerm?.id;
 
-  const { data: marks, isLoading, refetch: refetchMarks } = useStudentMarks(studentId, termId);
+  const { data: marks, isLoading, error, refetch: refetchMarks } = useStudentMarks(studentId, termId);
   const { data: termResult, refetch: refetchResult } = useStudentTermResult(studentId, termId);
 
   const onRefresh = useCallback(async () => {
@@ -109,6 +109,8 @@ export default function ChildMarksScreen() {
         <Text style={styles.sectionTitle}>Subject Breakdown</Text>
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetchMarks()} />
         ) : subjectMarks && Object.keys(subjectMarks).length > 0 ? (
           Object.values(subjectMarks).map((s) => {
             const avg = s.marks.reduce((a, m) => a + (m.score / m.maxScore) * 100, 0) / s.marks.length;

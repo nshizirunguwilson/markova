@@ -28,7 +28,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Login with email/phone and password' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
@@ -37,7 +37,7 @@ export class AuthController {
   }
 
   @Post('verify-otp')
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Verify OTP to complete login' })
   async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;

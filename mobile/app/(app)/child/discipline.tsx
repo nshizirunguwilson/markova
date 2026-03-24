@@ -6,6 +6,8 @@ import { toast } from 'sonner-native';
 import { useStudentDiscipline, useAcknowledgeIncident, useCreateAppeal } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Button } from '@/components/ui';
 import { Input } from '@/components/ui/Input';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -14,7 +16,7 @@ export default function ChildDisciplineScreen() {
   const router = useRouter();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
   const [refreshing, setRefreshing] = useState(false);
-  const { data, isLoading, refetch } = useStudentDiscipline(studentId);
+  const { data, isLoading, error, refetch } = useStudentDiscipline(studentId);
   const acknowledge = useAcknowledgeIncident();
   const createAppeal = useCreateAppeal();
   const [appealModalVisible, setAppealModalVisible] = useState(false);
@@ -75,6 +77,8 @@ export default function ChildDisciplineScreen() {
         {/* Incidents */}
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : data?.incidents && data.incidents.length > 0 ? (
           data.incidents.map((incident) => (
             <View key={incident.id} style={styles.incidentCard}>

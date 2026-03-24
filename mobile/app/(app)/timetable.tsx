@@ -8,6 +8,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useTimetable, useTeacherTimetable } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
@@ -86,16 +88,19 @@ export default function TimetableScreen() {
   const {
     data: sectionData,
     isLoading: sectionLoading,
+    error: sectionError,
     refetch: refetchSection,
   } = useTimetable(isTeacher ? undefined : classSectionId);
 
   const {
     data: teacherData,
     isLoading: teacherLoading,
+    error: teacherError,
     refetch: refetchTeacher,
   } = useTeacherTimetable(isTeacher ? user?.teacherId : undefined);
 
   const isLoading = isTeacher ? teacherLoading : sectionLoading;
+  const queryError = isTeacher ? teacherError : sectionError;
   const rawEntries: TimetableEntry[] = (isTeacher ? teacherData : sectionData) ?? [];
 
   // Collect unique subject IDs for consistent color assignment
@@ -185,6 +190,8 @@ export default function TimetableScreen() {
       {/* Content */}
       {isLoading ? (
         <LoadingScreen />
+      ) : queryError ? (
+        <ErrorScreen type={getErrorType(queryError)} message={getErrorMessage(queryError)} onRetry={() => isTeacher ? refetchTeacher() : refetchSection()} />
       ) : (
         <ScrollView
           style={styles.content}

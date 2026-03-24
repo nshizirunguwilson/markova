@@ -5,13 +5,15 @@ import { BookOpen, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-reac
 import { useStudentHomework } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 export default function ChildHomeworkScreen() {
   const router = useRouter();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
   const [refreshing, setRefreshing] = useState(false);
-  const { data: homework, isLoading, refetch } = useStudentHomework(studentId);
+  const { data: homework, isLoading, error, refetch } = useStudentHomework(studentId);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -41,6 +43,8 @@ export default function ChildHomeworkScreen() {
       >
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : homework && homework.length > 0 ? (
           homework.map((hw) => {
             const status = getStatus(hw);

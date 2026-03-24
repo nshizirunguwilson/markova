@@ -42,6 +42,10 @@ export default function MarksEntryScreen() {
   };
 
   const handleSubmit = () => {
+    if (!currentTerm) {
+      toast.error('No current term found. Please contact admin to set up the academic year.');
+      return;
+    }
     if (!selectedAssessment) {
       toast.error('Please select an assessment type');
       return;
@@ -51,7 +55,7 @@ export default function MarksEntryScreen() {
       .filter(([, score]) => score.trim() !== '')
       .map(([studentId, score]) => ({
         studentId,
-        score: Number(score),
+        score: Math.round(Number(score) * 100) / 100, // Round to 2 decimal places
         maxScore: 100,
       }));
 
@@ -62,11 +66,19 @@ export default function MarksEntryScreen() {
 
     const invalid = marks.find((m) => isNaN(m.score) || m.score < 0 || m.score > 100);
     if (invalid) {
-      toast.error('Marks must be between 0 and 100');
+      toast.error('All marks must be between 0 and 100');
       return;
     }
 
-    Alert.alert('Submit Marks', `Submit ${marks.length} marks?`, [
+    const totalStudents = students?.length ?? 0;
+    const enteredCount = marks.length;
+    const missingCount = totalStudents - enteredCount;
+
+    const confirmMsg = missingCount > 0
+      ? `Submit ${enteredCount} marks? (${missingCount} students have no marks entered)`
+      : `Submit ${enteredCount} marks for all students?`;
+
+    Alert.alert('Submit Marks', confirmMsg, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Submit',

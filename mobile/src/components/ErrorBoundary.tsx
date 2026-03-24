@@ -1,4 +1,5 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import * as Sentry from '@sentry/react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
@@ -25,6 +26,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   handleRetry = () => {

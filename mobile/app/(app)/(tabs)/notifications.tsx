@@ -8,11 +8,14 @@ import {
 } from 'lucide-react-native';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 import type { Notification } from '@/types';
 
 export default function NotificationsScreen() {
-  const { data: notifications, isLoading, refetch } = useNotifications();
+  const { data: notifications, isLoading, error, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const [refreshing, setRefreshing] = useState(false);
@@ -83,7 +86,11 @@ export default function NotificationsScreen() {
           </Text>
         </Pressable>
       )}
-      {notifications && notifications.length > 0 ? (
+      {isLoading ? (
+        <LoadingScreen />
+      ) : error ? (
+        <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
+      ) : notifications && notifications.length > 0 ? (
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}

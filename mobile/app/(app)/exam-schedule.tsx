@@ -10,6 +10,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useExamSchedule } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
@@ -82,7 +84,7 @@ export default function ExamScheduleScreen() {
   const classSectionId = params.classSectionId ?? user?.classSectionId;
   const termId = params.termId;
 
-  const { data, isLoading, refetch } = useExamSchedule(classSectionId, termId);
+  const { data, isLoading, error, refetch } = useExamSchedule(classSectionId, termId);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
@@ -204,6 +206,8 @@ export default function ExamScheduleScreen() {
 
       {isLoading ? (
         <LoadingScreen />
+      ) : error ? (
+        <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
       ) : (
         <ScrollView
           style={styles.content}

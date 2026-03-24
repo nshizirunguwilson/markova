@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 type RoleFilter = '' | 'ADMIN' | 'TEACHER' | 'PARENT' | 'STUDENT' | 'LIBRARIAN';
@@ -29,7 +31,7 @@ export default function UsersScreen() {
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin-users', search, roleFilter, page],
     queryFn: () =>
       api.get('/users', {
@@ -114,6 +116,8 @@ export default function UsersScreen() {
       {/* User list */}
       {isLoading ? (
         <LoadingScreen />
+      ) : error ? (
+        <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
       ) : (
         <FlatList
           data={users}

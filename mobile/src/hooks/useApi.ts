@@ -260,6 +260,32 @@ export function useStudentFees(studentId?: string) {
   });
 }
 
+// ─── Payments ──────────────────────────────────────────
+
+export function useInitiatePayment() {
+  return useMutation({
+    mutationFn: (data: {
+      feeRecordId: string;
+      amount: number;
+      method: string;
+      phoneNumber?: string;
+    }) => api.post('/payments/initiate', data).then((r) => r.data),
+  });
+}
+
+export function usePaymentStatus(paymentId?: string) {
+  return useQuery({
+    queryKey: ['payment-status', paymentId],
+    queryFn: () =>
+      api.get(`/payments/${paymentId}/status`).then((r) => r.data),
+    enabled: !!paymentId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'PENDING' ? 3000 : false;
+    },
+  });
+}
+
 // ─── Discipline ─────────────────────────────────────────
 
 export function useStudentDiscipline(studentId?: string) {
@@ -374,7 +400,7 @@ export function useReturnBook() {
 }
 
 export function useLibraryAnalytics() {
-  return useQuery({
+  return useQuery<LibraryAnalytics>({
     queryKey: ['library-analytics'],
     queryFn: () => api.get('/library/analytics').then((r) => r.data),
   });
@@ -463,6 +489,86 @@ export function useParentChildren() {
       return profile.children ?? [];
     },
   });
+}
+
+// ─── Teacher Dashboard Stats ────────────────────────────
+
+export interface TeacherDashboardStats {
+  classesToday: number;
+  attendanceRate: string;
+  pendingGrades: string;
+  unreadMessages: number;
+}
+
+export function useTeacherDashboardStats(teacherId?: string) {
+  return useQuery<TeacherDashboardStats>({
+    queryKey: ['teacher-dashboard-stats', teacherId],
+    queryFn: async () => {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+
+      // Fetch timetable + notifications in parallel
+      const [timetableRes, notifRes] = await Promise.all([
+        api.get(`/academic/timetable/teacher/${teacherId}`),
+        api.get('/notifications'),
+      ]);
+
+      const timetable: any[] = timetableRes.data ?? [];
+      const todayClasses = timetable.filter((t: any) => t.dayOfWeek === dayName);
+      const classesToday = todayClasses.length;
+
+      // Get unique class section IDs from today's timetable
+      const sectionIds = [...new Set(todayClasses.map((t: any) => t.classSectionId))];
+
+      // Fetch today's attendance for each section in parallel
+      let totalStudents = 0;
+      let presentStudents = 0;
+      if (sectionIds.length > 0) {
+        const attendanceResults = await Promise.all(
+          sectionIds.map((csId) =>
+            api.get('/attendance/class', { params: { classSectionId: csId, date: todayStr } })
+              .then((r) => r.data as any[])
+              .catch(() => [] as any[]),
+          ),
+        );
+        for (const records of attendanceResults) {
+          if (Array.isArray(records)) {
+            totalStudents += records.length;
+            presentStudents += records.filter((r: any) => r.status === 'PRESENT' || r.status === 'LATE').length;
+          }
+        }
+      }
+
+      const attendanceRate = totalStudents > 0
+        ? `${Math.round((presentStudents / totalStudents) * 100)}%`
+        : classesToday > 0 ? 'N/A' : '--';
+
+      const notifications: any[] = notifRes.data ?? [];
+      const unreadMessages = notifications.filter((n: any) => !n.isRead).length;
+
+      return {
+        classesToday,
+        attendanceRate,
+        pendingGrades: '--',
+        unreadMessages,
+      };
+    },
+    enabled: !!teacherId,
+  });
+}
+
+// ─── Library Dashboard Stats ────────────────────────────
+
+export interface LibraryAnalytics {
+  totalBooks: number;
+  totalCopies: number;
+  availableCopies: number;
+  activeLoans: number;
+  overdueLoans: number;
+  lostBooks: number;
+  overdueRate: number;
+  popularBooks: { title: string; author: string; loanCount: number }[];
+  categories: { category: string; count: number; totalCopies: number }[];
 }
 
 // ─── Discipline (Teacher) ───────────────────────────────

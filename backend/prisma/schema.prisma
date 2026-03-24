@@ -752,10 +752,29 @@ model FeeRecord {
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
   term         Term         @relation(fields: [termId], references: [id])
+  payments     PaymentTransaction[]
 
   @@index([studentId])
   @@index([status])
   @@map("fee_records")
+}
+
+model PaymentTransaction {
+  id                String    @id @default(uuid())
+  feeRecordId       String    @map("fee_record_id")
+  feeRecord         FeeRecord @relation(fields: [feeRecordId], references: [id])
+  amount            Float
+  method            String    // MOMO, AIRTEL, CARD
+  phoneNumber       String?   @map("phone_number")
+  reference         String    @unique
+  providerReference String?   @map("provider_reference")
+  status            String    @default("PENDING") // PENDING, SUCCESS, FAILED
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([feeRecordId])
+  @@index([reference])
+  @@map("payment_transactions")
 }
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────────

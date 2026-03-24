@@ -44,11 +44,16 @@ export default function DisciplineLogScreen() {
     : [];
 
   const handleSubmit = () => {
+    if (!selectedClassId) { toast.error('Select a class first'); return; }
     if (!selectedStudentId) { toast.error('Select a student'); return; }
     if (!description.trim()) { toast.error('Description is required'); return; }
+    if (description.trim().length < 10) { toast.error('Description must be at least 10 characters'); return; }
     if (!points.trim()) { toast.error('Points deducted is required'); return; }
+    const numPoints = Number(points);
+    if (isNaN(numPoints) || numPoints < 0 || numPoints > 100) { toast.error('Points must be between 0 and 100'); return; }
+    if (!Number.isInteger(numPoints)) { toast.error('Points must be a whole number'); return; }
     if (!action) { toast.error('Select an action taken'); return; }
-    if (!currentTerm) { toast.error('No current term'); return; }
+    if (!currentTerm) { toast.error('No current term found. Please contact admin.'); return; }
 
     createIncident.mutate(
       {
@@ -56,7 +61,7 @@ export default function DisciplineLogScreen() {
         termId: currentTerm.id,
         date: new Date().toISOString().split('T')[0],
         description: description.trim(),
-        pointsDeducted: Number(points),
+        pointsDeducted: numPoints,
         actionTaken: action,
         location: location.trim() || undefined,
       },

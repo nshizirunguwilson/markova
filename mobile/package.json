@@ -11,6 +11,7 @@
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.15.6",
     "@react-navigation/native": "^7.1.34",
+    "@sentry/react-native": "^6.0.0",
     "@tanstack/react-query": "^5.94.5",
     "axios": "^1.13.6",
     "expo": "~55.0.8",

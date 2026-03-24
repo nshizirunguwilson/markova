@@ -1,20 +1,22 @@
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { DollarSign, CheckCircle, AlertCircle, Clock, Download } from 'lucide-react-native';
+import { DollarSign, CheckCircle, AlertCircle, Clock, Download, CreditCard } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { toast } from 'sonner-native';
 import { useStudentFees } from '@/hooks/useApi';
 import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 export default function ChildFeesScreen() {
   const router = useRouter();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
   const [refreshing, setRefreshing] = useState(false);
-  const { data: fees, isLoading, refetch } = useStudentFees(studentId);
+  const { data: fees, isLoading, error, refetch } = useStudentFees(studentId);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -66,6 +68,8 @@ export default function ChildFeesScreen() {
         <Text style={styles.sectionTitle}>Payment History</Text>
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : fees && fees.length > 0 ? (
           fees.map((fee) => (
             <View key={fee.id} style={styles.feeCard}>
@@ -100,6 +104,24 @@ export default function ChildFeesScreen() {
                   <FeeRow label="Receipt #" value={fee.receiptNumber} />
                 )}
               </View>
+              {(fee.status === 'UNPAID' || fee.status === 'PARTIAL') && (
+                <Pressable
+                  style={styles.payBtn}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/pay-fees',
+                      params: {
+                        feeRecordId: fee.id,
+                        balance: String(fee.amountDue - fee.amountPaid),
+                        termName: fee.term?.name ?? 'Term',
+                      },
+                    })
+                  }
+                >
+                  <CreditCard size={14} color={colors.white} />
+                  <Text style={styles.payBtnText}>Pay Now</Text>
+                </Pressable>
+              )}
               {fee.status !== 'UNPAID' && (
                 <Pressable
                   style={styles.receiptBtn}
@@ -161,6 +183,12 @@ const styles = StyleSheet.create({
   feeRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   feeLabel: { fontSize: fontSize.sm, color: colors.muted },
   feeValue: { fontSize: fontSize.sm, color: colors.foreground, fontWeight: fontWeight.medium },
+  payBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    backgroundColor: colors.primary, borderRadius: radius.sm,
+    paddingVertical: spacing.sm, marginTop: spacing.md,
+  },
+  payBtnText: { fontSize: fontSize.xs, color: colors.white, fontWeight: fontWeight.semibold },
   receiptBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     backgroundColor: colors.accentLight, borderRadius: radius.sm,

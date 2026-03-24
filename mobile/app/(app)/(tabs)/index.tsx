@@ -7,9 +7,14 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth-store';
-import { useParentChildren, useAdminDashboard, useNotifications } from '@/hooks/useApi';
+import {
+  useParentChildren, useAdminDashboard, useNotifications,
+  useTeacherDashboardStats, useLibraryAnalytics,
+} from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { ErrorScreen } from '@/components/ErrorScreen';
+import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
 export default function DashboardScreen() {
@@ -27,7 +32,7 @@ export default function DashboardScreen() {
 function ParentDashboard() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
-  const { data: children, isLoading, refetch } = useParentChildren();
+  const { data: children, isLoading, error, refetch } = useParentChildren();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
@@ -55,6 +60,8 @@ function ParentDashboard() {
 
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : children && children.length > 0 ? (
           children.map((child) => (
             <Pressable
@@ -156,12 +163,14 @@ function QuickAction({ icon, label }: { icon: React.ReactNode; label: string }) 
 function TeacherDashboard() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
+  const { data: stats, isLoading, error, refetch } = useTeacherDashboardStats(user?.teacherId);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const quickActions = [
     { icon: <ClipboardList size={24} color={colors.white} />, label: 'Take Attendance', bg: colors.primary, onPress: () => router.push('/(app)/(tabs)/attendance') },
@@ -198,12 +207,36 @@ function TeacherDashboard() {
         </View>
 
         <Text style={styles.sectionTitle}>Today's Overview</Text>
-        <View style={styles.statsGrid}>
-          <StatCard title="Classes Today" value="--" color={colors.primaryLight} />
-          <StatCard title="Attendance" value="--" color={colors.success} />
-          <StatCard title="Pending Grades" value="--" color={colors.warning} />
-          <StatCard title="Messages" value="--" color={colors.danger} />
-        </View>
+        {error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
+        ) : (
+          <View style={styles.statsGrid}>
+            <StatCard
+              title="Classes Today"
+              value={isLoading ? '...' : (stats?.classesToday ?? '--')}
+              color={colors.primaryLight}
+              icon={<Calendar size={18} color={colors.primaryLight} />}
+            />
+            <StatCard
+              title="Attendance"
+              value={isLoading ? '...' : (stats?.attendanceRate ?? '--')}
+              color={colors.success}
+              icon={<ClipboardList size={18} color={colors.success} />}
+            />
+            <StatCard
+              title="Pending Grades"
+              value={isLoading ? '...' : (stats?.pendingGrades ?? '--')}
+              color={colors.warning}
+              icon={<TrendingUp size={18} color={colors.warning} />}
+            />
+            <StatCard
+              title="Messages"
+              value={isLoading ? '...' : (stats?.unreadMessages ?? '--')}
+              color={colors.danger}
+              icon={<MessageSquare size={18} color={colors.danger} />}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -214,7 +247,7 @@ function TeacherDashboard() {
 function AdminDashboard() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
-  const { data: dashboard, isLoading, refetch } = useAdminDashboard();
+  const { data: dashboard, isLoading, error, refetch } = useAdminDashboard();
   const { data: notifications } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -227,10 +260,11 @@ function AdminDashboard() {
   }, [refetch]);
 
   const quickActions = [
-    { icon: <Users size={24} color={colors.white} />, label: 'Users', bg: colors.primary, onPress: () => router.push('/(app)/(tabs)/users') },
+    { icon: <Settings size={24} color={colors.white} />, label: 'School Setup', bg: colors.primary, onPress: () => router.push('/(app)/onboarding') },
+    { icon: <Users size={24} color={colors.white} />, label: 'Users', bg: colors.primaryLight, onPress: () => router.push('/(app)/(tabs)/users') },
     { icon: <CreditCard size={24} color={colors.white} />, label: 'NFC Cards', bg: colors.success, onPress: () => router.push('/(app)/nfc-register') },
     { icon: <BarChart3 size={24} color={colors.white} />, label: 'Analytics', bg: colors.warning, onPress: () => {} },
-    { icon: <Settings size={24} color={colors.white} />, label: 'Settings', bg: colors.primaryLight, onPress: () => router.push('/(app)/(tabs)/settings') },
+    { icon: <Settings size={24} color={colors.white} />, label: 'Settings', bg: '#7D3C98', onPress: () => router.push('/(app)/(tabs)/settings') },
   ];
 
   return (
@@ -250,6 +284,8 @@ function AdminDashboard() {
 
         {isLoading ? (
           <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
         ) : (
           <>
             <Text style={styles.sectionTitle}>Key Metrics</Text>
@@ -322,12 +358,18 @@ function AdminDashboard() {
 
 function GenericDashboard() {
   const user = useAuthStore((s) => s.user);
+  const isLibrarian = user?.role === 'LIBRARIAN';
+  const { data: analytics, isLoading, error, refetch } = useLibraryAnalytics();
+  const { data: notifications } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
+
+  const unreadCount = notifications?.filter((n: any) => !n.isRead).length ?? 0;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   return (
     <View style={styles.container}>
@@ -342,17 +384,81 @@ function GenericDashboard() {
         <View style={styles.welcomeCard}>
           <Text style={styles.welcomeTitle}>Welcome to Markova</Text>
           <Text style={styles.welcomeText}>
-            {user?.role === 'LIBRARIAN' && 'Manage the library catalog and loans.'}
+            {isLibrarian ? 'Manage the library catalog and loans.' : 'Your school management hub.'}
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Quick Stats</Text>
-        <View style={styles.statsGrid}>
-          <StatCard title="Notifications" value="--" color={colors.primaryLight} />
-          <StatCard title="Messages" value="--" color={colors.success} />
-          <StatCard title="Pending" value="--" color={colors.warning} />
-          <StatCard title="Alerts" value="--" color={colors.danger} />
-        </View>
+        {isLoading ? (
+          <LoadingScreen />
+        ) : error ? (
+          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
+        ) : isLibrarian && analytics ? (
+          <>
+            <Text style={styles.sectionTitle}>Library Overview</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                title="Total Books"
+                value={analytics.totalBooks}
+                color={colors.primary}
+                icon={<BookOpen size={18} color={colors.primary} />}
+              />
+              <StatCard
+                title="Available"
+                value={analytics.availableCopies}
+                color={colors.success}
+                icon={<BookOpen size={18} color={colors.success} />}
+              />
+              <StatCard
+                title="Active Loans"
+                value={analytics.activeLoans}
+                color={colors.warning}
+                icon={<Users size={18} color={colors.warning} />}
+              />
+              <StatCard
+                title="Overdue"
+                value={analytics.overdueLoans}
+                color={colors.danger}
+                icon={<AlertTriangle size={18} color={colors.danger} />}
+              />
+            </View>
+
+            {analytics.overdueRate > 0 && (
+              <View style={styles.overdueBar}>
+                <AlertTriangle size={16} color={colors.danger} />
+                <Text style={styles.overdueBarText}>
+                  {analytics.overdueRate}% overdue rate
+                  {analytics.lostBooks > 0 ? ` · ${analytics.lostBooks} lost` : ''}
+                </Text>
+              </View>
+            )}
+
+            {analytics.popularBooks && analytics.popularBooks.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Most Borrowed</Text>
+                {analytics.popularBooks.slice(0, 5).map((book, i) => (
+                  <View key={i} style={styles.popularBookRow}>
+                    <View style={styles.popularBookRank}>
+                      <Text style={styles.popularBookRankText}>{i + 1}</Text>
+                    </View>
+                    <View style={styles.popularBookInfo}>
+                      <Text style={styles.popularBookTitle} numberOfLines={1}>{book.title}</Text>
+                      <Text style={styles.popularBookAuthor} numberOfLines={1}>{book.author}</Text>
+                    </View>
+                    <Text style={styles.popularBookCount}>{book.loanCount} loans</Text>
+                  </View>
+                ))}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.sectionTitle}>Quick Stats</Text>
+            <View style={styles.statsGrid}>
+              <StatCard title="Notifications" value={unreadCount} color={colors.primaryLight} />
+              <StatCard title="Messages" value="--" color={colors.success} />
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -445,4 +551,27 @@ const styles = StyleSheet.create({
   statIcon: { marginBottom: spacing.xs },
   statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
   statTitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
+
+  // Librarian dashboard
+  overdueBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
+    padding: spacing.md, marginTop: spacing.md,
+  },
+  overdueBarText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
+  popularBookRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
+    marginBottom: spacing.sm,
+    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+  },
+  popularBookRank: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accentLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  popularBookRankText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
+  popularBookInfo: { flex: 1 },
+  popularBookTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.foreground },
+  popularBookAuthor: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  popularBookCount: { fontSize: fontSize.xs, color: colors.muted, fontWeight: fontWeight.medium },
 });
