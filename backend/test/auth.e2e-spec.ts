@@ -51,7 +51,7 @@ describe('Auth (e2e)', () => {
     it('should return requiresOtp and sessionId for admin user with valid credentials', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'Password123!' })
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' })
         .expect(201);
 
       expect(res.body.requiresOtp).toBe(true);
@@ -77,7 +77,7 @@ describe('Auth (e2e)', () => {
     it('should return 401 for wrong password', async () => {
       return request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'WrongPassword1!' })
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'WrongPassword1!' })
         .expect(401)
         .expect((res) => {
           expect(res.body.message).toBe('Invalid credentials');
@@ -104,7 +104,7 @@ describe('Auth (e2e)', () => {
     it('should return 400 when password is missing', async () => {
       return request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy' })
+        .send({ email: 'wilsonshizirungu@gmail.com' })
         .expect(400);
     });
 
@@ -126,7 +126,7 @@ describe('Auth (e2e)', () => {
       // Step 1: Login to get sessionId and devOtp
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'Password123!' })
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' })
         .expect(201);
 
       const { sessionId, devOtp } = loginRes.body;
@@ -142,14 +142,14 @@ describe('Auth (e2e)', () => {
       expect(otpRes.body.accessToken).toBeDefined();
       expect(otpRes.body.refreshToken).toBeDefined();
       expect(otpRes.body.user).toBeDefined();
-      expect(otpRes.body.user.email).toBe('admin@markova.academy');
+      expect(otpRes.body.user.email).toBe('wilsonshizirungu@gmail.com');
       expect(otpRes.body.user.role).toBe('ADMIN');
     });
 
     it('should return 401 for invalid OTP', async () => {
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'Password123!' })
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' })
         .expect(201);
 
       const { sessionId } = loginRes.body;
@@ -176,7 +176,7 @@ describe('Auth (e2e)', () => {
     it('should not allow OTP reuse (session consumed after verification)', async () => {
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'Password123!' })
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' })
         .expect(201);
 
       const { sessionId, devOtp } = loginRes.body;
@@ -260,7 +260,7 @@ describe('Auth (e2e)', () => {
       // Full admin login flow
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'admin@markova.academy', password: 'Password123!' });
+        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' });
 
       const otpRes = await request(app.getHttpServer())
         .post('/api/auth/verify-otp')
@@ -271,7 +271,7 @@ describe('Auth (e2e)', () => {
         .set('Authorization', `Bearer ${otpRes.body.accessToken}`)
         .expect(200);
 
-      expect(res.body.email).toBe('admin@markova.academy');
+      expect(res.body.email).toBe('wilsonshizirungu@gmail.com');
       expect(res.body.role).toBe('ADMIN');
     });
   });
@@ -333,7 +333,7 @@ describe('Auth (e2e)', () => {
     it('should return success message for existing user', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/request-reset')
-        .send({ email: 'admin@markova.academy' })
+        .send({ email: 'wilsonshizirungu@gmail.com' })
         .expect(201);
 
       expect(res.body.message).toContain('reset link has been sent');

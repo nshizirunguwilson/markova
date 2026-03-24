@@ -2,7 +2,7 @@ import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validat
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
-  @ApiPropertyOptional({ example: 'admin@markova.academy' })
+  @ApiPropertyOptional({ example: 'wilsonshizirungu@gmail.com' })
   @IsOptional()
   @IsEmail()
   email?: string;

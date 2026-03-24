@@ -191,7 +191,7 @@ export default function LoginPage() {
             <Input
               id="identifier"
               label="Email or Phone"
-              placeholder="admin@markova.academy"
+              placeholder="wilsonshizirungu@gmail.com"
               error={loginForm.formState.errors.identifier?.message}
               {...loginForm.register("identifier")}
             />

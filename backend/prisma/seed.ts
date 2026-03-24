@@ -55,7 +55,7 @@ async function main() {
   // ─── ADMIN USER ─────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@markova.academy',
+      email: 'wilsonshizirungu@gmail.com',
       phone: '+256700000001',
       passwordHash,
       role: Role.ADMIN,
@@ -658,7 +658,7 @@ async function main() {
 
   console.log('\n🎉 Seed completed successfully!');
   console.log('   Default password for all users: Password123!');
-  console.log('   Admin email: admin@markova.academy');
+  console.log('   Admin email: wilsonshizirungu@gmail.com');
 }
 
 main()
