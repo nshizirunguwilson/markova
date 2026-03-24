@@ -300,4 +300,39 @@ export class NotificationsService implements OnModuleInit {
     });
     this.logger.log(`Email sent to ${user.email}: ${subject}`);
   }
+
+  async sendEmailToAddress(email: string, name: string, subject: string, body: string) {
+    if (!this.transporter) {
+      this.logger.log(`[Email] SMTP not configured — would send to ${email}: ${subject}`);
+      return;
+    }
+
+    const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+    const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+
+    try {
+      await this.transporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
+        to: email,
+        subject,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
+            </div>
+            <div style="padding: 20px; background: #f9f9f9;">
+              <p>Dear ${name || 'User'},</p>
+              <div style="margin: 16px 0;">${body}</div>
+            </div>
+            <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
+              This is an automated message from ${fromName}. Please do not reply to this email.
+            </div>
+          </div>
+        `,
+      });
+      this.logger.log(`[Email] Sent to ${email}: ${subject}`);
+    } catch (error) {
+      this.logger.error(`[Email] Failed to send to ${email}:`, error.message);
+    }
+  }
 }

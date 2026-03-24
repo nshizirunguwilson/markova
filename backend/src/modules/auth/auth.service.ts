@@ -111,11 +111,15 @@ export class AuthService {
       OTP_TTL_SECONDS,
     );
 
-    // Send OTP via SMS
-    if (user.phone) {
-      await this.notificationsService.sendSMSToPhone(
-        user.phone,
-        `Your Markova verification code is: ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+    // Send OTP via email
+    if (user.email) {
+      await this.notificationsService.sendEmailToAddress(
+        user.email,
+        user.firstName,
+        'Your Markova Verification Code',
+        `<p style="font-size: 16px;">Your verification code is:</p>
+         <p style="font-size: 32px; font-weight: bold; color: #1B4F72; letter-spacing: 4px; text-align: center; margin: 20px 0;">${otp}</p>
+         <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.</p>`,
       );
     }
     this.logger.log(`OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`);
@@ -282,10 +286,15 @@ export class AuthService {
       RESET_TOKEN_TTL_SECONDS,
     );
 
-    if (user.phone) {
-      await this.notificationsService.sendSMSToPhone(
-        user.phone,
-        `Your Markova password reset code is: ${token.slice(0, 8).toUpperCase()}. It expires in 30 minutes.`,
+    if (user.email) {
+      const resetCode = token.slice(0, 8).toUpperCase();
+      await this.notificationsService.sendEmailToAddress(
+        user.email,
+        user.firstName,
+        'Password Reset - Markova',
+        `<p>You requested a password reset. Your reset code is:</p>
+         <p style="font-size: 28px; font-weight: bold; color: #1B4F72; letter-spacing: 3px; text-align: center; margin: 20px 0;">${resetCode}</p>
+         <p>This code expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
       );
     }
     this.logger.log(`Password reset token for ${user.email || user.phone}: ${token}`);
