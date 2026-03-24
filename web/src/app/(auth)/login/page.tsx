@@ -84,10 +84,7 @@ export default function LoginPage() {
       if (res.data.requiresOtp) {
         setOtpSessionId(res.data.sessionId);
         setStep("otp");
-        toast.info("OTP sent to your registered contact");
-        if (res.data.devOtp) {
-          toast.info(`Dev OTP: ${res.data.devOtp}`, { duration: 15000 });
-        }
+        toast.info("OTP sent to your email");
       } else {
         handleLoginSuccess(res.data);
       }
