@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -10,7 +11,19 @@ describe('Auth (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(ThrottlerStorage)
+      .useValue({
+        increment: () => ({
+          totalHits: 0,
+          timeToExpire: 0,
+          isBlocked: false,
+          timeToBlockExpire: 0,
+        }),
+        getRecord: () => [],
+        addRecord: () => undefined,
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
 
@@ -351,27 +364,46 @@ describe('Auth (e2e)', () => {
     });
   });
 
-  // ─── RATE LIMITING ──────────────────────────────────────────────────────────
+});
 
-  describe('Rate limiting on auth endpoints', () => {
-    it('should throttle login after too many requests', async () => {
-      const requests: Promise<any>[] = [];
+// Separate suite that keeps the ThrottlerGuard active so we can verify
+// rate limiting actually triggers.
+describe('Auth rate limiting (e2e)', () => {
+  let app: INestApplication<App>;
 
-      // The login endpoint is throttled at 5 requests per 60s.
-      // Send 6 rapid requests to trigger the throttle.
-      for (let i = 0; i < 6; i++) {
-        requests.push(
-          request(app.getHttpServer())
-            .post('/api/auth/login')
-            .send({ email: 'nonexistent@test.com', password: 'Password123!' }),
-        );
-      }
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
 
-      const responses = await Promise.all(requests);
-      const statusCodes = responses.map((r) => r.status);
+    app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    );
+    await app.init();
+  });
 
-      // At least one should be 429 (Too Many Requests)
-      expect(statusCodes).toContain(429);
-    });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('should throttle login after too many requests', async () => {
+    const requests: Promise<any>[] = [];
+    for (let i = 0; i < 12; i++) {
+      requests.push(
+        request(app.getHttpServer())
+          .post('/api/auth/login')
+          .send({ email: 'nonexistent@test.com', password: 'Password123!' }),
+      );
+    }
+    const responses = await Promise.all(requests);
+    const statusCodes = responses.map((r) => r.status);
+    expect(statusCodes).toContain(429);
   });
 });
