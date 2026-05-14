@@ -1,17 +1,26 @@
 import './sentry';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.setGlobalPrefix('api');
-  app.use(helmet());
+  app.setGlobalPrefix('api', { exclude: ['uploads/(.*)'] });
+  app.useStaticAssets(join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'), {
+    prefix: '/uploads/',
+  });
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(compression());
 
   const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
