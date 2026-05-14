@@ -415,7 +415,7 @@ export class UsersService {
               `Row ${i + 1}: classSectionId required for students`,
             );
           }
-          const studentIdNumber = await this.generateStudentId();
+          const studentIdNumber = await this.generateStudentId(tx);
           await tx.student.create({
             data: {
               userId: user.id,
@@ -474,11 +474,13 @@ export class UsersService {
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────
 
-  private async generateStudentId(): Promise<string> {
+  private async generateStudentId(
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `MKV-${year}-`;
 
-    const lastStudent = await this.prisma.student.findFirst({
+    const lastStudent = await client.student.findFirst({
       where: { studentIdNumber: { startsWith: prefix } },
       orderBy: { studentIdNumber: 'desc' },
     });
