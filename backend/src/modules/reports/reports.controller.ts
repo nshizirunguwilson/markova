@@ -96,7 +96,7 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get year report data' })
   async getYearReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('academicYearId') academicYearId: string,
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
