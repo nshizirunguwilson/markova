@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MessagingService } from './messaging.service';
+import { MessagingGateway } from './messaging.gateway';
 import { CreateConversationDto, SendMessageDto, MarkReadDto } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -21,7 +22,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class MessagingController {
-  constructor(private readonly service: MessagingService) {}
+  constructor(
+    private readonly service: MessagingService,
+    private readonly gateway: MessagingGateway,
+  ) {}
 
   @Post('conversations')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
@@ -60,8 +64,10 @@ export class MessagingController {
   @Post('messages')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Send a message' })
-  sendMessage(@Body() dto: SendMessageDto, @CurrentUser() user: any) {
-    return this.service.sendMessage(dto, user.id);
+  async sendMessage(@Body() dto: SendMessageDto, @CurrentUser() user: any) {
+    const message = await this.service.sendMessage(dto, user.id);
+    await this.gateway.broadcastNewMessage(dto.conversationId, message);
+    return message;
   }
 
   @Post('read')

@@ -45,6 +45,21 @@ export class MessagingGateway
     private messagingService: MessagingService,
   ) {}
 
+  /**
+   * Broadcast a newly-created message to each participant's personal user
+   * room. We use the user rooms (not conv:<id>) because a conversation
+   * created after a socket connected won't have that socket in conv:<id> yet,
+   * but every connected user is always in their own user:<id> room.
+   */
+  async broadcastNewMessage(conversationId: string, message: unknown) {
+    const participantIds =
+      await this.messagingService.getConversationParticipantIds(conversationId);
+    const rooms = participantIds.map((id) => `user:${id}`);
+    if (rooms.length > 0) {
+      this.server.to(rooms).emit('newMessage', message);
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // CONNECTION LIFECYCLE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -181,8 +196,7 @@ export class MessagingGateway
       userId,
     );
 
-    // Emit to all participants in the conversation
-    this.server.to(`conv:${data.conversationId}`).emit('newMessage', message);
+    await this.broadcastNewMessage(data.conversationId, message);
 
     // Check which recipients are online and mark delivered
     const participantIds =
