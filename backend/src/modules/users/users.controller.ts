@@ -16,7 +16,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, unlinkSync } from 'fs';
@@ -134,7 +139,7 @@ export class UsersController {
   @Get('import-template/:role')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Download CSV template for bulk import' })
-  async getTemplate(@Param('role') role: Role, @Res() res: Response) {
+  getTemplate(@Param('role') role: Role, @Res() res: Response) {
     const template = this.usersService.getImportTemplate(role);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(

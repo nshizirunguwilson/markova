@@ -41,14 +41,14 @@ export class AuditLogInterceptor implements NestInterceptor {
     const details = this.summariseBody(request.body);
 
     return next.handle().pipe(
-      tap(async (response) => {
-        try {
-          const entityId =
-            request.params?.id ||
-            (response as Record<string, unknown>)?.['id'] ||
-            null;
+      tap((response) => {
+        const entityId =
+          request.params?.id ||
+          (response as Record<string, unknown>)?.['id'] ||
+          null;
 
-          await this.prisma.auditLog.create({
+        void this.prisma.auditLog
+          .create({
             data: {
               userId: user?.id || null,
               action,
@@ -57,11 +57,10 @@ export class AuditLogInterceptor implements NestInterceptor {
               newValue: details,
               ipAddress: ipAddress || null,
             },
+          })
+          .catch((error) => {
+            this.logger.warn('Failed to write audit log', error);
           });
-        } catch (error) {
-          // Don't let audit logging failures break the request
-          this.logger.warn('Failed to write audit log', error);
-        }
       }),
     );
   }

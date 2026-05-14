@@ -64,7 +64,9 @@ export class MessagingGateway
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
       if (!user || !user.isActive) {
         client.disconnect();
         return;
@@ -80,12 +82,13 @@ export class MessagingGateway
       this.onlineUsers.get(userId)!.add(client.id);
 
       // Join user's personal room
-      client.join(`user:${userId}`);
+      void client.join(`user:${userId}`);
 
       // Join all conversation rooms
-      const convIds = await this.messagingService.getUserConversationIds(userId);
+      const convIds =
+        await this.messagingService.getUserConversationIds(userId);
       for (const convId of convIds) {
-        client.join(`conv:${convId}`);
+        void client.join(`conv:${convId}`);
       }
 
       // Broadcast online status to conversation partners
@@ -100,12 +103,10 @@ export class MessagingGateway
       if (delivered.length > 0) {
         // Notify senders their messages were delivered
         for (const msg of delivered) {
-          this.server
-            .to(`user:${msg.senderUserId}`)
-            .emit('messageDelivered', {
-              messageId: msg.id,
-              conversationId: msg.conversationId,
-            });
+          this.server.to(`user:${msg.senderUserId}`).emit('messageDelivered', {
+            messageId: msg.id,
+            conversationId: msg.conversationId,
+          });
         }
       }
     } catch {
@@ -238,7 +239,8 @@ export class MessagingGateway
     @MessageBody() data: { conversationId: string },
   ) {
     const userId = client.data.user.sub;
-    const userName = `${client.data.user.firstName || ''} ${client.data.user.lastName || ''}`.trim();
+    const userName =
+      `${client.data.user.firstName || ''} ${client.data.user.lastName || ''}`.trim();
 
     client.to(`conv:${data.conversationId}`).emit('userTyping', {
       conversationId: data.conversationId,
@@ -269,7 +271,7 @@ export class MessagingGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    client.join(`conv:${data.conversationId}`);
+    void client.join(`conv:${data.conversationId}`);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
