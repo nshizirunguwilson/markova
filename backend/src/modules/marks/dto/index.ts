@@ -1,4 +1,16 @@
-import { IsUUID, IsNumber, Min, Max, IsOptional, IsString, IsArray, ValidateNested, IsBoolean, IsInt, MaxLength } from 'class-validator';
+import {
+  IsUUID,
+  IsNumber,
+  Min,
+  Max,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
+  IsInt,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -46,8 +58,16 @@ export class CalculateYearResultDto {
 }
 
 export class UpdateTermResultCommentDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) teacherComment?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) headmasterComment?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  teacherComment?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  headmasterComment?: string;
 }
 
 export class PublishTermResultsDto {
@@ -64,6 +84,17 @@ export class QueryMarksDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() assessmentTypeId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() teacherId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number = 20;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
 }

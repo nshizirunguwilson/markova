@@ -55,10 +55,17 @@ export class DisciplineController {
   @Get('incidents/:id')
   @Roles('ADMIN', 'TEACHER', 'PARENT')
   @ApiOperation({ summary: 'Get incident details' })
-  async getIncident(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+  async getIncident(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
     if (user.role === 'PARENT') {
       const incident = await this.service.getIncidentById(id);
-      await this.ownership.verifyStudentAccess(user.id, user.role, (incident as any).studentId);
+      await this.ownership.verifyStudentAccess(
+        user.id,
+        user.role,
+        (incident as any).studentId,
+      );
       return incident;
     }
     return this.service.getIncidentById(id);
@@ -67,7 +74,10 @@ export class DisciplineController {
   @Put('incidents/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update an incident' })
-  updateIncident(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateIncidentDto) {
+  updateIncident(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateIncidentDto,
+  ) {
     return this.service.updateIncident(id, dto);
   }
 

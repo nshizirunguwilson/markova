@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
@@ -37,7 +42,9 @@ export class NotificationsService implements OnModuleInit {
     if (twilioSid && twilioToken) {
       this.twilioClient = new Twilio(twilioSid, twilioToken);
       this.twilioSenderId = this.config.get('TWILIO_SENDER_ID') || 'Markova';
-      this.logger.log(`Twilio SMS configured with sender ID: ${this.twilioSenderId}`);
+      this.logger.log(
+        `Twilio SMS configured with sender ID: ${this.twilioSenderId}`,
+      );
     }
   }
 
@@ -73,7 +80,10 @@ export class NotificationsService implements OnModuleInit {
       }
     } catch (e) {
       // Log failure but don't fail the notification creation
-      this.logger.error(`Failed to send ${dto.type} notification`, e instanceof Error ? e.stack : undefined);
+      this.logger.error(
+        `Failed to send ${dto.type} notification`,
+        e instanceof Error ? e.stack : undefined,
+      );
     }
 
     return notification;
@@ -100,7 +110,8 @@ export class NotificationsService implements OnModuleInit {
 
       if (this.transporter) {
         const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
-        const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+        const fromEmail =
+          this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
 
         const emailPromises = users
           .filter((u) => u.email)
@@ -129,20 +140,25 @@ export class NotificationsService implements OnModuleInit {
         const results = await Promise.allSettled(emailPromises);
         const failures = results.filter((r) => r.status === 'rejected');
         if (failures.length > 0) {
-          this.logger.error(`Failed to send ${failures.length}/${emailPromises.length} bulk emails`);
+          this.logger.error(
+            `Failed to send ${failures.length}/${emailPromises.length} bulk emails`,
+          );
         }
       }
     } else if (dto.type === 'SMS' || dto.type === 'PUSH') {
       // SMS/PUSH require per-user API calls — send in parallel
-      const sendPromises = dto.userIds.map((userId) =>
-        dto.type === 'SMS'
-          ? this.sendSMS(userId, dto.message)
-          : Promise.resolve(), // PUSH placeholder
+      const sendPromises = dto.userIds.map(
+        (userId) =>
+          dto.type === 'SMS'
+            ? this.sendSMS(userId, dto.message)
+            : Promise.resolve(), // PUSH placeholder
       );
       const results = await Promise.allSettled(sendPromises);
       const failures = results.filter((r) => r.status === 'rejected');
       if (failures.length > 0) {
-        this.logger.error(`Failed to send ${failures.length}/${dto.userIds.length} bulk ${dto.type} notifications`);
+        this.logger.error(
+          `Failed to send ${failures.length}/${dto.userIds.length} bulk ${dto.type} notifications`,
+        );
       }
     }
 
@@ -201,7 +217,12 @@ export class NotificationsService implements OnModuleInit {
     return { success: true };
   }
 
-  async sendPushNotification(userId: string, title: string, body: string, data?: Record<string, string>) {
+  async sendPushNotification(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ) {
     const tokens = await this.prisma.pushToken.findMany({
       where: { userId },
       select: { token: true },
@@ -225,7 +246,9 @@ export class NotificationsService implements OnModuleInit {
         body: JSON.stringify(messages),
       });
       const result = await response.json();
-      this.logger.log(`Push sent to ${tokens.length} devices for user ${userId}`);
+      this.logger.log(
+        `Push sent to ${tokens.length} devices for user ${userId}`,
+      );
       return result;
     } catch (error) {
       this.logger.error(`Push notification failed for user ${userId}:`, error);
@@ -248,7 +271,9 @@ export class NotificationsService implements OnModuleInit {
 
   async sendSMSToPhone(phone: string, message: string) {
     if (!this.twilioClient) {
-      this.logger.log(`[SMS] Twilio not configured — would send to ${phone}: ${message}`);
+      this.logger.log(
+        `[SMS] Twilio not configured — would send to ${phone}: ${message}`,
+      );
       return;
     }
 
@@ -301,9 +326,16 @@ export class NotificationsService implements OnModuleInit {
     this.logger.log(`Email sent to ${user.email}: ${subject}`);
   }
 
-  async sendEmailToAddress(email: string, name: string, subject: string, body: string) {
+  async sendEmailToAddress(
+    email: string,
+    name: string,
+    subject: string,
+    body: string,
+  ) {
     if (!this.transporter) {
-      this.logger.log(`[Email] SMTP not configured — would send to ${email}: ${subject}`);
+      this.logger.log(
+        `[Email] SMTP not configured — would send to ${email}: ${subject}`,
+      );
       return;
     }
 

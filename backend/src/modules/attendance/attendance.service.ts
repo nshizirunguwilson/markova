@@ -73,7 +73,9 @@ export class AttendanceService {
       return record;
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new ConflictException('Attendance already recorded for this student/date/type');
+        throw new ConflictException(
+          'Attendance already recorded for this student/date/type',
+        );
       }
       throw e;
     }
@@ -112,7 +114,10 @@ export class AttendanceService {
         });
         results.push(att);
         if (record.status === 'ABSENT' || record.status === 'LATE') {
-          notifyStudents.push({ studentId: record.studentId, status: record.status });
+          notifyStudents.push({
+            studentId: record.studentId,
+            status: record.status,
+          });
         }
       } catch {
         // Skip duplicates
@@ -160,11 +165,16 @@ export class AttendanceService {
       },
     });
     if (existing) {
-      return { duplicate: true, record: existing, student: { name: `${student.user.firstName} ${student.user.lastName}` } };
+      return {
+        duplicate: true,
+        record: existing,
+        student: { name: `${student.user.firstName} ${student.user.lastName}` },
+      };
     }
 
     // Determine if late (after 8:30 AM for daily)
-    const isLate = type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
+    const isLate =
+      type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
 
     const record = await this.prisma.attendance.create({
       data: {
@@ -216,10 +226,18 @@ export class AttendanceService {
       },
     });
     if (existing) {
-      return { duplicate: true, record: existing, student: { name: `${student.user.firstName} ${student.user.lastName}`, id: student.id } };
+      return {
+        duplicate: true,
+        record: existing,
+        student: {
+          name: `${student.user.firstName} ${student.user.lastName}`,
+          id: student.id,
+        },
+      };
     }
 
-    const isLate = type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
+    const isLate =
+      type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
 
     const record = await this.prisma.attendance.create({
       data: {
@@ -237,7 +255,10 @@ export class AttendanceService {
     return {
       duplicate: false,
       record,
-      student: { name: `${student.user.firstName} ${student.user.lastName}`, id: student.id },
+      student: {
+        name: `${student.user.firstName} ${student.user.lastName}`,
+        id: student.id,
+      },
     };
   }
 
@@ -253,7 +274,9 @@ export class AttendanceService {
       where: { nfcCardId: dto.nfcCardId, id: { not: dto.studentId } },
     });
     if (existing) {
-      throw new ConflictException('This NFC card is already registered to another student');
+      throw new ConflictException(
+        'This NFC card is already registered to another student',
+      );
     }
 
     await this.prisma.student.update({
@@ -327,7 +350,11 @@ export class AttendanceService {
       where: { teacherId: teacher.id, date: today },
     });
     if (existing) {
-      return { duplicate: true, record: existing, teacher: { name: `${teacher.user.firstName} ${teacher.user.lastName}` } };
+      return {
+        duplicate: true,
+        record: existing,
+        teacher: { name: `${teacher.user.firstName} ${teacher.user.lastName}` },
+      };
     }
 
     const isLate = now.getHours() >= 8 && now.getMinutes() > 30;
@@ -340,7 +367,11 @@ export class AttendanceService {
       },
     });
 
-    return { duplicate: false, record, teacher: { name: `${teacher.user.firstName} ${teacher.user.lastName}` } };
+    return {
+      duplicate: false,
+      record,
+      teacher: { name: `${teacher.user.firstName} ${teacher.user.lastName}` },
+    };
   }
 
   async getTeacherAttendance(date: string) {
@@ -387,10 +418,15 @@ export class AttendanceService {
         skip,
         take: limit,
         include: {
-          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          student: {
+            include: { user: { select: { firstName: true, lastName: true } } },
+          },
           subject: { select: { name: true } },
         },
-        orderBy: [{ date: 'desc' }, { student: { user: { firstName: 'asc' } } }],
+        orderBy: [
+          { date: 'desc' },
+          { student: { user: { firstName: 'asc' } } },
+        ],
       }),
       this.prisma.attendance.count({ where }),
     ]);
@@ -410,9 +446,15 @@ export class AttendanceService {
       orderBy: { user: { firstName: 'asc' } },
     });
 
-    const present = students.filter((s) => s.attendances[0]?.status === 'PRESENT').length;
-    const late = students.filter((s) => s.attendances[0]?.status === 'LATE').length;
-    const absent = students.filter((s) => !s.attendances[0] || s.attendances[0]?.status === 'ABSENT').length;
+    const present = students.filter(
+      (s) => s.attendances[0]?.status === 'PRESENT',
+    ).length;
+    const late = students.filter(
+      (s) => s.attendances[0]?.status === 'LATE',
+    ).length;
+    const absent = students.filter(
+      (s) => !s.attendances[0] || s.attendances[0]?.status === 'ABSENT',
+    ).length;
 
     return {
       date,
@@ -420,7 +462,10 @@ export class AttendanceService {
       present,
       late,
       absent,
-      rate: students.length > 0 ? Math.round(((present + late) / students.length) * 100) : 0,
+      rate:
+        students.length > 0
+          ? Math.round(((present + late) / students.length) * 100)
+          : 0,
       students: students.map((s) => ({
         studentId: s.id,
         name: `${s.user.firstName} ${s.user.lastName}`,
@@ -436,7 +481,11 @@ export class AttendanceService {
   // STUDENT ATTENDANCE SUMMARY
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getStudentSummary(studentId: string, dateFrom?: string, dateTo?: string) {
+  async getStudentSummary(
+    studentId: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const where: any = { studentId, type: 'daily' };
     if (dateFrom || dateTo) {
       where.date = {};
@@ -459,7 +508,8 @@ export class AttendanceService {
       present,
       late,
       absent,
-      attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100) : 0,
+      attendanceRate:
+        total > 0 ? Math.round(((present + late) / total) * 100) : 0,
       records: records.map((r) => ({
         date: r.date,
         status: r.status,
@@ -472,7 +522,12 @@ export class AttendanceService {
   // CHRONIC ABSENTEEISM
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getChronicallyAbsent(classSectionId?: string, threshold?: number, page = 1, limit = 20) {
+  async getChronicallyAbsent(
+    classSectionId?: string,
+    threshold?: number,
+    page = 1,
+    limit = 20,
+  ) {
     const absenceThreshold = threshold || 20; // Default: 20% absence rate
     const skip = (page - 1) * limit;
 
@@ -543,7 +598,9 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getDashboardData(date?: string) {
-    const targetDate = date ? new Date(date) : new Date(new Date().toISOString().slice(0, 10));
+    const targetDate = date
+      ? new Date(date)
+      : new Date(new Date().toISOString().slice(0, 10));
 
     // Get all class sections with student counts
     const sections = await this.prisma.classSection.findMany({
@@ -568,7 +625,9 @@ export class AttendanceService {
     }
 
     // Also get which sections have any attendance marked
-    const markedSections = new Set(attendanceGroups.map((g) => g.classSectionId));
+    const markedSections = new Set(
+      attendanceGroups.map((g) => g.classSectionId),
+    );
 
     const sectionStats = sections.map((section) => {
       const totalStudents = section._count.students;
@@ -584,7 +643,10 @@ export class AttendanceService {
         present,
         late,
         absent,
-        rate: totalStudents > 0 ? Math.round(((present + late) / totalStudents) * 100) : 0,
+        rate:
+          totalStudents > 0
+            ? Math.round(((present + late) / totalStudents) * 100)
+            : 0,
         marked: markedSections.has(section.id),
       };
     });
@@ -600,7 +662,10 @@ export class AttendanceService {
         present: totalPresent,
         late: totalLate,
         absent: totalStudents - totalPresent - totalLate,
-        rate: totalStudents > 0 ? Math.round(((totalPresent + totalLate) / totalStudents) * 100) : 0,
+        rate:
+          totalStudents > 0
+            ? Math.round(((totalPresent + totalLate) / totalStudents) * 100)
+            : 0,
       },
       sections: sectionStats,
     };
@@ -610,13 +675,19 @@ export class AttendanceService {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async notifyParentAbsence(studentId: string, date: string, status: string = 'ABSENT') {
+  private async notifyParentAbsence(
+    studentId: string,
+    date: string,
+    status: string = 'ABSENT',
+  ) {
     // Find parent links
     const parentLinks = await this.prisma.parentStudent.findMany({
       where: { studentId },
       include: {
         parent: { select: { phone: true, email: true, firstName: true } },
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
       },
     });
 
@@ -624,7 +695,10 @@ export class AttendanceService {
       ? `${parentLinks[0].student.user.firstName} ${parentLinks[0].student.user.lastName}`
       : 'your child';
     const statusLabel = status === 'LATE' ? 'late' : 'absent';
-    const title = status === 'LATE' ? 'Student Late Arrival Alert' : 'Student Absence Alert';
+    const title =
+      status === 'LATE'
+        ? 'Student Late Arrival Alert'
+        : 'Student Absence Alert';
 
     for (const link of parentLinks) {
       const message = `Dear ${link.parent.firstName}, your child ${studentName} was marked ${statusLabel} on ${date}.`;

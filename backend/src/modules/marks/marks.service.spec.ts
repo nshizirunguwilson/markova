@@ -45,7 +45,9 @@ describe('MarksService', () => {
     service = module.get<MarksService>(MarksService);
     jest.clearAllMocks();
     // Reset $transaction to default behavior
-    mockPrisma.$transaction.mockImplementation((cb: (tx: any) => Promise<any>) => cb(mockTx));
+    mockPrisma.$transaction.mockImplementation(
+      (cb: (tx: any) => Promise<any>) => cb(mockTx),
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -64,8 +66,14 @@ describe('MarksService', () => {
     };
 
     it('should create a mark with correct data', async () => {
-      mockPrisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
-      mockPrisma.subject.findUnique.mockResolvedValue({ id: 'subject-1', maxMarks: 100 });
+      mockPrisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
+      mockPrisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        maxMarks: 100,
+      });
       mockPrisma.mark.create.mockResolvedValue({
         id: 'mark-1',
         ...baseDto,
@@ -73,7 +81,11 @@ describe('MarksService', () => {
         teacherId: 'teacher-1',
       });
 
-      const result = await service.create(baseDto as any, 'teacher-1', 'TEACHER');
+      const result = await service.create(
+        baseDto as any,
+        'teacher-1',
+        'TEACHER',
+      );
 
       expect(mockPrisma.mark.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -93,22 +105,31 @@ describe('MarksService', () => {
     });
 
     it('should reject score exceeding maxScore', async () => {
-      mockPrisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
-      mockPrisma.subject.findUnique.mockResolvedValue({ id: 'subject-1', maxMarks: 100 });
+      mockPrisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
+      mockPrisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        maxMarks: 100,
+      });
 
       const dto = { ...baseDto, score: 150 };
 
-      await expect(service.create(dto as any, 'teacher-1', 'TEACHER')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.create(dto as any, 'teacher-1', 'TEACHER'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw when term is closed', async () => {
-      mockPrisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: true });
+      mockPrisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: true,
+      });
 
-      await expect(service.create(baseDto as any, 'teacher-1', 'TEACHER')).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.create(baseDto as any, 'teacher-1', 'TEACHER'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -129,13 +150,23 @@ describe('MarksService', () => {
     };
 
     it('should create multiple marks', async () => {
-      mockPrisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
-      mockPrisma.subject.findUnique.mockResolvedValue({ id: 'subject-1', maxMarks: 100 });
+      mockPrisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
+      mockPrisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        maxMarks: 100,
+      });
       mockPrisma.mark.upsert
         .mockResolvedValueOnce({ id: 'mark-1', score: 80 })
         .mockResolvedValueOnce({ id: 'mark-2', score: 90 });
 
-      const result = await service.batchEntry(batchDto as any, 'teacher-1', 'TEACHER');
+      const result = await service.batchEntry(
+        batchDto as any,
+        'teacher-1',
+        'TEACHER',
+      );
 
       expect(result.count).toBe(2);
       expect(result.marks).toHaveLength(2);
@@ -143,8 +174,14 @@ describe('MarksService', () => {
     });
 
     it('should validate all scores before creating any', async () => {
-      mockPrisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
-      mockPrisma.subject.findUnique.mockResolvedValue({ id: 'subject-1', maxMarks: 100 });
+      mockPrisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
+      mockPrisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        maxMarks: 100,
+      });
 
       const invalidDto = {
         ...batchDto,
@@ -210,7 +247,10 @@ describe('MarksService', () => {
         totalMarks: 70,
       };
       mockTx.termResult.upsert.mockResolvedValue(upsertedResult);
-      mockTx.termResult.update.mockResolvedValue({ ...upsertedResult, rank: 1 });
+      mockTx.termResult.update.mockResolvedValue({
+        ...upsertedResult,
+        rank: 1,
+      });
 
       const result = await service.calculateTermResults(dto as any);
 
@@ -268,15 +308,33 @@ describe('MarksService', () => {
       // student-1: average 60, student-2: average 90
       mockTx.mark.findMany
         .mockResolvedValueOnce([
-          { subjectId: 'sub-1', score: 60, maxScore: 100, subject: { maxMarks: 100 } },
+          {
+            subjectId: 'sub-1',
+            score: 60,
+            maxScore: 100,
+            subject: { maxMarks: 100 },
+          },
         ])
         .mockResolvedValueOnce([
-          { subjectId: 'sub-1', score: 90, maxScore: 100, subject: { maxMarks: 100 } },
+          {
+            subjectId: 'sub-1',
+            score: 90,
+            maxScore: 100,
+            subject: { maxMarks: 100 },
+          },
         ]);
 
       mockTx.termResult.upsert
-        .mockResolvedValueOnce({ id: 'r1', studentId: 'student-1', average: 60 })
-        .mockResolvedValueOnce({ id: 'r2', studentId: 'student-2', average: 90 });
+        .mockResolvedValueOnce({
+          id: 'r1',
+          studentId: 'student-1',
+          average: 60,
+        })
+        .mockResolvedValueOnce({
+          id: 'r2',
+          studentId: 'student-2',
+          average: 90,
+        });
       mockTx.termResult.update.mockResolvedValue({});
 
       await service.calculateTermResults(dto as any);
@@ -304,7 +362,12 @@ describe('MarksService', () => {
 
       // Exactly 80 => should be 'A' (>= 80)
       mockTx.mark.findMany.mockResolvedValue([
-        { subjectId: 'sub-1', score: 80, maxScore: 100, subject: { maxMarks: 100 } },
+        {
+          subjectId: 'sub-1',
+          score: 80,
+          maxScore: 100,
+          subject: { maxMarks: 100 },
+        },
       ]);
 
       mockTx.termResult.upsert.mockResolvedValue({
@@ -339,16 +402,23 @@ describe('MarksService', () => {
       // Mock terms
       mockPrisma.term.findUnique.mockImplementation(({ where }: any) => {
         if (where?.key === 'pass_threshold') return { value: '50' };
-        if (where?.key === 'grading_scale') return { value: 'A:80,B:70,C:60,D:50,F:0' };
-        if (where?.key === 'starting_discipline_points') return { value: '100' };
+        if (where?.key === 'grading_scale')
+          return { value: 'A:80,B:70,C:60,D:50,F:0' };
+        if (where?.key === 'starting_discipline_points')
+          return { value: '100' };
         return null;
       });
-      mockPrisma.schoolConfig.findUnique.mockImplementation(({ where }: any) => {
-        if (where?.key === 'grading_scale') return Promise.resolve({ value: 'A:80,B:70,C:60,D:50,F:0' });
-        if (where?.key === 'pass_threshold') return Promise.resolve({ value: '50' });
-        if (where?.key === 'starting_discipline_points') return Promise.resolve({ value: '100' });
-        return Promise.resolve(null);
-      });
+      mockPrisma.schoolConfig.findUnique.mockImplementation(
+        ({ where }: any) => {
+          if (where?.key === 'grading_scale')
+            return Promise.resolve({ value: 'A:80,B:70,C:60,D:50,F:0' });
+          if (where?.key === 'pass_threshold')
+            return Promise.resolve({ value: '50' });
+          if (where?.key === 'starting_discipline_points')
+            return Promise.resolve({ value: '100' });
+          return Promise.resolve(null);
+        },
+      );
 
       mockPrisma.mark.findMany.mockResolvedValue([]);
     });
@@ -384,7 +454,7 @@ describe('MarksService', () => {
         expect.objectContaining({
           update: expect.objectContaining({
             yearlyAverage: 75, // (70+80)/2
-            isPromoted: true,  // 75 >= 50
+            isPromoted: true, // 75 >= 50
           }),
         }),
       );
@@ -392,9 +462,7 @@ describe('MarksService', () => {
     });
 
     it('should determine promotion based on pass threshold (>= threshold = promoted)', async () => {
-      mockPrisma.term.findMany.mockResolvedValue([
-        { id: 'term-1' },
-      ]);
+      mockPrisma.term.findMany.mockResolvedValue([{ id: 'term-1' }]);
 
       mockTx.student.findMany.mockResolvedValue([
         { id: 'student-1', status: 'ACTIVE', disciplinePoints: 80 },

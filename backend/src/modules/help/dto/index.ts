@@ -1,4 +1,13 @@
-import { IsString, IsOptional, IsBoolean, IsInt, Min, IsUUID, IsEnum, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  Min,
+  IsUUID,
+  IsEnum,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum TicketStatus {
@@ -13,15 +22,31 @@ export enum TicketStatus {
 export class CreateFaqDto {
   @ApiProperty() @IsString() @MaxLength(255) title: string;
   @ApiProperty() @IsString() @MaxLength(5000) content: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255) category?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  category?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isPublished?: boolean;
 }
 
 export class UpdateFaqDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255) title?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) content?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255) category?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  title?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  content?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  category?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isPublished?: boolean;
 }
@@ -31,8 +56,16 @@ export class UpdateFaqDto {
 export class CreateTicketDto {
   @ApiProperty() @IsString() @MaxLength(255) title: string;
   @ApiProperty() @IsString() @MaxLength(5000) description: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) screenshotUrl?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255) category?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  screenshotUrl?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  category?: string;
 }
 
 export class UpdateTicketStatusDto {

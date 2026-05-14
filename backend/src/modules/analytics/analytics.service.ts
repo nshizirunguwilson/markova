@@ -10,19 +10,22 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getAdminDashboard(academicYearId?: string, termId?: string) {
-    const [
+    const [totalStudents, totalTeachers, totalParents, classLevels] =
+      await Promise.all([
+        this.prisma.student.count(),
+        this.prisma.teacher.count(),
+        this.prisma.parentStudent
+          .groupBy({ by: ['parentUserId'] })
+          .then((r) => r.length),
+        this.prisma.classLevel.count(),
+      ]);
+
+    return {
       totalStudents,
       totalTeachers,
       totalParents,
-      classLevels,
-    ] = await Promise.all([
-      this.prisma.student.count(),
-      this.prisma.teacher.count(),
-      this.prisma.parentStudent.groupBy({ by: ['parentUserId'] }).then((r) => r.length),
-      this.prisma.classLevel.count(),
-    ]);
-
-    return { totalStudents, totalTeachers, totalParents, totalClasses: classLevels };
+      totalClasses: classLevels,
+    };
   }
 
   async getPerformanceTrends(academicYearId: string) {
@@ -36,10 +39,16 @@ export class AnalyticsService {
       const results = await this.prisma.termResult.findMany({
         where: { termId: term.id },
       });
-      const avg = results.length > 0
-        ? results.reduce((s, r) => s + (r.average ?? 0), 0) / results.length
-        : 0;
-      trends.push({ termId: term.id, termName: term.name, averageScore: Math.round(avg * 100) / 100, studentCount: results.length });
+      const avg =
+        results.length > 0
+          ? results.reduce((s, r) => s + (r.average ?? 0), 0) / results.length
+          : 0;
+      trends.push({
+        termId: term.id,
+        termName: term.name,
+        averageScore: Math.round(avg * 100) / 100,
+        studentCount: results.length,
+      });
     }
 
     return trends;
@@ -88,7 +97,10 @@ export class AnalyticsService {
   async getDisciplineStats(academicYearId?: string) {
     const where: any = {};
     if (academicYearId) {
-      const terms = await this.prisma.term.findMany({ where: { academicYearId }, select: { id: true } });
+      const terms = await this.prisma.term.findMany({
+        where: { academicYearId },
+        select: { id: true },
+      });
       if (terms.length > 0) {
         where.termId = { in: terms.map((t) => t.id) };
       }
@@ -103,17 +115,21 @@ export class AnalyticsService {
 
     return {
       totalIncidents: incidents.length,
-      byAction: Object.entries(byAction).map(([name, count]) => ({ name, count })),
+      byAction: Object.entries(byAction).map(([name, count]) => ({
+        name,
+        count,
+      })),
     };
   }
 
   async getLibraryStats() {
-    const [totalBooks, totalLoans, activeLoans, overdueLoans] = await Promise.all([
-      this.prisma.book.count(),
-      this.prisma.bookLoan.count(),
-      this.prisma.bookLoan.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.bookLoan.count({ where: { status: 'OVERDUE' } }),
-    ]);
+    const [totalBooks, totalLoans, activeLoans, overdueLoans] =
+      await Promise.all([
+        this.prisma.book.count(),
+        this.prisma.bookLoan.count(),
+        this.prisma.bookLoan.count({ where: { status: 'ACTIVE' } }),
+        this.prisma.bookLoan.count({ where: { status: 'OVERDUE' } }),
+      ]);
 
     const popularBooks = await this.prisma.bookLoan.groupBy({
       by: ['bookId'],
@@ -170,7 +186,11 @@ export class AnalyticsService {
   // TEACHER ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getTeacherClassAnalytics(teacherId: string, classSectionId: string, termId: string) {
+  async getTeacherClassAnalytics(
+    teacherId: string,
+    classSectionId: string,
+    termId: string,
+  ) {
     const assignments = await this.prisma.teacherSubjectClass.findMany({
       where: { teacherId, classSectionId },
       include: { subject: true },
@@ -212,7 +232,11 @@ export class AnalyticsService {
     // Underperforming students (term average < 50)
     const termResults = await this.prisma.termResult.findMany({
       where: { termId, studentId: { in: studentIds } },
-      include: { student: { include: { user: { select: { firstName: true, lastName: true } } } } },
+      include: {
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
     });
 
     const underperforming = termResults
@@ -246,7 +270,8 @@ export class AnalyticsService {
       include: { subject: true },
     });
 
-    const subjectScores: Record<string, { name: string; scores: number[] }> = {};
+    const subjectScores: Record<string, { name: string; scores: number[] }> =
+      {};
     for (const m of marks) {
       if (!subjectScores[m.subjectId]) {
         subjectScores[m.subjectId] = { name: m.subject.name, scores: [] };
@@ -254,10 +279,16 @@ export class AnalyticsService {
       subjectScores[m.subjectId].scores.push(m.score);
     }
 
-    const studentSubjects = Object.entries(subjectScores).map(([subjectId, data]) => {
-      const avg = data.scores.reduce((s, v) => s + v, 0) / data.scores.length;
-      return { subjectId, subjectName: data.name, average: Math.round(avg * 100) / 100 };
-    });
+    const studentSubjects = Object.entries(subjectScores).map(
+      ([subjectId, data]) => {
+        const avg = data.scores.reduce((s, v) => s + v, 0) / data.scores.length;
+        return {
+          subjectId,
+          subjectName: data.name,
+          average: Math.round(avg * 100) / 100,
+        };
+      },
+    );
 
     // Class average for comparison
     const classmateIds = (
@@ -271,9 +302,13 @@ export class AnalyticsService {
       where: { termId, studentId: { in: classmateIds } },
     });
     const withAvg = classResults.filter((r) => r.average !== null);
-    const classAverage = withAvg.length > 0
-      ? Math.round((withAvg.reduce((s, r) => s + r.average!, 0) / withAvg.length) * 100) / 100
-      : 0;
+    const classAverage =
+      withAvg.length > 0
+        ? Math.round(
+            (withAvg.reduce((s, r) => s + r.average!, 0) / withAvg.length) *
+              100,
+          ) / 100
+        : 0;
 
     const studentResult = await this.prisma.termResult.findFirst({
       where: { studentId, termId },
@@ -317,7 +352,9 @@ export class AnalyticsService {
       where: { studentId },
     });
     const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter((r) => r.status === 'PRESENT' || r.status === 'LATE').length;
+    const presentDays = attendanceRecords.filter(
+      (r) => r.status === 'PRESENT' || r.status === 'LATE',
+    ).length;
 
     return {
       performanceTrends: trends,

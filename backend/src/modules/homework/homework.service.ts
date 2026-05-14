@@ -45,10 +45,16 @@ export class HomeworkService {
     });
   }
 
-  async update(id: string, dto: UpdateHomeworkDto, teacherId: string, role?: string) {
+  async update(
+    id: string,
+    dto: UpdateHomeworkDto,
+    teacherId: string,
+    role?: string,
+  ) {
     const homework = await this.prisma.homework.findUnique({ where: { id } });
     if (!homework) throw new NotFoundException('Homework not found');
-    if (role !== 'ADMIN' && homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
+    if (role !== 'ADMIN' && homework.teacherId !== teacherId)
+      throw new ForbiddenException('Not your homework');
 
     return this.prisma.homework.update({
       where: { id },
@@ -57,7 +63,9 @@ export class HomeworkService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
         ...(dto.maxMarks !== undefined && { maxMarks: dto.maxMarks }),
-        ...(dto.lateDeductionPerDay !== undefined && { lateDeductionPerDay: dto.lateDeductionPerDay }),
+        ...(dto.lateDeductionPerDay !== undefined && {
+          lateDeductionPerDay: dto.lateDeductionPerDay,
+        }),
       },
     });
   }
@@ -65,7 +73,8 @@ export class HomeworkService {
   async delete(id: string, teacherId: string, role?: string) {
     const homework = await this.prisma.homework.findUnique({ where: { id } });
     if (!homework) throw new NotFoundException('Homework not found');
-    if (role !== 'ADMIN' && homework.teacherId !== teacherId) throw new ForbiddenException('Not your homework');
+    if (role !== 'ADMIN' && homework.teacherId !== teacherId)
+      throw new ForbiddenException('Not your homework');
     return this.prisma.homework.delete({ where: { id } });
   }
 
@@ -81,7 +90,9 @@ export class HomeworkService {
       include: {
         subject: { select: { name: true } },
         classSection: { include: { classLevel: true } },
-        teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         _count: { select: { submissions: true } },
       },
       orderBy: { dueDate: 'desc' },
@@ -94,10 +105,16 @@ export class HomeworkService {
       include: {
         subject: { select: { name: true } },
         classSection: { include: { classLevel: true } },
-        teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         submissions: {
           include: {
-            student: { include: { user: { select: { firstName: true, lastName: true } } } },
+            student: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
+              },
+            },
             gradedBy: { select: { firstName: true, lastName: true } },
           },
           orderBy: { submittedAt: 'desc' },
@@ -119,7 +136,9 @@ export class HomeworkService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async submit(dto: SubmitHomeworkDto, studentId: string) {
-    const homework = await this.prisma.homework.findUnique({ where: { id: dto.homeworkId } });
+    const homework = await this.prisma.homework.findUnique({
+      where: { id: dto.homeworkId },
+    });
     if (!homework) throw new NotFoundException('Homework not found');
 
     const now = new Date();
@@ -147,7 +166,11 @@ export class HomeworkService {
     });
   }
 
-  async grade(submissionId: string, dto: GradeSubmissionDto, gradedByUserId: string) {
+  async grade(
+    submissionId: string,
+    dto: GradeSubmissionDto,
+    gradedByUserId: string,
+  ) {
     const submission = await this.prisma.homeworkSubmission.findUnique({
       where: { id: submissionId },
       include: { homework: true },
@@ -158,13 +181,23 @@ export class HomeworkService {
     let finalMarks = dto.marks;
     if (submission.isLate && submission.homework.lateDeductionPerDay) {
       const daysLate = Math.ceil(
-        (submission.submittedAt.getTime() - submission.homework.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+        (submission.submittedAt.getTime() -
+          submission.homework.dueDate.getTime()) /
+          (1000 * 60 * 60 * 24),
       );
-      finalMarks = Math.max(0, dto.marks - daysLate * submission.homework.lateDeductionPerDay);
+      finalMarks = Math.max(
+        0,
+        dto.marks - daysLate * submission.homework.lateDeductionPerDay,
+      );
     }
 
-    if (submission.homework.maxMarks && finalMarks > submission.homework.maxMarks) {
-      throw new BadRequestException(`Marks exceed maximum of ${submission.homework.maxMarks}`);
+    if (
+      submission.homework.maxMarks &&
+      finalMarks > submission.homework.maxMarks
+    ) {
+      throw new BadRequestException(
+        `Marks exceed maximum of ${submission.homework.maxMarks}`,
+      );
     }
 
     const updated = await this.prisma.homeworkSubmission.update({
@@ -175,7 +208,9 @@ export class HomeworkService {
         gradedByUserId,
       },
       include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         homework: { select: { title: true } },
       },
     });
@@ -212,7 +247,9 @@ export class HomeworkService {
       where: { classSectionId },
       include: {
         subject: { select: { name: true } },
-        teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         submissions: {
           where: { studentId },
         },

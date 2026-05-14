@@ -208,7 +208,10 @@ export class AcademicService {
     if (!level) throw new NotFoundException('Class level not found');
     return this.prisma.classLevel.update({
       where: { id },
-      data: { ...(dto.name && { name: dto.name }), ...(dto.order && { order: dto.order }) },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.order && { order: dto.order }),
+      },
     });
   }
 
@@ -240,7 +243,9 @@ export class AcademicService {
   }
 
   async updateSection(id: string, dto: UpdateClassSectionDto) {
-    const section = await this.prisma.classSection.findUnique({ where: { id } });
+    const section = await this.prisma.classSection.findUnique({
+      where: { id },
+    });
     if (!section) throw new NotFoundException('Class section not found');
     return this.prisma.classSection.update({
       where: { id },
@@ -324,8 +329,12 @@ export class AcademicService {
     return this.prisma.teacherSubjectClass.findMany({
       where: {
         ...(filters?.teacherId && { teacherId: filters.teacherId }),
-        ...(filters?.classSectionId && { classSectionId: filters.classSectionId }),
-        ...(filters?.academicYearId && { academicYearId: filters.academicYearId }),
+        ...(filters?.classSectionId && {
+          classSectionId: filters.classSectionId,
+        }),
+        ...(filters?.academicYearId && {
+          academicYearId: filters.academicYearId,
+        }),
       },
       include: {
         teacher: {

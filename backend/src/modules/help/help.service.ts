@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateFaqDto, UpdateFaqDto, CreateTicketDto, UpdateTicketStatusDto } from './dto';
+import {
+  CreateFaqDto,
+  UpdateFaqDto,
+  CreateTicketDto,
+  UpdateTicketStatusDto,
+} from './dto';
 
 @Injectable()
 export class HelpService {
@@ -53,7 +58,9 @@ export class HelpService {
   async createTicket(userId: string, dto: CreateTicketDto) {
     return this.prisma.supportTicket.create({
       data: { ...dto, userId },
-      include: { user: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
     });
   }
 
@@ -62,7 +69,9 @@ export class HelpService {
     if (status) where.status = status;
     return this.prisma.supportTicket.findMany({
       where,
-      include: { user: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -75,7 +84,9 @@ export class HelpService {
   }
 
   async updateTicketStatus(id: string, dto: UpdateTicketStatusDto) {
-    const ticket = await this.prisma.supportTicket.findUnique({ where: { id } });
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id },
+    });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
     const data: any = { status: dto.status };
@@ -86,7 +97,9 @@ export class HelpService {
     return this.prisma.supportTicket.update({
       where: { id },
       data,
-      include: { user: { select: { firstName: true, lastName: true, email: true } } },
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
     });
   }
 }

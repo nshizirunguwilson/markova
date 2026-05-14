@@ -5,28 +5,54 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginatedResponse } from '../../common/dto';
-import { CreateConversationDto, SendMessageDto, QueryConversationsDto, QueryMessagesDto } from './dto';
+import {
+  CreateConversationDto,
+  SendMessageDto,
+  QueryConversationsDto,
+  QueryMessagesDto,
+} from './dto';
 
 @Injectable()
 export class MessagingService {
   constructor(private prisma: PrismaService) {}
 
-  async createConversation(dto: CreateConversationDto, createdByUserId: string) {
+  async createConversation(
+    dto: CreateConversationDto,
+    createdByUserId: string,
+  ) {
     // For ONE_ON_ONE, check if conversation already exists
     if (dto.type === 'ONE_ON_ONE' && dto.participantUserIds.length === 1) {
       const existing = await this.prisma.conversation.findFirst({
         where: {
           type: 'ONE_ON_ONE',
           participants: {
-            every: { userId: { in: [createdByUserId, dto.participantUserIds[0]] } },
+            every: {
+              userId: { in: [createdByUserId, dto.participantUserIds[0]] },
+            },
           },
         },
-        include: { participants: { include: { user: { select: { id: true, firstName: true, lastName: true, photoUrl: true } } } } },
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  photoUrl: true,
+                },
+              },
+            },
+          },
+        },
       });
       if (existing) return existing;
     }
 
-    const allParticipants = [createdByUserId, ...dto.participantUserIds.filter((id) => id !== createdByUserId)];
+    const allParticipants = [
+      createdByUserId,
+      ...dto.participantUserIds.filter((id) => id !== createdByUserId),
+    ];
 
     return this.prisma.conversation.create({
       data: {
@@ -42,7 +68,17 @@ export class MessagingService {
       },
       include: {
         participants: {
-          include: { user: { select: { id: true, firstName: true, lastName: true, photoUrl: true, role: true } } },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                photoUrl: true,
+                role: true,
+              },
+            },
+          },
         },
       },
     });
@@ -53,7 +89,18 @@ export class MessagingService {
       where: { participants: { some: { userId } } },
       include: {
         participants: {
-          include: { user: { select: { id: true, firstName: true, lastName: true, photoUrl: true, role: true, lastSeenAt: true } } },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                photoUrl: true,
+                role: true,
+                lastSeenAt: true,
+              },
+            },
+          },
         },
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -89,7 +136,12 @@ export class MessagingService {
     });
   }
 
-  async getMessages(conversationId: string, userId: string, limit = 50, before?: string) {
+  async getMessages(
+    conversationId: string,
+    userId: string,
+    limit = 50,
+    before?: string,
+  ) {
     await this.ensureParticipant(conversationId, userId);
 
     const where: any = { conversationId };
@@ -98,7 +150,9 @@ export class MessagingService {
     return this.prisma.message.findMany({
       where,
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, photoUrl: true } },
+        sender: {
+          select: { id: true, firstName: true, lastName: true, photoUrl: true },
+        },
         reads: { select: { userId: true, readAt: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -119,7 +173,9 @@ export class MessagingService {
         fileUrl: dto.fileUrl,
       },
       include: {
-        sender: { select: { id: true, firstName: true, lastName: true, photoUrl: true } },
+        sender: {
+          select: { id: true, firstName: true, lastName: true, photoUrl: true },
+        },
       },
     });
   }
@@ -194,7 +250,10 @@ export class MessagingService {
     return messages;
   }
 
-  async updateMessageStatus(messageId: string, status: 'SENT' | 'DELIVERED' | 'READ') {
+  async updateMessageStatus(
+    messageId: string,
+    status: 'SENT' | 'DELIVERED' | 'READ',
+  ) {
     return this.prisma.message.update({
       where: { id: messageId },
       data: { status: status as any },
@@ -209,7 +268,9 @@ export class MessagingService {
     return participants.map((p) => p.conversationId);
   }
 
-  async getConversationParticipantIds(conversationId: string): Promise<string[]> {
+  async getConversationParticipantIds(
+    conversationId: string,
+  ): Promise<string[]> {
     const participants = await this.prisma.conversationParticipant.findMany({
       where: { conversationId },
       select: { userId: true },
@@ -221,6 +282,7 @@ export class MessagingService {
     const participant = await this.prisma.conversationParticipant.findFirst({
       where: { conversationId, userId },
     });
-    if (!participant) throw new ForbiddenException('Not a participant of this conversation');
+    if (!participant)
+      throw new ForbiddenException('Not a participant of this conversation');
   }
 }

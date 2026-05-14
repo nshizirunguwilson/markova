@@ -30,7 +30,10 @@ export class DisciplineService {
     if (!student) throw new NotFoundException('Student not found');
 
     // Deduct points
-    const newPoints = Math.max(0, student.disciplinePoints - dto.pointsDeducted);
+    const newPoints = Math.max(
+      0,
+      student.disciplinePoints - dto.pointsDeducted,
+    );
 
     const [incident] = await this.prisma.$transaction([
       this.prisma.disciplineIncident.create({
@@ -46,7 +49,9 @@ export class DisciplineService {
           actionTaken: dto.actionTaken as any,
         },
         include: {
-          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          student: {
+            include: { user: { select: { firstName: true, lastName: true } } },
+          },
           recordedBy: { select: { firstName: true, lastName: true } },
         },
       }),
@@ -57,23 +62,37 @@ export class DisciplineService {
     ]);
 
     // Notify parent
-    await this.notifyParent(dto.studentId, dto.description, dto.pointsDeducted, newPoints);
+    await this.notifyParent(
+      dto.studentId,
+      dto.description,
+      dto.pointsDeducted,
+      newPoints,
+    );
 
     return { ...incident, newDisciplinePoints: newPoints };
   }
 
   async updateIncident(id: string, dto: UpdateIncidentDto) {
-    const incident = await this.prisma.disciplineIncident.findUnique({ where: { id } });
+    const incident = await this.prisma.disciplineIncident.findUnique({
+      where: { id },
+    });
     if (!incident) throw new NotFoundException('Incident not found');
 
     // If points changed, adjust student's discipline points
-    if (dto.pointsDeducted !== undefined && dto.pointsDeducted !== incident.pointsDeducted) {
+    if (
+      dto.pointsDeducted !== undefined &&
+      dto.pointsDeducted !== incident.pointsDeducted
+    ) {
       const diff = dto.pointsDeducted - incident.pointsDeducted;
-      const student = await this.prisma.student.findUnique({ where: { id: incident.studentId } });
+      const student = await this.prisma.student.findUnique({
+        where: { id: incident.studentId },
+      });
       if (student) {
         await this.prisma.student.update({
           where: { id: incident.studentId },
-          data: { disciplinePoints: Math.max(0, student.disciplinePoints - diff) },
+          data: {
+            disciplinePoints: Math.max(0, student.disciplinePoints - diff),
+          },
         });
       }
     }
@@ -82,18 +101,24 @@ export class DisciplineService {
       where: { id },
       data: {
         ...(dto.description && { description: dto.description }),
-        ...(dto.pointsDeducted !== undefined && { pointsDeducted: dto.pointsDeducted }),
+        ...(dto.pointsDeducted !== undefined && {
+          pointsDeducted: dto.pointsDeducted,
+        }),
         ...(dto.actionTaken && { actionTaken: dto.actionTaken as any }),
       },
       include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         recordedBy: { select: { firstName: true, lastName: true } },
       },
     });
   }
 
   async deleteIncident(id: string) {
-    const incident = await this.prisma.disciplineIncident.findUnique({ where: { id } });
+    const incident = await this.prisma.disciplineIncident.findUnique({
+      where: { id },
+    });
     if (!incident) throw new NotFoundException('Incident not found');
 
     // Restore points
@@ -140,7 +165,9 @@ export class DisciplineService {
       include: {
         student: {
           include: {
-            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+            user: {
+              select: { firstName: true, lastName: true, photoUrl: true },
+            },
             classSection: { include: { classLevel: true } },
           },
         },
@@ -169,7 +196,10 @@ export class DisciplineService {
     const startingPoints = await this.getStartingPoints();
     const incidents = await this.prisma.disciplineIncident.findMany({
       where: { studentId },
-      include: { recordedBy: { select: { firstName: true, lastName: true } }, appeals: true },
+      include: {
+        recordedBy: { select: { firstName: true, lastName: true } },
+        appeals: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -178,7 +208,10 @@ export class DisciplineService {
         name: `${student.user.firstName} ${student.user.lastName}`,
         currentPoints: student.disciplinePoints,
         startingPoints,
-        percentage: startingPoints > 0 ? Math.round((student.disciplinePoints / startingPoints) * 100) : 100,
+        percentage:
+          startingPoints > 0
+            ? Math.round((student.disciplinePoints / startingPoints) * 100)
+            : 100,
       },
       incidents,
       totalIncidents: incidents.length,
@@ -200,7 +233,9 @@ export class DisciplineService {
     // Check for existing pending appeal
     const pending = incident.appeals.find((a) => a.status === 'PENDING');
     if (pending) {
-      throw new BadRequestException('An appeal is already pending for this incident');
+      throw new BadRequestException(
+        'An appeal is already pending for this incident',
+      );
     }
 
     return this.prisma.disciplineAppeal.create({
@@ -213,7 +248,11 @@ export class DisciplineService {
       include: {
         incident: {
           include: {
-            student: { include: { user: { select: { firstName: true, lastName: true } } } },
+            student: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
+              },
+            },
           },
         },
         submittedBy: { select: { firstName: true, lastName: true } },
@@ -221,7 +260,11 @@ export class DisciplineService {
     });
   }
 
-  async reviewAppeal(id: string, dto: ReviewAppealDto, reviewedByUserId: string) {
+  async reviewAppeal(
+    id: string,
+    dto: ReviewAppealDto,
+    reviewedByUserId: string,
+  ) {
     const appeal = await this.prisma.disciplineAppeal.findUnique({
       where: { id },
       include: { incident: true },
@@ -240,7 +283,13 @@ export class DisciplineService {
       },
       include: {
         incident: {
-          include: { student: { include: { user: { select: { firstName: true, lastName: true } } } } },
+          include: {
+            student: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
+              },
+            },
+          },
         },
         submittedBy: { select: { firstName: true, lastName: true } },
         reviewedBy: { select: { firstName: true, lastName: true } },
@@ -251,7 +300,9 @@ export class DisciplineService {
     if (dto.status === 'APPROVED') {
       await this.prisma.student.update({
         where: { id: appeal.incident.studentId },
-        data: { disciplinePoints: { increment: appeal.incident.pointsDeducted } },
+        data: {
+          disciplinePoints: { increment: appeal.incident.pointsDeducted },
+        },
       });
     }
 
@@ -292,8 +343,13 @@ export class DisciplineService {
     if (!incident) throw new NotFoundException('Incident not found');
 
     // Verify parent is linked to this student
-    const isLinked = incident.student.parentStudents.some((ps) => ps.parentUserId === parentUserId);
-    if (!isLinked) throw new ForbiddenException('Not authorized to acknowledge this incident');
+    const isLinked = incident.student.parentStudents.some(
+      (ps) => ps.parentUserId === parentUserId,
+    );
+    if (!isLinked)
+      throw new ForbiddenException(
+        'Not authorized to acknowledge this incident',
+      );
 
     return this.prisma.disciplineIncident.update({
       where: { id: incidentId },
@@ -312,7 +368,9 @@ export class DisciplineService {
     const incidents = await this.prisma.disciplineIncident.findMany({
       where,
       include: {
-        student: { include: { classSection: { include: { classLevel: true } } } },
+        student: {
+          include: { classSection: { include: { classLevel: true } } },
+        },
       },
     });
 
@@ -323,7 +381,10 @@ export class DisciplineService {
     }
 
     // Top offenders
-    const studentMap = new Map<string, { name: string; class: string; count: number; totalPoints: number }>();
+    const studentMap = new Map<
+      string,
+      { name: string; class: string; count: number; totalPoints: number }
+    >();
     for (const i of incidents) {
       const key = i.studentId;
       if (!studentMap.has(key)) {
@@ -339,7 +400,9 @@ export class DisciplineService {
       entry.totalPoints += i.pointsDeducted;
     }
 
-    const pendingAppeals = await this.prisma.disciplineAppeal.count({ where: { status: 'PENDING' } });
+    const pendingAppeals = await this.prisma.disciplineAppeal.count({
+      where: { status: 'PENDING' },
+    });
 
     return {
       totalIncidents: incidents.length,
@@ -363,12 +426,19 @@ export class DisciplineService {
     return Number(config?.value || '100');
   }
 
-  private async notifyParent(studentId: string, description: string, pointsDeducted: number, newPoints: number) {
+  private async notifyParent(
+    studentId: string,
+    description: string,
+    pointsDeducted: number,
+    newPoints: number,
+  ) {
     const parentLinks = await this.prisma.parentStudent.findMany({
       where: { studentId },
       include: {
         parent: { select: { id: true, firstName: true, phone: true } },
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
       },
     });
 

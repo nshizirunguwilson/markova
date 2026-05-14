@@ -2,7 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AttendanceService } from './attendance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('AttendanceService', () => {
   let service: AttendanceService;
@@ -94,9 +98,9 @@ describe('AttendanceService', () => {
     it('should throw NotFoundException when student does not exist', async () => {
       mockPrisma.student.findUnique.mockResolvedValue(null);
 
-      await expect(service.markAttendance(baseDto as any, 'teacher-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.markAttendance(baseDto as any, 'teacher-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should notify parents when status is ABSENT', async () => {
@@ -108,12 +112,19 @@ describe('AttendanceService', () => {
       mockPrisma.parentStudent.findMany.mockResolvedValue([
         {
           parentUserId: 'parent-user-1',
-          parent: { phone: '+256700000000', email: 'parent@test.com', firstName: 'Mary' },
+          parent: {
+            phone: '+256700000000',
+            email: 'parent@test.com',
+            firstName: 'Mary',
+          },
           student: { user: { firstName: 'Jane', lastName: 'Doe' } },
         },
       ]);
 
-      await service.markAttendance({ ...baseDto, status: 'ABSENT' } as any, 'teacher-1');
+      await service.markAttendance(
+        { ...baseDto, status: 'ABSENT' } as any,
+        'teacher-1',
+      );
 
       expect(mockNotifications.send).toHaveBeenCalled();
     });
@@ -125,9 +136,9 @@ describe('AttendanceService', () => {
       });
       mockPrisma.attendance.upsert.mockRejectedValue({ code: 'P2002' });
 
-      await expect(service.markAttendance(baseDto as any, 'teacher-1')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.markAttendance(baseDto as any, 'teacher-1'),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -154,7 +165,10 @@ describe('AttendanceService', () => {
         .mockResolvedValueOnce({ id: 'att-3', status: 'LATE' });
       mockPrisma.parentStudent.findMany.mockResolvedValue([]);
 
-      const result = await service.bulkMarkAttendance(bulkDto as any, 'teacher-1');
+      const result = await service.bulkMarkAttendance(
+        bulkDto as any,
+        'teacher-1',
+      );
 
       expect(result.count).toBe(3);
       expect(result.records).toHaveLength(3);
@@ -176,7 +190,10 @@ describe('AttendanceService', () => {
         .mockResolvedValueOnce({ id: 'att-1', status: 'PRESENT' })
         .mockRejectedValueOnce(new Error('duplicate'));
 
-      const result = await service.bulkMarkAttendance(bulkDto as any, 'teacher-1');
+      const result = await service.bulkMarkAttendance(
+        bulkDto as any,
+        'teacher-1',
+      );
 
       expect(result.count).toBe(1);
       expect(result.records).toHaveLength(1);
@@ -275,7 +292,10 @@ describe('AttendanceService', () => {
 
       // student-1 (50%) and student-2 (20%) are >= 20% threshold
       expect(result.count).toBe(2);
-      expect(result.students.map((s) => s.name)).toEqual(['Jane Doe', 'John Smith']);
+      expect(result.students.map((s) => s.name)).toEqual([
+        'Jane Doe',
+        'John Smith',
+      ]);
       expect(result.students[0].absenceRate).toBe(50);
       expect(result.students[1].absenceRate).toBe(20);
     });
@@ -323,7 +343,11 @@ describe('AttendanceService', () => {
         user: { firstName: 'Jane', lastName: 'Doe' },
       });
       mockPrisma.attendance.findFirst.mockResolvedValue(null); // no duplicate
-      const createdRecord = { id: 'att-1', status: 'PRESENT', studentId: 'student-1' };
+      const createdRecord = {
+        id: 'att-1',
+        status: 'PRESENT',
+        studentId: 'student-1',
+      };
       mockPrisma.attendance.create.mockResolvedValue(createdRecord);
 
       const result = await service.processQrScan(qrDto as any, 'teacher-1');
@@ -362,9 +386,9 @@ describe('AttendanceService', () => {
     it('should throw NotFoundException when student not found', async () => {
       mockPrisma.student.findFirst.mockResolvedValue(null);
 
-      await expect(service.processQrScan(qrDto as any, 'teacher-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.processQrScan(qrDto as any, 'teacher-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when student is in wrong class', async () => {
@@ -375,9 +399,9 @@ describe('AttendanceService', () => {
         user: { firstName: 'Jane', lastName: 'Doe' },
       });
 
-      await expect(service.processQrScan(qrDto as any, 'teacher-1')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.processQrScan(qrDto as any, 'teacher-1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

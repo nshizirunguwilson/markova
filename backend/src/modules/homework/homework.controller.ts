@@ -52,7 +52,10 @@ export class HomeworkController {
   @Get(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Get homework details with submissions' })
-  async findById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: any,
+  ) {
     await this.ownership.verifyTeacherHomeworkAccess(user.id, user.role, id);
     return this.service.findById(id);
   }
@@ -60,7 +63,11 @@ export class HomeworkController {
   @Put(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Update homework' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateHomeworkDto, @CurrentUser() user: any) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateHomeworkDto,
+    @CurrentUser() user: any,
+  ) {
     return this.service.update(id, dto, user.teacherId, user.role);
   }
 
@@ -83,7 +90,11 @@ export class HomeworkController {
   @Put('submissions/:id/grade')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Grade a submission' })
-  grade(@Param('id', ParseUUIDPipe) id: string, @Body() dto: GradeSubmissionDto, @CurrentUser() user: any) {
+  grade(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: GradeSubmissionDto,
+    @CurrentUser() user: any,
+  ) {
     return this.service.grade(id, dto, user.id);
   }
 

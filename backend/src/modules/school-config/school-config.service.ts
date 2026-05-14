@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UpsertConfigDto, BulkUpsertConfigDto, UpdateOnboardingDto } from './dto';
+import {
+  UpsertConfigDto,
+  BulkUpsertConfigDto,
+  UpdateOnboardingDto,
+} from './dto';
 
 @Injectable()
 export class SchoolConfigService {

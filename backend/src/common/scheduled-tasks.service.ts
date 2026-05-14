@@ -20,7 +20,10 @@ export class ScheduledTasksService {
       const result = await this.libraryService.sendDueReminders();
       this.logger.log(`Library due reminders sent: ${result.sent}`);
     } catch (error) {
-      this.logger.error('Failed to send library due reminders', error instanceof Error ? error.stack : undefined);
+      this.logger.error(
+        'Failed to send library due reminders',
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
@@ -29,12 +32,16 @@ export class ScheduledTasksService {
   async handleChronicAbsenteeismAlerts() {
     this.logger.log('Running chronic absenteeism alerts...');
     try {
-      const result = await this.attendanceService.sendChronicAbsenteeismAlerts();
+      const result =
+        await this.attendanceService.sendChronicAbsenteeismAlerts();
       this.logger.log(
         `Chronic absenteeism alerts: ${result.studentsIdentified} students identified, ${result.alertsSent} alerts sent`,
       );
     } catch (error) {
-      this.logger.error('Failed to send chronic absenteeism alerts', error instanceof Error ? error.stack : undefined);
+      this.logger.error(
+        'Failed to send chronic absenteeism alerts',
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 }

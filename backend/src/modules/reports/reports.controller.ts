@@ -14,7 +14,14 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
-import { GenerateReportCardDto, GenerateClassReportCardsDto, GenerateYearReportDto, GenerateDocumentDto, GenerateIdCardDto, BulkIdCardsDto } from './dto';
+import {
+  GenerateReportCardDto,
+  GenerateClassReportCardsDto,
+  GenerateYearReportDto,
+  GenerateDocumentDto,
+  GenerateIdCardDto,
+  BulkIdCardsDto,
+} from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -78,7 +85,10 @@ export class ReportsController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Generate report cards for a class' })
   generateClassReports(@Body() dto: GenerateClassReportCardsDto) {
-    return this.service.generateClassReportCards(dto.classSectionId, dto.termId);
+    return this.service.generateClassReportCards(
+      dto.classSectionId,
+      dto.termId,
+    );
   }
 
   @Get('year/:studentId')
@@ -97,7 +107,9 @@ export class ReportsController {
 
   @Post('document')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Generate a document (transfer letter, transcript, etc.)' })
+  @ApiOperation({
+    summary: 'Generate a document (transfer letter, transcript, etc.)',
+  })
   generateDocument(@Body() dto: GenerateDocumentDto) {
     return this.service.generateDocument(dto.studentId, dto.type);
   }

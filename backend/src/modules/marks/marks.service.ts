@@ -25,16 +25,24 @@ export class MarksService {
   // MARK CRUD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async create(dto: CreateMarkDto, teacherId: string | null, role: string = 'TEACHER') {
+  async create(
+    dto: CreateMarkDto,
+    teacherId: string | null,
+    role: string = 'TEACHER',
+  ) {
     // Validate term is not closed
     await this.ensureTermOpen(dto.termId);
 
     // Validate score does not exceed subject max marks
-    const subject = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } });
+    const subject = await this.prisma.subject.findUnique({
+      where: { id: dto.subjectId },
+    });
     if (!subject) throw new NotFoundException('Subject not found');
     const maxScore = dto.maxScore || subject.maxMarks;
     if (dto.score > maxScore) {
-      throw new BadRequestException(`Score ${dto.score} exceeds max ${maxScore}`);
+      throw new BadRequestException(
+        `Score ${dto.score} exceeds max ${maxScore}`,
+      );
     }
 
     // Admin without a teacher profile: find the teacher assigned to this subject+class
@@ -46,7 +54,9 @@ export class MarksService {
       if (assignment) resolvedTeacherId = assignment.teacherId;
     }
     if (!resolvedTeacherId) {
-      throw new BadRequestException('No teacher found for this subject and class');
+      throw new BadRequestException(
+        'No teacher found for this subject and class',
+      );
     }
 
     return this.prisma.mark.create({
@@ -61,14 +71,21 @@ export class MarksService {
         teacherId: resolvedTeacherId,
       },
       include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         subject: true,
         assessmentType: true,
       },
     });
   }
 
-  async update(id: string, dto: UpdateMarkDto, teacherId: string | null, role: string = 'TEACHER') {
+  async update(
+    id: string,
+    dto: UpdateMarkDto,
+    teacherId: string | null,
+    role: string = 'TEACHER',
+  ) {
     const mark = await this.prisma.mark.findUnique({
       where: { id },
       include: { subject: true, term: true },
@@ -81,14 +98,18 @@ export class MarksService {
 
     const maxScore = dto.maxScore || mark.maxScore;
     if (dto.score > maxScore) {
-      throw new BadRequestException(`Score ${dto.score} exceeds max ${maxScore}`);
+      throw new BadRequestException(
+        `Score ${dto.score} exceeds max ${maxScore}`,
+      );
     }
 
     return this.prisma.mark.update({
       where: { id },
       data: { score: dto.score, maxScore },
       include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         subject: true,
         assessmentType: true,
       },
@@ -96,7 +117,10 @@ export class MarksService {
   }
 
   async delete(id: string, teacherId: string | null, role: string = 'TEACHER') {
-    const mark = await this.prisma.mark.findUnique({ where: { id }, include: { term: true } });
+    const mark = await this.prisma.mark.findUnique({
+      where: { id },
+      include: { term: true },
+    });
     if (!mark) throw new NotFoundException('Mark not found');
     if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only delete your own marks');
@@ -105,10 +129,16 @@ export class MarksService {
     return this.prisma.mark.delete({ where: { id } });
   }
 
-  async batchEntry(dto: BatchMarkEntryDto, teacherId: string | null, role: string = 'TEACHER') {
+  async batchEntry(
+    dto: BatchMarkEntryDto,
+    teacherId: string | null,
+    role: string = 'TEACHER',
+  ) {
     await this.ensureTermOpen(dto.termId);
 
-    const subject = await this.prisma.subject.findUnique({ where: { id: dto.subjectId } });
+    const subject = await this.prisma.subject.findUnique({
+      where: { id: dto.subjectId },
+    });
     if (!subject) throw new NotFoundException('Subject not found');
 
     // Admin without a teacher profile: find the teacher assigned to this subject+class
@@ -120,14 +150,18 @@ export class MarksService {
       if (assignment) resolvedTeacherId = assignment.teacherId;
     }
     if (!resolvedTeacherId) {
-      throw new BadRequestException('No teacher found for this subject and class');
+      throw new BadRequestException(
+        'No teacher found for this subject and class',
+      );
     }
 
     // Validate all scores
     for (const m of dto.marks) {
       const max = m.maxScore || subject.maxMarks;
       if (m.score > max) {
-        throw new BadRequestException(`Score ${m.score} exceeds max ${max} for student ${m.studentId}`);
+        throw new BadRequestException(
+          `Score ${m.score} exceeds max ${max} for student ${m.studentId}`,
+        );
       }
     }
 
@@ -179,10 +213,14 @@ export class MarksService {
         skip,
         take: limit,
         include: {
-          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          student: {
+            include: { user: { select: { firstName: true, lastName: true } } },
+          },
           subject: true,
           assessmentType: true,
-          teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+          teacher: {
+            include: { user: { select: { firstName: true, lastName: true } } },
+          },
         },
         orderBy: [{ subject: { name: 'asc' } }, { createdAt: 'desc' }],
       }),
@@ -196,10 +234,14 @@ export class MarksService {
     const mark = await this.prisma.mark.findUnique({
       where: { id },
       include: {
-        student: { include: { user: { select: { firstName: true, lastName: true } } } },
+        student: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         subject: true,
         assessmentType: true,
-        teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
         classSection: { include: { classLevel: true } },
         term: true,
       },
@@ -212,7 +254,12 @@ export class MarksService {
   // COMPLETION TRACKER
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getCompletionTracker(classSectionId: string, termId: string, subjectId: string, assessmentTypeId: string) {
+  async getCompletionTracker(
+    classSectionId: string,
+    termId: string,
+    subjectId: string,
+    assessmentTypeId: string,
+  ) {
     // Get all students in this class section
     const students = await this.prisma.student.findMany({
       where: { classSectionId, status: 'ACTIVE' },
@@ -271,10 +318,18 @@ export class MarksService {
 
         // Calculate average: sum of (score/maxScore*subjectMaxMarks) / number of subjects
         // Group by subject, take average across assessment types per subject
-        const subjectAverages = new Map<string, { total: number; count: number; maxMarks: number }>();
+        const subjectAverages = new Map<
+          string,
+          { total: number; count: number; maxMarks: number }
+        >();
         for (const mark of marks) {
-          const existing = subjectAverages.get(mark.subjectId) || { total: 0, count: 0, maxMarks: mark.subject.maxMarks };
-          existing.total += (mark.score / mark.maxScore) * mark.subject.maxMarks;
+          const existing = subjectAverages.get(mark.subjectId) || {
+            total: 0,
+            count: 0,
+            maxMarks: mark.subject.maxMarks,
+          };
+          existing.total +=
+            (mark.score / mark.maxScore) * mark.subject.maxMarks;
           existing.count += 1;
           subjectAverages.set(mark.subjectId, existing);
         }
@@ -330,7 +385,9 @@ export class MarksService {
       include: {
         student: {
           include: {
-            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+            user: {
+              select: { firstName: true, lastName: true, photoUrl: true },
+            },
           },
         },
       },
@@ -344,7 +401,9 @@ export class MarksService {
       include: {
         student: {
           include: {
-            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+            user: {
+              select: { firstName: true, lastName: true, photoUrl: true },
+            },
             classSection: { include: { classLevel: true } },
           },
         },
@@ -369,8 +428,12 @@ export class MarksService {
     return this.prisma.termResult.update({
       where: { id },
       data: {
-        ...(dto.teacherComment !== undefined && { teacherComment: dto.teacherComment }),
-        ...(dto.headmasterComment !== undefined && { headmasterComment: dto.headmasterComment }),
+        ...(dto.teacherComment !== undefined && {
+          teacherComment: dto.teacherComment,
+        }),
+        ...(dto.headmasterComment !== undefined && {
+          headmasterComment: dto.headmasterComment,
+        }),
       },
     });
   }
@@ -414,7 +477,10 @@ export class MarksService {
       for (const student of students) {
         // Get term results
         const termResults = await tx.termResult.findMany({
-          where: { studentId: student.id, termId: { in: terms.map((t) => t.id) } },
+          where: {
+            studentId: student.id,
+            termId: { in: terms.map((t) => t.id) },
+          },
           orderBy: { term: { startDate: 'asc' } },
         });
 
@@ -422,16 +488,26 @@ export class MarksService {
         const term2Avg = termResults[1]?.average || null;
         const term3Avg = termResults[2]?.average || null;
 
-        const validAvgs = [term1Avg, term2Avg, term3Avg].filter((a) => a !== null) as number[];
-        const yearlyAverage = validAvgs.length > 0 ? validAvgs.reduce((s, a) => s + a, 0) / validAvgs.length : null;
+        const validAvgs = [term1Avg, term2Avg, term3Avg].filter(
+          (a) => a !== null,
+        );
+        const yearlyAverage =
+          validAvgs.length > 0
+            ? validAvgs.reduce((s, a) => s + a, 0) / validAvgs.length
+            : null;
 
         // Discipline average (current points / starting points * 100)
-        const disciplineAverage = startingPoints > 0
-          ? (student.disciplinePoints / startingPoints) * 100
-          : null;
+        const disciplineAverage =
+          startingPoints > 0
+            ? (student.disciplinePoints / startingPoints) * 100
+            : null;
 
-        const letterGrade = yearlyAverage !== null ? this.getLetterGrade(yearlyAverage, gradingScale) : null;
-        const isPromoted = yearlyAverage !== null && yearlyAverage >= passThreshold;
+        const letterGrade =
+          yearlyAverage !== null
+            ? this.getLetterGrade(yearlyAverage, gradingScale)
+            : null;
+        const isPromoted =
+          yearlyAverage !== null && yearlyAverage >= passThreshold;
 
         const result = await tx.yearResult.upsert({
           where: {
@@ -441,7 +517,15 @@ export class MarksService {
               academicYearId,
             },
           },
-          update: { term1Avg, term2Avg, term3Avg, yearlyAverage, letterGrade, disciplineAverage, isPromoted },
+          update: {
+            term1Avg,
+            term2Avg,
+            term3Avg,
+            yearlyAverage,
+            letterGrade,
+            disciplineAverage,
+            isPromoted,
+          },
           create: {
             studentId: student.id,
             classSectionId,
@@ -478,7 +562,9 @@ export class MarksService {
       include: {
         student: {
           include: {
-            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+            user: {
+              select: { firstName: true, lastName: true, photoUrl: true },
+            },
           },
         },
       },
@@ -492,7 +578,9 @@ export class MarksService {
       include: {
         student: {
           include: {
-            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+            user: {
+              select: { firstName: true, lastName: true, photoUrl: true },
+            },
             classSection: { include: { classLevel: true } },
           },
         },
@@ -552,9 +640,11 @@ export class MarksService {
     const classResults = await this.prisma.termResult.findMany({
       where: { classSectionId: student.classSectionId, termId },
     });
-    const classAverage = classResults.length > 0
-      ? classResults.reduce((s, r) => s + (r.average || 0), 0) / classResults.length
-      : null;
+    const classAverage =
+      classResults.length > 0
+        ? classResults.reduce((s, r) => s + (r.average || 0), 0) /
+          classResults.length
+        : null;
     const totalStudents = classResults.length;
 
     // Group marks by subject
@@ -622,7 +712,10 @@ export class MarksService {
       .sort((a, b) => b.min - a.min);
   }
 
-  private getLetterGrade(average: number, scale: { grade: string; min: number }[]): string {
+  private getLetterGrade(
+    average: number,
+    scale: { grade: string; min: number }[],
+  ): string {
     for (const s of scale) {
       if (average >= s.min) return s.grade;
     }
@@ -644,12 +737,19 @@ export class MarksService {
   }
 
   private groupMarksBySubject(marks: any[]) {
-    const map = new Map<string, { subject: any; assessments: any[]; average: number }>();
+    const map = new Map<
+      string,
+      { subject: any; assessments: any[]; average: number }
+    >();
 
     for (const mark of marks) {
       if (!map.has(mark.subjectId)) {
         map.set(mark.subjectId, {
-          subject: { id: mark.subject.id, name: mark.subject.name, maxMarks: mark.subject.maxMarks },
+          subject: {
+            id: mark.subject.id,
+            name: mark.subject.name,
+            maxMarks: mark.subject.maxMarks,
+          },
           assessments: [],
           average: 0,
         });
@@ -666,7 +766,10 @@ export class MarksService {
     // Calculate per-subject averages
     for (const [, val] of map) {
       const total = val.assessments.reduce((s, a) => s + a.percentage, 0);
-      val.average = val.assessments.length > 0 ? Math.round(total / val.assessments.length) : 0;
+      val.average =
+        val.assessments.length > 0
+          ? Math.round(total / val.assessments.length)
+          : 0;
     }
 
     return Array.from(map.values());

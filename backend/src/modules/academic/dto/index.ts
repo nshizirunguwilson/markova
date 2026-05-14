@@ -431,7 +431,10 @@ export class PromoteStudentsDto {
   @IsUUID()
   academicYearId: string;
 
-  @ApiPropertyOptional({ description: 'Pass threshold (default 50)', example: 50 })
+  @ApiPropertyOptional({
+    description: 'Pass threshold (default 50)',
+    example: 50,
+  })
   @IsOptional()
   @IsInt()
   passThreshold?: number;

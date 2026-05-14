@@ -71,7 +71,10 @@ export class AcademicController {
   @Put('years/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update academic year' })
-  updateYear(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAcademicYearDto) {
+  updateYear(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAcademicYearDto,
+  ) {
     return this.service.updateYear(id, dto);
   }
 
@@ -108,7 +111,10 @@ export class AcademicController {
   @Put('terms/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update term' })
-  updateTerm(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTermDto) {
+  updateTerm(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTermDto,
+  ) {
     return this.service.updateTerm(id, dto);
   }
 
@@ -152,7 +158,10 @@ export class AcademicController {
   @Put('class-levels/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update class level' })
-  updateClassLevel(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClassLevelDto) {
+  updateClassLevel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateClassLevelDto,
+  ) {
     return this.service.updateClassLevel(id, dto);
   }
 
@@ -182,7 +191,10 @@ export class AcademicController {
   @Put('sections/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update class section' })
-  updateSection(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClassSectionDto) {
+  updateSection(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateClassSectionDto,
+  ) {
     return this.service.updateSection(id, dto);
   }
 
@@ -212,7 +224,10 @@ export class AcademicController {
   @Put('subjects/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update subject' })
-  updateSubject(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSubjectDto) {
+  updateSubject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSubjectDto,
+  ) {
     return this.service.updateSubject(id, dto);
   }
 
@@ -256,7 +271,11 @@ export class AcademicController {
     @Query('classSectionId') classSectionId?: string,
     @Query('academicYearId') academicYearId?: string,
   ) {
-    return this.service.findAllAssignments({ teacherId, classSectionId, academicYearId });
+    return this.service.findAllAssignments({
+      teacherId,
+      classSectionId,
+      academicYearId,
+    });
   }
 
   @Post('assignments')
@@ -309,7 +328,10 @@ export class AcademicController {
   @Put('timetable/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update a timetable entry' })
-  updateTimetable(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTimetableDto) {
+  updateTimetable(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTimetableDto,
+  ) {
     return this.service.updateTimetable(id, dto);
   }
 
@@ -349,7 +371,10 @@ export class AcademicController {
   @Put('exams/:id')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update exam schedule entry' })
-  updateExamSchedule(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateExamScheduleDto) {
+  updateExamSchedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateExamScheduleDto,
+  ) {
     return this.service.updateExamSchedule(id, dto);
   }
 
@@ -371,7 +396,9 @@ export class AcademicController {
 
   @Post('promote')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Auto-promote students based on yearly average threshold' })
+  @ApiOperation({
+    summary: 'Auto-promote students based on yearly average threshold',
+  })
   promoteStudents(@Body() dto: PromoteStudentsDto) {
     return this.service.promoteStudents(dto);
   }

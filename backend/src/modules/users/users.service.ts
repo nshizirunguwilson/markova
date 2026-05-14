@@ -17,7 +17,14 @@ export class UsersService {
   // ─── LIST USERS ─────────────────────────────────────────────────────────────
 
   async findAll(query: QueryUserDto) {
-    const { page = 1, limit = 20, role, search, isActive, classSectionId } = query;
+    const {
+      page = 1,
+      limit = 20,
+      role,
+      search,
+      isActive,
+      classSectionId,
+    } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.UserWhereInput = {};
@@ -111,7 +118,13 @@ export class UsersService {
             parentStudents: {
               include: {
                 parent: {
-                  select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    phone: true,
+                    email: true,
+                  },
                 },
               },
             },
@@ -157,11 +170,15 @@ export class UsersService {
   async create(dto: CreateUserDto) {
     // Check uniqueness
     if (dto.email) {
-      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      const existing = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
       if (existing) throw new ConflictException('Email already in use');
     }
     if (dto.phone) {
-      const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+      const existing = await this.prisma.user.findUnique({
+        where: { phone: dto.phone },
+      });
       if (existing) throw new ConflictException('Phone already in use');
     }
 
@@ -183,7 +200,9 @@ export class UsersService {
     // Create role-specific records
     if (dto.role === Role.STUDENT) {
       if (!dto.classSectionId) {
-        throw new BadRequestException('classSectionId is required for students');
+        throw new BadRequestException(
+          'classSectionId is required for students',
+        );
       }
       const studentIdNumber = await this.generateStudentId();
       await this.prisma.student.create({
@@ -259,7 +278,9 @@ export class UsersService {
           ...(dto.status && { status: dto.status }),
           ...(dto.bloodType !== undefined && { bloodType: dto.bloodType }),
           ...(dto.allergies !== undefined && { allergies: dto.allergies }),
-          ...(dto.medicalConditions !== undefined && { medicalConditions: dto.medicalConditions }),
+          ...(dto.medicalConditions !== undefined && {
+            medicalConditions: dto.medicalConditions,
+          }),
         },
       });
     }
@@ -355,15 +376,23 @@ export class UsersService {
         const row = rows[i];
         // Check for duplicates
         if (row.email) {
-          const existing = await tx.user.findUnique({ where: { email: row.email } });
+          const existing = await tx.user.findUnique({
+            where: { email: row.email },
+          });
           if (existing) {
-            throw new BadRequestException(`Row ${i + 1}: Email ${row.email} already exists`);
+            throw new BadRequestException(
+              `Row ${i + 1}: Email ${row.email} already exists`,
+            );
           }
         }
         if (row.phone) {
-          const existing = await tx.user.findUnique({ where: { phone: row.phone } });
+          const existing = await tx.user.findUnique({
+            where: { phone: row.phone },
+          });
           if (existing) {
-            throw new BadRequestException(`Row ${i + 1}: Phone ${row.phone} already exists`);
+            throw new BadRequestException(
+              `Row ${i + 1}: Phone ${row.phone} already exists`,
+            );
           }
         }
 
@@ -382,7 +411,9 @@ export class UsersService {
 
         if (row.role === Role.STUDENT) {
           if (!row.classSectionId) {
-            throw new BadRequestException(`Row ${i + 1}: classSectionId required for students`);
+            throw new BadRequestException(
+              `Row ${i + 1}: classSectionId required for students`,
+            );
           }
           const studentIdNumber = await this.generateStudentId();
           await tx.student.create({
@@ -454,7 +485,9 @@ export class UsersService {
 
     let sequence = 1;
     if (lastStudent) {
-      const lastNum = parseInt(lastStudent.studentIdNumber.split('-').pop() || '0');
+      const lastNum = parseInt(
+        lastStudent.studentIdNumber.split('-').pop() || '0',
+      );
       sequence = lastNum + 1;
     }
 

@@ -24,7 +24,9 @@ export class OwnershipService {
         select: { id: true },
       });
       if (!student || student.id !== studentId) {
-        throw new ForbiddenException('Access denied: you can only view your own data');
+        throw new ForbiddenException(
+          'Access denied: you can only view your own data',
+        );
       }
       return;
     }
@@ -34,7 +36,9 @@ export class OwnershipService {
         where: { parentUserId: userId, studentId },
       });
       if (!link) {
-        throw new ForbiddenException('Access denied: student is not linked to your account');
+        throw new ForbiddenException(
+          'Access denied: student is not linked to your account',
+        );
       }
       return;
     }
@@ -81,7 +85,9 @@ export class OwnershipService {
       },
     });
     if (!assignment) {
-      throw new ForbiddenException('Access denied: you are not assigned to this class/subject');
+      throw new ForbiddenException(
+        'Access denied: you are not assigned to this class/subject',
+      );
     }
   }
 }

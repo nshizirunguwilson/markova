@@ -14,7 +14,12 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HelpService } from './help.service';
-import { CreateFaqDto, UpdateFaqDto, CreateTicketDto, UpdateTicketStatusDto } from './dto';
+import {
+  CreateFaqDto,
+  UpdateFaqDto,
+  CreateTicketDto,
+  UpdateTicketStatusDto,
+} from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 
@@ -88,7 +93,10 @@ export class HelpController {
   @Patch('tickets/:id/status')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update ticket status' })
-  updateTicketStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTicketStatusDto) {
+  updateTicketStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTicketStatusDto,
+  ) {
     return this.service.updateTicketStatus(id, dto);
   }
 }

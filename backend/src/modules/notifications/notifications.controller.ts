@@ -42,7 +42,10 @@ export class NotificationsController {
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Get user notifications' })
   getNotifications(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    return this.service.getUserNotifications(user.id, limit ? Number(limit) : 50);
+    return this.service.getUserNotifications(
+      user.id,
+      limit ? Number(limit) : 50,
+    );
   }
 
   @Get('unread')

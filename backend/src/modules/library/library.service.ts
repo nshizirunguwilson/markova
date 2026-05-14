@@ -125,7 +125,9 @@ export class LibraryService {
       where: { id },
       include: {
         loans: {
-          include: { borrower: { select: { firstName: true, lastName: true } } },
+          include: {
+            borrower: { select: { firstName: true, lastName: true } },
+          },
           orderBy: { checkedOutAt: 'desc' },
           take: 20,
         },
@@ -150,7 +152,9 @@ export class LibraryService {
     // Find student/user
     const student = await this.prisma.student.findFirst({
       where: { studentIdNumber: dto.studentIdentifier },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
     });
     if (!student) throw new NotFoundException('Student not found');
 
@@ -160,7 +164,9 @@ export class LibraryService {
       where: { borrowerUserId: student.user.id, status: 'ACTIVE' },
     });
     if (activeLoans >= borrowingLimit) {
-      throw new BadRequestException(`Borrowing limit reached (${borrowingLimit} books)`);
+      throw new BadRequestException(
+        `Borrowing limit reached (${borrowingLimit} books)`,
+      );
     }
 
     // Check for overdue books
@@ -212,7 +218,8 @@ export class LibraryService {
       include: { borrower: { select: { firstName: true, lastName: true } } },
       orderBy: { checkedOutAt: 'asc' }, // Return oldest loan first
     });
-    if (!loan) throw new NotFoundException('No active loan found for this book');
+    if (!loan)
+      throw new NotFoundException('No active loan found for this book');
 
     const [updatedLoan] = await this.prisma.$transaction([
       this.prisma.bookLoan.update({
@@ -238,7 +245,8 @@ export class LibraryService {
       include: { book: true },
     });
     if (!loan) throw new NotFoundException('Loan not found');
-    if (loan.status !== 'ACTIVE') throw new BadRequestException('Loan is not active');
+    if (loan.status !== 'ACTIVE')
+      throw new BadRequestException('Loan is not active');
 
     return this.prisma.bookLoan.update({
       where: { id: loanId },
@@ -333,7 +341,9 @@ export class LibraryService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getAnalytics() {
-    const totalBooks = await this.prisma.book.count({ where: { isActive: true } });
+    const totalBooks = await this.prisma.book.count({
+      where: { isActive: true },
+    });
     const totalCopies = await this.prisma.book.aggregate({
       where: { isActive: true },
       _sum: { quantity: true },
@@ -342,11 +352,15 @@ export class LibraryService {
       where: { isActive: true },
       _sum: { availableCount: true },
     });
-    const activeLoans = await this.prisma.bookLoan.count({ where: { status: 'ACTIVE' } });
+    const activeLoans = await this.prisma.bookLoan.count({
+      where: { status: 'ACTIVE' },
+    });
     const overdueLoans = await this.prisma.bookLoan.count({
       where: { status: 'ACTIVE', dueDate: { lt: new Date() } },
     });
-    const lostBooks = await this.prisma.bookLoan.count({ where: { status: 'LOST' } });
+    const lostBooks = await this.prisma.bookLoan.count({
+      where: { status: 'LOST' },
+    });
 
     // Most popular books (by loan count)
     const popularBooks = await this.prisma.bookLoan.groupBy({
@@ -381,7 +395,8 @@ export class LibraryService {
       activeLoans,
       overdueLoans,
       lostBooks,
-      overdueRate: activeLoans > 0 ? Math.round((overdueLoans / activeLoans) * 100) : 0,
+      overdueRate:
+        activeLoans > 0 ? Math.round((overdueLoans / activeLoans) * 100) : 0,
       popularBooks: popularWithDetails,
       categories: categories.map((c) => ({
         category: c.category || 'Uncategorized',
@@ -397,7 +412,9 @@ export class LibraryService {
 
   private async findBookByIdentifier(identifier: string) {
     // Try barcode first, then ID
-    let book = await this.prisma.book.findFirst({ where: { barcode: identifier } });
+    let book = await this.prisma.book.findFirst({
+      where: { barcode: identifier },
+    });
     if (!book) {
       try {
         book = await this.prisma.book.findUnique({ where: { id: identifier } });

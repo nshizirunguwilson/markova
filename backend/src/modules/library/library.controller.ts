@@ -66,7 +66,10 @@ export class LibraryController {
   @Put('books/:id')
   @Roles('ADMIN', 'LIBRARIAN')
   @ApiOperation({ summary: 'Update a book' })
-  updateBook(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateBookDto) {
+  updateBook(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateBookDto,
+  ) {
     return this.service.updateBook(id, dto);
   }
 

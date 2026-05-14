@@ -70,7 +70,12 @@ export class MarksController {
     @Query('subjectId') subjectId: string,
     @Query('assessmentTypeId') assessmentTypeId: string,
   ) {
-    return this.service.getCompletionTracker(classSectionId, termId, subjectId, assessmentTypeId);
+    return this.service.getCompletionTracker(
+      classSectionId,
+      termId,
+      subjectId,
+      assessmentTypeId,
+    );
   }
 
   @Get(':id')
@@ -83,7 +88,11 @@ export class MarksController {
   @Put(':id')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Update a mark' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMarkDto, @CurrentUser() user: any) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMarkDto,
+    @CurrentUser() user: any,
+  ) {
     return this.service.update(id, dto, user.teacherId, user.role);
   }
 

@@ -26,7 +26,10 @@ export class MessagingController {
   @Post('conversations')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @ApiOperation({ summary: 'Create a conversation' })
-  createConversation(@Body() dto: CreateConversationDto, @CurrentUser() user: any) {
+  createConversation(
+    @Body() dto: CreateConversationDto,
+    @CurrentUser() user: any,
+  ) {
     return this.service.createConversation(dto, user.id);
   }
 
@@ -46,7 +49,12 @@ export class MessagingController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    return this.service.getMessages(id, user.id, limit ? Number(limit) : 50, before);
+    return this.service.getMessages(
+      id,
+      user.id,
+      limit ? Number(limit) : 50,
+      before,
+    );
   }
 
   @Post('messages')

@@ -77,7 +77,11 @@ export class AnalyticsController {
     @Param('classSectionId', ParseUUIDPipe) classSectionId: string,
     @Query('termId') termId: string,
   ) {
-    return this.service.getTeacherClassAnalytics(req.user.teacherId, classSectionId, termId);
+    return this.service.getTeacherClassAnalytics(
+      req.user.teacherId,
+      classSectionId,
+      termId,
+    );
   }
 
   // ── Student ───────────────────────────────────────────────────────────────
