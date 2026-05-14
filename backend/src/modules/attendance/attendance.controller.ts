@@ -5,6 +5,8 @@ import {
   Body,
   Query,
   UseGuards,
+  BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -68,9 +70,12 @@ export class AttendanceController {
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'Get class attendance for a date' })
   getClassAttendance(
-    @Query('classSectionId') classSectionId: string,
+    @Query('classSectionId', new ParseUUIDPipe()) classSectionId: string,
     @Query('date') date: string,
   ) {
+    if (!date) {
+      throw new BadRequestException('date query parameter is required');
+    }
     return this.service.getClassAttendance(classSectionId, date);
   }
 
@@ -107,7 +112,9 @@ export class AttendanceController {
 
   @Get('class-students')
   @Roles('ADMIN', 'TEACHER')
-  @ApiOperation({ summary: 'Get class students with NFC card IDs for local cache' })
+  @ApiOperation({
+    summary: 'Get class students with NFC card IDs for local cache',
+  })
   getClassStudentsWithNfc(@Query('classSectionId') classSectionId: string) {
     return this.service.getClassStudentsWithNfc(classSectionId);
   }
@@ -132,6 +139,9 @@ export class AttendanceController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Get teacher attendance for a date' })
   getTeacherAttendance(@Query('date') date: string) {
+    if (!date) {
+      throw new BadRequestException('date query parameter is required');
+    }
     return this.service.getTeacherAttendance(date);
   }
 
@@ -144,12 +154,17 @@ export class AttendanceController {
     @Query('classSectionId') classSectionId?: string,
     @Query('threshold') threshold?: string,
   ) {
-    return this.service.getChronicallyAbsent(classSectionId, threshold ? Number(threshold) : undefined);
+    return this.service.getChronicallyAbsent(
+      classSectionId,
+      threshold ? Number(threshold) : undefined,
+    );
   }
 
   @Post('chronic/notify')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Send email alerts to parents of chronically absent students' })
+  @ApiOperation({
+    summary: 'Send email alerts to parents of chronically absent students',
+  })
   sendChronicAlerts() {
     return this.service.sendChronicAbsenteeismAlerts();
   }
