@@ -493,13 +493,16 @@ async function main() {
     books.push(book);
   }
 
-  // Create a few active loans
+  // Create a few active loans, due 14 days from now so they aren't
+  // immediately overdue every time the seed is re-run.
+  const loanDueDate = new Date();
+  loanDueDate.setDate(loanDueDate.getDate() + 14);
   for (let i = 0; i < 5; i++) {
     await prisma.bookLoan.create({
       data: {
         bookId: books[i].id,
         borrowerUserId: studentUsers[i].id,
-        dueDate: new Date('2025-02-28'),
+        dueDate: loanDueDate,
         status: LoanStatus.ACTIVE,
       },
     });
