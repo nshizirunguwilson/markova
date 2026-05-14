@@ -14,7 +14,7 @@ Use Part A when you need a quick map of what the system does. Use Part B when yo
 ## A1. Authentication & Access
 
 - Email or phone login
-- OTP verification for staff and parents (email/SMS)
+- OTP verification for staff and parents (email)
 - Password reset by email
 - Account lockout after repeated failed attempts
 - Rate limiting on auth endpoints
@@ -89,7 +89,6 @@ Use Part A when you need a quick map of what the system does. Use Part B when yo
 
 - In-app notifications with unread badge
 - Email delivery (via SMTP)
-- SMS delivery (via Twilio / Africa's Talking)
 - Push notifications to mobile devices
 
 ## A9. Reports & Documents
@@ -658,7 +657,7 @@ SMTP via Brevo is configured. Emails are sent for:
 
 ### 8.4 SMS delivery
 
-Twilio (or Africa's Talking depending on env) is configured. Used the same way as email for users whose preference is SMS.
+Disabled. Notifications that previously fell back to SMS are now delivered by email.
 
 ### 8.5 Push notifications (mobile)
 
@@ -723,7 +722,7 @@ If any of these fail, do not demo — fix first.
 
 ## 11. Known limitations (be upfront about these)
 
-- **Email + SMS delivery** rely on external providers (Brevo / Twilio). If their credits run out, the OTP messages won't arrive — but the dev `devOtp` field and backend logs always have the code.
+- **Email delivery** relies on the SMTP provider (Brevo). If credits run out, OTP messages won't arrive — but the dev `devOtp` field and backend logs always have the code.
 - **Mobile app** is bundled but runtime flows are unverified end-to-end. Treat the mobile UI as alpha until first device test.
 - **Audit logs** have no dashboard UI yet — query the table directly.
 - **Photo upload on user profile** uses the same pattern as logo upload (verified) but the per-user endpoint isn't independently smoke-tested.
