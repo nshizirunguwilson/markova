@@ -106,7 +106,13 @@ export class AuthService {
     const sessionId = uuidv4();
     await this.redis.set(
       'otp:' + sessionId,
-      JSON.stringify({ userId: user.id, otp, expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString() }),
+      JSON.stringify({
+        userId: user.id,
+        otp,
+        expiresAt: new Date(
+          Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000,
+        ).toISOString(),
+      }),
       'EX',
       OTP_TTL_SECONDS,
     );
@@ -122,7 +128,9 @@ export class AuthService {
          <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.</p>`,
       );
     }
-    this.logger.log(`OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`);
+    this.logger.log(
+      `OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`,
+    );
 
     return {
       requiresOtp: true,
@@ -137,11 +145,7 @@ export class AuthService {
 
   // ─── VERIFY OTP (Step 2) ───────────────────────────────────────────────────
 
-  async verifyOtp(
-    dto: VerifyOtpDto,
-    ipAddress?: string,
-    deviceInfo?: string,
-  ) {
+  async verifyOtp(dto: VerifyOtpDto, ipAddress?: string, deviceInfo?: string) {
     const sessionRaw = await this.redis.get('otp:' + dto.sessionId);
 
     if (!sessionRaw) {
@@ -281,7 +285,10 @@ export class AuthService {
     const token = uuidv4();
     await this.redis.set(
       'reset:' + token,
-      JSON.stringify({ userId: user.id, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() }),
+      JSON.stringify({
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }),
       'EX',
       RESET_TOKEN_TTL_SECONDS,
     );
@@ -297,7 +304,9 @@ export class AuthService {
          <p>This code expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
       );
     }
-    this.logger.log(`Password reset token for ${user.email || user.phone}: ${token}`);
+    this.logger.log(
+      `Password reset token for ${user.email || user.phone}: ${token}`,
+    );
 
     return {
       message: 'If the account exists, a reset link has been sent',
@@ -418,7 +427,10 @@ export class AuthService {
     const { student, teacher, ...rest } = user as any;
     return {
       ...rest,
-      ...(student && { studentId: student.id, classSectionId: student.classSectionId }),
+      ...(student && {
+        studentId: student.id,
+        classSectionId: student.classSectionId,
+      }),
       ...(teacher && { teacherId: teacher.id }),
     };
   }
@@ -433,14 +445,18 @@ export class AuthService {
   ) {
     const payload = { sub: userId, role };
 
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: ACCESS_TOKEN_EXPIRY,
-    });
+    const accessToken = this.jwtService.sign(
+      { ...payload, jti: uuidv4() },
+      { expiresIn: ACCESS_TOKEN_EXPIRY },
+    );
 
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: REFRESH_TOKEN_EXPIRY,
-    });
+    const refreshToken = this.jwtService.sign(
+      { ...payload, jti: uuidv4() },
+      {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: REFRESH_TOKEN_EXPIRY,
+      },
+    );
 
     // Enforce max sessions
     const activeSessions = await this.prisma.userSession.findMany({

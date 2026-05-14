@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,11 @@ const mockRedis = {
 const mockJwt = {
   sign: jest.fn().mockReturnValue('mock-token'),
   verify: jest.fn().mockReturnValue({ sub: 'user-1', role: 'ADMIN' }),
+};
+
+const mockNotifications = {
+  sendEmailToAddress: jest.fn().mockResolvedValue(undefined),
+  sendSmsToNumber: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockConfig = {
@@ -109,6 +115,7 @@ describe('AuthService', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: NotificationsService, useValue: mockNotifications },
       ],
     }).compile();
 
@@ -289,9 +296,9 @@ describe('AuthService', () => {
     it('should throw on expired/missing OTP session', async () => {
       mockRedis.get.mockResolvedValue(null);
 
-      await expect(
-        service.verifyOtp({ sessionId, otp }),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.verifyOtp({ sessionId, otp })).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw on expired OTP (expiresAt in the past)', async () => {
@@ -302,9 +309,9 @@ describe('AuthService', () => {
       };
       mockRedis.get.mockResolvedValue(JSON.stringify(sessionData));
 
-      await expect(
-        service.verifyOtp({ sessionId, otp }),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.verifyOtp({ sessionId, otp })).rejects.toThrow(
+        UnauthorizedException,
+      );
 
       expect(mockRedis.del).toHaveBeenCalledWith('otp:' + sessionId);
     });
@@ -361,9 +368,9 @@ describe('AuthService', () => {
       // Redis NX lock fails — another request is already refreshing
       mockRedis.set.mockResolvedValue(null);
 
-      await expect(
-        service.refreshToken({ refreshToken }),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken({ refreshToken })).rejects.toThrow(
+        UnauthorizedException,
+      );
 
       // Session should be deactivated as a security measure
       expect(mockPrisma.userSession.update).toHaveBeenCalledWith({
@@ -386,9 +393,9 @@ describe('AuthService', () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN' });
       mockPrisma.userSession.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.refreshToken({ refreshToken }),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken({ refreshToken })).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
