@@ -24,6 +24,31 @@ export class SchoolConfigService {
     return { configs, map };
   }
 
+  // ─── PUBLIC BRANDING (no auth) ──────────────────────────────────────────────
+  // The login page and every role's shell need the school name, colour and logo
+  // before/without authentication, so these few non-sensitive keys are exposed
+  // publicly. Nothing else is returned.
+
+  async getPublicBranding() {
+    const keys = [
+      'school_name',
+      'school_motto',
+      'primary_color',
+      'logo_url',
+    ];
+    const configs = await this.prisma.schoolConfig.findMany({
+      where: { key: { in: keys } },
+    });
+    const map: Record<string, string> = {};
+    for (const c of configs) map[c.key] = c.value;
+    return {
+      schoolName: map.school_name || 'Markova',
+      schoolMotto: map.school_motto || '',
+      primaryColor: map.primary_color || '#1B4F72',
+      logoUrl: map.logo_url || '',
+    };
+  }
+
   // ─── GET SINGLE CONFIG ──────────────────────────────────────────────────────
 
   async findByKey(key: string) {

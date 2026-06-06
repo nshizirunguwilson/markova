@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { useBrandStore } from "@/stores/brand-store";
 import type { Role } from "@/types";
 
 interface SidebarProps {
@@ -15,6 +16,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const schoolName = useBrandStore((s) => s.schoolName);
   const sections = getNavigation((user?.role || "ADMIN") as Role);
 
   return (
@@ -28,9 +30,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <span className="text-sm font-bold text-white">M</span>
+          <span className="text-sm font-bold text-white">{schoolName.charAt(0).toUpperCase()}</span>
         </div>
-        <span className="text-lg font-bold text-primary">Markova</span>
+        <span className="text-lg font-bold text-primary truncate">{schoolName}</span>
       </div>
 
       {/* Navigation */}

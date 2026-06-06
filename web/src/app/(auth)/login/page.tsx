@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, ShieldCheck, KeyRound } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useBrandStore } from "@/stores/brand-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -63,6 +64,7 @@ function getDashboardRoute(role: string): string {
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
+  const schoolName = useBrandStore((s) => s.schoolName);
 
   const [step, setStep] = useState<"login" | "otp" | "change-password">("login");
   const [isLoading, setIsLoading] = useState(false);
@@ -184,7 +186,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
             <ShieldCheck className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-primary">Markova</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-primary">{schoolName}</h1>
           <p className="mt-1 text-sm text-muted">School Management System</p>
         </div>
 

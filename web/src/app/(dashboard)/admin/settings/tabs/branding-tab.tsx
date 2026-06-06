@@ -2,6 +2,7 @@
 
 import { Card, CardTitle, Button } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
+import { useBrandStore } from "@/stores/brand-store";
 import { useForm } from "react-hook-form";
 import { Upload, Save, ImageIcon } from "lucide-react";
 import api from "@/lib/api";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 export function BrandingTab() {
   const { data } = useSchoolConfig();
   const bulkUpsert = useBulkUpsertConfig();
+  const setBrand = useBrandStore((s) => s.setBrand);
   const map = data?.map || {};
 
   const { register, handleSubmit } = useForm({
@@ -18,6 +20,8 @@ export function BrandingTab() {
 
   const onSaveColor = (data: any) => {
     bulkUpsert.mutate([{ key: "primary_color", value: data.primary_color }]);
+    // Apply the new theme colour live across the app.
+    setBrand({ primaryColor: data.primary_color });
   };
 
   const uploadFile = async (type: string, file: File) => {

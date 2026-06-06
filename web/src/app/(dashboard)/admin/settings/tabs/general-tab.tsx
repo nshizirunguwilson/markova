@@ -3,11 +3,13 @@
 import { useForm } from "react-hook-form";
 import { Card, CardTitle, Input, Button } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
+import { useBrandStore } from "@/stores/brand-store";
 import { Save } from "lucide-react";
 
 export function GeneralTab() {
   const { data } = useSchoolConfig();
   const bulkUpsert = useBulkUpsertConfig();
+  const setBrand = useBrandStore((s) => s.setBrand);
   const map = data?.map || {};
 
   const { register, handleSubmit } = useForm({
@@ -24,6 +26,8 @@ export function GeneralTab() {
     bulkUpsert.mutate(
       Object.entries(data).map(([key, value]) => ({ key, value: value as string }))
     );
+    // Reflect name/motto live across the shell without a reload.
+    setBrand({ schoolName: data.school_name, schoolMotto: data.school_motto });
   };
 
   return (

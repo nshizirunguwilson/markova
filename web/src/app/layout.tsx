@@ -12,6 +12,7 @@ import { Poppins } from "next/font/google";
 // import { Playfair } from "next/font/google";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/lib/query-provider";
+import { BrandProvider } from "@/components/brand-provider";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -37,7 +38,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <QueryProvider>
-          {children}
+          <BrandProvider>{children}</BrandProvider>
           <Toaster position="top-right" richColors />
         </QueryProvider>
       </body>
