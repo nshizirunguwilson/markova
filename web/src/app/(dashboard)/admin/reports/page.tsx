@@ -24,6 +24,7 @@ import {
   useGenerateClassReports,
   useGenerateDocument,
 } from "@/hooks/use-reports";
+import { StudentPicker } from "@/components/student-picker";
 import api from "@/lib/api";
 import { FileText, Printer, Download, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -332,15 +333,9 @@ export default function AdminReportsPage() {
         <Card className="p-6 space-y-4">
           <CardTitle>Generate Document</CardTitle>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input
-              type="text"
-              placeholder="Student ID (UUID)"
-              className="border rounded-lg px-3 py-2 text-sm"
-              value={docStudentId}
-              onChange={(e) => setDocStudentId(e.target.value)}
-            />
+          <StudentPicker value={docStudentId} onChange={setDocStudentId} />
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <select
               className="border rounded-lg px-3 py-2 text-sm"
               value={docType}
@@ -354,7 +349,7 @@ export default function AdminReportsPage() {
 
             <Button
               onClick={handleGenerateDocument}
-              disabled={generateDoc.isPending}
+              disabled={generateDoc.isPending || !docStudentId}
             >
               <FileText className="w-4 h-4 mr-2" />
               Generate

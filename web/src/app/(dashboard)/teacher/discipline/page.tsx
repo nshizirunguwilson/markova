@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { useIncidents, useCreateIncident } from "@/hooks/use-discipline";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
+import { StudentPicker } from "@/components/student-picker";
 import { AlertTriangle, Plus } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 
@@ -109,10 +110,9 @@ export default function TeacherDisciplinePage() {
 
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Record Incident">
         <div className="space-y-4">
-          <Input
-            label="Student ID (UUID)"
+          <StudentPicker
             value={form.studentId}
-            onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+            onChange={(studentId) => setForm({ ...form, studentId })}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />

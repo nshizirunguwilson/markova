@@ -25,6 +25,7 @@ import {
   useDisciplineDashboard,
 } from "@/hooks/use-discipline";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
+import { StudentPicker } from "@/components/student-picker";
 import {
   AlertTriangle,
   Plus,
@@ -271,11 +272,9 @@ export default function AdminDisciplinePage() {
       {/* Add Incident Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Record Incident">
         <div className="space-y-4">
-          <Input
-            label="Student ID (UUID)"
+          <StudentPicker
             value={form.studentId}
-            onChange={(e) => setForm({ ...form, studentId: e.target.value })}
-            placeholder="Student UUID"
+            onChange={(studentId) => setForm({ ...form, studentId })}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
