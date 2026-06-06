@@ -393,6 +393,32 @@ export class AuthService {
     });
   }
 
+  // ─── UPDATE PROFILE ────────────────────────────────────────────────────────
+
+  async updateProfile(
+    userId: string,
+    dto: { firstName?: string; lastName?: string; phone?: string },
+  ) {
+    const data: Record<string, string> = {};
+    if (dto.firstName !== undefined) data.firstName = dto.firstName;
+    if (dto.lastName !== undefined) data.lastName = dto.lastName;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+
+    // Guard against a phone collision with another account.
+    if (data.phone) {
+      const existing = await this.prisma.user.findFirst({
+        where: { phone: data.phone, id: { not: userId } },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new BadRequestException('That phone number is already in use');
+      }
+    }
+
+    await this.prisma.user.update({ where: { id: userId }, data });
+    return this.getProfile(userId);
+  }
+
   // ─── GET PROFILE ───────────────────────────────────────────────────────────
 
   async getProfile(userId: string) {

@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Patch,
   Get,
   Body,
   UseGuards,
@@ -18,6 +19,7 @@ import {
   ChangePasswordDto,
   RequestPasswordResetDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from './dto';
 import { CurrentUser } from '../../common/decorators';
 import type { Request } from 'express';
@@ -103,5 +105,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  @Patch('profile')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user profile (name, phone)' })
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(userId, dto);
   }
 }

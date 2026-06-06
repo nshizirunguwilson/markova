@@ -46,7 +46,7 @@ export function useCreateTerm() {
 export function useCloseTerm() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => (await api.patch(`/academic/terms/${id}/close`)).data,
+    mutationFn: async (id: string) => (await api.post(`/academic/terms/${id}/close`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term closed"); },
     onError: (e: any) => toast.error(e.response?.data?.message || "Failed to close term"),
   });
@@ -55,7 +55,7 @@ export function useCloseTerm() {
 export function useReopenTerm() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => (await api.patch(`/academic/terms/${id}/reopen`)).data,
+    mutationFn: async (id: string) => (await api.post(`/academic/terms/${id}/reopen`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term reopened"); },
     onError: (e: any) => toast.error(e.response?.data?.message || "Failed to reopen term"),
   });
