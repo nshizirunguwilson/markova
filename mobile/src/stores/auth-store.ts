@@ -3,6 +3,19 @@ import api from '@/lib/api';
 import { setTokens, clearTokens, getAccessToken } from '@/lib/storage';
 import type { UserRole } from '@/constants/config';
 
+// The mobile app is for staff and parents. Students use the web portal.
+// (The API can return STUDENT even though the mobile UserRole type omits it.)
+const MOBILE_BLOCKED_ROLES: string[] = ['STUDENT'];
+const MOBILE_BLOCK_MESSAGE =
+  'The mobile app is for staff and parents. Students, please use the web portal.';
+
+function buildBlockedError() {
+  // Shaped so the existing screens' `error.response.data.message` path shows it.
+  const err: any = new Error(MOBILE_BLOCK_MESSAGE);
+  err.response = { data: { message: MOBILE_BLOCK_MESSAGE } };
+  return err;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -46,18 +59,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { needsOtp: true };
     }
 
-    // Direct login (no OTP required)
+    // Direct login (no OTP required — students). Verify the role is permitted
+    // on mobile before we keep the session.
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ isAuthenticated: true, needsOtp: false, pendingEmail: null });
+    set({ needsOtp: false, pendingEmail: null });
     await get().loadProfile();
+    if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
+      await get().logout();
+      throw buildBlockedError();
+    }
+    set({ isAuthenticated: true });
     return { needsOtp: false };
   },
 
   verifyOtp: async (email, otp) => {
     const { data } = await api.post('/auth/verify-otp', { email, otp });
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ isAuthenticated: true, needsOtp: false, pendingEmail: null });
+    set({ needsOtp: false, pendingEmail: null });
     await get().loadProfile();
+    if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
+      await get().logout();
+      throw buildBlockedError();
+    }
+    set({ isAuthenticated: true });
   },
 
   loadProfile: async () => {
@@ -93,6 +117,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     try {
       await get().loadProfile();
+      if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
+        await get().logout();
+        return false;
+      }
       return true;
     } catch {
       set({ isLoading: false, isAuthenticated: false });
