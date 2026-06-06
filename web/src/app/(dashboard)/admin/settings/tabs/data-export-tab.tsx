@@ -21,25 +21,42 @@ export function DataExportTab() {
   const handleExport = async (key: string) => {
     setLoading(key);
     try {
-      // For now, export users list as CSV via the API
-      // Full CSV export endpoints will be added in later sprints
-      let endpoint = "/users?limit=1000";
-      if (key === "students") endpoint = "/users?role=STUDENT&limit=1000";
-      if (key === "teachers") endpoint = "/users?role=TEACHER&limit=1000";
+      // Each export pulls its own dataset and flattens it to readable columns.
+      const base =
+        key === "students"
+          ? "/users?role=STUDENT"
+          : key === "teachers"
+          ? "/users?role=TEACHER"
+          : key === "marks"
+          ? "/marks"
+          : key === "attendance"
+          ? "/attendance"
+          : "/users";
+      const sep = base.includes("?") ? "&" : "?";
 
-      const res = await api.get(endpoint);
-      const data = res.data?.data || [];
+      // Page through everything — these endpoints cap limit at 100 per request.
+      const data: any[] = [];
+      let pageNum = 1;
+      let totalPages = 1;
+      do {
+        const res = await api.get(`${base}${sep}page=${pageNum}&limit=100`);
+        data.push(...(res.data?.data || []));
+        totalPages = res.data?.meta?.totalPages || 1;
+        pageNum++;
+      } while (pageNum <= totalPages && pageNum <= 500);
 
       if (data.length === 0) {
         toast.warning("No data to export");
         return;
       }
 
-      // Convert to CSV
-      const headers = Object.keys(flattenUser(data[0]));
+      const flatten =
+        key === "marks" ? flattenMark : key === "attendance" ? flattenAttendance : flattenUser;
+
+      const headers = Object.keys(flatten(data[0]));
       const rows = data.map((item: any) => {
-        const flat = flattenUser(item);
-        return headers.map((h) => `"${flat[h] || ""}"`).join(",");
+        const flat = flatten(item);
+        return headers.map((h) => `"${String(flat[h] ?? "").replace(/"/g, '""')}"`).join(",");
       });
       const csv = [headers.join(","), ...rows].join("\n");
 
@@ -48,10 +65,12 @@ export function DataExportTab() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `${key}_export_${toLocalDateString(new Date())}.csv`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      toast.success(`${key} exported successfully`);
+      toast.success(`${key} exported successfully (${data.length} rows)`);
     } catch {
       toast.error("Export failed");
     } finally {
@@ -110,5 +129,28 @@ function flattenUser(user: any): Record<string, string> {
     class: user.student?.classSection
       ? `${user.student.classSection.classLevel?.name || ""} ${user.student.classSection.name || ""}`
       : "",
+  };
+}
+
+function flattenMark(m: any): Record<string, string> {
+  const u = m.student?.user;
+  return {
+    studentId: m.student?.studentIdNumber || "",
+    student: u ? `${u.firstName} ${u.lastName}` : "",
+    subject: m.subject?.name || "",
+    assessment: m.assessmentType?.name || "",
+    score: String(m.score ?? ""),
+    maxScore: String(m.maxScore ?? ""),
+  };
+}
+
+function flattenAttendance(a: any): Record<string, string> {
+  const u = a.student?.user;
+  return {
+    studentId: a.student?.studentIdNumber || "",
+    student: u ? `${u.firstName} ${u.lastName}` : "",
+    date: a.date ? new Date(a.date).toISOString().slice(0, 10) : "",
+    status: a.status || "",
+    reason: a.reasonCategory || "",
   };
 }
