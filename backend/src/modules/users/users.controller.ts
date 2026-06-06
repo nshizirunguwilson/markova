@@ -98,7 +98,7 @@ export class UsersController {
   }
 
   @Post(':id/photo')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -117,7 +117,12 @@ export class UsersController {
   async uploadPhoto(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() current: { id: string; role: string },
   ) {
+    // Non-admins may only change their own photo.
+    if (current.role !== 'ADMIN' && current.id !== id) {
+      throw new ForbiddenException('You can only update your own photo');
+    }
     if (!file) {
       throw new Error('Photo file is required');
     }

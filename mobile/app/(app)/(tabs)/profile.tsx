@@ -94,7 +94,7 @@ export default function ProfileScreen() {
     }
     setSaving(true);
     try {
-      await api.put(`/users/${user?.id}`, {
+      await api.patch(`/auth/profile`, {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phone: phone.trim() || undefined,
