@@ -72,6 +72,36 @@ login response as `devOtp`, so you never have to wait for an email.
 
 ---
 
+## 2b. Round 2 — bugs found by clicking through every feature as a user
+
+A second pass drove the actual UI (forms, buttons, search, uploads, exports,
+theme/settings, report publishing, term lifecycle) for all five roles. These are
+the features that "passed tests" but didn't actually work:
+
+| # | Area | Symptom | Fix | Commit |
+|---|---|---|---|---|
+| 8 | Password reset | Login linked to `/forgot-password`, but the page (and `/reset-password`) didn't exist — a dead link | Built both pages; email a real reset *link* with the full token | `a26b957` |
+| 9 | Login errors | A wrong password fired a false "session expired" toast and reloaded the page, so "Invalid credentials" never showed | Stop the 401 interceptor from hijacking `/auth/*` endpoints | `a26b957` |
+| 10 | Branding | Changing school name / theme colour only affected report cards — the app hardcoded "Markova" and a fixed colour | Public branding endpoint + BrandProvider; name + colour now apply app-wide and live | `453a5f3` |
+| 11 | Term lifecycle | The close/reopen-term lock button did nothing (web sent PATCH, backend maps POST → 404) | Switch hooks to POST | `96500cc` |
+| 12 | Edit profile | Every role's profile "Save" hit a non-existent `PATCH /auth/profile` (404) | Added the endpoint | `96500cc` |
+| 13 | Student pickers | Discipline (admin+teacher) and Generate-Document asked for a raw student **UUID** | Reusable Level→Section→Student picker | `01c7f42` |
+| 14 | Add Book | Every "Add Book" failed with 400 — the form sent `shelfLocation`, absent from the model/DTO | Added `shelf_location` (schema + migration + DTOs) | `64c1475` |
+| 15 | Data export | "Marks"/"Attendance" exports downloaded the *user* list, and capped at one page | Route each export to its endpoint, paginate, flatten correct columns | `fb08c1e` |
+| 16 | Teacher marks/homework | Teachers could not enter marks at all (and homework assign sent `subjectId: undefined`) — the page read `assignment.subject.id`, which the API doesn't return | Use the flat `assignment.subjectId`/`classSectionId` | `dcc8c25` |
+
+Interactive coverage now verified working: form login + OTP, wrong-password
+feedback, forgot→reset→login, logout; admin users (search/filter/paginate/sort/
+add/delete/import), academics (subjects/sections/timetable/assessment types,
+term close-reopen), marks calculate + **publish report cards**, discipline
+incident via picker, library add/checkout/return/search, settings (school name +
+**theme colour** live), data export (5 datasets), help FAQ/ticket; teacher marks
+batch entry, attendance mark + save, homework assign, profile edit; student
+homework submit; parent appeal + per-child pages; librarian checkout/return;
+messaging compose (contact picker → create → send).
+
+---
+
 ## 3. What was tested and is verified working
 
 **Auth** — all 5 role logins, OTP flow, refresh, change/reset password endpoints, lockout &
