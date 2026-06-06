@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
@@ -59,6 +59,17 @@ function getDashboardRoute(role: string): string {
   return routes[role] || "/admin";
 }
 
+// ─── Timing (mirrors backend) ─────────────────────────────────────────────────
+
+const OTP_TTL_SECONDS = 300; // backend OTP_EXPIRY_MINUTES (5 min)
+const RESEND_COOLDOWN_SECONDS = 30; // backend RESEND_COOLDOWN_SECONDS
+
+function formatMmSs(total: number): string {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 // ─── Login Page ───────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
@@ -71,6 +82,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [otpSessionId, setOtpSessionId] = useState("");
   const [pendingUser, setPendingUser] = useState<any>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpExpiry, setOtpExpiry] = useState(0);
+  const [isResending, setIsResending] = useState(false);
 
   // ─── Login Form ─────────────────────────────────────────────────────────────
 
@@ -92,6 +106,8 @@ export default function LoginPage() {
       if (res.data.requiresOtp) {
         setOtpSessionId(res.data.sessionId);
         setStep("otp");
+        setOtpExpiry(OTP_TTL_SECONDS);
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
         toast.info("OTP sent to your email");
       } else {
         handleLoginSuccess(res.data);
@@ -126,6 +142,49 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const onResendOtp = async () => {
+    if (resendCooldown > 0 || isResending) return;
+    setIsResending(true);
+    try {
+      const res = await api.post("/auth/resend-otp", {
+        sessionId: otpSessionId,
+      });
+      if (res.data.sessionId) setOtpSessionId(res.data.sessionId);
+      setOtpExpiry(OTP_TTL_SECONDS);
+      setResendCooldown(res.data.cooldownSeconds ?? RESEND_COOLDOWN_SECONDS);
+      otpForm.reset({ otp: "" });
+      toast.success("A new code has been sent");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Could not resend code";
+      toast.error(msg);
+      // Server-side cooldown hit — reflect a wait on the button
+      if (err.response?.status === 429 && resendCooldown <= 0) {
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      }
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Tick down the resend cooldown and the code-expiry while on the OTP step
+  useEffect(() => {
+    if (step !== "otp") return;
+    const id = setInterval(() => {
+      setResendCooldown((s) => (s > 0 ? s - 1 : 0));
+      setOtpExpiry((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [step]);
+
+  // Auto-submit once all 6 digits are entered
+  const otpValue = otpForm.watch("otp");
+  useEffect(() => {
+    if (step === "otp" && otpValue?.length === 6 && !isLoading) {
+      otpForm.handleSubmit(onVerifyOtp)();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otpValue]);
 
   // ─── Change Password Form ──────────────────────────────────────────────────
 
@@ -262,10 +321,30 @@ export default function LoginPage() {
               label="Verification Code"
               placeholder="123456"
               maxLength={6}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\d*"
+              autoFocus
               className="text-center text-2xl tracking-[0.5em]"
               error={otpForm.formState.errors.otp?.message}
               {...otpForm.register("otp")}
             />
+
+            {/* Expiry countdown */}
+            <p className="text-center text-xs">
+              {otpExpiry > 0 ? (
+                <span className="text-muted">
+                  Code expires in{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatMmSs(otpExpiry)}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-danger">
+                  Your code has expired — request a new one below.
+                </span>
+              )}
+            </p>
 
             <Button
               type="submit"
@@ -276,11 +355,31 @@ export default function LoginPage() {
               Verify & Continue
             </Button>
 
+            {/* Resend */}
+            <div className="text-center text-sm">
+              <span className="text-muted">Didn&apos;t get the code? </span>
+              <button
+                type="button"
+                onClick={onResendOtp}
+                disabled={resendCooldown > 0 || isResending}
+                className="font-medium text-primary-light hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+              >
+                {isResending
+                  ? "Sending…"
+                  : resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : "Resend code"}
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => {
                 setStep("login");
                 setOtpSessionId("");
+                setResendCooldown(0);
+                setOtpExpiry(0);
+                otpForm.reset({ otp: "" });
               }}
               className="block w-full text-center text-sm text-muted hover:text-primary-light"
             >

@@ -15,6 +15,7 @@ import { AuthService } from './auth.service';
 import {
   LoginDto,
   VerifyOtpDto,
+  ResendOtpDto,
   RefreshTokenDto,
   ChangePasswordDto,
   RequestPasswordResetDto,
@@ -45,6 +46,13 @@ export class AuthController {
     const ipAddress = req.ip || req.socket.remoteAddress;
     const deviceInfo = req.headers['user-agent'];
     return this.authService.verifyOtp(dto, ipAddress, deviceInfo);
+  }
+
+  @Post('resend-otp')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiOperation({ summary: 'Resend a verification code for a pending login' })
+  async resendOtp(@Body() dto: ResendOtpDto) {
+    return this.authService.resendOtp(dto);
   }
 
   @Post('refresh')

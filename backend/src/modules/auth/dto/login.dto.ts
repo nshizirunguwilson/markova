@@ -36,6 +36,12 @@ export class VerifyOtpDto {
   otp: string;
 }
 
+export class ResendOtpDto {
+  @ApiProperty({ example: 'session-uuid-here' })
+  @IsString()
+  sessionId: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()

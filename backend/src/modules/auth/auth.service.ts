@@ -3,6 +3,8 @@ import {
   UnauthorizedException,
   ForbiddenException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -17,6 +19,7 @@ import { Role } from '@prisma/client';
 import {
   LoginDto,
   VerifyOtpDto,
+  ResendOtpDto,
   RefreshTokenDto,
   ChangePasswordDto,
   RequestPasswordResetDto,
@@ -31,6 +34,7 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
 const OTP_TTL_SECONDS = OTP_EXPIRY_MINUTES * 60; // 300s (5 min)
+const RESEND_COOLDOWN_SECONDS = 30; // min gap between OTP resends
 const FAILED_ATTEMPTS_TTL_SECONDS = 900; // 15 min
 const RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
 
@@ -101,9 +105,74 @@ export class AuthService {
       return this.issueTokens(user.id, user.role, ipAddress, deviceInfo);
     }
 
-    // For admin/teacher/parent/librarian — generate OTP
+    // For admin/teacher/parent/librarian — generate + send OTP
+    const { sessionId, devOtp } = await this.createAndSendOtp(user);
+
+    return {
+      requiresOtp: true,
+      sessionId,
+      message: 'OTP sent to your registered contact',
+      // Include OTP in dev mode for testing
+      ...(devOtp && { devOtp }),
+    };
+  }
+
+  // ─── RESEND OTP ────────────────────────────────────────────────────────────
+
+  async resendOtp(dto: ResendOtpDto) {
+    const sessionRaw = await this.redis.get('otp:' + dto.sessionId);
+    if (!sessionRaw) {
+      throw new UnauthorizedException('Invalid or expired OTP session');
+    }
+    const session = JSON.parse(sessionRaw) as { userId: string };
+
+    // Rate-limit: one resend per RESEND_COOLDOWN_SECONDS per session
+    const cooldownOk = await this.redis.set(
+      'otp_resend:' + dto.sessionId,
+      '1',
+      'EX',
+      RESEND_COOLDOWN_SECONDS,
+      'NX',
+    );
+    if (cooldownOk !== 'OK') {
+      throw new HttpException(
+        'Please wait a moment before requesting another code',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: session.userId },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Invalid or expired OTP session');
+    }
+
+    // Reuse the same sessionId so the client doesn't have to swap it
+    const { devOtp } = await this.createAndSendOtp(user, dto.sessionId);
+
+    return {
+      sessionId: dto.sessionId,
+      message: 'A new verification code has been sent',
+      cooldownSeconds: RESEND_COOLDOWN_SECONDS,
+      ...(devOtp && { devOtp }),
+    };
+  }
+
+  // ─── Generate, store, and email an OTP (shared by login + resend) ───────────
+
+  private async createAndSendOtp(
+    user: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      firstName: string;
+    },
+    existingSessionId?: string,
+  ): Promise<{ sessionId: string; devOtp?: string }> {
     const otp = this.generateOtp();
-    const sessionId = uuidv4();
+    const sessionId = existingSessionId ?? uuidv4();
+
     await this.redis.set(
       'otp:' + sessionId,
       JSON.stringify({
@@ -117,7 +186,6 @@ export class AuthService {
       OTP_TTL_SECONDS,
     );
 
-    // Send OTP via email
     if (user.email) {
       await this.notificationsService.sendEmailToAddress(
         user.email,
@@ -133,10 +201,7 @@ export class AuthService {
     );
 
     return {
-      requiresOtp: true,
       sessionId,
-      message: 'OTP sent to your registered contact',
-      // Include OTP in dev mode for testing
       ...(this.configService.get('NODE_ENV') !== 'production' && {
         devOtp: otp,
       }),
