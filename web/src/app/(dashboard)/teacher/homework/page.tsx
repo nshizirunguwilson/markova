@@ -31,8 +31,11 @@ import { useEffect } from "react";
 
 interface Assignment {
   id: string;
-  subject: { id: string; name: string };
-  classSection: { id: string; name: string; classLevel: { name: string } };
+  // The API returns flat ids; the nested `subject` has no id.
+  subjectId: string;
+  classSectionId: string;
+  subject: { name: string };
+  classSection: { name: string; classLevel: { name: string } };
 }
 
 export default function TeacherHomeworkPage() {
@@ -73,8 +76,8 @@ export default function TeacherHomeworkPage() {
     const assignment = assignments.find((a) => a.id === form.assignmentId);
     if (!assignment || !currentTerm) return;
     createHomework.mutate({
-      subjectId: assignment.subject.id,
-      classSectionId: assignment.classSection.id,
+      subjectId: assignment.subjectId,
+      classSectionId: assignment.classSectionId,
       termId: currentTerm.id,
       title: form.title,
       description: form.description,

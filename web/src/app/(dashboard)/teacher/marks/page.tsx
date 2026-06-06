@@ -16,8 +16,12 @@ import { savePendingMarks, getPendingMarks, clearPendingMarks, getPendingCount }
 
 interface Assignment {
   id: string;
-  subject: { id: string; name: string };
-  classSection: { id: string; name: string; classLevel: { name: string } };
+  // Flat ids are always present on the API response; the nested `subject`
+  // object only carries name/category (no id), so derive ids from these.
+  subjectId: string;
+  classSectionId: string;
+  subject: { name: string };
+  classSection: { name: string; classLevel: { name: string } };
 }
 
 interface ScoreEntry {
@@ -49,8 +53,8 @@ export default function TeacherMarksPage() {
 
   // Derive subject/class from selected assignment
   const assignment = assignments.find((a) => a.id === selectedAssignment);
-  const subjectId = assignment?.subject.id;
-  const classSectionId = assignment?.classSection.id;
+  const subjectId = assignment?.subjectId;
+  const classSectionId = assignment?.classSectionId;
 
   const { data: completion, isLoading: loadingCompletion } = useMarksCompletion(
     classSectionId,
