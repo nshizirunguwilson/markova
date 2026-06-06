@@ -294,14 +294,19 @@ export class AuthService {
     );
 
     if (user.email) {
-      const resetCode = token.slice(0, 8).toUpperCase();
+      const appUrl =
+        this.configService.get<string>('APP_URL') || 'http://localhost:3001';
+      const resetLink = `${appUrl}/reset-password?token=${token}`;
       await this.notificationsService.sendEmailToAddress(
         user.email,
         user.firstName,
         'Password Reset - Markova',
-        `<p>You requested a password reset. Your reset code is:</p>
-         <p style="font-size: 28px; font-weight: bold; color: #1B4F72; letter-spacing: 3px; text-align: center; margin: 20px 0;">${resetCode}</p>
-         <p>This code expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
+        `<p>You requested a password reset. Click the button below to set a new password:</p>
+         <p style="text-align: center; margin: 24px 0;">
+           <a href="${resetLink}" style="background:#1B4F72;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a>
+         </p>
+         <p style="font-size:12px;color:#666;">Or paste this link into your browser:<br>${resetLink}</p>
+         <p>This link expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
       );
     }
     this.logger.log(

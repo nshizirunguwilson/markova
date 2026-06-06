@@ -22,23 +22,42 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Auth endpoints whose own 4xx responses are handled by the calling form
+// (wrong password, wrong OTP, expired reset link, …). These must NOT trigger
+// the session-refresh / redirect logic below — otherwise a failed login looks
+// like an "expired session" and the page reloads before the real error shows.
+const AUTH_ENDPOINTS = [
+  "/auth/login",
+  "/auth/verify-otp",
+  "/auth/refresh",
+  "/auth/request-reset",
+  "/auth/reset-password",
+];
+
 // Response interceptor — handle 401 and refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const url: string = originalRequest?.url || "";
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((p) => url.includes(p));
+
+    // Let auth forms surface their own errors.
+    if (isAuthEndpoint) {
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        const refreshToken = localStorage.getItem("refresh_token");
-        if (!refreshToken) {
-          toast.error('Your session has expired. Please log in again.');
-          redirectToLogin();
-          return Promise.reject(error);
-        }
+      const refreshToken = localStorage.getItem("refresh_token");
+      // Not logged in — nothing to refresh. Reject quietly; route guards handle
+      // sending the user to /login. Avoids a redirect loop on public pages.
+      if (!refreshToken) {
+        return Promise.reject(error);
+      }
 
+      try {
         const { data } = await axios.post(
           `${api.defaults.baseURL}/auth/refresh`,
           { refreshToken }
