@@ -104,6 +104,29 @@ messaging compose (contact picker → create → send).
 
 ---
 
+## 2c. Round 3 — full-CRUD completeness pass
+
+Goal for this round: no new features — make sure **add / edit / delete / view**
+of every managed entity works 100% in the UI, the API and the tests. A
+Create→Read→Update→Delete certification was run against the API for all 13
+entities (subject, class level, section, assessment type, year, term, timetable,
+exam schedule, mark, discipline incident, homework, library book, FAQ) and the
+edit *forms* were driven in the browser. Two real bugs surfaced:
+
+| # | Area | Symptom | Fix | Commit |
+|---|---|---|---|---|
+| 19 | Single mark create | `POST /marks` 500'd whenever a mark already existed for that student/subject/term/assessment (unique-constraint violation) | Upsert on that key, like batch entry already did | `c6d5e31` |
+| 20 | Admin homework edit | Editing a homework always failed "Validation failed" — the Section select lost its value when options loaded after `reset()`, and the update sent recipient fields the DTO rejects | Controlled section select bound to form state; update sends only editable content fields; recipient selects disabled in edit mode | `8759520` |
+
+Plus a product decision implemented: **students are blocked from the mobile app**
+(staff + parents only), verified on the iPhone 15 Pro simulator (`6a7975d`).
+
+CRUD certification result: **API C/R/U/D 40/40**, and the edit forms (user,
+subject, class level + section, homework, library book) save correctly in the UI;
+class-level delete confirmed end-to-end in the browser.
+
+---
+
 ## 3. What was tested and is verified working
 
 **Auth** — all 5 role logins, OTP flow, refresh, change/reset password endpoints, lockout &
