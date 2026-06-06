@@ -83,4 +83,11 @@ export class MessagingController {
   getUnreadCount(@CurrentUser() user: any) {
     return this.service.getUnreadCount(user.id);
   }
+
+  @Get('contacts')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @ApiOperation({ summary: 'List users the current user can message' })
+  getContacts(@CurrentUser() user: any, @Query('search') search?: string) {
+    return this.service.getContacts(user.id, search);
+  }
 }

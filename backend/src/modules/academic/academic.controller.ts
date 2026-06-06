@@ -38,6 +38,17 @@ import {
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 
+// Read-only reference data (academic calendar, subjects, sections, etc.) is
+// needed by every role to populate term/year selectors and labels. Writes stay
+// ADMIN-only; only the GET handlers below use this.
+const ALL_ROLES = [
+  'ADMIN',
+  'TEACHER',
+  'STUDENT',
+  'PARENT',
+  'LIBRARIAN',
+] as const;
+
 @ApiTags('Academic')
 @Controller('academic')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -48,14 +59,14 @@ export class AcademicController {
   // ─── ACADEMIC YEARS ─────────────────────────────────────────────────────────
 
   @Get('years')
-  @Roles('ADMIN')
+  @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'List all academic years' })
   findAllYears() {
     return this.service.findAllYears();
   }
 
   @Get('years/:id')
-  @Roles('ADMIN')
+  @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'Get academic year by ID' })
   findYearById(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findYearById(id);
@@ -88,14 +99,14 @@ export class AcademicController {
   // ─── TERMS ──────────────────────────────────────────────────────────────────
 
   @Get('terms')
-  @Roles('ADMIN')
+  @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'List all terms (optionally filter by year)' })
   findAllTerms(@Query('academicYearId') academicYearId?: string) {
     return this.service.findAllTerms(academicYearId);
   }
 
   @Get('terms/:id')
-  @Roles('ADMIN')
+  @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'Get term by ID' })
   findTermById(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findTermById(id);

@@ -12,6 +12,7 @@ import {
   UploadedFile,
   Res,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -31,6 +32,7 @@ import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
 import { Roles } from '../../common/decorators';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
 import { validateUploadedImage } from '../../common/file-validation';
 
@@ -57,9 +59,17 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Get user by ID' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @ApiOperation({ summary: 'Get user by ID (own record for non-admins)' })
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() current: { id: string; role: string },
+  ) {
+    // Non-admins may only fetch their own record (e.g. a parent loading their
+    // linked children). Admins may fetch anyone.
+    if (current.role !== 'ADMIN' && current.id !== id) {
+      throw new ForbiddenException('You can only access your own profile');
+    }
     return this.usersService.findOne(id);
   }
 

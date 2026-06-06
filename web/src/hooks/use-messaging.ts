@@ -4,6 +4,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
 
+export function useContacts(search?: string) {
+  return useQuery({
+    queryKey: ["contacts", search],
+    queryFn: async () => {
+      const params = search ? `?search=${encodeURIComponent(search)}` : "";
+      return (await api.get(`/messaging/contacts${params}`)).data;
+    },
+  });
+}
+
 export function useConversations() {
   return useQuery({
     queryKey: ["conversations"],

@@ -225,6 +225,50 @@ export class MessagingService {
     return { unreadCount: count };
   }
 
+  /**
+   * Returns the users the current user is allowed to start a conversation with.
+   * Staff (admin/teacher/librarian) can reach anyone; students and parents can
+   * only message staff. This replaces the previous admin-only `/users` lookup
+   * the message composer used, which 403'd for every non-admin role.
+   */
+  async getContacts(userId: string, search?: string) {
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!me) return { data: [] };
+
+    const STAFF = ['ADMIN', 'TEACHER', 'LIBRARIAN'];
+    const isStaff = STAFF.includes(me.role);
+
+    const where: any = { isActive: true, id: { not: userId } };
+    if (!isStaff) {
+      where.role = { in: STAFF };
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+        { email: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        photoUrl: true,
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+      take: 30,
+    });
+    return { data: users };
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // DELIVERY STATUS METHODS (used by WebSocket gateway)
   // ═══════════════════════════════════════════════════════════════════════════

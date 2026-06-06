@@ -7,8 +7,8 @@ import {
   useMessages,
   useCreateConversation,
   useSendMessage,
+  useContacts,
 } from "@/hooks/use-messaging";
-import { useUsers } from "@/hooks/use-users";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
@@ -30,7 +30,7 @@ export default function MessagesPage() {
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const debouncedUserSearch = useDebounce(userSearch, 300);
-  const { data: usersData } = useUsers({ search: debouncedUserSearch, limit: 20, isActive: true });
+  const { data: usersData } = useContacts(debouncedUserSearch);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
