@@ -99,6 +99,7 @@ export default function AdminHomeworkPage() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<HomeworkForm>({
     resolver: zodResolver(homeworkSchema),
@@ -129,11 +130,22 @@ export default function AdminHomeworkPage() {
   };
 
   const onSubmit = (data: HomeworkForm) => {
-    const payload = { ...data, dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : undefined };
+    const dueDate = data.dueDate ? new Date(data.dueDate).toISOString() : undefined;
     if (editingId) {
-      updateHomework.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
+      // A homework's recipients (subject/class/term/teacher) are fixed; update
+      // only its editable content fields.
+      updateHomework.mutate(
+        {
+          id: editingId,
+          title: data.title,
+          description: data.description,
+          dueDate,
+          maxMarks: data.maxMarks,
+        },
+        { onSuccess: resetForm }
+      );
     } else {
-      createHomework.mutate(payload, { onSuccess: resetForm });
+      createHomework.mutate({ ...data, dueDate }, { onSuccess: resetForm });
     }
   };
 
@@ -299,7 +311,8 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Subject</label>
               <select
-                className={`w-full rounded-lg border ${errors.subjectId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                className={`w-full rounded-lg border ${errors.subjectId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                disabled={!!editingId}
                 {...register("subjectId")}
               >
                 <option value="">Select subject</option>
@@ -312,7 +325,8 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Teacher</label>
               <select
-                className={`w-full rounded-lg border ${errors.teacherId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                className={`w-full rounded-lg border ${errors.teacherId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                disabled={!!editingId}
                 {...register("teacherId")}
               >
                 <option value="">Select teacher</option>
@@ -327,8 +341,9 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Class Level</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
                 value={modalLevelId}
+                disabled={!!editingId}
                 onChange={(e) => { setModalLevelId(e.target.value); setValue("classSectionId", ""); }}
               >
                 <option value="">Select level</option>
@@ -340,8 +355,10 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Section</label>
               <select
-                className={`w-full rounded-lg border ${errors.classSectionId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
-                {...register("classSectionId")}
+                className={`w-full rounded-lg border ${errors.classSectionId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                disabled={!!editingId}
+                value={watch("classSectionId") || ""}
+                onChange={(e) => setValue("classSectionId", e.target.value, { shouldValidate: true })}
               >
                 <option value="">Select section</option>
                 {modalSections?.map((s: any) => (
@@ -355,7 +372,8 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Term</label>
               <select
-                className={`w-full rounded-lg border ${errors.termId ? "border-red-400" : "border-border"} px-3 py-2 text-sm`}
+                className={`w-full rounded-lg border ${errors.termId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                disabled={!!editingId}
                 {...register("termId")}
               >
                 <option value="">Select term</option>
