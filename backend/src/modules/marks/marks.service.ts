@@ -59,8 +59,20 @@ export class MarksService {
       );
     }
 
-    return this.prisma.mark.create({
-      data: {
+    // Upsert on the unique (student, subject, term, assessment) key so
+    // re-entering a score updates it instead of throwing a duplicate (matches
+    // batch entry; a plain create() here 500'd on the unique constraint).
+    return this.prisma.mark.upsert({
+      where: {
+        studentId_subjectId_termId_assessmentTypeId: {
+          studentId: dto.studentId,
+          subjectId: dto.subjectId,
+          termId: dto.termId,
+          assessmentTypeId: dto.assessmentTypeId,
+        },
+      },
+      update: { score: dto.score, maxScore, teacherId: resolvedTeacherId },
+      create: {
         studentId: dto.studentId,
         subjectId: dto.subjectId,
         classSectionId: dto.classSectionId,

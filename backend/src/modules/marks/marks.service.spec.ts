@@ -65,7 +65,7 @@ describe('MarksService', () => {
       maxScore: undefined as number | undefined,
     };
 
-    it('should create a mark with correct data', async () => {
+    it('should upsert a mark with correct data (create branch)', async () => {
       mockPrisma.term.findUnique.mockResolvedValue({
         id: 'term-1',
         isClosed: false,
@@ -74,7 +74,7 @@ describe('MarksService', () => {
         id: 'subject-1',
         maxMarks: 100,
       });
-      mockPrisma.mark.create.mockResolvedValue({
+      mockPrisma.mark.upsert.mockResolvedValue({
         id: 'mark-1',
         ...baseDto,
         maxScore: 100,
@@ -87,9 +87,20 @@ describe('MarksService', () => {
         'TEACHER',
       );
 
-      expect(mockPrisma.mark.create).toHaveBeenCalledWith(
+      // create() upserts on the unique (student, subject, term, assessment) key
+      // so re-entering a score updates it instead of throwing a duplicate.
+      expect(mockPrisma.mark.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
+          where: {
+            studentId_subjectId_termId_assessmentTypeId: {
+              studentId: 'student-1',
+              subjectId: 'subject-1',
+              termId: 'term-1',
+              assessmentTypeId: 'assess-1',
+            },
+          },
+          update: expect.objectContaining({ score: 75, maxScore: 100, teacherId: 'teacher-1' }),
+          create: expect.objectContaining({
             studentId: 'student-1',
             subjectId: 'subject-1',
             classSectionId: 'class-1',
