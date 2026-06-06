@@ -38,6 +38,7 @@ export class LibraryService {
         quantity: dto.quantity,
         availableCount: dto.quantity,
         barcode: dto.barcode,
+        shelfLocation: dto.shelfLocation,
         replacementCost: dto.replacementCost,
       },
     });
@@ -84,6 +85,7 @@ export class LibraryService {
           quantity: book.quantity,
           availableCount: book.quantity,
           barcode: book.barcode,
+          shelfLocation: book.shelfLocation,
           replacementCost: book.replacementCost,
         },
       });

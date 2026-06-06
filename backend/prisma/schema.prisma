@@ -574,6 +574,7 @@ model Book {
   quantity        Int     @default(1)
   availableCount  Int     @default(1) @map("available_count")
   barcode         String? @unique
+  shelfLocation   String? @map("shelf_location")
   replacementCost Float?  @map("replacement_cost")
   isActive        Boolean @default(true) @map("is_active")
 

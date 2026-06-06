@@ -35,6 +35,11 @@ export class CreateBookDto {
   barcode?: string;
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shelfLocation?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   @Min(0)
   replacementCost?: number;
@@ -67,6 +72,11 @@ export class UpdateBookDto {
   @IsString()
   @MaxLength(255)
   barcode?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  shelfLocation?: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsNumber()
