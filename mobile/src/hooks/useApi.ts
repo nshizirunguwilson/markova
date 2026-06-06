@@ -362,10 +362,12 @@ export function useReturnBook() {
   });
 }
 
-export function useLibraryAnalytics() {
+export function useLibraryAnalytics(enabled = true) {
   return useQuery<LibraryAnalytics>({
     queryKey: ['library-analytics'],
     queryFn: () => api.get('/library/analytics').then((r) => r.data),
+    // /library/analytics is ADMIN/LIBRARIAN only — don't fire it for students.
+    enabled,
   });
 }
 

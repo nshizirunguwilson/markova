@@ -358,7 +358,7 @@ function AdminDashboard() {
 function GenericDashboard() {
   const user = useAuthStore((s) => s.user);
   const isLibrarian = user?.role === 'LIBRARIAN';
-  const { data: analytics, isLoading, error, refetch } = useLibraryAnalytics();
+  const { data: analytics, isLoading, error, refetch } = useLibraryAnalytics(isLibrarian);
   const { data: notifications } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
 
