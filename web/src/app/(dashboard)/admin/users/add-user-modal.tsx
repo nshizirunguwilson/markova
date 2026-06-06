@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { Modal, Button, Input } from "@/components/ui";
 import { useCreateUser } from "@/hooks/use-users";
+import { useClassLevels, useSections } from "@/hooks/use-academic";
 
 const schema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -30,12 +32,16 @@ interface Props {
 
 export function AddUserModal({ isOpen, onClose }: Props) {
   const createUser = useCreateUser();
+  const [selectedLevel, setSelectedLevel] = useState("");
+  const { data: classLevels } = useClassLevels();
+  const { data: sections } = useSections(selectedLevel || undefined);
 
   const {
     register,
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -64,6 +70,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
 
     await createUser.mutateAsync(payload);
     reset();
+    setSelectedLevel("");
     onClose();
   };
 
@@ -134,14 +141,42 @@ export function AddUserModal({ isOpen, onClose }: Props) {
 
         {/* Student-specific fields */}
         {role === "STUDENT" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              id="classSectionId"
-              label="Class Section ID"
-              placeholder="UUID of class section"
-              error={errors.classSectionId?.message}
-              {...register("classSectionId")}
-            />
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Class Level
+                </label>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => {
+                    setSelectedLevel(e.target.value);
+                    setValue("classSectionId", "");
+                  }}
+                  className="w-full rounded-lg border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  <option value="">Select level...</option>
+                  {classLevels?.map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Class Section
+                </label>
+                <select
+                  {...register("classSectionId")}
+                  disabled={!selectedLevel}
+                  className="w-full rounded-lg border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-muted/10 disabled:text-muted"
+                >
+                  <option value="">{selectedLevel ? "Select section..." : "Pick a level first"}</option>
+                  {sections?.map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Gender
@@ -155,7 +190,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
                 <option value="FEMALE">Female</option>
               </select>
             </div>
-          </div>
+          </>
         )}
 
         {role === "STUDENT" && (
@@ -190,6 +225,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
             variant="outline"
             onClick={() => {
               reset();
+              setSelectedLevel("");
               onClose();
             }}
           >
