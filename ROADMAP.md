@@ -89,6 +89,7 @@ the features that "passed tests" but didn't actually work:
 | 14 | Add Book | Every "Add Book" failed with 400 — the form sent `shelfLocation`, absent from the model/DTO | Added `shelf_location` (schema + migration + DTOs) | `64c1475` |
 | 15 | Data export | "Marks"/"Attendance" exports downloaded the *user* list, and capped at one page | Route each export to its endpoint, paginate, flatten correct columns | `fb08c1e` |
 | 16 | Teacher marks/homework | Teachers could not enter marks at all (and homework assign sent `subjectId: undefined`) — the page read `assignment.subject.id`, which the API doesn't return | Use the flat `assignment.subjectId`/`classSectionId` | `dcc8c25` |
+| 17 | Mobile (Expo) | Profile edit (`PUT /users/:id`), photo upload (`POST /users/:id/photo`) and notification read (`PATCH …/read`) all hit admin-only / wrong-method routes → 403/404 for normal users | Use `PATCH /auth/profile`; relax photo upload to self-or-admin; switch notification read to `PUT` | `d64f103` |
 
 Interactive coverage now verified working: form login + OTP, wrong-password
 feedback, forgot→reset→login, logout; admin users (search/filter/paginate/sort/
@@ -120,16 +121,21 @@ broadcast, typing indicators, read receipts — all pass.
 **Notifications** — create → unread badge increments → mark read / mark-all-read.
 **Admin ops** — settings upsert, onboarding persist, logo/photo upload + public serving,
 single + bulk ID cards, CSV bulk import, promotion (with correct retain/promote logic).
-**Mobile** — Expo app typechecks clean and bundles (iOS export OK).
+**Mobile** — Expo app typechecks clean, bundles (iOS export OK), and renders the login
+screen on web. Its API contract was audited against the backend and three admin-only
+calls were fixed (profile edit, notification read, photo upload — see #17 below).
 **Baseline** — backend `nest build` + 63 Jest tests pass; web `next build` + 10 Vitest pass.
 
 ---
 
 ## 4. Known limitations / things to be upfront about
 
-- **Mobile runtime is unverified end-to-end.** It builds and bundles and targets the same
-  (working) API, but no on-device login/marks/push test has been run. Treat as alpha. Android
-  emulators need `10.0.2.2`, physical devices need the host LAN IP, not `localhost`.
+- **Mobile runtime is unverified end-to-end.** It builds, bundles, typechecks and renders
+  the login screen, and its API calls now match the backend (three admin-only-call bugs
+  fixed). But the full login→navigation flow has not been run on a device — RN-web in
+  headless Playwright doesn't drive the gesture-responder Pressables, so an on-device /
+  simulator pass is still needed. Treat as alpha. Android emulators need `10.0.2.2`,
+  physical devices need the host LAN IP, not `localhost`.
 - **Email/OTP depends on Brevo SMTP credits.** If they run out, OTP emails stop — but the
   `devOtp` field and backend console always have the code in development.
 - **Attendance dashboard defaults to today** → empty on weekends/holidays. Pick a recent
