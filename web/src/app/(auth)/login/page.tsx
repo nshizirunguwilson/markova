@@ -192,7 +192,11 @@ export default function LoginPage() {
 
         {/* Step: Login */}
         {step === "login" && (
-          <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-5">
+          <form
+            method="post"
+            onSubmit={loginForm.handleSubmit(onLogin)}
+            className="space-y-5"
+          >
             <Input
               id="identifier"
               label="Email or Phone"
@@ -288,6 +292,7 @@ export default function LoginPage() {
         {/* Step: Force Password Change */}
         {step === "change-password" && (
           <form
+            method="post"
             onSubmit={changeForm.handleSubmit(onChangePassword)}
             className="space-y-5"
           >

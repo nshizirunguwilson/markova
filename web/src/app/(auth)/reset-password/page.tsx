@@ -79,7 +79,7 @@ function ResetPasswordInner() {
           <Link href="/forgot-password" className="font-medium underline">forgot-password</Link> page.
         </div>
       ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <Input
             id="newPassword"
             label="New Password"
