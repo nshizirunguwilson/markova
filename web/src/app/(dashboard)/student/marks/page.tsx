@@ -142,22 +142,24 @@ export default function StudentMarksPage() {
           {subjectMap.length > 0 && (
             <Card>
               <CardTitle><TrendingUp className="mr-2 inline h-5 w-5" /> Performance Comparison</CardTitle>
-              <div className="mt-4 flex items-end gap-3 min-h-[200px] h-auto" style={{ height: "max(200px, 30vw)", maxHeight: "320px" }}>
+              <div className="mt-4 flex items-end gap-3" style={{ height: "max(200px, 30vw)", maxHeight: "320px" }}>
                 {subjectMap.map((s, i) => (
-                  <div key={i} className="flex flex-1 flex-col items-center">
+                  <div key={i} className="flex h-full flex-1 flex-col items-center">
                     <span className="mb-1 text-xs font-bold text-foreground">{s.average}%</span>
-                    <div
-                      className={`w-full rounded-t-lg ${
-                        s.average >= 80
-                          ? "bg-success"
-                          : s.average >= 60
-                          ? "bg-primary"
-                          : s.average >= 50
-                          ? "bg-warning"
-                          : "bg-danger"
-                      }`}
-                      style={{ height: `${s.average}%` }}
-                    />
+                    <div className="flex w-full flex-1 items-end">
+                      <div
+                        className={`w-full rounded-t-lg ${
+                          s.average >= 80
+                            ? "bg-success"
+                            : s.average >= 60
+                            ? "bg-primary"
+                            : s.average >= 50
+                            ? "bg-warning"
+                            : "bg-danger"
+                        }`}
+                        style={{ height: `${s.average}%` }}
+                      />
+                    </div>
                     <span className="mt-1 text-xs text-muted truncate w-full text-center">{s.subject}</span>
                   </div>
                 ))}

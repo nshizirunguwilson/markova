@@ -162,14 +162,16 @@ export default function AdminAttendancePage() {
                 <CardTitle>Attendance by Class</CardTitle>
                 <div className="mt-4 flex items-end gap-3 h-40">
                   {dashboard.sections.map((s: any) => (
-                    <div key={s.sectionId} className="flex flex-1 flex-col items-center">
+                    <div key={s.sectionId} className="flex h-full flex-1 flex-col items-center">
                       <span className="mb-1 text-xs font-bold">{s.rate}%</span>
-                      <div
-                        className={`w-full rounded-t-lg ${
-                          s.rate >= 90 ? "bg-success" : s.rate >= 75 ? "bg-warning" : "bg-danger"
-                        }`}
-                        style={{ height: `${s.rate}%` }}
-                      />
+                      <div className="flex w-full flex-1 items-end">
+                        <div
+                          className={`w-full rounded-t-lg ${
+                            s.rate >= 90 ? "bg-success" : s.rate >= 75 ? "bg-warning" : "bg-danger"
+                          }`}
+                          style={{ height: `${s.rate}%` }}
+                        />
+                      </div>
                       <span className="mt-1 text-xs text-muted truncate w-full text-center">
                         {s.className}
                       </span>

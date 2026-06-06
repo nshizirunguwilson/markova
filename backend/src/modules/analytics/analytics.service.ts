@@ -10,21 +10,31 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getAdminDashboard(academicYearId?: string, termId?: string) {
-    const [totalStudents, totalTeachers, totalParents, classLevels] =
-      await Promise.all([
-        this.prisma.student.count(),
-        this.prisma.teacher.count(),
-        this.prisma.parentStudent
-          .groupBy({ by: ['parentUserId'] })
-          .then((r) => r.length),
-        this.prisma.classLevel.count(),
-      ]);
+    const [
+      totalStudents,
+      totalTeachers,
+      totalParents,
+      classLevels,
+      totalUsers,
+      totalSubjects,
+    ] = await Promise.all([
+      this.prisma.student.count(),
+      this.prisma.teacher.count(),
+      this.prisma.parentStudent
+        .groupBy({ by: ['parentUserId'] })
+        .then((r) => r.length),
+      this.prisma.classLevel.count(),
+      this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.subject.count(),
+    ]);
 
     return {
       totalStudents,
       totalTeachers,
       totalParents,
       totalClasses: classLevels,
+      totalUsers,
+      totalSubjects,
     };
   }
 
@@ -128,7 +138,12 @@ export class AnalyticsService {
         this.prisma.book.count(),
         this.prisma.bookLoan.count(),
         this.prisma.bookLoan.count({ where: { status: 'ACTIVE' } }),
-        this.prisma.bookLoan.count({ where: { status: 'OVERDUE' } }),
+        // Loans stay ACTIVE past their due date (no auto-transition to an
+        // OVERDUE status), so overdue = active loans whose dueDate has passed.
+        // This matches LibraryService.getAnalytics and the loans list UI.
+        this.prisma.bookLoan.count({
+          where: { status: 'ACTIVE', dueDate: { lt: new Date() } },
+        }),
       ]);
 
     const popularBooks = await this.prisma.bookLoan.groupBy({
