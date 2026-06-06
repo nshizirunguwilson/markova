@@ -145,15 +145,19 @@ Open `http://localhost:3001` in a browser.
 
 ### 1.2 Demo credentials (all use password `Password123!`)
 
-| Role | Email | Notes |
+| Role | Login | Notes |
 |---|---|---|
 | Super Admin | `wilsonshizirungu@gmail.com` | OTP required |
-| Teacher | `sarah.nakamya@markova.academy` | OTP required |
+| Teacher | `aline.uwase@markova.academy` | OTP required |
 | Librarian | `librarian@markova.academy` | OTP required |
 | Student | `student1@markova.academy` | No OTP (direct token) |
-| Parent | uses **phone** (see below) | OTP required |
+| Parent | phone `+250788100000` | OTP required |
 
-For a parent, look up a phone from the DB:
+These five demo accounts skip the first-login forced password change so they
+land straight on their dashboard. All other seeded users still have it on, so
+you can still demo that flow.
+
+For more parent phones, look them up in the DB:
 ```bash
 PGPASSWORD=password psql -h localhost -p 5434 -U markova -d markova \
   -c "SELECT email, phone, role FROM users WHERE role='PARENT' LIMIT 3;"
@@ -193,7 +197,7 @@ The seeded SMTP config is real (Brevo), so emails go out for real. **For testing
 ### 2.3 Login as Parent (phone)
 
 1. Toggle to **Phone** on the login form.
-2. Enter a parent phone (e.g. `+2567000001000`) and `Password123!`.
+2. Enter a parent phone (e.g. `+250788100000`) and `Password123!`.
 3. Submit, enter OTP from email/console.
 
 **Expected:** parent dashboard.
@@ -239,7 +243,7 @@ Click your avatar → **Logout**.
 
 Should display: total students, total teachers, total parents, total classes, performance trends, attendance summary, recent activity.
 
-**Verify:** numbers match the seed (30 students, 5 teachers, 15 parents, 3 classes).
+**Verify:** numbers match the seed (330 students, 30 teachers, 200 parents, 30 classes).
 
 ### 3.2 Manage users `/admin/users`, `/admin/students`, `/admin/teachers`
 
@@ -479,7 +483,7 @@ PGPASSWORD=password psql -h localhost -p 5434 -U markova -d markova \
 
 ## 4. Teacher features
 
-Sign in as `sarah.nakamya@markova.academy`.
+Sign in as `aline.uwase@markova.academy`.
 
 ### 4.1 Dashboard `/teacher`
 
@@ -710,7 +714,7 @@ Run these in order:
 1. ✅ `docker compose ps` — both containers `Up`.
 2. ✅ `curl -fsS http://localhost:3000/api/health` returns `"status":"ok"` and both `database` + `redis` checks green.
 3. ✅ Open `http://localhost:3001/login` — login form renders.
-4. ✅ Login as admin, land on `/admin`, see seeded numbers (30/5/15/3).
+4. ✅ Login as admin, land on `/admin`, see seeded numbers (330 students / 30 teachers / 562 users / 15 subjects).
 5. ✅ `/admin/students` lists 30 students.
 6. ✅ Open one student → report card PDF downloads.
 7. ✅ Open `/admin/messages` → real-time send/receive works.
@@ -727,7 +731,7 @@ If any of these fail, do not demo — fix first.
 - **Audit logs** have no dashboard UI yet — query the table directly.
 - **Photo upload on user profile** uses the same pattern as logo upload (verified) but the per-user endpoint isn't independently smoke-tested.
 - **Promotion logic** depends on year results being calculated first.
-- **The 5 seeded book loans** are now due 14 days from seed time (fixed). Re-seed if you've been running the demo for more than two weeks to avoid stale overdue flags.
+- **Demo data is date-relative.** The seed anchors everything to "today": the current term contains today, attendance covers the last ~10 weekdays, and only 3 loans are intentionally overdue. The seed is idempotent — re-run `npx prisma db seed` any time (especially on demo day) to refresh dates. Note the attendance dashboard defaults to today, so it's empty on weekends.
 
 ---
 

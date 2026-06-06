@@ -22,42 +22,90 @@ const prisma = new PrismaClient();
 // distinct first/last-name combinations.
 
 const MALE_FIRSTS = [
-  'Allan', 'Brian', 'Charles', 'Daniel', 'Edward', 'Frank', 'George', 'Henry',
-  'Isaac', 'James', 'Kenneth', 'Lawrence', 'Moses', 'Nathan', 'Oscar', 'Peter',
-  'Quincy', 'Robert', 'Samuel', 'Timothy', 'Umar', 'Victor', 'William', 'Xavier',
-  'Yusuf', 'Zachary', 'Alex', 'Benjamin', 'Christopher', 'David', 'Ethan',
-  'Felix', 'Gilbert', 'Hassan', 'Ibrahim', 'Joseph', 'Kevin', 'Lawrence',
-  'Martin', 'Nicholas', 'Owen', 'Patrick', 'Raymond', 'Stephen', 'Thomas',
-  'Vincent', 'Walter', 'Andrew', 'Benedict', 'Cyrus',
+  'Jean', 'Eric', 'Patrick', 'Emmanuel', 'Olivier', 'Fabrice', 'Thierry',
+  'Aimable', 'Gilbert', 'Innocent', 'Claude', 'Bosco', 'Theogene', 'Faustin',
+  'Vedaste', 'Celestin', 'Aloys', 'Dieudonne', 'Janvier', 'Pascal', 'Cyprien',
+  'Anselme', 'Fidele', 'Egide', 'Moise', 'Eugene', 'Protais', 'Aime',
+  'Felicien', 'Theoneste', 'Boniface', 'Augustin', 'Desire', 'Placide',
+  'Schadrack', 'Straton', 'Damascene', 'Vianney', 'Elie', 'Gaspard',
+  'Herve', 'Isaie', 'Jonas', 'Kevin', 'Landry', 'Maurice', 'Norbert',
+  'Pacifique', 'Samuel', 'Yves',
 ];
 
 const FEMALE_FIRSTS = [
-  'Agnes', 'Beatrice', 'Catherine', 'Diana', 'Emma', 'Fiona', 'Gloria',
-  'Helen', 'Irene', 'Joyce', 'Kate', 'Linda', 'Margaret', 'Nancy', 'Olivia',
-  'Patricia', 'Queen', 'Rebecca', 'Sandra', 'Teresa', 'Ursula', 'Violet',
-  'Winnie', 'Xenia', 'Yvonne', 'Zara', 'Alice', 'Brenda', 'Christine',
-  'Daphne', 'Ellen', 'Florence', 'Grace', 'Hope', 'Ivy', 'Juliet', 'Karen',
-  'Lillian', 'Mary', 'Nora', 'Pamela', 'Ruth', 'Sophia', 'Tabitha', 'Valerie',
-  'Wendy', 'Yasmin', 'Zoe', 'Amanda', 'Barbara',
+  'Aline', 'Claudine', 'Diane', 'Esperance', 'Josiane', 'Solange', 'Yvette',
+  'Chantal', 'Immaculee', 'Vestine', 'Beatha', 'Christine', 'Donatha',
+  'Florence', 'Goretti', 'Henriette', 'Liliane', 'Mediatrice', 'Nadine',
+  'Odette', 'Pelagie', 'Sandrine', 'Triphine', 'Valentine', 'Yvonne',
+  'Divine', 'Gloria', 'Honorine', 'Josee', 'Keza', 'Mahoro', 'Peace',
+  'Teta', 'Ange', 'Bella', 'Clarisse', 'Denyse', 'Espoir', 'Gisele',
+  'Ines', 'Jeanne', 'Lea', 'Marie', 'Nelly', 'Olive', 'Pamela', 'Rose',
+  'Sonia', 'Umutoni', 'Winnie',
 ];
 
-// Ugandan surnames covering Buganda, Acholi, Langi, Iteso, Banyankole, etc.
+// Rwandan surnames (Kinyarwanda family names).
 const LAST_NAMES = [
-  'Tumwine', 'Namugera', 'Kato', 'Nalwanga', 'Ochieng', 'Auma', 'Lubega',
-  'Namutebi', 'Ssebunya', 'Nantongo', 'Musoke', 'Babirye', 'Waiswa',
-  'Nansubuga', 'Otim', 'Nabukera', 'Kasule', 'Mirembe', 'Kibuuka',
-  'Ainomugisha', 'Mwesigwa', 'Kyomuhendo', 'Mugume', 'Nakato', 'Ssempijja',
-  'Namatovu', 'Kayongo', 'Nambi', 'Wasswa', 'Kemigisha', 'Aine', 'Bwambale',
-  'Chemonges', 'Doryne', 'Echodu', 'Faridah', 'Gulu', 'Hakim', 'Iga',
-  'Jjingo', 'Kakuru', 'Lwanga', 'Magezi', 'Nakimuli', 'Okurut', 'Pulkol',
-  'Rukundo', 'Sserwadda', 'Tushabe', 'Umutoni', 'Vianney', 'Wandera',
-  'Yiga', 'Zziwa', 'Akampwera', 'Bagonza', 'Cherop', 'Drazu', 'Etomet',
+  'Niyonkuru', 'Mukamana', 'Habimana', 'Uwimana', 'Nshimiyimana', 'Bizimana',
+  'Niyitegeka', 'Hakizimana', 'Iradukunda', 'Mugisha', 'Ndayisaba',
+  'Nsengiyumva', 'Tuyishime', 'Uwase', 'Murenzi', 'Gatera', 'Karangwa',
+  'Kagabo', 'Nkurunziza', 'Munyaneza', 'Sibomana', 'Ntirenganya', 'Rukundo',
+  'Byiringiro', 'Dusabe', 'Gasana', 'Ishimwe', 'Manzi', 'Mutoni', 'Shema',
+  'Cyusa', 'Ganza', 'Hirwa', 'Igihozo', 'Kalisa', 'Mahoro', 'Rugema',
+  'Ruterana', 'Sebahire', 'Twagiramungu', 'Uwitonze', 'Nizeyimana',
+  'Bizimungu', 'Kayitesi', 'Ingabire', 'Mukandayisenga', 'Nteziryayo',
+  'Rwabuhihi', 'Gakwaya', 'Habyarimana', 'Mukeshimana', 'Ndahiro',
+  'Rwigema', 'Uwamahoro', 'Bagiruwubusa', 'Cyiza', 'Dushime', 'Hagenimana',
+  'Mukantwari', 'Niyomugabo',
 ];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 const sample = <T>(arr: T[]): T => arr[rand(arr.length)];
+
+// ─── DATE HELPERS ────────────────────────────────────────────────────────────
+// All demo dates are derived from "now" so the data always looks current — the
+// active term contains today, attendance includes today, loans are mostly not
+// yet due. Re-seeding any day produces fresh-looking data.
+
+const MS_DAY = 24 * 60 * 60 * 1000;
+// Use UTC midnight everywhere. Storing dates at local midnight in a UTC+ zone
+// (e.g. Kigali/CAT) reads back as the previous calendar day, which would shift
+// every seeded weekday by one. UTC midnight keeps `date::date` exact.
+const startOfToday = () => {
+  const n = new Date();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+};
+const addDays = (base: Date, days: number) => new Date(base.getTime() + days * MS_DAY);
+
+/** The most recent `count` weekdays (Mon–Fri), ending with today if it's a weekday. */
+function recentWeekdays(count: number): Date[] {
+  const out: Date[] = [];
+  const cursor = startOfToday();
+  while (out.length < count) {
+    const dow = cursor.getUTCDay();
+    if (dow !== 0 && dow !== 6) out.unshift(new Date(cursor));
+    cursor.setTime(cursor.getTime() - MS_DAY);
+  }
+  return out;
+}
+
+/**
+ * Wipe every table (except the migration ledger) so the seed is fully
+ * re-runnable. TRUNCATE … CASCADE clears child rows and resets identities in
+ * one statement, independent of FK ordering.
+ */
+async function clearDatabase() {
+  const rows = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+  `;
+  if (rows.length === 0) return;
+  const list = rows.map((r) => `"public"."${r.tablename}"`).join(', ');
+  await prisma.$executeRawUnsafe(
+    `TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`,
+  );
+}
 
 /**
  * Stateful name allocator — guarantees every name returned is unique across
@@ -94,6 +142,11 @@ function makeNameAllocator() {
 async function main() {
   console.log('🌱 Seeding database (large dataset)…');
 
+  // Make the seed idempotent — clear everything first so it can be re-run
+  // any time to restore a clean, current-looking demo.
+  await clearDatabase();
+  console.log('  🧹 Existing data cleared');
+
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
   const configs = [
     { key: 'school_name', value: 'Markova Academy' },
@@ -107,8 +160,8 @@ async function main() {
     { key: 'borrowing_duration_days', value: '14' },
     { key: 'pass_threshold', value: '50' },
     { key: 'grading_scale', value: 'A:90,B:80,C:70,D:60,F:0' },
-    { key: 'school_address', value: '123 Education Street, Kampala, Uganda' },
-    { key: 'school_phone', value: '+256700000000' },
+    { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
+    { key: 'school_phone', value: '+250788000000' },
     { key: 'school_email', value: 'info@markova.academy' },
     { key: 'email_provider', value: 'smtp' },
   ];
@@ -128,13 +181,13 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       email: 'wilsonshizirungu@gmail.com',
-      phone: '+256700000001',
+      phone: '+250788000001',
       passwordHash,
       role: Role.ADMIN,
-      firstName: 'James',
-      lastName: 'Mugisha',
+      firstName: 'Wilson',
+      lastName: 'Nshizirungu',
       isActive: true,
-      forcePasswordChange: true,
+      forcePasswordChange: false, // demo account — log straight into dashboard
     },
   });
   console.log('  ✅ Admin user seeded');
@@ -144,27 +197,28 @@ async function main() {
 
   // ─── TEACHERS (30) ──────────────────────────────────────────────────────────
   const TEACHER_COUNT = 30;
-  // First 5 keep their original emails so existing tests + docs still work.
+  // First 5 have stable, documented emails. The first is the demo teacher.
   const fixedTeachers = [
-    { firstName: 'Sarah', lastName: 'Nakamya', email: 'sarah.nakamya@markova.academy', phone: '+256700000010' },
-    { firstName: 'John', lastName: 'Okello', email: 'john.okello@markova.academy', phone: '+256700000011' },
-    { firstName: 'Grace', lastName: 'Atim', email: 'grace.atim@markova.academy', phone: '+256700000012' },
-    { firstName: 'Peter', lastName: 'Ssemakula', email: 'peter.ssemakula@markova.academy', phone: '+256700000013' },
-    { firstName: 'Ruth', lastName: 'Nabirye', email: 'ruth.nabirye@markova.academy', phone: '+256700000014' },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: 'eric.niyonkuru@markova.academy', phone: '+250788000011' },
+    { firstName: 'Diane', lastName: 'Mukamana', email: 'diane.mukamana@markova.academy', phone: '+250788000012' },
+    { firstName: 'Patrick', lastName: 'Habimana', email: 'patrick.habimana@markova.academy', phone: '+250788000013' },
+    { firstName: 'Solange', lastName: 'Ingabire', email: 'solange.ingabire@markova.academy', phone: '+250788000014' },
   ];
   const generatedTeachers = names.take(TEACHER_COUNT - fixedTeachers.length).map(
     (n, idx) => ({
       firstName: n.first,
       lastName: n.last,
       email: `${n.first.toLowerCase()}.${n.last.toLowerCase()}${idx}@markova.academy`,
-      phone: `+256722${String(100 + idx).padStart(6, '0')}`,
+      phone: `+250788${String(100 + idx).padStart(6, '0')}`,
     }),
   );
   const teacherData = [...fixedTeachers, ...generatedTeachers];
 
   const teacherUsers: any[] = [];
   const teachers: any[] = [];
-  for (const td of teacherData) {
+  for (let ti = 0; ti < teacherData.length; ti++) {
+    const td = teacherData[ti];
     const user = await prisma.user.create({
       data: {
         email: td.email,
@@ -174,7 +228,7 @@ async function main() {
         firstName: td.firstName,
         lastName: td.lastName,
         isActive: true,
-        forcePasswordChange: true,
+        forcePasswordChange: ti !== 0, // teacher[0] is the demo account
       },
     });
     const teacher = await prisma.teacher.create({
@@ -193,41 +247,47 @@ async function main() {
   const librarianUser = await prisma.user.create({
     data: {
       email: 'librarian@markova.academy',
-      phone: '+256700000020',
+      phone: '+250788000020',
       passwordHash,
       role: Role.LIBRARIAN,
-      firstName: 'Dorothy',
-      lastName: 'Kamya',
+      firstName: 'Josiane',
+      lastName: 'Mutoni',
       isActive: true,
-      forcePasswordChange: true,
+      forcePasswordChange: false, // demo account
     },
   });
   console.log('  ✅ Librarian seeded');
 
   // ─── ACADEMIC YEAR & TERMS ──────────────────────────────────────────────────
-  const now = new Date();
-  const yr = now.getFullYear();
+  // Anchored to today: Term 1 is the *current* term and its window contains
+  // today, so every term selector defaults to a term that actually has data.
+  // Terms 2 and 3 are future terms. All seeded marks/attendance/etc. live in
+  // Term 1 (terms[0]).
+  const today = startOfToday();
+  const yr = today.getFullYear();
+  const term1Start = addDays(today, -42); // ~6 weeks ago
+  const term1End = addDays(today, 49); // ~7 weeks ahead
   const academicYear = await prisma.academicYear.create({
     data: {
       name: `${yr}-${yr + 1}`,
-      startDate: new Date(`${yr}-02-01`),
-      endDate: new Date(`${yr}-11-30`),
+      startDate: term1Start,
+      endDate: addDays(today, 231), // through end of Term 3
       isCurrent: true,
     },
   });
   const terms: any[] = [];
   const termDates = [
-    { name: 'Term 1', start: `${yr}-02-01`, end: `${yr}-04-30` },
-    { name: 'Term 2', start: `${yr}-05-15`, end: `${yr}-08-15` },
-    { name: 'Term 3', start: `${yr}-09-01`, end: `${yr}-11-30` },
+    { name: 'Term 1', start: term1Start, end: term1End },
+    { name: 'Term 2', start: addDays(today, 63), end: addDays(today, 154) },
+    { name: 'Term 3', start: addDays(today, 168), end: addDays(today, 231) },
   ];
   for (let i = 0; i < termDates.length; i++) {
     const t = await prisma.term.create({
       data: {
         academicYearId: academicYear.id,
         name: termDates[i].name,
-        startDate: new Date(termDates[i].start),
-        endDate: new Date(termDates[i].end),
+        startDate: termDates[i].start,
+        endDate: termDates[i].end,
         isCurrent: i === 0,
         isClosed: false,
       },
@@ -356,7 +416,7 @@ async function main() {
         firstName: first,
         lastName: last,
         isActive: true,
-        forcePasswordChange: true,
+        forcePasswordChange: i !== 0, // student1 is the demo account
       },
     });
     const ageBase = 12 + Math.floor(sectionIdx / 5); // S1 → ~12 yrs, S6 → ~17 yrs
@@ -384,7 +444,7 @@ async function main() {
   const parentUsers: any[] = [];
   for (let i = 0; i < PARENT_COUNT; i++) {
     const { first, last } = parentNames[i];
-    const phone = `+256711${String(i).padStart(6, '0')}`;
+    const phone = `+250788${String(100000 + i).padStart(6, '0')}`;
     const user = await prisma.user.create({
       data: {
         phone,
@@ -395,7 +455,7 @@ async function main() {
         firstName: first,
         lastName: last,
         isActive: true,
-        forcePasswordChange: true,
+        forcePasswordChange: i !== 0, // parent[0] (+250788100000) is the demo account
       },
     });
     parentUsers.push(user);
@@ -445,12 +505,12 @@ async function main() {
   await prisma.mark.createMany({ data: markRows });
   console.log(`  ✅ ${markRows.length} marks seeded`);
 
-  // ─── ATTENDANCE (5 weekdays) ────────────────────────────────────────────────
-  const startMonday = new Date(`${yr}-02-03`); // Mon
+  // ─── ATTENDANCE (last 10 weekdays, incl. today) ─────────────────────────────
+  // Anchored to today so the attendance dashboard (which defaults to today)
+  // always has data to show.
+  const attendanceDates = recentWeekdays(10);
   const attRows: any[] = [];
-  for (let d = 0; d < 5; d++) {
-    const date = new Date(startMonday);
-    date.setDate(startMonday.getDate() + d);
+  for (const date of attendanceDates) {
     for (let si = 0; si < students.length; si++) {
       const sectionIdx = Math.floor(si / STUDENTS_PER_SECTION);
       const r = Math.random();
@@ -498,7 +558,7 @@ async function main() {
         studentId: student.id,
         termId: terms[0].id,
         recordedByUserId: teacherUsers[i % teacherUsers.length].id,
-        date: new Date(`${yr}-02-${String(3 + (i % 25)).padStart(2, '0')}`),
+        date: addDays(today, -((i % 28) + 1)), // within the last 4 weeks
         time: '08:30',
         location: i % 2 ? 'Classroom' : 'Main Hall',
         description: incidentDescriptions[i % incidentDescriptions.length],
@@ -554,15 +614,21 @@ async function main() {
       }),
     );
   }
-  // 20 active loans, due 14 days from now.
-  const loanDueDate = new Date();
-  loanDueDate.setDate(loanDueDate.getDate() + 14);
+  // 20 active loans. Most are due in the future; the last 3 are intentionally
+  // overdue so the overdue list/reminders are demonstrable without the whole
+  // library looking delinquent.
   for (let i = 0; i < 20; i++) {
+    const dueDate =
+      i < 17
+        ? addDays(today, 5 + (i % 9)) // due 5–13 days out
+        : addDays(today, -(2 + (i - 17) * 2)); // 3 loans overdue by 2–6 days
+    const checkedOutAt = addDays(today, -(7 + (i % 5)));
     await prisma.bookLoan.create({
       data: {
         bookId: books[i % books.length].id,
         borrowerUserId: studentUsers[i].id,
-        dueDate: loanDueDate,
+        checkedOutAt,
+        dueDate,
         status: LoanStatus.ACTIVE,
       },
     });
@@ -571,7 +637,7 @@ async function main() {
       data: { availableCount: { decrement: 1 } },
     });
   }
-  console.log(`  ✅ ${books.length} books + 20 active loans seeded`);
+  console.log(`  ✅ ${books.length} books + 20 active loans (3 overdue) seeded`);
 
   // ─── HOMEWORK ───────────────────────────────────────────────────────────────
   // One homework per subject for S1A so multiple appear on a student's dashboard.
@@ -724,7 +790,12 @@ async function main() {
   console.log('\n🎉 Seed completed successfully!');
   console.log(`   ${teachers.length} teachers · ${students.length} students · ${parentUsers.length} parents · ${classSections.length} classes`);
   console.log('   Default password for all users: Password123!');
-  console.log('   Admin email: wilsonshizirungu@gmail.com');
+  console.log('   Demo accounts (no forced password change):');
+  console.log('     Admin     wilsonshizirungu@gmail.com');
+  console.log('     Teacher   aline.uwase@markova.academy');
+  console.log('     Student   student1@markova.academy');
+  console.log('     Librarian librarian@markova.academy');
+  console.log('     Parent    +250788100000 (phone login)');
 }
 
 main()
