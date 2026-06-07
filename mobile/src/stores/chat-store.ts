@@ -77,7 +77,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const token = await getAccessToken();
     if (!token) return;
 
-    const socket = io(WS_URL, {
+    // The backend gateway lives on the "/chat" namespace (same as web).
+    const socket = io(`${WS_URL}/chat`, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
