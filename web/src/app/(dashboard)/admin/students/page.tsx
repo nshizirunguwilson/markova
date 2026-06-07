@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   Button,
@@ -66,6 +66,18 @@ export default function AdminStudentsPage() {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
 
+  // Auto-search: debounce typing into the query (no button needed)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setFilters((f) => {
+        const next = searchInput.trim() || undefined;
+        if (f.search === next) return f;
+        return { ...f, search: next, page: 1 };
+      });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -91,9 +103,6 @@ export default function AdminStudentsPage() {
               className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={handleSearch}>
-            Search
-          </Button>
 
           <select
             className="rounded-lg border border-border px-3 py-2 text-sm"

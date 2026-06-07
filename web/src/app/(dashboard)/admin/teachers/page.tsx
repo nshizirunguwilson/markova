@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   Button,
@@ -46,6 +46,18 @@ export default function AdminTeachersPage() {
   const handleSearch = () => {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
+
+  // Auto-search: debounce typing into the query (no button needed)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setFilters((f) => {
+        const next = searchInput.trim() || undefined;
+        if (f.search === next) return f;
+        return { ...f, search: next, page: 1 };
+      });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [searchInput]);
 
   const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
     exportData(format, {

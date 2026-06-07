@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -97,6 +97,18 @@ export default function UsersPage() {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
 
+  // Auto-search: debounce typing into the query (no button needed)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setFilters((f) => {
+        const next = searchInput.trim() || undefined;
+        if (f.search === next) return f;
+        return { ...f, search: next, page: 1 };
+      });
+    }, 350);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
   const handleRoleFilter = (role: string) => {
     setFilters((f) => ({
       ...f,
@@ -149,9 +161,6 @@ export default function UsersPage() {
               className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={handleSearch}>
-            Search
-          </Button>
 
           {/* Role tabs */}
           <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
