@@ -11,9 +11,18 @@ export interface Message {
   fileUrl?: string;
   conversationId: string;
   senderId: string;
+  senderUserId?: string;
   sender?: { id: string; firstName?: string; lastName?: string };
   status: 'SENT' | 'DELIVERED' | 'READ';
   createdAt: string;
+}
+
+// The backend identifies the author as `senderUserId` (scalar) / `sender.id`
+// (relation), never `senderId`. Normalise so the UI's `senderId === userId`
+// "is this mine?" check works for both REST- and socket-delivered messages.
+function normalizeMessage(m: any): Message {
+  if (!m) return m;
+  return { ...m, senderId: m.senderId ?? m.senderUserId ?? m.sender?.id };
 }
 
 export interface Conversation {
@@ -105,7 +114,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     // New message received
-    socket.on('newMessage', (message: Message) => {
+    socket.on('newMessage', (raw: Message) => {
+      const message = normalizeMessage(raw);
       set((state) => {
         const convMessages = state.messages[message.conversationId] ?? [];
         // Avoid duplicates
@@ -224,7 +234,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadConversations: async () => {
     try {
       const { data } = await api.get('/messaging/conversations');
-      set({ conversations: data });
+      const conversations = (data as Conversation[]).map((c) => ({
+        ...c,
+        lastMessage: c.lastMessage ? normalizeMessage(c.lastMessage) : c.lastMessage,
+      }));
+      set({ conversations });
     } catch {
       // Silently fail
     }
@@ -235,7 +249,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { data } = await api.get(`/messaging/conversations/${conversationId}/messages`, {
         params: { page, limit: 50 },
       });
-      const messages = (data.data ?? data) as Message[];
+      const messages = ((data.data ?? data) as Message[]).map(normalizeMessage);
       set((state) => ({
         messages: {
           ...state.messages,
