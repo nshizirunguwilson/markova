@@ -273,6 +273,48 @@ export function useDeleteAssignment() {
   });
 }
 
+// ─── Timetable (weekly schedule: day/time/room) ──────────────────────────────
+
+export function useTimetable(classSectionId?: string, teacherId?: string) {
+  return useQuery({
+    queryKey: ["timetable", classSectionId, teacherId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (classSectionId) params.set("classSectionId", classSectionId);
+      if (teacherId) params.set("teacherId", teacherId);
+      return (await api.get(`/academic/timetable?${params}`)).data;
+    },
+    enabled: !!classSectionId,
+  });
+}
+
+export function useCreateTimetable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/academic/timetable", data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Lesson added"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to add lesson"),
+  });
+}
+
+export function useUpdateTimetable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/timetable/${id}`, data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update lesson"),
+  });
+}
+
+export function useDeleteTimetable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/academic/timetable/${id}`)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Lesson removed"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to remove lesson"),
+  });
+}
+
 // ─── School Config ──────────────────────────────────────────────────────────
 
 export function useSchoolConfig() {
