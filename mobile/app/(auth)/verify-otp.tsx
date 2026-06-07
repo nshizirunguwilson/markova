@@ -21,6 +21,7 @@ export default function VerifyOtpScreen() {
   const router = useRouter();
   const { email } = useLocalSearchParams<{ email: string }>();
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const resendOtp = useAuthStore((s) => s.resendOtp);
 
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
@@ -78,7 +79,7 @@ export default function VerifyOtpScreen() {
 
     setLoading(true);
     try {
-      await verifyOtp(email!, code);
+      await verifyOtp(code);
       router.replace('/(app)/(tabs)');
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Invalid OTP. Please try again.';
@@ -91,9 +92,16 @@ export default function VerifyOtpScreen() {
   };
 
   const handleResend = async () => {
-    // Re-trigger login to resend OTP
-    toast.info('A new OTP has been sent to your email');
-    setCountdown(60);
+    if (countdown > 0) return;
+    try {
+      await resendOtp();
+      toast.info('A new code has been sent');
+      setCountdown(60);
+      setOtp(Array(OTP_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Could not resend code');
+    }
   };
 
   return (

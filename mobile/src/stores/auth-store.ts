@@ -36,9 +36,11 @@ interface AuthState {
   isLoading: boolean;
   needsOtp: boolean;
   pendingEmail: string | null;
+  pendingSessionId: string | null;
 
   login: (email: string, password: string) => Promise<{ needsOtp: boolean }>;
-  verifyOtp: (email: string, otp: string) => Promise<void>;
+  verifyOtp: (otp: string) => Promise<void>;
+  resendOtp: () => Promise<void>;
   loadProfile: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
@@ -50,12 +52,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   needsOtp: false,
   pendingEmail: null,
+  pendingSessionId: null,
 
   login: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
 
     if (data.requiresOtp) {
-      set({ needsOtp: true, pendingEmail: email });
+      // Backend OTP is session-based — keep the sessionId for verify/resend
+      set({ needsOtp: true, pendingEmail: email, pendingSessionId: data.sessionId });
       return { needsOtp: true };
     }
 
@@ -72,16 +76,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { needsOtp: false };
   },
 
-  verifyOtp: async (email, otp) => {
-    const { data } = await api.post('/auth/verify-otp', { email, otp });
+  verifyOtp: async (otp) => {
+    const sessionId = get().pendingSessionId;
+    const { data } = await api.post('/auth/verify-otp', { sessionId, otp });
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingEmail: null });
+    set({ needsOtp: false, pendingEmail: null, pendingSessionId: null });
     await get().loadProfile();
     if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
       await get().logout();
       throw buildBlockedError();
     }
     set({ isAuthenticated: true });
+  },
+
+  resendOtp: async () => {
+    const sessionId = get().pendingSessionId;
+    const { data } = await api.post('/auth/resend-otp', { sessionId });
+    // Backend reuses the same session; keep whatever it returns just in case
+    if (data?.sessionId) set({ pendingSessionId: data.sessionId });
   },
 
   loadProfile: async () => {
@@ -106,6 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       needsOtp: false,
       pendingEmail: null,
+      pendingSessionId: null,
     });
   },
 
