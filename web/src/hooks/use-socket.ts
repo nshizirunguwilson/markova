@@ -14,7 +14,7 @@ export function useSocketConnection() {
     if (isAuthenticated && user) {
       const token = localStorage.getItem("access_token");
       if (token) {
-        connect(token, queryClient);
+        connect(token, queryClient, user.id);
       }
     }
 

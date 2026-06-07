@@ -10,7 +10,7 @@ interface ChatState {
   onlineUsers: Set<string>;
   typingUsers: Map<string, Map<string, string>>; // convId -> Map<userId, userName>
 
-  connect: (token: string, queryClient: QueryClient) => void;
+  connect: (token: string, queryClient: QueryClient, userId?: string) => void;
   disconnect: () => void;
   sendMessage: (conversationId: string, content: string, contentType?: string) => Promise<any>;
   markRead: (conversationId: string) => void;
@@ -43,7 +43,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   onlineUsers: new Set(),
   typingUsers: new Map(),
 
-  connect: (token: string, queryClient: QueryClient) => {
+  connect: (token: string, queryClient: QueryClient, userId?: string) => {
     const existing = get().socket;
     if (existing?.connected) return;
 
@@ -54,6 +54,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
     });
+    // Remember who we are so we don't beep for our own messages
+    (socket as any)._userId = userId;
 
     socket.on("connect", () => {
       set({ connected: true });

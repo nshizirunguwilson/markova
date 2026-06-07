@@ -34,14 +34,18 @@ export default function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Mark as read when selecting a conversation (via socket if connected, else REST)
+  // Mark as read when a conversation is open AND whenever a new incoming
+  // message arrives while it's open (so the sender's ticks turn to "read"
+  // even if the recipient never leaves the conversation).
   useEffect(() => {
-    if (selectedConv) {
-      if (chatStore.connected) {
-        chatStore.markRead(selectedConv);
-      }
+    if (!selectedConv || !chatStore.connected) return;
+    const hasIncomingUnread = (messages || []).some(
+      (m: any) => m.sender?.id !== user?.id && m.status !== "READ"
+    );
+    if (hasIncomingUnread) {
+      chatStore.markRead(selectedConv);
     }
-  }, [selectedConv, chatStore.connected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedConv, chatStore.connected, messages, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom
   useEffect(() => {
