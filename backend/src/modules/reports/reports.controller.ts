@@ -159,4 +159,20 @@ export class ReportsController {
   revokeIdCard(@Body() dto: IssueIdCardDto) {
     return this.service.revokeIdCard(dto.studentId);
   }
+
+  // ── Full export ───────────────────────────────────────────────────────────
+
+  @Get('export/all')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Export all system data as a ZIP of CSV files' })
+  async exportAll(@Res() res: express.Response) {
+    const zip = await this.service.exportEverythingZip();
+    const date = new Date().toISOString().slice(0, 10);
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="markova-export-${date}.zip"`,
+      'Content-Length': zip.length,
+    });
+    res.end(zip);
+  }
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card, CardTitle, Button } from "@/components/ui";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Archive } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { toLocalDateString } from "@/lib/utils";
@@ -17,6 +17,27 @@ const EXPORTS = [
 
 export function DataExportTab() {
   const [loading, setLoading] = useState<string | null>(null);
+  const [fullLoading, setFullLoading] = useState(false);
+
+  const handleExportEverything = async () => {
+    setFullLoading(true);
+    try {
+      const res = await api.get("/reports/export/all", { responseType: "blob" });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `markova-export-${toLocalDateString(new Date())}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Full export downloaded");
+    } catch {
+      toast.error("Full export failed");
+    } finally {
+      setFullLoading(false);
+    }
+  };
 
   const handleExport = async (key: string) => {
     setLoading(key);
@@ -83,7 +104,32 @@ export function DataExportTab() {
       <CardTitle>Data Export</CardTitle>
       <p className="mt-1 text-sm text-muted">Download data as CSV files</p>
 
-      <div className="mt-6 space-y-3">
+      {/* Full export — everything the system holds, as one ZIP of CSVs */}
+      <div className="mt-6 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-center gap-3">
+          <Archive className="h-5 w-5 text-primary" />
+          <div>
+            <p className="font-medium text-foreground">Export everything</p>
+            <p className="text-xs text-muted">
+              A complete backup of all system data — one CSV per table, bundled in a ZIP.
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={handleExportEverything}
+          isLoading={fullLoading}
+          disabled={fullLoading}
+        >
+          {fullLoading ? "Preparing..." : (<><Download className="mr-1 h-4 w-4" /> Export ZIP</>)}
+        </Button>
+      </div>
+
+      <p className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        Or export a single dataset
+      </p>
+
+      <div className="space-y-3">
         {EXPORTS.map((exp) => (
           <div
             key={exp.key}

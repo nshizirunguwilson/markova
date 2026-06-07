@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer from 'puppeteer-core';
+import { buildZip, toCsv } from './zip.util';
 
 function escapeHtml(str: string | null | undefined): string {
   if (!str) return '';
@@ -435,6 +436,118 @@ export class ReportsService {
       hasCard: !!s.nfcCardId,
       cardIssuedAt: s.cardIssuedAt,
     };
+  }
+
+  // ── Full data export (ZIP of CSVs) ────────────────────────────────────────
+
+  /** Dump every meaningful table to a CSV and bundle them into one ZIP. */
+  async exportEverythingZip(): Promise<Buffer> {
+    const strip = (rows: any[], omit: string[] = []) =>
+      rows.map((r) => {
+        const clone: any = { ...r };
+        for (const k of omit) delete clone[k];
+        return clone;
+      });
+
+    const tables: { name: string; rows: any[] }[] = [];
+    tables.push({
+      name: 'users',
+      rows: strip(await this.prisma.user.findMany(), ['passwordHash']),
+    });
+    tables.push({ name: 'students', rows: await this.prisma.student.findMany() });
+    tables.push({ name: 'teachers', rows: await this.prisma.teacher.findMany() });
+    tables.push({
+      name: 'parent_students',
+      rows: await this.prisma.parentStudent.findMany(),
+    });
+    tables.push({
+      name: 'academic_years',
+      rows: await this.prisma.academicYear.findMany(),
+    });
+    tables.push({ name: 'terms', rows: await this.prisma.term.findMany() });
+    tables.push({
+      name: 'class_levels',
+      rows: await this.prisma.classLevel.findMany(),
+    });
+    tables.push({
+      name: 'class_sections',
+      rows: await this.prisma.classSection.findMany(),
+    });
+    tables.push({ name: 'subjects', rows: await this.prisma.subject.findMany() });
+    tables.push({
+      name: 'assessment_types',
+      rows: await this.prisma.assessmentType.findMany(),
+    });
+    tables.push({
+      name: 'timetables',
+      rows: await this.prisma.timetable.findMany(),
+    });
+    tables.push({
+      name: 'teacher_roles',
+      rows: await this.prisma.teacherRole.findMany(),
+    });
+    tables.push({
+      name: 'teacher_subject_classes',
+      rows: await this.prisma.teacherSubjectClass.findMany(),
+    });
+    tables.push({ name: 'marks', rows: await this.prisma.mark.findMany() });
+    tables.push({
+      name: 'term_results',
+      rows: await this.prisma.termResult.findMany(),
+    });
+    tables.push({
+      name: 'year_results',
+      rows: await this.prisma.yearResult.findMany(),
+    });
+    tables.push({
+      name: 'attendance',
+      rows: await this.prisma.attendance.findMany(),
+    });
+    tables.push({
+      name: 'teacher_attendance',
+      rows: await this.prisma.teacherAttendance.findMany(),
+    });
+    tables.push({
+      name: 'discipline_incidents',
+      rows: await this.prisma.disciplineIncident.findMany(),
+    });
+    tables.push({
+      name: 'discipline_appeals',
+      rows: await this.prisma.disciplineAppeal.findMany(),
+    });
+    tables.push({ name: 'books', rows: await this.prisma.book.findMany() });
+    tables.push({
+      name: 'book_loans',
+      rows: await this.prisma.bookLoan.findMany(),
+    });
+    tables.push({ name: 'homework', rows: await this.prisma.homework.findMany() });
+    tables.push({
+      name: 'homework_submissions',
+      rows: await this.prisma.homeworkSubmission.findMany(),
+    });
+    tables.push({
+      name: 'exam_schedules',
+      rows: await this.prisma.examSchedule.findMany(),
+    });
+    tables.push({
+      name: 'school_config',
+      rows: await this.prisma.schoolConfig.findMany(),
+    });
+
+    const files = tables.map((t) => ({
+      name: `${t.name}.csv`,
+      content: toCsv(t.rows),
+    }));
+    // Manifest: a quick index of what's inside and row counts
+    files.push({
+      name: 'manifest.csv',
+      content: toCsv([
+        { exportedAt: new Date().toISOString(), tables: tables.length },
+        ...tables.map((t) => ({ table: t.name, rows: t.rows.length })),
+      ]),
+    });
+
+    return buildZip(files);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
