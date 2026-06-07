@@ -316,6 +316,7 @@ model Student {
   previousSchool    String?       @map("previous_school")
   enrollmentDate    DateTime      @default(now()) @map("enrollment_date")
   nfcCardId         String?       @unique @map("nfc_card_id")
+  cardIssuedAt      DateTime?     @map("card_issued_at")
   status            StudentStatus @default(ACTIVE)
   disciplinePoints  Int           @default(100) @map("discipline_points")
   createdAt         DateTime      @default(now()) @map("created_at")

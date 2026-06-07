@@ -21,6 +21,8 @@ import {
   GenerateDocumentDto,
   GenerateIdCardDto,
   BulkIdCardsDto,
+  IssueIdCardDto,
+  IdCardRegistryQueryDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -128,5 +130,33 @@ export class ReportsController {
   @ApiOperation({ summary: 'Generate ID cards for a class' })
   bulkIdCards(@Body() dto: BulkIdCardsDto) {
     return this.service.generateBulkIdCards(dto.classSectionId);
+  }
+
+  @Get('id-cards/registry')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'List students with their ID-card status' })
+  idCardRegistry(@Query() query: IdCardRegistryQueryDto) {
+    return this.service.getIdCardRegistry(query);
+  }
+
+  @Post('id-cards/issue')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Issue (generate) an ID card for a student' })
+  issueIdCard(@Body() dto: IssueIdCardDto) {
+    return this.service.issueIdCard(dto.studentId);
+  }
+
+  @Post('id-cards/issue-bulk')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Issue cards for all students in a section without one' })
+  issueBulkIdCards(@Body() dto: BulkIdCardsDto) {
+    return this.service.issueBulkIdCards(dto.classSectionId);
+  }
+
+  @Post('id-cards/revoke')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Revoke a student ID card' })
+  revokeIdCard(@Body() dto: IssueIdCardDto) {
+    return this.service.revokeIdCard(dto.studentId);
   }
 }

@@ -43,3 +43,22 @@ export class GenerateIdCardDto {
 export class BulkIdCardsDto {
   @ApiProperty() @IsUUID() classSectionId: string;
 }
+
+export class IssueIdCardDto {
+  @ApiProperty() @IsUUID() studentId: string;
+}
+
+export enum IdCardStatusFilter {
+  ALL = 'all',
+  ISSUED = 'issued',
+  NOT_ISSUED = 'not_issued',
+}
+
+export class IdCardRegistryQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsUUID() classSectionId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
+  @ApiPropertyOptional({ enum: IdCardStatusFilter })
+  @IsOptional()
+  @IsEnum(IdCardStatusFilter)
+  status?: IdCardStatusFilter;
+}

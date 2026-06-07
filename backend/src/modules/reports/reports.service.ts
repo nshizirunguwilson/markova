@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer from 'puppeteer-core';
 
@@ -289,9 +290,10 @@ export class ReportsService {
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
+        cardId: student.nfcCardId,
         photoUrl: student.user.photoUrl,
         class: `${student.classSection.classLevel.name} ${student.classSection.name}`,
-        qrData: student.studentIdNumber, // QR code content
+        qrData: student.nfcCardId || student.studentIdNumber, // QR encodes the card if issued
       },
     };
   }
@@ -306,6 +308,133 @@ export class ReportsService {
       cards.push(await this.generateIdCardData(s.id));
     }
     return { count: cards.length, cards };
+  }
+
+  // ── ID Card registry / issuance ──────────────────────────────────────────
+
+  private generateCardId(): string {
+    // e.g. MK-3F9A2B7C1D — a printable, unique physical-card identifier
+    return 'MK-' + randomBytes(5).toString('hex').toUpperCase();
+  }
+
+  /** Registry of students with their card status, filterable by section/search/status. */
+  async getIdCardRegistry(query: {
+    classSectionId?: string;
+    search?: string;
+    status?: string;
+  }) {
+    const { classSectionId, search, status } = query;
+    const where: any = { status: 'ACTIVE' };
+    if (classSectionId) where.classSectionId = classSectionId;
+    if (status === 'issued') where.nfcCardId = { not: null };
+    else if (status === 'not_issued') where.nfcCardId = null;
+    if (search?.trim()) {
+      const s = search.trim();
+      where.OR = [
+        { studentIdNumber: { contains: s, mode: 'insensitive' } },
+        { nfcCardId: { contains: s, mode: 'insensitive' } },
+        { user: { firstName: { contains: s, mode: 'insensitive' } } },
+        { user: { lastName: { contains: s, mode: 'insensitive' } } },
+      ];
+    }
+
+    const students = await this.prisma.student.findMany({
+      where,
+      include: {
+        user: { select: { firstName: true, lastName: true, photoUrl: true } },
+        classSection: { include: { classLevel: true } },
+      },
+      orderBy: [
+        { classSection: { classLevel: { order: 'asc' } } },
+        { user: { firstName: 'asc' } },
+      ],
+    });
+
+    const items = students.map((s) => this.toCardSummary(s));
+    return {
+      total: items.length,
+      issued: items.filter((i) => i.hasCard).length,
+      notIssued: items.filter((i) => !i.hasCard).length,
+      items,
+    };
+  }
+
+  /** Issue a card for one student (assigns a unique nfcCardId + issue date). */
+  async issueIdCard(studentId: string, force = false) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    if (student.nfcCardId && !force) {
+      return this.idCardSummary(studentId);
+    }
+
+    // Generate a unique card id (retry on the rare unique-constraint clash)
+    let cardId = this.generateCardId();
+    for (let i = 0; i < 5; i++) {
+      const clash = await this.prisma.student.findUnique({
+        where: { nfcCardId: cardId },
+      });
+      if (!clash) break;
+      cardId = this.generateCardId();
+    }
+
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: { nfcCardId: cardId, cardIssuedAt: new Date() },
+    });
+    return this.idCardSummary(studentId);
+  }
+
+  /** Issue cards for every student in a section that doesn't have one yet. */
+  async issueBulkIdCards(classSectionId: string) {
+    const students = await this.prisma.student.findMany({
+      where: { classSectionId, status: 'ACTIVE', nfcCardId: null },
+      select: { id: true },
+    });
+    for (const s of students) {
+      await this.issueIdCard(s.id);
+    }
+    return { issued: students.length };
+  }
+
+  /** Revoke a student's card. */
+  async revokeIdCard(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: { nfcCardId: null, cardIssuedAt: null },
+    });
+    return { success: true };
+  }
+
+  private async idCardSummary(studentId: string) {
+    const s = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        user: { select: { firstName: true, lastName: true, photoUrl: true } },
+        classSection: { include: { classLevel: true } },
+      },
+    });
+    if (!s) throw new NotFoundException('Student not found');
+    return this.toCardSummary(s);
+  }
+
+  private toCardSummary(s: any) {
+    return {
+      id: s.id,
+      name: `${s.user.firstName} ${s.user.lastName}`,
+      studentIdNumber: s.studentIdNumber,
+      photoUrl: s.user.photoUrl,
+      class: `${s.classSection.classLevel.name} ${s.classSection.name}`,
+      classSectionId: s.classSectionId,
+      cardId: s.nfcCardId,
+      hasCard: !!s.nfcCardId,
+      cardIssuedAt: s.cardIssuedAt,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
