@@ -77,6 +77,31 @@ export function usePromoteStudents() {
   });
 }
 
+export function usePromotionPreview() {
+  return useMutation({
+    mutationFn: async (data: {
+      fromClassSectionId: string;
+      academicYearId: string;
+      passThreshold?: number;
+      disciplineThreshold?: number;
+    }) => (await api.post("/academic/promote/preview", data)).data,
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to load students"),
+  });
+}
+
+export function useCommitPromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      academicYearId: string;
+      toClassSectionId: string;
+      decisions: { studentId: string; decision: "PROMOTE" | "RETAIN" }[];
+    }) => (await api.post("/academic/promote/commit", data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to commit"),
+  });
+}
+
 // ─── Class Levels ───────────────────────────────────────────────────────────
 
 export function useClassLevels() {

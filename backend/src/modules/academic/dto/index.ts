@@ -439,3 +439,54 @@ export class PromoteStudentsDto {
   @IsInt()
   passThreshold?: number;
 }
+
+export class PromotionPreviewDto {
+  @ApiProperty({ description: 'Source class section ID' })
+  @IsUUID()
+  fromClassSectionId: string;
+
+  @ApiProperty({ description: 'Academic year ID to evaluate results' })
+  @IsUUID()
+  academicYearId: string;
+
+  @ApiPropertyOptional({ description: 'Academic pass threshold %', example: 50 })
+  @IsOptional()
+  @IsInt()
+  passThreshold?: number;
+
+  @ApiPropertyOptional({
+    description: 'Minimum discipline points to be eligible',
+    example: 50,
+  })
+  @IsOptional()
+  @IsInt()
+  disciplineThreshold?: number;
+}
+
+export enum PromotionDecision {
+  PROMOTE = 'PROMOTE',
+  RETAIN = 'RETAIN',
+}
+
+export class PromotionDecisionItemDto {
+  @ApiProperty() @IsUUID() studentId: string;
+  @ApiProperty({ enum: PromotionDecision })
+  @IsEnum(PromotionDecision)
+  decision: PromotionDecision;
+}
+
+export class CommitPromotionDto {
+  @ApiProperty({ description: 'Academic year ID' })
+  @IsUUID()
+  academicYearId: string;
+
+  @ApiProperty({ description: 'Target class section ID for promoted students' })
+  @IsUUID()
+  toClassSectionId: string;
+
+  @ApiProperty({ type: [PromotionDecisionItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PromotionDecisionItemDto)
+  decisions: PromotionDecisionItemDto[];
+}

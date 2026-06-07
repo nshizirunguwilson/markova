@@ -20,6 +20,8 @@ import {
   CreateAssignmentDto,
   BulkAssignmentDto,
   PromoteStudentsDto,
+  PromotionPreviewDto,
+  CommitPromotionDto,
   CreateTimetableDto,
   UpdateTimetableDto,
   BulkTimetableDto,
@@ -642,6 +644,154 @@ export class AcademicService {
 
     return {
       total: students.length,
+      promoted: promoted.length,
+      retained: retained.length,
+      promotedStudents: promoted,
+      retainedStudents: retained,
+    };
+  }
+
+  /**
+   * Deliberation preview: for every student in the source class, compute their
+   * yearly average and discipline standing and a system recommendation
+   * (PROMOTE only if both the academic pass mark and the discipline minimum are
+   * met). Staff review this and can override each decision before committing.
+   */
+  async getPromotionPreview(dto: PromotionPreviewDto) {
+    const passThreshold = dto.passThreshold ?? 50;
+    const disciplineThreshold = dto.disciplineThreshold ?? 50;
+
+    const students = await this.prisma.student.findMany({
+      where: { classSectionId: dto.fromClassSectionId, status: 'ACTIVE' },
+      include: {
+        yearResults: { where: { academicYearId: dto.academicYearId } },
+        user: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { user: { firstName: 'asc' } },
+    });
+
+    // Fallback academic average from raw marks when no year result is computed yet
+    const terms = await this.prisma.term.findMany({
+      where: { academicYearId: dto.academicYearId },
+      select: { id: true },
+    });
+    const termIds = terms.map((t) => t.id);
+    const studentIds = students.map((s) => s.id);
+    const marks =
+      termIds.length && studentIds.length
+        ? await this.prisma.mark.findMany({
+            where: {
+              studentId: { in: studentIds },
+              termId: { in: termIds },
+              maxScore: { gt: 0 },
+            },
+            select: { studentId: true, score: true, maxScore: true },
+          })
+        : [];
+    const markAvg = new Map<string, { sum: number; n: number }>();
+    for (const m of marks) {
+      const pct = (m.score / m.maxScore) * 100;
+      const a = markAvg.get(m.studentId) ?? { sum: 0, n: 0 };
+      a.sum += pct;
+      a.n += 1;
+      markAvg.set(m.studentId, a);
+    }
+
+    const rows = students.map((s) => {
+      const yr = s.yearResults[0];
+      const fromMarks = markAvg.get(s.id);
+      const average =
+        yr?.yearlyAverage ??
+        (fromMarks && fromMarks.n > 0 ? fromMarks.sum / fromMarks.n : 0);
+      const disciplinePoints = s.disciplinePoints;
+      const passedAcademic = average >= passThreshold;
+      const passedDiscipline = disciplinePoints >= disciplineThreshold;
+      const recommendation =
+        passedAcademic && passedDiscipline ? 'PROMOTE' : 'RETAIN';
+
+      let reason: string;
+      if (recommendation === 'PROMOTE') {
+        reason = 'Meets academic and discipline criteria';
+      } else if (!passedAcademic && !passedDiscipline) {
+        reason = `Below pass mark (${average.toFixed(1)}% < ${passThreshold}%) and discipline (${disciplinePoints} < ${disciplineThreshold})`;
+      } else if (!passedAcademic) {
+        reason = `Below pass mark (${average.toFixed(1)}% < ${passThreshold}%)`;
+      } else {
+        reason = `Discipline below threshold (${disciplinePoints} < ${disciplineThreshold})`;
+      }
+
+      return {
+        studentId: s.id,
+        name: `${s.user.firstName} ${s.user.lastName}`,
+        studentIdNumber: s.studentIdNumber,
+        average: Number(average.toFixed(1)),
+        disciplinePoints,
+        hasResult: !!yr,
+        recommendation,
+        reason,
+      };
+    });
+
+    return {
+      passThreshold,
+      disciplineThreshold,
+      total: rows.length,
+      recommendedPromote: rows.filter((r) => r.recommendation === 'PROMOTE')
+        .length,
+      recommendedRetain: rows.filter((r) => r.recommendation === 'RETAIN')
+        .length,
+      students: rows,
+    };
+  }
+
+  /** Commit the staff's final per-student promotion decisions. */
+  async commitPromotion(dto: CommitPromotionDto) {
+    const ids = dto.decisions.map((d) => d.studentId);
+    const students = await this.prisma.student.findMany({
+      where: { id: { in: ids } },
+      include: {
+        yearResults: { where: { academicYearId: dto.academicYearId } },
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+    const byId = new Map(students.map((s) => [s.id, s]));
+
+    const promoted: string[] = [];
+    const retained: string[] = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const d of dto.decisions) {
+        const s = byId.get(d.studentId);
+        if (!s) continue;
+        const yr = s.yearResults[0];
+        const name = `${s.user.firstName} ${s.user.lastName}`;
+
+        if (d.decision === 'PROMOTE') {
+          await tx.student.update({
+            where: { id: s.id },
+            data: { classSectionId: dto.toClassSectionId },
+          });
+          if (yr) {
+            await tx.yearResult.update({
+              where: { id: yr.id },
+              data: { isPromoted: true },
+            });
+          }
+          promoted.push(name);
+        } else {
+          if (yr) {
+            await tx.yearResult.update({
+              where: { id: yr.id },
+              data: { isPromoted: false },
+            });
+          }
+          retained.push(name);
+        }
+      }
+    });
+
+    return {
+      total: dto.decisions.length,
       promoted: promoted.length,
       retained: retained.length,
       promotedStudents: promoted,

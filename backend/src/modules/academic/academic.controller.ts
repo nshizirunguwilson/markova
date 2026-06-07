@@ -28,6 +28,8 @@ import {
   CreateAssignmentDto,
   BulkAssignmentDto,
   PromoteStudentsDto,
+  PromotionPreviewDto,
+  CommitPromotionDto,
   CreateTimetableDto,
   UpdateTimetableDto,
   BulkTimetableDto,
@@ -412,5 +414,21 @@ export class AcademicController {
   })
   promoteStudents(@Body() dto: PromoteStudentsDto) {
     return this.service.promoteStudents(dto);
+  }
+
+  @Post('promote/preview')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Deliberation preview: per-student average, discipline, recommendation',
+  })
+  promotionPreview(@Body() dto: PromotionPreviewDto) {
+    return this.service.getPromotionPreview(dto);
+  }
+
+  @Post('promote/commit')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Commit staff-reviewed promotion decisions' })
+  commitPromotion(@Body() dto: CommitPromotionDto) {
+    return this.service.commitPromotion(dto);
   }
 }
