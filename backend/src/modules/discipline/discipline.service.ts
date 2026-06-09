@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateIncidentDto,
   UpdateIncidentDto,
@@ -15,7 +16,10 @@ import {
 
 @Injectable()
 export class DisciplineService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private ownership: OwnershipService,
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // INCIDENTS
@@ -223,12 +227,24 @@ export class DisciplineService {
   // APPEALS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async createAppeal(dto: CreateAppealDto, submittedByUserId: string) {
+  async createAppeal(
+    dto: CreateAppealDto,
+    submittedByUserId: string,
+    role: string,
+  ) {
     const incident = await this.prisma.disciplineIncident.findUnique({
       where: { id: dto.incidentId },
       include: { appeals: true },
     });
     if (!incident) throw new NotFoundException('Incident not found');
+
+    // A student/parent may only appeal an incident for their own/their child's
+    // record — not an arbitrary incident id.
+    await this.ownership.verifyStudentAccess(
+      submittedByUserId,
+      role,
+      incident.studentId,
+    );
 
     // Check for existing pending appeal
     const pending = incident.appeals.find((a) => a.status === 'PENDING');
