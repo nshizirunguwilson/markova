@@ -127,6 +127,38 @@ class-level delete confirmed end-to-end in the browser.
 
 ---
 
+## 2d. Round 4 — end-to-end security & data-integrity audit
+
+A full backend audit (every module, schema, migration, DTO, guard) with live
+API/DB probes. Findings and fixes are in [AUDIT_REPORT.md](AUDIT_REPORT.md);
+work landed on branch `audit/security-and-integrity-fixes`. Headline counts:
+2 HIGH, 9 MEDIUM, 11 LOW. The two HIGH bugs were reproduced live before fixing.
+
+| # | Sev | Area | Symptom | Fix | Commit |
+|---|---|---|---|---|---|
+| H-1 | HIGH | Analytics | Any student/parent could read **another** student's analytics (grades, rank) — `/analytics/student/:id` & `/parent/child/:id/trends` had no ownership check (200 vs the marks endpoint's 403) | Inject `OwnershipService`; scope teacher analytics to assigned sections (M-9) | `cd55c27` |
+| H-2 | HIGH | Attendance | Re-marking **daily** attendance created a duplicate row instead of updating (NULL `subject_id` never matched the `''` upsert key) — verified 2 rows | NULL-safe find-then-update/create | `d4e3ec5` |
+| M-10 | MED | Attendance | QR/NFC late check only looked at the minute field (10:05 counted on-time) | Correct 08:30 cutoff helper | `d4e3ec5` |
+| M-3 | MED | Users | Non-transactional create → orphan user if the role record failed | Wrap user + role write in one `$transaction` | `4040693` |
+| M-4 | MED | Discipline | Any parent/student could appeal **any** incident by id | Ownership check before appeal create | `d3f0f3f` |
+| M-5 | MED | Academic | Deleting a subject/term/year silently cascade-deleted marks; section/level delete 500'd | Dependency guards → clean 400 | `f5cd1ef` |
+| M-6 | MED | Homework | Student could submit to another class's homework | Restrict to own class section | `4048fb0` |
+| L-12 | LOW | Boot | `LegacyRouteConverter` warning on the uploads exclude | Named-wildcard `uploads/{*path}` | `6f89666` |
+
+Tests grew from **63 → 124** backend (12 suites) plus the existing 10 web; both
+suites green, `nest build` + `next build` clean, server boots warning-free.
+**Deferred for a product decision:** mark scale cap (M-7), student↔student chat
+policy (M-8), forced-password-change enforcement (M-11) — see the report's Open
+Questions.
+
+> **Correction to a prior note:** `backend/.env` is **gitignored and was never
+> committed** (verified against git history). The earlier claim of a "committed
+> Brevo SMTP key" was wrong — there is no secret in the repo or its history.
+> Still rotate any key that lived in a local `.env` and keep `NODE_ENV=production`
+> so `devOtp`/`devToken` are suppressed.
+
+---
+
 ## 3. What was tested and is verified working
 
 **Auth** — all 5 role logins, OTP flow, refresh, change/reset password endpoints, lockout &
@@ -186,7 +218,10 @@ API-contract bugs were fixed (#17 + #18 below). Typechecks clean, bundles (iOS e
 - [ ] Wire chronic-absenteeism “Notify parents” and library overdue reminders to the email queue with delivery confirmation.
 
 ### P3 — hardening & ops
-- [ ] Move secrets out of `backend/.env` (SMTP creds, JWT secrets) into real environment config; rotate the committed Brevo key.
+- [ ] Move secrets out of `backend/.env` (SMTP creds, JWT secrets) into real environment config and rotate any key used locally. (Note: `.env` is gitignored and was never committed — there is no key in git history.)
+- [ ] Add a retry/queue for outbound email (Brevo) so an SMTP outage doesn't silently drop OTP/notification mail (audit L-1).
+- [ ] Decide the deferred policy questions: mark-scale cap (M-7), student↔student chat (M-8), forced-password-change enforcement (M-11).
+- [ ] Backfill service specs for messaging / reports / school-config / help (0% in this round).
 - [ ] Migrate the deprecated `package.json#prisma` block to `prisma.config.ts` (Prisma 7 readiness).
 - [ ] Add e2e tests for the multi-actor flows (appeals, homework grading) and a CI workflow.
 - [ ] Production deploy guide hardening (HTTPS, CORS origins, NODE_ENV=production so `devOtp` is suppressed).
