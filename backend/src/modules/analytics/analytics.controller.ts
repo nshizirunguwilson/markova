@@ -10,6 +10,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
+import { OwnershipService } from '../../common/ownership.service';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 
@@ -18,7 +19,10 @@ import { RolesGuard } from '../../common/guards';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class AnalyticsController {
-  constructor(private readonly service: AnalyticsService) {}
+  constructor(
+    private readonly service: AnalyticsService,
+    private readonly ownership: OwnershipService,
+  ) {}
 
   // ── Admin ─────────────────────────────────────────────────────────────────
 
@@ -89,10 +93,17 @@ export class AnalyticsController {
   @Get('student/:studentId')
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Student performance analytics' })
-  getStudentAnalytics(
+  async getStudentAnalytics(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId') termId: string,
+    @Req() req: any,
   ) {
+    // A student may only read their own analytics; a parent only their child's.
+    await this.ownership.verifyStudentAccess(
+      req.user.id,
+      req.user.role,
+      studentId,
+    );
     return this.service.getStudentAnalytics(studentId, termId);
   }
 
@@ -101,10 +112,17 @@ export class AnalyticsController {
   @Get('parent/child/:studentId/trends')
   @Roles('PARENT')
   @ApiOperation({ summary: 'Child performance trends for parent' })
-  getParentChildTrends(
+  async getParentChildTrends(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('academicYearId') academicYearId: string,
+    @Req() req: any,
   ) {
+    // The student must be one of this parent's linked children.
+    await this.ownership.verifyStudentAccess(
+      req.user.id,
+      req.user.role,
+      studentId,
+    );
     return this.service.getParentChildTrends(studentId, academicYearId);
   }
 }
