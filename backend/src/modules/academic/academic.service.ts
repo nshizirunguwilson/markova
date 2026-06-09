@@ -92,6 +92,25 @@ export class AcademicService {
 
   async deleteYear(id: string) {
     await this.findYearById(id);
+    // Deleting a year cascades to its terms and every mark/result under them.
+    // Block it when graded data exists so historical records aren't silently
+    // wiped; the admin must clear results first.
+    const terms = await this.prisma.term.findMany({
+      where: { academicYearId: id },
+      select: { id: true },
+    });
+    const termIds = terms.map((t) => t.id);
+    const [markCount, yearResultCount] = await Promise.all([
+      termIds.length
+        ? this.prisma.mark.count({ where: { termId: { in: termIds } } })
+        : Promise.resolve(0),
+      this.prisma.yearResult.count({ where: { academicYearId: id } }),
+    ]);
+    if (markCount > 0 || yearResultCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete an academic year that has recorded marks or results',
+      );
+    }
     await this.prisma.academicYear.delete({ where: { id } });
     return { message: 'Academic year deleted' };
   }
@@ -179,6 +198,13 @@ export class AcademicService {
 
   async deleteTerm(id: string) {
     await this.findTermById(id);
+    // Deleting a term cascades to its marks/results; refuse if any exist.
+    const markCount = await this.prisma.mark.count({ where: { termId: id } });
+    if (markCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a term that has recorded marks',
+      );
+    }
     await this.prisma.term.delete({ where: { id } });
     return { message: 'Term deleted' };
   }
@@ -218,6 +244,21 @@ export class AcademicService {
   }
 
   async deleteClassLevel(id: string) {
+    const level = await this.prisma.classLevel.findUnique({
+      where: { id },
+      include: { _count: { select: { sections: true } } },
+    });
+    if (!level) throw new NotFoundException('Class level not found');
+    // Sections cascade, but their students are restrict-protected, so a level
+    // with enrolled students would otherwise surface a raw 500. Block cleanly.
+    const studentCount = await this.prisma.student.count({
+      where: { classSection: { classLevelId: id } },
+    });
+    if (studentCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a class level that still has enrolled students',
+      );
+    }
     await this.prisma.classLevel.delete({ where: { id } });
     return { message: 'Class level deleted' };
   }
@@ -259,6 +300,16 @@ export class AcademicService {
   }
 
   async deleteSection(id: string) {
+    const section = await this.prisma.classSection.findUnique({
+      where: { id },
+      include: { _count: { select: { students: true } } },
+    });
+    if (!section) throw new NotFoundException('Class section not found');
+    if (section._count.students > 0) {
+      throw new BadRequestException(
+        'Cannot delete a class section that still has enrolled students',
+      );
+    }
     await this.prisma.classSection.delete({ where: { id } });
     return { message: 'Class section deleted' };
   }
@@ -298,6 +349,17 @@ export class AcademicService {
   }
 
   async deleteSubject(id: string) {
+    const subject = await this.prisma.subject.findUnique({ where: { id } });
+    if (!subject) throw new NotFoundException('Subject not found');
+    // Subject → Mark is a cascade delete, so removing a subject would silently
+    // erase every mark recorded for it. Refuse when graded data exists; the
+    // admin can deactivate the subject (isActive=false) instead.
+    const markCount = await this.prisma.mark.count({ where: { subjectId: id } });
+    if (markCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a subject that has recorded marks; deactivate it instead',
+      );
+    }
     await this.prisma.subject.delete({ where: { id } });
     return { message: 'Subject deleted' };
   }
