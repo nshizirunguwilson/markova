@@ -19,6 +19,8 @@ Plus ~11 minor (8–94px) horizontal overflows on a handful of pages at mobile/t
 
 Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-Questions.**
 
+**Resolution:** the CRITICAL role leak and the HIGH attendance breakage are **fixed and verified**, along with the six load-bearing responsive overflows; the full Playwright suite is **20/20 green** and `tsc` is clean. Four ≤26px admin-only cosmetic overflows are deferred with reasoning (§5). Details and per-finding status below.
+
 ---
 
 ## 1. Methodology & setup
@@ -154,8 +156,34 @@ It logs each role in **once** and reuses tokens (the API rate-limits login to 10
 
 ## 5. Phase 3 — fix log
 
-_Filled after fixes._
+Severity order per the brief: security/role-leak → crashes → broken functionality → validation UX → visual. No crashes/broken-functionality/validation bugs were found, so the work was the role leak then the responsive breakage.
 
-## 6. Screenshot evidence
+| Commit | Finding | Status | What changed |
+|---|---|---|---|
+| `b15c295` | **F-1** (CRITICAL, role leak) | **FIXED** | `DashboardShell` now derives the required role from the route's path prefix and redirects a mismatched user to their own dashboard (shared `/messages`,`/help` exempt). Replaces the dead `allowedRoles` check. |
+| `0f56008` | **F-2** (HIGH, attendance overflow) | **FIXED** | Wrapped the "Attendance by Class" bar chart in `overflow-x-auto` with fixed-width bars. |
+| `0f56008` | **F-3** (MEDIUM, overflow cluster) | **FIXED (6 pages) / DEFERRED (4 minor)** | Fixed student/marks, parent/marks, student dashboard, librarian dashboard, librarian/books (header wrap, table scroll-wrap, responsive grids, flex-wrap/min-w-0). |
 
-Saved under `screenshots/` (gitignored): `screenshots/<role>/*.png` (1440px, all own-role pages), `screenshots/tablet/*.png` and `screenshots/mobile/*.png` (key pages + every overflowing page). Listed in §5 after the fix pass.
+**Verification (all reproduced green after the fix):**
+- **F-1:** the 6 RBAC route-guard tests pass; a STUDENT navigating to `/admin/users` is redirected to `/student` (captured in `screenshots/postfix-mobile/`). The API's data RBAC was already in place; now the pages are unreachable too.
+- **F-2/F-3:** `/admin/attendance`, `/student/marks`, `/parent/marks` (390 & 768), `/student`, `/librarian`, `/librarian/books` all report **no horizontal overflow** at 390/768.
+- **Full Playwright suite: 20 passed / 0 failed.** Web `tsc --noEmit` clean.
+
+**Deferred (cosmetic, ≤26px, admin-only — left as recommendations, not regressions):**
+- `/admin/onboarding` (+26 mobile): the horizontal setup-wizard stepper overflows slightly; needs the stepper to wrap/scroll, a larger change than the rest. Admin-only, desktop-first.
+- `/admin/settings` (+11 mobile): the right-aligned "Save Changes" button nudges past the edge.
+- `/admin/marks` (+9 at exactly 768) and `/admin/discipline` (+8 mobile): the results/incidents tables are already inside internal `overflow-x-auto` scrollers; the residual few px are at the md breakpoint boundary and don't scroll the page meaningfully.
+
+These were judged cosmetic per the brief's "fix MEDIUM where low risk; cosmetic deferred" and "visual last" ordering. None affect a primary user-facing (student/parent/teacher/librarian) flow.
+
+## 6. Open questions
+
+- **OQ-1 (modal dismissal):** the shared `Modal` already closes on Escape, backdrop click, X, and Cancel, with a focus trap and scroll lock — so the safest behaviour is already implemented; no change needed.
+- **OQ-2 (unsaved-changes guard):** no dirty-form navigation warning exists. Not added (out of scope, and an internal tool); flagged for product to decide.
+
+## 7. Screenshot evidence
+
+Saved under `screenshots/` (gitignored):
+- `screenshots/<role>/*.png` — 1440px, every own-role page (56), pre-fix baseline.
+- `screenshots/tablet/*.png`, `screenshots/mobile/*.png` — 768/390 for key + overflowing pages.
+- `screenshots/postfix-mobile/*.png` — post-fix 390px proof for the six fixed pages plus `student_admin_users.png` showing the RBAC redirect (a student sent back to `/student`).
