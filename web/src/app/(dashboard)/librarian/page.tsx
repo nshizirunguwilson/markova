@@ -59,7 +59,7 @@ export default function LibrarianDashboard() {
         <p className="mt-1 text-sm text-muted">Librarian Dashboard</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
         {statCards.map((card) => (
           <Card key={card.label} padding="md" className="flex items-center gap-4">
             <div

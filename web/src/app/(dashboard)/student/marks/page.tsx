@@ -121,7 +121,7 @@ export default function StudentMarksPage() {
                         style={{ width: `${s.average}%` }}
                       />
                     </div>
-                    <div className="mt-1 flex gap-2">
+                    <div className="mt-1 flex flex-wrap gap-2">
                       {s.assessments.map((a: any, j: number) => (
                         <span key={j} className="text-xs text-muted">
                           {a.type}: {a.score}/{a.maxScore}
@@ -144,7 +144,7 @@ export default function StudentMarksPage() {
               <CardTitle><TrendingUp className="mr-2 inline h-5 w-5" /> Performance Comparison</CardTitle>
               <div className="mt-4 flex items-end gap-3" style={{ height: "max(200px, 30vw)", maxHeight: "320px" }}>
                 {subjectMap.map((s, i) => (
-                  <div key={i} className="flex h-full flex-1 flex-col items-center">
+                  <div key={i} className="flex h-full min-w-0 flex-1 flex-col items-center">
                     <span className="mb-1 text-xs font-bold text-foreground">{s.average}%</span>
                     <div className="flex w-full flex-1 items-end">
                       <div

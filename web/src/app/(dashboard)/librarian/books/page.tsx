@@ -52,12 +52,12 @@ export default function LibrarianBooksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Book Catalog</h1>
           <p className="text-sm text-muted">Manage library books</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
             <ArrowDownToLine className="mr-1 h-4 w-4" /> Checkout
           </Button>
@@ -98,7 +98,7 @@ export default function LibrarianBooksPage() {
 
       {/* Search */}
       <Card>
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
             <input
@@ -127,6 +127,7 @@ export default function LibrarianBooksPage() {
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
       ) : books?.length > 0 ? (
         <Card>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -161,6 +162,7 @@ export default function LibrarianBooksPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       ) : (
         <Card>
