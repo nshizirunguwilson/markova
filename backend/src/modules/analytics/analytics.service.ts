@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -210,6 +210,14 @@ export class AnalyticsService {
       where: { teacherId, classSectionId },
       include: { subject: true },
     });
+
+    // A teacher may only see analytics for a section they are assigned to.
+    // Without this, any teacher could read another class's results by id.
+    if (assignments.length === 0) {
+      throw new ForbiddenException(
+        'You are not assigned to this class section',
+      );
+    }
 
     const students = await this.prisma.student.findMany({
       where: { classSectionId },

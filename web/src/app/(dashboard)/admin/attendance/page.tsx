@@ -160,9 +160,10 @@ export default function AdminAttendancePage() {
               {/* Visual bar chart */}
               <Card>
                 <CardTitle>Attendance by Class</CardTitle>
-                <div className="mt-4 flex items-end gap-3 h-40">
+                <div className="mt-4 overflow-x-auto">
+                  <div className="flex items-end gap-3 h-40 min-w-max">
                   {dashboard.sections.map((s: any) => (
-                    <div key={s.sectionId} className="flex h-full flex-1 flex-col items-center">
+                    <div key={s.sectionId} className="flex h-full w-12 shrink-0 flex-col items-center">
                       <span className="mb-1 text-xs font-bold">{s.rate}%</span>
                       <div className="flex w-full flex-1 items-end">
                         <div
@@ -177,6 +178,7 @@ export default function AdminAttendancePage() {
                       </span>
                     </div>
                   ))}
+                  </div>
                 </div>
               </Card>
             </>

@@ -107,7 +107,7 @@ export class DisciplineController {
   @Roles('PARENT', 'STUDENT')
   @ApiOperation({ summary: 'Submit an appeal' })
   createAppeal(@Body() dto: CreateAppealDto, @CurrentUser() user: any) {
-    return this.service.createAppeal(dto, user.id);
+    return this.service.createAppeal(dto, user.id, user.role);
   }
 
   @Get('appeals/pending')

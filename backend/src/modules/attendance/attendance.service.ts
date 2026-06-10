@@ -39,30 +39,15 @@ export class AttendanceService {
     if (!student) throw new NotFoundException('Student not found');
 
     try {
-      const record = await this.prisma.attendance.upsert({
-        where: {
-          studentId_date_type_subjectId: {
-            studentId: dto.studentId,
-            date: new Date(dto.date),
-            type: dto.type,
-            subjectId: dto.subjectId || '',
-          },
-        },
-        update: {
-          status: dto.status as any,
-          reasonCategory: (dto.reasonCategory as any) || null,
-          markedByUserId,
-        },
-        create: {
-          studentId: dto.studentId,
-          classSectionId: dto.classSectionId,
-          date: new Date(dto.date),
-          type: dto.type,
-          subjectId: dto.subjectId || null,
-          status: dto.status as any,
-          reasonCategory: (dto.reasonCategory as any) || null,
-          markedByUserId,
-        },
+      const record = await this.upsertAttendanceRecord({
+        studentId: dto.studentId,
+        classSectionId: dto.classSectionId,
+        date: new Date(dto.date),
+        type: dto.type,
+        subjectId: dto.subjectId || null,
+        status: dto.status as any,
+        reasonCategory: (dto.reasonCategory as any) || null,
+        markedByUserId,
       });
 
       // Send notifications for absences and late arrivals
@@ -81,36 +66,63 @@ export class AttendanceService {
     }
   }
 
+  /**
+   * Insert-or-update a single attendance row keyed on
+   * (studentId, date, type, subjectId). A Prisma upsert on the compound unique
+   * cannot be used for *daily* attendance because subjectId is NULL there, and
+   * Postgres treats NULLs in a unique index as distinct — so an upsert keyed on
+   * '' never matches the stored NULL row and silently inserts a duplicate.
+   * We therefore look the row up explicitly (NULL-safe) and update it if present.
+   */
+  private async upsertAttendanceRecord(data: {
+    studentId: string;
+    classSectionId: string;
+    date: Date;
+    type: string;
+    subjectId: string | null;
+    status: any;
+    reasonCategory: any;
+    markedByUserId: string;
+  }) {
+    const existing = await this.prisma.attendance.findFirst({
+      where: {
+        studentId: data.studentId,
+        date: data.date,
+        type: data.type,
+        subjectId: data.subjectId, // null → IS NULL, matching the stored row
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return this.prisma.attendance.update({
+        where: { id: existing.id },
+        data: {
+          status: data.status,
+          reasonCategory: data.reasonCategory,
+          markedByUserId: data.markedByUserId,
+        },
+      });
+    }
+
+    return this.prisma.attendance.create({ data });
+  }
+
   async bulkMarkAttendance(dto: BulkAttendanceDto, markedByUserId: string) {
     const results = [];
     const notifyStudents: { studentId: string; status: string }[] = [];
 
     for (const record of dto.records) {
       try {
-        const att = await this.prisma.attendance.upsert({
-          where: {
-            studentId_date_type_subjectId: {
-              studentId: record.studentId,
-              date: new Date(dto.date),
-              type: dto.type,
-              subjectId: dto.subjectId || '',
-            },
-          },
-          update: {
-            status: record.status as any,
-            reasonCategory: (record.reasonCategory as any) || null,
-            markedByUserId,
-          },
-          create: {
-            studentId: record.studentId,
-            classSectionId: dto.classSectionId,
-            date: new Date(dto.date),
-            type: dto.type,
-            subjectId: dto.subjectId || null,
-            status: record.status as any,
-            reasonCategory: (record.reasonCategory as any) || null,
-            markedByUserId,
-          },
+        const att = await this.upsertAttendanceRecord({
+          studentId: record.studentId,
+          classSectionId: dto.classSectionId,
+          date: new Date(dto.date),
+          type: dto.type,
+          subjectId: dto.subjectId || null,
+          status: record.status as any,
+          reasonCategory: (record.reasonCategory as any) || null,
+          markedByUserId,
         });
         results.push(att);
         if (record.status === 'ABSENT' || record.status === 'LATE') {
@@ -172,9 +184,8 @@ export class AttendanceService {
       };
     }
 
-    // Determine if late (after 8:30 AM for daily)
-    const isLate =
-      type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
+    // Determine if late (after the 08:30 cutoff for daily check-in)
+    const isLate = type === 'daily' && this.isAfterDailyCutoff(now);
 
     const record = await this.prisma.attendance.create({
       data: {
@@ -236,8 +247,7 @@ export class AttendanceService {
       };
     }
 
-    const isLate =
-      type === 'daily' && now.getHours() >= 8 && now.getMinutes() > 30;
+    const isLate = type === 'daily' && this.isAfterDailyCutoff(now);
 
     const record = await this.prisma.attendance.create({
       data: {
@@ -260,6 +270,17 @@ export class AttendanceService {
         id: student.id,
       },
     };
+  }
+
+  /**
+   * A daily check-in is "late" once the clock passes 08:30. The previous check
+   * (`getHours() >= 8 && getMinutes() > 30`) only looked at the minute field, so
+   * 09:10 or 10:05 were wrongly counted on-time while 08:31–08:59 were late.
+   */
+  private isAfterDailyCutoff(now: Date): boolean {
+    const h = now.getHours();
+    const m = now.getMinutes();
+    return h > 8 || (h === 8 && m > 30);
   }
 
   async registerNfcCard(dto: RegisterNfcCardDto) {
@@ -357,7 +378,7 @@ export class AttendanceService {
       };
     }
 
-    const isLate = now.getHours() >= 8 && now.getMinutes() > 30;
+    const isLate = this.isAfterDailyCutoff(now);
     const record = await this.prisma.teacherAttendance.create({
       data: {
         teacherId: teacher.id,

@@ -17,6 +17,7 @@ describe('AttendanceService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
       count: jest.fn(),
       groupBy: jest.fn(),
     },
@@ -78,15 +79,16 @@ describe('AttendanceService', () => {
         user: { firstName: 'Jane', lastName: 'Doe' },
       });
       const expectedRecord = { id: 'att-1', ...baseDto };
-      mockPrisma.attendance.upsert.mockResolvedValue(expectedRecord);
+      mockPrisma.attendance.findFirst.mockResolvedValue(null); // no existing row
+      mockPrisma.attendance.create.mockResolvedValue(expectedRecord);
       mockPrisma.parentStudent.findMany.mockResolvedValue([]);
 
       const result = await service.markAttendance(baseDto as any, 'teacher-1');
 
       expect(result).toEqual(expectedRecord);
-      expect(mockPrisma.attendance.upsert).toHaveBeenCalledWith(
+      expect(mockPrisma.attendance.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({
+          data: expect.objectContaining({
             studentId: 'student-1',
             status: 'PRESENT',
             markedByUserId: 'teacher-1',
@@ -108,7 +110,8 @@ describe('AttendanceService', () => {
         id: 'student-1',
         user: { firstName: 'Jane', lastName: 'Doe' },
       });
-      mockPrisma.attendance.upsert.mockResolvedValue({ id: 'att-1' });
+      mockPrisma.attendance.findFirst.mockResolvedValue(null);
+      mockPrisma.attendance.create.mockResolvedValue({ id: 'att-1' });
       mockPrisma.parentStudent.findMany.mockResolvedValue([
         {
           parentUserId: 'parent-user-1',
@@ -134,11 +137,61 @@ describe('AttendanceService', () => {
         id: 'student-1',
         user: { firstName: 'Jane', lastName: 'Doe' },
       });
-      mockPrisma.attendance.upsert.mockRejectedValue({ code: 'P2002' });
+      mockPrisma.attendance.findFirst.mockResolvedValue(null);
+      mockPrisma.attendance.create.mockRejectedValue({ code: 'P2002' });
 
       await expect(
         service.markAttendance(baseDto as any, 'teacher-1'),
       ).rejects.toThrow(ConflictException);
+    });
+
+    // H-2 regression: re-marking DAILY attendance (subjectId null) must UPDATE
+    // the existing row, not insert a duplicate. The Postgres unique index treats
+    // NULL subject_id as distinct, so a naive upsert keyed on '' silently dupes.
+    it('H-2: re-marking the same student/date/daily updates the existing row (no duplicate)', async () => {
+      mockPrisma.student.findUnique.mockResolvedValue({
+        id: 'student-1',
+        user: { firstName: 'Jane', lastName: 'Doe' },
+      });
+      mockPrisma.parentStudent.findMany.mockResolvedValue([]);
+      // An attendance row already exists for this student/date/daily
+      mockPrisma.attendance.findFirst.mockResolvedValue({
+        id: 'att-existing',
+        status: 'PRESENT',
+        subjectId: null,
+      });
+      mockPrisma.attendance.update.mockResolvedValue({
+        id: 'att-existing',
+        status: 'ABSENT',
+      });
+
+      await service.markAttendance(
+        { ...baseDto, status: 'ABSENT' } as any,
+        'teacher-1',
+      );
+
+      expect(mockPrisma.attendance.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'att-existing' } }),
+      );
+      expect(mockPrisma.attendance.create).not.toHaveBeenCalled();
+    });
+
+    it('H-2: first daily mark with no existing row creates exactly one record', async () => {
+      mockPrisma.student.findUnique.mockResolvedValue({
+        id: 'student-1',
+        user: { firstName: 'Jane', lastName: 'Doe' },
+      });
+      mockPrisma.parentStudent.findMany.mockResolvedValue([]);
+      mockPrisma.attendance.findFirst.mockResolvedValue(null);
+      mockPrisma.attendance.create.mockResolvedValue({
+        id: 'att-new',
+        status: 'PRESENT',
+      });
+
+      await service.markAttendance(baseDto as any, 'teacher-1');
+
+      expect(mockPrisma.attendance.create).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.attendance.update).not.toHaveBeenCalled();
     });
   });
 
@@ -159,7 +212,8 @@ describe('AttendanceService', () => {
         ],
       };
 
-      mockPrisma.attendance.upsert
+      mockPrisma.attendance.findFirst.mockResolvedValue(null);
+      mockPrisma.attendance.create
         .mockResolvedValueOnce({ id: 'att-1', status: 'PRESENT' })
         .mockResolvedValueOnce({ id: 'att-2', status: 'ABSENT' })
         .mockResolvedValueOnce({ id: 'att-3', status: 'LATE' });
@@ -172,7 +226,7 @@ describe('AttendanceService', () => {
 
       expect(result.count).toBe(3);
       expect(result.records).toHaveLength(3);
-      expect(mockPrisma.attendance.upsert).toHaveBeenCalledTimes(3);
+      expect(mockPrisma.attendance.create).toHaveBeenCalledTimes(3);
     });
 
     it('should skip duplicates without failing the batch', async () => {
@@ -186,7 +240,8 @@ describe('AttendanceService', () => {
         ],
       };
 
-      mockPrisma.attendance.upsert
+      mockPrisma.attendance.findFirst.mockResolvedValue(null);
+      mockPrisma.attendance.create
         .mockResolvedValueOnce({ id: 'att-1', status: 'PRESENT' })
         .mockRejectedValueOnce(new Error('duplicate'));
 
@@ -402,6 +457,46 @@ describe('AttendanceService', () => {
       await expect(
         service.processQrScan(qrDto as any, 'teacher-1'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // M-10 regression: a scan at 10:05 is LATE for a daily check-in (after 08:30),
+    // not "on time". The old `getMinutes() > 30` check mislabelled most of the day.
+    describe('late-arrival logic (M-10)', () => {
+      afterEach(() => jest.useRealTimers());
+
+      const arrangeScan = () => {
+        mockPrisma.student.findFirst.mockResolvedValue({
+          id: 'student-1',
+          studentIdNumber: 'STU001',
+          classSectionId: 'class-1',
+          user: { firstName: 'Jane', lastName: 'Doe' },
+        });
+        mockPrisma.attendance.findFirst.mockResolvedValue(null);
+        mockPrisma.attendance.create.mockImplementation((args: any) =>
+          Promise.resolve({ id: 'att-1', ...args.data }),
+        );
+      };
+
+      it('marks a 10:05 daily check-in as LATE', async () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 10, 5, 0));
+        arrangeScan();
+        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        expect(result.record.status).toBe('LATE');
+      });
+
+      it('marks an 08:15 daily check-in as PRESENT (before cutoff)', async () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 8, 15, 0));
+        arrangeScan();
+        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        expect(result.record.status).toBe('PRESENT');
+      });
+
+      it('marks an 08:45 daily check-in as LATE (after the 08:30 cutoff)', async () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 8, 45, 0));
+        arrangeScan();
+        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        expect(result.record.status).toBe('LATE');
+      });
     });
   });
 });

@@ -182,63 +182,69 @@ export class UsersService {
       if (existing) throw new ConflictException('Phone already in use');
     }
 
+    // Students need a section up front — fail before any write.
+    if (dto.role === Role.STUDENT && !dto.classSectionId) {
+      throw new BadRequestException('classSectionId is required for students');
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email || null,
-        phone: dto.phone || null,
-        passwordHash,
-        role: dto.role,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        isActive: true,
-        forcePasswordChange: true,
-      },
-    });
-
-    // Create role-specific records
-    if (dto.role === Role.STUDENT) {
-      if (!dto.classSectionId) {
-        throw new BadRequestException(
-          'classSectionId is required for students',
-        );
-      }
-      const studentIdNumber = await this.generateStudentId();
-      await this.prisma.student.create({
+    // Create the base user and its role-specific record atomically: a failure
+    // on the second write (e.g. a bad classSectionId) must not leave an orphan
+    // user row with no student/teacher/parent record behind it.
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
-          userId: user.id,
-          studentIdNumber,
-          classSectionId: dto.classSectionId,
-          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
-          gender: dto.gender || null,
-          status: dto.status || 'ACTIVE',
-          disciplinePoints: 100,
-        },
-      });
-    }
-
-    if (dto.role === Role.TEACHER) {
-      await this.prisma.teacher.create({
-        data: {
-          userId: user.id,
-          employmentStatus: dto.employmentStatus || 'FULL_TIME',
+          email: dto.email || null,
+          phone: dto.phone || null,
+          passwordHash,
+          role: dto.role,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
           isActive: true,
+          forcePasswordChange: true,
         },
       });
-    }
 
-    if (dto.role === Role.PARENT && dto.studentIds?.length) {
-      for (const studentId of dto.studentIds) {
-        await this.prisma.parentStudent.create({
+      if (dto.role === Role.STUDENT) {
+        const studentIdNumber = await this.generateStudentId(tx);
+        await tx.student.create({
           data: {
-            parentUserId: user.id,
-            studentId,
-            relationship: dto.relationship || 'Parent',
+            userId: created.id,
+            studentIdNumber,
+            classSectionId: dto.classSectionId!,
+            dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+            gender: dto.gender || null,
+            status: dto.status || 'ACTIVE',
+            disciplinePoints: 100,
           },
         });
       }
-    }
+
+      if (dto.role === Role.TEACHER) {
+        await tx.teacher.create({
+          data: {
+            userId: created.id,
+            employmentStatus: dto.employmentStatus || 'FULL_TIME',
+            isActive: true,
+          },
+        });
+      }
+
+      if (dto.role === Role.PARENT && dto.studentIds?.length) {
+        for (const studentId of dto.studentIds) {
+          await tx.parentStudent.create({
+            data: {
+              parentUserId: created.id,
+              studentId,
+              relationship: dto.relationship || 'Parent',
+            },
+          });
+        }
+      }
+
+      return created;
+    });
 
     return this.findOne(user.id);
   }

@@ -141,6 +141,17 @@ export class HomeworkService {
     });
     if (!homework) throw new NotFoundException('Homework not found');
 
+    // A student may only submit to homework set for their own class section.
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { classSectionId: true },
+    });
+    if (!student || student.classSectionId !== homework.classSectionId) {
+      throw new ForbiddenException(
+        'You can only submit homework assigned to your class',
+      );
+    }
+
     const now = new Date();
     const isLate = now > homework.dueDate;
 

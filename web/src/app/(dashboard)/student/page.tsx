@@ -39,7 +39,7 @@ export default function StudentDashboard() {
         <p className="mt-1 text-sm text-muted">Student Dashboard</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Card>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5 text-primary" />

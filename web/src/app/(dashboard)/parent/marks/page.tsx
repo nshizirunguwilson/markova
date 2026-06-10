@@ -82,7 +82,7 @@ export default function ParentMarksPage() {
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Marks</h1>
           <p className="text-sm text-muted">View your child&apos;s academic performance</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {children.length === 1 ? (
             <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
               Viewing marks for: <strong className="ml-1">{children[0].name}</strong>
@@ -185,7 +185,7 @@ export default function ParentMarksPage() {
                         style={{ width: `${s.average}%` }}
                       />
                     </div>
-                    <div className="mt-1 flex gap-2">
+                    <div className="mt-1 flex flex-wrap gap-2">
                       {s.assessments.map((a: any, j: number) => (
                         <span key={j} className="text-xs text-muted">
                           {a.type}: {a.score}/{a.maxScore}

@@ -12,7 +12,10 @@ import { HttpExceptionFilter } from './common/filters';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.setGlobalPrefix('api', { exclude: ['uploads/(.*)'] });
+  // Express 5 / path-to-regexp v8 requires named wildcards (e.g. `*path`)
+  // instead of the legacy `(.*)` form; this keeps /uploads served outside the
+  // global `api` prefix without the LegacyRouteConverter boot warning.
+  app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });
   app.useStaticAssets(join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'), {
     prefix: '/uploads/',
   });
