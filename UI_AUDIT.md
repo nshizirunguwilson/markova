@@ -122,9 +122,35 @@ Detected: `/admin/marks` (+9 tablet), `/admin/discipline` (+8 mobile), `/admin/o
 
 ---
 
-## 4. Phase 2 — test plan & results
+## 4. Phase 2 — tests & results
 
-_Filled after the test pass._
+Regression suite committed at **`web/e2e/ui-audit.spec.js`** (headless Chromium, 20 tests). Run it with the app on :3001 and the API on :3000:
+
+```bash
+node web/e2e/ui-audit.spec.js          # all tests
+node web/e2e/ui-audit.spec.js rbac     # filter by substring
+```
+
+It logs each role in **once** and reuses tokens (the API rate-limits login to 10/min, so a fresh login per test would 429 mid-run — see test-harness notes below), and pre-warms the dev routes (Next compiles routes lazily on first hit).
+
+**Coverage:** auth (valid login, invalid-password error, password show/hide, logged-out redirect, logout+Back), RBAC route guards (6 role×route probes), 404 handling, a full CRUD form on Subjects (empty→validation, create→persists-after-reload, double-click→no duplicate), table search (match filters, no-match empty state, clear restores), modal dismissal (Escape, Cancel), and responsive overflow at 390/768.
+
+**Pre-fix result: 11 passed / 9 failed.** The 9 failures are exactly the two real findings:
+- 6 × `rbac: <role> cannot reach <route>` → **F-1** (every probe reached the restricted page).
+- 3 × `responsive: <page> has no horizontal overflow` → **F-2/F-3**.
+
+**Three "failures" that were test artifacts, not UI bugs** (investigated with isolated probes, then the tests were corrected — noted here per the brief):
+- *Form/CRUD timeouts:* the suite was logging in fresh per test and tripping the API's 10/min login rate-limit → empty tokens → shell bounced to `/login` → "Add Subject" never appeared. Fixed by caching tokens per role. The Subjects create/validate/double-submit flow **works** (Button disables on `isLoading`, so the double-click creates exactly one row; verified persisted after reload).
+- *Students search empty state:* the test used `input[placeholder*="Search" i]` — Playwright's engine doesn't honour the CSS `i` attribute flag, so it bound the wrong element. With the correct selector the search **works**: `uwase` → 1 row, a no-match term → "No students found", clearing → full list restored (server-side debounced query verified firing).
+- *Logout + Back:* the test simulated logout by clearing only `localStorage`, leaving the in-memory auth store authenticated. With the **real** logout (user menu → Sign Out → confirm, which clears the store too), Back correctly lands on `/login` with no dashboard content — verified.
+
+**Post-fix result:** see §5.
+
+### Other behaviours verified green
+- **Modals** (Subjects add/delete, logout confirm): open, close via Escape / Cancel / X / backdrop click; focus trap; body scroll lock; focus returns to trigger — all present in the shared `Modal` component.
+- **Buttons** disable while their mutation is pending (`isLoading` → `disabled`), preventing double-submit.
+- **404**: `/garbage` renders the custom `not-found.tsx` ("404 / Page Not Found / Go Home"), no console error.
+- **Auth**: invalid password keeps you on `/login` with a toast; valid student login lands on `/student`; logged-out access to `/admin/users` redirects to `/login`.
 
 ## 5. Phase 3 — fix log
 
