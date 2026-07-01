@@ -1,15 +1,49 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+
+/** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
+const CACHE_TTL_SECONDS = 60;
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  /**
+   * Best-effort read-through cache: a Redis outage must never break
+   * analytics, so cache errors fall through to a live compute.
+   */
+  private async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    try {
+      const hit = await this.redis.get(key);
+      if (hit) return JSON.parse(hit) as T;
+    } catch {
+      /* fall through to compute */
+    }
+    const value = await compute();
+    try {
+      await this.redis.set(key, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
+    } catch {
+      /* caching is optional */
+    }
+    return value;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getAdminDashboard(academicYearId?: string, termId?: string) {
+  getAdminDashboard(academicYearId?: string, termId?: string) {
+    return this.cached(
+      `analytics:admin-dashboard:${academicYearId ?? '-'}:${termId ?? '-'}`,
+      () => this.computeAdminDashboard(academicYearId, termId),
+    );
+  }
+
+  private async computeAdminDashboard(academicYearId?: string, termId?: string) {
     const [
       totalStudents,
       totalTeachers,
@@ -38,7 +72,13 @@ export class AnalyticsService {
     };
   }
 
-  async getPerformanceTrends(academicYearId: string) {
+  getPerformanceTrends(academicYearId: string) {
+    return this.cached(`analytics:performance-trends:${academicYearId}`, () =>
+      this.computePerformanceTrends(academicYearId),
+    );
+  }
+
+  private async computePerformanceTrends(academicYearId: string) {
     const terms = await this.prisma.term.findMany({
       where: { academicYearId },
       orderBy: { startDate: 'asc' },
@@ -64,7 +104,13 @@ export class AnalyticsService {
     return trends;
   }
 
-  async getClassComparisons(termId: string) {
+  getClassComparisons(termId: string) {
+    return this.cached(`analytics:class-comparisons:${termId}`, () =>
+      this.computeClassComparisons(termId),
+    );
+  }
+
+  private async computeClassComparisons(termId: string) {
     const sections = await this.prisma.classSection.findMany({
       include: { classLevel: true },
     });
@@ -104,7 +150,13 @@ export class AnalyticsService {
     return comparisons.sort((a, b) => b.averageScore - a.averageScore);
   }
 
-  async getDisciplineStats(academicYearId?: string) {
+  getDisciplineStats(academicYearId?: string) {
+    return this.cached(`analytics:discipline:${academicYearId ?? '-'}`, () =>
+      this.computeDisciplineStats(academicYearId),
+    );
+  }
+
+  private async computeDisciplineStats(academicYearId?: string) {
     const where: any = {};
     if (academicYearId) {
       const terms = await this.prisma.term.findMany({
@@ -132,7 +184,11 @@ export class AnalyticsService {
     };
   }
 
-  async getLibraryStats() {
+  getLibraryStats() {
+    return this.cached('analytics:library', () => this.computeLibraryStats());
+  }
+
+  private async computeLibraryStats() {
     const [totalBooks, totalLoans, activeLoans, overdueLoans] =
       await Promise.all([
         this.prisma.book.count(),
@@ -172,7 +228,13 @@ export class AnalyticsService {
     };
   }
 
-  async getAttendanceStats(termId?: string) {
+  getAttendanceStats(termId?: string) {
+    return this.cached(`analytics:attendance:${termId ?? '-'}`, () =>
+      this.computeAttendanceStats(termId),
+    );
+  }
+
+  private async computeAttendanceStats(termId?: string) {
     const where: any = {};
     if (termId) {
       const term = await this.prisma.term.findUnique({ where: { id: termId } });

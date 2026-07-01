@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import puppeteer from 'puppeteer-core';
+import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
 
 function escapeHtml(str: string | null | undefined): string {
@@ -20,19 +20,49 @@ function sanitizeColor(color: string | null | undefined): string {
 }
 
 @Injectable()
-export class ReportsService {
+export class ReportsService implements OnModuleDestroy {
   constructor(private prisma: PrismaService) {}
 
-  private async htmlToPdf(html: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
-      executablePath:
-        process.env.CHROME_PATH ||
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+  /**
+   * Chrome launch dominates PDF latency (~3-5s per report when launched
+   * per-call), so a single browser is kept alive and reused; each PDF gets
+   * its own page. If Chrome dies, the next call relaunches it once.
+   */
+  private browserPromise: Promise<Browser> | null = null;
+
+  private getBrowser(): Promise<Browser> {
+    if (!this.browserPromise) {
+      this.browserPromise = puppeteer.launch({
+        executablePath:
+          process.env.CHROME_PATH ||
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+    }
+    return this.browserPromise;
+  }
+
+  private async newPage() {
     try {
-      const page = await browser.newPage();
+      const browser = await this.getBrowser();
+      return await browser.newPage();
+    } catch {
+      this.browserPromise = null;
+      const browser = await this.getBrowser();
+      return await browser.newPage();
+    }
+  }
+
+  async onModuleDestroy() {
+    if (!this.browserPromise) return;
+    const browser = await this.browserPromise.catch(() => null);
+    await browser?.close().catch(() => undefined);
+  }
+
+  private async htmlToPdf(html: string): Promise<Buffer> {
+    const page = await this.newPage();
+    try {
       await page.setContent(html, { waitUntil: 'networkidle0' });
       const pdf = await page.pdf({
         format: 'A4',
@@ -41,7 +71,7 @@ export class ReportsService {
       });
       return Buffer.from(pdf);
     } finally {
-      await browser.close();
+      await page.close().catch(() => undefined);
     }
   }
 

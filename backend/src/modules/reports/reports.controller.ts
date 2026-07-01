@@ -45,7 +45,7 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get term report card data' })
   async getTermReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('termId') termId: string,
+    @Query('termId', ParseUUIDPipe) termId: string,
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
@@ -57,7 +57,7 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get term report card as HTML' })
   async getTermReportHtml(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('termId') termId: string,
+    @Query('termId', ParseUUIDPipe) termId: string,
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
@@ -69,7 +69,7 @@ export class ReportsController {
   @ApiOperation({ summary: 'Download term report card as PDF' })
   async getTermReportPdf(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('termId') termId: string,
+    @Query('termId', ParseUUIDPipe) termId: string,
     @Res() res: express.Response,
     @CurrentUser() user: any,
   ) {
