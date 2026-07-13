@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useBrandStore } from "@/stores/brand-store";
+import { BrandMark } from "@/components/brand-mark";
 import type { Role } from "@/types";
 
 interface SidebarProps {
@@ -27,11 +28,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      {/* Logo */}
+      {/* Logo — the school's own uploaded logo when set, otherwise Markova's mark */}
       <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <span className="text-sm font-bold text-white">{schoolName.charAt(0).toUpperCase()}</span>
-        </div>
+        <BrandMark className="h-8 w-8 shrink-0" />
         <span className="text-lg font-bold text-primary truncate">{schoolName}</span>
       </div>
 

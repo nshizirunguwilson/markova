@@ -1,8 +1,48 @@
 import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { existsSync, readFileSync } from 'fs';
+import { join, extname } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
+
+/**
+ * Inline a logo as a data URI for PDF rendering.
+ *
+ * The PDF is produced with `page.setContent()`, which has no base URL — so a
+ * stored path like `/uploads/branding/x.png` can never be fetched by Chrome.
+ * It has to be embedded directly.
+ *
+ * Falls back to Markova's own mark when the school has not uploaded a logo (or
+ * points at a file that no longer exists).
+ */
+function logoDataUri(logoUrl?: string | null): string | null {
+  const uploadDir = join(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
+  const candidates: string[] = [];
+
+  if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
+    const relative = logoUrl.replace(/^\/?uploads\//, '');
+    candidates.push(join(uploadDir, relative));
+  }
+  candidates.push(join(process.cwd(), 'assets', 'logo-horizontal.png'));
+
+  for (const file of candidates) {
+    try {
+      if (!existsSync(file)) continue;
+      const ext = extname(file).toLowerCase();
+      const mime =
+        ext === '.jpg' || ext === '.jpeg'
+          ? 'image/jpeg'
+          : ext === '.svg'
+            ? 'image/svg+xml'
+            : 'image/png';
+      return `data:${mime};base64,${readFileSync(file).toString('base64')}`;
+    } catch {
+      // Unreadable file — fall through to the next candidate.
+    }
+  }
+  return null;
+}
 
 function escapeHtml(str: string | null | undefined): string {
   if (!str) return '';
@@ -668,10 +708,13 @@ export class ReportsService implements OnModuleDestroy {
       <strong>Grading:</strong> A (90-100) | B (80-89) | C (70-79) | D (60-69) | E (50-59) | F (0-49)
     </div>`;
 
+    const logo = logoDataUri(data.school.logoUrl);
+
     return `<!DOCTYPE html><html><head><style>
       @media print { body { margin: 0; } @page { margin: 15mm; } }
       body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #333; background: #fff; max-width: 800px; margin: 30px auto; }
       .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid ${data.school.primaryColor}; padding-bottom: 15px; }
+      .header .logo { height: 56px; width: auto; max-width: 260px; object-fit: contain; margin-bottom: 6px; }
       .header h1 { color: ${data.school.primaryColor}; margin: 5px 0; font-size: 28px; }
       .header h2 { color: ${data.school.primaryColor}; margin: 8px 0; font-size: 18px; letter-spacing: 2px; }
       .header p { margin: 3px 0; color: #666; font-size: 14px; }
@@ -690,6 +733,7 @@ export class ReportsService implements OnModuleDestroy {
       .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; }
     </style></head><body>
       <div class="header">
+        ${logo ? `<img class="logo" src="${logo}" alt="" />` : ''}
         <h1>${data.school.name}</h1>
         <p>${data.school.motto}</p>
         <h2>TERM REPORT CARD</h2>
