@@ -350,14 +350,14 @@ function dealer(pool: string[]) {
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// initial.kinyarwandaname@markova.academy — collisions get a number, so the
+// initial.kinyarwandaname@markova.edu — collisions get a number, so the
 // address is short, memorable and still unique.
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
   const base = `${first.trim()[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
-  let candidate = `${base}@markova.academy`;
+  let candidate = `${base}@markova.edu`;
   for (let n = 2; usedEmails.has(candidate); n++) {
-    candidate = `${base}${n}@markova.academy`;
+    candidate = `${base}${n}@markova.edu`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -499,9 +499,9 @@ async function main() {
     claimFullName(f, l);
   });
   [
-    'aline.uwase@markova.academy',
-    'student1@markova.academy',
-    'librarian@markova.academy',
+    'aline.uwase@markova.edu',
+    'student1@markova.edu',
+    'librarian@markova.edu',
   ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
@@ -518,7 +518,7 @@ async function main() {
     { key: 'pass_threshold', value: '50' },
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
     { key: 'school_phone', value: '+250788000000' },
-    { key: 'school_email', value: 'info@markova.academy' },
+    { key: 'school_email', value: 'info@markova.edu' },
     { key: 'email_provider', value: 'smtp' },
   ];
   for (const config of configs) {
@@ -555,7 +555,7 @@ async function main() {
   // The demo teacher keeps the address documented in CLAUDE.md; the other
   // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010' },
     { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011' },
     { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012' },
     { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013' },
@@ -617,7 +617,7 @@ async function main() {
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   await prisma.user.create({
     data: {
-      email: 'librarian@markova.academy',
+      email: 'librarian@markova.edu',
       phone: '+250788000020',
       passwordHash,
       role: Role.LIBRARIAN,
@@ -634,21 +634,22 @@ async function main() {
   // today, so every term selector defaults to a term that actually has data.
   const today = startOfToday();
   const yr = today.getFullYear();
-  const term1Start = addDays(today, -42); // ~6 weeks ago
-  const term1End = addDays(today, 49); // ~7 weeks ahead
+  // Terms 1 and 2 are finished (closed, fully graded); Term 3 contains today,
+  // so trend charts get three real data points and "current term" still works.
+  const term1Start = addDays(today, -224);
   const academicYear = await prisma.academicYear.create({
     data: {
       name: `${yr}-${yr + 1}`,
       startDate: term1Start,
-      endDate: addDays(today, 231), // through end of Term 3
+      endDate: addDays(today, 70),
       isCurrent: true,
     },
   });
   const terms: any[] = [];
   const termDates = [
-    { name: 'Term 1', start: term1Start, end: term1End },
-    { name: 'Term 2', start: addDays(today, 63), end: addDays(today, 154) },
-    { name: 'Term 3', start: addDays(today, 168), end: addDays(today, 231) },
+    { name: 'Term 1', start: term1Start, end: addDays(today, -140) },
+    { name: 'Term 2', start: addDays(today, -126), end: addDays(today, -35) },
+    { name: 'Term 3', start: addDays(today, -21), end: addDays(today, 70) },
   ];
   for (let i = 0; i < termDates.length; i++) {
     const t = await prisma.term.create({
@@ -657,13 +658,14 @@ async function main() {
         name: termDates[i].name,
         startDate: termDates[i].start,
         endDate: termDates[i].end,
-        isCurrent: i === 0,
-        isClosed: false,
+        isCurrent: i === 2,
+        isClosed: i < 2,
       },
     });
     terms.push(t);
   }
-  console.log('  ✅ Academic year + 3 terms seeded');
+  const currentTerm = terms[2];
+  console.log('  ✅ Academic year + 3 terms seeded (Term 3 current)');
 
   // ─── TRADES ─────────────────────────────────────────────────────────────────
   const trades: any[] = [];
@@ -938,7 +940,7 @@ async function main() {
 
       const user = await prisma.user.create({
         data: {
-          email: i === 0 ? 'student1@markova.academy' : emailFor(first, last),
+          email: i === 0 ? 'student1@markova.edu' : emailFor(first, last),
           passwordHash,
           role: Role.STUDENT,
           firstName: first,
@@ -1082,39 +1084,58 @@ async function main() {
     sectionMetas.map((m, idx) => [m.section.id, idx]),
   );
 
-  for (const { student, meta } of enrolled) {
-    const si = sectionIndexBySectionId.get(meta.section.id)!;
-    const subjectSet = subjectsForSection(meta);
-    const ability = 45 + rand(41); // the student's baseline, 45-85
+  // Each student keeps a baseline ability plus a personal term-on-term drift
+  // (improving, steady or slipping), plus a per-subject strength, so the
+  // trend charts show believable trajectories instead of noise.
+  const drift = new Map<string, number>();
+  const baseline = new Map<string, number>();
+  const strength = new Map<string, number>(); // per student|subject
+  for (const { student } of enrolled) {
+    baseline.set(student.id, 45 + rand(41));
+    drift.set(student.id, rand(11) - 4); // -4 .. +6 per term
+  }
 
-    for (let subj = 0; subj < subjectSet.length; subj++) {
-      const subject = subjectSet[subj];
-      const teacher = teacherFor(si, subj);
-      const perSubject = clamp(ability + rand(21) - 10, 25, 95);
-      const components =
-        subject.scope === SubjectScope.A_SPECIFIC
-          ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
-          : ['CAT 1', 'CAT 2', 'End of Term Exam'];
+  for (let ti = 0; ti < terms.length; ti++) {
+    for (const { student, meta } of enrolled) {
+      const si = sectionIndexBySectionId.get(meta.section.id)!;
+      const subjectSet = subjectsForSection(meta);
+      const ability = clamp(
+        baseline.get(student.id)! + drift.get(student.id)! * ti,
+        25,
+        92,
+      );
 
-      for (const assessmentName of components) {
-        // Practicals trend a bit higher (hands-on work), exams a bit lower.
-        const bias =
-          assessmentName === 'Practical'
-            ? 6
-            : assessmentName === 'End of Term Exam'
-              ? -4
-              : 0;
-        const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
-        markRows.push({
-          studentId: student.id,
-          subjectId: subject.id,
-          classSectionId: meta.section.id,
-          termId: terms[0].id,
-          assessmentTypeId: assessmentByName.get(assessmentName).id,
-          score,
-          maxScore: 100,
-          teacherId: teacher.id,
-        });
+      for (let subj = 0; subj < subjectSet.length; subj++) {
+        const subject = subjectSet[subj];
+        const teacher = teacherFor(si, subj);
+        const sKey = `${student.id}|${subject.id}`;
+        if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
+        const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
+        const components =
+          subject.scope === SubjectScope.A_SPECIFIC
+            ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
+            : ['CAT 1', 'CAT 2', 'End of Term Exam'];
+
+        for (const assessmentName of components) {
+          // Practicals trend a bit higher (hands-on work), exams a bit lower.
+          const bias =
+            assessmentName === 'Practical'
+              ? 6
+              : assessmentName === 'End of Term Exam'
+                ? -4
+                : 0;
+          const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
+          markRows.push({
+            studentId: student.id,
+            subjectId: subject.id,
+            classSectionId: meta.section.id,
+            termId: terms[ti].id,
+            assessmentTypeId: assessmentByName.get(assessmentName).id,
+            score,
+            maxScore: 100,
+            teacherId: teacher.id,
+          });
+        }
       }
     }
   }
@@ -1132,20 +1153,22 @@ async function main() {
     for (const s of subjectsForSection(m)) subjectById.set(s.id, s);
   }
 
-  const marksByStudent = new Map<string, any[]>();
+  const marksByStudentTerm = new Map<string, any[]>();
   for (const row of markRows) {
-    const list = marksByStudent.get(row.studentId) ?? [];
+    const key = `${row.studentId}|${row.termId}`;
+    const list = marksByStudentTerm.get(key) ?? [];
     list.push(row);
-    marksByStudent.set(row.studentId, list);
+    marksByStudentTerm.set(key, list);
   }
 
   const termResultRows: any[] = [];
+  for (const term of terms)
   for (const meta of sectionMetas) {
     const classStudents = enrolled.filter((e) => e.meta === meta);
     const computed: any[] = [];
 
     for (const { student } of classStudents) {
-      const rows = marksByStudent.get(student.id) ?? [];
+      const rows = marksByStudentTerm.get(`${student.id}|${term.id}`) ?? [];
       const bySubject = new Map<string, any[]>();
       for (const r of rows) {
         const list = bySubject.get(r.subjectId) ?? [];
@@ -1180,7 +1203,7 @@ async function main() {
       computed.push({
         studentId: student.id,
         classSectionId: meta.section.id,
-        termId: terms[0].id,
+        termId: term.id,
         totalMarks,
         average,
         letterGrade: overallGrade(average).letter,
@@ -1253,7 +1276,7 @@ async function main() {
     await prisma.disciplineIncident.create({
       data: {
         studentId: student.id,
-        termId: terms[0].id,
+        termId: currentTerm.id,
         recordedByUserId: teacherUsers[i % teacherUsers.length].id,
         date: addDays(today, -((i % 28) + 1)), // within the last 4 weeks
         time: '08:30',
@@ -1348,7 +1371,7 @@ async function main() {
         teacherId: teacherFor(0, i).id,
         subjectId: s1aSubjects[i].id,
         classSectionId: sectionMetas[0].section.id,
-        termId: terms[0].id,
+        termId: currentTerm.id,
         title: `${s1aSubjects[i].name} — Practice Set ${i + 1}`,
         description: 'Complete the prescribed exercises and submit on time.',
         dueDate: hwDueDate,
@@ -1517,9 +1540,9 @@ async function main() {
   console.log('   Default password for all users: Password123!');
   console.log('   Demo accounts (no forced password change):');
   console.log('     Admin     wilsonshizirungu@gmail.com');
-  console.log('     Teacher   aline.uwase@markova.academy');
-  console.log('     Student   student1@markova.academy');
-  console.log('     Librarian librarian@markova.academy');
+  console.log('     Teacher   aline.uwase@markova.edu');
+  console.log('     Student   student1@markova.edu');
+  console.log('     Librarian librarian@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
 }
 
