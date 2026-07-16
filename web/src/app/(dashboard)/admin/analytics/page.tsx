@@ -7,6 +7,7 @@ import { EChart } from "@/components/ui/echart";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import {
   useAdminDashboard,
+  usePerformanceTrends,
   useClassComparisons,
   useDisciplineStats,
   useLibraryAnalytics,
@@ -46,6 +47,7 @@ export default function AdminAnalyticsPage() {
 
   const { data: dashboard } = useAdminDashboard(yearId || undefined, termId || undefined);
   const { data: classComp } = useClassComparisons(termId);
+  const { data: trends } = usePerformanceTrends(yearId);
   const { data: gradeDist } = useGradeDistribution(termId || undefined);
   const { data: enrollment } = useEnrollment();
   const { data: attendance } = useAttendanceAnalytics(termId || undefined);
@@ -317,6 +319,50 @@ export default function AdminAnalyticsPage() {
     };
   }, [attendance]);
 
+  // ── Term by term: school average line ──────────────────────────────────────
+  const trendOption = useMemo<EChartsOption | null>(() => {
+    const pts = (trends ?? []).filter((t: any) => t.studentCount > 0);
+    if (pts.length < 2) return null;
+    return {
+      grid: { left: 44, right: 24, top: 24, bottom: 30 },
+      xAxis: {
+        type: "category",
+        data: pts.map((t: any) => t.termName),
+        boundaryGap: false,
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: viz.grid } },
+        axisLabel,
+      },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
+      tooltip: {
+        ...tooltipStyle,
+        trigger: "axis",
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          const t = pts[p.dataIndex];
+          return `<b>${t.termName}</b><br/>Average ${t.averageScore.toFixed(1)}%<br/>${t.studentCount} graded students`;
+        },
+      },
+      series: [
+        {
+          type: "line",
+          data: pts.map((t: any) => t.averageScore),
+          lineStyle: { color: viz.navy, width: 2.5 },
+          itemStyle: { color: viz.navy, borderColor: "#fff", borderWidth: 2 },
+          symbolSize: 10,
+          label: {
+            show: true,
+            position: "top",
+            color: viz.muted,
+            fontSize: 11,
+            formatter: (p: any) => `${Number(p.value).toFixed(1)}%`,
+          },
+          areaStyle: { color: "rgba(42,120,214,0.08)" },
+        },
+      ],
+    };
+  }, [trends]);
+
   // ── Discipline actions ──────────────────────────────────────────────────────
   const disciplineOption = useMemo<EChartsOption | null>(() => {
     if (!discipline?.byAction?.length) return null;
@@ -455,6 +501,14 @@ export default function AdminAnalyticsPage() {
             <CardTitle>Who the school holds</CardTitle>
             <p className="mt-0.5 text-sm text-muted">Enrolled students per level, boys and girls side by side.</p>
             <EChart option={enrollmentOption} height={320} />
+          </Card>
+        )}
+
+        {trendOption && (
+          <Card className="p-6">
+            <CardTitle>Term by term</CardTitle>
+            <p className="mt-0.5 text-sm text-muted">The whole school&apos;s average across the year.</p>
+            <EChart option={trendOption} height={300} />
           </Card>
         )}
 

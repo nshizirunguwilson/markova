@@ -16,12 +16,14 @@ import {
   PageSpinner,
   ExportDropdown,
 } from "@/components/ui";
+import { useRouter } from "next/navigation";
 import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 
 export default function AdminStudentsPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState<UserFilters>({
     page: 1,
     limit: 20,
@@ -163,7 +165,13 @@ export default function AdminStudentsPage() {
                 </TableRow>
               ) : (
                 students.map((user: any) => (
-                  <TableRow key={user.id}>
+                  <TableRow
+                    key={user.id}
+                    className={user.student?.id ? "cursor-pointer" : undefined}
+                    onClick={() =>
+                      user.student?.id && router.push(`/admin/students/${user.student.id}`)
+                    }
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar

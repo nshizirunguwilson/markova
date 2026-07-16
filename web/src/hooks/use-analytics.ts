@@ -61,6 +61,14 @@ export function useEnrollment() {
   });
 }
 
+export function useStudentProfile(studentId: string) {
+  return useQuery({
+    queryKey: ["analytics", "student-profile", studentId],
+    queryFn: async () => (await api.get(`/analytics/student/${studentId}/profile`)).data,
+    enabled: !!studentId,
+  });
+}
+
 export function useTeacherClassAnalytics(classSectionId: string, termId: string) {
   return useQuery({
     queryKey: ["analytics", "teacher", classSectionId, termId],
