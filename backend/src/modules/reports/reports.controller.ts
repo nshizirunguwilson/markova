@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import * as express from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
@@ -41,6 +42,9 @@ export class ReportsController {
   // ── Report Cards ────────────────────────────────────────────────────────
 
   @Get('term/:studentId')
+  // Bulk class downloads fetch these one per student; a dedicated budget
+  // keeps them from tripping the app-wide 100 req/min limit.
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card data' })
   async getTermReport(
@@ -53,6 +57,9 @@ export class ReportsController {
   }
 
   @Get('term/:studentId/html')
+  // Bulk class downloads fetch these one per student; a dedicated budget
+  // keeps them from tripping the app-wide 100 req/min limit.
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card as HTML' })
   async getTermReportHtml(
@@ -65,6 +72,9 @@ export class ReportsController {
   }
 
   @Get('term/:studentId/pdf')
+  // Bulk class downloads fetch these one per student; a dedicated budget
+  // keeps them from tripping the app-wide 100 req/min limit.
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
   @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Download term report card as PDF' })
   async getTermReportPdf(
