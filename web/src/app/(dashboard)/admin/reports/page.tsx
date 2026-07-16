@@ -66,7 +66,7 @@ export default function AdminReportsPage() {
   const [sectionId, setSectionId] = useState("");
   const [tab, setTab] = useState<"report-cards" | "documents">("report-cards");
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
-  const [viewing, setViewing] = useState<{ html: string; name: string } | null>(null);
+  const [viewing, setViewing] = useState<{ html: string; name: string; studentId: string } | null>(null);
   const [pending, setPending] = useState<RowAction>(null);
   const [bulk, setBulk] = useState<BulkState | null>(null);
   const bulkCancelled = useRef(false);
@@ -106,7 +106,7 @@ export default function AdminReportsPage() {
       const res = await api.get(`/reports/term/${studentId}/html`, {
         params: { termId },
       });
-      setViewing({ html: res.data, name: studentName });
+      setViewing({ html: res.data, name: studentName, studentId });
     } catch {
       toast.error("Failed to load report");
     } finally {
@@ -489,9 +489,24 @@ export default function AdminReportsPage() {
             isOpen={!!viewing}
             onClose={() => setViewing(null)}
             title={viewing ? `Report card · ${viewing.name}` : "Report card"}
-            size="3xl"
+            size="5xl"
           >
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending?.kind === "download"}
+                onClick={() =>
+                  viewing && handleDownloadReport(viewing.studentId, viewing.name)
+                }
+              >
+                {pending?.id === viewing?.studentId && pending?.kind === "download" ? (
+                  <Spinner className="w-4 h-4 mr-1" />
+                ) : (
+                  <Download className="w-4 h-4 mr-1" />
+                )}
+                Download
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
