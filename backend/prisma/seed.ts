@@ -1435,8 +1435,9 @@ async function main() {
   console.log('  ✅ FAQ articles seeded');
 
   // ─── TIMETABLE ──────────────────────────────────────────────────────────────
-  // Build for the first class of every level so each level has a sample, using
-  // that class's own subject set.
+  // A full week for every class from its own subject set. A teacher is never
+  // booked in two classes during the same period; if every teacher of a class
+  // is busy in a slot, that slot stays free (which real timetables have too).
   const days = [1, 2, 3, 4, 5];
   const timeSlots = [
     { start: '08:00', end: '08:45' },
@@ -1447,34 +1448,43 @@ async function main() {
     { start: '14:00', end: '14:45' },
     { start: '14:50', end: '15:35' },
   ];
-  const firstSectionPerLevel = classLevels.map((level) =>
-    sectionMetas.find((m) => m.level.id === level.id),
-  );
-  let timetableCount = 0;
-  for (let lvl = 0; lvl < firstSectionPerLevel.length; lvl++) {
-    const meta = firstSectionPerLevel[lvl];
-    if (!meta) continue;
-    const si = sectionIndexBySectionId.get(meta.section.id)!;
+  const timetableRows: any[] = [];
+  const busyTeachers = new Map<string, Set<string>>(); // "day-slot" -> teacher ids
+  for (let si = 0; si < sectionMetas.length; si++) {
+    const meta = sectionMetas[si];
     const subjectSet = subjectsForSection(meta);
     for (const day of days) {
       for (let slot = 0; slot < Math.min(timeSlots.length, subjectSet.length); slot++) {
-        const subjectIdx = (day * 3 + slot + lvl) % subjectSet.length;
-        await prisma.timetable.create({
-          data: {
-            classSectionId: meta.section.id,
-            subjectId: subjectSet[subjectIdx].id,
-            teacherId: teacherFor(si, subjectIdx).id,
-            dayOfWeek: day,
-            startTime: timeSlots[slot].start,
-            endTime: timeSlots[slot].end,
-            room: `Room ${100 + slot}`,
-          },
+        const key = `${day}-${slot}`;
+        if (!busyTeachers.has(key)) busyTeachers.set(key, new Set());
+        const taken = busyTeachers.get(key)!;
+        let subjectIdx = -1;
+        for (let probe = 0; probe < subjectSet.length; probe++) {
+          const candidate = (day * 3 + slot + si + probe) % subjectSet.length;
+          if (!taken.has(teacherFor(si, candidate).id)) {
+            subjectIdx = candidate;
+            break;
+          }
+        }
+        if (subjectIdx === -1) continue; // all of this class's teachers are busy
+        const teacher = teacherFor(si, subjectIdx);
+        taken.add(teacher.id);
+        timetableRows.push({
+          classSectionId: meta.section.id,
+          subjectId: subjectSet[subjectIdx].id,
+          teacherId: teacher.id,
+          dayOfWeek: day,
+          startTime: timeSlots[slot].start,
+          endTime: timeSlots[slot].end,
+          room: `Room ${100 + (si % 20)}`,
         });
-        timetableCount++;
       }
     }
   }
-  console.log(`  ✅ ${timetableCount} timetable entries seeded`);
+  await prisma.timetable.createMany({ data: timetableRows });
+  console.log(
+    `  ✅ ${timetableRows.length} timetable entries seeded across all ${sectionMetas.length} classes`,
+  );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
   const aClasses = sectionMetas.length - oClasses;
