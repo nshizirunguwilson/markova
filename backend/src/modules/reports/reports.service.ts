@@ -1146,7 +1146,7 @@ export class ReportsService implements OnModuleDestroy {
       table.scale td{ border:1px solid rgba(21,37,54,.09); padding:3px 7px; text-align:center; font-variant-numeric:tabular-nums; }
       table.scale tr:first-child td{ background:#eef4f9; font-weight:600; color:${navy}; }
       .legend .note{ font-size:10.5px; color:#5b6b7b; max-width:26ch; }
-      .verify-strip{ margin-top:6px; display:flex; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
+      .verify-strip{ margin-top:6px; display:none; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
       .verify-strip .qr{ width:17mm; height:17mm; flex:0 0 17mm; }
       .verify-strip .qr img{ width:100%; height:100%; display:block; }
       .verify-strip h4{ margin:0 0 3px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:${navy}; font-weight:600; }
@@ -1156,6 +1156,9 @@ export class ReportsService implements OnModuleDestroy {
       .verify-strip .vcode{ text-align:right; }
       .verify-strip .vcode span{ display:block; font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:3px; }
       .verify-strip .vcode b{ font-size:11.5px; color:#1c2733; letter-spacing:.05em; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      /* Verification only matters on paper: shown in print and the generated
+         PDF, hidden in on-screen previews. */
+      @media print{ .verify-strip{ display:flex; } }
     </style></head><body>
     <div class="sheet">
       <div class="off">
