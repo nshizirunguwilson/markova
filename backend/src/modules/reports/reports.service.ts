@@ -7,9 +7,17 @@ import {
 import { randomBytes, randomInt } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { join, extname } from 'path';
+import { SubjectScope } from '@prisma/client';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
+import {
+  competenceFor,
+  computeSubjectTotal,
+  gradeFor,
+  overallGrade,
+} from '../../common/grading';
 
 /**
  * Inline a logo as a data URI for PDF rendering.
@@ -105,14 +113,19 @@ export class ReportsService implements OnModuleDestroy {
     await browser?.close().catch(() => undefined);
   }
 
-  private async htmlToPdf(html: string): Promise<Buffer> {
+  private async htmlToPdf(
+    html: string,
+    opts?: { marginMm?: number },
+  ): Promise<Buffer> {
     const page = await this.newPage();
     try {
       await page.setContent(html, { waitUntil: 'networkidle0' });
+      const m = `${opts?.marginMm ?? 10}mm`;
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        preferCSSPageSize: opts?.marginMm === 0,
+        margin: { top: m, right: m, bottom: m, left: m },
       });
       return Buffer.from(pdf);
     } finally {
@@ -155,6 +168,28 @@ export class ReportsService implements OnModuleDestroy {
       ? await this.ensureVerification(termResult.id)
       : null;
 
+    const classTeacherRole = await this.prisma.teacherRole.findFirst({
+      where: { role: 'CLASS_TEACHER', classSectionId: student.classSectionId },
+      include: {
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    });
+
+    const [attendanceTotal, attendancePresent] = await Promise.all([
+      this.prisma.attendance.count({
+        where: { studentId, date: { gte: term.startDate, lte: term.endDate } },
+      }),
+      this.prisma.attendance.count({
+        where: {
+          studentId,
+          date: { gte: term.startDate, lte: term.endDate },
+          status: { in: ['PRESENT', 'LATE'] },
+        },
+      }),
+    ]);
+
     const classResults = await this.prisma.termResult.findMany({
       where: { classSectionId: student.classSectionId, termId },
     });
@@ -183,8 +218,13 @@ export class ReportsService implements OnModuleDestroy {
           : null,
         gender: student.gender,
         dateOfBirth: student.dateOfBirth,
+        disciplinePoints: student.disciplinePoints,
       },
       term: { name: term.name, academicYear: term.academicYear.name },
+      classTeacher: classTeacherRole
+        ? `${classTeacherRole.teacher.user.firstName} ${classTeacherRole.teacher.user.lastName}`
+        : null,
+      attendance: { present: attendancePresent, total: attendanceTotal },
       subjects: subjectBreakdown,
       result: termResult,
       classStats: {
@@ -254,10 +294,27 @@ export class ReportsService implements OnModuleDestroy {
       include: { termResult: true },
     });
     if (!verification) throw new NotFoundException('Report not found');
-    return this.getTermReportData(
+    const data = await this.getTermReportData(
       verification.termResult.studentId,
       verification.termResult.termId,
     );
+    // The rendered sheet ships along so the verify page can show the digital
+    // original exactly as it prints.
+    const html = this.renderTermReportHtml(
+      data,
+      await this.verificationQr(data),
+    );
+    return { ...data, html };
+  }
+
+  private async verificationQr(data: any): Promise<string | null> {
+    if (!data.verification) return null;
+    return QRCode.toDataURL(data.verification.url, {
+      errorCorrectionLevel: 'M',
+      margin: 0,
+      width: 240,
+      color: { dark: '#1B4F72', light: '#ffffff' },
+    });
   }
 
   async getYearReportData(studentId: string, academicYearId: string) {
@@ -330,7 +387,7 @@ export class ReportsService implements OnModuleDestroy {
     termId: string,
   ): Promise<string> {
     const data = await this.getTermReportData(studentId, termId);
-    return this.renderTermReportHtml(data);
+    return this.renderTermReportHtml(data, await this.verificationQr(data));
   }
 
   async generateTermReportPdf(
@@ -338,7 +395,8 @@ export class ReportsService implements OnModuleDestroy {
     termId: string,
   ): Promise<Buffer> {
     const html = await this.generateTermReportHtml(studentId, termId);
-    return this.htmlToPdf(html);
+    // The report template is a full-bleed A4 sheet with its own margins.
+    return this.htmlToPdf(html, { marginMm: 0 });
   }
 
   async generateClassReportCards(classSectionId: string, termId: string) {
@@ -730,7 +788,10 @@ export class ReportsService implements OnModuleDestroy {
     for (const c of configs) map[c.key] = c.value;
     return {
       name: escapeHtml(map['school_name']),
-      motto: escapeHtml(map['motto']),
+      motto: escapeHtml(map['school_motto'] || map['motto']),
+      address: escapeHtml(map['school_address'] || ''),
+      phone: escapeHtml(map['school_phone'] || ''),
+      email: escapeHtml(map['school_email'] || ''),
       logoUrl: map['logo_url'] || null,
       stampUrl: map['stamp_url'] || null,
       signatureUrl: map['signature_url'] || null,
@@ -741,14 +802,14 @@ export class ReportsService implements OnModuleDestroy {
   private groupMarksBySubject(marks: any[]) {
     const map = new Map<
       string,
-      { subject: string; assessments: any[]; average: number }
+      { subject: string; scope: SubjectScope; assessments: any[] }
     >();
     for (const m of marks) {
       if (!map.has(m.subjectId)) {
         map.set(m.subjectId, {
           subject: m.subject.name,
+          scope: m.subject.scope,
           assessments: [],
-          average: 0,
         });
       }
       map.get(m.subjectId)!.assessments.push({
@@ -758,14 +819,47 @@ export class ReportsService implements OnModuleDestroy {
         pct: Math.round((m.score / m.maxScore) * 100),
       });
     }
-    for (const [, val] of map) {
-      const total = val.assessments.reduce((s: number, a: any) => s + a.pct, 0);
-      val.average =
-        val.assessments.length > 0
-          ? Math.round(total / val.assessments.length)
-          : 0;
-    }
-    return Array.from(map.values());
+
+    const SCOPE_ORDER: Record<string, number> = {
+      O_CORE: 0,
+      O_ELECTIVE: 1,
+      A_GENERAL: 2,
+      A_SPECIFIC: 3,
+    };
+
+    return Array.from(map.values())
+      .map((val) => {
+        const total = computeSubjectTotal(
+          val.scope,
+          val.assessments.map((a: any) => ({
+            assessmentName: a.type,
+            score: a.score,
+            maxScore: a.maxScore,
+          })),
+        );
+        const band = total !== null ? gradeFor(val.scope, total) : null;
+        const practical = val.assessments.find(
+          (a: any) => a.type === 'Practical',
+        );
+        return {
+          ...val,
+          // Kept for older consumers; equals the weighted term total.
+          average: total ?? 0,
+          total,
+          grade: band?.letter ?? null,
+          points: band?.points ?? null,
+          remark: band?.remark ?? null,
+          competence:
+            val.scope === SubjectScope.A_SPECIFIC
+              ? competenceFor(practical ? practical.pct : null)
+              : null,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (SCOPE_ORDER[a.scope] ?? 9) - (SCOPE_ORDER[b.scope] ?? 9) ||
+          a.subject.localeCompare(b.subject),
+      );
   }
 
   private groupMarksBySubjectAndTerm(marks: any[], terms: any[]) {
@@ -784,91 +878,340 @@ export class ReportsService implements OnModuleDestroy {
     return result;
   }
 
-  private renderTermReportHtml(data: any): string {
-    // Build assessment type headers dynamically
-    const allTypes = new Set<string>();
-    data.subjects.forEach((s: any) =>
-      s.assessments.forEach((a: any) => allTypes.add(a.type)),
-    );
-    const typeHeaders = Array.from(allTypes);
-
-    const subjectRows = data.subjects
-      .map((s: any) => {
-        const typeScores = typeHeaders
-          .map((t) => {
-            const a = s.assessments.find((a: any) => a.type === t);
-            return `<td style="text-align:center">${a ? a.score : '—'}</td>`;
-          })
-          .join('');
-        return `<tr><td>${escapeHtml(s.subject)}</td>${typeScores}<td style="text-align:center;font-weight:bold">${s.average}%</td></tr>`;
-      })
-      .join('');
-
-    const gradeKey = `<div style="margin:10px 0;font-size:12px;color:#666">
-      <strong>Grading:</strong> A (90-100) | B (80-89) | C (70-79) | D (60-69) | E (50-59) | F (0-49)
-    </div>`;
-
+  // The approved A4 report card. One full-bleed 210x297mm sheet; layout,
+  // colors and structure are locked to the design signed off in review.
+  private renderTermReportHtml(data: any, qrDataUri: string | null): string {
+    const navy = data.school.primaryColor || '#1B4F72';
     const logo = logoDataUri(data.school.logoUrl);
+    const isALevel = data.student.stage === 'A_LEVEL';
 
-    return `<!DOCTYPE html><html><head><style>
-      @media print { body { margin: 0; } @page { margin: 15mm; } }
-      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #333; background: #fff; max-width: 800px; margin: 30px auto; }
-      .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid ${data.school.primaryColor}; padding-bottom: 15px; }
-      .header .logo { height: 56px; width: auto; max-width: 260px; object-fit: contain; margin-bottom: 6px; }
-      .header h1 { color: ${data.school.primaryColor}; margin: 5px 0; font-size: 28px; }
-      .header h2 { color: ${data.school.primaryColor}; margin: 8px 0; font-size: 18px; letter-spacing: 2px; }
-      .header p { margin: 3px 0; color: #666; font-size: 14px; }
-      .info { display: flex; justify-content: space-between; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
-      .info div { font-size: 14px; line-height: 1.8; }
-      table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-      th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; }
-      th { background: ${data.school.primaryColor}; color: white; font-weight: 600; text-align: center; }
-      th:first-child { text-align: left; }
-      tr:nth-child(even) { background: #f8f9fa; }
-      .comments { margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; }
-      .comments p { margin: 8px 0; font-size: 14px; }
-      .footer { margin-top: 40px; display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #e0e0e0; font-size: 13px; color: #666; }
-      .signature { margin-top: 50px; display: flex; justify-content: space-between; }
-      .signature div { text-align: center; width: 200px; }
-      .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; }
+    const initials = (data.school.name || 'MA')
+      .split(/\s+/)
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    const crest = logo
+      ? `<img class="crest-img" src="${logo}" alt="" />`
+      : `<div class="crest">${initials}</div>`;
+
+    const regTail = String(data.student.studentIdNumber || '').split('-').pop();
+    const issued = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const info = (label: string, value: string) =>
+      `<div><span>${label}</span><b>${value}</b></div>`;
+
+    const attendance =
+      data.attendance && data.attendance.total > 0
+        ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
+        : '–';
+
+    const conduct = (() => {
+      const p = data.student.disciplinePoints;
+      if (p == null) return '–';
+      if (p >= 95) return 'Excellent';
+      if (p >= 85) return 'Very Good';
+      if (p >= 70) return 'Good';
+      if (p >= 50) return 'Fair';
+      return 'Poor';
+    })();
+
+    const cell = (s: any, name: string) => {
+      const a = s.assessments.find((x: any) => x.type === name);
+      return `<td class="num">${a ? a.pct : '–'}</td>`;
+    };
+
+    const row = (s: any) => `
+      <tr>
+        <td class="subj">${escapeHtml(s.subject)}${!isALevel && s.scope === 'O_CORE' ? ' <span class="core">•</span>' : ''}</td>
+        ${cell(s, 'CAT 1')}${cell(s, 'CAT 2')}${isALevel ? cell(s, 'Practical') : ''}${cell(s, 'End of Term Exam')}
+        <td class="tot">${s.total ?? '–'}</td>
+        <td class="gr">${s.grade ?? '–'}</td>
+        <td class="num">${s.points ?? '–'}</td>
+        ${
+          isALevel
+            ? `<td>${
+                s.competence
+                  ? s.competence === 'COMPETENT'
+                    ? '<span class="chip ok">Competent</span>'
+                    : '<span class="chip no">Not Yet Competent</span>'
+                  : '–'
+              }</td>`
+            : `<td class="rem">${s.remark ?? '–'}</td>`
+        }
+      </tr>`;
+
+    const cols = isALevel ? 9 : 8;
+    const groupRow = (label: string, note: string) =>
+      `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
+
+    let tableBody = '';
+    if (isALevel) {
+      const general = data.subjects.filter(
+        (s: any) => s.scope !== 'A_SPECIFIC',
+      );
+      const specific = data.subjects.filter(
+        (s: any) => s.scope === 'A_SPECIFIC',
+      );
+      tableBody =
+        groupRow(
+          'General modules',
+          'CAT 1 20% + CAT 2 20% + Exam 60%, no practical',
+        ) +
+        general.map(row).join('') +
+        groupRow(
+          `Specific modules, ${escapeHtml(data.student.trade?.name || '')} ${escapeHtml(data.student.class.split(' ').slice(0, 2).join(' '))}`,
+          'CAT 1 15% + CAT 2 15% + Practical 30% + Exam 40%',
+        ) +
+        specific.map(row).join('');
+    } else {
+      const core = data.subjects.filter((s: any) => s.scope === 'O_CORE');
+      const electives = data.subjects.filter(
+        (s: any) => s.scope === 'O_ELECTIVE',
+      );
+      tableBody =
+        groupRow('Core subjects', 'count towards the aggregate') +
+        core.map(row).join('') +
+        (electives.length
+          ? groupRow(
+              'Elective subjects',
+              'graded on the stricter non-core scale',
+            ) + electives.map(row).join('')
+          : '');
+    }
+
+    const headCols = isALevel
+      ? `<th style="text-align:left">Module</th><th>CAT 1</th><th>CAT 2</th><th>Practical</th><th>Exam</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th>Competence</th>`
+      : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th style="text-align:left">Remark</th>`;
+
+    const totalMax = data.subjects.length * 100;
+    const overall = data.result
+      ? overallGrade(data.result.average || 0)
+      : null;
+    const specificSubjects = data.subjects.filter(
+      (s: any) => s.scope === 'A_SPECIFIC',
+    );
+    const competentCount = specificSubjects.filter(
+      (s: any) => s.competence === 'COMPETENT',
+    ).length;
+
+    const summaryCell = (label: string, big: string, small: string) =>
+      `<div class="cell"><span>${label}</span><b>${big}</b> <small>${small}</small></div>`;
+
+    const summary = [
+      summaryCell(
+        'Total marks',
+        `${Math.round(data.result?.totalMarks ?? 0)}`,
+        `/ ${totalMax}`,
+      ),
+      summaryCell(
+        'Average',
+        `${(data.result?.average ?? 0).toFixed(1)}%`,
+        '',
+      ),
+      summaryCell(
+        'Overall grade',
+        data.result?.letterGrade || '–',
+        overall?.remark || '',
+      ),
+      summaryCell(
+        'Aggregate',
+        `${data.result?.aggregate ?? '–'}`,
+        `/ ${data.result?.aggregateMax ?? '–'}`,
+      ),
+      summaryCell(
+        'Position',
+        `${data.result?.rank ?? '–'}`,
+        `of ${data.classStats.totalStudents}`,
+      ),
+      isALevel
+        ? summaryCell(
+            'Practicals',
+            `${competentCount} / ${specificSubjects.length}`,
+            'Competent',
+          )
+        : summaryCell('Conduct', conduct, ''),
+    ].join('');
+
+    const aggregateNote = isALevel
+      ? `Aggregate = sum of points over all ${data.subjects.length} modules taken this term (${data.subjects.length} × 6 = ${data.result?.aggregateMax ?? ''}). In national examinations NESA counts a fixed set of papers with a maximum aggregate of 60.`
+      : 'Aggregate = sum of points from the 9 core subjects only, as in national examinations (maximum 54).';
+
+    const scaleTable = (title: string, rows: string[][]) => `
+      <div>
+        <h4>${title}</h4>
+        <table class="scale">
+          ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
+        </table>
+      </div>`;
+
+    const coreScaleRows = [
+      ['Marks %', '70-100', '65-69', '60-64', '50-59', '40-49', '20-39', '0-19'],
+      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
+      ['Points', '6', '5', '4', '3', '2', '1', '0'],
+    ];
+    const electiveScaleRows = [
+      ['Marks %', '80-100', '75-79', '70-74', '65-69', '60-64', '50-59', '0-49'],
+      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
+      ['Points', '6', '5', '4', '3', '2', '1', '0'],
+    ];
+
+    const legend = isALevel
+      ? scaleTable('Module scale (all modules)', coreScaleRows) +
+        `<div class="note"><h4>Competence</h4>Practical mark 70-100 = Competent.<br>Below 70 = Not Yet Competent.<br>Certificates require at least grade E in practicals.</div>`
+      : scaleTable('Core subject scale', coreScaleRows) +
+        scaleTable('Elective (non-core) scale', electiveScaleRows);
+
+    const verifyStrip = data.verification
+      ? `
+      <div class="verify-strip">
+        <div class="qr">${qrDataUri ? `<img src="${qrDataUri}" alt="QR code linking to the digital report" />` : ''}</div>
+        <div class="vtext">
+          <h4>Report verification</h4>
+          <p>Scan the QR code or open the link to view the digital original of this report. A printed copy is valid only
+          if it matches the digital version. Each code is unique to one report and is never reused.</p>
+          <a href="${data.verification.url}">${data.verification.url.replace(/^https?:\/\//, '')}</a>
+        </div>
+        <div class="vcode">
+          <span>Verification code</span>
+          <b>${data.verification.code}</b>
+        </div>
+      </div>`
+      : '';
+
+    const stageTitle = isALevel
+      ? 'Advanced Level (TVET)'
+      : 'Ordinary Level';
+    const sectorLine = isALevel
+      ? ` &nbsp;•&nbsp; Sector of ${escapeHtml(data.student.trade?.sector || '')}`
+      : '';
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      @page{ size:A4; margin:0; }
+      body{
+        font-family:Poppins,'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
+        color:#1c2733; background:#fff; width:210mm;
+      }
+      .sheet{ width:210mm; height:296.5mm; overflow:hidden; padding:8mm 12mm 7mm; display:flex; flex-direction:column; }
+      .sheet *{ line-height:1.35; }
+      .off{ display:flex; align-items:center; gap:14px; padding-bottom:10px; border-bottom:3px double ${navy}; }
+      .crest{ width:50px; height:50px; border-radius:50%; flex:0 0 50px; background:${navy}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; }
+      .crest-img{ width:50px; height:50px; object-fit:contain; flex:0 0 50px; }
+      .off-lines{ flex:1; }
+      .off-lines .rep{ font-size:10.5px; text-transform:uppercase; letter-spacing:.14em; color:#5b6b7b; }
+      .off-lines .school{ font-size:17.5px; font-weight:700; color:${navy}; }
+      .off-lines .addr{ font-size:11px; color:#5b6b7b; }
+      .doc-no{ text-align:right; font-size:10.5px; color:#5b6b7b; }
+      .doc-no b{ display:block; color:#1c2733; font-size:11.5px; }
+      .title-band{ margin:10px 0 12px; background:#eef4f9; border:1px solid rgba(21,37,54,.09); text-align:center; padding:7px 12px; border-radius:4px; }
+      .title-band .t{ font-size:14.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:${navy}; }
+      .title-band .s{ font-size:11px; color:#5b6b7b; margin-top:2px; }
+      .info{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 18px; font-size:11.5px; margin-bottom:12px; }
+      .info div span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:2px; }
+      .info div b{ font-weight:600; }
+      table.marks{ border-collapse:collapse; width:100%; font-size:11.5px; }
+      table.marks th, table.marks td{ border:1px solid rgba(21,37,54,.16); padding:3px 7px; }
+      table.marks thead th{ background:${navy}; color:#fff; font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; text-align:center; }
+      table.marks td{ text-align:center; font-variant-numeric:tabular-nums; }
+      table.marks td.subj{ text-align:left; font-weight:500; }
+      table.marks td.num{ color:#33414e; }
+      table.marks td.tot{ font-weight:700; }
+      table.marks td.gr{ font-weight:700; color:${navy}; }
+      table.marks td.rem{ font-size:11px; color:#5b6b7b; text-align:left; }
+      tr.group td{ background:#eef4f9; color:${navy}; font-weight:600; text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; }
+      tr.group .gnote{ text-transform:none; letter-spacing:0; }
+      .core{ color:#2E86C1; font-weight:700; }
+      .chip{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:600; white-space:nowrap; }
+      .chip.ok{ background:#e8f4ec; color:#1a7f45; }
+      .chip.no{ background:#faece9; color:#b3261e; }
+      .foot-note{ font-size:10px; color:#5b6b7b; margin-top:4px; }
+      .summary{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:10px 0 3px; }
+      .cell{ border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 8px; text-align:center; background:#f8fbfd; }
+      .cell span{ display:block; font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:3px; }
+      .cell b{ font-size:15px; font-weight:700; color:${navy}; font-variant-numeric:tabular-nums; }
+      .cell small{ font-size:10px; color:#5b6b7b; font-weight:500; }
+      .comments{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; font-size:11px; }
+      .comments .box{ border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:7px 10px; }
+      .comments .box span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:4px; }
+      .sigs{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px; font-size:10.5px; color:#5b6b7b; text-align:center; }
+      .sigs div{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
+      .legend{ margin-top:auto; border-top:1px solid rgba(21,37,54,.09); padding-top:6px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; }
+      .legend h4, .note h4{ margin:0 0 6px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; font-weight:600; }
+      table.scale{ border-collapse:collapse; font-size:10px; }
+      table.scale td{ border:1px solid rgba(21,37,54,.09); padding:3px 7px; text-align:center; font-variant-numeric:tabular-nums; }
+      table.scale tr:first-child td{ background:#eef4f9; font-weight:600; color:${navy}; }
+      .legend .note{ font-size:10.5px; color:#5b6b7b; max-width:26ch; }
+      .verify-strip{ margin-top:6px; display:flex; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
+      .verify-strip .qr{ width:17mm; height:17mm; flex:0 0 17mm; }
+      .verify-strip .qr img{ width:100%; height:100%; display:block; }
+      .verify-strip h4{ margin:0 0 3px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:${navy}; font-weight:600; }
+      .verify-strip p{ margin:0; font-size:9.5px; color:#5b6b7b; line-height:1.5; max-width:62ch; }
+      .verify-strip .vtext{ flex:1; }
+      .verify-strip a{ font-size:10.5px; color:#2E86C1; font-weight:600; word-break:break-all; text-decoration:none; }
+      .verify-strip .vcode{ text-align:right; }
+      .verify-strip .vcode span{ display:block; font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:3px; }
+      .verify-strip .vcode b{ font-size:11.5px; color:#1c2733; letter-spacing:.05em; font-variant-numeric:tabular-nums; white-space:nowrap; }
     </style></head><body>
-      <div class="header">
-        ${logo ? `<img class="logo" src="${logo}" alt="" />` : ''}
-        <h1>${data.school.name}</h1>
-        <p>${data.school.motto}</p>
-        <h2>TERM REPORT CARD</h2>
-        <p>${escapeHtml(data.term.name)} — Academic Year ${escapeHtml(data.term.academicYear)}</p>
+    <div class="sheet">
+      <div class="off">
+        ${crest}
+        <div class="off-lines">
+          <div class="rep">Republic of Rwanda &nbsp;•&nbsp; Ministry of Education</div>
+          <div class="school">${data.school.name}</div>
+          <div class="addr">${data.school.address || ''}${data.school.email ? ` &nbsp;•&nbsp; ${data.school.email}` : ''}${data.school.phone ? ` &nbsp;•&nbsp; ${data.school.phone}` : ''}</div>
+        </div>
+        <div class="doc-no"><b>No ${initials}/RC/${new Date().getFullYear()}/${regTail}</b>Issued: ${issued}</div>
       </div>
+
+      <div class="title-band">
+        <div class="t">End of ${escapeHtml(data.term.name)} Report Card, ${stageTitle}</div>
+        <div class="s">${escapeHtml(data.term.academicYear)} School Year${sectorLine}</div>
+      </div>
+
       <div class="info">
-        <div>
-          <strong>Name:</strong> ${escapeHtml(data.student.name)}<br>
-          <strong>Student ID:</strong> ${escapeHtml(data.student.studentIdNumber)}<br>
-          <strong>Class:</strong> ${escapeHtml(data.student.class)}
-        </div>
-        <div style="text-align:right">
-          <strong>Average:</strong> ${data.result?.average?.toFixed(1) || '—'}%<br>
-          <strong>Grade:</strong> ${data.result?.letterGrade || '—'}<br>
-          <strong>Rank:</strong> ${data.result?.rank || '—'} of ${data.classStats.totalStudents}
-        </div>
+        ${info('Student name', escapeHtml(data.student.name))}
+        ${info('Registration No', escapeHtml(data.student.studentIdNumber))}
+        ${info('Class', escapeHtml(data.student.class))}
+        ${info('Class size', `${data.classStats.totalStudents} students`)}
+        ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
+        ${info('Term', escapeHtml(data.term.name))}
+        ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '–')}
+        ${info('Attendance', attendance)}
       </div>
-      <table>
-        <thead><tr><th style="width:30%">Subject</th>${typeHeaders.map((t) => `<th>${escapeHtml(t)}</th>`).join('')}<th>Average</th></tr></thead>
-        <tbody>${subjectRows}</tbody>
+
+      <table class="marks">
+        <thead><tr>${headCols}</tr></thead>
+        <tbody>${tableBody}</tbody>
       </table>
-      ${gradeKey}
+      <div class="foot-note">${
+        isALevel
+          ? 'Competence follows the practical mark: 70% and above = Competent. All modules are graded on the core scale.'
+          : '<span class="core">•</span> Core subject. Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded.'
+      }</div>
+
+      <div class="summary">${summary}</div>
+      <div class="foot-note">${aggregateNote}</div>
+
       <div class="comments">
-        <p><strong>Class Teacher's Comment:</strong> ${escapeHtml(data.result?.teacherComment) || '_______________________________________________'}</p>
-        <p><strong>Headmaster's Remark:</strong> ${escapeHtml(data.result?.headmasterComment) || '_______________________________________________'}</p>
+        <div class="box"><span>Class teacher's comment</span>${escapeHtml(data.result?.teacherComment) || '&nbsp;'}</div>
+        <div class="box"><span>Head teacher's comment</span>${escapeHtml(data.result?.headmasterComment) || '&nbsp;'}</div>
       </div>
-      <div class="footer">
-        <div>Class Average: ${data.classStats.classAverage?.toFixed(1) || '—'}%</div>
-        <div>Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+
+      <div class="sigs">
+        <div>Class Teacher${data.classTeacher ? `<br>${escapeHtml(data.classTeacher)}` : ''}</div>
+        <div>Head Teacher</div>
+        <div>Parent / Guardian</div>
       </div>
-      <div class="signature">
-        <div><div class="line">Class Teacher</div></div>
-        <div><div class="line">Headmaster</div></div>
-        <div><div class="line">School Stamp</div></div>
-      </div>
+
+      <div class="legend">${legend}</div>
+      ${verifyStrip}
+    </div>
     </body></html>`;
   }
 
