@@ -35,6 +35,31 @@ const AUTH_ENDPOINTS = [
 ];
 
 // Response interceptor — handle 401 and refresh
+//
+// The refresh is single-flight: the backend rotates refresh tokens and treats
+// a second use of the same token as a replay attack (it deactivates the whole
+// session). When several requests hit 401 at once, they must all share one
+// refresh call instead of racing each other into a forced logout.
+let refreshPromise: Promise<string> | null = null;
+
+function refreshSession(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = localStorage.getItem("refresh_token");
+      const { data } = await axios.post(
+        `${api.defaults.baseURL}/auth/refresh`,
+        { refreshToken }
+      );
+      localStorage.setItem("access_token", data.accessToken);
+      localStorage.setItem("refresh_token", data.refreshToken);
+      return data.accessToken as string;
+    })().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -58,19 +83,17 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(
-          `${api.defaults.baseURL}/auth/refresh`,
-          { refreshToken }
-        );
-
-        localStorage.setItem("access_token", data.accessToken);
-        localStorage.setItem("refresh_token", data.refreshToken);
-
-        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        const accessToken = await refreshSession();
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
-      } catch {
-        toast.error('Your session has expired. Please log in again.');
-        redirectToLogin();
+      } catch (refreshError) {
+        // A network blip is not an expired session. Keep the tokens so a later
+        // attempt can refresh again; only a real rejection from the API ends
+        // the session.
+        if (axios.isAxiosError(refreshError) && refreshError.response) {
+          toast.error("Your session has expired. Please log in again.");
+          redirectToLogin();
+        }
         return Promise.reject(error);
       }
     }
