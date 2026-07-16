@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ShieldCheck, ShieldX } from "lucide-react";
+import { A4Preview } from "@/components/a4-preview";
 
 export const metadata: Metadata = {
   title: "Report Verification | Markova",
@@ -70,12 +71,10 @@ export default async function VerifyReportPage({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border bg-white shadow-card">
-          <iframe
-            srcDoc={report.html}
+        <div className="rounded-xl border border-border bg-white p-3 shadow-card">
+          <A4Preview
+            html={report.html}
             title="Digital original of the report card"
-            className="w-full"
-            style={{ aspectRatio: "210 / 297", border: "0" }}
           />
         </div>
       </div>

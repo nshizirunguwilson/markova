@@ -27,6 +27,7 @@ import {
   useGenerateDocument,
 } from "@/hooks/use-reports";
 import { StudentPicker } from "@/components/student-picker";
+import { A4Preview } from "@/components/a4-preview";
 import api from "@/lib/api";
 import { Check, FileText, Printer, Download, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -501,13 +502,10 @@ export default function AdminReportsPage() {
               </Button>
             </div>
             <div className="max-h-[72vh] overflow-y-auto rounded-lg border border-border bg-accent-light/40 p-3">
-              {/* Isolated in an iframe: the sheet carries its own global styles. */}
-              <iframe
-                srcDoc={viewing?.html}
-                title="Report card preview"
-                className="w-full rounded bg-white shadow-card"
-                style={{ aspectRatio: "210 / 297" }}
-              />
+              {/* Isolated in an iframe (the sheet carries its own global
+                  styles) and scaled to fit the width, so this container's
+                  scrollbar is the only one. */}
+              {viewing && <A4Preview html={viewing.html} title="Report card preview" />}
             </div>
           </Modal>
 
