@@ -4,8 +4,16 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginatedResponse } from '../../common/dto';
+import {
+  computeSubjectTotal,
+  countsTowardAggregate,
+  gradeFor,
+  overallGrade,
+  MAX_POINTS_PER_SUBJECT,
+} from '../../common/grading';
 import {
   CreateMarkDto,
   UpdateMarkDto,
@@ -315,46 +323,64 @@ export class MarksService {
         where: { classSectionId, status: 'ACTIVE' },
       });
 
-      // Get grading scale from school config
-      const gradingScale = await this.getGradingScale();
-
       const results = [];
       for (const student of students) {
         // Get all marks for this student in this term
         const marks = await tx.mark.findMany({
           where: { studentId: student.id, termId },
-          include: { subject: true },
+          include: { subject: true, assessmentType: true },
         });
 
         if (marks.length === 0) continue;
 
-        // Calculate average: sum of (score/maxScore*subjectMaxMarks) / number of subjects
-        // Group by subject, take average across assessment types per subject
-        const subjectAverages = new Map<
+        // Each subject's term total is the weighted mix of its assessments
+        // (CATs + practical + exam, per the subject's scope).
+        const bySubject = new Map<
           string,
-          { total: number; count: number; maxMarks: number }
+          {
+            scope: SubjectScope;
+            assessments: {
+              assessmentName: string;
+              score: number;
+              maxScore: number;
+            }[];
+          }
         >();
         for (const mark of marks) {
-          const existing = subjectAverages.get(mark.subjectId) || {
-            total: 0,
-            count: 0,
-            maxMarks: mark.subject.maxMarks,
+          const entry = bySubject.get(mark.subjectId) || {
+            scope: mark.subject.scope,
+            assessments: [],
           };
-          existing.total +=
-            (mark.score / mark.maxScore) * mark.subject.maxMarks;
-          existing.count += 1;
-          subjectAverages.set(mark.subjectId, existing);
+          entry.assessments.push({
+            assessmentName: mark.assessmentType.name,
+            score: mark.score,
+            maxScore: mark.maxScore,
+          });
+          bySubject.set(mark.subjectId, entry);
         }
 
         let totalMarks = 0;
         let subjectCount = 0;
-        for (const [, val] of subjectAverages) {
-          totalMarks += val.total / val.count;
+        let aggregate = 0;
+        let aggregateMax = 0;
+        for (const [, { scope, assessments }] of bySubject) {
+          const total = computeSubjectTotal(scope, assessments);
+          if (total === null) continue;
+          totalMarks += total;
           subjectCount++;
+          // O-Level: the 9 core papers count (max 54). A-Level: every module.
+          if (countsTowardAggregate(scope)) {
+            aggregate += gradeFor(scope, total).points;
+            aggregateMax += MAX_POINTS_PER_SUBJECT;
+          }
         }
 
         const average = subjectCount > 0 ? totalMarks / subjectCount : 0;
-        const letterGrade = this.getLetterGrade(average, gradingScale);
+        const letterGrade = overallGrade(average).letter;
+        const aggregateData =
+          aggregateMax > 0
+            ? { aggregate, aggregateMax }
+            : { aggregate: null, aggregateMax: null };
 
         const result = await tx.termResult.upsert({
           where: {
@@ -364,7 +390,7 @@ export class MarksService {
               termId,
             },
           },
-          update: { totalMarks, average, letterGrade },
+          update: { totalMarks, average, letterGrade, ...aggregateData },
           create: {
             studentId: student.id,
             classSectionId,
@@ -372,6 +398,7 @@ export class MarksService {
             totalMarks,
             average,
             letterGrade,
+            ...aggregateData,
           },
         });
         results.push(result);
@@ -476,7 +503,6 @@ export class MarksService {
 
     // Get pass threshold from config
     const passThreshold = await this.getPassThreshold();
-    const gradingScale = await this.getGradingScale();
     const startingPoints = await this.getStartingDisciplinePoints();
 
     return this.prisma.$transaction(async (tx) => {
@@ -515,9 +541,7 @@ export class MarksService {
             : null;
 
         const letterGrade =
-          yearlyAverage !== null
-            ? this.getLetterGrade(yearlyAverage, gradingScale)
-            : null;
+          yearlyAverage !== null ? overallGrade(yearlyAverage).letter : null;
         const isPromoted =
           yearlyAverage !== null && yearlyAverage >= passThreshold;
 
@@ -707,31 +731,6 @@ export class MarksService {
     if (term.isClosed) {
       throw new ForbiddenException('Cannot modify marks — term is closed');
     }
-  }
-
-  private async getGradingScale(): Promise<{ grade: string; min: number }[]> {
-    const config = await this.prisma.schoolConfig.findUnique({
-      where: { key: 'grading_scale' },
-    });
-    // Default: A:80,B:70,C:60,D:50,F:0
-    const raw = config?.value || 'A:80,B:70,C:60,D:50,F:0';
-    return raw
-      .split(',')
-      .map((pair) => {
-        const [grade, min] = pair.split(':');
-        return { grade: grade.trim(), min: Number(min) };
-      })
-      .sort((a, b) => b.min - a.min);
-  }
-
-  private getLetterGrade(
-    average: number,
-    scale: { grade: string; min: number }[],
-  ): string {
-    for (const s of scale) {
-      if (average >= s.min) return s.grade;
-    }
-    return 'F';
   }
 
   private async getPassThreshold(): Promise<number> {

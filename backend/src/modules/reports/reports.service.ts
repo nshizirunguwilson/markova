@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { randomBytes, randomInt } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { join, extname } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -124,7 +129,7 @@ export class ReportsService implements OnModuleDestroy {
       where: { id: studentId },
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -145,6 +150,11 @@ export class ReportsService implements OnModuleDestroy {
       where: { studentId, termId },
     });
 
+    // The permanent code that ties the printed report to this digital one.
+    const verification = termResult
+      ? await this.ensureVerification(termResult.id)
+      : null;
+
     const classResults = await this.prisma.termResult.findMany({
       where: { classSectionId: student.classSectionId, termId },
     });
@@ -156,6 +166,7 @@ export class ReportsService implements OnModuleDestroy {
 
     const school = await this.getSchoolInfo();
     const subjectBreakdown = this.groupMarksBySubject(marks);
+    const { classLevel, trade } = student.classSection;
 
     return {
       school,
@@ -163,7 +174,13 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         photoUrl: student.user.photoUrl,
-        class: `${student.classSection.classLevel.name} ${student.classSection.name}`,
+        class: [classLevel.name, trade?.code, student.classSection.name]
+          .filter(Boolean)
+          .join(' '),
+        stage: classLevel.stage,
+        trade: trade
+          ? { code: trade.code, name: trade.name, sector: trade.sector }
+          : null,
         gender: student.gender,
         dateOfBirth: student.dateOfBirth,
       },
@@ -175,7 +192,72 @@ export class ReportsService implements OnModuleDestroy {
         totalStudents: classResults.length,
         rank: termResult?.rank || null,
       },
+      verification: verification
+        ? {
+            code: verification.code,
+            url: `${this.webBaseUrl()}/verify/${verification.code}`,
+            issuedAt: verification.createdAt,
+          }
+        : null,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPORT VERIFICATION (public, code-based)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  private static readonly VERIFY_CODE = /^\d{4}-\d{4}-\d{4}$/;
+
+  private webBaseUrl(): string {
+    return (process.env.WEB_URL || 'http://localhost:3001').replace(/\/$/, '');
+  }
+
+  // 12 random digits as XXXX-XXXX-XXXX. Uniqueness is guaranteed by the DB
+  // unique constraint; a collision (1 in 10^12 per try) just retries.
+  private generateVerificationCode(): string {
+    const digits = randomInt(0, 1_000_000_000_000).toString().padStart(12, '0');
+    return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+
+  async ensureVerification(termResultId: string) {
+    const existing = await this.prisma.reportVerification.findUnique({
+      where: { termResultId },
+    });
+    if (existing) return existing;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        return await this.prisma.reportVerification.create({
+          data: { code: this.generateVerificationCode(), termResultId },
+        });
+      } catch (error: any) {
+        if (error?.code !== 'P2002') throw error;
+        // Either the code collided or a concurrent request already created
+        // the record for this result. Reuse the latter if it exists.
+        const raced = await this.prisma.reportVerification.findUnique({
+          where: { termResultId },
+        });
+        if (raced) return raced;
+      }
+    }
+    throw new InternalServerErrorException(
+      'Could not allocate a verification code',
+    );
+  }
+
+  async verifyReportByCode(code: string) {
+    if (!ReportsService.VERIFY_CODE.test(code)) {
+      throw new NotFoundException('Report not found');
+    }
+    const verification = await this.prisma.reportVerification.findUnique({
+      where: { code },
+      include: { termResult: true },
+    });
+    if (!verification) throw new NotFoundException('Report not found');
+    return this.getTermReportData(
+      verification.termResult.studentId,
+      verification.termResult.termId,
+    );
   }
 
   async getYearReportData(studentId: string, academicYearId: string) {
@@ -183,7 +265,7 @@ export class ReportsService implements OnModuleDestroy {
       where: { id: studentId },
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -223,7 +305,13 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         photoUrl: student.user.photoUrl,
-        class: `${student.classSection.classLevel.name} ${student.classSection.name}`,
+        class: [
+          student.classSection.classLevel.name,
+          student.classSection.trade?.code,
+          student.classSection.name,
+        ]
+          .filter(Boolean)
+          .join(' '),
       },
       academicYear: { name: academicYear.name },
       terms: terms.map((t) => t.name),
@@ -524,8 +612,14 @@ export class ReportsService implements OnModuleDestroy {
       name: 'users',
       rows: strip(await this.prisma.user.findMany(), ['passwordHash']),
     });
-    tables.push({ name: 'students', rows: await this.prisma.student.findMany() });
-    tables.push({ name: 'teachers', rows: await this.prisma.teacher.findMany() });
+    tables.push({
+      name: 'students',
+      rows: await this.prisma.student.findMany(),
+    });
+    tables.push({
+      name: 'teachers',
+      rows: await this.prisma.teacher.findMany(),
+    });
     tables.push({
       name: 'parent_students',
       rows: await this.prisma.parentStudent.findMany(),
@@ -543,7 +637,10 @@ export class ReportsService implements OnModuleDestroy {
       name: 'class_sections',
       rows: await this.prisma.classSection.findMany(),
     });
-    tables.push({ name: 'subjects', rows: await this.prisma.subject.findMany() });
+    tables.push({
+      name: 'subjects',
+      rows: await this.prisma.subject.findMany(),
+    });
     tables.push({
       name: 'assessment_types',
       rows: await this.prisma.assessmentType.findMany(),
@@ -590,7 +687,10 @@ export class ReportsService implements OnModuleDestroy {
       name: 'book_loans',
       rows: await this.prisma.bookLoan.findMany(),
     });
-    tables.push({ name: 'homework', rows: await this.prisma.homework.findMany() });
+    tables.push({
+      name: 'homework',
+      rows: await this.prisma.homework.findMany(),
+    });
     tables.push({
       name: 'homework_submissions',
       rows: await this.prisma.homeworkSubmission.findMany(),

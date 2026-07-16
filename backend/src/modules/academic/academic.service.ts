@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { EducationStage, SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateAcademicYearDto,
@@ -16,6 +17,8 @@ import {
   UpdateClassSectionDto,
   CreateSubjectDto,
   UpdateSubjectDto,
+  CreateTradeDto,
+  UpdateTradeDto,
   CreateAssessmentTypeDto,
   CreateAssignmentDto,
   BulkAssignmentDto,
@@ -219,6 +222,7 @@ export class AcademicService {
         sections: {
           orderBy: { name: 'asc' },
           include: {
+            trade: true,
             _count: { select: { students: true } },
           },
         },
@@ -228,7 +232,20 @@ export class AcademicService {
   }
 
   async createClassLevel(dto: CreateClassLevelDto) {
-    return this.prisma.classLevel.create({ data: dto });
+    const stage = dto.stage ?? EducationStage.O_LEVEL;
+    if (stage === EducationStage.O_LEVEL) {
+      const count = await this.prisma.classLevel.count({
+        where: { stage: EducationStage.O_LEVEL },
+      });
+      if (count >= 3) {
+        throw new BadRequestException(
+          'O-Level is limited to 3 year levels (Senior 1 to Senior 3)',
+        );
+      }
+    }
+    return this.prisma.classLevel.create({
+      data: { name: dto.name, order: dto.order, stage },
+    });
   }
 
   async updateClassLevel(id: string, dto: UpdateClassLevelDto) {
@@ -271,17 +288,68 @@ export class AcademicService {
     return this.prisma.classSection.findMany({
       where: classLevelId ? { classLevelId } : undefined,
       include: {
-        classLevel: { select: { name: true, order: true } },
+        classLevel: { select: { name: true, order: true, stage: true } },
+        trade: { select: { id: true, code: true, name: true, sector: true } },
         _count: { select: { students: true } },
       },
       orderBy: [{ classLevel: { order: 'asc' } }, { name: 'asc' }],
     });
   }
 
+  // Stage rules: an A-Level class always belongs to a trade section (SWD,
+  // NIT, ...), an O-Level class never does.
+  private async validateSectionPlacement(
+    classLevelId: string,
+    tradeId: string | null,
+    name: string,
+    excludeSectionId?: string,
+  ) {
+    const level = await this.prisma.classLevel.findUnique({
+      where: { id: classLevelId },
+    });
+    if (!level) throw new NotFoundException('Class level not found');
+    if (level.stage === EducationStage.A_LEVEL && !tradeId) {
+      throw new BadRequestException(
+        'A-Level classes must belong to a trade section (e.g. SWD, NIT)',
+      );
+    }
+    if (level.stage === EducationStage.O_LEVEL && tradeId) {
+      throw new BadRequestException(
+        'O-Level classes do not take trade sections',
+      );
+    }
+    if (tradeId) {
+      const trade = await this.prisma.trade.findUnique({
+        where: { id: tradeId },
+      });
+      if (!trade) throw new NotFoundException('Trade not found');
+    }
+    // The DB unique treats NULL trades as distinct, so duplicates are also
+    // checked here for both stages.
+    const duplicate = await this.prisma.classSection.findFirst({
+      where: {
+        classLevelId,
+        tradeId,
+        name,
+        ...(excludeSectionId && { id: { not: excludeSectionId } }),
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        'A class with this name already exists at this level',
+      );
+    }
+  }
+
   async createSection(dto: CreateClassSectionDto) {
+    const tradeId = dto.tradeId ?? null;
+    await this.validateSectionPlacement(dto.classLevelId, tradeId, dto.name);
     return this.prisma.classSection.create({
-      data: dto,
-      include: { classLevel: { select: { name: true } } },
+      data: { classLevelId: dto.classLevelId, tradeId, name: dto.name },
+      include: {
+        classLevel: { select: { name: true, stage: true } },
+        trade: true,
+      },
     });
   }
 
@@ -290,11 +358,16 @@ export class AcademicService {
       where: { id },
     });
     if (!section) throw new NotFoundException('Class section not found');
+    const classLevelId = dto.classLevelId ?? section.classLevelId;
+    const tradeId = dto.tradeId !== undefined ? dto.tradeId : section.tradeId;
+    const name = dto.name ?? section.name;
+    await this.validateSectionPlacement(classLevelId, tradeId, name, id);
     return this.prisma.classSection.update({
       where: { id },
-      data: {
-        ...(dto.name && { name: dto.name }),
-        ...(dto.classLevelId && { classLevelId: dto.classLevelId }),
+      data: { classLevelId, tradeId, name },
+      include: {
+        classLevel: { select: { name: true, stage: true } },
+        trade: true,
       },
     });
   }
@@ -318,17 +391,57 @@ export class AcademicService {
   // SUBJECTS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async findAllSubjects() {
+  async findAllSubjects(filters?: {
+    scope?: SubjectScope;
+    tradeId?: string;
+    classLevelId?: string;
+  }) {
     return this.prisma.subject.findMany({
-      orderBy: { name: 'asc' },
+      where: {
+        ...(filters?.scope && { scope: filters.scope }),
+        ...(filters?.tradeId && { tradeId: filters.tradeId }),
+        ...(filters?.classLevelId && { classLevelId: filters.classLevelId }),
+      },
+      include: {
+        trade: { select: { id: true, code: true, name: true } },
+        classLevel: { select: { id: true, name: true, stage: true } },
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }],
     });
   }
 
+  private validateSubjectScope(
+    scope: SubjectScope,
+    tradeId: string | null | undefined,
+  ) {
+    if (scope === SubjectScope.A_SPECIFIC && !tradeId) {
+      throw new BadRequestException(
+        'Trade-specific modules must belong to a trade',
+      );
+    }
+    if (scope !== SubjectScope.A_SPECIFIC && tradeId) {
+      throw new BadRequestException(
+        'Only trade-specific modules can belong to a trade',
+      );
+    }
+  }
+
   async createSubject(dto: CreateSubjectDto) {
+    const scope = dto.scope ?? SubjectScope.O_CORE;
+    this.validateSubjectScope(scope, dto.tradeId);
+    const duplicate = await this.prisma.subject.findFirst({
+      where: { name: dto.name, tradeId: dto.tradeId ?? null },
+    });
+    if (duplicate) {
+      throw new BadRequestException('This subject already exists');
+    }
     return this.prisma.subject.create({
       data: {
         name: dto.name,
         category: dto.category,
+        scope,
+        tradeId: dto.tradeId ?? null,
+        classLevelId: dto.classLevelId ?? null,
         maxMarks: dto.maxMarks || 100,
       },
     });
@@ -337,15 +450,90 @@ export class AcademicService {
   async updateSubject(id: string, dto: UpdateSubjectDto) {
     const subject = await this.prisma.subject.findUnique({ where: { id } });
     if (!subject) throw new NotFoundException('Subject not found');
+    const scope = dto.scope ?? subject.scope;
+    const tradeId = dto.tradeId !== undefined ? dto.tradeId : subject.tradeId;
+    this.validateSubjectScope(scope, tradeId);
     return this.prisma.subject.update({
       where: { id },
       data: {
         ...(dto.name && { name: dto.name }),
         ...(dto.category !== undefined && { category: dto.category }),
+        scope,
+        tradeId,
+        ...(dto.classLevelId !== undefined && {
+          classLevelId: dto.classLevelId,
+        }),
         ...(dto.maxMarks !== undefined && { maxMarks: dto.maxMarks }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRADES (A-Level TVET sections)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async findAllTrades() {
+    return this.prisma.trade.findMany({
+      include: { _count: { select: { sections: true, subjects: true } } },
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  async createTrade(dto: CreateTradeDto) {
+    const code = dto.code.trim().toUpperCase();
+    const name = dto.name.trim();
+    const existing = await this.prisma.trade.findFirst({
+      where: { OR: [{ code }, { name }] },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'A trade with this code or name already exists',
+      );
+    }
+    return this.prisma.trade.create({
+      data: { code, name, sector: dto.sector.trim() },
+    });
+  }
+
+  async updateTrade(id: string, dto: UpdateTradeDto) {
+    const trade = await this.prisma.trade.findUnique({ where: { id } });
+    if (!trade) throw new NotFoundException('Trade not found');
+    return this.prisma.trade.update({
+      where: { id },
+      data: {
+        ...(dto.code && { code: dto.code.trim().toUpperCase() }),
+        ...(dto.name && { name: dto.name.trim() }),
+        ...(dto.sector && { sector: dto.sector.trim() }),
+      },
+    });
+  }
+
+  async deleteTrade(id: string) {
+    const trade = await this.prisma.trade.findUnique({
+      where: { id },
+      include: { _count: { select: { sections: true } } },
+    });
+    if (!trade) throw new NotFoundException('Trade not found');
+    if (trade._count.sections > 0) {
+      throw new BadRequestException(
+        'Cannot delete a trade that still has classes; remove its classes first',
+      );
+    }
+    const markCount = await this.prisma.mark.count({
+      where: { subject: { tradeId: id } },
+    });
+    if (markCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a trade whose modules have recorded marks',
+      );
+    }
+    // Its trade-specific modules go with it (none have marks at this point).
+    await this.prisma.$transaction([
+      this.prisma.subject.deleteMany({ where: { tradeId: id } }),
+      this.prisma.trade.delete({ where: { id } }),
+    ]);
+    return { message: 'Trade deleted' };
   }
 
   async deleteSubject(id: string) {
@@ -354,7 +542,9 @@ export class AcademicService {
     // Subject → Mark is a cascade delete, so removing a subject would silently
     // erase every mark recorded for it. Refuse when graded data exists; the
     // admin can deactivate the subject (isActive=false) instead.
-    const markCount = await this.prisma.mark.count({ where: { subjectId: id } });
+    const markCount = await this.prisma.mark.count({
+      where: { subjectId: id },
+    });
     if (markCount > 0) {
       throw new BadRequestException(
         'Cannot delete a subject that has recorded marks; deactivate it instead',

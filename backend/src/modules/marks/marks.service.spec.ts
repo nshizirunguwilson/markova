@@ -99,7 +99,11 @@ describe('MarksService', () => {
               assessmentTypeId: 'assess-1',
             },
           },
-          update: expect.objectContaining({ score: 75, maxScore: 100, teacherId: 'teacher-1' }),
+          update: expect.objectContaining({
+            score: 75,
+            maxScore: 100,
+            teacherId: 'teacher-1',
+          }),
           create: expect.objectContaining({
             studentId: 'student-1',
             subjectId: 'subject-1',
@@ -218,44 +222,34 @@ describe('MarksService', () => {
   describe('calculateTermResults()', () => {
     const dto = { classSectionId: 'class-1', termId: 'term-1' };
 
-    beforeEach(() => {
-      // Default grading scale config: A:80,B:70,C:60,D:50,F:0
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue({
-        key: 'grading_scale',
-        value: 'A:80,B:70,C:60,D:50,F:0',
-      });
+    const coreMark = (
+      subjectId: string,
+      assessmentName: string,
+      score: number,
+    ) => ({
+      subjectId,
+      score,
+      maxScore: 100,
+      subject: { scope: 'O_CORE', maxMarks: 100 },
+      assessmentType: { name: assessmentName },
     });
 
-    it('should compute correct subject averages', async () => {
+    it('weights CATs and exam into the subject term total', async () => {
       mockTx.student.findMany.mockResolvedValue([
         { id: 'student-1', status: 'ACTIVE' },
       ]);
 
-      // Student has 2 marks in the same subject (two assessment types)
-      // score/maxScore * maxMarks: 80/100*100 = 80, 60/100*100 = 60
-      // Subject average = (80+60)/2 = 70
-      // Overall average = 70
+      // Core subject: 80*0.2 + 80*0.2 + 60*0.6 = 68
       mockTx.mark.findMany.mockResolvedValue([
-        {
-          subjectId: 'subject-1',
-          score: 80,
-          maxScore: 100,
-          subject: { maxMarks: 100 },
-        },
-        {
-          subjectId: 'subject-1',
-          score: 60,
-          maxScore: 100,
-          subject: { maxMarks: 100 },
-        },
+        coreMark('subject-1', 'CAT 1', 80),
+        coreMark('subject-1', 'CAT 2', 80),
+        coreMark('subject-1', 'End of Term Exam', 60),
       ]);
 
       const upsertedResult = {
         id: 'result-1',
         studentId: 'student-1',
-        average: 70,
-        letterGrade: 'B',
-        totalMarks: 70,
+        average: 68,
       };
       mockTx.termResult.upsert.mockResolvedValue(upsertedResult);
       mockTx.termResult.update.mockResolvedValue({
@@ -268,34 +262,28 @@ describe('MarksService', () => {
       expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: expect.objectContaining({
-            average: 70,
-            totalMarks: 70,
+            average: 68,
+            totalMarks: 68,
           }),
         }),
       );
       expect(result.count).toBe(1);
     });
 
-    it('should assign correct letter grades from grading scale', async () => {
+    it('assigns national letter grades and aggregate points', async () => {
       mockTx.student.findMany.mockResolvedValue([
         { id: 'student-1', status: 'ACTIVE' },
       ]);
 
-      // Student average will be 85 => grade A (>= 80)
+      // 85 on the core scale => A, 6 points (max 6 for one subject)
       mockTx.mark.findMany.mockResolvedValue([
-        {
-          subjectId: 'subject-1',
-          score: 85,
-          maxScore: 100,
-          subject: { maxMarks: 100 },
-        },
+        coreMark('subject-1', 'End of Term Exam', 85),
       ]);
 
       mockTx.termResult.upsert.mockResolvedValue({
         id: 'result-1',
         studentId: 'student-1',
         average: 85,
-        letterGrade: 'A',
       });
       mockTx.termResult.update.mockResolvedValue({});
 
@@ -305,6 +293,43 @@ describe('MarksService', () => {
         expect.objectContaining({
           update: expect.objectContaining({
             letterGrade: 'A',
+            aggregate: 6,
+            aggregateMax: 6,
+          }),
+        }),
+      );
+    });
+
+    it('excludes electives from the aggregate but not the average', async () => {
+      mockTx.student.findMany.mockResolvedValue([
+        { id: 'student-1', status: 'ACTIVE' },
+      ]);
+
+      mockTx.mark.findMany.mockResolvedValue([
+        coreMark('subject-1', 'End of Term Exam', 80), // core: counts (A = 6)
+        {
+          subjectId: 'subject-2',
+          score: 90,
+          maxScore: 100,
+          subject: { scope: 'O_ELECTIVE', maxMarks: 100 },
+          assessmentType: { name: 'End of Term Exam' },
+        },
+      ]);
+
+      mockTx.termResult.upsert.mockResolvedValue({
+        id: 'result-1',
+        studentId: 'student-1',
+      });
+      mockTx.termResult.update.mockResolvedValue({});
+
+      await service.calculateTermResults(dto as any);
+
+      expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            average: 85, // both subjects in the mean
+            aggregate: 6, // only the core one counts
+            aggregateMax: 6,
           }),
         }),
       );
@@ -318,22 +343,8 @@ describe('MarksService', () => {
 
       // student-1: average 60, student-2: average 90
       mockTx.mark.findMany
-        .mockResolvedValueOnce([
-          {
-            subjectId: 'sub-1',
-            score: 60,
-            maxScore: 100,
-            subject: { maxMarks: 100 },
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            subjectId: 'sub-1',
-            score: 90,
-            maxScore: 100,
-            subject: { maxMarks: 100 },
-          },
-        ]);
+        .mockResolvedValueOnce([coreMark('sub-1', 'End of Term Exam', 60)])
+        .mockResolvedValueOnce([coreMark('sub-1', 'End of Term Exam', 90)]);
 
       mockTx.termResult.upsert
         .mockResolvedValueOnce({
@@ -366,26 +377,19 @@ describe('MarksService', () => {
       );
     });
 
-    it('should return correct grade for boundary values (getLetterGrade)', async () => {
+    it('grades the core boundary at 70 as A', async () => {
       mockTx.student.findMany.mockResolvedValue([
         { id: 'student-1', status: 'ACTIVE' },
       ]);
 
-      // Exactly 80 => should be 'A' (>= 80)
       mockTx.mark.findMany.mockResolvedValue([
-        {
-          subjectId: 'sub-1',
-          score: 80,
-          maxScore: 100,
-          subject: { maxMarks: 100 },
-        },
+        coreMark('sub-1', 'End of Term Exam', 70),
       ]);
 
       mockTx.termResult.upsert.mockResolvedValue({
         id: 'r1',
         studentId: 'student-1',
-        average: 80,
-        letterGrade: 'A',
+        average: 70,
       });
       mockTx.termResult.update.mockResolvedValue({});
 
@@ -395,7 +399,7 @@ describe('MarksService', () => {
         expect.objectContaining({
           update: expect.objectContaining({
             letterGrade: 'A',
-            average: 80,
+            average: 70,
           }),
         }),
       );
