@@ -27,44 +27,122 @@ import {
 const prisma = new PrismaClient();
 
 // ─── NAME POOLS ──────────────────────────────────────────────────────────────
-// Large pools so ~800 students + 400 parents + 30 teachers come out with
-// distinct first/last-name combinations.
+// Rwandan naming, done properly:
+//  - children do NOT inherit a surname; each gets their own Kinyarwanda name
+//  - students (13-19) carry modern names, adults carry their generation's
+//  - every Kinyarwanda and Western name is gendered (or explicitly unisex)
+//  - a small minority of students carry a rare lineage name passed down from
+//    a parent; those names stay inside one family
 
-const MALE_FIRSTS = [
+// Adults (teachers, parents) — Western first names of their generation.
+const ADULT_WESTERN_MALE = [
   'Jean', 'Eric', 'Patrick', 'Emmanuel', 'Olivier', 'Fabrice', 'Thierry',
   'Aimable', 'Gilbert', 'Innocent', 'Claude', 'Bosco', 'Theogene', 'Faustin',
   'Vedaste', 'Celestin', 'Aloys', 'Dieudonne', 'Janvier', 'Pascal', 'Cyprien',
   'Anselme', 'Fidele', 'Egide', 'Moise', 'Eugene', 'Protais', 'Aime',
   'Felicien', 'Theoneste', 'Boniface', 'Augustin', 'Desire', 'Placide',
   'Schadrack', 'Straton', 'Damascene', 'Vianney', 'Elie', 'Gaspard',
-  'Herve', 'Isaie', 'Jonas', 'Kevin', 'Landry', 'Maurice', 'Norbert',
-  'Pacifique', 'Samuel', 'Yves',
+  'Herve', 'Isaie', 'Jonas', 'Maurice', 'Norbert', 'Pacifique', 'Samuel',
+  'Yves', 'Callixte', 'Deogratias',
 ];
 
-const FEMALE_FIRSTS = [
+const ADULT_WESTERN_FEMALE = [
   'Aline', 'Claudine', 'Diane', 'Esperance', 'Josiane', 'Solange', 'Yvette',
   'Chantal', 'Immaculee', 'Vestine', 'Beatha', 'Christine', 'Donatha',
   'Florence', 'Goretti', 'Henriette', 'Liliane', 'Mediatrice', 'Nadine',
   'Odette', 'Pelagie', 'Sandrine', 'Triphine', 'Valentine', 'Yvonne',
-  'Divine', 'Gloria', 'Honorine', 'Josee', 'Keza', 'Mahoro', 'Peace',
-  'Teta', 'Ange', 'Bella', 'Clarisse', 'Denyse', 'Espoir', 'Gisele',
-  'Ines', 'Jeanne', 'Lea', 'Marie', 'Nelly', 'Olive', 'Pamela', 'Rose',
-  'Sonia', 'Umutoni', 'Winnie',
+  'Honorine', 'Josee', 'Jeanne', 'Marie', 'Olive', 'Rose', 'Sonia',
+  'Clarisse', 'Denyse', 'Gisele', 'Ines', 'Lea', 'Nelly', 'Pamela',
+  'Winnie', 'Speciose', 'Dativa', 'Verena', 'Cecile', 'Alphonsine',
+  'Bernadette', 'Emerthe', 'Francine', 'Judith', 'Seraphine',
 ];
 
-// Rwandan surnames (Kinyarwanda family names).
-const LAST_NAMES = [
-  'Niyonkuru', 'Mukamana', 'Habimana', 'Uwimana', 'Nshimiyimana', 'Bizimana',
-  'Niyitegeka', 'Hakizimana', 'Iradukunda', 'Mugisha', 'Ndayisaba',
-  'Nsengiyumva', 'Tuyishime', 'Uwase', 'Murenzi', 'Gatera', 'Karangwa',
-  'Kagabo', 'Nkurunziza', 'Munyaneza', 'Sibomana', 'Ntirenganya', 'Rukundo',
-  'Byiringiro', 'Dusabe', 'Gasana', 'Ishimwe', 'Manzi', 'Mutoni', 'Shema',
-  'Cyusa', 'Ganza', 'Hirwa', 'Igihozo', 'Kalisa', 'Mahoro', 'Rugema',
-  'Ruterana', 'Sebahire', 'Twagiramungu', 'Uwitonze', 'Nizeyimana',
-  'Bizimungu', 'Kayitesi', 'Ingabire', 'Mukandayisenga', 'Nteziryayo',
-  'Rwabuhihi', 'Gakwaya', 'Habyarimana', 'Mukeshimana', 'Ndahiro',
-  'Rwigema', 'Uwamahoro', 'Bagiruwubusa', 'Cyiza', 'Dushime', 'Hagenimana',
-  'Mukantwari', 'Niyomugabo',
+// Adults — Kinyarwanda names, gendered.
+const ADULT_KINYA_MALE = [
+  'Habimana', 'Bizimana', 'Nshimiyimana', 'Hakizimana', 'Mugisha',
+  'Ndayisaba', 'Nsengiyumva', 'Murenzi', 'Gatera', 'Karangwa', 'Kagabo',
+  'Nkurunziza', 'Munyaneza', 'Sibomana', 'Ntirenganya', 'Byiringiro',
+  'Gasana', 'Kalisa', 'Rugema', 'Ruterana', 'Sebahire', 'Twagiramungu',
+  'Nizeyimana', 'Bizimungu', 'Nteziryayo', 'Gakwaya', 'Habyarimana',
+  'Ndahiro', 'Ndagijimana', 'Niyonsenga', 'Twahirwa', 'Niyonzima',
+  'Mbarushimana', 'Ndayambaje', 'Nkundimana', 'Muhirwa', 'Rutayisire',
+  'Nsabimana', 'Bimenyimana', 'Harelimana', 'Nsengimana', 'Gasore',
+  'Semasaka', 'Munyakazi', 'Nzeyimana', 'Habineza', 'Maniraguha',
+  'Hategekimana', 'Niyomugabo', 'Rurangirwa', 'Munyemana', 'Ngendahimana',
+  'Sentore', 'Muneza', 'Mugenzi', 'Kanamugire', 'Gatete', 'Rusanganwa',
+  'Musonera', 'Nsanzimana', 'Karekezi', 'Niyonkuru', 'Ntawukuriryayo',
+  'Ruzindana', 'Musabyimana', 'Nkundabanyanga',
+];
+
+const ADULT_KINYA_FEMALE = [
+  'Mukamana', 'Uwase', 'Uwera', 'Mutoni', 'Kayitesi', 'Ingabire',
+  'Mukandayisenga', 'Uwamahoro', 'Mukeshimana', 'Mukantwari', 'Umuhoza',
+  'Nyirahabimana', 'Mukagatare', 'Mukarugwiza', 'Nyiransabimana',
+  'Mukasine', 'Uwizeyimana', 'Mukamurenzi', 'Uwingabire', 'Mukashyaka',
+  'Nyirarukundo', 'Mukandori', 'Mukanoheli', 'Uwimbabazi', 'Mukabalisa',
+  'Umutesi', 'Mukansanga', 'Mukamazimpaka', 'Mukandutiye', 'Munganyinka',
+  'Nikuze', 'Uwituze', 'Uwonkunda', 'Murekatete', 'Mukarurangwa',
+  'Nyiraneza', 'Mukanyandwi', 'Uwimana', 'Iradukunda', 'Kayirebwa',
+  'Mukarusanga', 'Nyirabagenzi', 'Mukandekezi', 'Uwamariya', 'Mukamusoni',
+  'Nyiramugisha', 'Mukanyangezi', 'Uwacu', 'Mukundwa', 'Kanyamibwa',
+];
+
+// Students — modern Kinyarwanda names (Gen-Z / Gen-Alpha), gendered.
+const STUDENT_KINYA_MALE = [
+  'Shema', 'Manzi', 'Ganza', 'Hirwa', 'Mucyo', 'Gisa', 'Nkusi', 'Kwizera',
+  'Cyubahiro', 'Intwari', 'Imanzi', 'Shyaka', 'Rugero', 'Kaze', 'Mugabo',
+  'Ngabo', 'Hodari', 'Songa', 'Rugwiro', 'Turatsinze', 'Nshuti', 'Munezero',
+  'Cyizere', 'Kirenga', 'Rukundo', 'Rugamba', 'Mazimpaka', 'Ndamage',
+  'Semana', 'Rutagengwa', 'Karake', 'Kamali', 'Gatsinzi', 'Rwema',
+  'Cyusa', 'Mvuyekure', 'Ndoli', 'Bwenge', 'Sabato', 'Rutaganira',
+];
+
+const STUDENT_KINYA_FEMALE = [
+  'Keza', 'Ineza', 'Teta', 'Isaro', 'Isimbi', 'Ikirezi', 'Agasaro',
+  'Kaliza', 'Kamikazi', 'Kundwa', 'Umutoni', 'Mutesi', 'Uwera', 'Umuhoza',
+  'Nirere', 'Akaliza', 'Kirezi', 'Gikundiro', 'Icyeza', 'Umwali',
+  'Umwari', 'Gasaro', 'Ihoza', 'Iriza', 'Impano', 'Ituze', 'Ubwiza',
+  'Isano', 'Giramata', 'Ingoga', 'Keyla', 'Ishami', 'Umutuzo', 'Icyizere',
+  'Inkindi', 'Kazeneza', 'Umurerwa', 'Uwineza', 'Umulisa', 'Akeza',
+];
+
+// Names used for both genders.
+const STUDENT_KINYA_UNISEX = [
+  'Ishimwe', 'Iradukunda', 'Irakoze', 'Mahoro', 'Amani', 'Gwiza', 'Shimwa',
+  'Tetero', 'Hobe', 'Kunda', 'Sangwa', 'Cyuzuzo', 'Muhoza', 'Sano',
+  'Ihirwe', 'Iranzi', 'Isheja', 'Nema',
+];
+
+// Students — modern Western/Christian first names.
+const STUDENT_WESTERN_MALE = [
+  'Ryan', 'Bryan', 'Brian', 'Ivan', 'Kevin', 'Ethan', 'Aidan', 'Alvin',
+  'Chris', 'Danny', 'Arnold', 'Prince', 'Yannick', 'Cedric', 'Kenny',
+  'Jayden', 'Liam', 'Dylan', 'Axel', 'Enzo', 'Andy', 'Alain', 'Nathan',
+  'Aaron', 'Ian', 'Jason', 'Kayden', 'Darren', 'Warren', 'Keith',
+  'Calvin', 'Elvis', 'Denzel', 'Travis', 'Marvin', 'Junior', 'Elton',
+  'Hans', 'Lionel', 'Fiston',
+];
+
+const STUDENT_WESTERN_FEMALE = [
+  'Ashley', 'Melissa', 'Vanessa', 'Leila', 'Keila', 'Gaella', 'Anaella',
+  'Ornella', 'Sheila', 'Cynthia', 'Sandra', 'Tina', 'Bella', 'Stella',
+  'Rachel', 'Raissa', 'Ketsia', 'Deborah', 'Queen', 'Angel', 'Divine',
+  'Alicia', 'Tracy', 'Whitney', 'Fiona', 'Diana', 'Laura', 'Linda',
+  'Erica', 'Jessica', 'Nicole', 'Michelle', 'Audrey', 'Chloe', 'Kelly',
+  'Wendy', 'Sylvia', 'Carine', 'Anitha', 'Belinda',
+];
+
+// Rare lineage names, confirmed list. Each belongs to exactly ONE family in
+// the school: the parent carries it and passes it to their child(ren).
+const INHERITED_FATHER_LINE = [
+  'Rwigema', 'Rudasingwa', 'Rwigara', 'Kayihura', 'Sebarenzi', 'Gatabazi',
+  'Munyurangabo', 'Bizumuremyi', 'Nkubito', 'Semanza', 'Sekamana',
+  'Gashumba', 'Rutaremara', 'Rwabutogo', 'Gakuba', 'Kajangwe', 'Ruganzu',
+  'Mibambwe', 'Ndahindurwa', 'Rwabukamba',
+];
+const INHERITED_MOTHER_LINE = [
+  'Kanyange', 'Nyampinga', 'Kanyana', 'Nyiramahoro', 'Kabatesi',
+  'Kankindi', 'Umulinga', 'Nyiratunga', 'Kanakuze', 'Mukandoli',
 ];
 
 // ─── SCHOOL STRUCTURE ────────────────────────────────────────────────────────
@@ -247,7 +325,7 @@ const ASSESSMENT_NAMES = ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam'];
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const rand = (n: number) => Math.floor(Math.random() * n);
-const sample = <T>(arr: T[]): T => arr[rand(arr.length)];
+const chance = (p: number) => Math.random() < p;
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
 
@@ -258,6 +336,96 @@ function shuffled<T>(arr: T[]): T[] {
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
+}
+
+// Deals a pool card by card in random order, reshuffling only once the whole
+// pool is used up — this spreads repeats as thinly as the pool allows.
+function dealer(pool: string[]) {
+  let deck = shuffled(pool);
+  return () => {
+    if (deck.length === 0) deck = shuffled(pool);
+    return deck.pop()!;
+  };
+}
+
+// ─── NAME GENERATION ─────────────────────────────────────────────────────────
+
+const usedFullNames = new Set<string>();
+const nameKey = (first: string, last: string) =>
+  `${first} ${last}`.toLowerCase();
+
+function claimFullName(first: string, last: string): boolean {
+  const key = nameKey(first, last);
+  if (usedFullNames.has(key)) return false;
+  usedFullNames.add(key);
+  return true;
+}
+
+const adultWestern = {
+  [Gender.MALE]: dealer(ADULT_WESTERN_MALE),
+  [Gender.FEMALE]: dealer(ADULT_WESTERN_FEMALE),
+};
+const adultKinya = {
+  [Gender.MALE]: dealer(ADULT_KINYA_MALE),
+  [Gender.FEMALE]: dealer(ADULT_KINYA_FEMALE),
+};
+
+/** An adult (teacher/parent) name: Western first + gendered Kinyarwanda name. */
+function adultName(gender: Gender, opts?: { kinyaOverride?: string }) {
+  for (let t = 0; t < 200; t++) {
+    const first = adultWestern[gender]();
+    const last = opts?.kinyaOverride ?? adultKinya[gender]();
+    if (claimFullName(first, last)) return { first, last };
+  }
+  throw new Error('adult name space exhausted');
+}
+
+const studentWestern = {
+  [Gender.MALE]: dealer(STUDENT_WESTERN_MALE),
+  [Gender.FEMALE]: dealer(STUDENT_WESTERN_FEMALE),
+};
+const studentKinya = {
+  [Gender.MALE]: dealer([...STUDENT_KINYA_MALE, ...STUDENT_KINYA_UNISEX]),
+  [Gender.FEMALE]: dealer([...STUDENT_KINYA_FEMALE, ...STUDENT_KINYA_UNISEX]),
+};
+
+/**
+ * A student name: 2 names for most, 3 for about a third, 4 for a few.
+ * firstName holds the Western part (1-2 names), lastName the Kinyarwanda part
+ * (1-2 names, or the inherited lineage name). Within one class, no single
+ * name component appears more than twice.
+ */
+function studentName(
+  gender: Gender,
+  classCounts: Map<string, number>,
+  inheritedLast?: string,
+) {
+  for (let t = 0; t < 300; t++) {
+    const western1 = studentWestern[gender]();
+    const western2 = chance(0.25) ? studentWestern[gender]() : null;
+    const first =
+      western2 && western2 !== western1 ? `${western1} ${western2}` : western1;
+
+    let last: string;
+    if (inheritedLast) {
+      last = inheritedLast;
+    } else {
+      const kinya1 = studentKinya[gender]();
+      const kinya2 = chance(0.2) ? studentKinya[gender]() : null;
+      last = kinya2 && kinya2 !== kinya1 ? `${kinya1} ${kinya2}` : kinya1;
+    }
+
+    const components = [...first.split(' '), ...last.split(' ')];
+    const overused = components.some((c) => (classCounts.get(c) ?? 0) >= 2);
+    if (overused && t < 250) continue;
+    if (!claimFullName(first, last)) continue;
+
+    for (const c of components) {
+      classCounts.set(c, (classCounts.get(c) ?? 0) + 1);
+    }
+    return { first, last };
+  }
+  throw new Error('student name space exhausted');
 }
 
 // ─── DATE HELPERS ────────────────────────────────────────────────────────────
@@ -304,45 +472,19 @@ async function clearDatabase() {
   );
 }
 
-/**
- * Stateful name allocator — guarantees every name returned is unique across
- * every call to next(), even across roles. Walks the cartesian product of
- * (first, last) deterministically.
- */
-function makeNameAllocator() {
-  const seen = new Set<string>();
-  let i = 0;
-
-  function next(): { first: string; last: string; gender: Gender } {
-    while (true) {
-      const gender = i % 2 === 0 ? Gender.MALE : Gender.FEMALE;
-      const firstPool = gender === Gender.MALE ? MALE_FIRSTS : FEMALE_FIRSTS;
-      const first = firstPool[i % firstPool.length];
-      const last = LAST_NAMES[Math.floor(i / firstPool.length) % LAST_NAMES.length];
-      i++;
-      const key = `${first}|${last}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        return { first, last, gender };
-      }
-      if (i > 1_000_000) throw new Error('name pool exhausted');
-    }
-  }
-
-  function take(count: number) {
-    return Array.from({ length: count }, () => next());
-  }
-
-  return { next, take };
-}
-
 async function main() {
-  console.log('🌱 Seeding database (Rwandan TSS structure)…');
+  console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
   // Make the seed idempotent — clear everything first so it can be re-run
   // any time to restore a clean, current-looking demo.
   await clearDatabase();
   console.log('  🧹 Existing data cleared');
+
+  // Reserve the documented demo names before any generation.
+  ['Wilson Nshizirungu', 'Josiane Mutoni'].forEach((n) => {
+    const [f, l] = n.split(' ');
+    claimFullName(f, l);
+  });
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
   const configs = [
@@ -388,12 +530,10 @@ async function main() {
   });
   console.log('  ✅ Admin user seeded');
 
-  // Single allocator so names are globally unique across teachers/students/parents.
-  const names = makeNameAllocator();
-
   // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
+  // No two teachers share any name component — 40 staff with a repeated name
+  // would read as fake immediately.
   const TEACHER_COUNT = 40;
-  // First 5 have stable, documented emails. The first is the demo teacher.
   const fixedTeachers = [
     { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
     { firstName: 'Eric', lastName: 'Niyonkuru', email: 'eric.niyonkuru@markova.academy', phone: '+250788000011' },
@@ -401,14 +541,29 @@ async function main() {
     { firstName: 'Patrick', lastName: 'Habimana', email: 'patrick.habimana@markova.academy', phone: '+250788000013' },
     { firstName: 'Solange', lastName: 'Ingabire', email: 'solange.ingabire@markova.academy', phone: '+250788000014' },
   ];
-  const generatedTeachers = names.take(TEACHER_COUNT - fixedTeachers.length).map(
-    (n, idx) => ({
-      firstName: n.first,
-      lastName: n.last,
-      email: `${n.first.toLowerCase()}.${n.last.toLowerCase()}${idx}@markova.academy`,
-      phone: `+250788${String(100 + idx).padStart(6, '0')}`,
-    }),
+  const teacherComponents = new Set<string>(
+    fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
   );
+  fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
+
+  const generatedTeachers: typeof fixedTeachers = [];
+  for (let i = 0; generatedTeachers.length < TEACHER_COUNT - fixedTeachers.length; i++) {
+    if (i > 2000) throw new Error('teacher name space exhausted');
+    const gender = generatedTeachers.length % 2 === 0 ? Gender.MALE : Gender.FEMALE;
+    const first = adultWestern[gender]();
+    const last = adultKinya[gender]();
+    if (teacherComponents.has(first) || teacherComponents.has(last)) continue;
+    if (!claimFullName(first, last)) continue;
+    teacherComponents.add(first);
+    teacherComponents.add(last);
+    const idx = generatedTeachers.length;
+    generatedTeachers.push({
+      firstName: first,
+      lastName: last,
+      email: `${first.toLowerCase()}.${last.toLowerCase()}@markova.academy`,
+      phone: `+250788${String(100 + idx).padStart(6, '0')}`,
+    });
+  }
   const teacherData = [...fixedTeachers, ...generatedTeachers];
 
   const teacherUsers: any[] = [];
@@ -437,7 +592,7 @@ async function main() {
     teacherUsers.push(user);
     teachers.push(teacher);
   }
-  console.log(`  ✅ ${teachers.length} teachers seeded`);
+  console.log(`  ✅ ${teachers.length} teachers seeded (no shared name components)`);
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   await prisma.user.create({
@@ -699,18 +854,72 @@ async function main() {
 
   const classSizes = sectionMetas.map(() => 25 + rand(6)); // 25-30 each
   const STUDENT_COUNT = classSizes.reduce((a, b) => a + b, 0);
-  const studentNames = names.take(STUDENT_COUNT);
+
+  // Lineage plan: every inherited name belongs to one family; ~30% of the
+  // families have two children in the school (true siblings, same parents).
+  type Family = {
+    id: number;
+    line: 'father' | 'mother';
+    name: string;
+    kidSlots: number[];
+    kidGenders: Gender[];
+    studentIds: string[];
+  };
+  const families: Family[] = [];
+  const inheritedBySlot = new Map<number, Family>();
+  {
+    const slotDeck = shuffled(Array.from({ length: STUDENT_COUNT }, (_, i) => i));
+    let familyId = 0;
+    const lines: { line: 'father' | 'mother'; name: string }[] = [
+      ...INHERITED_FATHER_LINE.map((name) => ({ line: 'father' as const, name })),
+      ...INHERITED_MOTHER_LINE.map((name) => ({ line: 'mother' as const, name })),
+    ];
+    for (const { line, name } of lines) {
+      const kids = chance(0.3) ? 2 : 1;
+      const fam: Family = {
+        id: familyId++,
+        line,
+        name,
+        kidSlots: [],
+        kidGenders: [],
+        studentIds: [],
+      };
+      for (let k = 0; k < kids && slotDeck.length > 0; k++) {
+        const slot = slotDeck.pop()!;
+        // Father-line names go mostly to boys, sometimes to a daughter.
+        // Mother-line names go to daughters.
+        const gender =
+          line === 'father'
+            ? chance(0.7)
+              ? Gender.MALE
+              : Gender.FEMALE
+            : Gender.FEMALE;
+        fam.kidSlots.push(slot);
+        fam.kidGenders.push(gender);
+        inheritedBySlot.set(slot, fam);
+      }
+      families.push(fam);
+    }
+  }
 
   let studentIdx = 0;
   for (let si = 0; si < sectionMetas.length; si++) {
     const meta = sectionMetas[si];
+    const classCounts = new Map<string, number>();
     for (let k = 0; k < classSizes[si]; k++) {
       const i = studentIdx++;
-      const { first, last, gender } = studentNames[i];
-      const email = `${first.toLowerCase()}.${last.toLowerCase()}${i + 1}@student.markova.academy`;
+      const fam = inheritedBySlot.get(i);
+      const gender = fam
+        ? fam.kidGenders[fam.kidSlots.indexOf(i)]
+        : chance(0.5)
+          ? Gender.MALE
+          : Gender.FEMALE;
+      const { first, last } = studentName(gender, classCounts, fam?.name);
+
+      const emailToken = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
       const user = await prisma.user.create({
         data: {
-          email: i < 30 ? `student${i + 1}@markova.academy` : email, // keep doc-referenced student1
+          email: i < 30 ? `student${i + 1}@markova.academy` : `${emailToken}${i + 1}@student.markova.academy`,
           passwordHash,
           role: Role.STUDENT,
           firstName: first,
@@ -734,53 +943,120 @@ async function main() {
           disciplinePoints: 100,
         },
       });
+      if (fam) fam.studentIds.push(student.id);
       enrolled.push({ student, user, meta });
     }
   }
   const students = enrolled.map((e) => e.student);
   const studentUsers = enrolled.map((e) => e.user);
-  console.log(`  ✅ ${students.length} students seeded across ${sectionMetas.length} classes`);
+  const inheritedKids = families.reduce((s, f) => s + f.studentIds.length, 0);
+  console.log(
+    `  ✅ ${students.length} students seeded across ${sectionMetas.length} classes (${inheritedKids} carry a family lineage name)`,
+  );
 
   // ─── PARENTS (400) ──────────────────────────────────────────────────────────
+  // Lineage families get a real father+mother pair (the line parent carries
+  // the family name). Everyone else draws from the generic pools, alternating
+  // genders so Father/Mother relationships always match the person.
   const PARENT_COUNT = 400;
-  const parentNames = names.take(PARENT_COUNT);
   const parentUsers: any[] = [];
-  for (let i = 0; i < PARENT_COUNT; i++) {
-    const { first, last } = parentNames[i];
-    const phone = `+250788${String(100000 + i).padStart(6, '0')}`;
+  let parentPhoneIdx = 0;
+
+  const createParent = async (
+    gender: Gender,
+    opts?: { kinyaOverride?: string; demo?: boolean },
+  ) => {
+    const i = parentPhoneIdx++;
+    const { first, last } = adultName(gender, {
+      kinyaOverride: opts?.kinyaOverride,
+    });
     const user = await prisma.user.create({
       data: {
-        phone,
+        phone: `+250788${String(100000 + i).padStart(6, '0')}`,
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? `${first.toLowerCase()}.${last.toLowerCase()}${i}@parent.markova.academy` : null,
+        email:
+          i >= 15
+            ? `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}${i}@parent.markova.academy`
+            : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
         lastName: last,
         isActive: true,
-        forcePasswordChange: i !== 0, // parent[0] (+250788100000) is the demo account
+        forcePasswordChange: !opts?.demo,
       },
     });
     parentUsers.push(user);
+    return user;
+  };
+
+  // The documented demo parent first: +250788100000.
+  const demoParent = await createParent(Gender.MALE, { demo: true });
+
+  // Family pairs for the lineage names.
+  const familyParents = new Map<number, { father: any; mother: any }>();
+  for (const fam of families) {
+    if (fam.studentIds.length === 0) continue;
+    const father = await createParent(Gender.MALE, {
+      kinyaOverride: fam.line === 'father' ? fam.name : undefined,
+    });
+    const mother = await createParent(Gender.FEMALE, {
+      kinyaOverride: fam.line === 'mother' ? fam.name : undefined,
+    });
+    familyParents.set(fam.id, { father, mother });
   }
 
-  // Link parents to students: every student gets 1-2 parents. Cycle parents.
+  // Generic parents, alternating genders: even index male, odd female.
+  const genericFathers: any[] = [demoParent];
+  const genericMothers: any[] = [];
+  while (parentUsers.length < PARENT_COUNT) {
+    const gender =
+      genericFathers.length <= genericMothers.length
+        ? Gender.MALE
+        : Gender.FEMALE;
+    const u = await createParent(gender);
+    (gender === Gender.MALE ? genericFathers : genericMothers).push(u);
+  }
+
+  // Link lineage kids to their real parents.
   const parentLinkRows: any[] = [];
-  let pcursor = 0;
+  const linkedStudentIds = new Set<string>();
+  for (const fam of families) {
+    const pair = familyParents.get(fam.id);
+    if (!pair) continue;
+    for (const studentId of fam.studentIds) {
+      parentLinkRows.push(
+        { parentUserId: pair.father.id, studentId, relationship: 'Father' },
+        { parentUserId: pair.mother.id, studentId, relationship: 'Mother' },
+      );
+      linkedStudentIds.add(studentId);
+    }
+  }
+
+  // Everyone else: 1-2 parents, cycling the generic pools.
+  let fCursor = 0;
+  let mCursor = 0;
   for (let si = 0; si < students.length; si++) {
-    const numParents = si % 4 === 0 ? 1 : 2; // most students have two parents
-    for (let p = 0; p < numParents; p++) {
-      const parent = parentUsers[pcursor % parentUsers.length];
-      pcursor++;
+    if (linkedStudentIds.has(students[si].id)) continue;
+    const father = genericFathers[fCursor++ % genericFathers.length];
+    parentLinkRows.push({
+      parentUserId: father.id,
+      studentId: students[si].id,
+      relationship: 'Father',
+    });
+    if (si % 4 !== 0) {
+      const mother = genericMothers[mCursor++ % genericMothers.length];
       parentLinkRows.push({
-        parentUserId: parent.id,
+        parentUserId: mother.id,
         studentId: students[si].id,
-        relationship: p === 0 ? 'Father' : 'Mother',
+        relationship: 'Mother',
       });
     }
   }
   await prisma.parentStudent.createMany({ data: parentLinkRows });
-  console.log(`  ✅ ${parentUsers.length} parents seeded and linked`);
+  console.log(
+    `  ✅ ${parentUsers.length} parents seeded (${familyParents.size} lineage families) and linked`,
+  );
 
   // ─── MARKS (Term 1, full assessment structure) ──────────────────────────────
   // Every student is graded in every subject of their class: CAT 1, CAT 2 and
@@ -1208,6 +1484,9 @@ async function main() {
   );
   console.log(
     `   ${oClasses} O-Level classes (Senior 1-3, streams A-B) + ${aClasses} A-Level classes (Level 3-5 × SWD/NIT/TOR/AUT)`,
+  );
+  console.log(
+    `   ${families.filter((f) => f.studentIds.length > 0).length} lineage families (${inheritedKids} students carry an inherited name)`,
   );
   console.log('   Default password for all users: Password123!');
   console.log('   Demo accounts (no forced password change):');
