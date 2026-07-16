@@ -325,6 +325,7 @@ const ASSESSMENT_NAMES = ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam'];
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const rand = (n: number) => Math.floor(Math.random() * n);
+const sample = <T,>(arr: T[]): T => arr[rand(arr.length)];
 const chance = (p: number) => Math.random() < p;
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
@@ -634,38 +635,47 @@ async function main() {
   // today, so every term selector defaults to a term that actually has data.
   const today = startOfToday();
   const yr = today.getFullYear();
-  // Terms 1 and 2 are finished (closed, fully graded); Term 3 contains today,
-  // so trend charts get three real data points and "current term" still works.
+  // Three school years: the two past ones are fully closed and graded; in the
+  // current one Terms 1-2 are done and Term 3 contains today.
   const term1Start = addDays(today, -224);
-  const academicYear = await prisma.academicYear.create({
-    data: {
-      name: `${yr}-${yr + 1}`,
-      startDate: term1Start,
-      endDate: addDays(today, 70),
-      isCurrent: true,
-    },
-  });
-  const terms: any[] = [];
-  const termDates = [
-    { name: 'Term 1', start: term1Start, end: addDays(today, -140) },
-    { name: 'Term 2', start: addDays(today, -126), end: addDays(today, -35) },
-    { name: 'Term 3', start: addDays(today, -21), end: addDays(today, 70) },
-  ];
-  for (let i = 0; i < termDates.length; i++) {
-    const t = await prisma.term.create({
+  type YearBundle = { year: any; terms: any[] };
+  const allYears: YearBundle[] = [];
+  for (let yearIdx = 0; yearIdx < 3; yearIdx++) {
+    const back = 2 - yearIdx; // 2, 1, 0 years ago
+    const start = addDays(term1Start, -365 * back);
+    const year = await prisma.academicYear.create({
       data: {
-        academicYearId: academicYear.id,
-        name: termDates[i].name,
-        startDate: termDates[i].start,
-        endDate: termDates[i].end,
-        isCurrent: i === 2,
-        isClosed: i < 2,
+        name: `${yr - back}-${yr - back + 1}`,
+        startDate: start,
+        endDate: addDays(start, 294),
+        isCurrent: back === 0,
       },
     });
-    terms.push(t);
+    const offsets = [
+      { name: 'Term 1', from: 0, to: 84 },
+      { name: 'Term 2', from: 98, to: 189 },
+      { name: 'Term 3', from: 203, to: 294 },
+    ];
+    const yearTerms: any[] = [];
+    for (let i = 0; i < offsets.length; i++) {
+      const t = await prisma.term.create({
+        data: {
+          academicYearId: year.id,
+          name: offsets[i].name,
+          startDate: addDays(start, offsets[i].from),
+          endDate: addDays(start, offsets[i].to),
+          isCurrent: back === 0 && i === 2,
+          isClosed: back > 0 || i < 2,
+        },
+      });
+      yearTerms.push(t);
+    }
+    allYears.push({ year, terms: yearTerms });
   }
+  const academicYear = allYears[2].year;
+  const terms = allYears[2].terms;
   const currentTerm = terms[2];
-  console.log('  ✅ Academic year + 3 terms seeded (Term 3 current)');
+  console.log('  ✅ 3 academic years + 9 terms seeded (Term 3 of the newest is current)');
 
   // ─── TRADES ─────────────────────────────────────────────────────────────────
   const trades: any[] = [];
@@ -870,8 +880,77 @@ async function main() {
   await prisma.teacherSubjectClass.createMany({ data: assignmentRows });
   console.log(`  ✅ ${assignmentRows.length} teacher-subject-class assignments seeded`);
 
+  // ─── ENROLLMENT JOURNEYS (across the 3 seeded years) ────────────────────────
+  // Where was each person in the two previous years? Walked backwards with
+  // realistic rates: ~85% promoted, ~8% repeated the year, ~7% joined the
+  // school mid-path. Crossing back from Level 3 to Senior 3, only half did
+  // O-Level here, and every past class is capped at 30 so history never
+  // overfills a room (which also keeps the O→A intake imbalance honest).
+  type Placement = { yearIdx: number; meta: SectionMeta; failed: boolean };
+
+  const sectionsByLevel = new Map<string, SectionMeta[]>();
+  for (const m of sectionMetas) {
+    const key = `${m.level.order}|${m.trade?.code ?? '-'}`;
+    const list = sectionsByLevel.get(key) ?? [];
+    list.push(m);
+    sectionsByLevel.set(key, list);
+  }
+
+  const pastOcc = new Map<string, number>();
+  const occKey = (yearIdx: number, sectionId: string) => `${yearIdx}|${sectionId}`;
+  const getOcc = (yearIdx: number, sectionId: string) =>
+    pastOcc.get(occKey(yearIdx, sectionId)) ?? 0;
+  const addOcc = (yearIdx: number, sectionId: string) =>
+    pastOcc.set(occKey(yearIdx, sectionId), getOcc(yearIdx, sectionId) + 1);
+
+  // One backward year-step: where was this person the year before, or null if
+  // they were not at this school yet.
+  const stepBack = (
+    o: number,
+    trade: any,
+    yearIdx: number,
+  ): { meta: SectionMeta; repeat: boolean } | null => {
+    if (chance(0.07)) return null; // joined the school after this point
+    const repeat = chance(0.08);
+    const prevO = repeat ? o : o - 1;
+    if (prevO === 0) return null; // came straight from primary school
+    if (prevO === 3 && o === 4 && !repeat && chance(0.5)) return null; // did O-Level elsewhere
+    const prevTrade = prevO >= 4 ? trade : null;
+    const cands = (
+      sectionsByLevel.get(`${prevO}|${prevTrade?.code ?? '-'}`) ?? []
+    ).filter((m) => getOcc(yearIdx, m.section.id) < 30);
+    if (cands.length === 0) return null; // past classes full — came from elsewhere
+    const meta = sample(cands);
+    addOcc(yearIdx, meta.section.id);
+    return { meta, repeat };
+  };
+
+  const planJourney = (currentMeta: SectionMeta) => {
+    const placements: Placement[] = [
+      { yearIdx: 2, meta: currentMeta, failed: false },
+    ];
+    let repeats = 0;
+    let o = currentMeta.level.order;
+    let tr = currentMeta.trade;
+    for (const yearIdx of [1, 0]) {
+      const s = stepBack(o, tr, yearIdx);
+      if (!s) break;
+      // On a repeat, the earlier year is the failed attempt.
+      placements.push({ yearIdx, meta: s.meta, failed: s.repeat });
+      if (s.repeat) repeats++;
+      o = s.meta.level.order;
+      tr = s.meta.trade;
+    }
+    return { placements, repeats };
+  };
+
   // ─── STUDENTS (25-30 per class) ─────────────────────────────────────────────
-  type Enrolled = { student: any; user: any; meta: SectionMeta };
+  type Enrolled = {
+    student: any;
+    user: any;
+    meta: SectionMeta;
+    placements: Placement[];
+  };
   const enrolled: Enrolled[] = [];
 
   const classSizes = sectionMetas.map(() => 25 + rand(6)); // 25-30 each
@@ -937,6 +1016,7 @@ async function main() {
           ? Gender.MALE
           : Gender.FEMALE;
       const { first, last } = studentName(gender, classCounts, fam?.name);
+      const journey = planJourney(meta);
 
       const user = await prisma.user.create({
         data: {
@@ -949,8 +1029,8 @@ async function main() {
           forcePasswordChange: i !== 0, // student1 is the demo account
         },
       });
-      // S1 → ~13 yrs … L5 → ~19 yrs
-      const ageBase = 11 + meta.level.order + rand(2);
+      // S1 → ~13 yrs … L5 → ~19 yrs; repeaters are a year older per repeat.
+      const ageBase = 11 + meta.level.order + rand(2) + journey.repeats;
       const student = await prisma.student.create({
         data: {
           userId: user.id,
@@ -965,7 +1045,7 @@ async function main() {
         },
       });
       if (fam) fam.studentIds.push(student.id);
-      enrolled.push({ student, user, meta });
+      enrolled.push({ student, user, meta, placements: journey.placements });
     }
   }
   const students = enrolled.map((e) => e.student);
@@ -1076,6 +1156,85 @@ async function main() {
     `  ✅ ${parentUsers.length} parents seeded (${familyParents.size} lineage families) and linked`,
   );
 
+  // ─── FORMER STUDENTS (fill the two past years to real class sizes) ──────────
+  // Everyone who shared those classrooms but is gone today: Level 5 finishers
+  // are GRADUATED, everyone else who left is TRANSFERRED. They exist so every
+  // past rank and class average is computed against a full class. Their user
+  // accounts are inactive, so they cannot log in.
+  type Alumni = { student: any; placements: Placement[] };
+  const alumni: Alumni[] = [];
+  const alumniCounts = new Map<string, Map<string, number>>();
+  const countsFor = (yearIdx: number, sectionId: string) => {
+    const key = occKey(yearIdx, sectionId);
+    if (!alumniCounts.has(key)) alumniCounts.set(key, new Map());
+    return alumniCounts.get(key)!;
+  };
+
+  const createFormer = async (placements: Placement[], lastYearIdx: number) => {
+    const last = placements[0].meta; // placements[0] is their latest year here
+    const gender = chance(0.5) ? Gender.MALE : Gender.FEMALE;
+    const name = studentName(gender, countsFor(lastYearIdx, last.section.id));
+    const i = studentIdx++;
+    const repeats = placements.filter((p) => p.failed).length;
+    const yearsGone = 2 - lastYearIdx;
+    const age = 11 + last.level.order + rand(2) + repeats + yearsGone;
+    const user = await prisma.user.create({
+      data: {
+        email: emailFor(name.first, name.last),
+        passwordHash,
+        role: Role.STUDENT,
+        firstName: name.first,
+        lastName: name.last,
+        isActive: false,
+        forcePasswordChange: true,
+      },
+    });
+    const student = await prisma.student.create({
+      data: {
+        userId: user.id,
+        studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+        classSectionId: last.section.id,
+        dateOfBirth: new Date(
+          `${yr - age}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
+        ),
+        gender,
+        status:
+          last.level.order === 6
+            ? StudentStatus.GRADUATED
+            : StudentStatus.TRANSFERRED,
+        disciplinePoints: 100,
+      },
+    });
+    alumni.push({ student, placements });
+  };
+
+  // Pass 1: top last year's classes up to 25-30, extending each former
+  // student one more year back when the dice allow (which also fills year 0).
+  for (const meta of sectionMetas) {
+    const target = 25 + rand(6);
+    while (getOcc(1, meta.section.id) < target) {
+      addOcc(1, meta.section.id);
+      const placements: Placement[] = [{ yearIdx: 1, meta, failed: false }];
+      const s0 = stepBack(meta.level.order, meta.trade, 0);
+      if (s0) placements.push({ yearIdx: 0, meta: s0.meta, failed: s0.repeat });
+      await createFormer(placements, 1);
+    }
+  }
+  // Pass 2: whatever two-years-ago classes still miss.
+  for (const meta of sectionMetas) {
+    const target = 25 + rand(6);
+    while (getOcc(0, meta.section.id) < target) {
+      addOcc(0, meta.section.id);
+      await createFormer([{ yearIdx: 0, meta, failed: false }], 0);
+    }
+  }
+  const graduatedCount = alumni.filter(
+    (a) => a.student.status === StudentStatus.GRADUATED,
+  ).length;
+  console.log(
+    `  ✅ ${alumni.length} former students seeded (${graduatedCount} graduated, ${alumni.length - graduatedCount} transferred)`,
+  );
+
   // ─── MARKS (Term 1, full assessment structure) ──────────────────────────────
   // Every student is graded in every subject of their class: CAT 1, CAT 2 and
   // End of Term Exam everywhere, plus Practical on trade-specific modules.
@@ -1084,57 +1243,63 @@ async function main() {
     sectionMetas.map((m, idx) => [m.section.id, idx]),
   );
 
-  // Each student keeps a baseline ability plus a personal term-on-term drift
-  // (improving, steady or slipping), plus a per-subject strength, so the
-  // trend charts show believable trajectories instead of noise.
-  const drift = new Map<string, number>();
-  const baseline = new Map<string, number>();
+  // Every person (current and former) keeps one baseline ability and one
+  // long-term drift anchored at the current year, so a child's line over up
+  // to 9 terms tells a single story: improving, steady or slipping. A failed
+  // (repeated) year dips ~8 points below their curve; per-subject strengths
+  // persist across the years.
   const strength = new Map<string, number>(); // per student|subject
-  for (const { student } of enrolled) {
-    baseline.set(student.id, 45 + rand(41));
-    drift.set(student.id, rand(11) - 4); // -4 .. +6 per term
-  }
+  const allPeople = [
+    ...enrolled.map((e) => ({ student: e.student, placements: e.placements })),
+    ...alumni,
+  ];
 
-  for (let ti = 0; ti < terms.length; ti++) {
-    for (const { student, meta } of enrolled) {
-      const si = sectionIndexBySectionId.get(meta.section.id)!;
-      const subjectSet = subjectsForSection(meta);
-      const ability = clamp(
-        baseline.get(student.id)! + drift.get(student.id)! * ti,
-        25,
-        92,
-      );
+  for (const { student, placements } of allPeople) {
+    const baseline = 45 + rand(41);
+    const drift = rand(6) - 2; // -2 .. +3 per term
+    for (const pl of placements) {
+      const yearTerms = allYears[pl.yearIdx].terms;
+      const si = sectionIndexBySectionId.get(pl.meta.section.id)!;
+      const subjectSet = subjectsForSection(pl.meta);
+      for (let ti = 0; ti < yearTerms.length; ti++) {
+        const g = pl.yearIdx * 3 + ti; // global term index, current year = 6..8
+        const ability = clamp(
+          baseline + drift * (g - 6) - (pl.failed ? 8 : 0),
+          25,
+          92,
+        );
 
-      for (let subj = 0; subj < subjectSet.length; subj++) {
-        const subject = subjectSet[subj];
-        const teacher = teacherFor(si, subj);
-        const sKey = `${student.id}|${subject.id}`;
-        if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
-        const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
-        const components =
-          subject.scope === SubjectScope.A_SPECIFIC
-            ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
-            : ['CAT 1', 'CAT 2', 'End of Term Exam'];
+        for (let subj = 0; subj < subjectSet.length; subj++) {
+          const subject = subjectSet[subj];
+          const teacher = teacherFor(si, subj);
+          const sKey = `${student.id}|${subject.id}`;
+          if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
+          const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
+          const components =
+            subject.scope === SubjectScope.A_SPECIFIC
+              ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
+              : ['CAT 1', 'CAT 2', 'End of Term Exam'];
 
-        for (const assessmentName of components) {
-          // Practicals trend a bit higher (hands-on work), exams a bit lower.
-          const bias =
-            assessmentName === 'Practical'
-              ? 6
-              : assessmentName === 'End of Term Exam'
-                ? -4
-                : 0;
-          const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
-          markRows.push({
-            studentId: student.id,
-            subjectId: subject.id,
-            classSectionId: meta.section.id,
-            termId: terms[ti].id,
-            assessmentTypeId: assessmentByName.get(assessmentName).id,
-            score,
-            maxScore: 100,
-            teacherId: teacher.id,
-          });
+          for (const assessmentName of components) {
+            // Practicals trend a bit higher (hands-on), exams a bit lower.
+            const bias =
+              assessmentName === 'Practical'
+                ? 6
+                : assessmentName === 'End of Term Exam'
+                  ? -4
+                  : 0;
+            const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
+            markRows.push({
+              studentId: student.id,
+              subjectId: subject.id,
+              classSectionId: pl.meta.section.id,
+              termId: yearTerms[ti].id,
+              assessmentTypeId: assessmentByName.get(assessmentName).id,
+              score,
+              maxScore: 100,
+              teacherId: teacher.id,
+            });
+          }
         }
       }
     }
@@ -1161,13 +1326,25 @@ async function main() {
     marksByStudentTerm.set(key, list);
   }
 
+  // Who sat in which class, each year — current students and alumni alike.
+  const membership = new Map<string, any[]>();
+  for (const { student, placements } of allPeople) {
+    for (const pl of placements) {
+      const key = occKey(pl.yearIdx, pl.meta.section.id);
+      const list = membership.get(key) ?? [];
+      list.push(student);
+      membership.set(key, list);
+    }
+  }
+
   const termResultRows: any[] = [];
-  for (const term of terms)
+  for (let yearIdx = 0; yearIdx < allYears.length; yearIdx++)
+  for (const term of allYears[yearIdx].terms)
   for (const meta of sectionMetas) {
-    const classStudents = enrolled.filter((e) => e.meta === meta);
+    const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
 
-    for (const { student } of classStudents) {
+    for (const student of classStudents) {
       const rows = marksByStudentTerm.get(`${student.id}|${term.id}`) ?? [];
       const bySubject = new Map<string, any[]>();
       for (const r of rows) {
@@ -1220,8 +1397,14 @@ async function main() {
     });
     termResultRows.push(...computed);
   }
-  await prisma.termResult.createMany({ data: termResultRows });
-  console.log(`  ✅ ${termResultRows.length} term results computed and seeded`);
+  for (let i = 0; i < termResultRows.length; i += 5000) {
+    await prisma.termResult.createMany({
+      data: termResultRows.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${termResultRows.length} term results computed and seeded across 3 years`,
+  );
 
   // ─── ATTENDANCE (last 10 weekdays, incl. today) ─────────────────────────────
   // Anchored to today so the attendance dashboard (which defaults to today)
@@ -1533,6 +1716,9 @@ async function main() {
   );
   console.log(
     `   ${oClasses} O-Level classes (Senior 1-3, streams A-B) + ${aClasses} A-Level classes (Level 3-5 × SWD/NIT/TOR/AUT)`,
+  );
+  console.log(
+    `   3 academic years of records · ${alumni.length} former students filling the past classes`,
   );
   console.log(
     `   ${families.filter((f) => f.studentIds.length > 0).length} lineage families (${inheritedKids} students carry an inherited name)`,
