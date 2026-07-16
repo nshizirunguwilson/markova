@@ -1,6 +1,16 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
+import { SubjectScope } from '@prisma/client';
+import {
+  computeSubjectTotal,
+  gradeFor,
+  overallGrade,
+} from '../../common/grading';
 import { RedisService } from '../../redis/redis.service';
 
 /** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
@@ -350,6 +360,153 @@ export class AnalyticsService {
     return [...byLevel.entries()]
       .sort((a, b) => a[1].order - b[1].order)
       .map(([level, e]) => ({ level, male: e.male, female: e.female }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STUDENT PROFILE ANALYTICS (admin/teacher view: subjects × terms × year)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async getStudentProfileAnalytics(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        user: { select: { firstName: true, lastName: true, photoUrl: true, email: true } },
+        classSection: { include: { classLevel: true, trade: true } },
+      },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+
+    const [marks, ownResults, classResults, attendance] = await Promise.all([
+      this.prisma.mark.findMany({
+        where: { studentId },
+        include: {
+          subject: { select: { name: true, scope: true } },
+          assessmentType: { select: { name: true } },
+          term: { select: { id: true, name: true, startDate: true, endDate: true } },
+        },
+      }),
+      this.prisma.termResult.findMany({ where: { studentId } }),
+      this.prisma.termResult.findMany({
+        where: { classSectionId: student.classSectionId },
+        select: { termId: true, average: true },
+      }),
+      this.prisma.attendance.findMany({
+        where: { studentId },
+        select: { date: true, status: true },
+      }),
+    ]);
+
+    // Group marks per term per subject and compute weighted totals with the
+    // same module the report cards use.
+    type TermAgg = {
+      term: { id: string; name: string; startDate: Date };
+      bySubject: Map<
+        string,
+        { scope: SubjectScope; rows: { assessmentName: string; score: number; maxScore: number }[] }
+      >;
+    };
+    const byTerm = new Map<string, TermAgg>();
+    for (const m of marks) {
+      const t =
+        byTerm.get(m.term.id) ??
+        ({ term: m.term, bySubject: new Map() } as TermAgg);
+      const subj = t.bySubject.get(m.subject.name) ?? {
+        scope: m.subject.scope,
+        rows: [],
+      };
+      subj.rows.push({
+        assessmentName: m.assessmentType.name,
+        score: m.score,
+        maxScore: m.maxScore,
+      });
+      t.bySubject.set(m.subject.name, subj);
+      byTerm.set(m.term.id, t);
+    }
+
+    const ownByTerm = new Map(ownResults.map((r) => [r.termId, r]));
+    const classAvgByTerm = new Map<string, number>();
+    {
+      const grouped = new Map<string, number[]>();
+      for (const r of classResults) {
+        if (r.average === null) continue;
+        const list = grouped.get(r.termId) ?? [];
+        list.push(r.average);
+        grouped.set(r.termId, list);
+      }
+      for (const [termId, avgs] of grouped) {
+        classAvgByTerm.set(
+          termId,
+          avgs.reduce((a, b) => a + b, 0) / avgs.length,
+        );
+      }
+    }
+
+    const terms = [...byTerm.values()]
+      .sort((a, b) => a.term.startDate.getTime() - b.term.startDate.getTime())
+      .map(({ term, bySubject }) => {
+        const subjects = [...bySubject.entries()]
+          .map(([name, { scope, rows }]) => {
+            const total = computeSubjectTotal(scope, rows);
+            const band = total !== null ? gradeFor(scope, total) : null;
+            return {
+              name,
+              scope,
+              total,
+              grade: band?.letter ?? null,
+              points: band?.points ?? null,
+            };
+          })
+          .sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+
+        const own = ownByTerm.get(term.id);
+        const termAttendance = attendance.filter(
+          (a) => a.date >= (term as any).startDate && a.date <= (term as any).endDate,
+        );
+        const presentish = termAttendance.filter(
+          (a) => a.status === 'PRESENT' || a.status === 'LATE',
+        ).length;
+
+        return {
+          termId: term.id,
+          termName: term.name,
+          subjects,
+          average: own?.average ?? null,
+          letterGrade:
+            own?.letterGrade ??
+            (own?.average != null ? overallGrade(own.average).letter : null),
+          aggregate: own?.aggregate ?? null,
+          aggregateMax: own?.aggregateMax ?? null,
+          rank: own?.rank ?? null,
+          classAverage: classAvgByTerm.get(term.id) ?? null,
+          attendancePct: termAttendance.length
+            ? Math.round((presentish / termAttendance.length) * 100)
+            : null,
+        };
+      });
+
+    const classSize = await this.prisma.student.count({
+      where: { classSectionId: student.classSectionId, status: 'ACTIVE' },
+    });
+
+    return {
+      student: {
+        id: student.id,
+        name: `${student.user.firstName} ${student.user.lastName}`,
+        email: student.user.email,
+        photoUrl: student.user.photoUrl,
+        studentIdNumber: student.studentIdNumber,
+        gender: student.gender,
+        status: student.status,
+        disciplinePoints: student.disciplinePoints,
+        class: classDisplayName(student.classSection),
+        stage: student.classSection.classLevel.stage,
+        trade: student.classSection.trade
+          ? { code: student.classSection.trade.code, name: student.classSection.trade.name }
+          : null,
+        classSize,
+      },
+      terms,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

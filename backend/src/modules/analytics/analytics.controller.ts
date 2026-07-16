@@ -85,6 +85,13 @@ export class AnalyticsController {
     return this.service.getEnrollmentBreakdown();
   }
 
+  @Get('student/:studentId/profile')
+  @Roles('ADMIN', 'TEACHER')
+  @ApiOperation({ summary: 'Student performance across subjects and terms' })
+  getStudentProfile(@Param('studentId', ParseUUIDPipe) studentId: string) {
+    return this.service.getStudentProfileAnalytics(studentId);
+  }
+
   // ── Teacher ───────────────────────────────────────────────────────────────
 
   @Get('teacher/class/:classSectionId')
