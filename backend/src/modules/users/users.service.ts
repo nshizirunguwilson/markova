@@ -73,6 +73,7 @@ export class UsersService {
                 select: {
                   name: true,
                   classLevel: { select: { name: true } },
+                  trade: { select: { code: true, name: true } },
                 },
               },
             },
@@ -113,7 +114,7 @@ export class UsersService {
         student: {
           include: {
             classSection: {
-              include: { classLevel: true },
+              include: { classLevel: true, trade: true },
             },
             parentStudents: {
               include: {
@@ -137,7 +138,10 @@ export class UsersService {
               include: {
                 subject: { select: { name: true } },
                 classSection: {
-                  include: { classLevel: { select: { name: true } } },
+                  include: {
+                    classLevel: { select: { name: true } },
+                    trade: { select: { code: true, name: true } },
+                  },
                 },
               },
             },
@@ -149,7 +153,10 @@ export class UsersService {
               include: {
                 user: { select: { firstName: true, lastName: true } },
                 classSection: {
-                  include: { classLevel: { select: { name: true } } },
+                  include: {
+                    classLevel: { select: { name: true } },
+                    trade: { select: { code: true, name: true } },
+                  },
                 },
               },
             },

@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
 import { RedisService } from '../../redis/redis.service';
 
 /** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
@@ -112,7 +113,7 @@ export class AnalyticsService {
 
   private async computeClassComparisons(termId: string) {
     const sections = await this.prisma.classSection.findMany({
-      include: { classLevel: true },
+      include: { classLevel: true, trade: true },
     });
 
     const comparisons = [];
@@ -139,7 +140,7 @@ export class AnalyticsService {
 
       comparisons.push({
         classSectionId: section.id,
-        className: `${section.classLevel.name} ${section.name}`,
+        className: classDisplayName(section),
         studentCount: withAvg.length,
         averageScore: Math.round(avg * 100) / 100,
         highest: Math.round(highest * 100) / 100,

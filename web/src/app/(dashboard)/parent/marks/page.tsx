@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { classDisplayName } from "@/lib/utils";
 import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
@@ -36,7 +37,7 @@ export default function ParentMarksPage() {
             id: ps.student.id,
             name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
             className: ps.student.classSection
-              ? `${ps.student.classSection.classLevel?.name || ""} ${ps.student.classSection.name || ""}`
+              ? classDisplayName(ps.student.classSection)
               : "",
           }))
         );

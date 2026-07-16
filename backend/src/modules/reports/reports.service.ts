@@ -10,6 +10,7 @@ import { join, extname } from 'path';
 import { SubjectScope } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
 import {
@@ -209,9 +210,7 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         photoUrl: student.user.photoUrl,
-        class: [classLevel.name, trade?.code, student.classSection.name]
-          .filter(Boolean)
-          .join(' '),
+        class: classDisplayName(student.classSection),
         stage: classLevel.stage,
         trade: trade
           ? { code: trade.code, name: trade.name, sector: trade.sector }
@@ -428,7 +427,7 @@ export class ReportsService implements OnModuleDestroy {
         user: {
           select: { firstName: true, lastName: true, email: true, phone: true },
         },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -448,7 +447,7 @@ export class ReportsService implements OnModuleDestroy {
             school,
             student,
             'Transfer Letter',
-            `This is to certify that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) was a student of ${school.name} in ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)}. The student is hereby transferred from our institution as of ${today}.`,
+            `This is to certify that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) was a student of ${school.name} in ${escapeHtml(classDisplayName(student.classSection))}. The student is hereby transferred from our institution as of ${today}.`,
           ),
         };
       case 'enrollment_confirmation':
@@ -458,7 +457,7 @@ export class ReportsService implements OnModuleDestroy {
             school,
             student,
             'Enrollment Confirmation',
-            `This is to confirm that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) is currently enrolled at ${school.name} in ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} since ${student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A'}.`,
+            `This is to confirm that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) is currently enrolled at ${school.name} in ${escapeHtml(classDisplayName(student.classSection))} since ${student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A'}.`,
           ),
         };
       case 'discipline_report': {
@@ -495,7 +494,7 @@ export class ReportsService implements OnModuleDestroy {
       where: { id: studentId },
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -509,7 +508,7 @@ export class ReportsService implements OnModuleDestroy {
         studentIdNumber: student.studentIdNumber,
         cardId: student.nfcCardId,
         photoUrl: student.user.photoUrl,
-        class: `${student.classSection.classLevel.name} ${student.classSection.name}`,
+        class: classDisplayName(student.classSection),
         qrData: student.nfcCardId || student.studentIdNumber, // QR encodes the card if issued
       },
     };
@@ -559,7 +558,7 @@ export class ReportsService implements OnModuleDestroy {
       where,
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
       orderBy: [
         { classSection: { classLevel: { order: 'asc' } } },
@@ -633,7 +632,7 @@ export class ReportsService implements OnModuleDestroy {
       where: { id: studentId },
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!s) throw new NotFoundException('Student not found');
@@ -646,7 +645,7 @@ export class ReportsService implements OnModuleDestroy {
       name: `${s.user.firstName} ${s.user.lastName}`,
       studentIdNumber: s.studentIdNumber,
       photoUrl: s.user.photoUrl,
-      class: `${s.classSection.classLevel.name} ${s.classSection.name}`,
+      class: classDisplayName(s.classSection),
       classSectionId: s.classSectionId,
       cardId: s.nfcCardId,
       hasCard: !!s.nfcCardId,
@@ -1253,7 +1252,7 @@ export class ReportsService implements OnModuleDestroy {
     </style></head><body>
       <h1 style="color:${school.primaryColor}">${school.name}</h1>
       <h2>Discipline Report — ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</h2>
-      <p>ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} | Points: ${student.disciplinePoints}</p>
+      <p>ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(classDisplayName(student.classSection))} | Points: ${student.disciplinePoints}</p>
       <table><thead><tr><th>Date</th><th>Description</th><th>Points</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`;
   }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
 import {
   computeSubjectTotal,
@@ -262,7 +263,7 @@ export class MarksService {
         teacher: {
           include: { user: { select: { firstName: true, lastName: true } } },
         },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
         term: true,
       },
     });
@@ -443,7 +444,7 @@ export class MarksService {
             user: {
               select: { firstName: true, lastName: true, photoUrl: true },
             },
-            classSection: { include: { classLevel: true } },
+            classSection: { include: { classLevel: true, trade: true } },
           },
         },
         term: { include: { academicYear: true } },
@@ -617,7 +618,7 @@ export class MarksService {
             user: {
               select: { firstName: true, lastName: true, photoUrl: true },
             },
-            classSection: { include: { classLevel: true } },
+            classSection: { include: { classLevel: true, trade: true } },
           },
         },
         academicYear: true,
@@ -648,7 +649,7 @@ export class MarksService {
       where: { id: studentId },
       include: {
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -705,7 +706,7 @@ export class MarksService {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         photoUrl: student.user.photoUrl,
-        class: `${student.classSection.classLevel.name} ${student.classSection.name}`,
+        class: classDisplayName(student.classSection),
       },
       term: {
         name: term.name,

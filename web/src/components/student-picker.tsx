@@ -59,7 +59,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
         >
           <option value="">Section…</option>
           {sections?.map((s: any) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
           ))}
         </select>
         <select

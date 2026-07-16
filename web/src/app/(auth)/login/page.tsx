@@ -258,7 +258,7 @@ export default function LoginPage() {
             <Input
               id="identifier"
               label="Email or Phone"
-              placeholder="wilsonshizirungu@gmail.com"
+              placeholder="Enter your email or phone"
               error={loginForm.formState.errors.identifier?.message}
               {...loginForm.register("identifier")}
             />

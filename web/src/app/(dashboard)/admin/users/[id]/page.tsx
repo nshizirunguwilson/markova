@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { classDisplayName } from "@/lib/utils";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -217,7 +218,7 @@ export default function UserDetailPage() {
                 <InfoField
                   icon={GraduationCap}
                   label="Class"
-                  value={`${user.student.classSection?.classLevel?.name} ${user.student.classSection?.name}`}
+                  value={classDisplayName(user.student.classSection)}
                 />
                 <InfoField
                   label="Gender"
@@ -288,8 +289,7 @@ export default function UserDetailPage() {
                         {ps.student.user.firstName} {ps.student.user.lastName}
                       </p>
                       <p className="text-sm text-muted">
-                        {ps.student.classSection?.classLevel?.name}{" "}
-                        {ps.student.classSection?.name} — {ps.relationship}
+                        {classDisplayName(ps.student.classSection)} — {ps.relationship}
                       </p>
                     </div>
                     <Badge>{ps.student.studentIdNumber || "—"}</Badge>

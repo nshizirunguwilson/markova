@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { classDisplayName } from "@/lib/utils";
 import {
   Card,
   Button,
@@ -56,7 +57,7 @@ export default function AdminStudentsPage() {
       data: students.map((u: any) => ({
         ...u,
         _name: `${u.firstName} ${u.lastName}`,
-        _class: u.student?.classSection ? `${u.student.classSection.classLevel?.name} ${u.student.classSection.name}` : "",
+        _class: classDisplayName(u.student?.classSection),
         _status: u.isActive ? "Active" : "Inactive",
       })),
     });
@@ -130,7 +131,7 @@ export default function AdminStudentsPage() {
             >
               <option value="">All Sections</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           )}
@@ -184,8 +185,7 @@ export default function AdminStudentsPage() {
                     <TableCell>
                       {user.student?.classSection ? (
                         <span className="text-sm">
-                          {user.student.classSection.classLevel?.name}{" "}
-                          {user.student.classSection.name}
+                          {classDisplayName(user.student.classSection)}
                         </span>
                       ) : (
                         <span className="text-sm text-muted">—</span>

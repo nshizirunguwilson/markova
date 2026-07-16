@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { classDisplayName } from "@/lib/utils";
 import Link from "next/link";
 import {
   Search,
@@ -278,8 +279,7 @@ export default function UsersPage() {
                     <TableCell>
                       {user.student?.classSection ? (
                         <span className="text-sm">
-                          {user.student.classSection.classLevel.name}{" "}
-                          {user.student.classSection.name}
+                          {classDisplayName(user.student.classSection)}
                         </span>
                       ) : (
                         <span className="text-sm text-muted">—</span>

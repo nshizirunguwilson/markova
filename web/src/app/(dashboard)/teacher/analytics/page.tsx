@@ -46,7 +46,7 @@ export default function TeacherAnalyticsPage() {
         </select>
         <select className="border rounded-lg px-3 py-2 text-sm" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
           <option value="">Section</option>
-          {sections?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          {sections?.map((s: any) => <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>)}
         </select>
       </div>
 
