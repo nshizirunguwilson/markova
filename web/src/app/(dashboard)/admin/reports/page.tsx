@@ -320,9 +320,14 @@ export default function AdminReportsPage() {
                   </Button>
                 </div>
               </div>
-              <div
-                className="border rounded-lg p-4 bg-white"
-                dangerouslySetInnerHTML={{ __html: viewingHtml }}
+              {/* The report is a self-contained A4 document with its own global
+                  styles — it must render in an iframe so they cannot leak into
+                  the dashboard. */}
+              <iframe
+                srcDoc={viewingHtml}
+                title="Report card preview"
+                className="w-full rounded-lg border border-border bg-white"
+                style={{ aspectRatio: "210 / 297" }}
               />
             </Card>
           )}
@@ -395,9 +400,11 @@ export default function AdminReportsPage() {
                   Print
                 </Button>
               </div>
-              <div
-                className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: (generateDoc.data as any).html || (generateDoc.data as string) }}
+              <iframe
+                srcDoc={(generateDoc.data as any).html || (generateDoc.data as string)}
+                title="Document preview"
+                className="w-full rounded-lg border border-border bg-white"
+                style={{ minHeight: "70vh" }}
               />
             </div>
           )}
