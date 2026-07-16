@@ -138,6 +138,42 @@ export function useDeleteClassLevel() {
   });
 }
 
+// ─── Trades (A-Level TVET sections) ─────────────────────────────────────────
+
+export function useTrades() {
+  return useQuery({
+    queryKey: ["trades"],
+    queryFn: async () => (await api.get("/academic/trades")).data,
+  });
+}
+
+export function useCreateTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => (await api.post("/academic/trades", data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade created"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+  });
+}
+
+export function useUpdateTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/trades/${id}`, data)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade updated"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+  });
+}
+
+export function useDeleteTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/academic/trades/${id}`)).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade deleted"); },
+    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+  });
+}
+
 // ─── Class Sections ─────────────────────────────────────────────────────────
 
 export function useSections(classLevelId?: string) {
