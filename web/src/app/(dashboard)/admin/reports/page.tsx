@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import JSZip from "jszip";
 import {
   Card,
   CardTitle,
@@ -13,6 +14,7 @@ import {
   TableHead,
   TableCell,
   Badge,
+  Modal,
 } from "@/components/ui";
 import {
   useAcademicYears,
@@ -29,6 +31,41 @@ import api from "@/lib/api";
 import { FileText, Printer, Download, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
 
+// One student's slot in the bulk register grid.
+type CellStatus = "pending" | "active" | "done" | "failed";
+
+type BulkState = {
+  phase: "confirm" | "working" | "zipping" | "done" | "cancelled";
+  statuses: CellStatus[];
+  ok: number;
+  failed: number;
+  current?: string;
+};
+
+// Which row button is busy. Kept per action so a download never spins the eye.
+type RowAction = { id: string; kind: "view" | "download" | "print" } | null;
+
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminReportsPage() {
   const [yearId, setYearId] = useState("");
   const [termId, setTermId] = useState("");
@@ -36,8 +73,10 @@ export default function AdminReportsPage() {
   const [sectionId, setSectionId] = useState("");
   const [tab, setTab] = useState<"report-cards" | "documents">("report-cards");
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
-  const [viewingHtml, setViewingHtml] = useState<string | null>(null);
-  const [loadingReport, setLoadingReport] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ html: string; name: string } | null>(null);
+  const [pending, setPending] = useState<RowAction>(null);
+  const [bulk, setBulk] = useState<BulkState | null>(null);
+  const bulkCancelled = useRef(false);
 
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
@@ -57,24 +96,25 @@ export default function AdminReportsPage() {
         onSuccess: (data: any) => {
           toast.success(`Generated ${data.count} report cards`);
           setGeneratedReports(data.reports || []);
-          setViewingHtml(null);
+          setViewing(null);
+          setBulk(null);
         },
         onError: () => toast.error("Failed to generate"),
       }
     );
   };
 
-  const handleViewReport = async (studentId: string) => {
-    setLoadingReport(studentId);
+  const handleViewReport = async (studentId: string, studentName: string) => {
+    setPending({ id: studentId, kind: "view" });
     try {
       const res = await api.get(`/reports/term/${studentId}/html`, {
         params: { termId },
       });
-      setViewingHtml(res.data);
+      setViewing({ html: res.data, name: studentName });
     } catch {
       toast.error("Failed to load report");
     } finally {
-      setLoadingReport(null);
+      setPending(null);
     }
   };
 
@@ -87,35 +127,104 @@ export default function AdminReportsPage() {
     }
   };
 
-  const handleDownloadReport = async (studentId: string, studentName: string) => {
-    setLoadingReport(studentId);
+  const handlePrintRow = async (studentId: string) => {
+    setPending({ id: studentId, kind: "print" });
     try {
-      const res = await api.get(`/reports/term/${studentId}/pdf`, {
+      const res = await api.get(`/reports/term/${studentId}/html`, {
         params: { termId },
-        responseType: "blob",
       });
-      const blob = new Blob([res.data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Report-Card-${studentName.replace(/\s+/g, "-")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      handlePrintReport(res.data);
+    } catch {
+      toast.error("Failed to load report");
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const fetchPdfBlob = async (studentId: string): Promise<Blob> => {
+    const res = await api.get(`/reports/term/${studentId}/pdf`, {
+      params: { termId },
+      responseType: "blob",
+    });
+    return new Blob([res.data], { type: "application/pdf" });
+  };
+
+  const handleDownloadReport = async (studentId: string, studentName: string) => {
+    setPending({ id: studentId, kind: "download" });
+    try {
+      const blob = await fetchPdfBlob(studentId);
+      saveBlob(blob, `Report-Card-${studentName.replace(/\s+/g, "-")}.pdf`);
       toast.success(`Downloaded PDF for ${studentName}`);
     } catch {
       toast.error("Failed to download report");
     } finally {
-      setLoadingReport(null);
+      setPending(null);
     }
   };
 
-  const handleDownloadAll = async () => {
-    for (const r of generatedReports) {
-      const name = r.data?.student?.name || "Student";
-      await handleDownloadReport(r.studentId, name);
+  // ── Bulk download: confirm, fetch every report with live progress, zip ──
+
+  const openBulkConfirm = () => {
+    bulkCancelled.current = false;
+    setBulk({
+      phase: "confirm",
+      statuses: generatedReports.map(() => "pending" as CellStatus),
+      ok: 0,
+      failed: 0,
+    });
+  };
+
+  const runBulkDownload = async () => {
+    const statuses = generatedReports.map(() => "pending" as CellStatus);
+    let ok = 0;
+    let failed = 0;
+    const zip = new JSZip();
+
+    for (let i = 0; i < generatedReports.length; i++) {
+      if (bulkCancelled.current) {
+        setBulk({ phase: "cancelled", statuses: [...statuses], ok, failed });
+        return;
+      }
+      const r = generatedReports[i];
+      const name: string = r.data?.student?.name || `Student ${i + 1}`;
+      statuses[i] = "active";
+      setBulk({ phase: "working", statuses: [...statuses], ok, failed, current: name });
+      try {
+        const blob = await fetchPdfBlob(r.studentId);
+        zip.file(
+          `${String(i + 1).padStart(2, "0")} - ${name.replace(/[\\/:*?"<>|]/g, "")}.pdf`,
+          blob,
+        );
+        statuses[i] = "done";
+        ok++;
+      } catch {
+        statuses[i] = "failed";
+        failed++;
+      }
+      setBulk({ phase: "working", statuses: [...statuses], ok, failed, current: name });
     }
+
+    if (ok === 0) {
+      setBulk({ phase: "done", statuses: [...statuses], ok, failed });
+      return;
+    }
+
+    setBulk({ phase: "zipping", statuses: [...statuses], ok, failed });
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const cls = (generatedReports[0]?.data?.student?.class || "Class").replace(/\s+/g, "-");
+    const termName = (generatedReports[0]?.data?.term?.name || "Term").replace(/\s+/g, "-");
+    saveBlob(zipBlob, `Report-Cards-${cls}-${termName}.zip`);
+    setBulk({ phase: "done", statuses: [...statuses], ok, failed });
+  };
+
+  const closeBulk = () => {
+    if (!bulk) return;
+    if (bulk.phase === "working") {
+      bulkCancelled.current = true;
+      return; // the loop lands on the cancelled state itself
+    }
+    if (bulk.phase === "zipping") return; // seconds from done, let it finish
+    setBulk(null);
   };
 
   const handleGenerateDocument = () => {
@@ -128,6 +237,19 @@ export default function AdminReportsPage() {
       }
     );
   };
+
+  const bulkTotal = bulk?.statuses.length ?? 0;
+  const bulkReached = (bulk?.ok ?? 0) + (bulk?.failed ?? 0);
+  const bulkTitle =
+    bulk?.phase === "confirm"
+      ? "Download all report cards"
+      : bulk?.phase === "working"
+        ? "Packing report cards"
+        : bulk?.phase === "zipping"
+          ? "Packing report cards"
+          : bulk?.phase === "cancelled"
+            ? "Stopped"
+            : "Ready";
 
   return (
     <div className="space-y-6">
@@ -224,7 +346,7 @@ export default function AdminReportsPage() {
               <div className="flex items-center justify-between">
                 <CardTitle>Generated Report Cards ({generatedReports.length})</CardTitle>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleDownloadAll}>
+                  <Button variant="outline" size="sm" onClick={openBulkConfirm}>
                     <Download className="w-4 h-4 mr-1" />
                     Download All
                   </Button>
@@ -244,93 +366,213 @@ export default function AdminReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {generatedReports.map((r: any, i: number) => (
-                    <TableRow key={r.studentId}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-medium">{r.data?.student?.name}</TableCell>
-                      <TableCell>{r.data?.student?.class}</TableCell>
-                      <TableCell>
-                        {r.data?.result?.average != null
-                          ? `${r.data.result.average.toFixed(1)}%`
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          r.data?.result?.letterGrade === "A" || r.data?.result?.letterGrade === "B"
-                            ? "success"
-                            : r.data?.result?.letterGrade === "C"
-                            ? "info"
-                            : "warning"
-                        }>
-                          {r.data?.result?.letterGrade || "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{r.data?.result?.rank || "—"} / {r.data?.classStats?.totalStudents || "—"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewReport(r.studentId)}
-                            disabled={loadingReport === r.studentId}
-                          >
-                            {loadingReport === r.studentId ? (
-                              <Spinner className="w-3 h-3" />
-                            ) : (
-                              <Eye className="w-3 h-3" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadReport(r.studentId, r.data?.student?.name || "Student")}
-                          >
-                            <Download className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const res = await api.get(`/reports/term/${r.studentId}/html`, { params: { termId } });
-                              handlePrintReport(res.data);
-                            }}
-                          >
-                            <Printer className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {generatedReports.map((r: any, i: number) => {
+                    const name = r.data?.student?.name || `Student ${i + 1}`;
+                    const isPending = (kind: "view" | "download" | "print") =>
+                      pending?.id === r.studentId && pending?.kind === kind;
+                    return (
+                      <TableRow key={r.studentId}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell className="font-medium">{name}</TableCell>
+                        <TableCell>{r.data?.student?.class}</TableCell>
+                        <TableCell>
+                          {r.data?.result?.average != null
+                            ? `${r.data.result.average.toFixed(1)}%`
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            r.data?.result?.letterGrade === "A" || r.data?.result?.letterGrade === "B"
+                              ? "success"
+                              : r.data?.result?.letterGrade === "C"
+                              ? "info"
+                              : "warning"
+                          }>
+                            {r.data?.result?.letterGrade || "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{r.data?.result?.rank || "—"} / {r.data?.classStats?.totalStudents || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`View report for ${name}`}
+                              onClick={() => handleViewReport(r.studentId, name)}
+                              disabled={pending?.id === r.studentId}
+                            >
+                              {isPending("view") ? (
+                                <Spinner className="w-3 h-3" />
+                              ) : (
+                                <Eye className="w-3 h-3" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Download report for ${name}`}
+                              onClick={() => handleDownloadReport(r.studentId, name)}
+                              disabled={pending?.id === r.studentId}
+                            >
+                              {isPending("download") ? (
+                                <Spinner className="w-3 h-3" />
+                              ) : (
+                                <Download className="w-3 h-3" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Print report for ${name}`}
+                              onClick={() => handlePrintRow(r.studentId)}
+                              disabled={pending?.id === r.studentId}
+                            >
+                              {isPending("print") ? (
+                                <Spinner className="w-3 h-3" />
+                              ) : (
+                                <Printer className="w-3 h-3" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
           )}
 
-          {viewingHtml && (
-            <Card className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <CardTitle>Report Card Preview</CardTitle>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handlePrintReport(viewingHtml)}>
-                    <Printer className="w-4 h-4 mr-1" />
-                    Print
+          {/* ── Report preview, in a scrollable modal ── */}
+          <Modal
+            isOpen={!!viewing}
+            onClose={() => setViewing(null)}
+            title={viewing ? `Report card · ${viewing.name}` : "Report card"}
+            size="3xl"
+          >
+            <div className="mb-3 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => viewing && handlePrintReport(viewing.html)}
+              >
+                <Printer className="w-4 h-4 mr-1" />
+                Print
+              </Button>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto rounded-lg border border-border bg-accent-light/40 p-3">
+              {/* Isolated in an iframe: the sheet carries its own global styles. */}
+              <iframe
+                srcDoc={viewing?.html}
+                title="Report card preview"
+                className="w-full rounded bg-white shadow-card"
+                style={{ aspectRatio: "210 / 297" }}
+              />
+            </div>
+          </Modal>
+
+          {/* ── Bulk download: confirm, register-grid progress, zip ── */}
+          <Modal isOpen={!!bulk} onClose={closeBulk} title={bulkTitle} size="lg">
+            {bulk?.phase === "confirm" && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted">
+                  All {generatedReports.length} report cards of{" "}
+                  <span className="font-medium text-foreground">
+                    {generatedReports[0]?.data?.student?.class}
+                  </span>{" "}
+                  ({generatedReports[0]?.data?.term?.name}) will be fetched one
+                  by one and packed into a single .zip file, about{" "}
+                  {(generatedReports.length * 0.17).toFixed(1)} MB. You can
+                  watch each student get ticked off as their report is added.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setBulk(null)}>
+                    Cancel
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setViewingHtml(null)}>
-                    Close
+                  <Button onClick={runBulkDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Pack {generatedReports.length} reports
                   </Button>
                 </div>
               </div>
-              {/* The report is a self-contained A4 document with its own global
-                  styles — it must render in an iframe so they cannot leak into
-                  the dashboard. */}
-              <iframe
-                srcDoc={viewingHtml}
-                title="Report card preview"
-                className="w-full rounded-lg border border-border bg-white"
-                style={{ aspectRatio: "210 / 297" }}
-              />
-            </Card>
-          )}
+            )}
+
+            {bulk && bulk.phase !== "confirm" && (
+              <div className="space-y-4">
+                {/* Count + progress track */}
+                <div className="flex items-baseline justify-between">
+                  <p className="text-sm text-muted" aria-live="polite">
+                    {bulk.phase === "working" && bulk.current && (
+                      <>Fetching <span className="font-medium text-foreground">{bulk.current}</span>&rsquo;s report</>
+                    )}
+                    {bulk.phase === "zipping" && "Packing everything into one file"}
+                    {bulk.phase === "done" &&
+                      (bulk.ok > 0
+                        ? `Packed ${bulk.ok} report${bulk.ok === 1 ? "" : "s"} into one zip file.`
+                        : "No report could be fetched. Check the API and try again.")}
+                    {bulk.phase === "cancelled" &&
+                      `Stopped after ${bulkReached} of ${bulkTotal}. Nothing was downloaded.`}
+                    {bulk.phase === "done" && bulk.failed > 0 && (
+                      <span className="text-danger"> {bulk.failed} failed (marked in red).</span>
+                    )}
+                  </p>
+                  <p className="text-lg font-semibold tabular-nums text-primary">
+                    {bulkReached}
+                    <span className="text-sm font-normal text-muted"> / {bulkTotal}</span>
+                  </p>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-accent-light">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-300"
+                    style={{ width: `${bulkTotal ? (bulkReached / bulkTotal) * 100 : 0}%` }}
+                  />
+                </div>
+
+                {/* The class register: one cell per student, ticked as packed */}
+                <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
+                  {bulk.statuses.map((st, i) => {
+                    const name = generatedReports[i]?.data?.student?.name || `Student ${i + 1}`;
+                    return (
+                      <div
+                        key={generatedReports[i]?.studentId ?? i}
+                        title={name}
+                        className={`flex h-9 items-center justify-center rounded-md border text-[10px] font-semibold transition-colors duration-300 ${
+                          st === "done"
+                            ? "border-primary bg-primary text-white"
+                            : st === "active"
+                              ? "animate-pulse border-primary bg-accent-light text-primary"
+                              : st === "failed"
+                                ? "border-danger/40 bg-danger/10 text-danger"
+                                : "border-border bg-white text-muted"
+                        }`}
+                      >
+                        {initialsOf(name)}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  {bulk.phase === "working" && (
+                    <Button variant="outline" onClick={() => (bulkCancelled.current = true)}>
+                      Stop
+                    </Button>
+                  )}
+                  {bulk.phase === "zipping" && (
+                    <Button variant="outline" disabled>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      Zipping
+                    </Button>
+                  )}
+                  {(bulk.phase === "done" || bulk.phase === "cancelled") && (
+                    <Button variant="outline" onClick={() => setBulk(null)}>
+                      Close
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </Modal>
         </>
       )}
 
@@ -370,14 +612,7 @@ export default function AdminReportsPage() {
                   onClick={() => {
                     const html = (generateDoc.data as any).html || generateDoc.data;
                     const blob = new Blob([html as string], { type: "text/html" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${(generateDoc.data as any).title || "Document"}.html`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    saveBlob(blob, `${(generateDoc.data as any).title || "Document"}.html`);
                   }}
                 >
                   <Download className="w-4 h-4 mr-1" />
@@ -388,12 +623,7 @@ export default function AdminReportsPage() {
                   size="sm"
                   onClick={() => {
                     const html = (generateDoc.data as any).html || generateDoc.data;
-                    const w = window.open("", "_blank");
-                    if (w) {
-                      w.document.write(html as string);
-                      w.document.close();
-                      w.print();
-                    }
+                    handlePrintReport(html as string);
                   }}
                 >
                   <Printer className="w-4 h-4 mr-1" />
