@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
   Card,
@@ -28,32 +28,24 @@ import {
 } from "@/hooks/use-reports";
 import { StudentPicker } from "@/components/student-picker";
 import api from "@/lib/api";
-import { FileText, Printer, Download, Users, Eye } from "lucide-react";
+import { Check, FileText, Printer, Download, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
 
-// One student's slot in the bulk register grid.
-type CellStatus = "pending" | "active" | "done" | "failed";
+// One student's line in the bulk roll call.
+type BulkItem = { status: "pending" | "active" | "done" | "failed"; error?: string };
 
 type BulkState = {
-  phase: "confirm" | "working" | "zipping" | "done" | "cancelled";
-  statuses: CellStatus[];
+  phase: "confirm" | "working" | "review" | "zipping" | "done" | "cancelled";
+  items: BulkItem[];
   ok: number;
   failed: number;
-  current?: string;
+  currentIdx?: number;
 };
 
 // Which row button is busy. Kept per action so a download never spins the eye.
 type RowAction = { id: string; kind: "view" | "download" | "print" } | null;
 
-function initialsOf(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -77,6 +69,9 @@ export default function AdminReportsPage() {
   const [pending, setPending] = useState<RowAction>(null);
   const [bulk, setBulk] = useState<BulkState | null>(null);
   const bulkCancelled = useRef(false);
+  const zipRef = useRef<JSZip | null>(null);
+  const itemsRef = useRef<BulkItem[]>([]);
+  const activeRowRef = useRef<HTMLLIElement | null>(null);
 
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
@@ -162,59 +157,100 @@ export default function AdminReportsPage() {
     }
   };
 
-  // ── Bulk download: confirm, fetch every report with live progress, zip ──
+  // ── Bulk download: confirm, roll-call fetch with retries, review, zip ──
 
   const openBulkConfirm = () => {
     bulkCancelled.current = false;
-    setBulk({
-      phase: "confirm",
-      statuses: generatedReports.map(() => "pending" as CellStatus),
-      ok: 0,
-      failed: 0,
-    });
+    zipRef.current = new JSZip();
+    itemsRef.current = generatedReports.map(() => ({ status: "pending" as const }));
+    setBulk({ phase: "confirm", items: [...itemsRef.current], ok: 0, failed: 0 });
   };
 
-  const runBulkDownload = async () => {
-    const statuses = generatedReports.map(() => "pending" as CellStatus);
-    let ok = 0;
-    let failed = 0;
-    const zip = new JSZip();
+  const countOf = (status: BulkItem["status"]) =>
+    itemsRef.current.filter((it) => it.status === status).length;
 
-    for (let i = 0; i < generatedReports.length; i++) {
-      if (bulkCancelled.current) {
-        setBulk({ phase: "cancelled", statuses: [...statuses], ok, failed });
-        return;
-      }
-      const r = generatedReports[i];
-      const name: string = r.data?.student?.name || `Student ${i + 1}`;
-      statuses[i] = "active";
-      setBulk({ phase: "working", statuses: [...statuses], ok, failed, current: name });
+  const pushBulk = (phase: BulkState["phase"], currentIdx?: number) =>
+    setBulk({
+      phase,
+      items: itemsRef.current.map((it) => ({ ...it })),
+      ok: countOf("done"),
+      failed: countOf("failed"),
+      currentIdx,
+    });
+
+  // Fetch one student's PDF into the zip. Retries once on its own: a rate
+  // limit (429) waits out the throttle window, anything else gets one quick
+  // second chance.
+  const fetchOneIntoZip = async (i: number) => {
+    const r = generatedReports[i];
+    const name: string = r.data?.student?.name || `Student ${i + 1}`;
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const blob = await fetchPdfBlob(r.studentId);
-        zip.file(
+        zipRef.current?.file(
           `${String(i + 1).padStart(2, "0")} - ${name.replace(/[\\/:*?"<>|]/g, "")}.pdf`,
           blob,
         );
-        statuses[i] = "done";
-        ok++;
-      } catch {
-        statuses[i] = "failed";
-        failed++;
+        itemsRef.current[i] = { status: "done" };
+        return;
+      } catch (e: any) {
+        const status = e?.response?.status;
+        if (attempt === 1) {
+          await sleep(status === 429 ? 3000 : 800);
+          continue;
+        }
+        itemsRef.current[i] = {
+          status: "failed",
+          error:
+            status === 429
+              ? "Rate limited"
+              : status
+                ? `Server error ${status}`
+                : "Network error",
+        };
       }
-      setBulk({ phase: "working", statuses: [...statuses], ok, failed, current: name });
     }
+  };
 
-    if (ok === 0) {
-      setBulk({ phase: "done", statuses: [...statuses], ok, failed });
+  const runBulk = async (indices: number[]) => {
+    for (const i of indices) {
+      if (bulkCancelled.current) {
+        pushBulk("cancelled");
+        return;
+      }
+      itemsRef.current[i] = { status: "active" };
+      pushBulk("working", i);
+      await fetchOneIntoZip(i);
+      pushBulk("working", i);
+    }
+    if (countOf("failed") > 0) {
+      pushBulk("review");
+    } else {
+      await finalizeZip();
+    }
+  };
+
+  const finalizeZip = async () => {
+    if (countOf("done") === 0) {
+      pushBulk("done");
       return;
     }
-
-    setBulk({ phase: "zipping", statuses: [...statuses], ok, failed });
-    const zipBlob = await zip.generateAsync({ type: "blob" });
+    pushBulk("zipping");
+    const zipBlob = await zipRef.current!.generateAsync({ type: "blob" });
     const cls = (generatedReports[0]?.data?.student?.class || "Class").replace(/\s+/g, "-");
     const termName = (generatedReports[0]?.data?.term?.name || "Term").replace(/\s+/g, "-");
     saveBlob(zipBlob, `Report-Cards-${cls}-${termName}.zip`);
-    setBulk({ phase: "done", statuses: [...statuses], ok, failed });
+    pushBulk("done");
+  };
+
+  const startBulk = () => runBulk(generatedReports.map((_, i) => i));
+
+  const retryFailed = () => {
+    const failedIdx = itemsRef.current
+      .map((it, i) => (it.status === "failed" ? i : -1))
+      .filter((i) => i >= 0);
+    failedIdx.forEach((i) => (itemsRef.current[i] = { status: "pending" }));
+    void runBulk(failedIdx);
   };
 
   const closeBulk = () => {
@@ -238,18 +274,22 @@ export default function AdminReportsPage() {
     );
   };
 
-  const bulkTotal = bulk?.statuses.length ?? 0;
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [bulk?.currentIdx]);
+
+  const bulkTotal = bulk?.items.length ?? 0;
   const bulkReached = (bulk?.ok ?? 0) + (bulk?.failed ?? 0);
   const bulkTitle =
     bulk?.phase === "confirm"
       ? "Download all report cards"
-      : bulk?.phase === "working"
-        ? "Packing report cards"
-        : bulk?.phase === "zipping"
-          ? "Packing report cards"
-          : bulk?.phase === "cancelled"
-            ? "Stopped"
-            : "Ready";
+      : bulk?.phase === "review"
+        ? "Some reports failed"
+        : bulk?.phase === "cancelled"
+          ? "Stopped"
+          : bulk?.phase === "done"
+            ? "Ready"
+            : "Packing report cards";
 
   return (
     <div className="space-y-6">
@@ -489,7 +529,7 @@ export default function AdminReportsPage() {
                   <Button variant="outline" onClick={() => setBulk(null)}>
                     Cancel
                   </Button>
-                  <Button onClick={runBulkDownload}>
+                  <Button onClick={startBulk}>
                     <Download className="mr-2 h-4 w-4" />
                     Pack {generatedReports.length} reports
                   </Button>
@@ -499,24 +539,31 @@ export default function AdminReportsPage() {
 
             {bulk && bulk.phase !== "confirm" && (
               <div className="space-y-4">
-                {/* Count + progress track */}
-                <div className="flex items-baseline justify-between">
+                {/* Status line + running count */}
+                <div className="flex items-baseline justify-between gap-4">
                   <p className="text-sm text-muted" aria-live="polite">
-                    {bulk.phase === "working" && bulk.current && (
-                      <>Fetching <span className="font-medium text-foreground">{bulk.current}</span>&rsquo;s report</>
+                    {bulk.phase === "working" && bulk.currentIdx != null && (
+                      <>Fetching{" "}
+                        <span className="font-medium text-foreground">
+                          {generatedReports[bulk.currentIdx]?.data?.student?.name}
+                        </span>
+                        &rsquo;s report</>
+                    )}
+                    {bulk.phase === "review" && (
+                      <>
+                        {bulk.failed} of {bulkTotal} could not be fetched. Retry
+                        them, or download the {bulk.ok} that succeeded.
+                      </>
                     )}
                     {bulk.phase === "zipping" && "Packing everything into one file"}
                     {bulk.phase === "done" &&
                       (bulk.ok > 0
                         ? `Packed ${bulk.ok} report${bulk.ok === 1 ? "" : "s"} into one zip file.`
-                        : "No report could be fetched. Check the API and try again.")}
+                        : "No report could be fetched. Check that the API is running and try again.")}
                     {bulk.phase === "cancelled" &&
                       `Stopped after ${bulkReached} of ${bulkTotal}. Nothing was downloaded.`}
-                    {bulk.phase === "done" && bulk.failed > 0 && (
-                      <span className="text-danger"> {bulk.failed} failed (marked in red).</span>
-                    )}
                   </p>
-                  <p className="text-lg font-semibold tabular-nums text-primary">
+                  <p className="shrink-0 text-lg font-semibold tabular-nums text-primary">
                     {bulkReached}
                     <span className="text-sm font-normal text-muted"> / {bulkTotal}</span>
                   </p>
@@ -528,35 +575,62 @@ export default function AdminReportsPage() {
                   />
                 </div>
 
-                {/* The class register: one cell per student, ticked as packed */}
-                <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
-                  {bulk.statuses.map((st, i) => {
-                    const name = generatedReports[i]?.data?.student?.name || `Student ${i + 1}`;
+                {/* The roll call: every student on their own ruled line */}
+                <ol className="max-h-60 overflow-y-auto rounded-lg border border-border bg-white px-3 py-1">
+                  {bulk.items.map((it, i) => {
+                    const name =
+                      generatedReports[i]?.data?.student?.name || `Student ${i + 1}`;
+                    const isActive = it.status === "active";
                     return (
-                      <div
+                      <li
                         key={generatedReports[i]?.studentId ?? i}
-                        title={name}
-                        className={`flex h-9 items-center justify-center rounded-md border text-[10px] font-semibold transition-colors duration-300 ${
-                          st === "done"
-                            ? "border-primary bg-primary text-white"
-                            : st === "active"
-                              ? "animate-pulse border-primary bg-accent-light text-primary"
-                              : st === "failed"
-                                ? "border-danger/40 bg-danger/10 text-danger"
-                                : "border-border bg-white text-muted"
-                        }`}
+                        ref={isActive ? activeRowRef : undefined}
+                        className={`flex items-baseline gap-2 py-1.5 text-sm ${
+                          it.status === "pending" ? "text-muted" : "text-foreground"
+                        } ${isActive ? "-mx-3 bg-accent-light/60 px-3" : ""}`}
                       >
-                        {initialsOf(name)}
-                      </div>
+                        <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted">
+                          {i + 1}
+                        </span>
+                        <span className={it.status === "pending" ? "" : "font-medium"}>
+                          {name}
+                        </span>
+                        <span className="mx-1 flex-1 border-b border-dotted border-border" />
+                        {it.status === "done" && (
+                          <Check className="h-4 w-4 shrink-0 self-center text-primary" aria-label="Packed" />
+                        )}
+                        {isActive && <Spinner className="h-3.5 w-3.5 shrink-0 self-center" />}
+                        {it.status === "failed" && (
+                          <span className="shrink-0 text-xs font-medium text-danger">
+                            {it.error || "Failed"}
+                          </span>
+                        )}
+                        {it.status === "pending" && (
+                          <span className="shrink-0 text-xs">queued</span>
+                        )}
+                      </li>
                     );
                   })}
-                </div>
+                </ol>
 
                 <div className="flex justify-end gap-3">
                   {bulk.phase === "working" && (
                     <Button variant="outline" onClick={() => (bulkCancelled.current = true)}>
                       Stop
                     </Button>
+                  )}
+                  {bulk.phase === "review" && (
+                    <>
+                      <Button variant="outline" onClick={() => setBulk(null)}>
+                        Cancel
+                      </Button>
+                      <Button variant="outline" onClick={finalizeZip}>
+                        Download {bulk.ok} anyway
+                      </Button>
+                      <Button onClick={retryFailed}>
+                        Retry {bulk.failed} failed
+                      </Button>
+                    </>
                   )}
                   {bulk.phase === "zipping" && (
                     <Button variant="outline" disabled>
