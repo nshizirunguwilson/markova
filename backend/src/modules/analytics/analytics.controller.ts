@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { Roles } from '../../common/decorators';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
 
 @ApiTags('Analytics')
@@ -86,9 +87,14 @@ export class AnalyticsController {
   }
 
   @Get('student/:studentId/profile')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Student performance across subjects and terms' })
-  getStudentProfile(@Param('studentId', ParseUUIDPipe) studentId: string) {
+  async getStudentProfile(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+  ) {
+    // Students see only themselves, parents only their own children.
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
     return this.service.getStudentProfileAnalytics(studentId);
   }
 
