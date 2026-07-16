@@ -143,7 +143,7 @@ export default function AdminMarksPage() {
             >
               <option value="">Select section...</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           </div>

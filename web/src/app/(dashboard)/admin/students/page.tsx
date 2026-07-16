@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { classDisplayName } from "@/lib/utils";
 import {
   Card,
   Button,
@@ -15,12 +16,14 @@ import {
   PageSpinner,
   ExportDropdown,
 } from "@/components/ui";
+import { useRouter } from "next/navigation";
 import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 
 export default function AdminStudentsPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState<UserFilters>({
     page: 1,
     limit: 20,
@@ -29,12 +32,15 @@ export default function AdminStudentsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [levelId, setLevelId] = useState("");
   const [sectionId, setSectionId] = useState("");
+  // Default to today's school: former students live behind this filter.
+  const [status, setStatus] = useState("ACTIVE");
 
   const { data: levels } = useClassLevels();
   const { data: sections } = useSections(levelId || undefined);
   const { data, isLoading } = useUsers({
     ...filters,
     classSectionId: sectionId || undefined,
+    studentStatus: status || undefined,
   });
 
   const students = data?.data || [];
@@ -56,8 +62,12 @@ export default function AdminStudentsPage() {
       data: students.map((u: any) => ({
         ...u,
         _name: `${u.firstName} ${u.lastName}`,
-        _class: u.student?.classSection ? `${u.student.classSection.classLevel?.name} ${u.student.classSection.name}` : "",
-        _status: u.isActive ? "Active" : "Inactive",
+        _class: classDisplayName(u.student?.classSection),
+        _status: u.student?.status
+          ? u.student.status.charAt(0) + u.student.status.slice(1).toLowerCase()
+          : u.isActive
+            ? "Active"
+            : "Inactive",
       })),
     });
   };
@@ -130,10 +140,24 @@ export default function AdminStudentsPage() {
             >
               <option value="">All Sections</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           )}
+
+          <select
+            className="rounded-lg border border-border px-3 py-2 text-sm"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setFilters((f) => ({ ...f, page: 1 }));
+            }}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="GRADUATED">Graduated</option>
+            <option value="TRANSFERRED">Transferred</option>
+            <option value="">All statuses</option>
+          </select>
         </div>
       </Card>
 
@@ -162,7 +186,13 @@ export default function AdminStudentsPage() {
                 </TableRow>
               ) : (
                 students.map((user: any) => (
-                  <TableRow key={user.id}>
+                  <TableRow
+                    key={user.id}
+                    className={user.student?.id ? "cursor-pointer" : undefined}
+                    onClick={() =>
+                      user.student?.id && router.push(`/admin/students/${user.student.id}`)
+                    }
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar
@@ -184,8 +214,7 @@ export default function AdminStudentsPage() {
                     <TableCell>
                       {user.student?.classSection ? (
                         <span className="text-sm">
-                          {user.student.classSection.classLevel?.name}{" "}
-                          {user.student.classSection.name}
+                          {classDisplayName(user.student.classSection)}
                         </span>
                       ) : (
                         <span className="text-sm text-muted">—</span>
@@ -205,8 +234,23 @@ export default function AdminStudentsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.isActive ? "success" : "danger"}>
-                        {user.isActive ? "Active" : "Inactive"}
+                      <Badge
+                        variant={
+                          user.student?.status === "ACTIVE"
+                            ? "success"
+                            : user.student?.status === "GRADUATED"
+                              ? "info"
+                              : user.student?.status === "TRANSFERRED"
+                                ? "warning"
+                                : "danger"
+                        }
+                      >
+                        {user.student?.status
+                          ? user.student.status.charAt(0) +
+                            user.student.status.slice(1).toLowerCase()
+                          : user.isActive
+                            ? "Active"
+                            : "Inactive"}
                       </Badge>
                     </TableCell>
                   </TableRow>

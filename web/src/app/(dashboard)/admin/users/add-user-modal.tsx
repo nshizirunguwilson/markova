@@ -172,7 +172,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
                 >
                   <option value="">{selectedLevel ? "Select section..." : "Pick a level first"}</option>
                   {sections?.map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
                   ))}
                 </select>
               </div>

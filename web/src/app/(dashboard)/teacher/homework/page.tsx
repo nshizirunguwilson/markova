@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { classDisplayName } from "@/lib/utils";
 import {
   Card,
   CardTitle,
@@ -123,7 +124,7 @@ export default function TeacherHomeworkPage() {
                   <TableRow key={hw.id}>
                     <TableCell className="font-medium">{hw.title}</TableCell>
                     <TableCell>{hw.subject.name}</TableCell>
-                    <TableCell>{hw.classSection.classLevel.name} {hw.classSection.name}</TableCell>
+                    <TableCell>{classDisplayName(hw.classSection)}</TableCell>
                     <TableCell>
                       <Badge variant={isPastDue ? "danger" : "default"}>
                         {new Date(hw.dueDate).toLocaleDateString()}
@@ -230,7 +231,7 @@ export default function TeacherHomeworkPage() {
               <option value="">Select...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.classSection.classLevel.name} {a.classSection.name} — {a.subject.name}
+                  {classDisplayName(a.classSection)} — {a.subject.name}
                 </option>
               ))}
             </select>

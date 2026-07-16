@@ -1,15 +1,60 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
+import { SubjectScope } from '@prisma/client';
+import {
+  computeSubjectTotal,
+  gradeFor,
+  overallGrade,
+} from '../../common/grading';
+import { RedisService } from '../../redis/redis.service';
+
+/** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
+const CACHE_TTL_SECONDS = 60;
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  /**
+   * Best-effort read-through cache: a Redis outage must never break
+   * analytics, so cache errors fall through to a live compute.
+   */
+  private async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    try {
+      const hit = await this.redis.get(key);
+      if (hit) return JSON.parse(hit) as T;
+    } catch {
+      /* fall through to compute */
+    }
+    const value = await compute();
+    try {
+      await this.redis.set(key, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
+    } catch {
+      /* caching is optional */
+    }
+    return value;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getAdminDashboard(academicYearId?: string, termId?: string) {
+  getAdminDashboard(academicYearId?: string, termId?: string) {
+    return this.cached(
+      `analytics:admin-dashboard:${academicYearId ?? '-'}:${termId ?? '-'}`,
+      () => this.computeAdminDashboard(academicYearId, termId),
+    );
+  }
+
+  private async computeAdminDashboard(academicYearId?: string, termId?: string) {
     const [
       totalStudents,
       totalTeachers,
@@ -18,7 +63,7 @@ export class AnalyticsService {
       totalUsers,
       totalSubjects,
     ] = await Promise.all([
-      this.prisma.student.count(),
+      this.prisma.student.count({ where: { status: 'ACTIVE' } }),
       this.prisma.teacher.count(),
       this.prisma.parentStudent
         .groupBy({ by: ['parentUserId'] })
@@ -38,7 +83,13 @@ export class AnalyticsService {
     };
   }
 
-  async getPerformanceTrends(academicYearId: string) {
+  getPerformanceTrends(academicYearId: string) {
+    return this.cached(`analytics:performance-trends:${academicYearId}`, () =>
+      this.computePerformanceTrends(academicYearId),
+    );
+  }
+
+  private async computePerformanceTrends(academicYearId: string) {
     const terms = await this.prisma.term.findMany({
       where: { academicYearId },
       orderBy: { startDate: 'asc' },
@@ -64,15 +115,21 @@ export class AnalyticsService {
     return trends;
   }
 
-  async getClassComparisons(termId: string) {
+  getClassComparisons(termId: string) {
+    return this.cached(`analytics:class-comparisons:${termId}`, () =>
+      this.computeClassComparisons(termId),
+    );
+  }
+
+  private async computeClassComparisons(termId: string) {
     const sections = await this.prisma.classSection.findMany({
-      include: { classLevel: true },
+      include: { classLevel: true, trade: true },
     });
 
     const comparisons = [];
     for (const section of sections) {
       const students = await this.prisma.student.findMany({
-        where: { classSectionId: section.id },
+        where: { classSectionId: section.id, status: 'ACTIVE' },
         select: { id: true },
       });
       const studentIds = students.map((s) => s.id);
@@ -93,7 +150,7 @@ export class AnalyticsService {
 
       comparisons.push({
         classSectionId: section.id,
-        className: `${section.classLevel.name} ${section.name}`,
+        className: classDisplayName(section),
         studentCount: withAvg.length,
         averageScore: Math.round(avg * 100) / 100,
         highest: Math.round(highest * 100) / 100,
@@ -104,7 +161,13 @@ export class AnalyticsService {
     return comparisons.sort((a, b) => b.averageScore - a.averageScore);
   }
 
-  async getDisciplineStats(academicYearId?: string) {
+  getDisciplineStats(academicYearId?: string) {
+    return this.cached(`analytics:discipline:${academicYearId ?? '-'}`, () =>
+      this.computeDisciplineStats(academicYearId),
+    );
+  }
+
+  private async computeDisciplineStats(academicYearId?: string) {
     const where: any = {};
     if (academicYearId) {
       const terms = await this.prisma.term.findMany({
@@ -132,7 +195,11 @@ export class AnalyticsService {
     };
   }
 
-  async getLibraryStats() {
+  getLibraryStats() {
+    return this.cached('analytics:library', () => this.computeLibraryStats());
+  }
+
+  private async computeLibraryStats() {
     const [totalBooks, totalLoans, activeLoans, overdueLoans] =
       await Promise.all([
         this.prisma.book.count(),
@@ -172,7 +239,13 @@ export class AnalyticsService {
     };
   }
 
-  async getAttendanceStats(termId?: string) {
+  getAttendanceStats(termId?: string) {
+    return this.cached(`analytics:attendance:${termId ?? '-'}`, () =>
+      this.computeAttendanceStats(termId),
+    );
+  }
+
+  private async computeAttendanceStats(termId?: string) {
     const where: any = {};
     if (termId) {
       const term = await this.prisma.term.findUnique({ where: { id: termId } });
@@ -188,12 +261,282 @@ export class AnalyticsService {
     const absent = records.filter((r) => r.status === 'ABSENT').length;
     const late = records.filter((r) => r.status === 'LATE').length;
 
+    // Day-by-day counts for the trend chart.
+    const byDateMap = new Map<
+      string,
+      { present: number; late: number; absent: number }
+    >();
+    for (const r of records) {
+      const key = r.date.toISOString().slice(0, 10);
+      const e = byDateMap.get(key) ?? { present: 0, late: 0, absent: 0 };
+      if (r.status === 'PRESENT') e.present++;
+      else if (r.status === 'LATE') e.late++;
+      else e.absent++;
+      byDateMap.set(key, e);
+    }
+    const byDate = [...byDateMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, counts]) => ({ date, ...counts }));
+
     return {
       totalRecords: total,
       present,
       absent,
       late,
       attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+      byDate,
+    };
+  }
+
+  getGradeDistribution(termId: string) {
+    return this.cached(`analytics:grade-distribution:${termId ?? '-'}`, () =>
+      this.computeGradeDistribution(termId),
+    );
+  }
+
+  // Letter-grade counts per class level, for the grade heatmap.
+  private async computeGradeDistribution(termId: string) {
+    const results = await this.prisma.termResult.findMany({
+      where: { ...(termId ? { termId } : {}), letterGrade: { not: null } },
+      include: {
+        classSection: {
+          include: { classLevel: { select: { name: true, order: true } } },
+        },
+      },
+    });
+
+    const byLevel = new Map<
+      string,
+      { order: number; total: number; counts: Record<string, number> }
+    >();
+    for (const r of results) {
+      const lvl = r.classSection.classLevel;
+      const e = byLevel.get(lvl.name) ?? {
+        order: lvl.order,
+        total: 0,
+        counts: {},
+      };
+      const g = r.letterGrade!;
+      e.counts[g] = (e.counts[g] ?? 0) + 1;
+      e.total++;
+      byLevel.set(lvl.name, e);
+    }
+
+    return [...byLevel.entries()]
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([level, e]) => ({ level, total: e.total, counts: e.counts }));
+  }
+
+  getEnrollmentBreakdown() {
+    return this.cached('analytics:enrollment', () =>
+      this.computeEnrollmentBreakdown(),
+    );
+  }
+
+  // Active students per level split by gender, for the enrollment pyramid.
+  private async computeEnrollmentBreakdown() {
+    const students = await this.prisma.student.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        gender: true,
+        classSection: {
+          select: { classLevel: { select: { name: true, order: true } } },
+        },
+      },
+    });
+
+    const byLevel = new Map<
+      string,
+      { order: number; male: number; female: number }
+    >();
+    for (const s of students) {
+      const lvl = s.classSection.classLevel;
+      const e = byLevel.get(lvl.name) ?? { order: lvl.order, male: 0, female: 0 };
+      if (s.gender === 'MALE') e.male++;
+      else if (s.gender === 'FEMALE') e.female++;
+      byLevel.set(lvl.name, e);
+    }
+
+    return [...byLevel.entries()]
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([level, e]) => ({ level, male: e.male, female: e.female }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STUDENT PROFILE ANALYTICS (admin/teacher view: subjects × terms × year)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async getStudentProfileAnalytics(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        user: { select: { firstName: true, lastName: true, photoUrl: true, email: true } },
+        classSection: { include: { classLevel: true, trade: true } },
+      },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+
+    const [marks, ownResults, attendance] = await Promise.all([
+      this.prisma.mark.findMany({
+        where: { studentId },
+        include: {
+          subject: { select: { name: true, scope: true } },
+          assessmentType: { select: { name: true } },
+          term: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              academicYear: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.termResult.findMany({
+        where: { studentId },
+        include: {
+          classSection: { include: { classLevel: true, trade: true } },
+        },
+      }),
+      this.prisma.attendance.findMany({
+        where: { studentId },
+        select: { date: true, status: true },
+      }),
+    ]);
+
+    // Class averages come from the class the student actually sat in each
+    // term — a Senior 2 term compares against that year's Senior 2 class.
+    const pairs = ownResults.map((r) => ({
+      termId: r.termId,
+      classSectionId: r.classSectionId,
+    }));
+    const classResults = pairs.length
+      ? await this.prisma.termResult.findMany({
+          where: { OR: pairs },
+          select: { termId: true, classSectionId: true, average: true },
+        })
+      : [];
+
+    // Group marks per term per subject and compute weighted totals with the
+    // same module the report cards use.
+    type TermAgg = {
+      term: { id: string; name: string; startDate: Date };
+      bySubject: Map<
+        string,
+        { scope: SubjectScope; rows: { assessmentName: string; score: number; maxScore: number }[] }
+      >;
+    };
+    const byTerm = new Map<string, TermAgg>();
+    for (const m of marks) {
+      const t =
+        byTerm.get(m.term.id) ??
+        ({ term: m.term, bySubject: new Map() } as TermAgg);
+      const subj = t.bySubject.get(m.subject.name) ?? {
+        scope: m.subject.scope,
+        rows: [],
+      };
+      subj.rows.push({
+        assessmentName: m.assessmentType.name,
+        score: m.score,
+        maxScore: m.maxScore,
+      });
+      t.bySubject.set(m.subject.name, subj);
+      byTerm.set(m.term.id, t);
+    }
+
+    const ownByTerm = new Map(ownResults.map((r) => [r.termId, r]));
+    const classAvgByTerm = new Map<string, number>();
+    {
+      const grouped = new Map<string, number[]>();
+      for (const r of classResults) {
+        if (r.average === null) continue;
+        const key = `${r.termId}|${r.classSectionId}`;
+        const list = grouped.get(key) ?? [];
+        list.push(r.average);
+        grouped.set(key, list);
+      }
+      for (const [key, avgs] of grouped) {
+        classAvgByTerm.set(key, avgs.reduce((a, b) => a + b, 0) / avgs.length);
+      }
+    }
+
+    const terms = [...byTerm.values()]
+      .sort((a, b) => a.term.startDate.getTime() - b.term.startDate.getTime())
+      .map(({ term, bySubject }) => {
+        const subjects = [...bySubject.entries()]
+          .map(([name, { scope, rows }]) => {
+            const total = computeSubjectTotal(scope, rows);
+            const band = total !== null ? gradeFor(scope, total) : null;
+            return {
+              name,
+              scope,
+              total,
+              grade: band?.letter ?? null,
+              points: band?.points ?? null,
+            };
+          })
+          .sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+
+        const own = ownByTerm.get(term.id);
+        const termAttendance = attendance.filter(
+          (a) => a.date >= (term as any).startDate && a.date <= (term as any).endDate,
+        );
+        const presentish = termAttendance.filter(
+          (a) => a.status === 'PRESENT' || a.status === 'LATE',
+        ).length;
+
+        return {
+          termId: term.id,
+          termName: term.name,
+          yearName: (term as any).academicYear?.name ?? null,
+          className: own ? classDisplayName((own as any).classSection) : null,
+          subjects,
+          average: own?.average ?? null,
+          letterGrade:
+            own?.letterGrade ??
+            (own?.average != null ? overallGrade(own.average).letter : null),
+          aggregate: own?.aggregate ?? null,
+          aggregateMax: own?.aggregateMax ?? null,
+          rank: own?.rank ?? null,
+          classSize: own
+            ? classResults.filter(
+                (r) =>
+                  r.termId === term.id &&
+                  r.classSectionId === own.classSectionId,
+              ).length
+            : null,
+          classAverage: own
+            ? (classAvgByTerm.get(`${term.id}|${own.classSectionId}`) ?? null)
+            : null,
+          attendancePct: termAttendance.length
+            ? Math.round((presentish / termAttendance.length) * 100)
+            : null,
+        };
+      });
+
+    const classSize = await this.prisma.student.count({
+      where: { classSectionId: student.classSectionId, status: 'ACTIVE' },
+    });
+
+    return {
+      student: {
+        id: student.id,
+        name: `${student.user.firstName} ${student.user.lastName}`,
+        email: student.user.email,
+        photoUrl: student.user.photoUrl,
+        studentIdNumber: student.studentIdNumber,
+        gender: student.gender,
+        status: student.status,
+        disciplinePoints: student.disciplinePoints,
+        class: classDisplayName(student.classSection),
+        stage: student.classSection.classLevel.stage,
+        trade: student.classSection.trade
+          ? { code: student.classSection.trade.code, name: student.classSection.trade.name }
+          : null,
+        classSize,
+      },
+      terms,
     };
   }
 
@@ -220,7 +563,7 @@ export class AnalyticsService {
     }
 
     const students = await this.prisma.student.findMany({
-      where: { classSectionId },
+      where: { classSectionId, status: 'ACTIVE' },
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     const studentIds = students.map((s) => s.id);
@@ -316,7 +659,7 @@ export class AnalyticsService {
     // Class average for comparison
     const classmateIds = (
       await this.prisma.student.findMany({
-        where: { classSectionId: student.classSectionId },
+        where: { classSectionId: student.classSectionId, status: 'ACTIVE' },
         select: { id: true },
       })
     ).map((s) => s.id);

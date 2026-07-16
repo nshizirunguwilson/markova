@@ -7,7 +7,8 @@ import { z } from "zod/v4";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
+import { KeyRound, ArrowLeft } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +66,7 @@ function ResetPasswordInner() {
   return (
     <Card className="w-full max-w-md" padding="lg">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-          <ShieldCheck className="h-7 w-7 text-white" />
-        </div>
+        <BrandMark className="mx-auto mb-4 h-14 w-auto max-w-[180px]" />
         <h1 className="text-xl md:text-2xl font-bold text-primary">Set a new password</h1>
         <p className="mt-1 text-sm text-muted">Choose a strong password you don&apos;t use elsewhere.</p>
       </div>

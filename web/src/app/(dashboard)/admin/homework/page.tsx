@@ -35,7 +35,7 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
 
 const homeworkSchema = z.object({
@@ -169,7 +169,7 @@ export default function AdminHomeworkPage() {
       ],
       data: (homeworks || []).map((hw: any) => ({
         ...hw,
-        _class: `${hw.classSection?.classLevel?.name || ""} ${hw.classSection?.name || ""}`.trim(),
+        _class: classDisplayName(hw.classSection),
         _teacher: `${hw.teacher?.firstName || ""} ${hw.teacher?.lastName || ""}`.trim(),
         _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "—",
       })),
@@ -260,7 +260,7 @@ export default function AdminHomeworkPage() {
                     <Badge variant="info">{hw.subject?.name || "—"}</Badge>
                   </TableCell>
                   <TableCell>
-                    {hw.classSection?.classLevel?.name} {hw.classSection?.name}
+                    {classDisplayName(hw.classSection)}
                   </TableCell>
                   <TableCell>
                     {hw.teacher?.firstName} {hw.teacher?.lastName}

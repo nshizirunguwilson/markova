@@ -5,7 +5,7 @@ import { Card, CardTitle, Button } from "@/components/ui";
 import { Download, FileText, Archive } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateString, classDisplayName } from "@/lib/utils";
 
 const EXPORTS = [
   { key: "users", label: "All Users", description: "Export all users with roles and status" },
@@ -173,7 +173,7 @@ function flattenUser(user: any): Record<string, string> {
     isActive: String(user.isActive),
     studentId: user.student?.studentIdNumber || "",
     class: user.student?.classSection
-      ? `${user.student.classSection.classLevel?.name || ""} ${user.student.classSection.name || ""}`
+      ? classDisplayName(user.student.classSection)
       : "",
   };
 }

@@ -71,7 +71,7 @@ export function ClassesTab() {
             {level.sections?.map((s: any) => (
               <div key={s.id} className="flex items-center gap-1">
                 <Badge variant="success">
-                  {s.name} ({s._count?.students || 0})
+                  {[s.trade?.code, s.name].filter(Boolean).join(" ")} ({s._count?.students || 0})
                 </Badge>
                 <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-red-700">
                   <Trash2 className="h-3 w-3" />

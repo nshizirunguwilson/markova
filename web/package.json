@@ -19,8 +19,10 @@
     "axios": "^1.13.6",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "echarts": "^6.1.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.577.0",
     "next": "16.2.0",
     "react": "19.2.4",
@@ -46,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.0",
     "jsdom": "^29.0.1",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.0"

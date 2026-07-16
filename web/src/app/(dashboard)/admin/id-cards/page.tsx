@@ -22,7 +22,8 @@ import {
   useRevokeIdCard,
 } from "@/hooks/use-reports";
 import { useBrandStore } from "@/stores/brand-store";
-import { CreditCard, Printer, Search, Plus, IdCard, Ban } from "lucide-react";
+import { Printer, Search, Plus, IdCard, Ban } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 
 type StatusFilter = "all" | "issued" | "not_issued";
 
@@ -152,7 +153,7 @@ export default function AdminIdCardsPage() {
             >
               <option value="">All sections</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           </div>
@@ -246,9 +247,7 @@ export default function AdminIdCardsPage() {
             <div key={it.id} className="rounded-lg border-2 border-[#1B4F72] p-4">
               <div className="text-center space-y-2">
                 <p className="text-xs uppercase text-gray-500">{schoolName}</p>
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#D6EAF8]">
-                  <CreditCard className="h-8 w-8 text-[#1B4F72]" />
-                </div>
+                <BrandMark className="mx-auto h-12 w-auto max-w-[120px]" />
                 <p className="text-lg font-bold">{it.name}</p>
                 <p className="text-sm text-gray-600">{it.class}</p>
                 <p className="inline-block rounded bg-gray-100 px-2 py-1 font-mono text-sm">

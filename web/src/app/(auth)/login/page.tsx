@@ -6,7 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, ShieldCheck, KeyRound } from "lucide-react";
+import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useBrandStore } from "@/stores/brand-store";
@@ -242,9 +243,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md" padding="lg">
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <ShieldCheck className="h-7 w-7 text-white" />
-          </div>
+          <BrandMark className="mx-auto mb-4 h-14 w-auto max-w-[180px]" />
           <h1 className="text-xl md:text-2xl font-bold text-primary">{schoolName}</h1>
           <p className="mt-1 text-sm text-muted">School Management System</p>
         </div>
@@ -259,7 +258,7 @@ export default function LoginPage() {
             <Input
               id="identifier"
               label="Email or Phone"
-              placeholder="wilsonshizirungu@gmail.com"
+              placeholder="Enter your email or phone"
               error={loginForm.formState.errors.identifier?.message}
               {...loginForm.register("identifier")}
             />

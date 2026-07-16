@@ -27,14 +27,26 @@ const modelToJsDay = (m: number) => (m === 7 ? 0 : m);
 const hhmm = (d: Date) =>
   `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
-const SUBJECT_COLORS = [
-  "#1B4F72", "#117A65", "#B9770E", "#7D3C98", "#943126",
-  "#1A5276", "#0E6655", "#6C3483", "#A04000", "#21618C",
-];
-function colorFor(key: string) {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return SUBJECT_COLORS[h % SUBJECT_COLORS.length];
+/**
+ * One color per subject, guaranteed unique within the visible timetable.
+ * Distinct subjects (sorted, so assignment is stable) are spread evenly
+ * around the hue wheel starting from the brand's navy-blue; each becomes a
+ * soft tinted chip (light fill, saturated edge, deep ink of the same hue) so
+ * the grid reads calm and every lesson is still instantly tellable apart.
+ */
+function buildSubjectColors(names: string[]) {
+  const distinct = [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  const map = new Map<string, { bg: string; border: string; text: string }>();
+  const n = Math.max(distinct.length, 1);
+  distinct.forEach((name, i) => {
+    const hue = Math.round((210 + (i * 360) / n) % 360);
+    map.set(name, {
+      bg: `hsl(${hue} 70% 91%)`,
+      border: `hsl(${hue} 55% 55%)`,
+      text: `hsl(${hue} 65% 25%)`,
+    });
+  });
+  return map;
 }
 
 type ModalState = {
@@ -71,6 +83,9 @@ export default function AdminTimetablePage() {
   // Expand each weekly recurring entry into concrete dated events for the visible range
   const events = useMemo(() => {
     if (!entries || !range) return [];
+    const colors = buildSubjectColors(
+      entries.map((e: any) => e.subject?.name || e.subjectId),
+    );
     const evs: any[] = [];
     for (const e of entries) {
       const targetJs = modelToJsDay(e.dayOfWeek);
@@ -81,7 +96,7 @@ export default function AdminTimetablePage() {
         const [eh, em] = e.endTime.split(":").map(Number);
         const start = new Date(cursor); start.setHours(sh, sm, 0, 0);
         const end = new Date(cursor); end.setHours(eh, em, 0, 0);
-        const color = colorFor(e.subject?.name || e.subjectId);
+        const color = colors.get(e.subject?.name || e.subjectId)!;
         const teacherName = e.teacher?.user
           ? `${e.teacher.user.firstName} ${e.teacher.user.lastName}`
           : "";
@@ -93,8 +108,9 @@ export default function AdminTimetablePage() {
             (e.room ? ` (${e.room})` : ""),
           start,
           end,
-          backgroundColor: color,
-          borderColor: color,
+          backgroundColor: color.bg,
+          borderColor: color.border,
+          textColor: color.text,
           extendedProps: { entryId: e.id, entry: e },
         });
       }
@@ -209,7 +225,7 @@ export default function AdminTimetablePage() {
             >
               <option value="">Select section</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           </div>
@@ -281,7 +297,7 @@ export default function AdminTimetablePage() {
               >
                 <option value="">Select subject</option>
                 {subjects?.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
                 ))}
               </select>
             </div>

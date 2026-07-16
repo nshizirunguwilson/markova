@@ -14,7 +14,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role, Gender, EmploymentStatus, StudentStatus } from '@prisma/client';
 
 export class CreateUserDto {
-  @ApiPropertyOptional({ example: 'user@markova.academy' })
+  @ApiPropertyOptional({ example: 'user@markova.edu' })
   @IsOptional()
   @IsEmail()
   email?: string;

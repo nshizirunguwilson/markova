@@ -33,7 +33,7 @@ import {
   Shield,
   Gavel,
 } from "lucide-react";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateString, classDisplayName } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -139,7 +139,7 @@ export default function AdminDisciplinePage() {
                       {inc.student.user.firstName} {inc.student.user.lastName}
                     </TableCell>
                     <TableCell className="text-sm text-muted">
-                      {inc.student.classSection?.classLevel?.name} {inc.student.classSection?.name}
+                      {classDisplayName(inc.student.classSection)}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm">{inc.description}</TableCell>
                     <TableCell><Badge variant="danger">-{inc.pointsDeducted}</Badge></TableCell>
@@ -181,7 +181,7 @@ export default function AdminDisciplinePage() {
                     <p className="font-medium text-foreground">
                       {a.incident.student.user.firstName} {a.incident.student.user.lastName}
                       <span className="ml-2 text-xs text-muted">
-                        {a.incident.student.classSection?.classLevel?.name} {a.incident.student.classSection?.name}
+                        {classDisplayName(a.incident.student.classSection)}
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-muted">Incident: {a.incident.description}</p>

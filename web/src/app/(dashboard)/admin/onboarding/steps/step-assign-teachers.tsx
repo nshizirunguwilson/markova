@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { classDisplayName } from "@/lib/utils";
 import { Button, Badge } from "@/components/ui";
 import {
   useAcademicYears,
@@ -59,7 +60,7 @@ export function StepAssignTeachers() {
               <Badge>{a.subject?.name}</Badge>
               <span className="text-muted">in</span>
               <Badge variant="success">
-                {a.classSection?.classLevel?.name} {a.classSection?.name}
+                {classDisplayName(a.classSection)}
               </Badge>
             </div>
           ))}
@@ -106,7 +107,7 @@ export function StepAssignTeachers() {
             <option value="">Select class...</option>
             {sections?.map((s: any) => (
               <option key={s.id} value={s.id}>
-                {s.classLevel?.name} {s.name}
+                {classDisplayName(s)}
               </option>
             ))}
           </select>

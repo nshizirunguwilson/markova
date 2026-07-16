@@ -47,7 +47,7 @@ export function StepClasses() {
               <div className="flex flex-wrap gap-2 mb-2">
                 {level.sections?.map((s: any) => (
                   <Badge key={s.id} variant="success">
-                    {s.name} ({s._count?.students || 0} students)
+                    {[s.trade?.code, s.name].filter(Boolean).join(" ")} ({s._count?.students || 0} students)
                   </Badge>
                 ))}
               </div>

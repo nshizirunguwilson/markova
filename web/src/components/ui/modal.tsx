@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
 }
 
 const FOCUSABLE_SELECTOR =
@@ -99,6 +99,10 @@ export function Modal({
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
+    "2xl": "max-w-2xl",
+    "3xl": "max-w-3xl",
+    "4xl": "max-w-4xl",
+    "5xl": "max-w-5xl",
   };
 
   return (
@@ -114,7 +118,7 @@ export function Modal({
         aria-modal="true"
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative z-10 w-full rounded-xl border border-border bg-white p-6 shadow-xl",
+          "relative z-10 w-full rounded-xl border border-border bg-white p-6 shadow-modal",
           sizes[size]
         )}
       >

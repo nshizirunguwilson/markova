@@ -21,18 +21,31 @@ describe('AcademicService', () => {
     classLevel: {
       findUnique: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
     },
     classSection: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       delete: jest.fn(),
+      create: jest.fn(),
     },
     subject: {
       findUnique: jest.fn(),
+      delete: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    trade: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
       delete: jest.fn(),
     },
     mark: {
       count: jest.fn(),
     },
+    $transaction: jest.fn(),
     student: {
       findMany: jest.fn(),
       update: jest.fn(),
@@ -125,6 +138,93 @@ describe('AcademicService', () => {
       await expect(service.deleteClassLevel('lvl-1')).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('deleteTrade refuses while it still has classes', async () => {
+      mockPrisma.trade.findUnique.mockResolvedValue({
+        id: 'tr-1',
+        _count: { sections: 3 },
+      });
+      await expect(service.deleteTrade('tr-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPrisma.trade.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // Rwandan school structure: max 3 O-Level years; A-Level classes carry a
+  // trade section, O-Level classes never do.
+  describe('stage rules', () => {
+    it('refuses a fourth O-Level year level', async () => {
+      mockPrisma.classLevel.count.mockResolvedValue(3);
+      await expect(
+        service.createClassLevel({ name: 'Senior 4', order: 4 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.classLevel.create).not.toHaveBeenCalled();
+    });
+
+    it('allows more A-Level levels without a cap', async () => {
+      mockPrisma.classLevel.create.mockResolvedValue({ id: 'lvl-9' });
+      await expect(
+        service.createClassLevel({
+          name: 'Level 5',
+          order: 6,
+          stage: 'A_LEVEL' as never,
+        }),
+      ).resolves.toBeDefined();
+      expect(mockPrisma.classLevel.count).not.toHaveBeenCalled();
+    });
+
+    it('requires a trade on A-Level sections', async () => {
+      mockPrisma.classLevel.findUnique.mockResolvedValue({
+        id: 'lvl-4',
+        stage: 'A_LEVEL',
+      });
+      await expect(
+        service.createSection({ classLevelId: 'lvl-4', name: 'A' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a trade on O-Level sections', async () => {
+      mockPrisma.classLevel.findUnique.mockResolvedValue({
+        id: 'lvl-1',
+        stage: 'O_LEVEL',
+      });
+      await expect(
+        service.createSection({
+          classLevelId: 'lvl-1',
+          name: 'A',
+          tradeId: 'tr-1',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('creates an A-Level section under its trade', async () => {
+      mockPrisma.classLevel.findUnique.mockResolvedValue({
+        id: 'lvl-4',
+        stage: 'A_LEVEL',
+      });
+      mockPrisma.trade.findUnique.mockResolvedValue({ id: 'tr-1' });
+      mockPrisma.classSection.findFirst.mockResolvedValue(null);
+      mockPrisma.classSection.create.mockResolvedValue({ id: 'sec-9' });
+      await expect(
+        service.createSection({
+          classLevelId: 'lvl-4',
+          name: 'A',
+          tradeId: 'tr-1',
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('blocks duplicate class names within the same level and trade', async () => {
+      mockPrisma.classLevel.findUnique.mockResolvedValue({
+        id: 'lvl-1',
+        stage: 'O_LEVEL',
+      });
+      mockPrisma.classSection.findFirst.mockResolvedValue({ id: 'sec-1' });
+      await expect(
+        service.createSection({ classLevelId: 'lvl-1', name: 'A' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
