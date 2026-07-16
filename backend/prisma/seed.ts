@@ -350,6 +350,19 @@ function dealer(pool: string[]) {
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
+// initial.kinyarwandaname@markova.academy — collisions get a number, so the
+// address is short, memorable and still unique.
+const usedEmails = new Set<string>();
+function emailFor(first: string, last: string): string {
+  const base = `${first.trim()[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  let candidate = `${base}@markova.academy`;
+  for (let n = 2; usedEmails.has(candidate); n++) {
+    candidate = `${base}${n}@markova.academy`;
+  }
+  usedEmails.add(candidate);
+  return candidate;
+}
+
 const usedFullNames = new Set<string>();
 const nameKey = (first: string, last: string) =>
   `${first} ${last}`.toLowerCase();
@@ -480,11 +493,16 @@ async function main() {
   await clearDatabase();
   console.log('  🧹 Existing data cleared');
 
-  // Reserve the documented demo names before any generation.
+  // Reserve the documented demo names and addresses before any generation.
   ['Wilson Nshizirungu', 'Josiane Mutoni'].forEach((n) => {
     const [f, l] = n.split(' ');
     claimFullName(f, l);
   });
+  [
+    'aline.uwase@markova.academy',
+    'student1@markova.academy',
+    'librarian@markova.academy',
+  ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
   const configs = [
@@ -534,12 +552,14 @@ async function main() {
   // No two teachers share any name component — 40 staff with a repeated name
   // would read as fake immediately.
   const TEACHER_COUNT = 40;
+  // The demo teacher keeps the address documented in CLAUDE.md; the other
+  // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
     { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: 'eric.niyonkuru@markova.academy', phone: '+250788000011' },
-    { firstName: 'Diane', lastName: 'Mukamana', email: 'diane.mukamana@markova.academy', phone: '+250788000012' },
-    { firstName: 'Patrick', lastName: 'Habimana', email: 'patrick.habimana@markova.academy', phone: '+250788000013' },
-    { firstName: 'Solange', lastName: 'Ingabire', email: 'solange.ingabire@markova.academy', phone: '+250788000014' },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011' },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012' },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013' },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014' },
   ];
   const teacherComponents = new Set<string>(
     fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
@@ -560,7 +580,7 @@ async function main() {
     generatedTeachers.push({
       firstName: first,
       lastName: last,
-      email: `${first.toLowerCase()}.${last.toLowerCase()}@markova.academy`,
+      email: emailFor(first, last),
       phone: `+250788${String(100 + idx).padStart(6, '0')}`,
     });
   }
@@ -916,10 +936,9 @@ async function main() {
           : Gender.FEMALE;
       const { first, last } = studentName(gender, classCounts, fam?.name);
 
-      const emailToken = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
       const user = await prisma.user.create({
         data: {
-          email: i < 30 ? `student${i + 1}@markova.academy` : `${emailToken}${i + 1}@student.markova.academy`,
+          email: i === 0 ? 'student1@markova.academy' : emailFor(first, last),
           passwordHash,
           role: Role.STUDENT,
           firstName: first,
@@ -974,10 +993,7 @@ async function main() {
       data: {
         phone: `+250788${String(100000 + i).padStart(6, '0')}`,
         // First 15 parents keep their phone-only login profile to match docs.
-        email:
-          i >= 15
-            ? `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}${i}@parent.markova.academy`
-            : null,
+        email: i >= 15 ? emailFor(first, last) : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
