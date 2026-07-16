@@ -927,7 +927,7 @@ export class ReportsService implements OnModuleDestroy {
 
     const row = (s: any) => `
       <tr>
-        <td class="subj">${escapeHtml(s.subject)}${!isALevel && s.scope === 'O_CORE' ? ' <span class="core">•</span>' : ''}</td>
+        <td class="subj">${escapeHtml(s.subject)}</td>
         ${cell(s, 'CAT 1')}${cell(s, 'CAT 2')}${isALevel ? cell(s, 'Practical') : ''}${cell(s, 'End of Term Exam')}
         <td class="tot">${s.total ?? '–'}</td>
         <td class="gr">${s.grade ?? '–'}</td>
@@ -1191,7 +1191,7 @@ export class ReportsService implements OnModuleDestroy {
       <div class="foot-note">${
         isALevel
           ? 'Competence follows the practical mark: 70% and above = Competent. All modules are graded on the core scale.'
-          : '<span class="core">•</span> Core subject. Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded.'
+          : 'Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded.'
       }</div>
 
       <div class="summary">${summary}</div>
