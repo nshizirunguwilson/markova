@@ -71,6 +71,20 @@ export class AnalyticsController {
     return this.service.getAttendanceStats(termId);
   }
 
+  @Get('admin/grade-distribution')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Grade counts per class level' })
+  getGradeDistribution(@Query('termId') termId: string) {
+    return this.service.getGradeDistribution(termId);
+  }
+
+  @Get('admin/enrollment')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Enrollment by level and gender' })
+  getEnrollment() {
+    return this.service.getEnrollmentBreakdown();
+  }
+
   // ── Teacher ───────────────────────────────────────────────────────────────
 
   @Get('teacher/class/:classSectionId')

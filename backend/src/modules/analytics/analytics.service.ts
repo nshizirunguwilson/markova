@@ -251,13 +251,105 @@ export class AnalyticsService {
     const absent = records.filter((r) => r.status === 'ABSENT').length;
     const late = records.filter((r) => r.status === 'LATE').length;
 
+    // Day-by-day counts for the trend chart.
+    const byDateMap = new Map<
+      string,
+      { present: number; late: number; absent: number }
+    >();
+    for (const r of records) {
+      const key = r.date.toISOString().slice(0, 10);
+      const e = byDateMap.get(key) ?? { present: 0, late: 0, absent: 0 };
+      if (r.status === 'PRESENT') e.present++;
+      else if (r.status === 'LATE') e.late++;
+      else e.absent++;
+      byDateMap.set(key, e);
+    }
+    const byDate = [...byDateMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, counts]) => ({ date, ...counts }));
+
     return {
       totalRecords: total,
       present,
       absent,
       late,
       attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+      byDate,
     };
+  }
+
+  getGradeDistribution(termId: string) {
+    return this.cached(`analytics:grade-distribution:${termId ?? '-'}`, () =>
+      this.computeGradeDistribution(termId),
+    );
+  }
+
+  // Letter-grade counts per class level, for the grade heatmap.
+  private async computeGradeDistribution(termId: string) {
+    const results = await this.prisma.termResult.findMany({
+      where: { ...(termId ? { termId } : {}), letterGrade: { not: null } },
+      include: {
+        classSection: {
+          include: { classLevel: { select: { name: true, order: true } } },
+        },
+      },
+    });
+
+    const byLevel = new Map<
+      string,
+      { order: number; total: number; counts: Record<string, number> }
+    >();
+    for (const r of results) {
+      const lvl = r.classSection.classLevel;
+      const e = byLevel.get(lvl.name) ?? {
+        order: lvl.order,
+        total: 0,
+        counts: {},
+      };
+      const g = r.letterGrade!;
+      e.counts[g] = (e.counts[g] ?? 0) + 1;
+      e.total++;
+      byLevel.set(lvl.name, e);
+    }
+
+    return [...byLevel.entries()]
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([level, e]) => ({ level, total: e.total, counts: e.counts }));
+  }
+
+  getEnrollmentBreakdown() {
+    return this.cached('analytics:enrollment', () =>
+      this.computeEnrollmentBreakdown(),
+    );
+  }
+
+  // Active students per level split by gender, for the enrollment pyramid.
+  private async computeEnrollmentBreakdown() {
+    const students = await this.prisma.student.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        gender: true,
+        classSection: {
+          select: { classLevel: { select: { name: true, order: true } } },
+        },
+      },
+    });
+
+    const byLevel = new Map<
+      string,
+      { order: number; male: number; female: number }
+    >();
+    for (const s of students) {
+      const lvl = s.classSection.classLevel;
+      const e = byLevel.get(lvl.name) ?? { order: lvl.order, male: 0, female: 0 };
+      if (s.gender === 'MALE') e.male++;
+      else if (s.gender === 'FEMALE') e.female++;
+      byLevel.set(lvl.name, e);
+    }
+
+    return [...byLevel.entries()]
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([level, e]) => ({ level, male: e.male, female: e.female }));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
