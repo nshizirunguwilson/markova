@@ -32,12 +32,15 @@ export default function AdminStudentsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [levelId, setLevelId] = useState("");
   const [sectionId, setSectionId] = useState("");
+  // Default to today's school: former students live behind this filter.
+  const [status, setStatus] = useState("ACTIVE");
 
   const { data: levels } = useClassLevels();
   const { data: sections } = useSections(levelId || undefined);
   const { data, isLoading } = useUsers({
     ...filters,
     classSectionId: sectionId || undefined,
+    studentStatus: status || undefined,
   });
 
   const students = data?.data || [];
@@ -60,7 +63,11 @@ export default function AdminStudentsPage() {
         ...u,
         _name: `${u.firstName} ${u.lastName}`,
         _class: classDisplayName(u.student?.classSection),
-        _status: u.isActive ? "Active" : "Inactive",
+        _status: u.student?.status
+          ? u.student.status.charAt(0) + u.student.status.slice(1).toLowerCase()
+          : u.isActive
+            ? "Active"
+            : "Inactive",
       })),
     });
   };
@@ -137,6 +144,20 @@ export default function AdminStudentsPage() {
               ))}
             </select>
           )}
+
+          <select
+            className="rounded-lg border border-border px-3 py-2 text-sm"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setFilters((f) => ({ ...f, page: 1 }));
+            }}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="GRADUATED">Graduated</option>
+            <option value="TRANSFERRED">Transferred</option>
+            <option value="">All statuses</option>
+          </select>
         </div>
       </Card>
 
@@ -213,8 +234,23 @@ export default function AdminStudentsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.isActive ? "success" : "danger"}>
-                        {user.isActive ? "Active" : "Inactive"}
+                      <Badge
+                        variant={
+                          user.student?.status === "ACTIVE"
+                            ? "success"
+                            : user.student?.status === "GRADUATED"
+                              ? "info"
+                              : user.student?.status === "TRANSFERRED"
+                                ? "warning"
+                                : "danger"
+                        }
+                      >
+                        {user.student?.status
+                          ? user.student.status.charAt(0) +
+                            user.student.status.slice(1).toLowerCase()
+                          : user.isActive
+                            ? "Active"
+                            : "Inactive"}
                       </Badge>
                     </TableCell>
                   </TableRow>

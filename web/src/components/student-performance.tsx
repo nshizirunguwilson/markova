@@ -14,6 +14,24 @@ import { ShieldCheck } from "lucide-react";
  * who is this → how are they doing right now → are they improving →
  * where are they strong or weak → how did every subject move over the year.
  */
+// "Term 1" → "T1"; the first term of each year carries the year underneath.
+function termAxis(terms: any[]) {
+  const labels: string[] = [];
+  const yearSpans: { from: number; to: number; year: string }[] = [];
+  terms.forEach((t: any, i: number) => {
+    const short = (t.termName || "").replace("Term ", "T");
+    const prevYear = i > 0 ? terms[i - 1].yearName : null;
+    if (t.yearName && t.yearName !== prevYear) {
+      labels.push(`${short}\n${t.yearName}`);
+      yearSpans.push({ from: i, to: i, year: t.yearName });
+    } else {
+      labels.push(short);
+      if (yearSpans.length) yearSpans[yearSpans.length - 1].to = i;
+    }
+  });
+  return { labels, yearSpans };
+}
+
 export function StudentPerformance({ studentId }: { studentId: string }) {
   const { data, isLoading } = useStudentProfile(studentId);
 
@@ -23,22 +41,34 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
   // ── Are they improving? Student vs class, term by term ─────────────────────
   const trajectoryOption = useMemo<EChartsOption | null>(() => {
     if (terms.length < 2) return null;
+    const { labels, yearSpans } = termAxis(terms);
     return {
-      grid: { left: 44, right: 24, top: 26, bottom: 52 },
+      grid: { left: 44, right: 24, top: 26, bottom: 62 },
       xAxis: {
         type: "category",
-        data: terms.map((t: any) => t.termName),
+        data: labels,
         boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel,
+        axisLabel: { ...axisLabel, interval: 0, lineHeight: 15 },
       },
       yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
       legend: { ...legendStyle, bottom: 0 },
       tooltip: {
         ...tooltipStyle,
         trigger: "axis",
-        valueFormatter: (v: any) => (v == null ? "–" : `${Number(v).toFixed(1)}%`),
+        formatter: (params: any) => {
+          const list = Array.isArray(params) ? params : [params];
+          const t = terms[list[0].dataIndex];
+          const head = `<b>${t.termName}</b> · ${t.yearName ?? ""}${t.className ? `<br/>${t.className}` : ""}`;
+          const rows = list
+            .map(
+              (p: any) =>
+                `${p.marker} ${p.seriesName}: <b>${p.value == null ? "–" : Number(p.value).toFixed(1) + "%"}</b>`,
+            )
+            .join("<br/>");
+          return `${head}<br/>${rows}`;
+        },
       },
       series: [
         {
@@ -63,6 +93,15 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
           lineStyle: { color: viz.muted, width: 1.5, type: "dashed" },
           itemStyle: { color: viz.muted },
           symbolSize: 6,
+          // Every second school year gets a faint wash so the eye can group
+          // the terms without any extra chrome.
+          markArea: {
+            silent: true,
+            itemStyle: { color: "rgba(42,120,214,0.045)" },
+            data: yearSpans
+              .filter((_, i) => i % 2 === 1)
+              .map((s2) => [{ xAxis: s2.from }, { xAxis: s2.to }]) as any,
+          },
         },
       ],
     };
@@ -154,10 +193,10 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       grid: { left: 150, right: 16, top: 10, bottom: 62 },
       xAxis: {
         type: "category",
-        data: terms.map((t: any) => t.termName),
+        data: termAxis(terms).labels,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, fontWeight: 600 },
+        axisLabel: { ...axisLabel, fontWeight: 600, interval: 0, lineHeight: 15 },
       },
       yAxis: {
         type: "category",
@@ -182,7 +221,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         ...tooltipStyle,
         formatter: (p: any) => {
           const [x, y, v] = p.data.value ?? p.data;
-          return `<b>${subjects[y]}</b> · ${terms[x].termName}<br/>${v}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "–"}`;
+          return `<b>${subjects[y]}</b> · ${terms[x].termName} ${terms[x].yearName ?? ""}<br/>${v}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "–"}`;
         },
       },
       series: [
@@ -222,7 +261,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     {
       label: "Position",
       value: latest?.rank ? `${latest.rank}` : "–",
-      sub: `of ${s.classSize}`,
+      sub: `of ${latest?.classSize ?? s.classSize}`,
     },
     {
       label: "Aggregate",
@@ -309,7 +348,10 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
 
             {subjectsOption && (
               <Card className="p-6">
-                <CardTitle>Subjects this term ({latest?.termName})</CardTitle>
+                <CardTitle>
+                  Subjects this term ({latest?.termName}
+                  {latest?.yearName ? `, ${latest.yearName}` : ""})
+                </CardTitle>
                 <p className="mt-0.5 text-sm text-muted">
                   Strongest first; anything left of the dashed line needs attention.
                 </p>
