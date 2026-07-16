@@ -47,6 +47,20 @@ export function useAttendanceAnalytics(termId?: string) {
   });
 }
 
+export function useGradeDistribution(termId?: string) {
+  return useQuery({
+    queryKey: ["analytics", "admin", "grade-distribution", termId],
+    queryFn: async () => (await api.get("/analytics/admin/grade-distribution", { params: { termId } })).data,
+  });
+}
+
+export function useEnrollment() {
+  return useQuery({
+    queryKey: ["analytics", "admin", "enrollment"],
+    queryFn: async () => (await api.get("/analytics/admin/enrollment")).data,
+  });
+}
+
 export function useTeacherClassAnalytics(classSectionId: string, termId: string) {
   return useQuery({
     queryKey: ["analytics", "teacher", classSectionId, termId],
