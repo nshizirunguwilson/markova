@@ -1126,9 +1126,9 @@ export class ReportsService implements OnModuleDestroy {
       tr.group td{ background:#eef4f9; color:${navy}; font-weight:600; text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; }
       tr.group .gnote{ text-transform:none; letter-spacing:0; }
       .core{ color:#2E86C1; font-weight:700; }
-      .chip{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:600; white-space:nowrap; }
-      .chip.ok{ background:#e8f4ec; color:#1a7f45; }
-      .chip.no{ background:#faece9; color:#b3261e; }
+      .chip{ font-size:10px; font-weight:600; white-space:nowrap; }
+      .chip.ok{ color:#1a7f45; }
+      .chip.no{ color:#b3261e; }
       .foot-note{ font-size:10px; color:#5b6b7b; margin-top:4px; }
       .summary{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:10px 0 3px; }
       .cell{ border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 8px; text-align:center; background:#f8fbfd; }
@@ -1140,7 +1140,9 @@ export class ReportsService implements OnModuleDestroy {
       .comments .box span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:4px; }
       .sigs{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px; font-size:10.5px; color:#5b6b7b; text-align:center; }
       .sigs div{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
-      .legend{ margin-top:auto; border-top:1px solid rgba(21,37,54,.09); padding-top:6px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; }
+      .legend{ margin-top:auto; border-top:1px solid rgba(21,37,54,.09); padding-top:6px; display:flex; gap:14px; align-items:flex-start; }
+      .legend > div{ flex:1 1 0; min-width:0; }
+      table.scale{ width:100%; }
       .legend h4, .note h4{ margin:0 0 6px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; font-weight:600; }
       table.scale{ border-collapse:collapse; font-size:10px; }
       table.scale td{ border:1px solid rgba(21,37,54,.09); padding:3px 7px; text-align:center; font-variant-numeric:tabular-nums; }
