@@ -12,13 +12,22 @@ import {
   ConversationType,
   MessageContentType,
   NotificationType,
+  EducationStage,
+  SubjectScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import {
+  computeSubjectTotal,
+  countsTowardAggregate,
+  gradeFor,
+  overallGrade,
+  MAX_POINTS_PER_SUBJECT,
+} from '../src/common/grading';
 
 const prisma = new PrismaClient();
 
 // ─── NAME POOLS ──────────────────────────────────────────────────────────────
-// Large pools so 330 students + 200 parents + 30 teachers come out with
+// Large pools so ~800 students + 400 parents + 30 teachers come out with
 // distinct first/last-name combinations.
 
 const MALE_FIRSTS = [
@@ -58,10 +67,198 @@ const LAST_NAMES = [
   'Mukantwari', 'Niyomugabo',
 ];
 
+// ─── SCHOOL STRUCTURE ────────────────────────────────────────────────────────
+// O-Level: Senior 1-3, streams A and B. A-Level (TVET): Level 3-5, where each
+// level runs the 4 trades and a trade has stream A or streams A+B. Every level
+// lands on 7 or 8 classes, 25-30 students each.
+
+const TRADES = [
+  { code: 'SWD', name: 'Software Development', sector: 'ICT and Multimedia' },
+  {
+    code: 'NIT',
+    name: 'Networking and Internet Technology',
+    sector: 'ICT and Multimedia',
+  },
+  { code: 'TOR', name: 'Tourism', sector: 'Hospitality and Tourism' },
+  {
+    code: 'AUT',
+    name: 'Automobile Technology',
+    sector: 'Transport and Logistics',
+  },
+];
+
+const O_LEVELS = [
+  { name: 'Senior 1', order: 1 },
+  { name: 'Senior 2', order: 2 },
+  { name: 'Senior 3', order: 3 },
+];
+const A_LEVELS = [
+  { name: 'Level 3', order: 4 },
+  { name: 'Level 4', order: 5 },
+  { name: 'Level 5', order: 6 },
+];
+
+// ─── SUBJECTS ────────────────────────────────────────────────────────────────
+// O-Level: the 9 national core papers plus 3 electives. A-Level: general
+// modules shared by every trade plus RTB trade-specific modules per level
+// (module names follow NESA/RTB 2025-2026 assessment standards).
+
+const O_CORE_SUBJECTS = [
+  { name: 'Kinyarwanda', category: 'Languages' },
+  { name: 'English', category: 'Languages' },
+  { name: 'Mathematics', category: 'Sciences' },
+  { name: 'Physics', category: 'Sciences' },
+  { name: 'Chemistry', category: 'Sciences' },
+  { name: 'Biology and Health Sciences', category: 'Sciences' },
+  { name: 'Geography and Environment', category: 'Humanities' },
+  { name: 'History and Citizenship', category: 'Humanities' },
+  { name: 'Entrepreneurship', category: 'Business' },
+];
+
+const O_ELECTIVE_SUBJECTS = [
+  { name: 'Kiswahili', category: 'Languages' },
+  { name: 'ICT', category: 'Sciences' },
+  { name: 'French', category: 'Languages' },
+];
+
+// Kinyarwanda and Entrepreneurship are shared with O-Level (same paper name),
+// so A-Level classes reuse those two core rows as general modules.
+const A_GENERAL_SUBJECTS = [
+  { name: 'English (Communication Skills)', category: 'Languages' },
+  { name: 'Mathematics for Technology', category: 'Sciences' },
+  { name: 'Basic ICT', category: 'Sciences' },
+];
+const A_SHARED_CORE_NAMES = ['Kinyarwanda', 'Entrepreneurship'];
+
+const TRADE_MODULES: Record<string, Record<string, string[]>> = {
+  SWD: {
+    'Level 3': [
+      'Basic Graphic Design',
+      'Website Development',
+      'Version Control',
+      'JavaScript Fundamentals',
+      'Project Requirements Analysis',
+      'UI/UX Design',
+      'Vue.JS Framework',
+    ],
+    'Level 4': [
+      'Database Development',
+      'Data Structure and Algorithm Fundamentals',
+      'Backend System Design',
+      'PHP Programming',
+      'Backend Application Development',
+      'Windows Server Administration',
+      'Basics of Networking',
+    ],
+    'Level 5': [
+      'Blockchain Fundamentals',
+      'Frontend Application Development using React.JS',
+      'Mobile Application Development',
+      'Machine Learning Application',
+      'NoSQL Database Development',
+      'DevOps Application',
+      'Python Programming',
+      'Quality Assurance Application',
+    ],
+  },
+  NIT: {
+    'Level 3': [
+      'Basics of Electricity',
+      'C Programming Fundamentals',
+      'CCTV System Installation',
+      'IoT System Installation',
+      'LAN Installation',
+      'Network Fundamentals',
+      'VoIP System Installation',
+      'Electronic Fundamentals',
+      'Wireless Network Indoor',
+    ],
+    'Level 4': [
+      'IoT System Development',
+      'Fiber Optics Network Deployment',
+      'Wireless Network Outdoor',
+      'Wide Area Network',
+      'IoT Web Application Development using PHP',
+      'Basics of Technical Drawing',
+      'Database Development',
+      'Windows Server Administration',
+    ],
+    'Level 5': [
+      'Zero Client Application',
+      'Machine Learning Fundamentals',
+      'Linux Server Administration',
+      'Cyber Security',
+      'Cloud Computing Technology in Data Center',
+      'Python Programming Fundamentals',
+    ],
+  },
+  TOR: {
+    'Level 3': [
+      'Introduction to Tourism',
+      'Customer Care',
+      'Rwandan Tourism Products',
+      'Communication in Tourism',
+      'First Aid',
+    ],
+    'Level 4': [
+      'Tour Guiding Techniques',
+      'Travel Agency Operations',
+      'Front Office Operations',
+      'Itinerary Preparation',
+      'Tourist Transportation',
+    ],
+    'Level 5': [
+      'Community Based Tourism and Heritage',
+      'Tour Package Design',
+      'Ecotourism and Conservation',
+      'Tourism Marketing',
+      'Events Management',
+    ],
+  },
+  AUT: {
+    'Level 3': [
+      'Workshop Practice and Safety',
+      'Engine Fundamentals',
+      'Automotive Tools and Materials',
+      'Basic Technical Drawing',
+      'Vehicle Servicing',
+    ],
+    'Level 4': [
+      'Engine Overhaul',
+      'Automotive Electrical Systems',
+      'Braking Systems',
+      'Steering and Suspension',
+      'Wheel and Tyre Service',
+    ],
+    'Level 5': [
+      'Engine Diagnosis',
+      'Transmission Systems',
+      'Vehicle Electronics',
+      'Air Conditioning Systems',
+      'Vehicle Inspection and Diagnosis',
+    ],
+  },
+};
+
+// Assessment types and their roles. Weights live in src/common/grading.ts:
+// general subjects 20/20/60, trade-specific modules 15/15/30/40.
+const ASSESSMENT_NAMES = ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam'];
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 const sample = <T>(arr: T[]): T => arr[rand(arr.length)];
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, v));
+
+function shuffled<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = rand(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 // ─── DATE HELPERS ────────────────────────────────────────────────────────────
 // All demo dates are derived from "now" so the data always looks current — the
@@ -140,7 +337,7 @@ function makeNameAllocator() {
 }
 
 async function main() {
-  console.log('🌱 Seeding database (large dataset)…');
+  console.log('🌱 Seeding database (Rwandan TSS structure)…');
 
   // Make the seed idempotent — clear everything first so it can be re-run
   // any time to restore a clean, current-looking demo.
@@ -159,7 +356,6 @@ async function main() {
     { key: 'borrowing_limit', value: '3' },
     { key: 'borrowing_duration_days', value: '14' },
     { key: 'pass_threshold', value: '50' },
-    { key: 'grading_scale', value: 'A:90,B:80,C:70,D:60,F:0' },
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
     { key: 'school_phone', value: '+250788000000' },
     { key: 'school_email', value: 'info@markova.academy' },
@@ -195,8 +391,8 @@ async function main() {
   // Single allocator so names are globally unique across teachers/students/parents.
   const names = makeNameAllocator();
 
-  // ─── TEACHERS (30) ──────────────────────────────────────────────────────────
-  const TEACHER_COUNT = 30;
+  // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
+  const TEACHER_COUNT = 40;
   // First 5 have stable, documented emails. The first is the demo teacher.
   const fixedTeachers = [
     { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
@@ -244,7 +440,7 @@ async function main() {
   console.log(`  ✅ ${teachers.length} teachers seeded`);
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
-  const librarianUser = await prisma.user.create({
+  await prisma.user.create({
     data: {
       email: 'librarian@markova.academy',
       phone: '+250788000020',
@@ -261,8 +457,6 @@ async function main() {
   // ─── ACADEMIC YEAR & TERMS ──────────────────────────────────────────────────
   // Anchored to today: Term 1 is the *current* term and its window contains
   // today, so every term selector defaults to a term that actually has data.
-  // Terms 2 and 3 are future terms. All seeded marks/attendance/etc. live in
-  // Term 1 (terms[0]).
   const today = startOfToday();
   const yr = today.getFullYear();
   const term1Start = addDays(today, -42); // ~6 weeks ago
@@ -296,66 +490,165 @@ async function main() {
   }
   console.log('  ✅ Academic year + 3 terms seeded');
 
-  // ─── CLASS LEVELS (S1–S6) & SECTIONS (A–E) ──────────────────────────────────
-  const LEVEL_NAMES = ['Senior 1', 'Senior 2', 'Senior 3', 'Senior 4', 'Senior 5', 'Senior 6'];
-  const SECTION_NAMES = ['A', 'B', 'C', 'D', 'E'];
-  const classLevels: any[] = [];
-  for (let i = 0; i < LEVEL_NAMES.length; i++) {
-    classLevels.push(
-      await prisma.classLevel.create({ data: { name: LEVEL_NAMES[i], order: i + 1 } }),
-    );
+  // ─── TRADES ─────────────────────────────────────────────────────────────────
+  const trades: any[] = [];
+  const tradeByCode = new Map<string, any>();
+  for (const t of TRADES) {
+    const trade = await prisma.trade.create({ data: t });
+    trades.push(trade);
+    tradeByCode.set(t.code, trade);
   }
-  const classSections: any[] = [];
-  for (const level of classLevels) {
-    for (const sName of SECTION_NAMES) {
-      classSections.push(
-        await prisma.classSection.create({
-          data: { classLevelId: level.id, name: sName },
-        }),
-      );
+  console.log(`  ✅ ${trades.length} trades seeded (${TRADES.map((t) => t.code).join(', ')})`);
+
+  // ─── CLASS LEVELS & SECTIONS ────────────────────────────────────────────────
+  // Sections carry the info needed downstream: their level, stage and trade.
+  type SectionMeta = {
+    section: any;
+    level: any;
+    trade: any | null;
+    displayName: string;
+  };
+
+  const classLevels: any[] = [];
+  const sectionMetas: SectionMeta[] = [];
+
+  for (const lv of O_LEVELS) {
+    const level = await prisma.classLevel.create({
+      data: { name: lv.name, order: lv.order, stage: EducationStage.O_LEVEL },
+    });
+    classLevels.push(level);
+    for (const streamName of ['A', 'B']) {
+      const section = await prisma.classSection.create({
+        data: { classLevelId: level.id, name: streamName },
+      });
+      sectionMetas.push({
+        section,
+        level,
+        trade: null,
+        displayName: `${level.name} ${streamName}`,
+      });
+    }
+  }
+
+  for (const lv of A_LEVELS) {
+    const level = await prisma.classLevel.create({
+      data: { name: lv.name, order: lv.order, stage: EducationStage.A_LEVEL },
+    });
+    classLevels.push(level);
+    // Each level runs all 4 trades. 3 or 4 of them (random) get streams A+B,
+    // the rest stream A only — so a level totals 7 or 8 classes.
+    const doubledCount = 3 + rand(2);
+    const doubled = new Set(
+      shuffled(TRADES.map((t) => t.code)).slice(0, doubledCount),
+    );
+    for (const t of TRADES) {
+      const trade = tradeByCode.get(t.code);
+      const streams = doubled.has(t.code) ? ['A', 'B'] : ['A'];
+      for (const streamName of streams) {
+        const section = await prisma.classSection.create({
+          data: {
+            classLevelId: level.id,
+            tradeId: trade.id,
+            name: streamName,
+          },
+        });
+        sectionMetas.push({
+          section,
+          level,
+          trade,
+          displayName: `${level.name} ${t.code} ${streamName}`,
+        });
+      }
     }
   }
   console.log(
-    `  ✅ ${classLevels.length} class levels + ${classSections.length} sections seeded`,
+    `  ✅ ${classLevels.length} class levels + ${sectionMetas.length} classes seeded`,
   );
 
   // ─── SUBJECTS ───────────────────────────────────────────────────────────────
-  const subjectData = [
-    { name: 'Mathematics', category: 'Sciences' },
-    { name: 'English Language', category: 'Languages' },
-    { name: 'Physics', category: 'Sciences' },
-    { name: 'Chemistry', category: 'Sciences' },
-    { name: 'Biology', category: 'Sciences' },
-    { name: 'History', category: 'Humanities' },
-    { name: 'Geography', category: 'Humanities' },
-    { name: 'Computer Science', category: 'Sciences' },
-    { name: 'Literature in English', category: 'Languages' },
-    { name: 'Religious Education', category: 'Humanities' },
-    { name: 'Agriculture', category: 'Sciences' },
-    { name: 'Economics', category: 'Humanities' },
-    { name: 'Fine Art', category: 'Arts' },
-    { name: 'Physical Education', category: 'Arts' },
-    { name: 'French', category: 'Languages' },
-  ];
-  const subjects: any[] = [];
-  for (const s of subjectData) {
-    subjects.push(
+  const oCoreSubjects: any[] = [];
+  for (const s of O_CORE_SUBJECTS) {
+    oCoreSubjects.push(
       await prisma.subject.create({
-        data: { ...s, maxMarks: 100, isActive: true },
+        data: { ...s, scope: SubjectScope.O_CORE, maxMarks: 100, isActive: true },
       }),
     );
   }
-  console.log(`  ✅ ${subjects.length} subjects seeded`);
+  const oElectiveSubjects: any[] = [];
+  for (const s of O_ELECTIVE_SUBJECTS) {
+    oElectiveSubjects.push(
+      await prisma.subject.create({
+        data: { ...s, scope: SubjectScope.O_ELECTIVE, maxMarks: 100, isActive: true },
+      }),
+    );
+  }
+  const aGeneralSubjects: any[] = [];
+  for (const s of A_GENERAL_SUBJECTS) {
+    aGeneralSubjects.push(
+      await prisma.subject.create({
+        data: { ...s, scope: SubjectScope.A_GENERAL, maxMarks: 100, isActive: true },
+      }),
+    );
+  }
+  // Kinyarwanda + Entrepreneurship are taught at both stages — reuse core rows.
+  const sharedCore = oCoreSubjects.filter((s) =>
+    A_SHARED_CORE_NAMES.includes(s.name),
+  );
+  const aLevelGeneralSet = [...aGeneralSubjects, ...sharedCore];
+
+  // Trade-specific modules, pinned to their trade and year level.
+  const levelByName = new Map(classLevels.map((l) => [l.name, l]));
+  const specificByTradeLevel = new Map<string, any[]>();
+  let specificCount = 0;
+  for (const t of TRADES) {
+    for (const levelName of Object.keys(TRADE_MODULES[t.code])) {
+      const level = levelByName.get(levelName);
+      const list: any[] = [];
+      for (const moduleName of TRADE_MODULES[t.code][levelName]) {
+        list.push(
+          await prisma.subject.create({
+            data: {
+              name: moduleName,
+              category: tradeByCode.get(t.code).sector,
+              scope: SubjectScope.A_SPECIFIC,
+              tradeId: tradeByCode.get(t.code).id,
+              classLevelId: level.id,
+              maxMarks: 100,
+              isActive: true,
+            },
+          }),
+        );
+        specificCount++;
+      }
+      specificByTradeLevel.set(`${t.code}|${levelName}`, list);
+    }
+  }
+  console.log(
+    `  ✅ Subjects seeded: 9 core + 3 electives + ${aLevelGeneralSet.length} general + ${specificCount} trade modules`,
+  );
+
+  // The subject set a given class actually studies.
+  function subjectsForSection(meta: SectionMeta): any[] {
+    if (!meta.trade) return [...oCoreSubjects, ...oElectiveSubjects];
+    return [
+      ...aLevelGeneralSet,
+      ...(specificByTradeLevel.get(`${meta.trade.code}|${meta.level.name}`) ??
+        []),
+    ];
+  }
 
   // ─── ASSESSMENT TYPES ───────────────────────────────────────────────────────
   const assessmentTypes: any[] = [];
-  for (const name of ['Test 1', 'Test 2', 'Midterm Exam', 'Final Exam']) {
-    assessmentTypes.push(await prisma.assessmentType.create({ data: { name } }));
+  const assessmentByName = new Map<string, any>();
+  for (const name of ASSESSMENT_NAMES) {
+    const at = await prisma.assessmentType.create({ data: { name } });
+    assessmentTypes.push(at);
+    assessmentByName.set(name, at);
   }
   console.log(`  ✅ ${assessmentTypes.length} assessment types seeded`);
 
   // ─── TEACHER SPECIAL ROLES ──────────────────────────────────────────────────
-  // DOS, two HoDs, plus one class teacher per section (30 class teachers).
+  // DOS, two HoDs, plus one class teacher per class.
   await prisma.teacherRole.create({
     data: { teacherId: teachers[0].id, role: SpecialRole.DOS },
   });
@@ -365,81 +658,91 @@ async function main() {
   await prisma.teacherRole.create({
     data: { teacherId: teachers[2].id, role: SpecialRole.HOD, department: 'Humanities' },
   });
-  for (let i = 0; i < classSections.length; i++) {
-    // Cycle through teachers as class teachers.
+  for (let i = 0; i < sectionMetas.length; i++) {
     const teacherIdx = (i + 3) % teachers.length;
     await prisma.teacherRole.create({
       data: {
         teacherId: teachers[teacherIdx].id,
         role: SpecialRole.CLASS_TEACHER,
-        classSectionId: classSections[i].id,
+        classSectionId: sectionMetas[i].section.id,
       },
     });
   }
   console.log('  ✅ Teacher special roles seeded');
 
   // ─── TEACHER-SUBJECT-CLASS ASSIGNMENTS ──────────────────────────────────────
-  // Each section gets every subject taught by some teacher, cycling.
-  for (let si = 0; si < classSections.length; si++) {
-    const section = classSections[si];
-    for (let subj = 0; subj < subjects.length; subj++) {
-      const teacherIdx = (si + subj) % teachers.length;
-      await prisma.teacherSubjectClass.create({
-        data: {
-          teacherId: teachers[teacherIdx].id,
-          subjectId: subjects[subj].id,
-          classSectionId: section.id,
-          academicYearId: academicYear.id,
-        },
+  // Each class gets its own subject set taught by cycling teachers. The
+  // teacher for (class, subject) is deterministic so marks reference the same
+  // teacher as the assignment.
+  const teacherFor = (sectionIdx: number, subjectIdx: number) =>
+    teachers[(sectionIdx + subjectIdx) % teachers.length];
+
+  const assignmentRows: any[] = [];
+  for (let si = 0; si < sectionMetas.length; si++) {
+    const meta = sectionMetas[si];
+    const subjectSet = subjectsForSection(meta);
+    for (let subj = 0; subj < subjectSet.length; subj++) {
+      assignmentRows.push({
+        teacherId: teacherFor(si, subj).id,
+        subjectId: subjectSet[subj].id,
+        classSectionId: meta.section.id,
+        academicYearId: academicYear.id,
       });
     }
   }
-  console.log('  ✅ Teacher-subject-class assignments seeded');
+  await prisma.teacherSubjectClass.createMany({ data: assignmentRows });
+  console.log(`  ✅ ${assignmentRows.length} teacher-subject-class assignments seeded`);
 
-  // ─── STUDENTS (~330, distributed across 30 sections) ────────────────────────
-  const STUDENTS_PER_SECTION = 11;
-  const STUDENT_COUNT = classSections.length * STUDENTS_PER_SECTION;
+  // ─── STUDENTS (25-30 per class) ─────────────────────────────────────────────
+  type Enrolled = { student: any; user: any; meta: SectionMeta };
+  const enrolled: Enrolled[] = [];
+
+  const classSizes = sectionMetas.map(() => 25 + rand(6)); // 25-30 each
+  const STUDENT_COUNT = classSizes.reduce((a, b) => a + b, 0);
   const studentNames = names.take(STUDENT_COUNT);
 
-  const studentUsers: any[] = [];
-  const students: any[] = [];
-  for (let i = 0; i < STUDENT_COUNT; i++) {
-    const sectionIdx = Math.floor(i / STUDENTS_PER_SECTION);
-    const section = classSections[sectionIdx];
-    const { first, last, gender } = studentNames[i];
-    const email = `${first.toLowerCase()}.${last.toLowerCase()}${i + 1}@student.markova.academy`;
-    const user = await prisma.user.create({
-      data: {
-        email: i < 30 ? `student${i + 1}@markova.academy` : email, // keep doc-referenced student1
-        passwordHash,
-        role: Role.STUDENT,
-        firstName: first,
-        lastName: last,
-        isActive: true,
-        forcePasswordChange: i !== 0, // student1 is the demo account
-      },
-    });
-    const ageBase = 12 + Math.floor(sectionIdx / 5); // S1 → ~12 yrs, S6 → ~17 yrs
-    const student = await prisma.student.create({
-      data: {
-        userId: user.id,
-        studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
-        classSectionId: section.id,
-        dateOfBirth: new Date(
-          `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
-        ),
-        gender,
-        status: StudentStatus.ACTIVE,
-        disciplinePoints: 100,
-      },
-    });
-    studentUsers.push(user);
-    students.push(student);
+  let studentIdx = 0;
+  for (let si = 0; si < sectionMetas.length; si++) {
+    const meta = sectionMetas[si];
+    for (let k = 0; k < classSizes[si]; k++) {
+      const i = studentIdx++;
+      const { first, last, gender } = studentNames[i];
+      const email = `${first.toLowerCase()}.${last.toLowerCase()}${i + 1}@student.markova.academy`;
+      const user = await prisma.user.create({
+        data: {
+          email: i < 30 ? `student${i + 1}@markova.academy` : email, // keep doc-referenced student1
+          passwordHash,
+          role: Role.STUDENT,
+          firstName: first,
+          lastName: last,
+          isActive: true,
+          forcePasswordChange: i !== 0, // student1 is the demo account
+        },
+      });
+      // S1 → ~13 yrs … L5 → ~19 yrs
+      const ageBase = 11 + meta.level.order + rand(2);
+      const student = await prisma.student.create({
+        data: {
+          userId: user.id,
+          studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+          classSectionId: meta.section.id,
+          dateOfBirth: new Date(
+            `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
+          ),
+          gender,
+          status: StudentStatus.ACTIVE,
+          disciplinePoints: 100,
+        },
+      });
+      enrolled.push({ student, user, meta });
+    }
   }
-  console.log(`  ✅ ${students.length} students seeded`);
+  const students = enrolled.map((e) => e.student);
+  const studentUsers = enrolled.map((e) => e.user);
+  console.log(`  ✅ ${students.length} students seeded across ${sectionMetas.length} classes`);
 
-  // ─── PARENTS (200) ──────────────────────────────────────────────────────────
-  const PARENT_COUNT = 200;
+  // ─── PARENTS (400) ──────────────────────────────────────────────────────────
+  const PARENT_COUNT = 400;
   const parentNames = names.take(PARENT_COUNT);
   const parentUsers: any[] = [];
   for (let i = 0; i < PARENT_COUNT; i++) {
@@ -461,49 +764,149 @@ async function main() {
     parentUsers.push(user);
   }
 
-  // Link parents to students: every student gets 1–2 parents. Cycle parents.
+  // Link parents to students: every student gets 1-2 parents. Cycle parents.
+  const parentLinkRows: any[] = [];
   let pcursor = 0;
   for (let si = 0; si < students.length; si++) {
-    const numParents = (si % 4 === 0) ? 1 : 2; // most students have two parents
+    const numParents = si % 4 === 0 ? 1 : 2; // most students have two parents
     for (let p = 0; p < numParents; p++) {
       const parent = parentUsers[pcursor % parentUsers.length];
       pcursor++;
-      await prisma.parentStudent.create({
-        data: {
-          parentUserId: parent.id,
-          studentId: students[si].id,
-          relationship: p === 0 ? 'Father' : 'Mother',
-        },
+      parentLinkRows.push({
+        parentUserId: parent.id,
+        studentId: students[si].id,
+        relationship: p === 0 ? 'Father' : 'Mother',
       });
     }
   }
+  await prisma.parentStudent.createMany({ data: parentLinkRows });
   console.log(`  ✅ ${parentUsers.length} parents seeded and linked`);
 
-  // ─── MARKS ──────────────────────────────────────────────────────────────────
-  // Term 1, first 6 subjects × 2 assessment types for every student.
-  // That's 330 × 6 × 2 = 3,960 mark rows. createMany for speed.
+  // ─── MARKS (Term 1, full assessment structure) ──────────────────────────────
+  // Every student is graded in every subject of their class: CAT 1, CAT 2 and
+  // End of Term Exam everywhere, plus Practical on trade-specific modules.
   const markRows: any[] = [];
-  for (let si = 0; si < students.length; si++) {
-    const sectionIdx = Math.floor(si / STUDENTS_PER_SECTION);
-    for (let subj = 0; subj < 6; subj++) {
-      for (let at = 0; at < 2; at++) {
-        const score = 40 + rand(55); // 40-94
-        const teacherIdx = (sectionIdx + subj) % teachers.length;
+  const sectionIndexBySectionId = new Map(
+    sectionMetas.map((m, idx) => [m.section.id, idx]),
+  );
+
+  for (const { student, meta } of enrolled) {
+    const si = sectionIndexBySectionId.get(meta.section.id)!;
+    const subjectSet = subjectsForSection(meta);
+    const ability = 45 + rand(41); // the student's baseline, 45-85
+
+    for (let subj = 0; subj < subjectSet.length; subj++) {
+      const subject = subjectSet[subj];
+      const teacher = teacherFor(si, subj);
+      const perSubject = clamp(ability + rand(21) - 10, 25, 95);
+      const components =
+        subject.scope === SubjectScope.A_SPECIFIC
+          ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
+          : ['CAT 1', 'CAT 2', 'End of Term Exam'];
+
+      for (const assessmentName of components) {
+        // Practicals trend a bit higher (hands-on work), exams a bit lower.
+        const bias =
+          assessmentName === 'Practical'
+            ? 6
+            : assessmentName === 'End of Term Exam'
+              ? -4
+              : 0;
+        const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
         markRows.push({
-          studentId: students[si].id,
-          subjectId: subjects[subj].id,
-          classSectionId: classSections[sectionIdx].id,
+          studentId: student.id,
+          subjectId: subject.id,
+          classSectionId: meta.section.id,
           termId: terms[0].id,
-          assessmentTypeId: assessmentTypes[at].id,
+          assessmentTypeId: assessmentByName.get(assessmentName).id,
           score,
           maxScore: 100,
-          teacherId: teachers[teacherIdx].id,
+          teacherId: teacher.id,
         });
       }
     }
   }
-  await prisma.mark.createMany({ data: markRows });
+  for (let i = 0; i < markRows.length; i += 5000) {
+    await prisma.mark.createMany({ data: markRows.slice(i, i + 5000) });
+  }
   console.log(`  ✅ ${markRows.length} marks seeded`);
+
+  // ─── TERM RESULTS (national grading: weighted totals + aggregates) ──────────
+  // Computed from the marks above with the same shared grading module the API
+  // uses, so seeded report cards match what /marks/calculate would produce.
+  const assessmentNameById = new Map(assessmentTypes.map((a) => [a.id, a.name]));
+  const subjectById = new Map<string, any>();
+  for (const m of sectionMetas) {
+    for (const s of subjectsForSection(m)) subjectById.set(s.id, s);
+  }
+
+  const marksByStudent = new Map<string, any[]>();
+  for (const row of markRows) {
+    const list = marksByStudent.get(row.studentId) ?? [];
+    list.push(row);
+    marksByStudent.set(row.studentId, list);
+  }
+
+  const termResultRows: any[] = [];
+  for (const meta of sectionMetas) {
+    const classStudents = enrolled.filter((e) => e.meta === meta);
+    const computed: any[] = [];
+
+    for (const { student } of classStudents) {
+      const rows = marksByStudent.get(student.id) ?? [];
+      const bySubject = new Map<string, any[]>();
+      for (const r of rows) {
+        const list = bySubject.get(r.subjectId) ?? [];
+        list.push(r);
+        bySubject.set(r.subjectId, list);
+      }
+
+      let totalMarks = 0;
+      let subjectCount = 0;
+      let aggregate = 0;
+      let aggregateMax = 0;
+      for (const [subjectId, subjectRows] of bySubject) {
+        const scope = subjectById.get(subjectId)!.scope as SubjectScope;
+        const total = computeSubjectTotal(
+          scope,
+          subjectRows.map((r) => ({
+            assessmentName: assessmentNameById.get(r.assessmentTypeId)!,
+            score: r.score,
+            maxScore: r.maxScore,
+          })),
+        );
+        if (total === null) continue;
+        totalMarks += total;
+        subjectCount++;
+        if (countsTowardAggregate(scope)) {
+          aggregate += gradeFor(scope, total).points;
+          aggregateMax += MAX_POINTS_PER_SUBJECT;
+        }
+      }
+
+      const average = subjectCount > 0 ? totalMarks / subjectCount : 0;
+      computed.push({
+        studentId: student.id,
+        classSectionId: meta.section.id,
+        termId: terms[0].id,
+        totalMarks,
+        average,
+        letterGrade: overallGrade(average).letter,
+        aggregate,
+        aggregateMax,
+        isPublished: true,
+      });
+    }
+
+    computed.sort((a, b) => b.average - a.average);
+    computed.forEach((r, i) => {
+      r.rank = i + 1;
+      if (i === 0) r.teacherComment = 'Excellent work, keep leading the class.';
+    });
+    termResultRows.push(...computed);
+  }
+  await prisma.termResult.createMany({ data: termResultRows });
+  console.log(`  ✅ ${termResultRows.length} term results computed and seeded`);
 
   // ─── ATTENDANCE (last 10 weekdays, incl. today) ─────────────────────────────
   // Anchored to today so the attendance dashboard (which defaults to today)
@@ -511,8 +914,8 @@ async function main() {
   const attendanceDates = recentWeekdays(10);
   const attRows: any[] = [];
   for (const date of attendanceDates) {
-    for (let si = 0; si < students.length; si++) {
-      const sectionIdx = Math.floor(si / STUDENTS_PER_SECTION);
+    for (const { student, meta } of enrolled) {
+      const si = sectionIndexBySectionId.get(meta.section.id)!;
       const r = Math.random();
       let status: AttendanceStatus;
       let reason: AbsenceReason | null = null;
@@ -523,17 +926,19 @@ async function main() {
         reason = AbsenceReason.SICK;
       }
       attRows.push({
-        studentId: students[si].id,
-        classSectionId: classSections[sectionIdx].id,
+        studentId: student.id,
+        classSectionId: meta.section.id,
         date,
         type: 'daily',
         status,
         reasonCategory: reason,
-        markedByUserId: teacherUsers[sectionIdx % teacherUsers.length].id,
+        markedByUserId: teacherUsers[si % teacherUsers.length].id,
       });
     }
   }
-  await prisma.attendance.createMany({ data: attRows });
+  for (let i = 0; i < attRows.length; i += 5000) {
+    await prisma.attendance.createMany({ data: attRows.slice(i, i + 5000) });
+  }
   console.log(`  ✅ ${attRows.length} attendance records seeded`);
 
   // ─── DISCIPLINE INCIDENTS ───────────────────────────────────────────────────
@@ -620,8 +1025,8 @@ async function main() {
   for (let i = 0; i < 20; i++) {
     const dueDate =
       i < 17
-        ? addDays(today, 5 + (i % 9)) // due 5–13 days out
-        : addDays(today, -(2 + (i - 17) * 2)); // 3 loans overdue by 2–6 days
+        ? addDays(today, 5 + (i % 9)) // due 5-13 days out
+        : addDays(today, -(2 + (i - 17) * 2)); // 3 loans overdue by 2-6 days
     const checkedOutAt = addDays(today, -(7 + (i % 5)));
     await prisma.bookLoan.create({
       data: {
@@ -640,24 +1045,26 @@ async function main() {
   console.log(`  ✅ ${books.length} books + 20 active loans (3 overdue) seeded`);
 
   // ─── HOMEWORK ───────────────────────────────────────────────────────────────
-  // One homework per subject for S1A so multiple appear on a student's dashboard.
+  // One homework per subject for Senior 1 A so multiple appear on a student's
+  // dashboard.
+  const s1aSubjects = subjectsForSection(sectionMetas[0]);
   const hwDueDate = new Date();
   hwDueDate.setDate(hwDueDate.getDate() + 7);
-  for (let i = 0; i < Math.min(subjects.length, 8); i++) {
+  for (let i = 0; i < Math.min(s1aSubjects.length, 8); i++) {
     const hw = await prisma.homework.create({
       data: {
-        teacherId: teachers[i % teachers.length].id,
-        subjectId: subjects[i].id,
-        classSectionId: classSections[0].id,
+        teacherId: teacherFor(0, i).id,
+        subjectId: s1aSubjects[i].id,
+        classSectionId: sectionMetas[0].section.id,
         termId: terms[0].id,
-        title: `${subjects[i].name} — Practice Set ${i + 1}`,
+        title: `${s1aSubjects[i].name} — Practice Set ${i + 1}`,
         description: 'Complete the prescribed exercises and submit on time.',
         dueDate: hwDueDate,
         maxMarks: 20,
         lateDeductionPerDay: 2,
       },
     });
-    // First 5 students in S1A submit.
+    // First 5 students in S1 A submit.
     for (let s = 0; s < 5; s++) {
       await prisma.homeworkSubmission.create({
         data: {
@@ -728,7 +1135,7 @@ async function main() {
       {
         userId: teacherUsers[0].id,
         title: 'New Assignment',
-        message: 'You have been assigned to teach Mathematics for Senior 1A.',
+        message: 'You have been assigned to teach Mathematics for Senior 1 A.',
         type: NotificationType.PUSH,
       },
       {
@@ -752,7 +1159,8 @@ async function main() {
   console.log('  ✅ FAQ articles seeded');
 
   // ─── TIMETABLE ──────────────────────────────────────────────────────────────
-  // Build for the first 6 sections (one per level) so every level has a sample.
+  // Build for the first class of every level so each level has a sample, using
+  // that class's own subject set.
   const days = [1, 2, 3, 4, 5];
   const timeSlots = [
     { start: '08:00', end: '08:45' },
@@ -763,18 +1171,23 @@ async function main() {
     { start: '14:00', end: '14:45' },
     { start: '14:50', end: '15:35' },
   ];
+  const firstSectionPerLevel = classLevels.map((level) =>
+    sectionMetas.find((m) => m.level.id === level.id),
+  );
   let timetableCount = 0;
-  for (let lvl = 0; lvl < classLevels.length; lvl++) {
-    const section = classSections[lvl * SECTION_NAMES.length]; // section A of each level
+  for (let lvl = 0; lvl < firstSectionPerLevel.length; lvl++) {
+    const meta = firstSectionPerLevel[lvl];
+    if (!meta) continue;
+    const si = sectionIndexBySectionId.get(meta.section.id)!;
+    const subjectSet = subjectsForSection(meta);
     for (const day of days) {
-      for (let slot = 0; slot < Math.min(timeSlots.length, subjects.length); slot++) {
-        const subjectIdx = (day * 3 + slot + lvl) % subjects.length;
-        const teacherIdx = (subjectIdx + lvl) % teachers.length;
+      for (let slot = 0; slot < Math.min(timeSlots.length, subjectSet.length); slot++) {
+        const subjectIdx = (day * 3 + slot + lvl) % subjectSet.length;
         await prisma.timetable.create({
           data: {
-            classSectionId: section.id,
-            subjectId: subjects[subjectIdx].id,
-            teacherId: teachers[teacherIdx].id,
+            classSectionId: meta.section.id,
+            subjectId: subjectSet[subjectIdx].id,
+            teacherId: teacherFor(si, subjectIdx).id,
             dayOfWeek: day,
             startTime: timeSlots[slot].start,
             endTime: timeSlots[slot].end,
@@ -787,8 +1200,15 @@ async function main() {
   }
   console.log(`  ✅ ${timetableCount} timetable entries seeded`);
 
+  const oClasses = sectionMetas.filter((m) => !m.trade).length;
+  const aClasses = sectionMetas.length - oClasses;
   console.log('\n🎉 Seed completed successfully!');
-  console.log(`   ${teachers.length} teachers · ${students.length} students · ${parentUsers.length} parents · ${classSections.length} classes`);
+  console.log(
+    `   ${teachers.length} teachers · ${students.length} students · ${parentUsers.length} parents`,
+  );
+  console.log(
+    `   ${oClasses} O-Level classes (Senior 1-3, streams A-B) + ${aClasses} A-Level classes (Level 3-5 × SWD/NIT/TOR/AUT)`,
+  );
   console.log('   Default password for all users: Password123!');
   console.log('   Demo accounts (no forced password change):');
   console.log('     Admin     wilsonshizirungu@gmail.com');
