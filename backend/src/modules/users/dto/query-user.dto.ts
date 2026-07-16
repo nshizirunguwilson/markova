@@ -1,5 +1,6 @@
 import {
   IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   IsBoolean,
@@ -26,4 +27,12 @@ export class QueryUserDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   classSectionId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'],
+    description: 'Filter students by enrollment status',
+  })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'])
+  studentStatus?: string;
 }

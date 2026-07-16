@@ -63,7 +63,7 @@ export class AnalyticsService {
       totalUsers,
       totalSubjects,
     ] = await Promise.all([
-      this.prisma.student.count(),
+      this.prisma.student.count({ where: { status: 'ACTIVE' } }),
       this.prisma.teacher.count(),
       this.prisma.parentStudent
         .groupBy({ by: ['parentUserId'] })
@@ -129,7 +129,7 @@ export class AnalyticsService {
     const comparisons = [];
     for (const section of sections) {
       const students = await this.prisma.student.findMany({
-        where: { classSectionId: section.id },
+        where: { classSectionId: section.id, status: 'ACTIVE' },
         select: { id: true },
       });
       const studentIds = students.map((s) => s.id);
@@ -376,25 +376,47 @@ export class AnalyticsService {
     });
     if (!student) throw new NotFoundException('Student not found');
 
-    const [marks, ownResults, classResults, attendance] = await Promise.all([
+    const [marks, ownResults, attendance] = await Promise.all([
       this.prisma.mark.findMany({
         where: { studentId },
         include: {
           subject: { select: { name: true, scope: true } },
           assessmentType: { select: { name: true } },
-          term: { select: { id: true, name: true, startDate: true, endDate: true } },
+          term: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              academicYear: { select: { name: true } },
+            },
+          },
         },
       }),
-      this.prisma.termResult.findMany({ where: { studentId } }),
       this.prisma.termResult.findMany({
-        where: { classSectionId: student.classSectionId },
-        select: { termId: true, average: true },
+        where: { studentId },
+        include: {
+          classSection: { include: { classLevel: true, trade: true } },
+        },
       }),
       this.prisma.attendance.findMany({
         where: { studentId },
         select: { date: true, status: true },
       }),
     ]);
+
+    // Class averages come from the class the student actually sat in each
+    // term — a Senior 2 term compares against that year's Senior 2 class.
+    const pairs = ownResults.map((r) => ({
+      termId: r.termId,
+      classSectionId: r.classSectionId,
+    }));
+    const classResults = pairs.length
+      ? await this.prisma.termResult.findMany({
+          where: { OR: pairs },
+          select: { termId: true, classSectionId: true, average: true },
+        })
+      : [];
 
     // Group marks per term per subject and compute weighted totals with the
     // same module the report cards use.
@@ -429,15 +451,13 @@ export class AnalyticsService {
       const grouped = new Map<string, number[]>();
       for (const r of classResults) {
         if (r.average === null) continue;
-        const list = grouped.get(r.termId) ?? [];
+        const key = `${r.termId}|${r.classSectionId}`;
+        const list = grouped.get(key) ?? [];
         list.push(r.average);
-        grouped.set(r.termId, list);
+        grouped.set(key, list);
       }
-      for (const [termId, avgs] of grouped) {
-        classAvgByTerm.set(
-          termId,
-          avgs.reduce((a, b) => a + b, 0) / avgs.length,
-        );
+      for (const [key, avgs] of grouped) {
+        classAvgByTerm.set(key, avgs.reduce((a, b) => a + b, 0) / avgs.length);
       }
     }
 
@@ -469,6 +489,8 @@ export class AnalyticsService {
         return {
           termId: term.id,
           termName: term.name,
+          yearName: (term as any).academicYear?.name ?? null,
+          className: own ? classDisplayName((own as any).classSection) : null,
           subjects,
           average: own?.average ?? null,
           letterGrade:
@@ -477,7 +499,16 @@ export class AnalyticsService {
           aggregate: own?.aggregate ?? null,
           aggregateMax: own?.aggregateMax ?? null,
           rank: own?.rank ?? null,
-          classAverage: classAvgByTerm.get(term.id) ?? null,
+          classSize: own
+            ? classResults.filter(
+                (r) =>
+                  r.termId === term.id &&
+                  r.classSectionId === own.classSectionId,
+              ).length
+            : null,
+          classAverage: own
+            ? (classAvgByTerm.get(`${term.id}|${own.classSectionId}`) ?? null)
+            : null,
           attendancePct: termAttendance.length
             ? Math.round((presentish / termAttendance.length) * 100)
             : null,
@@ -532,7 +563,7 @@ export class AnalyticsService {
     }
 
     const students = await this.prisma.student.findMany({
-      where: { classSectionId },
+      where: { classSectionId, status: 'ACTIVE' },
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     const studentIds = students.map((s) => s.id);
@@ -628,7 +659,7 @@ export class AnalyticsService {
     // Class average for comparison
     const classmateIds = (
       await this.prisma.student.findMany({
-        where: { classSectionId: student.classSectionId },
+        where: { classSectionId: student.classSectionId, status: 'ACTIVE' },
         select: { id: true },
       })
     ).map((s) => s.id);

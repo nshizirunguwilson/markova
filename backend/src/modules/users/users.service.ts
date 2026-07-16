@@ -24,6 +24,7 @@ export class UsersService {
       search,
       isActive,
       classSectionId,
+      studentStatus,
     } = query;
     const skip = (page - 1) * limit;
 
@@ -41,8 +42,11 @@ export class UsersService {
       ];
     }
 
-    if (classSectionId) {
-      where.student = { classSectionId };
+    if (classSectionId || studentStatus) {
+      where.student = {
+        ...(classSectionId && { classSectionId }),
+        ...(studentStatus && { status: studentStatus as any }),
+      };
     }
 
     const [data, total] = await Promise.all([
