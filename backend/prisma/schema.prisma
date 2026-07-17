@@ -139,6 +139,10 @@ model User {
   // NIDA 16-digit national identification number (stored without spaces).
   nationalId          String?  @unique @map("national_id")
   nationality         String?
+  // For staff and parents. Students carry theirs on Student, which stays
+  // the single source of truth for student demographics.
+  gender              Gender?
+  dateOfBirth         DateTime? @map("date_of_birth")
   passwordHash        String?  @map("password_hash")
   role                Role
   firstName           String   @map("first_name")

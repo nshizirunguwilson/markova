@@ -355,6 +355,12 @@ export class UsersService {
           code: await this.generateUserCode(dto.role, tx),
           nationalId: dto.nationalId || null,
           nationality: dto.nationality || null,
+          // Student demographics live on the Student record; everyone else
+          // carries them here.
+          ...(dto.role !== Role.STUDENT && {
+            gender: dto.gender || null,
+            dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+          }),
           passwordHash,
           role: dto.role,
           firstName: dto.firstName,
@@ -460,6 +466,14 @@ export class UsersService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         ...(dto.nationalId !== undefined && { nationalId: dto.nationalId }),
         ...(dto.nationality !== undefined && { nationality: dto.nationality }),
+        ...(!user.student &&
+          dto.gender && {
+            gender: dto.gender,
+          }),
+        ...(!user.student &&
+          dto.dateOfBirth && {
+            dateOfBirth: new Date(dto.dateOfBirth),
+          }),
       },
     });
 

@@ -370,6 +370,8 @@ export function AddUserWizard({
       put("medicalConditions", data.medicalConditions);
     }
     if (data.role === "TEACHER") {
+      put("gender", data.gender);
+      put("dateOfBirth", data.dateOfBirth);
       put("employmentStatus", data.employmentStatus);
       put("qualification", data.qualification);
       put("rssbNumber", data.rssbNumber);
@@ -698,6 +700,16 @@ export function AddUserWizard({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input id="hireDate" label="Hire Date" type="date" {...register("hireDate")} />
               <Input id="rssbNumber" label="RSSB Number" placeholder="Optional" {...register("rssbNumber")} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Gender">
+                <select {...register("gender")} className={selectCls}>
+                  <option value="">Select...</option>
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                </select>
+              </Field>
+              <Input id="dateOfBirth" label="Date of Birth" type="date" {...register("dateOfBirth")} />
             </div>
             <NationalIdInput
               value={nationalId}
