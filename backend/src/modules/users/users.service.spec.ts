@@ -123,6 +123,7 @@ describe('UsersService', () => {
     it('links a parent to children with per-child relationships', async () => {
       mockPrisma.user.findUnique
         .mockResolvedValueOnce(null) // email uniqueness
+        .mockResolvedValueOnce(null) // phone uniqueness
         .mockResolvedValue({ id: 'p1', role: 'PARENT' }); // findOne()
       mockPrisma.user.create.mockResolvedValue({ id: 'p1' });
       mockPrisma.parentStudent.create.mockResolvedValue({});
