@@ -25,13 +25,48 @@ import {
   PageSpinner,
 } from "@/components/ui";
 import { useUser, useUpdateUser } from "@/hooks/use-users";
+import { NationalIdInput } from "@/components/ui/national-id-input";
+import { formatNid, validateNid } from "@/lib/person-form";
+
+const selectCls =
+  "w-full rounded-lg border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
 
 const schema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
+  phone: z
+    .string()
+    .regex(/^\+250(78|79|72|73)\d{7}$/, "Use +250 then 78/79/72/73 and 7 digits")
+    .optional()
+    .or(z.literal("")),
   isActive: z.boolean().optional(),
+  nationalId: z.string().optional().or(z.literal("")),
+  nationality: z.string().optional().or(z.literal("")),
+  gender: z.enum(["MALE", "FEMALE"]).optional().or(z.literal("")),
+  dateOfBirth: z.string().optional().or(z.literal("")),
+  province: z.string().optional().or(z.literal("")),
+  district: z.string().optional().or(z.literal("")),
+  sector: z.string().optional().or(z.literal("")),
+  cell: z.string().optional().or(z.literal("")),
+  village: z.string().optional().or(z.literal("")),
+  disability: z.string().optional().or(z.literal("")),
+  religion: z.string().optional().or(z.literal("")),
+  insuranceNumber: z.string().optional().or(z.literal("")),
+  fatherName: z.string().optional().or(z.literal("")),
+  motherName: z.string().optional().or(z.literal("")),
+  bloodType: z.string().optional().or(z.literal("")),
+  allergies: z.string().optional().or(z.literal("")),
+  medicalConditions: z.string().optional().or(z.literal("")),
+  previousSchool: z.string().optional().or(z.literal("")),
+  boarding: z.enum(["DAY", "BOARDER"]).optional().or(z.literal("")),
+  employmentStatus: z
+    .enum(["FULL_TIME", "PART_TIME", "CONTRACT"])
+    .optional()
+    .or(z.literal("")),
+  qualification: z.enum(["A0", "A1", "A2"]).optional().or(z.literal("")),
+  rssbNumber: z.string().optional().or(z.literal("")),
+  hireDate: z.string().optional().or(z.literal("")),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -47,6 +82,8 @@ export default function UserDetailPage() {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
     reset,
   } = useForm<FormData>({
@@ -58,19 +95,72 @@ export default function UserDetailPage() {
           email: user.email || "",
           phone: user.phone || "",
           isActive: user.isActive,
+          nationalId: user.nationalId || "",
+          nationality: user.nationality || "",
+          gender: user.student?.gender || user.gender || "",
+          dateOfBirth: (user.student?.dateOfBirth || user.dateOfBirth || "").slice(0, 10),
+          province: user.student?.province || "",
+          district: user.student?.district || "",
+          sector: user.student?.sector || "",
+          cell: user.student?.cell || "",
+          village: user.student?.village || "",
+          disability: user.student?.disability || "",
+          religion: user.student?.religion || "",
+          insuranceNumber: user.student?.insuranceNumber || "",
+          fatherName: user.student?.fatherName || "",
+          motherName: user.student?.motherName || "",
+          bloodType: user.student?.bloodType || "",
+          allergies: user.student?.allergies || "",
+          medicalConditions: user.student?.medicalConditions || "",
+          previousSchool: user.student?.previousSchool || "",
+          boarding: user.student ? (user.student.isBoarder ? "BOARDER" : "DAY") : "",
+          employmentStatus: user.teacher?.employmentStatus || "",
+          qualification: user.teacher?.qualification || "",
+          rssbNumber: user.teacher?.rssbNumber || "",
+          hireDate: (user.teacher?.hireDate || "").slice(0, 10),
         }
       : undefined,
   });
+  const nid = watch("nationalId") || "";
 
   const onSubmit = async (data: FormData) => {
+    // Empty strings stay untouched rather than wiping stored values.
+    const opt = (v?: string) => (v ? v : undefined);
     await updateUser.mutateAsync({
       id,
       data: {
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email || undefined,
-        phone: data.phone || undefined,
+        email: opt(data.email),
+        phone: opt(data.phone),
         isActive: data.isActive,
+        nationalId: opt(data.nationalId),
+        nationality: opt(data.nationality),
+        gender: opt(data.gender),
+        dateOfBirth: opt(data.dateOfBirth),
+        ...(user?.student && {
+          province: opt(data.province),
+          district: opt(data.district),
+          sector: opt(data.sector),
+          cell: opt(data.cell),
+          village: opt(data.village),
+          disability: opt(data.disability),
+          religion: opt(data.religion),
+          insuranceNumber: opt(data.insuranceNumber),
+          fatherName: opt(data.fatherName),
+          motherName: opt(data.motherName),
+          bloodType: opt(data.bloodType),
+          allergies: opt(data.allergies),
+          medicalConditions: opt(data.medicalConditions),
+          previousSchool: opt(data.previousSchool),
+          isBoarder: data.boarding ? data.boarding === "BOARDER" : undefined,
+        }),
+        ...(user?.teacher && {
+          employmentStatus: opt(data.employmentStatus),
+          qualification: opt(data.qualification),
+          rssbNumber: opt(data.rssbNumber),
+          hireDate: opt(data.hireDate),
+        }),
       },
     });
     setEditing(false);
@@ -177,6 +267,34 @@ export default function UserDetailPage() {
                     error={errors.phone?.message}
                     {...register("phone")}
                   />
+                  <NationalIdInput
+                    value={nid}
+                    onChange={(d) => setValue("nationalId", d)}
+                    error={validateNid(nid)}
+                  />
+                  <Input
+                    id="nationality"
+                    label="Nationality"
+                    {...register("nationality")}
+                  />
+                  {!user.student && (
+                    <>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-foreground">Gender</label>
+                        <select {...register("gender")} className={selectCls}>
+                          <option value="">Select...</option>
+                          <option value="MALE">Male</option>
+                          <option value="FEMALE">Female</option>
+                        </select>
+                      </div>
+                      <Input
+                        id="dateOfBirth"
+                        label="Date of Birth"
+                        type="date"
+                        {...register("dateOfBirth")}
+                      />
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -192,9 +310,26 @@ export default function UserDetailPage() {
                   />
                   <InfoField
                     icon={Shield}
-                    label="Role"
-                    value={user.role}
+                    label="National ID"
+                    value={user.nationalId ? formatNid(user.nationalId) : "—"}
                   />
+                  <InfoField
+                    label="Nationality"
+                    value={user.nationality || "—"}
+                  />
+                  {!user.student && (
+                    <>
+                      <InfoField label="Gender" value={user.gender || "—"} />
+                      <InfoField
+                        label="Date of Birth"
+                        value={
+                          user.dateOfBirth
+                            ? new Date(user.dateOfBirth).toLocaleDateString()
+                            : "—"
+                        }
+                      />
+                    </>
+                  )}
                   <InfoField
                     icon={Calendar}
                     label="Joined"
@@ -242,6 +377,90 @@ export default function UserDetailPage() {
                       : "—"
                   }
                 />
+                <InfoField
+                  label="Enrolled"
+                  value={
+                    user.student.enrollmentDate
+                      ? new Date(user.student.enrollmentDate).toLocaleDateString()
+                      : "—"
+                  }
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Residence & family — the SDMS side of the record */}
+          {user.student && (
+            <Card>
+              <CardTitle>Residence, Family & Health</CardTitle>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {editing ? (
+                  <>
+                    <Input id="province" label="Province" {...register("province")} />
+                    <Input id="district" label="District" {...register("district")} />
+                    <Input id="sector" label="Sector" {...register("sector")} />
+                    <Input id="cell" label="Cell" {...register("cell")} />
+                    <Input id="village" label="Village" {...register("village")} />
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Boarding</label>
+                      <select {...register("boarding")} className={selectCls}>
+                        <option value="DAY">Day student</option>
+                        <option value="BOARDER">Boarder</option>
+                      </select>
+                    </div>
+                    <Input id="fatherName" label="Father's Names" {...register("fatherName")} />
+                    <Input id="motherName" label="Mother's Names" {...register("motherName")} />
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Disability</label>
+                      <select {...register("disability")} className={selectCls}>
+                        <option value="">None</option>
+                        <option value="Visual impairment">Visual impairment</option>
+                        <option value="Hearing impairment">Hearing impairment</option>
+                        <option value="Physical disability">Physical disability</option>
+                        <option value="Learning difficulty">Learning difficulty</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <Input id="religion" label="Religion" {...register("religion")} />
+                    <Input id="insuranceNumber" label="Insurance (Mutuelle) No" {...register("insuranceNumber")} />
+                    <Input id="previousSchool" label="Previous School" {...register("previousSchool")} />
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Blood Type</label>
+                      <select {...register("bloodType")} className={selectCls}>
+                        <option value="">Unknown</option>
+                        {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((b) => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input id="allergies" label="Allergies" {...register("allergies")} />
+                    <Input id="medicalConditions" label="Medical Conditions" {...register("medicalConditions")} />
+                  </>
+                ) : (
+                  <>
+                    <InfoField
+                      label="Residence"
+                      value={
+                        [user.student.province, user.student.district, user.student.sector, user.student.cell, user.student.village]
+                          .filter(Boolean)
+                          .join(" · ") || "—"
+                      }
+                    />
+                    <InfoField
+                      label="Boarding"
+                      value={user.student.isBoarder ? "Boarder" : "Day student"}
+                    />
+                    <InfoField label="Father" value={user.student.fatherName || "—"} />
+                    <InfoField label="Mother" value={user.student.motherName || "—"} />
+                    <InfoField label="Disability" value={user.student.disability || "None"} />
+                    <InfoField label="Religion" value={user.student.religion || "—"} />
+                    <InfoField label="Insurance (Mutuelle)" value={user.student.insuranceNumber || "—"} />
+                    <InfoField label="Previous School" value={user.student.previousSchool || "—"} />
+                    <InfoField label="Blood Type" value={user.student.bloodType || "—"} />
+                    <InfoField label="Allergies" value={user.student.allergies || "None"} />
+                    <InfoField label="Medical Conditions" value={user.student.medicalConditions || "None"} />
+                  </>
+                )}
               </div>
             </Card>
           )}
@@ -250,11 +469,53 @@ export default function UserDetailPage() {
           {user.teacher && (
             <Card>
               <CardTitle>Teacher Details</CardTitle>
-              <div className="mt-4 space-y-3">
-                <InfoField
-                  label="Employment"
-                  value={user.teacher.employmentStatus}
-                />
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {editing ? (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Employment</label>
+                      <select {...register("employmentStatus")} className={selectCls}>
+                        <option value="FULL_TIME">Full Time</option>
+                        <option value="PART_TIME">Part Time</option>
+                        <option value="CONTRACT">Contract</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">Qualification</label>
+                      <select {...register("qualification")} className={selectCls}>
+                        <option value="">Select...</option>
+                        <option value="A0">A0 — Bachelor&apos;s degree</option>
+                        <option value="A1">A1 — Diploma</option>
+                        <option value="A2">A2 — Secondary certificate</option>
+                      </select>
+                    </div>
+                    <Input id="rssbNumber" label="RSSB Number" {...register("rssbNumber")} />
+                    <Input id="hireDate" label="Hire Date" type="date" {...register("hireDate")} />
+                  </>
+                ) : (
+                  <>
+                    <InfoField
+                      label="Employment"
+                      value={user.teacher.employmentStatus}
+                    />
+                    <InfoField
+                      label="Qualification"
+                      value={user.teacher.qualification || "—"}
+                    />
+                    <InfoField
+                      label="RSSB Number"
+                      value={user.teacher.rssbNumber || "—"}
+                    />
+                    <InfoField
+                      label="Hired"
+                      value={
+                        user.teacher.hireDate
+                          ? new Date(user.teacher.hireDate).toLocaleDateString()
+                          : "—"
+                      }
+                    />
+                  </>
+                )}
                 {user.teacher.roles?.length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-muted mb-1">
