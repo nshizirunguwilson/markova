@@ -16,6 +16,8 @@ import {
   SubjectScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import {
   computeSubjectTotal,
   countsTowardAggregate,
@@ -536,8 +538,10 @@ async function main() {
     { key: 'school_name', value: 'Markova Academy' },
     { key: 'school_motto', value: 'Excellence Through Knowledge' },
     { key: 'logo_url', value: '/uploads/logo.png' },
-    { key: 'stamp_url', value: '/uploads/stamp.png' },
-    { key: 'signature_url', value: '/uploads/signature.png' },
+    // No stamp or signature images ship with the demo; empty means the
+    // school has not uploaded them yet, so nothing requests missing files.
+    { key: 'stamp_url', value: '' },
+    { key: 'signature_url', value: '' },
     { key: 'primary_color', value: '#1B4F72' },
     { key: 'starting_discipline_points', value: '100' },
     { key: 'borrowing_limit', value: '3' },
@@ -548,6 +552,14 @@ async function main() {
     { key: 'school_email', value: 'info@markova.edu' },
     { key: 'email_provider', value: 'smtp' },
   ];
+  // logo_url must point at a real file: copy the bundled mark into uploads.
+  const uploadsDir = join(process.cwd(), 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+  const logoSrc = join(process.cwd(), 'assets', 'logo-horizontal.png');
+  if (existsSync(logoSrc)) {
+    copyFileSync(logoSrc, join(uploadsDir, 'logo.png'));
+  }
+
   for (const config of configs) {
     await prisma.schoolConfig.upsert({
       where: { key: config.key },
