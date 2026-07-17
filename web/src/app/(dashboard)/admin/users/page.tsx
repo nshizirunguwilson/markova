@@ -28,7 +28,7 @@ import {
   Modal,
 } from "@/components/ui";
 import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
-import { AddUserModal } from "./add-user-modal";
+import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
 
 type SortField = "name" | "role" | "status" | "lastLogin";
@@ -406,10 +406,7 @@ export default function UsersPage() {
       )}
 
       {/* Add User Modal */}
-      <AddUserModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-      />
+      <AddUserWizard isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Bulk Import Modal */}
       <BulkImportModal
