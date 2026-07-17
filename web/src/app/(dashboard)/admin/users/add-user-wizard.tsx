@@ -98,6 +98,13 @@ const schema = z
         message: "Parents log in by phone, so a phone number is required",
       });
     }
+    if (["TEACHER", "ADMIN", "LIBRARIAN"].includes(v.role) && !v.email) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Staff log in with email, so an email address is required",
+      });
+    }
     const nidError = validateNid(
       v.nationalId || "",
       (v.gender || "") as "MALE" | "FEMALE" | "",
@@ -456,7 +463,15 @@ export function AddUserWizard({
                   <div className="flex-1">
                     <Input
                       id="email"
-                      label={role === "PARENT" ? "Email (optional)" : "Email"}
+                      label={
+                        role === "PARENT" ? (
+                          "Email (optional)"
+                        ) : role === "STUDENT" ? (
+                          "Email"
+                        ) : (
+                          <>Email <span className="text-red-500">*</span></>
+                        )
+                      }
                       type="email"
                       placeholder="name@markova.edu"
                       error={errors.email?.message}

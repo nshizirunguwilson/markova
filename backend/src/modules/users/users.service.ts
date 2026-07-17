@@ -280,7 +280,19 @@ export class UsersService {
   // ─── CREATE USER ────────────────────────────────────────────────────────────
 
   async create(dto: CreateUserDto) {
-    // Without at least one contact the account has no login identifier.
+    // Login identifiers are role-shaped: staff sign in with email, parents
+    // with their phone, students with either.
+    const emailRoles: Role[] = [Role.TEACHER, Role.ADMIN, Role.LIBRARIAN];
+    if (emailRoles.includes(dto.role) && !dto.email) {
+      throw new BadRequestException(
+        'Staff accounts log in with email, so an email address is required',
+      );
+    }
+    if (dto.role === Role.PARENT && !dto.phone) {
+      throw new BadRequestException(
+        'Parents log in by phone, so a phone number is required',
+      );
+    }
     if (!dto.email && !dto.phone) {
       throw new BadRequestException(
         'Provide an email or a phone number so the user can log in',

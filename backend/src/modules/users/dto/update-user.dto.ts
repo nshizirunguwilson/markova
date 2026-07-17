@@ -27,7 +27,10 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @Matches(/^\+250(78|79|72|73)\d{7}$/, {
+    message:
+      'Phone must be a real Rwandan mobile: +250 then 78, 79, 72 or 73 and 7 digits',
+  })
   phone?: string;
 
   @ApiPropertyOptional()
