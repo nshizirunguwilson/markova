@@ -187,7 +187,21 @@ export class UsersService {
             select: {
               id: true,
               employmentStatus: true,
+              qualification: true,
               roles: true,
+              // The teachers page lists what each teacher teaches; without
+              // this include every row read "No assignments".
+              teacherSubjectClasses: {
+                include: {
+                  subject: { select: { name: true } },
+                  classSection: {
+                    include: {
+                      classLevel: { select: { name: true } },
+                      trade: { select: { code: true } },
+                    },
+                  },
+                },
+              },
             },
           },
         },
