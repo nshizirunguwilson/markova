@@ -19,7 +19,9 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
+      # @nestjs/schedule@4 predates Nest 11's peer ranges; the project installs
+      # with legacy peer resolution locally, so CI must match.
+      - run: npm ci --legacy-peer-deps
       - run: npx prisma generate
       - run: npx tsc --noEmit -p tsconfig.json
       - run: npx jest --silent
