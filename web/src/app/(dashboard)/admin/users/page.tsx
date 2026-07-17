@@ -50,6 +50,7 @@ export default function UsersPage() {
     limit: 20,
   });
   const [searchInput, setSearchInput] = useState("");
+  const [searchIn, setSearchIn] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -97,6 +98,15 @@ export default function UsersPage() {
   const handleSearch = () => {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
+
+  // Scope changes re-run the current query against the chosen field group.
+  useEffect(() => {
+    setFilters((f) => ({
+      ...f,
+      searchIn: searchIn === "all" ? undefined : searchIn,
+      page: 1,
+    }));
+  }, [searchIn]);
 
   // Auto-search: debounce typing into the query (no button needed)
   useEffect(() => {
@@ -162,6 +172,42 @@ export default function UsersPage() {
               className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
+
+          {/* Search scope */}
+          <select
+            aria-label="Search in"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={searchIn}
+            onChange={(e) => setSearchIn(e.target.value)}
+          >
+            <option value="all">Everything</option>
+            <option value="name">Name</option>
+            <option value="class">Class</option>
+            <option value="email">Email</option>
+            <option value="phone">Phone</option>
+            <option value="code">Code</option>
+            <option value="role">Role</option>
+            <option value="status">Status</option>
+          </select>
+
+          {/* Account status */}
+          <select
+            aria-label="Account status"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={filters.isActive === undefined ? "" : String(filters.isActive)}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                isActive:
+                  e.target.value === "" ? undefined : e.target.value === "true",
+                page: 1,
+              }))
+            }
+          >
+            <option value="">Any status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
 
           {/* Role tabs */}
           <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
@@ -250,9 +296,9 @@ export default function UsersPage() {
                           <p className="font-medium">
                             {user.firstName} {user.lastName}
                           </p>
-                          {user.student?.studentIdNumber && (
+                          {(user.student?.studentIdNumber || user.code) && (
                             <p className="text-xs text-muted">
-                              {user.student.studentIdNumber}
+                              {user.student?.studentIdNumber || user.code}
                             </p>
                           )}
                         </div>

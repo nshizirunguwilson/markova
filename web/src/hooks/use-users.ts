@@ -12,6 +12,7 @@ export interface UserFilters {
   isActive?: boolean;
   classSectionId?: string;
   studentStatus?: string;
+  searchIn?: string;
 }
 
 export function useUsers(filters: UserFilters = {}) {
