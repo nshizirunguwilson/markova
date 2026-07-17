@@ -31,8 +31,6 @@ import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
 import { AddUserModal } from "./add-user-modal";
 import { BulkImportModal } from "./bulk-import-modal";
 
-const ROLES = ["ALL", "ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"];
-
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
 
@@ -120,14 +118,6 @@ export default function UsersPage() {
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  const handleRoleFilter = (role: string) => {
-    setFilters((f) => ({
-      ...f,
-      role: role === "ALL" ? undefined : role,
-      page: 1,
-    }));
-  };
-
   const handleDelete = async () => {
     if (deleteTarget) {
       await deleteMutation.mutateAsync(deleteTarget.id);
@@ -209,22 +199,26 @@ export default function UsersPage() {
             <option value="false">Inactive</option>
           </select>
 
-          {/* Role tabs */}
-          <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
-            {ROLES.map((role) => (
-              <button
-                key={role}
-                onClick={() => handleRoleFilter(role)}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  (filters.role || "ALL") === role
-                    ? "bg-primary text-white"
-                    : "text-muted hover:bg-accent-light"
-                }`}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
+          {/* User type */}
+          <select
+            aria-label="User type"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={filters.role || ""}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                role: e.target.value || undefined,
+                page: 1,
+              }))
+            }
+          >
+            <option value="">All types</option>
+            <option value="ADMIN">Admin</option>
+            <option value="TEACHER">Teacher</option>
+            <option value="STUDENT">Student</option>
+            <option value="PARENT">Parent</option>
+            <option value="LIBRARIAN">Librarian</option>
+          </select>
         </div>
       </Card>
 
