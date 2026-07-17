@@ -25,6 +25,7 @@ export class UsersService {
       isActive,
       classSectionId,
       studentStatus,
+      searchIn,
     } = query;
     const skip = (page - 1) * limit;
 
@@ -34,78 +35,110 @@ export class UsersService {
     if (isActive !== undefined) where.isActive = isActive;
 
     if (search) {
-      // Every word of the query must match something about the user, so
-      // "Ashley Cyuzuzo", "Level 5 AUT B", "graduated teacher" or a code
-      // fragment like 2026-1280 all resolve.
+      // Every word of the query must match something about the user. The
+      // optional searchIn scope pins matching to one field group, so "NIT"
+      // scoped to class never drags in Anitha by her name.
+      const scope = searchIn && searchIn !== 'all' ? searchIn : 'all';
+      const inScope = (f: string) => scope === 'all' || scope === f;
       const tokens = search.trim().split(/\s+/).filter(Boolean);
+
       where.AND = tokens.map((token) => {
         const upper = token.toUpperCase();
+        const single = token.length === 1;
+        const digit = /^\d$/.test(token);
+        const or: Prisma.UserWhereInput[] = [];
 
-        // Single characters get narrow meanings: a digit points at a year
-        // level or a code ("5" in "Level 5 AUT B"), a letter at a stream or
-        // an initial. Matching them inside every name would flood the list.
-        if (token.length === 1) {
-          if (/\d/.test(token)) {
-            // Every student code and phone contains most digits, so a lone
-            // digit can only sensibly mean the year level ("5" in Level 5).
-            return {
+        if (inScope('name') && !digit) {
+          // A lone letter is an initial; matching it inside every name
+          // would flood the list.
+          if (single) {
+            or.push(
+              { firstName: { startsWith: token, mode: 'insensitive' } },
+              { lastName: { startsWith: token, mode: 'insensitive' } },
+            );
+          } else {
+            or.push(
+              { firstName: { contains: token, mode: 'insensitive' } },
+              { lastName: { contains: token, mode: 'insensitive' } },
+            );
+          }
+        }
+
+        if (inScope('email') && !single) {
+          or.push({ email: { contains: token, mode: 'insensitive' } });
+        }
+        if (inScope('phone') && !single) {
+          or.push({ phone: { contains: token } });
+        }
+
+        if (inScope('code') && (!single || scope === 'code')) {
+          or.push(
+            {
+              student: {
+                studentIdNumber: { contains: token, mode: 'insensitive' },
+              },
+            },
+            { code: { contains: token, mode: 'insensitive' } },
+          );
+        }
+
+        if (inScope('class')) {
+          if (digit) {
+            // A lone digit points at the year level ("5" in Level 5).
+            or.push({
               student: {
                 classSection: { classLevel: { name: { contains: token } } },
               },
-            } satisfies Prisma.UserWhereInput;
-          }
-          return {
-            OR: [
-              { firstName: { startsWith: token, mode: 'insensitive' } },
-              { lastName: { startsWith: token, mode: 'insensitive' } },
-              {
-                student: {
-                  classSection: { name: { equals: token, mode: 'insensitive' } },
+            });
+          } else if (single) {
+            or.push({
+              student: {
+                classSection: { name: { equals: token, mode: 'insensitive' } },
+              },
+            });
+          } else {
+            or.push({
+              student: {
+                classSection: {
+                  OR: [
+                    {
+                      classLevel: {
+                        name: { contains: token, mode: 'insensitive' },
+                      },
+                    },
+                    {
+                      trade: { code: { contains: token, mode: 'insensitive' } },
+                    },
+                    {
+                      trade: { name: { contains: token, mode: 'insensitive' } },
+                    },
+                  ],
                 },
               },
-            ],
-          } satisfies Prisma.UserWhereInput;
+            });
+          }
         }
 
-        const or: Prisma.UserWhereInput[] = [
-          { firstName: { contains: token, mode: 'insensitive' } },
-          { lastName: { contains: token, mode: 'insensitive' } },
-          { email: { contains: token, mode: 'insensitive' } },
-          { phone: { contains: token } },
-          {
-            student: {
-              studentIdNumber: { contains: token, mode: 'insensitive' },
-            },
-          },
-          {
-            student: {
-              classSection: {
-                OR: [
-                  {
-                    classLevel: {
-                      name: { contains: token, mode: 'insensitive' },
-                    },
-                  },
-                  { trade: { code: { contains: token, mode: 'insensitive' } } },
-                  { trade: { name: { contains: token, mode: 'insensitive' } } },
-                ],
-              },
-            },
-          },
-        ];
-        const roleMatches = Object.values(Role).filter((r) =>
-          r.startsWith(upper),
-        );
-        if (roleMatches.length) or.push({ role: { in: roleMatches } });
-        if ('ACTIVE'.startsWith(upper)) or.push({ isActive: true });
-        if ('INACTIVE'.startsWith(upper)) or.push({ isActive: false });
-        const statusMatches = Object.values(StudentStatus).filter((st) =>
-          st.startsWith(upper),
-        );
-        if (statusMatches.length) {
-          or.push({ student: { status: { in: statusMatches } } });
+        if (inScope('role') && !single) {
+          const roleMatches = Object.values(Role).filter((r) =>
+            r.startsWith(upper),
+          );
+          if (roleMatches.length) or.push({ role: { in: roleMatches } });
         }
-        return { OR: or };
+
+        if (inScope('status') && !single) {
+          if ('ACTIVE'.startsWith(upper)) or.push({ isActive: true });
+          if ('INACTIVE'.startsWith(upper)) or.push({ isActive: false });
+          const statusMatches = Object.values(StudentStatus).filter((st) =>
+            st.startsWith(upper),
+          );
+          if (statusMatches.length) {
+            or.push({ student: { status: { in: statusMatches } } });
+          }
+        }
+
+        // A token no field can match must yield zero rows, not be ignored.
+        return or.length ? { OR: or } : { id: { equals: '__no_match__' } };
       });
     }
 
@@ -126,6 +159,7 @@ export class UsersService {
           id: true,
           email: true,
           phone: true,
+          code: true,
           role: true,
           firstName: true,
           lastName: true,
@@ -275,6 +309,7 @@ export class UsersService {
         data: {
           email: dto.email || null,
           phone: dto.phone || null,
+          code: await this.generateUserCode(dto.role, tx),
           passwordHash,
           role: dto.role,
           firstName: dto.firstName,
@@ -562,7 +597,7 @@ export class UsersService {
     client: PrismaService | Prisma.TransactionClient = this.prisma,
   ): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = `MKV-${year}-`;
+    const prefix = `STD-${year}-`;
 
     const lastStudent = await client.student.findFirst({
       where: { studentIdNumber: { startsWith: prefix } },
@@ -578,5 +613,34 @@ export class UsersService {
     }
 
     return `${prefix}${String(sequence).padStart(4, '0')}`;
+  }
+
+  // Role-based registration code for everyone who is not a student:
+  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001.
+  private async generateUserCode(
+    role: Role,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const prefixes: Partial<Record<Role, string>> = {
+      [Role.TEACHER]: 'TCH',
+      [Role.PARENT]: 'PAR',
+      [Role.LIBRARIAN]: 'LIB',
+      [Role.ADMIN]: 'ADM',
+    };
+    const rolePrefix = prefixes[role];
+    if (!rolePrefix) return null;
+
+    const year = new Date().getFullYear();
+    const prefix = `${rolePrefix}-${year}-`;
+    const digits = role === Role.PARENT ? 4 : 3;
+
+    const last = await client.user.findFirst({
+      where: { code: { startsWith: prefix } },
+      orderBy: { code: 'desc' },
+    });
+    const sequence = last
+      ? parseInt(last.code!.split('-').pop() || '0') + 1
+      : 1;
+    return `${prefix}${String(sequence).padStart(digits, '0')}`;
   }
 }

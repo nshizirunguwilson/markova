@@ -539,6 +539,7 @@ async function main() {
     data: {
       email: 'wilsonshizirungu@gmail.com',
       phone: '+250788000001',
+      code: `ADM-${new Date().getFullYear()}-001`,
       passwordHash,
       role: Role.ADMIN,
       firstName: 'Wilson',
@@ -595,6 +596,7 @@ async function main() {
       data: {
         email: td.email,
         phone: td.phone,
+        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
         passwordHash,
         role: Role.TEACHER,
         firstName: td.firstName,
@@ -620,6 +622,7 @@ async function main() {
     data: {
       email: 'librarian@markova.edu',
       phone: '+250788000020',
+      code: `LIB-${new Date().getFullYear()}-001`,
       passwordHash,
       role: Role.LIBRARIAN,
       firstName: 'Josiane',
@@ -1017,6 +1020,8 @@ async function main() {
           : Gender.FEMALE;
       const { first, last } = studentName(gender, classCounts, fam?.name);
       const journey = planJourney(meta);
+      const joinYear =
+        yr - 2 + Math.min(...journey.placements.map((p) => p.yearIdx));
 
       const user = await prisma.user.create({
         data: {
@@ -1034,7 +1039,7 @@ async function main() {
       const student = await prisma.student.create({
         data: {
           userId: user.id,
-          studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+          studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
           classSectionId: meta.section.id,
           dateOfBirth: new Date(
             `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
@@ -1074,6 +1079,7 @@ async function main() {
     const user = await prisma.user.create({
       data: {
         phone: `+250788${String(100000 + i).padStart(6, '0')}`,
+        code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
         // First 15 parents keep their phone-only login profile to match docs.
         email: i >= 15 ? emailFor(first, last) : null,
         passwordHash,
@@ -1177,6 +1183,8 @@ async function main() {
     const i = studentIdx++;
     const repeats = placements.filter((p) => p.failed).length;
     const yearsGone = 2 - lastYearIdx;
+    const joinYear =
+      yr - 2 + Math.min(...placements.map((p) => p.yearIdx));
     const age = 11 + last.level.order + rand(2) + repeats + yearsGone;
     const user = await prisma.user.create({
       data: {
@@ -1192,7 +1200,7 @@ async function main() {
     const student = await prisma.student.create({
       data: {
         userId: user.id,
-        studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+        studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
         classSectionId: last.section.id,
         dateOfBirth: new Date(
           `${yr - age}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,

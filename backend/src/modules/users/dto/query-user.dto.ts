@@ -35,4 +35,12 @@ export class QueryUserDto extends PaginationDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'])
   studentStatus?: string;
+
+  @ApiPropertyOptional({
+    enum: ['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'],
+    description: 'Restrict the search to one field group',
+  })
+  @IsOptional()
+  @IsIn(['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'])
+  searchIn?: string;
 }
