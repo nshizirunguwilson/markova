@@ -555,7 +555,9 @@ async function main() {
   // logo_url must point at a real file: copy the bundled mark into uploads.
   const uploadsDir = join(process.cwd(), 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
-  const logoSrc = join(process.cwd(), 'assets', 'logo-horizontal.png');
+  // The mark-only version: the UI prints the school name as text wherever
+  // it is needed, so the logo itself stays clean.
+  const logoSrc = join(process.cwd(), 'assets', 'logo-mark.png');
   if (existsSync(logoSrc)) {
     copyFileSync(logoSrc, join(uploadsDir, 'logo.png'));
   }
