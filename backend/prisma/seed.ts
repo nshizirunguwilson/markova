@@ -364,6 +364,32 @@ function emailFor(first: string, last: string): string {
   return candidate;
 }
 
+// Real Rwandan mobile numbers: MTN (078, 079) and Airtel (072, 073), random
+// subscriber digits, unique across the seed. Documented demo numbers are
+// reserved so they never collide.
+const usedPhones = new Set<string>([
+  '+250788000001',
+  '+250788000010',
+  '+250788000011',
+  '+250788000012',
+  '+250788000013',
+  '+250788000014',
+  '+250788000020',
+  '+250788100000',
+]);
+const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
+function realPhone(): string {
+  for (;;) {
+    let digits = '';
+    for (let i = 0; i < 7; i++) digits += rand(10);
+    const phone = `+250${sample(PHONE_PREFIXES)}${digits}`;
+    if (!usedPhones.has(phone)) {
+      usedPhones.add(phone);
+      return phone;
+    }
+  }
+}
+
 const usedFullNames = new Set<string>();
 const nameKey = (first: string, last: string) =>
   `${first} ${last}`.toLowerCase();
@@ -578,12 +604,11 @@ async function main() {
     if (!claimFullName(first, last)) continue;
     teacherComponents.add(first);
     teacherComponents.add(last);
-    const idx = generatedTeachers.length;
     generatedTeachers.push({
       firstName: first,
       lastName: last,
       email: emailFor(first, last),
-      phone: `+250788${String(100 + idx).padStart(6, '0')}`,
+      phone: realPhone(),
     });
   }
   const teacherData = [...fixedTeachers, ...generatedTeachers];
@@ -1078,7 +1103,7 @@ async function main() {
     });
     const user = await prisma.user.create({
       data: {
-        phone: `+250788${String(100000 + i).padStart(6, '0')}`,
+        phone: i === 0 ? '+250788100000' : realPhone(),
         code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
         // First 15 parents keep their phone-only login profile to match docs.
         email: i >= 15 ? emailFor(first, last) : null,

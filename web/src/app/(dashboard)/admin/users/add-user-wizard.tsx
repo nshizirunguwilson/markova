@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const PHONE_RE = /^\+2507\d{8}$/;
+// Real Rwandan mobiles: MTN 078/079, Airtel 072/073.
+const PHONE_RE = /^\+250(78|79|72|73)\d{7}$/;
 
 const schema = z
   .object({
@@ -34,7 +35,7 @@ const schema = z
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     phone: z
       .string()
-      .regex(PHONE_RE, "Use the format +2507XXXXXXXX")
+      .regex(PHONE_RE, "Use a real Rwandan mobile: +250 then 78/79/72/73 and 7 digits")
       .optional()
       .or(z.literal("")),
     password: z
