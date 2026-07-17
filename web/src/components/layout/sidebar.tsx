@@ -29,7 +29,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       )}
     >
       {/* Logo — the school's own uploaded logo when set, otherwise Markova's mark */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
+      <div className="flex h-16 items-center justify-center border-b border-border px-5">
         {/* The uploaded logo carries the school name itself, so it stands
             alone; BrandMark keeps the name as the image's alt text. */}
         <BrandMark className="h-9 w-auto max-w-full shrink-0" />
