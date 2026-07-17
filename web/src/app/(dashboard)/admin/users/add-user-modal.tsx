@@ -75,7 +75,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New User" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add New User" size="3xl">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
