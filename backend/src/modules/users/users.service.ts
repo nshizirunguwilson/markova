@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
@@ -607,12 +608,34 @@ export class UsersService {
       dateOfBirth?: string;
       relationship?: string;
       studentIds?: string[];
+      nationalId?: string;
+      nationality?: string;
+      province?: string;
+      district?: string;
+      sector?: string;
+      cell?: string;
+      village?: string;
+      fatherName?: string;
+      motherName?: string;
+      isBoarder?: string;
+      previousSchool?: string;
+      qualification?: string;
+      rssbNumber?: string;
+      hireDate?: string;
     }>,
   ) {
-    const passwordHash = await bcrypt.hash('Markova2025!', 10);
-
     return this.prisma.$transaction(async (tx) => {
-      const results = { created: 0, errors: [] as string[] };
+      const results = {
+        created: 0,
+        errors: [] as string[],
+        // Each user gets their own generated password, returned once so the
+        // admin can distribute them; first login forces a change.
+        credentials: [] as Array<{
+          name: string;
+          login: string;
+          password: string;
+        }>,
+      };
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -638,17 +661,30 @@ export class UsersService {
           }
         }
 
+        const password = this.generateTempPassword();
         const user = await tx.user.create({
           data: {
             email: row.email || null,
             phone: row.phone || null,
-            passwordHash,
+            code: await this.generateUserCode(row.role, tx),
+            nationalId: row.nationalId?.replace(/\s+/g, '') || null,
+            nationality: row.nationality || null,
+            ...(row.role !== Role.STUDENT && {
+              gender: (row.gender as any) || null,
+              dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : null,
+            }),
+            passwordHash: await bcrypt.hash(password, 10),
             role: row.role,
             firstName: row.firstName,
             lastName: row.lastName,
             isActive: true,
             forcePasswordChange: true,
           },
+        });
+        results.credentials.push({
+          name: `${row.firstName} ${row.lastName}`,
+          login: row.email || row.phone || '',
+          password,
         });
 
         if (row.role === Role.STUDENT) {
@@ -667,6 +703,15 @@ export class UsersService {
               gender: (row.gender as any) || null,
               status: 'ACTIVE',
               disciplinePoints: 100,
+              province: row.province || null,
+              district: row.district || null,
+              sector: row.sector || null,
+              cell: row.cell || null,
+              village: row.village || null,
+              fatherName: row.fatherName || null,
+              motherName: row.motherName || null,
+              isBoarder: String(row.isBoarder).toLowerCase() === 'true',
+              previousSchool: row.previousSchool || null,
             },
           });
         }
@@ -675,6 +720,9 @@ export class UsersService {
           await tx.teacher.create({
             data: {
               userId: user.id,
+              qualification: (row.qualification as any) || null,
+              rssbNumber: row.rssbNumber || null,
+              hireDate: row.hireDate ? new Date(row.hireDate) : null,
               employmentStatus: 'FULL_TIME',
               isActive: true,
             },
@@ -704,14 +752,34 @@ export class UsersService {
 
   getImportTemplate(role: Role): string {
     const headers: Record<string, string> = {
-      STUDENT: 'email,firstName,lastName,classSectionId,gender,dateOfBirth',
-      TEACHER: 'email,phone,firstName,lastName',
-      PARENT: 'phone,firstName,lastName,studentIds,relationship',
-      ADMIN: 'email,phone,firstName,lastName',
-      LIBRARIAN: 'email,phone,firstName,lastName',
+      STUDENT:
+        'email,firstName,lastName,classSectionId,gender,dateOfBirth,nationalId,nationality,province,district,sector,cell,village,fatherName,motherName,isBoarder,previousSchool',
+      TEACHER:
+        'email,phone,firstName,lastName,gender,dateOfBirth,nationalId,qualification,rssbNumber,hireDate',
+      PARENT: 'phone,firstName,lastName,nationalId,studentIds,relationship',
+      ADMIN: 'email,phone,firstName,lastName,nationalId',
+      LIBRARIAN: 'email,phone,firstName,lastName,nationalId',
     };
 
     return headers[role] || headers.STUDENT;
+  }
+
+  // Same policy shape as the wizard's generator: 10 chars with an upper, a
+  // lower, a digit and a symbol guaranteed.
+  private generateTempPassword(): string {
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    const digits = '23456789';
+    const symbols = '!@#$%&*';
+    const all = lower + upper + digits + symbols;
+    const pick = (pool: string) => pool[randomInt(pool.length)];
+    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
+    while (chars.length < 10) chars.push(pick(all));
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
   }
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────
