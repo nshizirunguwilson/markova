@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Role, Prisma, StudentStatus } from '@prisma/client';
+import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
 
@@ -280,6 +280,14 @@ export class UsersService {
   // ─── CREATE USER ────────────────────────────────────────────────────────────
 
   async create(dto: CreateUserDto) {
+    // Without at least one contact the account has no login identifier.
+    if (!dto.email && !dto.phone) {
+      throw new BadRequestException(
+        'Provide an email or a phone number so the user can log in',
+      );
+    }
+    this.validateNationalId(dto.nationalId, dto.gender, dto.dateOfBirth);
+
     // Check uniqueness
     if (dto.email) {
       const existing = await this.prisma.user.findUnique({
@@ -292,6 +300,15 @@ export class UsersService {
         where: { phone: dto.phone },
       });
       if (existing) throw new ConflictException('Phone already in use');
+    }
+
+    if (dto.nationalId) {
+      const existing = await this.prisma.user.findFirst({
+        where: { nationalId: dto.nationalId },
+      });
+      if (existing) {
+        throw new ConflictException('National ID already registered');
+      }
     }
 
     // Students need a section up front — fail before any write.
@@ -310,6 +327,8 @@ export class UsersService {
           email: dto.email || null,
           phone: dto.phone || null,
           code: await this.generateUserCode(dto.role, tx),
+          nationalId: dto.nationalId || null,
+          nationality: dto.nationality || null,
           passwordHash,
           role: dto.role,
           firstName: dto.firstName,
@@ -330,6 +349,24 @@ export class UsersService {
             gender: dto.gender || null,
             status: dto.status || 'ACTIVE',
             disciplinePoints: 100,
+            ...(dto.enrollmentDate && {
+              enrollmentDate: new Date(dto.enrollmentDate),
+            }),
+            bloodType: dto.bloodType || null,
+            allergies: dto.allergies || null,
+            medicalConditions: dto.medicalConditions || null,
+            previousSchool: dto.previousSchool || null,
+            province: dto.province || null,
+            district: dto.district || null,
+            sector: dto.sector || null,
+            cell: dto.cell || null,
+            village: dto.village || null,
+            disability: dto.disability || null,
+            fatherName: dto.fatherName || null,
+            motherName: dto.motherName || null,
+            insuranceNumber: dto.insuranceNumber || null,
+            isBoarder: dto.isBoarder ?? false,
+            religion: dto.religion || null,
           },
         });
       }
@@ -339,18 +376,30 @@ export class UsersService {
           data: {
             userId: created.id,
             employmentStatus: dto.employmentStatus || 'FULL_TIME',
+            qualification: dto.qualification || null,
+            rssbNumber: dto.rssbNumber || null,
+            hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
             isActive: true,
           },
         });
       }
 
-      if (dto.role === Role.PARENT && dto.studentIds?.length) {
-        for (const studentId of dto.studentIds) {
+      if (dto.role === Role.PARENT) {
+        // Preferred shape: children with their own relationship each. The
+        // legacy studentIds + single relationship stays for bulk import.
+        const links =
+          dto.children?.length
+            ? dto.children
+            : (dto.studentIds || []).map((studentId) => ({
+                studentId,
+                relationship: dto.relationship || 'Parent',
+              }));
+        for (const link of links) {
           await tx.parentStudent.create({
             data: {
               parentUserId: created.id,
-              studentId,
-              relationship: dto.relationship || 'Parent',
+              studentId: link.studentId,
+              relationship: link.relationship,
             },
           });
         }
@@ -383,6 +432,8 @@ export class UsersService {
         ...(dto.firstName !== undefined && { firstName: dto.firstName }),
         ...(dto.lastName !== undefined && { lastName: dto.lastName }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.nationalId !== undefined && { nationalId: dto.nationalId }),
+        ...(dto.nationality !== undefined && { nationality: dto.nationality }),
       },
     });
 
@@ -400,15 +451,47 @@ export class UsersService {
           ...(dto.medicalConditions !== undefined && {
             medicalConditions: dto.medicalConditions,
           }),
+          ...(dto.previousSchool !== undefined && {
+            previousSchool: dto.previousSchool,
+          }),
+          ...(dto.enrollmentDate && {
+            enrollmentDate: new Date(dto.enrollmentDate),
+          }),
+          ...(dto.province !== undefined && { province: dto.province }),
+          ...(dto.district !== undefined && { district: dto.district }),
+          ...(dto.sector !== undefined && { sector: dto.sector }),
+          ...(dto.cell !== undefined && { cell: dto.cell }),
+          ...(dto.village !== undefined && { village: dto.village }),
+          ...(dto.disability !== undefined && { disability: dto.disability }),
+          ...(dto.fatherName !== undefined && { fatherName: dto.fatherName }),
+          ...(dto.motherName !== undefined && { motherName: dto.motherName }),
+          ...(dto.insuranceNumber !== undefined && {
+            insuranceNumber: dto.insuranceNumber,
+          }),
+          ...(dto.isBoarder !== undefined && { isBoarder: dto.isBoarder }),
+          ...(dto.religion !== undefined && { religion: dto.religion }),
         },
       });
     }
 
     // Update teacher-specific fields
-    if (user.teacher && dto.employmentStatus) {
+    if (
+      user.teacher &&
+      (dto.employmentStatus ||
+        dto.qualification ||
+        dto.rssbNumber !== undefined ||
+        dto.hireDate)
+    ) {
       await this.prisma.teacher.update({
         where: { id: user.teacher.id },
-        data: { employmentStatus: dto.employmentStatus },
+        data: {
+          ...(dto.employmentStatus && {
+            employmentStatus: dto.employmentStatus,
+          }),
+          ...(dto.qualification && { qualification: dto.qualification }),
+          ...(dto.rssbNumber !== undefined && { rssbNumber: dto.rssbNumber }),
+          ...(dto.hireDate && { hireDate: new Date(dto.hireDate) }),
+        },
       });
     }
 
@@ -592,6 +675,42 @@ export class UsersService {
   }
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────
+
+  // NIDA semantic checks beyond the regex: plausible birth year, and the
+  // gender digit / birth year must agree with the profile when provided.
+  private validateNationalId(
+    nationalId?: string,
+    gender?: Gender | null,
+    dateOfBirth?: string | null,
+  ) {
+    if (!nationalId) return;
+    const year = parseInt(nationalId.slice(1, 5));
+    const currentYear = new Date().getFullYear();
+    if (year < 1900 || year > currentYear) {
+      throw new BadRequestException(
+        `National ID carries an impossible birth year (${year})`,
+      );
+    }
+    const genderDigit = nationalId[5];
+    if (gender === 'MALE' && genderDigit !== '8') {
+      throw new BadRequestException(
+        'National ID gender digit does not match: male IDs carry 8',
+      );
+    }
+    if (gender === 'FEMALE' && genderDigit !== '7') {
+      throw new BadRequestException(
+        'National ID gender digit does not match: female IDs carry 7',
+      );
+    }
+    if (dateOfBirth) {
+      const dobYear = new Date(dateOfBirth).getFullYear();
+      if (!Number.isNaN(dobYear) && dobYear !== year) {
+        throw new BadRequestException(
+          `National ID birth year (${year}) does not match the date of birth (${dobYear})`,
+        );
+      }
+    }
+  }
 
   private async generateStudentId(
     client: PrismaService | Prisma.TransactionClient = this.prisma,

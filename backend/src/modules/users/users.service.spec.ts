@@ -78,6 +78,53 @@ describe('UsersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('rejects a user with neither email nor phone', async () => {
+      await expect(
+        service.create({ ...baseDto, email: undefined } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a national ID whose gender digit contradicts the gender', async () => {
+      await expect(
+        service.create({
+          ...baseDto,
+          role: 'STUDENT' as any,
+          classSectionId: 'sec-1',
+          gender: 'FEMALE' as any,
+          nationalId: '1200880123456012', // gender digit 8 = male
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('links a parent to children with per-child relationships', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce(null) // email uniqueness
+        .mockResolvedValue({ id: 'p1', role: 'PARENT' }); // findOne()
+      mockPrisma.user.create.mockResolvedValue({ id: 'p1' });
+      mockPrisma.parentStudent.create.mockResolvedValue({});
+
+      await service.create({
+        ...baseDto,
+        role: 'PARENT' as any,
+        children: [
+          { studentId: 's1', relationship: 'Father' },
+          { studentId: 's2', relationship: 'Guardian' },
+        ],
+      } as any);
+
+      expect(mockPrisma.parentStudent.create).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.parentStudent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            studentId: 's2',
+            relationship: 'Guardian',
+          }),
+        }),
+      );
+    });
+
     it('M-3: wraps the user + role record creation in a single transaction', async () => {
       mockPrisma.user.findUnique
         .mockResolvedValueOnce(null) // email uniqueness check
