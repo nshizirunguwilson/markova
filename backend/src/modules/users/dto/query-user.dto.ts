@@ -19,7 +19,14 @@ export class QueryUserDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  // Read the raw query string: with enableImplicitConversion the pipe turns
+  // the string "false" into boolean true before a value-based transform runs.
+  @Transform(({ obj }) => {
+    const raw = obj.isActive;
+    if (raw === true || raw === 'true') return true;
+    if (raw === false || raw === 'false') return false;
+    return undefined;
+  })
   @IsBoolean()
   isActive?: boolean;
 
