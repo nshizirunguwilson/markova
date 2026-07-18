@@ -2417,42 +2417,144 @@ async function main() {
   }
   console.log(`  ✅ ${books.length} books + 20 active loans (3 overdue) seeded`);
 
-  // ─── HOMEWORK ───────────────────────────────────────────────────────────────
-  // One homework per subject for Senior 1 A so multiple appear on a student's
-  // dashboard.
-  const s1aSubjects = subjectsForSection(sectionMetas[0]);
-  const hwDueDate = new Date();
-  hwDueDate.setDate(hwDueDate.getDate() + 7);
-  for (let i = 0; i < Math.min(s1aSubjects.length, 8); i++) {
-    const hw = await prisma.homework.create({
-      data: {
-        teacherId: teacherOf(sectionMetas[0].section.id, s1aSubjects[i].id).id,
-        subjectId: s1aSubjects[i].id,
-        classSectionId: sectionMetas[0].section.id,
-        termId: currentTerm.id,
-        title: `${s1aSubjects[i].name} — Practice Set ${i + 1}`,
-        description: 'Complete the prescribed exercises and submit on time.',
-        dueDate: hwDueDate,
-        maxMarks: 20,
-        lateDeductionPerDay: 2,
-      },
-    });
-    // First 5 students in S1 A submit.
-    for (let s = 0; s < 5; s++) {
-      await prisma.homeworkSubmission.create({
-        data: {
-          homeworkId: hw.id,
-          studentId: students[s].id,
-          submittedAt: new Date(),
-          isLate: false,
-          marks: 12 + rand(8),
-          gradedAt: new Date(),
-          gradedByUserId: teacherUsers[i % teacherUsers.length].id,
-        },
-      });
+  // ─── HOMEWORK (every class, all year) ───────────────────────────────────────
+  // Each class collects 3-5 assignments per term across its own subjects,
+  // due on school days through the term, with one recent/upcoming one in the
+  // running term so dashboards stay alive. Most students submit, some late,
+  // chronic absentees least; anything past due is graded by its teacher.
+  const HW_GENERAL = [
+    {
+      t: (s: any) => `${s.name}: exercise set from Unit ${1 + rand(6)}`,
+      d: 'Answer all questions in your exercise book and show your working.',
+    },
+    {
+      t: (s: any) => `${s.name}: past paper practice`,
+      d: 'Attempt the paper under exam conditions; we mark together on the due day.',
+    },
+    {
+      t: (s: any) => `${s.name} research assignment`,
+      d: 'One page, handwritten. Cite at least two sources from the library.',
+    },
+    {
+      t: (s: any) => `${s.name}: revision worksheet`,
+      d: 'Complete the worksheet and bring questions on the hard items.',
+    },
+  ];
+  const HW_TRADE = [
+    {
+      t: (s: any) => `${s.name}: practical report`,
+      d: 'Write up the last lab session: objective, steps, result, what went wrong.',
+    },
+    {
+      t: (s: any) => `${s.name}: project milestone`,
+      d: 'Bring your project to the next checkpoint and be ready to demo it.',
+    },
+    {
+      t: (s: any) => `${s.name}: task write-up`,
+      d: 'Document the assigned task following the workshop template.',
+    },
+  ];
+  const studentsBySection = new Map<string, any[]>();
+  for (const e of enrolled) {
+    const list = studentsBySection.get(e.meta.section.id) ?? [];
+    list.push(e.student);
+    studentsBySection.set(e.meta.section.id, list);
+  }
+  const now = new Date();
+  const hwSubmissionRows: any[] = [];
+  let hwCount = 0;
+  for (const meta of sectionMetas) {
+    const classStudents = studentsBySection.get(meta.section.id) ?? [];
+    const subjects = subjectsForSection(meta);
+    for (const term of begunTerms) {
+      const dates = schoolDaysByTerm.get(term.id)!;
+      const n = 3 + rand(3);
+      for (let k = 0; k < n; k++) {
+        const subject = sample(subjects);
+        const isTrade = subject.scope === SubjectScope.A_SPECIFIC;
+        const isCurrent = term.id === currentTerm.id;
+        const due =
+          isCurrent && k === n - 1
+            ? addDays(today, rand(5) - 2) // one lands around today
+            : dates[
+                Math.min(
+                  dates.length - 1,
+                  10 + rand(Math.max(1, dates.length - 12)),
+                )
+              ];
+        const dueAt = new Date(
+          Date.UTC(
+            due.getUTCFullYear(),
+            due.getUTCMonth(),
+            due.getUTCDate(),
+            15,
+            0,
+          ),
+        );
+        const tpl = isTrade ? sample(HW_TRADE) : sample(HW_GENERAL);
+        const maxMarks = sample([10, 20, 20, 30]);
+        const hw = await prisma.homework.create({
+          data: {
+            teacherId: teacherOf(meta.section.id, subject.id).id,
+            subjectId: subject.id,
+            classSectionId: meta.section.id,
+            termId: term.id,
+            title: tpl.t(subject),
+            description: tpl.d,
+            dueDate: dueAt,
+            maxMarks,
+            lateDeductionPerDay: sample([0, 1, 2]),
+            createdAt: minDate(addDays(due, -(5 + rand(9))), today),
+          },
+        });
+        hwCount++;
+        const graded = dueAt < addDays(today, -1);
+        for (const st of classStudents) {
+          const prof = attProfileOf.get(st.id)!;
+          if (dueAt > now) {
+            if (!chance(0.35)) continue; // early birds only, so far
+          } else if (!chance(prof.chronic ? 0.55 : 0.86)) {
+            continue; // never handed in
+          }
+          const late = dueAt <= now && chance(prof.chronic ? 0.25 : 0.07);
+          const sd = late ? addDays(due, 1 + rand(3)) : addDays(due, -rand(3));
+          const submittedAt = minDate(
+            new Date(
+              Date.UTC(
+                sd.getUTCFullYear(),
+                sd.getUTCMonth(),
+                sd.getUTCDate(),
+                14 + rand(5),
+                rand(60),
+              ),
+            ),
+            now,
+          );
+          hwSubmissionRows.push({
+            homeworkId: hw.id,
+            studentId: st.id,
+            submittedAt,
+            isLate: late,
+            marks: graded
+              ? Math.round(maxMarks * (0.4 + Math.random() * 0.55) * 10) / 10
+              : null,
+            gradedAt: graded ? minDate(addDays(dueAt, 1 + rand(5)), now) : null,
+            gradedByUserId: graded
+              ? teacherUserOf(meta.section.id, subject.id).id
+              : null,
+          });
+        }
+      }
     }
   }
-  console.log('  ✅ Homework + sample submissions seeded');
+  for (let i = 0; i < hwSubmissionRows.length; i += 5000) {
+    await prisma.homeworkSubmission.createMany({
+      data: hwSubmissionRows.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${hwCount} homeworks + ${hwSubmissionRows.length} submissions seeded across every class`,
+  );
 
   // ─── MESSAGES ───────────────────────────────────────────────────────────────
   const conv1 = await prisma.conversation.create({
