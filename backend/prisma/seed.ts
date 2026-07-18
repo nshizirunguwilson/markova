@@ -586,18 +586,6 @@ const startOfToday = () => {
 };
 const addDays = (base: Date, days: number) => new Date(base.getTime() + days * MS_DAY);
 
-/** The most recent `count` weekdays (Mon–Fri), ending with today if it's a weekday. */
-function recentWeekdays(count: number): Date[] {
-  const out: Date[] = [];
-  const cursor = startOfToday();
-  while (out.length < count) {
-    const dow = cursor.getUTCDay();
-    if (dow !== 0 && dow !== 6) out.unshift(new Date(cursor));
-    cursor.setTime(cursor.getTime() - MS_DAY);
-  }
-  return out;
-}
-
 /**
  * Wipe every table (except the migration ledger) so the seed is fully
  * re-runnable. TRUNCATE … CASCADE clears child rows and resets identities in
@@ -1810,10 +1798,6 @@ async function main() {
   // Every student is graded in every subject of their class: CAT 1, CAT 2 and
   // End of Term Exam everywhere, plus Practical on trade-specific modules.
   const markRows: any[] = [];
-  const sectionIndexBySectionId = new Map(
-    sectionMetas.map((m, idx) => [m.section.id, idx]),
-  );
-
   // Every person (current and former) keeps one baseline ability and one
   // long-term drift anchored at the current year, so a child's line over up
   // to 9 terms tells a single story: improving, steady or slipping. A failed
@@ -2057,23 +2041,92 @@ async function main() {
     `  ✅ ${termResultRows.length} term results computed and seeded across 3 years`,
   );
 
-  // ─── ATTENDANCE (last 10 weekdays, incl. today) ─────────────────────────────
-  // Anchored to today so the attendance dashboard (which defaults to today)
-  // always has data to show.
-  const attendanceDates = recentWeekdays(10);
+  // ─── ATTENDANCE (every school day of the current year) ──────────────────────
+  // A register line for every enrolled student on every school day of the
+  // year so far, with per-student personalities: most attend solidly, some
+  // are late-prone, a few carry multi-day sick streaks and a small chronic
+  // tail skips often. Mondays run late-heavy, Fridays lose a few more, and
+  // every line is marked by the class teacher with a morning scan time.
+  const schoolDays: Date[] = [];
+  for (const term of terms) {
+    if (!termBegun(term)) continue;
+    const lastDay = minDate(term.endDate, today);
+    for (let d = new Date(term.startDate); d <= lastDay; d = addDays(d, 1)) {
+      const dow = d.getUTCDay();
+      if (dow !== 0 && dow !== 6) schoolDays.push(new Date(d));
+    }
+  }
+  type AttProfile = {
+    lateP: number;
+    absentP: number;
+    streakP: number;
+    chronic: boolean;
+  };
+  const attProfileOf = new Map<string, AttProfile>();
+  for (const { student } of enrolled) {
+    const r = Math.random();
+    attProfileOf.set(
+      student.id,
+      r < 0.84
+        ? { lateP: 0.015, absentP: 0.008, streakP: 0.001, chronic: false }
+        : r < 0.94
+          ? { lateP: 0.12, absentP: 0.015, streakP: 0.001, chronic: false }
+          : r < 0.98
+            ? { lateP: 0.02, absentP: 0.02, streakP: 0.012, chronic: false }
+            : { lateP: 0.07, absentP: 0.1, streakP: 0.004, chronic: true },
+    );
+  }
+  const pickReason = (chronic: boolean): AbsenceReason => {
+    const r = Math.random();
+    if (chronic) {
+      if (r < 0.4) return AbsenceReason.UNEXCUSED;
+      if (r < 0.7) return AbsenceReason.SICK;
+      if (r < 0.85) return AbsenceReason.FAMILY;
+      return AbsenceReason.PERMISSION;
+    }
+    if (r < 0.55) return AbsenceReason.SICK;
+    if (r < 0.75) return AbsenceReason.FAMILY;
+    if (r < 0.9) return AbsenceReason.PERMISSION;
+    return AbsenceReason.UNEXCUSED;
+  };
   const attRows: any[] = [];
-  for (const date of attendanceDates) {
-    for (const { student, meta } of enrolled) {
-      const si = sectionIndexBySectionId.get(meta.section.id)!;
-      const r = Math.random();
-      let status: AttendanceStatus;
+  const sickLeft = new Map<string, number>();
+  for (const { student, meta } of enrolled) {
+    const prof = attProfileOf.get(student.id)!;
+    const markerId = teacherUsers[classTeacherIdxOf.get(meta.section.id)!].id;
+    for (const date of schoolDays) {
+      const dow = date.getUTCDay();
+      let status: AttendanceStatus = AttendanceStatus.PRESENT;
       let reason: AbsenceReason | null = null;
-      if (r < 0.86) status = AttendanceStatus.PRESENT;
-      else if (r < 0.93) status = AttendanceStatus.LATE;
-      else {
+      const left = sickLeft.get(student.id) ?? 0;
+      if (left > 0) {
+        sickLeft.set(student.id, left - 1);
         status = AttendanceStatus.ABSENT;
         reason = AbsenceReason.SICK;
+      } else if (chance(prof.streakP)) {
+        sickLeft.set(student.id, 1 + rand(3)); // a 2-4 day sick run
+        status = AttendanceStatus.ABSENT;
+        reason = AbsenceReason.SICK;
+      } else if (chance(prof.absentP * (dow === 5 ? 1.3 : 1))) {
+        status = AttendanceStatus.ABSENT;
+        reason = pickReason(prof.chronic);
+      } else if (chance(prof.lateP * (dow === 1 ? 1.6 : 1))) {
+        status = AttendanceStatus.LATE;
       }
+      // Kigali mornings, stored in UTC (CAT = UTC+2): the gate scan lands
+      // 07:40-08:05 local, latecomers 08:05-08:45.
+      const scannedAt =
+        status === AttendanceStatus.ABSENT
+          ? null
+          : new Date(
+              Date.UTC(
+                date.getUTCFullYear(),
+                date.getUTCMonth(),
+                date.getUTCDate(),
+                status === AttendanceStatus.LATE ? 6 : 5,
+                status === AttendanceStatus.LATE ? 5 + rand(40) : 40 + rand(25),
+              ),
+            );
       attRows.push({
         studentId: student.id,
         classSectionId: meta.section.id,
@@ -2081,14 +2134,17 @@ async function main() {
         type: 'daily',
         status,
         reasonCategory: reason,
-        markedByUserId: teacherUsers[si % teacherUsers.length].id,
+        scannedAt,
+        markedByUserId: markerId,
       });
     }
   }
-  for (let i = 0; i < attRows.length; i += 5000) {
-    await prisma.attendance.createMany({ data: attRows.slice(i, i + 5000) });
+  for (let i = 0; i < attRows.length; i += 10000) {
+    await prisma.attendance.createMany({ data: attRows.slice(i, i + 10000) });
   }
-  console.log(`  ✅ ${attRows.length} attendance records seeded`);
+  console.log(
+    `  ✅ ${attRows.length} attendance lines across ${schoolDays.length} school days (year to date)`,
+  );
 
   // ─── DISCIPLINE INCIDENTS ───────────────────────────────────────────────────
   const incidentDescriptions = [
