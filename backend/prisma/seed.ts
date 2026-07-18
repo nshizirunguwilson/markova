@@ -1531,11 +1531,11 @@ async function main() {
     `  ✅ ${students.length} students seeded across ${sectionMetas.length} classes (${inheritedKids} carry a family lineage name)`,
   );
 
-  // ─── PARENTS (400) ──────────────────────────────────────────────────────────
+  // ─── PARENTS (family units) ─────────────────────────────────────────────────
   // Lineage families get a real father+mother pair (the line parent carries
-  // the family name). Everyone else draws from the generic pools, alternating
-  // genders so Father/Mother relationships always match the person.
-  const PARENT_COUNT = 400;
+  // the family name). Everyone else is grouped into family units so siblings
+  // share parents; shapes vary between two-parent, single-parent and
+  // guardian homes.
   const parentUsers: any[] = [];
   let parentPhoneIdx = 0;
 
@@ -1586,18 +1586,6 @@ async function main() {
     familyParents.set(fam.id, { father, mother });
   }
 
-  // Generic parents, alternating genders: even index male, odd female.
-  const genericFathers: any[] = [demoParent];
-  const genericMothers: any[] = [];
-  while (parentUsers.length < PARENT_COUNT) {
-    const gender =
-      genericFathers.length <= genericMothers.length
-        ? Gender.MALE
-        : Gender.FEMALE;
-    const u = await createParent(gender);
-    (gender === Gender.MALE ? genericFathers : genericMothers).push(u);
-  }
-
   // Link lineage kids to their real parents.
   const parentLinkRows: any[] = [];
   const linkedStudentIds = new Set<string>();
@@ -1618,34 +1606,86 @@ async function main() {
     }
   }
 
-  // Everyone else: 1-2 parents, cycling the generic pools.
-  let fCursor = 0;
-  let mCursor = 0;
-  for (let si = 0; si < students.length; si++) {
-    if (linkedStudentIds.has(students[si].id)) continue;
-    const father = genericFathers[fCursor++ % genericFathers.length];
-    const guardians: { father?: any; mother?: any } = { father };
-    parentLinkRows.push({
-      parentUserId: father.id,
-      studentId: students[si].id,
-      relationship: 'Father',
-    });
-    if (si % 4 !== 0) {
-      const mother = genericMothers[mCursor++ % genericMothers.length];
-      guardians.mother = mother;
-      parentLinkRows.push({
-        parentUserId: mother.id,
-        studentId: students[si].id,
-        relationship: 'Mother',
+  // Everyone else lives in a family unit: siblings share the same two
+  // parents; some homes are single-mother or single-father; a few children
+  // live with a guardian (an aunt, uncle or grandparent), whose link says
+  // so. Every guardian gets an account — whether they ever log in is a
+  // different question the activity layer answers.
+  const unlinked = students.filter((s) => !linkedStudentIds.has(s.id));
+  const kidsQueue = shuffled(unlinked);
+  // The demo parent's family first: student1 plus a sibling if available.
+  const demoKids = [
+    kidsQueue.find((s) => s.id === students[0].id) ?? kidsQueue[0],
+  ];
+  kidsQueue.splice(kidsQueue.indexOf(demoKids[0]), 1);
+  if (kidsQueue.length > 0 && chance(0.5)) demoKids.push(kidsQueue.pop()!);
+  const units: any[][] = [[...demoKids]];
+  while (kidsQueue.length > 0) {
+    const r = Math.random();
+    const size = r < 0.02 ? 3 : r < 0.16 ? 2 : 1;
+    units.push(kidsQueue.splice(0, Math.min(size, kidsQueue.length)));
+  }
+  let twoParent = 0;
+  let singleParent = 0;
+  let guardianHomes = 0;
+  for (let u = 0; u < units.length; u++) {
+    const kids = units[u];
+    const shape = u === 0 ? 0 : Math.random(); // the demo family has both parents
+    let father: any = null;
+    let mother: any = null;
+    if (shape < 0.78) {
+      father = u === 0 ? demoParent : await createParent(Gender.MALE);
+      mother = await createParent(Gender.FEMALE);
+      twoParent++;
+    } else if (shape < 0.93) {
+      mother = await createParent(Gender.FEMALE);
+      singleParent++;
+    } else if (shape < 0.97) {
+      father = await createParent(Gender.MALE);
+      singleParent++;
+    } else {
+      const guardian = await createParent(
+        chance(0.5) ? Gender.MALE : Gender.FEMALE,
+      );
+      guardianHomes++;
+      for (const kid of kids) {
+        parentLinkRows.push({
+          parentUserId: guardian.id,
+          studentId: kid.id,
+          relationship: 'Guardian',
+        });
+        guardianByStudent.set(kid.id, {});
+      }
+      continue;
+    }
+    for (const kid of kids) {
+      if (father) {
+        parentLinkRows.push({
+          parentUserId: father.id,
+          studentId: kid.id,
+          relationship: 'Father',
+        });
+      }
+      if (mother) {
+        parentLinkRows.push({
+          parentUserId: mother.id,
+          studentId: kid.id,
+          relationship: 'Mother',
+        });
+      }
+      guardianByStudent.set(kid.id, {
+        ...(father && { father }),
+        ...(mother && { mother }),
       });
     }
-    guardianByStudent.set(students[si].id, guardians);
   }
   await prisma.parentStudent.createMany({ data: parentLinkRows });
 
   // The guardian names printed on a student's record must match the linked
-  // parent accounts wherever those exist.
+  // parent accounts wherever those exist; a single-parent record carries
+  // only that parent's name.
   for (const [studentId, g] of guardianByStudent) {
+    if (!g.father && !g.mother) continue;
     await prisma.student.update({
       where: { id: studentId },
       data: {
@@ -1658,8 +1698,13 @@ async function main() {
       },
     });
   }
+  const siblingKids = units
+    .filter((k) => k.length > 1)
+    .reduce((s, k) => s + k.length, 0);
   console.log(
-    `  ✅ ${parentUsers.length} parents seeded (${familyParents.size} lineage families) and linked`,
+    `  ✅ ${parentUsers.length} parents in ${units.length + familyParents.size} families ` +
+      `(${twoParent} two-parent, ${singleParent} single-parent, ${guardianHomes} guardian homes, ` +
+      `${siblingKids} kids with an enrolled sibling)`,
   );
 
   // ─── FORMER STUDENTS (fill the two past years to real class sizes) ──────────
