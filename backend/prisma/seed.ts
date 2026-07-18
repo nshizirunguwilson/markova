@@ -1760,7 +1760,53 @@ async function main() {
     `  ✅ ${alumni.length} former students seeded (${graduatedCount} graduated, ${alumni.length - graduatedCount} transferred)`,
   );
 
-  // ─── MARKS (Term 1, full assessment structure) ──────────────────────────────
+  // ─── SUBJECT DIFFICULTY PROFILES ────────────────────────────────────────────
+  // Every subject examines with its own personality: a shift in percentage
+  // points against a student's personal ability, and a spread multiplier for
+  // how widely a class scatters on it. Mathematics and Physics genuinely
+  // examine hard; Kinyarwanda and Entrepreneurship score generously and
+  // tightly; hands-on trade modules cluster toward competence while a few
+  // named theory-heavy modules bite.
+  const SUBJECT_PROFILES: Record<string, { shift: number; spread?: number }> = {
+    Mathematics: { shift: -9, spread: 1.3 },
+    Physics: { shift: -7, spread: 1.25 },
+    Chemistry: { shift: -5, spread: 1.15 },
+    'Biology and Health Sciences': { shift: -3 },
+    'Geography and Environment': { shift: -1 },
+    'History and Citizenship': { shift: 1 },
+    English: { shift: -2 },
+    Kinyarwanda: { shift: 8, spread: 0.8 },
+    Kiswahili: { shift: 3 },
+    French: { shift: -4, spread: 1.2 },
+    ICT: { shift: 2 },
+    Entrepreneurship: { shift: 5, spread: 0.85 },
+    'English (Communication Skills)': { shift: -1 },
+    'Mathematics for Technology': { shift: -8, spread: 1.3 },
+    'Basic ICT': { shift: 3 },
+  };
+  const HARD_MODULES = new Set([
+    'Data Structure and Algorithm Fundamentals',
+    'Machine Learning Application',
+    'Machine Learning Fundamentals',
+    'Blockchain Fundamentals',
+    'Cyber Security',
+    'C Programming Fundamentals',
+    'Fiber Optics Network Deployment',
+    'Engine Diagnosis',
+    'Vehicle Electronics',
+  ]);
+  const profileFor = (subject: any): { shift: number; spread: number } => {
+    const q = SUBJECT_PROFILES[subject.name];
+    if (q) return { shift: q.shift, spread: q.spread ?? 1 };
+    if (subject.scope === SubjectScope.A_SPECIFIC) {
+      return HARD_MODULES.has(subject.name)
+        ? { shift: -6, spread: 1.2 }
+        : { shift: 4, spread: 0.85 };
+    }
+    return { shift: 0, spread: 1 };
+  };
+
+  // ─── MARKS (full assessment structure, per-subject personalities) ───────────
   // Every student is graded in every subject of their class: CAT 1, CAT 2 and
   // End of Term Exam everywhere, plus Practical on trade-specific modules.
   const markRows: any[] = [];
@@ -1799,7 +1845,12 @@ async function main() {
           const teacher = teacherOf(pl.meta.section.id, subject.id);
           const sKey = `${student.id}|${subject.id}`;
           if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
-          const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
+          const prof = profileFor(subject);
+          const perSubject = clamp(
+            ability + strength.get(sKey)! + prof.shift,
+            18,
+            96,
+          );
           const components =
             subject.scope === SubjectScope.A_SPECIFIC
               ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
@@ -1813,7 +1864,11 @@ async function main() {
                 : assessmentName === 'End of Term Exam'
                   ? -4
                   : 0;
-            const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
+            const score = clamp(
+              perSubject + bias + Math.round((rand(17) - 8) * prof.spread),
+              10,
+              98,
+            );
             markRows.push({
               studentId: student.id,
               subjectId: subject.id,
