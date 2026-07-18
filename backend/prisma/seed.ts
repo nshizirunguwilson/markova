@@ -1819,6 +1819,45 @@ async function main() {
   // to 9 terms tells a single story: improving, steady or slipping. A failed
   // (repeated) year dips ~8 points below their curve; per-subject strengths
   // persist across the years.
+  // When was each component sat? CAT 1 lands about a third into the term,
+  // CAT 2 near two thirds, practicals after them, the exam in the closing
+  // week. Marks are typed in within days of the paper (sometimes late), and
+  // a few current-term class components are still in the marking pile.
+  const componentFrac: Record<string, number> = {
+    'CAT 1': 0.32,
+    'CAT 2': 0.62,
+    Practical: 0.74,
+    'End of Term Exam': 0.94,
+  };
+  const weekdayOnOrAfter = (d: Date) => {
+    const out = new Date(d);
+    while (out.getUTCDay() === 0 || out.getUTCDay() === 6)
+      out.setTime(out.getTime() + MS_DAY);
+    return out;
+  };
+  const componentDate = (term: any, name: string) =>
+    weekdayOnOrAfter(
+      addDays(
+        term.startDate,
+        Math.round(
+          ((term.endDate.getTime() - term.startDate.getTime()) / MS_DAY) *
+            componentFrac[name],
+        ),
+      ),
+    );
+  const minDate = (a: Date, b: Date) => (a < b ? a : b);
+  const unreturned = new Set<string>();
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
+      if (!chance(0.03)) continue;
+      const pick =
+        subject.scope === SubjectScope.A_SPECIFIC && chance(0.5)
+          ? 'Practical'
+          : 'CAT 2';
+      unreturned.add(`${meta.section.id}|${subject.id}|${pick}`);
+    }
+  }
+
   const strength = new Map<string, number>(); // per student|subject
   const allPeople = [
     ...enrolled.map((e) => ({ student: e.student, placements: e.placements })),
@@ -1857,6 +1896,29 @@ async function main() {
               : ['CAT 1', 'CAT 2', 'End of Term Exam'];
 
           for (const assessmentName of components) {
+            const term = yearTerms[ti];
+            const isCurrentTerm = term.id === currentTerm.id;
+            const sat = componentDate(term, assessmentName);
+            if (sat > today) continue; // this component has not been sat yet
+            if (
+              isCurrentTerm &&
+              unreturned.has(
+                `${pl.meta.section.id}|${subject.id}|${assessmentName}`,
+              )
+            ) {
+              continue; // whole class still in the teacher's marking pile
+            }
+            // Individual gaps: a few current-term absences (more likely for
+            // struggling students), and rare permanent holes in closed
+            // registers. Totals renormalize exactly like the live API does.
+            const missP = isCurrentTerm
+              ? assessmentName === 'End of Term Exam'
+                ? 0.008
+                : 0.02 + (ability < 40 ? 0.02 : 0)
+              : assessmentName === 'End of Term Exam'
+                ? 0.002
+                : 0.005;
+            if (chance(missP)) continue;
             // Practicals trend a bit higher (hands-on), exams a bit lower.
             const bias =
               assessmentName === 'Practical'
@@ -1869,15 +1931,24 @@ async function main() {
               10,
               98,
             );
+            const entered = minDate(
+              addDays(sat, 1 + rand(4) + (chance(0.07) ? 4 + rand(8) : 0)),
+              today,
+            );
+            const updated = chance(0.04)
+              ? minDate(addDays(entered, 1 + rand(14)), today)
+              : entered;
             markRows.push({
               studentId: student.id,
               subjectId: subject.id,
               classSectionId: pl.meta.section.id,
-              termId: yearTerms[ti].id,
+              termId: term.id,
               assessmentTypeId: assessmentByName.get(assessmentName).id,
               score,
               maxScore: 100,
               teacherId: teacher.id,
+              createdAt: entered,
+              updatedAt: updated,
             });
           }
         }
