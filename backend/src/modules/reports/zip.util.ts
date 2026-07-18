@@ -108,6 +108,9 @@ export function toCsv(rows: Record<string, any>[]): string {
     else if (v instanceof Date) s = v.toISOString();
     else if (typeof v === 'object') s = JSON.stringify(v);
     else s = String(v);
+    // Guard user-entered text against spreadsheet formula injection. Only
+    // strings can carry payloads; numeric cells (e.g. negative scores) pass.
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return '"' + s.replace(/"/g, '""') + '"';
   };
 

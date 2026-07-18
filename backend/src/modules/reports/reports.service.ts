@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -775,6 +776,121 @@ export class ReportsService implements OnModuleDestroy {
     });
 
     return buildZip(files);
+  }
+
+  // ── Single-dataset CSV export ─────────────────────────────────────────────
+
+  /**
+   * One dataset as a readable CSV (names resolved, not raw foreign keys).
+   * Built server-side so large tables don't fight the API's pagination cap
+   * and rate limit from the browser.
+   */
+  async exportDatasetCsv(
+    dataset: string,
+  ): Promise<{ filename: string; csv: string }> {
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `${dataset}_export_${date}.csv`;
+
+    const userRow = (u: any) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email ?? '',
+      phone: u.phone ?? '',
+      role: u.role,
+      isActive: u.isActive,
+      studentId: u.student?.studentIdNumber ?? '',
+      studentStatus: u.student?.status ?? '',
+      class: u.student?.classSection
+        ? [
+            u.student.classSection.classLevel?.name,
+            u.student.classSection.trade?.code,
+            u.student.classSection.name,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : '',
+    });
+
+    const userInclude = {
+      student: {
+        include: {
+          classSection: {
+            include: { classLevel: true, trade: true },
+          },
+        },
+      },
+    } as const;
+
+    switch (dataset) {
+      case 'users': {
+        const rows = await this.prisma.user.findMany({
+          include: userInclude,
+          orderBy: { createdAt: 'asc' },
+        });
+        return { filename, csv: toCsv(rows.map(userRow)) };
+      }
+      case 'students':
+      case 'teachers': {
+        const rows = await this.prisma.user.findMany({
+          where: { role: dataset === 'students' ? 'STUDENT' : 'TEACHER' },
+          include: userInclude,
+          orderBy: { createdAt: 'asc' },
+        });
+        return { filename, csv: toCsv(rows.map(userRow)) };
+      }
+      case 'marks': {
+        const rows = await this.prisma.mark.findMany({
+          include: {
+            student: { include: { user: true } },
+            subject: true,
+            assessmentType: true,
+            term: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        return {
+          filename,
+          csv: toCsv(
+            rows.map((m) => ({
+              studentId: m.student?.studentIdNumber ?? '',
+              student: m.student?.user
+                ? `${m.student.user.firstName} ${m.student.user.lastName}`
+                : '',
+              subject: m.subject?.name ?? '',
+              assessment: m.assessmentType?.name ?? '',
+              term: m.term?.name ?? '',
+              score: m.score,
+              maxScore: m.maxScore,
+            })),
+          ),
+        };
+      }
+      case 'attendance': {
+        const rows = await this.prisma.attendance.findMany({
+          include: { student: { include: { user: true } } },
+          orderBy: { date: 'asc' },
+        });
+        return {
+          filename,
+          csv: toCsv(
+            rows.map((a) => ({
+              studentId: a.student?.studentIdNumber ?? '',
+              student: a.student?.user
+                ? `${a.student.user.firstName} ${a.student.user.lastName}`
+                : '',
+              date: a.date.toISOString().slice(0, 10),
+              status: a.status,
+              reason: a.reasonCategory ?? '',
+            })),
+          ),
+        };
+      }
+      default:
+        throw new BadRequestException(
+          `Unknown dataset "${dataset}". Valid: users, students, teachers, marks, attendance`,
+        );
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
