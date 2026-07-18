@@ -1005,6 +1005,16 @@ async function main() {
     planBySection.set(meta.section.id, plan);
   }
 
+  // Rooms: O-Level and general periods sit in the class's home room; trade
+  // modules live in their lab or workshop.
+  const TRADE_ROOMS: Record<string, string> = {
+    SWD: 'ICT Lab 1',
+    NIT: 'Networking Lab',
+    TOR: 'Tourism Training Room',
+    AUT: 'Auto Workshop',
+  };
+  const sectionRoom = (si: number) => `Room ${101 + si}`;
+
   const GENERAL_FAMILIES: { family: string; count: number; subjects: string[] }[] = [
     {
       family: 'Languages',
@@ -2146,6 +2156,61 @@ async function main() {
     `  ✅ ${attRows.length} attendance lines across ${schoolDays.length} school days (year to date)`,
   );
 
+  // ─── EXAM SCHEDULES (end-of-term timetables, current year) ──────────────────
+  // Published for every class for each term so far this year: up to three
+  // papers a day through the closing stretch, practicals as task-based
+  // assessments in the trade's own lab or workshop.
+  const EXAM_SLOTS = [
+    { start: '08:30', end: '10:30' },
+    { start: '11:00', end: '13:00' },
+    { start: '14:00', end: '16:00' },
+  ];
+  const SYLLABUS_NOTES = [
+    'Covers the whole term',
+    'Units 1-5',
+    'Units 1-6; section B compulsory',
+    'All modules covered this term',
+    'Closed book; answer all questions',
+  ];
+  const examRows: any[] = [];
+  for (const term of terms) {
+    if (!termBegun(term)) continue;
+    const examStart = componentDate(term, 'End of Term Exam');
+    for (let si = 0; si < sectionMetas.length; si++) {
+      const meta = sectionMetas[si];
+      const subjects = subjectsForSection(meta);
+      const days: Date[] = [];
+      for (let d = new Date(examStart); days.length < 10; d = addDays(d, 1)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) days.push(new Date(d));
+        if (d >= term.endDate && days.length * 3 >= subjects.length) break;
+      }
+      const perDay = Math.min(3, Math.ceil(subjects.length / days.length));
+      for (let i = 0; i < subjects.length; i++) {
+        const subject = subjects[i];
+        const day = days[Math.min(Math.floor(i / perDay), days.length - 1)];
+        const slot = EXAM_SLOTS[i % perDay];
+        const practical = subject.scope === SubjectScope.A_SPECIFIC;
+        examRows.push({
+          classSectionId: meta.section.id,
+          subjectId: subject.id,
+          termId: term.id,
+          examDate: day,
+          startTime: slot.start,
+          endTime: slot.end,
+          room: practical ? TRADE_ROOMS[meta.trade!.code] : sectionRoom(si),
+          syllabus: practical
+            ? 'Task-based practical assessment; report submitted same day'
+            : SYLLABUS_NOTES[(si + i) % SYLLABUS_NOTES.length],
+        });
+      }
+    }
+  }
+  await prisma.examSchedule.createMany({ data: examRows });
+  console.log(
+    `  ✅ ${examRows.length} exam timetable entries seeded (every class, every term so far)`,
+  );
+
   // ─── DISCIPLINE INCIDENTS ───────────────────────────────────────────────────
   const incidentDescriptions = [
     'Late to morning assembly',
@@ -2379,12 +2444,6 @@ async function main() {
     { start: '14:50', end: '15:35' },
     { start: '15:40', end: '16:25' },
   ];
-  const TRADE_ROOMS: Record<string, string> = {
-    SWD: 'ICT Lab 1',
-    NIT: 'Networking Lab',
-    TOR: 'Tourism Training Room',
-    AUT: 'Auto Workshop',
-  };
   const timetableRows: any[] = [];
   const busyTeachers = new Map<string, Set<string>>();
   const busyAt = (day: number, slot: number) => {
@@ -2400,11 +2459,10 @@ async function main() {
     );
     const remaining = new Map(planBySection.get(meta.section.id)!);
     for (const v of remaining.values()) demandTotal += v;
-    const homeRoom = `Room ${101 + si}`;
     const roomFor = (subject: any) =>
       subject.scope === SubjectScope.A_SPECIFIC
         ? TRADE_ROOMS[meta.trade!.code]
-        : homeRoom;
+        : sectionRoom(si);
 
     for (const day of [1, 2, 3, 4, 5]) {
       const todayCount = new Map<string, number>();
