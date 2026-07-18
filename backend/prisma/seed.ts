@@ -9,6 +9,7 @@ import {
   AbsenceReason,
   LoanStatus,
   DisciplineAction,
+  AppealStatus,
   ConversationType,
   MessageContentType,
   NotificationType,
@@ -16,7 +17,7 @@ import {
   SubjectScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
 import {
@@ -586,18 +587,6 @@ const startOfToday = () => {
 };
 const addDays = (base: Date, days: number) => new Date(base.getTime() + days * MS_DAY);
 
-/** The most recent `count` weekdays (Mon–Fri), ending with today if it's a weekday. */
-function recentWeekdays(count: number): Date[] {
-  const out: Date[] = [];
-  const cursor = startOfToday();
-  while (out.length < count) {
-    const dow = cursor.getUTCDay();
-    if (dow !== 0 && dow !== 6) out.unshift(new Date(cursor));
-    cursor.setTime(cursor.getTime() - MS_DAY);
-  }
-  return out;
-}
-
 /**
  * Wipe every table (except the migration ledger) so the seed is fully
  * re-runnable. TRUNCATE … CASCADE clears child rows and resets identities in
@@ -695,93 +684,8 @@ async function main() {
   });
   console.log('  ✅ Admin user seeded');
 
-  const yrNow = new Date().getFullYear();
-
-  // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
-  // No two teachers share any name component — 40 staff with a repeated name
-  // would read as fake immediately.
-  const TEACHER_COUNT = 40;
-  // The demo teacher keeps the address documented in CLAUDE.md; the other
-  // fixed staff follow the i.name scheme like everyone else.
-  const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
-    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
-    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
-    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
-  ];
-  const teacherComponents = new Set<string>(
-    fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
-  );
-  fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
-
-  const generatedTeachers: typeof fixedTeachers = [];
-  for (let i = 0; generatedTeachers.length < TEACHER_COUNT - fixedTeachers.length; i++) {
-    if (i > 2000) throw new Error('teacher name space exhausted');
-    const gender = generatedTeachers.length % 2 === 0 ? Gender.MALE : Gender.FEMALE;
-    const first = adultWestern[gender]();
-    const last = adultKinya[gender]();
-    if (teacherComponents.has(first) || teacherComponents.has(last)) continue;
-    if (!claimFullName(first, last)) continue;
-    teacherComponents.add(first);
-    teacherComponents.add(last);
-    generatedTeachers.push({
-      firstName: first,
-      lastName: last,
-      email: emailFor(first, last),
-      phone: realPhone(),
-      gender,
-    });
-  }
-  const teacherData = [...fixedTeachers, ...generatedTeachers];
-
-  const teacherUsers: any[] = [];
-  const teachers: any[] = [];
-  for (let ti = 0; ti < teacherData.length; ti++) {
-    const td = teacherData[ti];
-    const tBirthYear = yrNow - (26 + rand(30));
-    const user = await prisma.user.create({
-      data: {
-        email: td.email,
-        phone: td.phone,
-        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
-        gender: td.gender,
-        dateOfBirth: new Date(
-          Date.UTC(tBirthYear, rand(12), 1 + rand(27)),
-        ),
-        nationalId: makeNid(td.gender, tBirthYear),
-        nationality: 'Rwandan',
-        passwordHash,
-        role: Role.TEACHER,
-        firstName: td.firstName,
-        lastName: td.lastName,
-        isActive: true,
-        forcePasswordChange: ti !== 0, // teacher[0] is the demo account
-      },
-    });
-    const teacher = await prisma.teacher.create({
-      data: {
-        userId: user.id,
-        employmentStatus: EmploymentStatus.FULL_TIME,
-        qualification: sample([
-          TeacherQualification.A0,
-          TeacherQualification.A0,
-          TeacherQualification.A1,
-          TeacherQualification.A1,
-          TeacherQualification.A2,
-        ]),
-        rssbNumber: String(10000000 + rand(89999999)),
-        hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
-        isActive: true,
-      },
-    });
-    teacherUsers.push(user);
-    teachers.push(teacher);
-  }
-  console.log(`  ✅ ${teachers.length} teachers seeded (no shared name components)`);
-
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
-  await prisma.user.create({
+  const librarianUser = await prisma.user.create({
     data: {
       email: 'librarian@markova.edu',
       phone: '+250788000020',
@@ -800,42 +704,96 @@ async function main() {
   });
   console.log('  ✅ Librarian seeded');
 
-  // ─── ACADEMIC YEAR & TERMS ──────────────────────────────────────────────────
-  // Anchored to today: Term 1 is the *current* term and its window contains
-  // today, so every term selector defaults to a term that actually has data.
+  // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
+  // The official term windows as published by the Ministry of Education. The
+  // seed carries the three most recent school years that have started as of
+  // today. When today falls in a holiday gap (between terms, or after Term 3
+  // like every July-August), the most recent term's end date is stretched to
+  // today+3 so the demo always has a live current term — that stretch is the
+  // only departure from the published dates.
   const today = startOfToday();
   const yr = today.getFullYear();
-  // Three school years: the two past ones are fully closed and graded; in the
-  // current one Terms 1-2 are done and Term 3 contains today.
-  const term1Start = addDays(today, -224);
+
+  type CalTerm = { start: Date; end: Date };
+  const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const published: { name: string; terms: [string, string][] }[] = [
+    {
+      name: '2023-2024', // 37 weeks
+      terms: [
+        ['2023-09-25', '2023-12-22'],
+        ['2024-01-08', '2024-03-29'],
+        ['2024-04-15', '2024-07-05'],
+      ],
+    },
+    {
+      name: '2024-2025', // 38 weeks
+      terms: [
+        ['2024-09-09', '2024-12-20'],
+        ['2025-01-06', '2025-04-04'],
+        ['2025-04-21', '2025-06-27'],
+      ],
+    },
+    {
+      name: '2025-2026',
+      terms: [
+        ['2025-09-08', '2025-12-19'],
+        ['2026-01-05', '2026-04-03'],
+        ['2026-04-20', '2026-07-03'],
+      ],
+    },
+  ];
+  let calendars: { name: string; terms: CalTerm[] }[] = published.map((c) => ({
+    name: c.name,
+    terms: c.terms.map(([s, e]) => ({ start: utcDay(s), end: utcDay(e) })),
+  }));
+  // Beyond the published years, extrapolate in 364-day steps (52 weeks), which
+  // keeps every term date on its official weekday.
+  while (addDays(calendars[calendars.length - 1].terms[0].start, 364) <= today) {
+    const prev = calendars[calendars.length - 1];
+    const y = prev.terms[0].start.getUTCFullYear() + 1;
+    calendars.push({
+      name: `${y}-${y + 1}`,
+      terms: prev.terms.map((t) => ({
+        start: addDays(t.start, 364),
+        end: addDays(t.end, 364),
+      })),
+    });
+  }
+  calendars = calendars.filter((c) => c.terms[0].start <= today).slice(-3);
+  if (calendars.length !== 3) throw new Error('calendar selection expects 3 started years');
+
+  // The current term: the latest one that has started. If today is past its
+  // end we are in a school holiday — stretch it (see above).
+  let curTi = 0;
+  for (let i = 0; i < 3; i++) {
+    if (calendars[2].terms[i].start <= today) curTi = i;
+  }
+  if (today > calendars[2].terms[curTi].end) {
+    calendars[2].terms[curTi].end = addDays(today, 3);
+  }
+
   type YearBundle = { year: any; terms: any[] };
   const allYears: YearBundle[] = [];
   for (let yearIdx = 0; yearIdx < 3; yearIdx++) {
-    const back = 2 - yearIdx; // 2, 1, 0 years ago
-    const start = addDays(term1Start, -365 * back);
+    const cal = calendars[yearIdx];
     const year = await prisma.academicYear.create({
       data: {
-        name: `${yr - back}-${yr - back + 1}`,
-        startDate: start,
-        endDate: addDays(start, 294),
-        isCurrent: back === 0,
+        name: cal.name,
+        startDate: cal.terms[0].start,
+        endDate: cal.terms[2].end,
+        isCurrent: yearIdx === 2,
       },
     });
-    const offsets = [
-      { name: 'Term 1', from: 0, to: 84 },
-      { name: 'Term 2', from: 98, to: 189 },
-      { name: 'Term 3', from: 203, to: 294 },
-    ];
     const yearTerms: any[] = [];
-    for (let i = 0; i < offsets.length; i++) {
+    for (let i = 0; i < 3; i++) {
       const t = await prisma.term.create({
         data: {
           academicYearId: year.id,
-          name: offsets[i].name,
-          startDate: addDays(start, offsets[i].from),
-          endDate: addDays(start, offsets[i].to),
-          isCurrent: back === 0 && i === 2,
-          isClosed: back > 0 || i < 2,
+          name: `Term ${i + 1}`,
+          startDate: cal.terms[i].start,
+          endDate: cal.terms[i].end,
+          isCurrent: yearIdx === 2 && i === curTi,
+          isClosed: yearIdx < 2 || i < curTi,
         },
       });
       yearTerms.push(t);
@@ -844,8 +802,12 @@ async function main() {
   }
   const academicYear = allYears[2].year;
   const terms = allYears[2].terms;
-  const currentTerm = terms[2];
-  console.log('  ✅ 3 academic years + 9 terms seeded (Term 3 of the newest is current)');
+  const currentTerm = terms[curTi];
+  // Terms that exist on the calendar but have not started yet carry no data.
+  const termBegun = (t: any) => t.startDate <= today;
+  console.log(
+    `  ✅ Academic years ${calendars.map((c) => c.name).join(', ')} seeded (current: ${currentTerm.name} of ${academicYear.name})`,
+  );
 
   // ─── TRADES ─────────────────────────────────────────────────────────────────
   const trades: any[] = [];
@@ -994,6 +956,308 @@ async function main() {
     ];
   }
 
+  // ─── WEEKLY PERIOD WEIGHTS ──────────────────────────────────────────────────
+  // 8 periods a day, 40 a week. O-Level: the national allocation — core
+  // papers heavy, electives light. A-Level: a 12-period general block and 28
+  // periods shared across the trade's modules for the level.
+  const O_WEEKLY: Record<string, number> = {
+    Mathematics: 6,
+    English: 5,
+    Kinyarwanda: 4,
+    Physics: 4,
+    Chemistry: 4,
+    'Biology and Health Sciences': 4,
+    'Geography and Environment': 3,
+    'History and Citizenship': 3,
+    Entrepreneurship: 2,
+    Kiswahili: 2,
+    ICT: 2,
+    French: 1,
+  }; // 40
+  const A_GENERAL_WEEKLY: Record<string, number> = {
+    Kinyarwanda: 2,
+    Entrepreneurship: 2,
+    'English (Communication Skills)': 3,
+    'Mathematics for Technology': 3,
+    'Basic ICT': 2,
+  }; // 12 — trade modules share the remaining 28
+
+  const planBySection = new Map<string, Map<string, number>>();
+  for (const meta of sectionMetas) {
+    const plan = new Map<string, number>();
+    const subjects = subjectsForSection(meta);
+    if (!meta.trade) {
+      for (const s of subjects) plan.set(s.id, O_WEEKLY[s.name]);
+    } else {
+      const modules = subjects.filter(
+        (s) => s.scope === SubjectScope.A_SPECIFIC,
+      );
+      let share = 40;
+      for (const s of subjects) {
+        if (s.scope !== SubjectScope.A_SPECIFIC) {
+          plan.set(s.id, A_GENERAL_WEEKLY[s.name]);
+          share -= A_GENERAL_WEEKLY[s.name];
+        }
+      }
+      const base = Math.floor(share / modules.length);
+      let extra = share - base * modules.length;
+      for (const s of modules) plan.set(s.id, base + (extra-- > 0 ? 1 : 0));
+    }
+    planBySection.set(meta.section.id, plan);
+  }
+
+  // Rooms: O-Level and general periods sit in the class's home room; trade
+  // modules live in their lab or workshop.
+  const TRADE_ROOMS: Record<string, string> = {
+    SWD: 'ICT Lab 1',
+    NIT: 'Networking Lab',
+    TOR: 'Tourism Training Room',
+    AUT: 'Auto Workshop',
+  };
+  const sectionRoom = (si: number) => `Room ${101 + si}`;
+
+  const GENERAL_FAMILIES: { family: string; count: number; subjects: string[] }[] = [
+    {
+      family: 'Languages',
+      count: 0,
+      subjects: [
+        'Kinyarwanda',
+        'English',
+        'Kiswahili',
+        'French',
+        'English (Communication Skills)',
+      ],
+    },
+    {
+      family: 'Mathematics & Sciences',
+      count: 0,
+      subjects: [
+        'Mathematics',
+        'Physics',
+        'Chemistry',
+        'Biology and Health Sciences',
+        'ICT',
+        'Basic ICT',
+        'Mathematics for Technology',
+      ],
+    },
+    {
+      family: 'Humanities',
+      count: 0,
+      subjects: ['Geography and Environment', 'History and Citizenship'],
+    },
+    { family: 'Business', count: 0, subjects: ['Entrepreneurship'] },
+  ];
+  const familyOfSubject = (subject: any): string => {
+    if (subject.tradeId) {
+      const t = TRADES.find(
+        (x) => tradeByCode.get(x.code)!.id === subject.tradeId,
+      )!;
+      return `${t.name} (${t.code})`;
+    }
+    return GENERAL_FAMILIES.find((f) => f.subjects.includes(subject.name))!
+      .family;
+  };
+
+  const yrNow = new Date().getFullYear();
+
+  // ─── TEACHER SPECIALTIES ────────────────────────────────────────────────────
+  // A real TSS staff room: general-subject departments plus a small team per
+  // trade. Index-aligned with the teacher roster below, so teacher i owns
+  // exactly one family and never teaches outside it.
+  type Specialty = {
+    family: string;
+    subjectNames: Set<string> | null; // null = trade family (match by tradeId)
+    tradeCode: string | null;
+  };
+  // Staff size follows the school's sections, as at a real TSS: enough
+  // teachers in each family to cover its weekly periods at a ~24-period
+  // teaching load (trade instructors run ~28, practical blocks included).
+  const familyPeriods = new Map<string, number>();
+  for (const meta of sectionMetas) {
+    const plan = planBySection.get(meta.section.id)!;
+    for (const subject of subjectsForSection(meta)) {
+      const fam = familyOfSubject(subject);
+      familyPeriods.set(
+        fam,
+        (familyPeriods.get(fam) ?? 0) + (plan.get(subject.id) ?? 0),
+      );
+    }
+  }
+  for (const fam of GENERAL_FAMILIES) {
+    fam.count = Math.max(
+      3,
+      Math.round((familyPeriods.get(fam.family) ?? 0) / 24),
+    );
+  }
+  const TRADE_TEACHER_COUNTS: Record<string, number> = {};
+  for (const t of TRADES) {
+    TRADE_TEACHER_COUNTS[t.code] = Math.max(
+      2,
+      Math.ceil((familyPeriods.get(`${t.name} (${t.code})`) ?? 0) / 28),
+    );
+  }
+  const specialtyByTeacher: Specialty[] = [];
+  for (const fam of GENERAL_FAMILIES) {
+    for (let k = 0; k < fam.count; k++) {
+      specialtyByTeacher.push({
+        family: fam.family,
+        subjectNames: new Set(fam.subjects),
+        tradeCode: null,
+      });
+    }
+  }
+  for (const t of TRADES) {
+    for (let k = 0; k < TRADE_TEACHER_COUNTS[t.code]; k++) {
+      specialtyByTeacher.push({
+        family: `${t.name} (${t.code})`,
+        subjectNames: null,
+        tradeCode: t.code,
+      });
+    }
+  }
+
+  // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
+  // No two teachers share any name component — 40 staff with a repeated name
+  // would read as fake immediately.
+  const TEACHER_COUNT = specialtyByTeacher.length; // 40, from the specialty layout
+  // The demo teacher keeps the address documented in CLAUDE.md; the other
+  // fixed staff follow the i.name scheme like everyone else.
+  const fixedTeachers = [
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
+  ];
+  const teacherComponents = new Set<string>(
+    fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
+  );
+  fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
+
+  const generatedTeachers: typeof fixedTeachers = [];
+  for (let i = 0; generatedTeachers.length < TEACHER_COUNT - fixedTeachers.length; i++) {
+    if (i > 2000) throw new Error('teacher name space exhausted');
+    const gender = generatedTeachers.length % 2 === 0 ? Gender.MALE : Gender.FEMALE;
+    const first = adultWestern[gender]();
+    const last = adultKinya[gender]();
+    if (teacherComponents.has(first) || teacherComponents.has(last)) continue;
+    if (!claimFullName(first, last)) continue;
+    teacherComponents.add(first);
+    teacherComponents.add(last);
+    generatedTeachers.push({
+      firstName: first,
+      lastName: last,
+      email: emailFor(first, last),
+      phone: realPhone(),
+      gender,
+    });
+  }
+  const teacherData = [...fixedTeachers, ...generatedTeachers];
+
+  const teacherUsers: any[] = [];
+  const teachers: any[] = [];
+  for (let ti = 0; ti < teacherData.length; ti++) {
+    const td = teacherData[ti];
+    const tBirthYear = yrNow - (26 + rand(30));
+    const user = await prisma.user.create({
+      data: {
+        email: td.email,
+        phone: td.phone,
+        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
+        gender: td.gender,
+        dateOfBirth: new Date(
+          Date.UTC(tBirthYear, rand(12), 1 + rand(27)),
+        ),
+        nationalId: makeNid(td.gender, tBirthYear),
+        nationality: 'Rwandan',
+        passwordHash,
+        role: Role.TEACHER,
+        firstName: td.firstName,
+        lastName: td.lastName,
+        isActive: true,
+        forcePasswordChange: ti !== 0, // teacher[0] is the demo account
+      },
+    });
+    const teacher = await prisma.teacher.create({
+      data: {
+        userId: user.id,
+        employmentStatus: EmploymentStatus.FULL_TIME,
+        // General-subject staff are mostly degree holders (A0); trade
+        // instructors are mostly technician diplomas (A1/A2), as in real TSSs.
+        qualification: specialtyByTeacher[ti].tradeCode
+          ? sample([
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+              TeacherQualification.A2,
+              TeacherQualification.A2,
+              TeacherQualification.A0,
+            ])
+          : sample([
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+            ]),
+        rssbNumber: String(10000000 + rand(89999999)),
+        hireDate: new Date(Date.UTC(yrNow - 1 - rand(11), 8, 1)),
+        isActive: true,
+      },
+    });
+    teacherUsers.push(user);
+    teachers.push(teacher);
+  }
+  console.log(`  ✅ ${teachers.length} teachers seeded (no shared name components)`);
+
+
+  // ─── SUBJECT ASSIGNMENT MAP (who teaches what, everywhere) ──────────────────
+  // For every (class, subject) pick the least-loaded teacher qualified for
+  // that subject. Deterministic, so marks, timetables and homework all agree
+  // with the assignment table, and balanced, so every teacher carries a
+  // believable load inside their own family.
+  const qualifiedFor = (subject: any): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i < specialtyByTeacher.length; i++) {
+      const sp = specialtyByTeacher[i];
+      if (sp.tradeCode) {
+        if (
+          subject.tradeId &&
+          subject.tradeId === tradeByCode.get(sp.tradeCode)!.id
+        ) {
+          out.push(i);
+        }
+      } else if (sp.subjectNames!.has(subject.name)) {
+        out.push(i);
+      }
+    }
+    return out;
+  };
+
+  const teacherLoad = new Array(teachers.length).fill(0);
+  const assignedTeacherIdx = new Map<string, number>();
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
+      const cands = qualifiedFor(subject);
+      if (cands.length === 0) {
+        throw new Error(`no specialty covers subject "${subject.name}"`);
+      }
+      let best = cands[0];
+      for (const c of cands) if (teacherLoad[c] < teacherLoad[best]) best = c;
+      // Balance real teaching hours: 6 periods of Mathematics weigh six
+      // times one period of French.
+      teacherLoad[best] += planBySection.get(meta.section.id)!.get(subject.id)!;
+      assignedTeacherIdx.set(`${meta.section.id}|${subject.id}`, best);
+    }
+  }
+  if (teacherLoad.some((l) => l === 0)) {
+    throw new Error('specialization left a teacher with zero classes');
+  }
+  const teacherOf = (sectionId: string, subjectId: string) =>
+    teachers[assignedTeacherIdx.get(`${sectionId}|${subjectId}`)!];
+  const teacherUserOf = (sectionId: string, subjectId: string) =>
+    teacherUsers[assignedTeacherIdx.get(`${sectionId}|${subjectId}`)!];
+
   // ─── ASSESSMENT TYPES ───────────────────────────────────────────────────────
   const assessmentTypes: any[] = [];
   const assessmentByName = new Map<string, any>();
@@ -1005,52 +1269,73 @@ async function main() {
   console.log(`  ✅ ${assessmentTypes.length} assessment types seeded`);
 
   // ─── TEACHER SPECIAL ROLES ──────────────────────────────────────────────────
-  // DOS, two HoDs, plus one class teacher per class.
+  // DOS, one HoD per department (drawn from that department), and a class
+  // teacher per class who really teaches in it.
   await prisma.teacherRole.create({
     data: { teacherId: teachers[0].id, role: SpecialRole.DOS },
   });
+  const firstOfFamily = (family: string) =>
+    specialtyByTeacher.findIndex((s) => s.family === family);
   await prisma.teacherRole.create({
-    data: { teacherId: teachers[1].id, role: SpecialRole.HOD, department: 'Sciences' },
+    data: {
+      teacherId: teachers[firstOfFamily('Mathematics & Sciences')].id,
+      role: SpecialRole.HOD,
+      department: 'Sciences',
+    },
   });
   await prisma.teacherRole.create({
-    data: { teacherId: teachers[2].id, role: SpecialRole.HOD, department: 'Humanities' },
+    data: {
+      teacherId: teachers[firstOfFamily('Humanities')].id,
+      role: SpecialRole.HOD,
+      department: 'Humanities',
+    },
   });
-  for (let i = 0; i < sectionMetas.length; i++) {
-    const teacherIdx = (i + 3) % teachers.length;
-    await prisma.teacherRole.create({
-      data: {
-        teacherId: teachers[teacherIdx].id,
-        role: SpecialRole.CLASS_TEACHER,
-        classSectionId: sectionMetas[i].section.id,
-      },
-    });
+  const classTeacherIdxOf = new Map<string, number>();
+  {
+    // Spread the role: nobody is class teacher twice until everyone teaching
+    // has been considered once.
+    const roleCount = new Array(teachers.length).fill(0);
+    for (const meta of sectionMetas) {
+      const own = [
+        ...new Set(
+          subjectsForSection(meta).map(
+            (s) => assignedTeacherIdx.get(`${meta.section.id}|${s.id}`)!,
+          ),
+        ),
+      ];
+      let pick = own[0];
+      for (const c of own) if (roleCount[c] < roleCount[pick]) pick = c;
+      roleCount[pick]++;
+      classTeacherIdxOf.set(meta.section.id, pick);
+      await prisma.teacherRole.create({
+        data: {
+          teacherId: teachers[pick].id,
+          role: SpecialRole.CLASS_TEACHER,
+          classSectionId: meta.section.id,
+        },
+      });
+    }
   }
   console.log('  ✅ Teacher special roles seeded');
 
   // ─── TEACHER-SUBJECT-CLASS ASSIGNMENTS ──────────────────────────────────────
-  // Each class gets its own subject set taught by cycling teachers. The
-  // teacher for (class, subject) is deterministic so marks reference the same
-  // teacher as the assignment.
-  // si*7 walks the roster in larger strides so all 40 teachers get classes
-  // (plain si+subj left a few indices unreached).
-  const teacherFor = (sectionIdx: number, subjectIdx: number) =>
-    teachers[(sectionIdx * 7 + subjectIdx) % teachers.length];
-
   const assignmentRows: any[] = [];
-  for (let si = 0; si < sectionMetas.length; si++) {
-    const meta = sectionMetas[si];
-    const subjectSet = subjectsForSection(meta);
-    for (let subj = 0; subj < subjectSet.length; subj++) {
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
       assignmentRows.push({
-        teacherId: teacherFor(si, subj).id,
-        subjectId: subjectSet[subj].id,
+        teacherId: teacherOf(meta.section.id, subject.id).id,
+        subjectId: subject.id,
         classSectionId: meta.section.id,
         academicYearId: academicYear.id,
       });
     }
   }
   await prisma.teacherSubjectClass.createMany({ data: assignmentRows });
-  console.log(`  ✅ ${assignmentRows.length} teacher-subject-class assignments seeded`);
+  console.log(
+    `  ✅ ${assignmentRows.length} assignments seeded (specialized: ` +
+      `${GENERAL_FAMILIES.map((f) => `${f.family} ${f.count}`).join(', ')}, ` +
+      `${TRADES.map((t) => `${t.code} ${TRADE_TEACHER_COUNTS[t.code]}`).join(', ')})`,
+  );
 
   // ─── ENROLLMENT JOURNEYS (across the 3 seeded years) ────────────────────────
   // Where was each person in the two previous years? Walked backwards with
@@ -1190,7 +1475,7 @@ async function main() {
       const { first, last } = studentName(gender, classCounts, fam?.name);
       const journey = planJourney(meta);
       const joinIdx = Math.min(...journey.placements.map((p) => p.yearIdx));
-      const joinYear = yr - 2 + joinIdx;
+      const joinYear = allYears[joinIdx].year.startDate.getUTCFullYear();
       const earliest = journey.placements[journey.placements.length - 1];
 
       // S1 → ~13 yrs … L5 → ~19 yrs; repeaters are a year older per repeat.
@@ -1246,11 +1531,11 @@ async function main() {
     `  ✅ ${students.length} students seeded across ${sectionMetas.length} classes (${inheritedKids} carry a family lineage name)`,
   );
 
-  // ─── PARENTS (400) ──────────────────────────────────────────────────────────
+  // ─── PARENTS (family units) ─────────────────────────────────────────────────
   // Lineage families get a real father+mother pair (the line parent carries
-  // the family name). Everyone else draws from the generic pools, alternating
-  // genders so Father/Mother relationships always match the person.
-  const PARENT_COUNT = 400;
+  // the family name). Everyone else is grouped into family units so siblings
+  // share parents; shapes vary between two-parent, single-parent and
+  // guardian homes.
   const parentUsers: any[] = [];
   let parentPhoneIdx = 0;
 
@@ -1301,18 +1586,6 @@ async function main() {
     familyParents.set(fam.id, { father, mother });
   }
 
-  // Generic parents, alternating genders: even index male, odd female.
-  const genericFathers: any[] = [demoParent];
-  const genericMothers: any[] = [];
-  while (parentUsers.length < PARENT_COUNT) {
-    const gender =
-      genericFathers.length <= genericMothers.length
-        ? Gender.MALE
-        : Gender.FEMALE;
-    const u = await createParent(gender);
-    (gender === Gender.MALE ? genericFathers : genericMothers).push(u);
-  }
-
   // Link lineage kids to their real parents.
   const parentLinkRows: any[] = [];
   const linkedStudentIds = new Set<string>();
@@ -1333,34 +1606,86 @@ async function main() {
     }
   }
 
-  // Everyone else: 1-2 parents, cycling the generic pools.
-  let fCursor = 0;
-  let mCursor = 0;
-  for (let si = 0; si < students.length; si++) {
-    if (linkedStudentIds.has(students[si].id)) continue;
-    const father = genericFathers[fCursor++ % genericFathers.length];
-    const guardians: { father?: any; mother?: any } = { father };
-    parentLinkRows.push({
-      parentUserId: father.id,
-      studentId: students[si].id,
-      relationship: 'Father',
-    });
-    if (si % 4 !== 0) {
-      const mother = genericMothers[mCursor++ % genericMothers.length];
-      guardians.mother = mother;
-      parentLinkRows.push({
-        parentUserId: mother.id,
-        studentId: students[si].id,
-        relationship: 'Mother',
+  // Everyone else lives in a family unit: siblings share the same two
+  // parents; some homes are single-mother or single-father; a few children
+  // live with a guardian (an aunt, uncle or grandparent), whose link says
+  // so. Every guardian gets an account — whether they ever log in is a
+  // different question the activity layer answers.
+  const unlinked = students.filter((s) => !linkedStudentIds.has(s.id));
+  const kidsQueue = shuffled(unlinked);
+  // The demo parent's family first: student1 plus a sibling if available.
+  const demoKids = [
+    kidsQueue.find((s) => s.id === students[0].id) ?? kidsQueue[0],
+  ];
+  kidsQueue.splice(kidsQueue.indexOf(demoKids[0]), 1);
+  if (kidsQueue.length > 0 && chance(0.5)) demoKids.push(kidsQueue.pop()!);
+  const units: any[][] = [[...demoKids]];
+  while (kidsQueue.length > 0) {
+    const r = Math.random();
+    const size = r < 0.02 ? 3 : r < 0.16 ? 2 : 1;
+    units.push(kidsQueue.splice(0, Math.min(size, kidsQueue.length)));
+  }
+  let twoParent = 0;
+  let singleParent = 0;
+  let guardianHomes = 0;
+  for (let u = 0; u < units.length; u++) {
+    const kids = units[u];
+    const shape = u === 0 ? 0 : Math.random(); // the demo family has both parents
+    let father: any = null;
+    let mother: any = null;
+    if (shape < 0.78) {
+      father = u === 0 ? demoParent : await createParent(Gender.MALE);
+      mother = await createParent(Gender.FEMALE);
+      twoParent++;
+    } else if (shape < 0.93) {
+      mother = await createParent(Gender.FEMALE);
+      singleParent++;
+    } else if (shape < 0.97) {
+      father = await createParent(Gender.MALE);
+      singleParent++;
+    } else {
+      const guardian = await createParent(
+        chance(0.5) ? Gender.MALE : Gender.FEMALE,
+      );
+      guardianHomes++;
+      for (const kid of kids) {
+        parentLinkRows.push({
+          parentUserId: guardian.id,
+          studentId: kid.id,
+          relationship: 'Guardian',
+        });
+        guardianByStudent.set(kid.id, {});
+      }
+      continue;
+    }
+    for (const kid of kids) {
+      if (father) {
+        parentLinkRows.push({
+          parentUserId: father.id,
+          studentId: kid.id,
+          relationship: 'Father',
+        });
+      }
+      if (mother) {
+        parentLinkRows.push({
+          parentUserId: mother.id,
+          studentId: kid.id,
+          relationship: 'Mother',
+        });
+      }
+      guardianByStudent.set(kid.id, {
+        ...(father && { father }),
+        ...(mother && { mother }),
       });
     }
-    guardianByStudent.set(students[si].id, guardians);
   }
   await prisma.parentStudent.createMany({ data: parentLinkRows });
 
   // The guardian names printed on a student's record must match the linked
-  // parent accounts wherever those exist.
+  // parent accounts wherever those exist; a single-parent record carries
+  // only that parent's name.
   for (const [studentId, g] of guardianByStudent) {
+    if (!g.father && !g.mother) continue;
     await prisma.student.update({
       where: { id: studentId },
       data: {
@@ -1373,8 +1698,13 @@ async function main() {
       },
     });
   }
+  const siblingKids = units
+    .filter((k) => k.length > 1)
+    .reduce((s, k) => s + k.length, 0);
   console.log(
-    `  ✅ ${parentUsers.length} parents seeded (${familyParents.size} lineage families) and linked`,
+    `  ✅ ${parentUsers.length} parents in ${units.length + familyParents.size} families ` +
+      `(${twoParent} two-parent, ${singleParent} single-parent, ${guardianHomes} guardian homes, ` +
+      `${siblingKids} kids with an enrolled sibling)`,
   );
 
   // ─── FORMER STUDENTS (fill the two past years to real class sizes) ──────────
@@ -1382,7 +1712,7 @@ async function main() {
   // are GRADUATED, everyone else who left is TRANSFERRED. They exist so every
   // past rank and class average is computed against a full class. Their user
   // accounts are inactive, so they cannot log in.
-  type Alumni = { student: any; placements: Placement[] };
+  type Alumni = { student: any; user: any; placements: Placement[] };
   const alumni: Alumni[] = [];
   const alumniCounts = new Map<string, Map<string, number>>();
   const countsFor = (yearIdx: number, sectionId: string) => {
@@ -1399,7 +1729,9 @@ async function main() {
     const repeats = placements.filter((p) => p.failed).length;
     const yearsGone = 2 - lastYearIdx;
     const joinYear =
-      yr - 2 + Math.min(...placements.map((p) => p.yearIdx));
+      allYears[
+        Math.min(...placements.map((p) => p.yearIdx))
+      ].year.startDate.getUTCFullYear();
     const age = 11 + last.level.order + rand(2) + repeats + yearsGone;
     const earliestPl = placements[placements.length - 1];
     const dob = new Date(
@@ -1442,7 +1774,7 @@ async function main() {
         ...extras.student,
       },
     });
-    alumni.push({ student, placements });
+    alumni.push({ student, user, placements });
   };
 
   // Pass 1: top last year's classes up to 25-30, extending each former
@@ -1472,19 +1804,100 @@ async function main() {
     `  ✅ ${alumni.length} former students seeded (${graduatedCount} graduated, ${alumni.length - graduatedCount} transferred)`,
   );
 
-  // ─── MARKS (Term 1, full assessment structure) ──────────────────────────────
+  // ─── SUBJECT DIFFICULTY PROFILES ────────────────────────────────────────────
+  // Every subject examines with its own personality: a shift in percentage
+  // points against a student's personal ability, and a spread multiplier for
+  // how widely a class scatters on it. Mathematics and Physics genuinely
+  // examine hard; Kinyarwanda and Entrepreneurship score generously and
+  // tightly; hands-on trade modules cluster toward competence while a few
+  // named theory-heavy modules bite.
+  const SUBJECT_PROFILES: Record<string, { shift: number; spread?: number }> = {
+    Mathematics: { shift: -9, spread: 1.3 },
+    Physics: { shift: -7, spread: 1.25 },
+    Chemistry: { shift: -5, spread: 1.15 },
+    'Biology and Health Sciences': { shift: -3 },
+    'Geography and Environment': { shift: -1 },
+    'History and Citizenship': { shift: 1 },
+    English: { shift: -2 },
+    Kinyarwanda: { shift: 8, spread: 0.8 },
+    Kiswahili: { shift: 3 },
+    French: { shift: -4, spread: 1.2 },
+    ICT: { shift: 2 },
+    Entrepreneurship: { shift: 5, spread: 0.85 },
+    'English (Communication Skills)': { shift: -1 },
+    'Mathematics for Technology': { shift: -8, spread: 1.3 },
+    'Basic ICT': { shift: 3 },
+  };
+  const HARD_MODULES = new Set([
+    'Data Structure and Algorithm Fundamentals',
+    'Machine Learning Application',
+    'Machine Learning Fundamentals',
+    'Blockchain Fundamentals',
+    'Cyber Security',
+    'C Programming Fundamentals',
+    'Fiber Optics Network Deployment',
+    'Engine Diagnosis',
+    'Vehicle Electronics',
+  ]);
+  const profileFor = (subject: any): { shift: number; spread: number } => {
+    const q = SUBJECT_PROFILES[subject.name];
+    if (q) return { shift: q.shift, spread: q.spread ?? 1 };
+    if (subject.scope === SubjectScope.A_SPECIFIC) {
+      return HARD_MODULES.has(subject.name)
+        ? { shift: -6, spread: 1.2 }
+        : { shift: 4, spread: 0.85 };
+    }
+    return { shift: 0, spread: 1 };
+  };
+
+  // ─── MARKS (full assessment structure, per-subject personalities) ───────────
   // Every student is graded in every subject of their class: CAT 1, CAT 2 and
   // End of Term Exam everywhere, plus Practical on trade-specific modules.
   const markRows: any[] = [];
-  const sectionIndexBySectionId = new Map(
-    sectionMetas.map((m, idx) => [m.section.id, idx]),
-  );
-
   // Every person (current and former) keeps one baseline ability and one
   // long-term drift anchored at the current year, so a child's line over up
   // to 9 terms tells a single story: improving, steady or slipping. A failed
   // (repeated) year dips ~8 points below their curve; per-subject strengths
   // persist across the years.
+  // When was each component sat? CAT 1 lands about a third into the term,
+  // CAT 2 near two thirds, practicals after them, the exam in the closing
+  // week. Marks are typed in within days of the paper (sometimes late), and
+  // a few current-term class components are still in the marking pile.
+  const componentFrac: Record<string, number> = {
+    'CAT 1': 0.32,
+    'CAT 2': 0.62,
+    Practical: 0.74,
+    'End of Term Exam': 0.94,
+  };
+  const weekdayOnOrAfter = (d: Date) => {
+    const out = new Date(d);
+    while (out.getUTCDay() === 0 || out.getUTCDay() === 6)
+      out.setTime(out.getTime() + MS_DAY);
+    return out;
+  };
+  const componentDate = (term: any, name: string) =>
+    weekdayOnOrAfter(
+      addDays(
+        term.startDate,
+        Math.round(
+          ((term.endDate.getTime() - term.startDate.getTime()) / MS_DAY) *
+            componentFrac[name],
+        ),
+      ),
+    );
+  const minDate = (a: Date, b: Date) => (a < b ? a : b);
+  const unreturned = new Set<string>();
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
+      if (!chance(0.03)) continue;
+      const pick =
+        subject.scope === SubjectScope.A_SPECIFIC && chance(0.5)
+          ? 'Practical'
+          : 'CAT 2';
+      unreturned.add(`${meta.section.id}|${subject.id}|${pick}`);
+    }
+  }
+
   const strength = new Map<string, number>(); // per student|subject
   const allPeople = [
     ...enrolled.map((e) => ({ student: e.student, placements: e.placements })),
@@ -1496,9 +1909,9 @@ async function main() {
     const drift = rand(6) - 2; // -2 .. +3 per term
     for (const pl of placements) {
       const yearTerms = allYears[pl.yearIdx].terms;
-      const si = sectionIndexBySectionId.get(pl.meta.section.id)!;
       const subjectSet = subjectsForSection(pl.meta);
       for (let ti = 0; ti < yearTerms.length; ti++) {
+        if (!termBegun(yearTerms[ti])) continue; // future term: no marks yet
         const g = pl.yearIdx * 3 + ti; // global term index, current year = 6..8
         const ability = clamp(
           baseline + drift * (g - 6) - (pl.failed ? 8 : 0),
@@ -1508,16 +1921,44 @@ async function main() {
 
         for (let subj = 0; subj < subjectSet.length; subj++) {
           const subject = subjectSet[subj];
-          const teacher = teacherFor(si, subj);
+          const teacher = teacherOf(pl.meta.section.id, subject.id);
           const sKey = `${student.id}|${subject.id}`;
           if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
-          const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
+          const prof = profileFor(subject);
+          const perSubject = clamp(
+            ability + strength.get(sKey)! + prof.shift,
+            18,
+            96,
+          );
           const components =
             subject.scope === SubjectScope.A_SPECIFIC
               ? ['CAT 1', 'CAT 2', 'Practical', 'End of Term Exam']
               : ['CAT 1', 'CAT 2', 'End of Term Exam'];
 
           for (const assessmentName of components) {
+            const term = yearTerms[ti];
+            const isCurrentTerm = term.id === currentTerm.id;
+            const sat = componentDate(term, assessmentName);
+            if (sat > today) continue; // this component has not been sat yet
+            if (
+              isCurrentTerm &&
+              unreturned.has(
+                `${pl.meta.section.id}|${subject.id}|${assessmentName}`,
+              )
+            ) {
+              continue; // whole class still in the teacher's marking pile
+            }
+            // Individual gaps: a few current-term absences (more likely for
+            // struggling students), and rare permanent holes in closed
+            // registers. Totals renormalize exactly like the live API does.
+            const missP = isCurrentTerm
+              ? assessmentName === 'End of Term Exam'
+                ? 0.008
+                : 0.02 + (ability < 40 ? 0.02 : 0)
+              : assessmentName === 'End of Term Exam'
+                ? 0.002
+                : 0.005;
+            if (chance(missP)) continue;
             // Practicals trend a bit higher (hands-on), exams a bit lower.
             const bias =
               assessmentName === 'Practical'
@@ -1525,16 +1966,29 @@ async function main() {
                 : assessmentName === 'End of Term Exam'
                   ? -4
                   : 0;
-            const score = clamp(perSubject + bias + rand(17) - 8, 20, 98);
+            const score = clamp(
+              perSubject + bias + Math.round((rand(17) - 8) * prof.spread),
+              10,
+              98,
+            );
+            const entered = minDate(
+              addDays(sat, 1 + rand(4) + (chance(0.07) ? 4 + rand(8) : 0)),
+              today,
+            );
+            const updated = chance(0.04)
+              ? minDate(addDays(entered, 1 + rand(14)), today)
+              : entered;
             markRows.push({
               studentId: student.id,
               subjectId: subject.id,
               classSectionId: pl.meta.section.id,
-              termId: yearTerms[ti].id,
+              termId: term.id,
               assessmentTypeId: assessmentByName.get(assessmentName).id,
               score,
               maxScore: 100,
               teacherId: teacher.id,
+              createdAt: entered,
+              updatedAt: updated,
             });
           }
         }
@@ -1576,7 +2030,7 @@ async function main() {
 
   const termResultRows: any[] = [];
   for (let yearIdx = 0; yearIdx < allYears.length; yearIdx++)
-  for (const term of allYears[yearIdx].terms)
+  for (const term of allYears[yearIdx].terms.filter(termBegun))
   for (const meta of sectionMetas) {
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
@@ -1643,23 +2097,92 @@ async function main() {
     `  ✅ ${termResultRows.length} term results computed and seeded across 3 years`,
   );
 
-  // ─── ATTENDANCE (last 10 weekdays, incl. today) ─────────────────────────────
-  // Anchored to today so the attendance dashboard (which defaults to today)
-  // always has data to show.
-  const attendanceDates = recentWeekdays(10);
+  // ─── ATTENDANCE (every school day of the current year) ──────────────────────
+  // A register line for every enrolled student on every school day of the
+  // year so far, with per-student personalities: most attend solidly, some
+  // are late-prone, a few carry multi-day sick streaks and a small chronic
+  // tail skips often. Mondays run late-heavy, Fridays lose a few more, and
+  // every line is marked by the class teacher with a morning scan time.
+  const schoolDays: Date[] = [];
+  for (const term of terms) {
+    if (!termBegun(term)) continue;
+    const lastDay = minDate(term.endDate, today);
+    for (let d = new Date(term.startDate); d <= lastDay; d = addDays(d, 1)) {
+      const dow = d.getUTCDay();
+      if (dow !== 0 && dow !== 6) schoolDays.push(new Date(d));
+    }
+  }
+  type AttProfile = {
+    lateP: number;
+    absentP: number;
+    streakP: number;
+    chronic: boolean;
+  };
+  const attProfileOf = new Map<string, AttProfile>();
+  for (const { student } of enrolled) {
+    const r = Math.random();
+    attProfileOf.set(
+      student.id,
+      r < 0.84
+        ? { lateP: 0.015, absentP: 0.008, streakP: 0.001, chronic: false }
+        : r < 0.94
+          ? { lateP: 0.12, absentP: 0.015, streakP: 0.001, chronic: false }
+          : r < 0.98
+            ? { lateP: 0.02, absentP: 0.02, streakP: 0.012, chronic: false }
+            : { lateP: 0.07, absentP: 0.1, streakP: 0.004, chronic: true },
+    );
+  }
+  const pickReason = (chronic: boolean): AbsenceReason => {
+    const r = Math.random();
+    if (chronic) {
+      if (r < 0.4) return AbsenceReason.UNEXCUSED;
+      if (r < 0.7) return AbsenceReason.SICK;
+      if (r < 0.85) return AbsenceReason.FAMILY;
+      return AbsenceReason.PERMISSION;
+    }
+    if (r < 0.55) return AbsenceReason.SICK;
+    if (r < 0.75) return AbsenceReason.FAMILY;
+    if (r < 0.9) return AbsenceReason.PERMISSION;
+    return AbsenceReason.UNEXCUSED;
+  };
   const attRows: any[] = [];
-  for (const date of attendanceDates) {
-    for (const { student, meta } of enrolled) {
-      const si = sectionIndexBySectionId.get(meta.section.id)!;
-      const r = Math.random();
-      let status: AttendanceStatus;
+  const sickLeft = new Map<string, number>();
+  for (const { student, meta } of enrolled) {
+    const prof = attProfileOf.get(student.id)!;
+    const markerId = teacherUsers[classTeacherIdxOf.get(meta.section.id)!].id;
+    for (const date of schoolDays) {
+      const dow = date.getUTCDay();
+      let status: AttendanceStatus = AttendanceStatus.PRESENT;
       let reason: AbsenceReason | null = null;
-      if (r < 0.86) status = AttendanceStatus.PRESENT;
-      else if (r < 0.93) status = AttendanceStatus.LATE;
-      else {
+      const left = sickLeft.get(student.id) ?? 0;
+      if (left > 0) {
+        sickLeft.set(student.id, left - 1);
         status = AttendanceStatus.ABSENT;
         reason = AbsenceReason.SICK;
+      } else if (chance(prof.streakP)) {
+        sickLeft.set(student.id, 1 + rand(3)); // a 2-4 day sick run
+        status = AttendanceStatus.ABSENT;
+        reason = AbsenceReason.SICK;
+      } else if (chance(prof.absentP * (dow === 5 ? 1.3 : 1))) {
+        status = AttendanceStatus.ABSENT;
+        reason = pickReason(prof.chronic);
+      } else if (chance(prof.lateP * (dow === 1 ? 1.6 : 1))) {
+        status = AttendanceStatus.LATE;
       }
+      // Kigali mornings, stored in UTC (CAT = UTC+2): the gate scan lands
+      // 07:40-08:05 local, latecomers 08:05-08:45.
+      const scannedAt =
+        status === AttendanceStatus.ABSENT
+          ? null
+          : new Date(
+              Date.UTC(
+                date.getUTCFullYear(),
+                date.getUTCMonth(),
+                date.getUTCDate(),
+                status === AttendanceStatus.LATE ? 6 : 5,
+                status === AttendanceStatus.LATE ? 5 + rand(40) : 40 + rand(25),
+              ),
+            );
       attRows.push({
         studentId: student.id,
         classSectionId: meta.section.id,
@@ -1667,154 +2190,578 @@ async function main() {
         type: 'daily',
         status,
         reasonCategory: reason,
-        markedByUserId: teacherUsers[si % teacherUsers.length].id,
+        scannedAt,
+        markedByUserId: markerId,
       });
     }
   }
-  for (let i = 0; i < attRows.length; i += 5000) {
-    await prisma.attendance.createMany({ data: attRows.slice(i, i + 5000) });
+  for (let i = 0; i < attRows.length; i += 10000) {
+    await prisma.attendance.createMany({ data: attRows.slice(i, i + 10000) });
   }
-  console.log(`  ✅ ${attRows.length} attendance records seeded`);
+  console.log(
+    `  ✅ ${attRows.length} attendance lines across ${schoolDays.length} school days (year to date)`,
+  );
 
-  // ─── DISCIPLINE INCIDENTS ───────────────────────────────────────────────────
-  const incidentDescriptions = [
-    'Late to morning assembly',
-    'Talking during class',
-    'Incomplete homework',
-    'Uniform violation',
-    'Disruptive behavior in lab',
-    'Phone use in class',
-    'Disrespect to staff',
-    'Bullying reported',
-    'Skipping prep',
-    'Vandalism (minor)',
+  // ─── TEACHER ATTENDANCE (staff sign-in, year to date) ───────────────────────
+  // Staff scan in before the students do: near-perfect presence, the odd
+  // late morning, rare absence.
+  const tAttRows: any[] = [];
+  for (const teacher of teachers) {
+    for (const date of schoolDays) {
+      const r = Math.random();
+      const status =
+        r < 0.955
+          ? AttendanceStatus.PRESENT
+          : r < 0.985
+            ? AttendanceStatus.LATE
+            : AttendanceStatus.ABSENT;
+      tAttRows.push({
+        teacherId: teacher.id,
+        date,
+        status,
+        scannedAt:
+          status === AttendanceStatus.ABSENT
+            ? null
+            : new Date(
+                Date.UTC(
+                  date.getUTCFullYear(),
+                  date.getUTCMonth(),
+                  date.getUTCDate(),
+                  status === AttendanceStatus.LATE ? 6 : 4,
+                  status === AttendanceStatus.LATE ? rand(50) : 45 + rand(70),
+                ),
+              ),
+      });
+    }
+  }
+  for (let i = 0; i < tAttRows.length; i += 10000) {
+    await prisma.teacherAttendance.createMany({
+      data: tAttRows.slice(i, i + 10000),
+    });
+  }
+  console.log(`  ✅ ${tAttRows.length} teacher attendance lines seeded`);
+
+  // ─── EXAM SCHEDULES (end-of-term timetables, current year) ──────────────────
+  // Published for every class for each term so far this year: up to three
+  // papers a day through the closing stretch, practicals as task-based
+  // assessments in the trade's own lab or workshop.
+  const EXAM_SLOTS = [
+    { start: '08:30', end: '10:30' },
+    { start: '11:00', end: '13:00' },
+    { start: '14:00', end: '16:00' },
   ];
-  // 30 incidents spread across students.
-  for (let i = 0; i < 30; i++) {
-    const student = students[(i * 11) % students.length];
-    const pts = 2 + (i % 5) * 2;
-    await prisma.disciplineIncident.create({
+  const SYLLABUS_NOTES = [
+    'Covers the whole term',
+    'Units 1-5',
+    'Units 1-6; section B compulsory',
+    'All modules covered this term',
+    'Closed book; answer all questions',
+  ];
+  const examRows: any[] = [];
+  for (const term of terms) {
+    if (!termBegun(term)) continue;
+    const examStart = componentDate(term, 'End of Term Exam');
+    for (let si = 0; si < sectionMetas.length; si++) {
+      const meta = sectionMetas[si];
+      const subjects = subjectsForSection(meta);
+      const days: Date[] = [];
+      for (let d = new Date(examStart); days.length < 10; d = addDays(d, 1)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) days.push(new Date(d));
+        if (d >= term.endDate && days.length * 3 >= subjects.length) break;
+      }
+      const perDay = Math.min(3, Math.ceil(subjects.length / days.length));
+      for (let i = 0; i < subjects.length; i++) {
+        const subject = subjects[i];
+        const day = days[Math.min(Math.floor(i / perDay), days.length - 1)];
+        const slot = EXAM_SLOTS[i % perDay];
+        const practical = subject.scope === SubjectScope.A_SPECIFIC;
+        examRows.push({
+          classSectionId: meta.section.id,
+          subjectId: subject.id,
+          termId: term.id,
+          examDate: day,
+          startTime: slot.start,
+          endTime: slot.end,
+          room: practical ? TRADE_ROOMS[meta.trade!.code] : sectionRoom(si),
+          syllabus: practical
+            ? 'Task-based practical assessment; report submitted same day'
+            : SYLLABUS_NOTES[(si + i) % SYLLABUS_NOTES.length],
+        });
+      }
+    }
+  }
+  await prisma.examSchedule.createMany({ data: examRows });
+  console.log(
+    `  ✅ ${examRows.length} exam timetable entries seeded (every class, every term so far)`,
+  );
+
+  // ─── DISCIPLINE (mostly minor, few majors, repeat offenders) ────────────────
+  // Roughly 8% of students have a record this year. The bulk is lateness,
+  // uniform and noise; a small band repeats and escalates (verbal → written
+  // → detention); majors are rare, mostly acknowledged by parents, and a few
+  // carry appeals. Chronic absentees show up here more than anyone else.
+  const MINOR_KINDS = [
+    { desc: 'Late to morning assembly', loc: 'Assembly Ground', time: '07:20' },
+    { desc: 'Incomplete uniform (no tie)', loc: 'Main Gate', time: '07:15' },
+    { desc: 'Noise during evening prep', loc: 'Prep Hall', time: '19:40' },
+    { desc: 'Talking during class', loc: 'Classroom', time: '10:15' },
+    { desc: 'Homework not submitted twice', loc: 'Classroom', time: '08:30' },
+    { desc: 'Late back after lunch', loc: 'Main Gate', time: '14:05' },
+    { desc: 'Skipped classroom cleaning duty', loc: 'Classroom', time: '16:30' },
+  ];
+  const MODERATE_KINDS = [
+    { desc: 'Phone found in class', loc: 'Classroom', time: '09:20' },
+    { desc: 'Skipping evening prep', loc: 'Prep Hall', time: '19:30' },
+    { desc: 'Left class without permission', loc: 'Classroom', time: '11:10' },
+    {
+      desc: 'Disrespectful language to a classmate',
+      loc: 'School Yard',
+      time: '13:20',
+    },
+  ];
+  const MAJOR_KINDS = [
+    { desc: 'Fighting in the dormitory corridor', loc: 'Dormitory', time: '21:30' },
+    { desc: 'Bullying a junior student', loc: 'School Yard', time: '13:00' },
+    { desc: 'Sneaked out of school premises', loc: 'Back Fence', time: '17:45' },
+    { desc: 'Caught cheating in a CAT', loc: 'Classroom', time: '10:00' },
+    { desc: 'Vandalism: broke a lab stool', loc: 'ICT Lab 1', time: '15:10' },
+  ];
+  const begunTerms = terms.filter(termBegun);
+  const schoolDaysByTerm = new Map<string, Date[]>();
+  for (const t of begunTerms) {
+    schoolDaysByTerm.set(
+      t.id,
+      schoolDays.filter((d) => d >= t.startDate && d <= t.endDate),
+    );
+  }
+  let incidentCount = 0;
+  let majorCount = 0;
+  const appealTargets: { incident: any; student: any }[] = [];
+  for (const { student, meta } of enrolled) {
+    const chronic = attProfileOf.get(student.id)!.chronic;
+    if (!chance(chronic ? 0.35 : 0.075)) continue;
+    const count = chance(chronic ? 0.5 : 0.18) ? 2 + rand(4) : 1;
+    const picks = Array.from({ length: count }, () => {
+      const term = sample(begunTerms);
+      return { term, date: sample(schoolDaysByTerm.get(term.id)!) };
+    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+    for (let n = 0; n < picks.length; n++) {
+      const { term, date } = picks[n];
+      const sev = Math.random();
+      const isMajor = sev < 0.06;
+      const isModerate = !isMajor && sev < 0.3;
+      const kind = isMajor
+        ? sample(MAJOR_KINDS)
+        : isModerate
+          ? sample(MODERATE_KINDS)
+          : sample(MINOR_KINDS);
+      const pts = isMajor ? 10 + rand(6) : isModerate ? 5 + rand(4) : 2 + rand(3);
+      const action = isMajor
+        ? DisciplineAction.SUSPENSION
+        : isModerate
+          ? n >= 2 || chance(0.5)
+            ? DisciplineAction.DETENTION
+            : DisciplineAction.WRITTEN_WARNING
+          : n >= 1
+            ? DisciplineAction.WRITTEN_WARNING
+            : DisciplineAction.VERBAL_WARNING;
+      const acknowledged = chance(isMajor ? 0.85 : isModerate ? 0.4 : 0.15);
+      const recordedBy = chance(0.6)
+        ? teacherUsers[classTeacherIdxOf.get(meta.section.id)!]
+        : teacherUsers[0]; // the DOS records the rest
+      const incident = await prisma.disciplineIncident.create({
+        data: {
+          studentId: student.id,
+          termId: term.id,
+          recordedByUserId: recordedBy.id,
+          date,
+          time: kind.time,
+          location: kind.loc,
+          description: kind.desc,
+          pointsDeducted: pts,
+          actionTaken: action,
+          parentAcknowledged: acknowledged,
+          parentAcknowledgedAt: acknowledged
+            ? minDate(addDays(date, 1 + rand(4)), today)
+            : null,
+          createdAt: minDate(addDays(date, rand(2)), today),
+        },
+      });
+      incidentCount++;
+      if (isMajor) {
+        majorCount++;
+        if (appealTargets.length < 3) appealTargets.push({ incident, student });
+      }
+      // Points reset each term, so only the running term's deductions show.
+      if (term.id === currentTerm.id) {
+        await prisma.student.update({
+          where: { id: student.id },
+          data: { disciplinePoints: { decrement: pts } },
+        });
+      }
+    }
+  }
+  // A few appeals on the majors: one approved, one rejected, one pending.
+  const appealStatuses = [
+    AppealStatus.APPROVED,
+    AppealStatus.REJECTED,
+    AppealStatus.PENDING,
+  ];
+  let appealCount = 0;
+  for (let i = 0; i < appealTargets.length; i++) {
+    const { incident, student } = appealTargets[i];
+    const g = guardianByStudent.get(student.id);
+    const submitter = g?.father ?? g?.mother;
+    if (!submitter) continue;
+    const status = appealStatuses[i];
+    await prisma.disciplineAppeal.create({
       data: {
-        studentId: student.id,
-        termId: currentTerm.id,
-        recordedByUserId: teacherUsers[i % teacherUsers.length].id,
-        date: addDays(today, -((i % 28) + 1)), // within the last 4 weeks
-        time: '08:30',
-        location: i % 2 ? 'Classroom' : 'Main Hall',
-        description: incidentDescriptions[i % incidentDescriptions.length],
-        pointsDeducted: pts,
-        actionTaken:
-          i < 15 ? DisciplineAction.VERBAL_WARNING : DisciplineAction.WRITTEN_WARNING,
-        parentAcknowledged: i % 3 === 0,
-        parentAcknowledgedAt: i % 3 === 0 ? new Date() : null,
+        incidentId: incident.id,
+        submittedByUserId: submitter.id,
+        statement:
+          'My child explains the situation differently; we request a review of the record and the points deducted.',
+        evidenceUrls: [],
+        status,
+        reviewedByUserId: status === AppealStatus.PENDING ? null : admin.id,
+        reviewNotes:
+          status === AppealStatus.APPROVED
+            ? 'Reviewed with the class teacher; the account partially confirmed the appeal. Action reduced.'
+            : status === AppealStatus.REJECTED
+              ? 'Two staff witnesses confirmed the report. The record stands.'
+              : null,
       },
     });
-    await prisma.student.update({
-      where: { id: student.id },
-      data: { disciplinePoints: { decrement: pts } },
-    });
+    appealCount++;
   }
-  console.log('  ✅ 30 discipline incidents seeded');
+  console.log(
+    `  ✅ ${incidentCount} discipline incidents (${majorCount} major) + ${appealCount} appeals seeded`,
+  );
 
-  // ─── LIBRARY BOOKS ──────────────────────────────────────────────────────────
-  const bookData = [
-    { title: 'Introduction to Physics', author: 'Paul Hewitt', isbn: '978-0321909107', category: 'Sciences' },
-    { title: 'Chemistry: The Central Science', author: 'Brown & LeMay', isbn: '978-0134414232', category: 'Sciences' },
-    { title: 'Biology: A Global Approach', author: 'Neil Campbell', isbn: '978-1292341637', category: 'Sciences' },
-    { title: 'Calculus: Early Transcendentals', author: 'James Stewart', isbn: '978-1285741550', category: 'Mathematics' },
-    { title: 'English Grammar in Use', author: 'Raymond Murphy', isbn: '978-1108457651', category: 'Languages' },
-    { title: 'A History of Modern Africa', author: 'Richard Reid', isbn: '978-1108790543', category: 'Humanities' },
-    { title: 'World Geography', author: 'James Rubenstein', isbn: '978-0134746210', category: 'Humanities' },
-    { title: 'Computer Science: An Overview', author: 'Glenn Brookshear', isbn: '978-0134875460', category: 'Sciences' },
-    { title: 'Things Fall Apart', author: 'Chinua Achebe', isbn: '978-0385474542', category: 'Literature' },
-    { title: 'The River Between', author: 'Ngugi wa Thiongo', isbn: '978-0435905484', category: 'Literature' },
-    { title: 'Organic Chemistry', author: 'John McMurry', isbn: '978-1305080485', category: 'Sciences' },
-    { title: 'Linear Algebra Done Right', author: 'Sheldon Axler', isbn: '978-3319110790', category: 'Mathematics' },
-    { title: 'Practical English Usage', author: 'Michael Swan', isbn: '978-0194202428', category: 'Languages' },
-    { title: 'African Politics and Society', author: 'Peter Schraeder', isbn: '978-1626378070', category: 'Humanities' },
-    { title: 'Fundamentals of Physics', author: 'Halliday & Resnick', isbn: '978-1119460138', category: 'Sciences' },
-    { title: 'Python Programming', author: 'John Zelle', isbn: '978-1590282755', category: 'Sciences' },
-    { title: 'Song of Lawino', author: "Okot p'Bitek", isbn: '978-1478607649', category: 'Literature' },
-    { title: 'The Beautyful Ones Are Not Yet Born', author: 'Ayi Kwei Armah', isbn: '978-0435905361', category: 'Literature' },
-    { title: 'Statistics for Business', author: 'David Anderson', isbn: '978-0357715857', category: 'Mathematics' },
-    { title: 'Human Geography', author: 'Erin Fouberg', isbn: '978-1119626183', category: 'Humanities' },
+  // ─── LIBRARY (REB textbooks, trade shelves, African literature) ─────────────
+  // The catalog a Rwandan TSS actually holds: REB class-set textbooks per
+  // subject and level, technical references per trade, African and Rwandan
+  // literature, French classics and reference works. Loans carry a term of
+  // history: most returned (some late), a couple dozen out now, a few
+  // overdue and two lost.
+  type BookSpec = {
+    title: string;
+    author: string;
+    isbn?: string;
+    category: string;
+    qty: number;
+    cost: number;
+    shelf: string;
+  };
+  const bookData: BookSpec[] = [
+    // REB class sets — shelf A (no ISBN: local curriculum prints)
+    { title: 'Mathematics for Rwanda Schools, Senior 1', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
+    { title: 'Mathematics for Rwanda Schools, Senior 2', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
+    { title: 'Mathematics for Rwanda Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 35, cost: 6800, shelf: 'A1' },
+    { title: 'Physics for Rwanda Schools, Senior 2', author: 'REB', category: 'Textbooks', qty: 30, cost: 7200, shelf: 'A2' },
+    { title: 'Chemistry for Rwanda Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 30, cost: 7200, shelf: 'A2' },
+    { title: 'Biology and Health Sciences, Senior 1', author: 'REB', category: 'Textbooks', qty: 30, cost: 7000, shelf: 'A2' },
+    { title: 'English for Rwanda Secondary Schools, Senior 1', author: 'REB', category: 'Textbooks', qty: 35, cost: 6000, shelf: 'A3' },
+    { title: 'Ikinyarwanda mu Mashuri Yisumbuye, Igitabo 1', author: 'REB', category: 'Kinyarwanda', qty: 35, cost: 5500, shelf: 'A3' },
+    { title: 'Ikinyarwanda mu Mashuri Yisumbuye, Igitabo 2', author: 'REB', category: 'Kinyarwanda', qty: 32, cost: 5500, shelf: 'A3' },
+    { title: 'Kiswahili kwa Shule za Sekondari, Kitabu 1', author: 'REB', category: 'Textbooks', qty: 25, cost: 5800, shelf: 'A4' },
+    { title: 'Entrepreneurship for Rwandan Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 30, cost: 6200, shelf: 'A4' },
+    { title: 'Geography and Environment for Rwanda, Senior 2', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
+    { title: 'History and Citizenship, Senior 3', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
+    // Sciences and mathematics references — shelf B
+    { title: 'English Grammar in Use', author: 'Raymond Murphy', isbn: '978-1108457651', category: 'Languages', qty: 12, cost: 18000, shelf: 'B1' },
+    { title: 'Practical English Usage', author: 'Michael Swan', isbn: '978-0194202428', category: 'Languages', qty: 6, cost: 22000, shelf: 'B1' },
+    { title: 'Fundamentals of Physics', author: 'Halliday & Resnick', isbn: '978-1119460138', category: 'Sciences', qty: 5, cost: 38000, shelf: 'B2' },
+    { title: 'Chemistry: The Central Science', author: 'Brown & LeMay', isbn: '978-0134414232', category: 'Sciences', qty: 4, cost: 36000, shelf: 'B2' },
+    { title: 'Biology: A Global Approach', author: 'Neil Campbell', isbn: '978-1292341637', category: 'Sciences', qty: 4, cost: 34000, shelf: 'B2' },
+    { title: 'Calculus: Early Transcendentals', author: 'James Stewart', isbn: '978-1285741550', category: 'Mathematics', qty: 5, cost: 32000, shelf: 'B3' },
+    { title: 'Statistics for Business', author: 'David Anderson', isbn: '978-0357715857', category: 'Mathematics', qty: 4, cost: 28000, shelf: 'B3' },
+    // ICT and trades — shelf C
+    { title: 'HTML and CSS: Design and Build Websites', author: 'Jon Duckett', isbn: '978-1118008188', category: 'ICT & Trades', qty: 8, cost: 26000, shelf: 'C1' },
+    { title: 'JavaScript and JQuery', author: 'Jon Duckett', isbn: '978-1118531648', category: 'ICT & Trades', qty: 8, cost: 27000, shelf: 'C1' },
+    { title: 'Eloquent JavaScript', author: 'Marijn Haverbeke', isbn: '978-1593279509', category: 'ICT & Trades', qty: 6, cost: 24000, shelf: 'C1' },
+    { title: 'Python Crash Course', author: 'Eric Matthes', isbn: '978-1593279288', category: 'ICT & Trades', qty: 8, cost: 25000, shelf: 'C1' },
+    { title: 'Clean Code', author: 'Robert C. Martin', isbn: '978-0132350884', category: 'ICT & Trades', qty: 4, cost: 30000, shelf: 'C2' },
+    { title: 'Database System Concepts', author: 'Silberschatz, Korth & Sudarshan', isbn: '978-0078022159', category: 'ICT & Trades', qty: 4, cost: 40000, shelf: 'C2' },
+    { title: 'CCNA Routing and Switching Study Guide', author: 'Todd Lammle', isbn: '978-1118749616', category: 'ICT & Trades', qty: 6, cost: 35000, shelf: 'C2' },
+    { title: 'Networking All-in-One For Dummies', author: 'Doug Lowe', isbn: '978-1119689010', category: 'ICT & Trades', qty: 5, cost: 28000, shelf: 'C2' },
+    { title: 'Linux Pocket Guide', author: 'Daniel J. Barrett', isbn: '978-1491927571', category: 'ICT & Trades', qty: 6, cost: 15000, shelf: 'C3' },
+    { title: 'Automotive Technology: Principles, Diagnosis, and Service', author: 'James D. Halderman', isbn: '978-0134616797', category: 'ICT & Trades', qty: 6, cost: 42000, shelf: 'C3' },
+    { title: 'Modern Automotive Technology', author: 'James E. Duffy', isbn: '978-1590070956', category: 'ICT & Trades', qty: 5, cost: 40000, shelf: 'C3' },
+    { title: 'Tourism: Principles and Practice', author: 'John Fletcher', isbn: '978-1292172354', category: 'ICT & Trades', qty: 6, cost: 33000, shelf: 'C4' },
+    { title: 'Hotel Front Office Management', author: 'James A. Bardi', isbn: '978-0470637524', category: 'ICT & Trades', qty: 4, cost: 30000, shelf: 'C4' },
+    { title: 'First Aid Manual', author: 'St John Ambulance', isbn: '978-0241241233', category: 'ICT & Trades', qty: 10, cost: 12000, shelf: 'C4' },
+    // African and Rwandan literature — shelf D
+    { title: 'Things Fall Apart', author: 'Chinua Achebe', isbn: '978-0385474542', category: 'Literature', qty: 15, cost: 9000, shelf: 'D1' },
+    { title: 'The River Between', author: 'Ngugi wa Thiongo', isbn: '978-0435905484', category: 'Literature', qty: 12, cost: 8500, shelf: 'D1' },
+    { title: 'Weep Not, Child', author: 'Ngugi wa Thiongo', isbn: '978-0143106692', category: 'Literature', qty: 10, cost: 8500, shelf: 'D1' },
+    { title: 'A Grain of Wheat', author: 'Ngugi wa Thiongo', isbn: '978-0143106760', category: 'Literature', qty: 8, cost: 9000, shelf: 'D1' },
+    { title: 'Song of Lawino', author: "Okot p'Bitek", isbn: '978-1478607649', category: 'Literature', qty: 10, cost: 8000, shelf: 'D2' },
+    { title: 'So Long a Letter', author: 'Mariama Ba', isbn: '978-0435905552', category: 'Literature', qty: 10, cost: 7500, shelf: 'D2' },
+    { title: 'The Beautyful Ones Are Not Yet Born', author: 'Ayi Kwei Armah', isbn: '978-0435905361', category: 'Literature', qty: 8, cost: 8500, shelf: 'D2' },
+    { title: 'Purple Hibiscus', author: 'Chimamanda Ngozi Adichie', isbn: '978-1616202415', category: 'Literature', qty: 10, cost: 11000, shelf: 'D2' },
+    { title: 'Half of a Yellow Sun', author: 'Chimamanda Ngozi Adichie', isbn: '978-1400095209', category: 'Literature', qty: 6, cost: 12000, shelf: 'D3' },
+    { title: 'The Concubine', author: 'Elechi Amadi', isbn: '978-0435905569', category: 'Literature', qty: 6, cost: 7500, shelf: 'D3' },
+    { title: 'Mine Boy', author: 'Peter Abrahams', isbn: '978-0435905620', category: 'Literature', qty: 6, cost: 7500, shelf: 'D3' },
+    { title: 'Small Country', author: 'Gael Faye', isbn: '978-1524759872', category: 'Literature', qty: 8, cost: 13000, shelf: 'D3' },
+    { title: 'The Girl Who Smiled Beads', author: 'Clemantine Wamariya', isbn: '978-0451495334', category: 'Literature', qty: 6, cost: 14000, shelf: 'D4' },
+    { title: 'Baking Cakes in Kigali', author: 'Gaile Parkin', isbn: '978-0385343435', category: 'Literature', qty: 5, cost: 12000, shelf: 'D4' },
+    { title: 'Imigani y i Kinyarwanda: Rwandan Folktales', author: 'Anthology', category: 'Kinyarwanda', qty: 12, cost: 6000, shelf: 'D4' },
+    // French and reference — shelf E
+    { title: 'Le Petit Prince', author: 'Antoine de Saint-Exupery', isbn: '978-0156012195', category: 'Languages', qty: 10, cost: 9500, shelf: 'E1' },
+    { title: "L'Enfant Noir", author: 'Camara Laye', isbn: '978-2266083614', category: 'Languages', qty: 8, cost: 8500, shelf: 'E1' },
+    { title: "Oxford Advanced Learner's Dictionary", author: 'Oxford University Press', isbn: '978-0194798488', category: 'Reference', qty: 15, cost: 25000, shelf: 'E2' },
+    { title: 'Kinyarwanda-English Modern Dictionary', author: 'Emmanuel Bagabo', category: 'Reference', qty: 8, cost: 15000, shelf: 'E2' },
+    { title: 'Collins World Atlas', author: 'Collins', isbn: '978-0008436162', category: 'Reference', qty: 6, cost: 20000, shelf: 'E2' },
+    { title: 'A History of Modern Africa', author: 'Richard Reid', isbn: '978-1108790543', category: 'Humanities', qty: 5, cost: 26000, shelf: 'E3' },
+    { title: 'Human Geography', author: 'Erin Fouberg', isbn: '978-1119626183', category: 'Humanities', qty: 4, cost: 28000, shelf: 'E3' },
   ];
   const books: any[] = [];
   for (let i = 0; i < bookData.length; i++) {
+    const b = bookData[i];
     books.push(
       await prisma.book.create({
         data: {
-          ...bookData[i],
-          quantity: 10,
-          availableCount: 10,
+          title: b.title,
+          author: b.author,
+          isbn: b.isbn ?? null,
+          category: b.category,
+          quantity: b.qty,
+          availableCount: b.qty,
           barcode: `BK-${String(i + 1).padStart(5, '0')}`,
-          replacementCost: 25000 + rand(50000),
+          shelfLocation: b.shelf,
+          replacementCost: b.cost,
           isActive: true,
         },
       }),
     );
   }
-  // 20 active loans. Most are due in the future; the last 3 are intentionally
-  // overdue so the overdue list/reminders are demonstrable without the whole
-  // library looking delinquent.
-  for (let i = 0; i < 20; i++) {
-    const dueDate =
-      i < 17
-        ? addDays(today, 5 + (i % 9)) // due 5-13 days out
-        : addDays(today, -(2 + (i - 17) * 2)); // 3 loans overdue by 2-6 days
-    const checkedOutAt = addDays(today, -(7 + (i % 5)));
-    await prisma.bookLoan.create({
-      data: {
-        bookId: books[i % books.length].id,
-        borrowerUserId: studentUsers[i].id,
-        checkedOutAt,
-        dueDate,
-        status: LoanStatus.ACTIVE,
-      },
-    });
-    await prisma.book.update({
-      where: { id: books[i % books.length].id },
-      data: { availableCount: { decrement: 1 } },
+
+  // Loan history across the year: returned (some late), out now, overdue
+  // (kept ACTIVE — the app derives overdue from the due date), and lost.
+  const borrowDays = 14; // matches borrowing_duration_days config
+  const outByBook = new Map<string, number>();
+  const loanRows: any[] = [];
+  const borrowerPool = [
+    ...studentUsers,
+    ...teacherUsers.slice(0, 8), // teachers borrow too, less often
+  ];
+  // Never let open loans exceed a title's copies.
+  const canGoOut = (book: any, spec: BookSpec) =>
+    (outByBook.get(book.id) ?? 0) < spec.qty - 1;
+  const pickLendable = (): { book: any; spec: BookSpec } => {
+    for (;;) {
+      const idx = rand(books.length);
+      if (canGoOut(books[idx], bookData[idx])) {
+        return { book: books[idx], spec: bookData[idx] };
+      }
+    }
+  };
+  const RETURNED_COUNT = 140;
+  for (let i = 0; i < RETURNED_COUNT; i++) {
+    const book = sample(books);
+    const out = addDays(today, -(20 + rand(240)));
+    const due = addDays(out, borrowDays);
+    const late = chance(0.18);
+    const returned = addDays(out, late ? borrowDays + 1 + rand(10) : 4 + rand(10));
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(borrowerPool).id,
+      checkedOutAt: out,
+      dueDate: due,
+      returnedAt: minDate(returned, today),
+      status: LoanStatus.RETURNED,
     });
   }
-  console.log(`  ✅ ${books.length} books + 20 active loans (3 overdue) seeded`);
-
-  // ─── HOMEWORK ───────────────────────────────────────────────────────────────
-  // One homework per subject for Senior 1 A so multiple appear on a student's
-  // dashboard.
-  const s1aSubjects = subjectsForSection(sectionMetas[0]);
-  const hwDueDate = new Date();
-  hwDueDate.setDate(hwDueDate.getDate() + 7);
-  for (let i = 0; i < Math.min(s1aSubjects.length, 8); i++) {
-    const hw = await prisma.homework.create({
-      data: {
-        teacherId: teacherFor(0, i).id,
-        subjectId: s1aSubjects[i].id,
-        classSectionId: sectionMetas[0].section.id,
-        termId: currentTerm.id,
-        title: `${s1aSubjects[i].name} — Practice Set ${i + 1}`,
-        description: 'Complete the prescribed exercises and submit on time.',
-        dueDate: hwDueDate,
-        maxMarks: 20,
-        lateDeductionPerDay: 2,
-      },
+  for (let i = 0; i < 24; i++) {
+    const { book } = pickLendable();
+    const out = addDays(today, -(1 + rand(12)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: out,
+      dueDate: addDays(out, borrowDays),
+      returnedAt: null,
+      status: LoanStatus.ACTIVE,
     });
-    // First 5 students in S1 A submit.
-    for (let s = 0; s < 5; s++) {
-      await prisma.homeworkSubmission.create({
-        data: {
-          homeworkId: hw.id,
-          studentId: students[s].id,
-          submittedAt: new Date(),
-          isLate: false,
-          marks: 12 + rand(8),
-          gradedAt: new Date(),
-          gradedByUserId: teacherUsers[i % teacherUsers.length].id,
-        },
-      });
+  }
+  for (let i = 0; i < 6; i++) {
+    const { book } = pickLendable();
+    const due = addDays(today, -(2 + rand(14)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: addDays(due, -borrowDays),
+      dueDate: due,
+      returnedAt: null,
+      status: LoanStatus.ACTIVE, // overdue by date
+    });
+  }
+  for (let i = 0; i < 2; i++) {
+    const { book, spec } = pickLendable();
+    const out = addDays(today, -(90 + rand(60)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: out,
+      dueDate: addDays(out, borrowDays),
+      returnedAt: null,
+      status: LoanStatus.LOST,
+      replacementCost: spec.cost,
+    });
+  }
+  await prisma.bookLoan.createMany({ data: loanRows });
+  for (const [bookId, out] of outByBook) {
+    await prisma.book.update({
+      where: { id: bookId },
+      data: { availableCount: { decrement: out } },
+    });
+  }
+  console.log(
+    `  ✅ ${books.length} library titles + ${loanRows.length} loans seeded (24 out, 6 overdue, 2 lost)`,
+  );
+
+  // ─── HOMEWORK (every class, all year) ───────────────────────────────────────
+  // Each class collects 3-5 assignments per term across its own subjects,
+  // due on school days through the term, with one recent/upcoming one in the
+  // running term so dashboards stay alive. Most students submit, some late,
+  // chronic absentees least; anything past due is graded by its teacher.
+  const HW_GENERAL = [
+    {
+      t: (s: any) => `${s.name}: exercise set from Unit ${1 + rand(6)}`,
+      d: 'Answer all questions in your exercise book and show your working.',
+    },
+    {
+      t: (s: any) => `${s.name}: past paper practice`,
+      d: 'Attempt the paper under exam conditions; we mark together on the due day.',
+    },
+    {
+      t: (s: any) => `${s.name} research assignment`,
+      d: 'One page, handwritten. Cite at least two sources from the library.',
+    },
+    {
+      t: (s: any) => `${s.name}: revision worksheet`,
+      d: 'Complete the worksheet and bring questions on the hard items.',
+    },
+  ];
+  const HW_TRADE = [
+    {
+      t: (s: any) => `${s.name}: practical report`,
+      d: 'Write up the last lab session: objective, steps, result, what went wrong.',
+    },
+    {
+      t: (s: any) => `${s.name}: project milestone`,
+      d: 'Bring your project to the next checkpoint and be ready to demo it.',
+    },
+    {
+      t: (s: any) => `${s.name}: task write-up`,
+      d: 'Document the assigned task following the workshop template.',
+    },
+  ];
+  const studentsBySection = new Map<string, any[]>();
+  for (const e of enrolled) {
+    const list = studentsBySection.get(e.meta.section.id) ?? [];
+    list.push(e.student);
+    studentsBySection.set(e.meta.section.id, list);
+  }
+  const now = new Date();
+  const hwSubmissionRows: any[] = [];
+  let hwCount = 0;
+  for (const meta of sectionMetas) {
+    const classStudents = studentsBySection.get(meta.section.id) ?? [];
+    const subjects = subjectsForSection(meta);
+    for (const term of begunTerms) {
+      const dates = schoolDaysByTerm.get(term.id)!;
+      const n = 3 + rand(3);
+      for (let k = 0; k < n; k++) {
+        const subject = sample(subjects);
+        const isTrade = subject.scope === SubjectScope.A_SPECIFIC;
+        const isCurrent = term.id === currentTerm.id;
+        const due =
+          isCurrent && k === n - 1
+            ? addDays(today, rand(5) - 2) // one lands around today
+            : dates[
+                Math.min(
+                  dates.length - 1,
+                  10 + rand(Math.max(1, dates.length - 12)),
+                )
+              ];
+        const dueAt = new Date(
+          Date.UTC(
+            due.getUTCFullYear(),
+            due.getUTCMonth(),
+            due.getUTCDate(),
+            15,
+            0,
+          ),
+        );
+        const tpl = isTrade ? sample(HW_TRADE) : sample(HW_GENERAL);
+        const maxMarks = sample([10, 20, 20, 30]);
+        const hw = await prisma.homework.create({
+          data: {
+            teacherId: teacherOf(meta.section.id, subject.id).id,
+            subjectId: subject.id,
+            classSectionId: meta.section.id,
+            termId: term.id,
+            title: tpl.t(subject),
+            description: tpl.d,
+            dueDate: dueAt,
+            maxMarks,
+            lateDeductionPerDay: sample([0, 1, 2]),
+            createdAt: minDate(addDays(due, -(5 + rand(9))), today),
+          },
+        });
+        hwCount++;
+        const graded = dueAt < addDays(today, -1);
+        for (const st of classStudents) {
+          const prof = attProfileOf.get(st.id)!;
+          if (dueAt > now) {
+            if (!chance(0.35)) continue; // early birds only, so far
+          } else if (!chance(prof.chronic ? 0.55 : 0.86)) {
+            continue; // never handed in
+          }
+          const late = dueAt <= now && chance(prof.chronic ? 0.25 : 0.07);
+          const sd = late ? addDays(due, 1 + rand(3)) : addDays(due, -rand(3));
+          const submittedAt = minDate(
+            new Date(
+              Date.UTC(
+                sd.getUTCFullYear(),
+                sd.getUTCMonth(),
+                sd.getUTCDate(),
+                14 + rand(5),
+                rand(60),
+              ),
+            ),
+            now,
+          );
+          hwSubmissionRows.push({
+            homeworkId: hw.id,
+            studentId: st.id,
+            submittedAt,
+            isLate: late,
+            marks: graded
+              ? Math.round(maxMarks * (0.4 + Math.random() * 0.55) * 10) / 10
+              : null,
+            gradedAt: graded ? minDate(addDays(dueAt, 1 + rand(5)), now) : null,
+            gradedByUserId: graded
+              ? teacherUserOf(meta.section.id, subject.id).id
+              : null,
+          });
+        }
+      }
     }
   }
-  console.log('  ✅ Homework + sample submissions seeded');
+  for (let i = 0; i < hwSubmissionRows.length; i += 5000) {
+    await prisma.homeworkSubmission.createMany({
+      data: hwSubmissionRows.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${hwCount} homeworks + ${hwSubmissionRows.length} submissions seeded across every class`,
+  );
 
   // ─── MESSAGES ───────────────────────────────────────────────────────────────
   const conv1 = await prisma.conversation.create({
@@ -1893,11 +2840,12 @@ async function main() {
   });
   console.log('  ✅ FAQ articles seeded');
 
-  // ─── TIMETABLE ──────────────────────────────────────────────────────────────
-  // A full week for every class from its own subject set. A teacher is never
-  // booked in two classes during the same period; if every teacher of a class
-  // is busy in a slot, that slot stays free (which real timetables have too).
-  const days = [1, 2, 3, 4, 5];
+  // ─── TIMETABLE (weighted weekly plan) ───────────────────────────────────────
+  // Every class gets its weekly plan placed onto an 8-period day: core
+  // subjects carry more periods than electives, trade modules fill the
+  // technical block mostly as double periods in their own lab or workshop,
+  // and a teacher is never in two rooms at once. A few free periods remain,
+  // as on any real board.
   const timeSlots = [
     { start: '08:00', end: '08:45' },
     { start: '08:50', end: '09:35' },
@@ -1906,43 +2854,269 @@ async function main() {
     { start: '11:30', end: '12:15' },
     { start: '14:00', end: '14:45' },
     { start: '14:50', end: '15:35' },
+    { start: '15:40', end: '16:25' },
   ];
   const timetableRows: any[] = [];
-  const busyTeachers = new Map<string, Set<string>>(); // "day-slot" -> teacher ids
+  const busyTeachers = new Map<string, Set<string>>();
+  const busyAt = (day: number, slot: number) => {
+    const key = `${day}-${slot}`;
+    if (!busyTeachers.has(key)) busyTeachers.set(key, new Set());
+    return busyTeachers.get(key)!;
+  };
+  let demandTotal = 0;
   for (let si = 0; si < sectionMetas.length; si++) {
     const meta = sectionMetas[si];
-    const subjectSet = subjectsForSection(meta);
-    for (const day of days) {
-      for (let slot = 0; slot < Math.min(timeSlots.length, subjectSet.length); slot++) {
-        const key = `${day}-${slot}`;
-        if (!busyTeachers.has(key)) busyTeachers.set(key, new Set());
-        const taken = busyTeachers.get(key)!;
-        let subjectIdx = -1;
-        for (let probe = 0; probe < subjectSet.length; probe++) {
-          const candidate = (day * 3 + slot + si + probe) % subjectSet.length;
-          if (!taken.has(teacherFor(si, candidate).id)) {
-            subjectIdx = candidate;
+    const subjectsById = new Map<string, any>(
+      subjectsForSection(meta).map((s) => [s.id, s]),
+    );
+    const remaining = new Map(planBySection.get(meta.section.id)!);
+    for (const v of remaining.values()) demandTotal += v;
+    const roomFor = (subject: any) =>
+      subject.scope === SubjectScope.A_SPECIFIC
+        ? TRADE_ROOMS[meta.trade!.code]
+        : sectionRoom(si);
+
+    for (const day of [1, 2, 3, 4, 5]) {
+      const todayCount = new Map<string, number>();
+      const occupied = new Set<number>();
+      const place = (subjectId: string, atSlot: number) => {
+        const t = teacherOf(meta.section.id, subjectId);
+        busyAt(day, atSlot).add(t.id);
+        occupied.add(atSlot);
+        timetableRows.push({
+          classSectionId: meta.section.id,
+          subjectId,
+          teacherId: t.id,
+          dayOfWeek: day,
+          startTime: timeSlots[atSlot].start,
+          endTime: timeSlots[atSlot].end,
+          room: roomFor(subjectsById.get(subjectId)!),
+        });
+        remaining.set(subjectId, remaining.get(subjectId)! - 1);
+        todayCount.set(subjectId, (todayCount.get(subjectId) ?? 0) + 1);
+      };
+
+      for (let slot = 0; slot < timeSlots.length; slot++) {
+        if (occupied.has(slot)) continue;
+        const taken = busyAt(day, slot);
+
+        // 1) A trade module with 2+ periods left takes a double block when
+        //    its teacher is free for both and the pair does not span lunch.
+        let chosen: string | null = null;
+        let asDouble = false;
+        const canDouble =
+          slot !== 4 && slot + 1 < timeSlots.length && !occupied.has(slot + 1);
+        if (canDouble) {
+          for (const [sid, left] of remaining) {
+            if (left < 2) continue;
+            if (subjectsById.get(sid)!.scope !== SubjectScope.A_SPECIFIC)
+              continue;
+            if ((todayCount.get(sid) ?? 0) > 0) continue;
+            const tid = teacherOf(meta.section.id, sid).id;
+            if (taken.has(tid) || busyAt(day, slot + 1).has(tid)) continue;
+            chosen = sid;
+            asDouble = true;
             break;
           }
         }
-        if (subjectIdx === -1) continue; // all of this class's teachers are busy
-        const teacher = teacherFor(si, subjectIdx);
-        taken.add(teacher.id);
-        timetableRows.push({
-          classSectionId: meta.section.id,
-          subjectId: subjectSet[subjectIdx].id,
-          teacherId: teacher.id,
-          dayOfWeek: day,
-          startTime: timeSlots[slot].start,
-          endTime: timeSlots[slot].end,
-          room: `Room ${100 + (si % 20)}`,
-        });
+        // 2) Otherwise the subject with the most periods left whose teacher
+        //    is free — first one not yet seen today, then allowing a second
+        //    (non-consecutive) period.
+        if (!chosen) {
+          for (const pass of [0, 1] as const) {
+            let bestLeft = 0;
+            for (const [sid, left] of remaining) {
+              if (left <= 0) continue;
+              if ((todayCount.get(sid) ?? 0) > pass) continue;
+              if (taken.has(teacherOf(meta.section.id, sid).id)) continue;
+              if (left > bestLeft) {
+                bestLeft = left;
+                chosen = sid;
+              }
+            }
+            if (chosen) break;
+          }
+        }
+        if (!chosen) continue; // free period on the board
+        place(chosen, slot);
+        if (asDouble) place(chosen, slot + 1);
       }
     }
   }
   await prisma.timetable.createMany({ data: timetableRows });
   console.log(
-    `  ✅ ${timetableRows.length} timetable entries seeded across all ${sectionMetas.length} classes`,
+    `  ✅ ${timetableRows.length}/${demandTotal} weighted timetable periods placed across ${sectionMetas.length} classes`,
+  );
+
+  // ─── PROFILE AVATARS ────────────────────────────────────────────────────────
+  // Deterministic duotone SVG initials written into uploads/avatars — real
+  // files served by the API, exercising the same pipeline uploaded photos
+  // use. Coverage varies like a real school's: all demo accounts, nearly
+  // all staff, most students, under half of parents, few alumni.
+  const AVATAR_PALETTES: [string, string][] = [
+    ['#1B4F72', '#2E86C1'],
+    ['#145A32', '#27AE60'],
+    ['#6E2C00', '#CA6F1E'],
+    ['#4A235A', '#8E44AD'],
+    ['#641E16', '#C0392B'],
+    ['#154360', '#5DADE2'],
+    ['#0B5345', '#16A085'],
+    ['#7B241C', '#E74C3C'],
+    ['#1C2833', '#566573'],
+    ['#7D6608', '#B7950B'],
+  ];
+  const avatarsDir = join(uploadsDir, 'avatars');
+  rmSync(avatarsDir, { recursive: true, force: true });
+  mkdirSync(avatarsDir, { recursive: true });
+  const avatarSvg = (first: string, last: string, key: number): string => {
+    const [a, b] = AVATAR_PALETTES[key % AVATAR_PALETTES.length];
+    const initials = `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">` +
+      `<rect width="160" height="160" fill="${a}"/>` +
+      `<path d="M0 160 L160 0 L160 160 Z" fill="${b}" opacity="0.85"/>` +
+      `<text x="80" y="80" dy="0.36em" text-anchor="middle" ` +
+      `font-family="Arial, Helvetica, sans-serif" font-size="62" ` +
+      `font-weight="700" fill="#FFFFFF">${initials}</text></svg>`
+    );
+  };
+  const hashOf = (s: string) => {
+    let h = 0;
+    for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h;
+  };
+  const photoRows: { id: string; url: string }[] = [];
+  const giveAvatar = (user: any, always = false, prob = 1) => {
+    if (!always && !chance(prob)) return;
+    const file = `${user.id}.svg`;
+    writeFileSync(
+      join(avatarsDir, file),
+      avatarSvg(user.firstName, user.lastName, hashOf(user.id)),
+    );
+    photoRows.push({ id: user.id, url: `/uploads/avatars/${file}` });
+  };
+  giveAvatar(admin, true);
+  giveAvatar(librarianUser, true);
+  teacherUsers.forEach((u, i) => giveAvatar(u, i === 0, 0.95));
+  studentUsers.forEach((u, i) => giveAvatar(u, i === 0, 0.85));
+  parentUsers.forEach((u) => giveAvatar(u, u.id === demoParent.id, 0.45));
+  alumni.forEach((a) => giveAvatar(a.user, false, 0.25));
+  for (let i = 0; i < photoRows.length; i += 500) {
+    const values = photoRows
+      .slice(i, i + 500)
+      .map((r) => `('${r.id}'::text, '${r.url}'::text)`)
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET photo_url = v.p FROM (VALUES ${values}) AS v(id, p) WHERE u.id = v.id`,
+    );
+  }
+  console.log(`  ✅ ${photoRows.length} profile avatars generated and linked`);
+
+  // ─── SIGNS OF LIFE (created dates, last logins) ─────────────────────────────
+  // The school adopted Markova a week before the 2024-25 year opened: staff
+  // accounts first, then the student and guardian import waves, and each
+  // later September its own onboarding. Logins spread like a live school's:
+  // admins daily, teachers on weekdays, students in bursts, a share of
+  // parents never activated, alumni dormant. Raw SQL keeps updated_at from
+  // stamping the seed instant on everyone.
+  const adoption = addDays(allYears[1].year.startDate, -7);
+  const maxDate = (a: Date, b: Date) => (a > b ? a : b);
+  const withTime = (d: Date, hUtc: number) =>
+    new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hUtc, rand(60)),
+    );
+  const recentLogin = (daysBack: number) => {
+    let d = addDays(today, -rand(daysBack + 1));
+    const dow = d.getUTCDay();
+    if (dow === 0) d = addDays(d, -2);
+    if (dow === 6) d = addDays(d, -1);
+    return withTime(d, 4 + rand(14)); // 06:00-20:00 Kigali
+  };
+  type LifeRow = { id: string; created: Date; login: Date | null; seen: Date | null };
+  const lifeRows: LifeRow[] = [];
+  const life = (id: string, created: Date, login: Date | null) => {
+    lifeRows.push({
+      id,
+      created,
+      login,
+      seen: login ? new Date(login.getTime() + (5 + rand(35)) * 60000) : null,
+    });
+  };
+  life(admin.id, addDays(adoption, -3), recentLogin(1));
+  life(librarianUser.id, addDays(adoption, 2), recentLogin(2));
+  for (let i = 0; i < teacherUsers.length; i++) {
+    const created = addDays(maxDate(adoption, teachers[i].hireDate), rand(10));
+    const r = Math.random();
+    const login =
+      i === 0
+        ? recentLogin(1)
+        : r < 0.7
+          ? recentLogin(3)
+          : r < 0.95
+            ? recentLogin(14)
+            : recentLogin(42);
+    life(teacherUsers[i].id, created, login);
+  }
+  for (let i = 0; i < enrolled.length; i++) {
+    const joinIdx = Math.min(...enrolled[i].placements.map((pl) => pl.yearIdx));
+    const created = addDays(
+      maxDate(adoption, allYears[joinIdx].year.startDate),
+      3 + rand(21),
+    );
+    const r = Math.random();
+    const login =
+      i === 0
+        ? recentLogin(1)
+        : r < 0.5
+          ? recentLogin(3)
+          : r < 0.8
+            ? recentLogin(14)
+            : r < 0.95
+              ? recentLogin(56)
+              : null;
+    life(studentUsers[i].id, created, login);
+  }
+  for (const pu of parentUsers) {
+    const r = Math.random();
+    const login =
+      pu.id === demoParent.id
+        ? recentLogin(1)
+        : r < 0.4
+          ? recentLogin(7)
+          : r < 0.65
+            ? recentLogin(30)
+            : r < 0.85
+              ? recentLogin(180)
+              : null;
+    life(pu.id, addDays(adoption, rand(75)), login);
+  }
+  for (const a of alumni) {
+    life(a.student.userId, addDays(adoption, 20 + rand(40)), null);
+  }
+  for (let i = 0; i < lifeRows.length; i += 500) {
+    const chunk = lifeRows.slice(i, i + 500);
+    const values = chunk
+      .map((r) => {
+        const c = `'${r.created.toISOString()}'::timestamptz`;
+        const l = r.login
+          ? `'${r.login.toISOString()}'::timestamptz`
+          : 'NULL::timestamptz';
+        const s = r.seen
+          ? `'${r.seen.toISOString()}'::timestamptz`
+          : 'NULL::timestamptz';
+        return `('${r.id}'::text, ${c}, ${l}, ${s})`;
+      })
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET created_at = v.c, ` +
+        `updated_at = GREATEST(v.c, COALESCE(v.l, v.c)), ` +
+        `last_login_at = v.l, last_seen_at = v.s ` +
+        `FROM (VALUES ${values}) AS v(id, c, l, s) WHERE u.id = v.id`,
+    );
+  }
+  const neverActivated = lifeRows.filter((r) => !r.login).length;
+  console.log(
+    `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;

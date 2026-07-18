@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { resolveUploadUrl } from "@/lib/assets";
 import { User } from "lucide-react";
 
 interface AvatarProps {
@@ -28,10 +29,13 @@ export function Avatar({
     lg: "h-7 w-7",
   };
 
-  if (src) {
+  // API-stored photos are root-relative (/uploads/...) and live on the API
+  // origin, not the web one — resolve before rendering.
+  const resolved = resolveUploadUrl(src);
+  if (resolved) {
     return (
       <img
-        src={src}
+        src={resolved}
         alt={alt}
         className={cn(
           "rounded-full object-cover border border-border",
