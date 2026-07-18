@@ -839,50 +839,78 @@ export class ReportsService implements OnModuleDestroy {
         });
         return { filename, csv: toCsv(rows.map(userRow)) };
       }
+      // The two big tables (hundreds of thousands of rows) are fetched flat and
+      // joined via lookup maps — nested includes at this scale exhaust memory.
       case 'marks': {
-        const rows = await this.prisma.mark.findMany({
-          include: {
-            student: { include: { user: true } },
-            subject: true,
-            assessmentType: true,
-            term: true,
-          },
-          orderBy: { createdAt: 'asc' },
-        });
+        const [rows, students, subjects, assessmentTypes, terms] =
+          await Promise.all([
+            this.prisma.mark.findMany({ orderBy: { createdAt: 'asc' } }),
+            this.prisma.student.findMany({
+              select: {
+                id: true,
+                studentIdNumber: true,
+                user: { select: { firstName: true, lastName: true } },
+              },
+            }),
+            this.prisma.subject.findMany({
+              select: { id: true, name: true },
+            }),
+            this.prisma.assessmentType.findMany({
+              select: { id: true, name: true },
+            }),
+            this.prisma.term.findMany({ select: { id: true, name: true } }),
+          ]);
+        const studentById = new Map(students.map((s) => [s.id, s]));
+        const subjectById = new Map(subjects.map((s) => [s.id, s.name]));
+        const atById = new Map(assessmentTypes.map((a) => [a.id, a.name]));
+        const termById = new Map(terms.map((t) => [t.id, t.name]));
         return {
           filename,
           csv: toCsv(
-            rows.map((m) => ({
-              studentId: m.student?.studentIdNumber ?? '',
-              student: m.student?.user
-                ? `${m.student.user.firstName} ${m.student.user.lastName}`
-                : '',
-              subject: m.subject?.name ?? '',
-              assessment: m.assessmentType?.name ?? '',
-              term: m.term?.name ?? '',
-              score: m.score,
-              maxScore: m.maxScore,
-            })),
+            rows.map((m) => {
+              const st = studentById.get(m.studentId);
+              return {
+                studentId: st?.studentIdNumber ?? '',
+                student: st?.user
+                  ? `${st.user.firstName} ${st.user.lastName}`
+                  : '',
+                subject: subjectById.get(m.subjectId) ?? '',
+                assessment: atById.get(m.assessmentTypeId) ?? '',
+                term: termById.get(m.termId) ?? '',
+                score: m.score,
+                maxScore: m.maxScore,
+              };
+            }),
           ),
         };
       }
       case 'attendance': {
-        const rows = await this.prisma.attendance.findMany({
-          include: { student: { include: { user: true } } },
-          orderBy: { date: 'asc' },
-        });
+        const [rows, students] = await Promise.all([
+          this.prisma.attendance.findMany({ orderBy: { date: 'asc' } }),
+          this.prisma.student.findMany({
+            select: {
+              id: true,
+              studentIdNumber: true,
+              user: { select: { firstName: true, lastName: true } },
+            },
+          }),
+        ]);
+        const studentById = new Map(students.map((s) => [s.id, s]));
         return {
           filename,
           csv: toCsv(
-            rows.map((a) => ({
-              studentId: a.student?.studentIdNumber ?? '',
-              student: a.student?.user
-                ? `${a.student.user.firstName} ${a.student.user.lastName}`
-                : '',
-              date: a.date.toISOString().slice(0, 10),
-              status: a.status,
-              reason: a.reasonCategory ?? '',
-            })),
+            rows.map((a) => {
+              const st = studentById.get(a.studentId);
+              return {
+                studentId: st?.studentIdNumber ?? '',
+                student: st?.user
+                  ? `${st.user.firstName} ${st.user.lastName}`
+                  : '',
+                date: a.date.toISOString().slice(0, 10),
+                status: a.status,
+                reason: a.reasonCategory ?? '',
+              };
+            }),
           ),
         };
       }
