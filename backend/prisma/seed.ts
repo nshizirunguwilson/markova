@@ -2202,6 +2202,45 @@ async function main() {
     `  ✅ ${attRows.length} attendance lines across ${schoolDays.length} school days (year to date)`,
   );
 
+  // ─── TEACHER ATTENDANCE (staff sign-in, year to date) ───────────────────────
+  // Staff scan in before the students do: near-perfect presence, the odd
+  // late morning, rare absence.
+  const tAttRows: any[] = [];
+  for (const teacher of teachers) {
+    for (const date of schoolDays) {
+      const r = Math.random();
+      const status =
+        r < 0.955
+          ? AttendanceStatus.PRESENT
+          : r < 0.985
+            ? AttendanceStatus.LATE
+            : AttendanceStatus.ABSENT;
+      tAttRows.push({
+        teacherId: teacher.id,
+        date,
+        status,
+        scannedAt:
+          status === AttendanceStatus.ABSENT
+            ? null
+            : new Date(
+                Date.UTC(
+                  date.getUTCFullYear(),
+                  date.getUTCMonth(),
+                  date.getUTCDate(),
+                  status === AttendanceStatus.LATE ? 6 : 4,
+                  status === AttendanceStatus.LATE ? rand(50) : 45 + rand(70),
+                ),
+              ),
+      });
+    }
+  }
+  for (let i = 0; i < tAttRows.length; i += 10000) {
+    await prisma.teacherAttendance.createMany({
+      data: tAttRows.slice(i, i + 10000),
+    });
+  }
+  console.log(`  ✅ ${tAttRows.length} teacher attendance lines seeded`);
+
   // ─── EXAM SCHEDULES (end-of-term timetables, current year) ──────────────────
   // Published for every class for each term so far this year: up to three
   // papers a day through the closing stretch, practicals as task-based
