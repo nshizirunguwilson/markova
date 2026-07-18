@@ -685,7 +685,7 @@ async function main() {
   console.log('  ✅ Admin user seeded');
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
-  await prisma.user.create({
+  const librarianUser = await prisma.user.create({
     data: {
       email: 'librarian@markova.edu',
       phone: '+250788000020',
@@ -1201,7 +1201,7 @@ async function main() {
               TeacherQualification.A1,
             ]),
         rssbNumber: String(10000000 + rand(89999999)),
-        hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
+        hireDate: new Date(Date.UTC(yrNow - 1 - rand(11), 8, 1)),
         isActive: true,
       },
     });
@@ -2946,6 +2946,113 @@ async function main() {
   await prisma.timetable.createMany({ data: timetableRows });
   console.log(
     `  ✅ ${timetableRows.length}/${demandTotal} weighted timetable periods placed across ${sectionMetas.length} classes`,
+  );
+
+  // ─── SIGNS OF LIFE (created dates, last logins) ─────────────────────────────
+  // The school adopted Markova a week before the 2024-25 year opened: staff
+  // accounts first, then the student and guardian import waves, and each
+  // later September its own onboarding. Logins spread like a live school's:
+  // admins daily, teachers on weekdays, students in bursts, a share of
+  // parents never activated, alumni dormant. Raw SQL keeps updated_at from
+  // stamping the seed instant on everyone.
+  const adoption = addDays(allYears[1].year.startDate, -7);
+  const maxDate = (a: Date, b: Date) => (a > b ? a : b);
+  const withTime = (d: Date, hUtc: number) =>
+    new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hUtc, rand(60)),
+    );
+  const recentLogin = (daysBack: number) => {
+    let d = addDays(today, -rand(daysBack + 1));
+    const dow = d.getUTCDay();
+    if (dow === 0) d = addDays(d, -2);
+    if (dow === 6) d = addDays(d, -1);
+    return withTime(d, 4 + rand(14)); // 06:00-20:00 Kigali
+  };
+  type LifeRow = { id: string; created: Date; login: Date | null; seen: Date | null };
+  const lifeRows: LifeRow[] = [];
+  const life = (id: string, created: Date, login: Date | null) => {
+    lifeRows.push({
+      id,
+      created,
+      login,
+      seen: login ? new Date(login.getTime() + (5 + rand(35)) * 60000) : null,
+    });
+  };
+  life(admin.id, addDays(adoption, -3), recentLogin(1));
+  life(librarianUser.id, addDays(adoption, 2), recentLogin(2));
+  for (let i = 0; i < teacherUsers.length; i++) {
+    const created = addDays(maxDate(adoption, teachers[i].hireDate), rand(10));
+    const r = Math.random();
+    const login =
+      i === 0
+        ? recentLogin(1)
+        : r < 0.7
+          ? recentLogin(3)
+          : r < 0.95
+            ? recentLogin(14)
+            : recentLogin(42);
+    life(teacherUsers[i].id, created, login);
+  }
+  for (let i = 0; i < enrolled.length; i++) {
+    const joinIdx = Math.min(...enrolled[i].placements.map((pl) => pl.yearIdx));
+    const created = addDays(
+      maxDate(adoption, allYears[joinIdx].year.startDate),
+      3 + rand(21),
+    );
+    const r = Math.random();
+    const login =
+      i === 0
+        ? recentLogin(1)
+        : r < 0.5
+          ? recentLogin(3)
+          : r < 0.8
+            ? recentLogin(14)
+            : r < 0.95
+              ? recentLogin(56)
+              : null;
+    life(studentUsers[i].id, created, login);
+  }
+  for (const pu of parentUsers) {
+    const r = Math.random();
+    const login =
+      pu.id === demoParent.id
+        ? recentLogin(1)
+        : r < 0.4
+          ? recentLogin(7)
+          : r < 0.65
+            ? recentLogin(30)
+            : r < 0.85
+              ? recentLogin(180)
+              : null;
+    life(pu.id, addDays(adoption, rand(75)), login);
+  }
+  for (const a of alumni) {
+    life(a.student.userId, addDays(adoption, 20 + rand(40)), null);
+  }
+  for (let i = 0; i < lifeRows.length; i += 500) {
+    const chunk = lifeRows.slice(i, i + 500);
+    const values = chunk
+      .map((r) => {
+        const c = `'${r.created.toISOString()}'::timestamptz`;
+        const l = r.login
+          ? `'${r.login.toISOString()}'::timestamptz`
+          : 'NULL::timestamptz';
+        const s = r.seen
+          ? `'${r.seen.toISOString()}'::timestamptz`
+          : 'NULL::timestamptz';
+        return `('${r.id}'::text, ${c}, ${l}, ${s})`;
+      })
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET created_at = v.c, ` +
+        `updated_at = GREATEST(v.c, COALESCE(v.l, v.c)), ` +
+        `last_login_at = v.l, last_seen_at = v.s ` +
+        `FROM (VALUES ${values}) AS v(id, c, l, s) WHERE u.id = v.id`,
+    );
+  }
+  const neverActivated = lifeRows.filter((r) => !r.login).length;
+  console.log(
+    `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
