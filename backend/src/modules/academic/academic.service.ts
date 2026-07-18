@@ -223,7 +223,11 @@ export class AcademicService {
           orderBy: { name: 'asc' },
           include: {
             trade: true,
-            _count: { select: { students: true } },
+            // Enrolled students only — alumni keep their section link for
+            // records but must not inflate the class size.
+            _count: {
+              select: { students: { where: { status: 'ACTIVE' } } },
+            },
           },
         },
       },

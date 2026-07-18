@@ -172,6 +172,21 @@ export class ReportsController {
 
   // ── Full export ───────────────────────────────────────────────────────────
 
+  @Get('export/dataset/:key')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Export one dataset as a readable CSV' })
+  async exportDataset(
+    @Param('key') key: string,
+    @Res() res: express.Response,
+  ) {
+    const { filename, csv } = await this.service.exportDatasetCsv(key);
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    res.end(csv);
+  }
+
   @Get('export/all')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Export all system data as a ZIP of CSV files' })
