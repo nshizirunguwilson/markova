@@ -800,42 +800,96 @@ async function main() {
   });
   console.log('  ✅ Librarian seeded');
 
-  // ─── ACADEMIC YEAR & TERMS ──────────────────────────────────────────────────
-  // Anchored to today: Term 1 is the *current* term and its window contains
-  // today, so every term selector defaults to a term that actually has data.
+  // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
+  // The official term windows as published by the Ministry of Education. The
+  // seed carries the three most recent school years that have started as of
+  // today. When today falls in a holiday gap (between terms, or after Term 3
+  // like every July-August), the most recent term's end date is stretched to
+  // today+3 so the demo always has a live current term — that stretch is the
+  // only departure from the published dates.
   const today = startOfToday();
   const yr = today.getFullYear();
-  // Three school years: the two past ones are fully closed and graded; in the
-  // current one Terms 1-2 are done and Term 3 contains today.
-  const term1Start = addDays(today, -224);
+
+  type CalTerm = { start: Date; end: Date };
+  const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const published: { name: string; terms: [string, string][] }[] = [
+    {
+      name: '2023-2024', // 37 weeks
+      terms: [
+        ['2023-09-25', '2023-12-22'],
+        ['2024-01-08', '2024-03-29'],
+        ['2024-04-15', '2024-07-05'],
+      ],
+    },
+    {
+      name: '2024-2025', // 38 weeks
+      terms: [
+        ['2024-09-09', '2024-12-20'],
+        ['2025-01-06', '2025-04-04'],
+        ['2025-04-21', '2025-06-27'],
+      ],
+    },
+    {
+      name: '2025-2026',
+      terms: [
+        ['2025-09-08', '2025-12-19'],
+        ['2026-01-05', '2026-04-03'],
+        ['2026-04-20', '2026-07-03'],
+      ],
+    },
+  ];
+  let calendars: { name: string; terms: CalTerm[] }[] = published.map((c) => ({
+    name: c.name,
+    terms: c.terms.map(([s, e]) => ({ start: utcDay(s), end: utcDay(e) })),
+  }));
+  // Beyond the published years, extrapolate in 364-day steps (52 weeks), which
+  // keeps every term date on its official weekday.
+  while (addDays(calendars[calendars.length - 1].terms[0].start, 364) <= today) {
+    const prev = calendars[calendars.length - 1];
+    const y = prev.terms[0].start.getUTCFullYear() + 1;
+    calendars.push({
+      name: `${y}-${y + 1}`,
+      terms: prev.terms.map((t) => ({
+        start: addDays(t.start, 364),
+        end: addDays(t.end, 364),
+      })),
+    });
+  }
+  calendars = calendars.filter((c) => c.terms[0].start <= today).slice(-3);
+  if (calendars.length !== 3) throw new Error('calendar selection expects 3 started years');
+
+  // The current term: the latest one that has started. If today is past its
+  // end we are in a school holiday — stretch it (see above).
+  let curTi = 0;
+  for (let i = 0; i < 3; i++) {
+    if (calendars[2].terms[i].start <= today) curTi = i;
+  }
+  if (today > calendars[2].terms[curTi].end) {
+    calendars[2].terms[curTi].end = addDays(today, 3);
+  }
+
   type YearBundle = { year: any; terms: any[] };
   const allYears: YearBundle[] = [];
   for (let yearIdx = 0; yearIdx < 3; yearIdx++) {
-    const back = 2 - yearIdx; // 2, 1, 0 years ago
-    const start = addDays(term1Start, -365 * back);
+    const cal = calendars[yearIdx];
     const year = await prisma.academicYear.create({
       data: {
-        name: `${yr - back}-${yr - back + 1}`,
-        startDate: start,
-        endDate: addDays(start, 294),
-        isCurrent: back === 0,
+        name: cal.name,
+        startDate: cal.terms[0].start,
+        endDate: cal.terms[2].end,
+        isCurrent: yearIdx === 2,
       },
     });
-    const offsets = [
-      { name: 'Term 1', from: 0, to: 84 },
-      { name: 'Term 2', from: 98, to: 189 },
-      { name: 'Term 3', from: 203, to: 294 },
-    ];
     const yearTerms: any[] = [];
-    for (let i = 0; i < offsets.length; i++) {
+    for (let i = 0; i < 3; i++) {
       const t = await prisma.term.create({
         data: {
           academicYearId: year.id,
-          name: offsets[i].name,
-          startDate: addDays(start, offsets[i].from),
-          endDate: addDays(start, offsets[i].to),
-          isCurrent: back === 0 && i === 2,
-          isClosed: back > 0 || i < 2,
+          name: `Term ${i + 1}`,
+          startDate: cal.terms[i].start,
+          endDate: cal.terms[i].end,
+          isCurrent: yearIdx === 2 && i === curTi,
+          isClosed: yearIdx < 2 || i < curTi,
         },
       });
       yearTerms.push(t);
@@ -844,8 +898,12 @@ async function main() {
   }
   const academicYear = allYears[2].year;
   const terms = allYears[2].terms;
-  const currentTerm = terms[2];
-  console.log('  ✅ 3 academic years + 9 terms seeded (Term 3 of the newest is current)');
+  const currentTerm = terms[curTi];
+  // Terms that exist on the calendar but have not started yet carry no data.
+  const termBegun = (t: any) => t.startDate <= today;
+  console.log(
+    `  ✅ Academic years ${calendars.map((c) => c.name).join(', ')} seeded (current: ${currentTerm.name} of ${academicYear.name})`,
+  );
 
   // ─── TRADES ─────────────────────────────────────────────────────────────────
   const trades: any[] = [];
@@ -1190,7 +1248,7 @@ async function main() {
       const { first, last } = studentName(gender, classCounts, fam?.name);
       const journey = planJourney(meta);
       const joinIdx = Math.min(...journey.placements.map((p) => p.yearIdx));
-      const joinYear = yr - 2 + joinIdx;
+      const joinYear = allYears[joinIdx].year.startDate.getUTCFullYear();
       const earliest = journey.placements[journey.placements.length - 1];
 
       // S1 → ~13 yrs … L5 → ~19 yrs; repeaters are a year older per repeat.
@@ -1399,7 +1457,9 @@ async function main() {
     const repeats = placements.filter((p) => p.failed).length;
     const yearsGone = 2 - lastYearIdx;
     const joinYear =
-      yr - 2 + Math.min(...placements.map((p) => p.yearIdx));
+      allYears[
+        Math.min(...placements.map((p) => p.yearIdx))
+      ].year.startDate.getUTCFullYear();
     const age = 11 + last.level.order + rand(2) + repeats + yearsGone;
     const earliestPl = placements[placements.length - 1];
     const dob = new Date(
@@ -1499,6 +1559,7 @@ async function main() {
       const si = sectionIndexBySectionId.get(pl.meta.section.id)!;
       const subjectSet = subjectsForSection(pl.meta);
       for (let ti = 0; ti < yearTerms.length; ti++) {
+        if (!termBegun(yearTerms[ti])) continue; // future term: no marks yet
         const g = pl.yearIdx * 3 + ti; // global term index, current year = 6..8
         const ability = clamp(
           baseline + drift * (g - 6) - (pl.failed ? 8 : 0),
@@ -1576,7 +1637,7 @@ async function main() {
 
   const termResultRows: any[] = [];
   for (let yearIdx = 0; yearIdx < allYears.length; yearIdx++)
-  for (const term of allYears[yearIdx].terms)
+  for (const term of allYears[yearIdx].terms.filter(termBegun))
   for (const meta of sectionMetas) {
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
