@@ -24,10 +24,12 @@ export function GeneralTab() {
 
   const onSubmit = (data: any) => {
     bulkUpsert.mutate(
-      Object.entries(data).map(([key, value]) => ({ key, value: value as string }))
+      Object.entries(data).map(([key, value]) => ({ key, value: value as string })),
+      {
+        // Reflect name/motto live across the shell, but only once saved.
+        onSuccess: () => setBrand({ schoolName: data.school_name, schoolMotto: data.school_motto }),
+      }
     );
-    // Reflect name/motto live across the shell without a reload.
-    setBrand({ schoolName: data.school_name, schoolMotto: data.school_motto });
   };
 
   return (
