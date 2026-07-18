@@ -16,6 +16,9 @@ import {
   SubjectScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { TeacherQualification } from '@prisma/client';
 import {
   computeSubjectTotal,
   countsTowardAggregate,
@@ -364,6 +367,132 @@ function emailFor(first: string, last: string): string {
   return candidate;
 }
 
+// ─── RWANDAN RECORD POOLS ────────────────────────────────────────────────────
+// Residence follows the real 5-level address. Day students overwhelmingly
+// come from Kigali; boarders mostly from the other provinces.
+const KIGALI_AREAS = [
+  { province: 'Kigali City', district: 'Gasabo', sectors: ['Kacyiru', 'Kimironko', 'Remera', 'Kinyinya', 'Gisozi', 'Kimihurura', 'Gatsata', 'Ndera', 'Rusororo'] },
+  { province: 'Kigali City', district: 'Kicukiro', sectors: ['Niboye', 'Gatenga', 'Kicukiro', 'Kanombe', 'Gahanga', 'Kagarama'] },
+  { province: 'Kigali City', district: 'Nyarugenge', sectors: ['Nyamirambo', 'Kimisagara', 'Muhima', 'Gitega', 'Nyakabanda'] },
+];
+const UPCOUNTRY_AREAS = [
+  { province: 'Eastern Province', district: 'Rwamagana', sectors: ['Kigabiro', 'Muhazi', 'Rubona'] },
+  { province: 'Eastern Province', district: 'Kayonza', sectors: ['Mukarange', 'Rukara'] },
+  { province: 'Southern Province', district: 'Huye', sectors: ['Ngoma', 'Tumba', 'Mukura'] },
+  { province: 'Southern Province', district: 'Muhanga', sectors: ['Nyamabuye', 'Shyogwe'] },
+  { province: 'Northern Province', district: 'Musanze', sectors: ['Muhoza', 'Cyuve'] },
+  { province: 'Northern Province', district: 'Gicumbi', sectors: ['Byumba', 'Kaniga'] },
+  { province: 'Western Province', district: 'Rubavu', sectors: ['Gisenyi', 'Nyamyumba'] },
+  { province: 'Western Province', district: 'Karongi', sectors: ['Bwishyura', 'Rubengera'] },
+];
+const CELLS = ['Kamatamu', 'Kibaza', 'Amajyambere', 'Ubumwe', 'Umucyo', 'Kabeza', 'Nyabisindu', 'Rugando', 'Gacuriro', 'Kibagabaga'];
+const VILLAGES = ['Urugero', 'Amahoro', 'Ubwiza', 'Isangano', 'Umurava', 'Karisimbi', 'Ituze', 'Icyerekezo', 'Uburanga', 'Ubwuzu'];
+const PRIMARY_SCHOOLS = ['EP Kacyiru', 'EP Kimironko', 'EP Remera', 'EP Gisozi', 'EP Kanombe', 'EP Nyamirambo', 'EP Muhima', 'EP Kabeza', 'EP Gatsata', 'EP Zindiro'];
+const SECONDARY_SCHOOLS = ['GS Remera', 'GS Kicukiro', 'GS Byumba', 'GS Rugando', 'ES Kanombe', 'GS Musanze', 'GS Huye', 'GS Rwamagana', 'GS Gisenyi', 'GS Muhanga'];
+const DISABILITIES = ['Visual impairment', 'Hearing impairment', 'Physical disability', 'Learning difficulty'];
+const BLOOD_TYPES = ['O+', 'O+', 'O+', 'A+', 'A+', 'B+', 'B+', 'AB+', 'O-', 'A-'];
+const ALLERGIES = ['Penicillin', 'Dust', 'Peanuts', 'Bee stings', 'Lactose'];
+const CONDITIONS = ['Asthma', 'Epilepsy', 'Sickle cell trait', 'Type 1 diabetes'];
+
+// NIDA layout: status, birth year, gender digit (8 male / 7 female), birth
+// order, issuance count, security code. Unique across the seed.
+const usedNids = new Set<string>();
+function makeNid(gender: Gender, birthYear: number, status = '1'): string {
+  for (;;) {
+    let order = '';
+    for (let i = 0; i < 7; i++) order += rand(10);
+    const nid = `${status}${birthYear}${gender === Gender.MALE ? '8' : '7'}${order}0${String(rand(100)).padStart(2, '0')}`;
+    if (!usedNids.has(nid)) {
+      usedNids.add(nid);
+      return nid;
+    }
+  }
+}
+
+// Everything SDMS expects on a student record, generated coherently: IDs
+// only from age 16, boarders mostly upcountry, guardians as plain text
+// (overridden later with the linked parent accounts' names where they exist).
+function studentExtras(
+  gender: Gender,
+  birthYear: number,
+  age: number,
+  joinLevelOrder: number,
+  joinYearStart: Date,
+) {
+  const natRoll = rand(100);
+  const nationality =
+    natRoll < 96 ? 'Rwandan' : natRoll < 98 ? 'Congolese' : 'Burundian';
+  const status = nationality === 'Rwandan' ? '1' : nationality === 'Burundian' ? '2' : '3';
+  const isBoarder = chance(0.28);
+  const area = sample(
+    (isBoarder ? chance(0.85) : chance(0.06)) ? UPCOUNTRY_AREAS : KIGALI_AREAS,
+  );
+  const religionRoll = rand(100);
+  return {
+    user: {
+      nationalId:
+        age >= 16 && chance(0.9) ? makeNid(gender, birthYear, status) : null,
+      nationality,
+    },
+    student: {
+      province: area.province,
+      district: area.district,
+      sector: sample(area.sectors),
+      cell: sample(CELLS),
+      village: sample(VILLAGES),
+      isBoarder,
+      disability: chance(0.025) ? sample(DISABILITIES) : null,
+      religion:
+        religionRoll < 45
+          ? 'Catholic'
+          : religionRoll < 80
+            ? 'Protestant'
+            : religionRoll < 90
+              ? 'Adventist'
+              : religionRoll < 95
+                ? 'Muslim'
+                : null,
+      insuranceNumber: chance(0.85)
+        ? String(1000000000 + rand(899999999))
+        : null,
+      bloodType: chance(0.6) ? sample(BLOOD_TYPES) : null,
+      allergies: chance(0.06) ? sample(ALLERGIES) : null,
+      medicalConditions: chance(0.05) ? sample(CONDITIONS) : null,
+      previousSchool:
+        joinLevelOrder <= 1 ? sample(PRIMARY_SCHOOLS) : sample(SECONDARY_SCHOOLS),
+      enrollmentDate: joinYearStart,
+      fatherName: `${sample(ADULT_WESTERN_MALE)} ${sample(ADULT_KINYA_MALE)}`,
+      motherName: `${sample(ADULT_WESTERN_FEMALE)} ${sample(ADULT_KINYA_FEMALE)}`,
+    },
+  };
+}
+
+// Real Rwandan mobile numbers: MTN (078, 079) and Airtel (072, 073), random
+// subscriber digits, unique across the seed. Documented demo numbers are
+// reserved so they never collide.
+const usedPhones = new Set<string>([
+  '+250788000001',
+  '+250788000010',
+  '+250788000011',
+  '+250788000012',
+  '+250788000013',
+  '+250788000014',
+  '+250788000020',
+  '+250788100000',
+]);
+const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
+function realPhone(): string {
+  for (;;) {
+    let digits = '';
+    for (let i = 0; i < 7; i++) digits += rand(10);
+    const phone = `+250${sample(PHONE_PREFIXES)}${digits}`;
+    if (!usedPhones.has(phone)) {
+      usedPhones.add(phone);
+      return phone;
+    }
+  }
+}
+
 const usedFullNames = new Set<string>();
 const nameKey = (first: string, last: string) =>
   `${first} ${last}`.toLowerCase();
@@ -510,8 +639,10 @@ async function main() {
     { key: 'school_name', value: 'Markova Academy' },
     { key: 'school_motto', value: 'Excellence Through Knowledge' },
     { key: 'logo_url', value: '/uploads/logo.png' },
-    { key: 'stamp_url', value: '/uploads/stamp.png' },
-    { key: 'signature_url', value: '/uploads/signature.png' },
+    // No stamp or signature images ship with the demo; empty means the
+    // school has not uploaded them yet, so nothing requests missing files.
+    { key: 'stamp_url', value: '' },
+    { key: 'signature_url', value: '' },
     { key: 'primary_color', value: '#1B4F72' },
     { key: 'starting_discipline_points', value: '100' },
     { key: 'borrowing_limit', value: '3' },
@@ -522,6 +653,16 @@ async function main() {
     { key: 'school_email', value: 'info@markova.edu' },
     { key: 'email_provider', value: 'smtp' },
   ];
+  // logo_url must point at a real file: copy the bundled mark into uploads.
+  const uploadsDir = join(process.cwd(), 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+  // The mark-only version: the UI prints the school name as text wherever
+  // it is needed, so the logo itself stays clean.
+  const logoSrc = join(process.cwd(), 'assets', 'logo-mark.png');
+  if (existsSync(logoSrc)) {
+    copyFileSync(logoSrc, join(uploadsDir, 'logo.png'));
+  }
+
   for (const config of configs) {
     await prisma.schoolConfig.upsert({
       where: { key: config.key },
@@ -539,6 +680,11 @@ async function main() {
     data: {
       email: 'wilsonshizirungu@gmail.com',
       phone: '+250788000001',
+      code: `ADM-${new Date().getFullYear()}-001`,
+      gender: Gender.MALE,
+      dateOfBirth: new Date('1988-03-12'),
+      nationalId: makeNid(Gender.MALE, 1988),
+      nationality: 'Rwandan',
       passwordHash,
       role: Role.ADMIN,
       firstName: 'Wilson',
@@ -549,6 +695,8 @@ async function main() {
   });
   console.log('  ✅ Admin user seeded');
 
+  const yrNow = new Date().getFullYear();
+
   // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
   // No two teachers share any name component — 40 staff with a repeated name
   // would read as fake immediately.
@@ -556,11 +704,11 @@ async function main() {
   // The demo teacher keeps the address documented in CLAUDE.md; the other
   // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010' },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011' },
-    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012' },
-    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013' },
-    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014' },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
   ];
   const teacherComponents = new Set<string>(
     fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
@@ -577,12 +725,12 @@ async function main() {
     if (!claimFullName(first, last)) continue;
     teacherComponents.add(first);
     teacherComponents.add(last);
-    const idx = generatedTeachers.length;
     generatedTeachers.push({
       firstName: first,
       lastName: last,
       email: emailFor(first, last),
-      phone: `+250788${String(100 + idx).padStart(6, '0')}`,
+      phone: realPhone(),
+      gender,
     });
   }
   const teacherData = [...fixedTeachers, ...generatedTeachers];
@@ -591,10 +739,18 @@ async function main() {
   const teachers: any[] = [];
   for (let ti = 0; ti < teacherData.length; ti++) {
     const td = teacherData[ti];
+    const tBirthYear = yrNow - (26 + rand(30));
     const user = await prisma.user.create({
       data: {
         email: td.email,
         phone: td.phone,
+        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
+        gender: td.gender,
+        dateOfBirth: new Date(
+          Date.UTC(tBirthYear, rand(12), 1 + rand(27)),
+        ),
+        nationalId: makeNid(td.gender, tBirthYear),
+        nationality: 'Rwandan',
         passwordHash,
         role: Role.TEACHER,
         firstName: td.firstName,
@@ -607,6 +763,15 @@ async function main() {
       data: {
         userId: user.id,
         employmentStatus: EmploymentStatus.FULL_TIME,
+        qualification: sample([
+          TeacherQualification.A0,
+          TeacherQualification.A0,
+          TeacherQualification.A1,
+          TeacherQualification.A1,
+          TeacherQualification.A2,
+        ]),
+        rssbNumber: String(10000000 + rand(89999999)),
+        hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
         isActive: true,
       },
     });
@@ -620,6 +785,11 @@ async function main() {
     data: {
       email: 'librarian@markova.edu',
       phone: '+250788000020',
+      code: `LIB-${new Date().getFullYear()}-001`,
+      gender: Gender.FEMALE,
+      dateOfBirth: new Date('1992-07-04'),
+      nationalId: makeNid(Gender.FEMALE, 1992),
+      nationality: 'Rwandan',
       passwordHash,
       role: Role.LIBRARIAN,
       firstName: 'Josiane',
@@ -861,8 +1031,10 @@ async function main() {
   // Each class gets its own subject set taught by cycling teachers. The
   // teacher for (class, subject) is deterministic so marks reference the same
   // teacher as the assignment.
+  // si*7 walks the roster in larger strides so all 40 teachers get classes
+  // (plain si+subj left a few indices unreached).
   const teacherFor = (sectionIdx: number, subjectIdx: number) =>
-    teachers[(sectionIdx + subjectIdx) % teachers.length];
+    teachers[(sectionIdx * 7 + subjectIdx) % teachers.length];
 
   const assignmentRows: any[] = [];
   for (let si = 0; si < sectionMetas.length; si++) {
@@ -1017,10 +1189,32 @@ async function main() {
           : Gender.FEMALE;
       const { first, last } = studentName(gender, classCounts, fam?.name);
       const journey = planJourney(meta);
+      const joinIdx = Math.min(...journey.placements.map((p) => p.yearIdx));
+      const joinYear = yr - 2 + joinIdx;
+      const earliest = journey.placements[journey.placements.length - 1];
+
+      // S1 → ~13 yrs … L5 → ~19 yrs; repeaters are a year older per repeat.
+      const ageBase = 11 + meta.level.order + rand(2) + journey.repeats;
+      const dob = new Date(
+        `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
+      );
+      // NIDA issues IDs from the 16th birthday — gate on the real age, not
+      // the birth-year difference.
+      const actualAge = Math.floor(
+        (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000),
+      );
+      const extras = studentExtras(
+        gender,
+        yr - ageBase,
+        actualAge,
+        earliest.meta.level.order,
+        allYears[joinIdx].year.startDate,
+      );
 
       const user = await prisma.user.create({
         data: {
           email: i === 0 ? 'student1@markova.edu' : emailFor(first, last),
+          ...extras.user,
           passwordHash,
           role: Role.STUDENT,
           firstName: first,
@@ -1029,19 +1223,16 @@ async function main() {
           forcePasswordChange: i !== 0, // student1 is the demo account
         },
       });
-      // S1 → ~13 yrs … L5 → ~19 yrs; repeaters are a year older per repeat.
-      const ageBase = 11 + meta.level.order + rand(2) + journey.repeats;
       const student = await prisma.student.create({
         data: {
           userId: user.id,
-          studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+          studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
           classSectionId: meta.section.id,
-          dateOfBirth: new Date(
-            `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
-          ),
+          dateOfBirth: dob,
           gender,
           status: StudentStatus.ACTIVE,
           disciplinePoints: 100,
+          ...extras.student,
         },
       });
       if (fam) fam.studentIds.push(student.id);
@@ -1071,9 +1262,15 @@ async function main() {
     const { first, last } = adultName(gender, {
       kinyaOverride: opts?.kinyaOverride,
     });
+    const pBirthYear = yr - (32 + rand(24));
     const user = await prisma.user.create({
       data: {
-        phone: `+250788${String(100000 + i).padStart(6, '0')}`,
+        phone: i === 0 ? '+250788100000' : realPhone(),
+        code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
+        gender,
+        dateOfBirth: new Date(Date.UTC(pBirthYear, rand(12), 1 + rand(27))),
+        nationalId: makeNid(gender, pBirthYear),
+        nationality: 'Rwandan',
         // First 15 parents keep their phone-only login profile to match docs.
         email: i >= 15 ? emailFor(first, last) : null,
         passwordHash,
@@ -1119,6 +1316,7 @@ async function main() {
   // Link lineage kids to their real parents.
   const parentLinkRows: any[] = [];
   const linkedStudentIds = new Set<string>();
+  const guardianByStudent = new Map<string, { father?: any; mother?: any }>();
   for (const fam of families) {
     const pair = familyParents.get(fam.id);
     if (!pair) continue;
@@ -1128,6 +1326,10 @@ async function main() {
         { parentUserId: pair.mother.id, studentId, relationship: 'Mother' },
       );
       linkedStudentIds.add(studentId);
+      guardianByStudent.set(studentId, {
+        father: pair.father,
+        mother: pair.mother,
+      });
     }
   }
 
@@ -1137,6 +1339,7 @@ async function main() {
   for (let si = 0; si < students.length; si++) {
     if (linkedStudentIds.has(students[si].id)) continue;
     const father = genericFathers[fCursor++ % genericFathers.length];
+    const guardians: { father?: any; mother?: any } = { father };
     parentLinkRows.push({
       parentUserId: father.id,
       studentId: students[si].id,
@@ -1144,14 +1347,32 @@ async function main() {
     });
     if (si % 4 !== 0) {
       const mother = genericMothers[mCursor++ % genericMothers.length];
+      guardians.mother = mother;
       parentLinkRows.push({
         parentUserId: mother.id,
         studentId: students[si].id,
         relationship: 'Mother',
       });
     }
+    guardianByStudent.set(students[si].id, guardians);
   }
   await prisma.parentStudent.createMany({ data: parentLinkRows });
+
+  // The guardian names printed on a student's record must match the linked
+  // parent accounts wherever those exist.
+  for (const [studentId, g] of guardianByStudent) {
+    await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        ...(g.father && {
+          fatherName: `${g.father.firstName} ${g.father.lastName}`,
+        }),
+        ...(g.mother && {
+          motherName: `${g.mother.firstName} ${g.mother.lastName}`,
+        }),
+      },
+    });
+  }
   console.log(
     `  ✅ ${parentUsers.length} parents seeded (${familyParents.size} lineage families) and linked`,
   );
@@ -1177,10 +1398,27 @@ async function main() {
     const i = studentIdx++;
     const repeats = placements.filter((p) => p.failed).length;
     const yearsGone = 2 - lastYearIdx;
+    const joinYear =
+      yr - 2 + Math.min(...placements.map((p) => p.yearIdx));
     const age = 11 + last.level.order + rand(2) + repeats + yearsGone;
+    const earliestPl = placements[placements.length - 1];
+    const dob = new Date(
+      `${yr - age}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
+    );
+    const actualAge = Math.floor(
+      (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000),
+    );
+    const extras = studentExtras(
+      gender,
+      yr - age,
+      actualAge,
+      earliestPl.meta.level.order,
+      allYears[earliestPl.yearIdx].year.startDate,
+    );
     const user = await prisma.user.create({
       data: {
         email: emailFor(name.first, name.last),
+        ...extras.user,
         passwordHash,
         role: Role.STUDENT,
         firstName: name.first,
@@ -1192,17 +1430,16 @@ async function main() {
     const student = await prisma.student.create({
       data: {
         userId: user.id,
-        studentIdNumber: `MKV-${yr}-${String(i + 1).padStart(4, '0')}`,
+        studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
         classSectionId: last.section.id,
-        dateOfBirth: new Date(
-          `${yr - age}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
-        ),
+        dateOfBirth: dob,
         gender,
         status:
           last.level.order === 6
             ? StudentStatus.GRADUATED
             : StudentStatus.TRANSFERRED,
         disciplinePoints: 100,
+        ...extras.student,
       },
     });
     alumni.push({ student, placements });

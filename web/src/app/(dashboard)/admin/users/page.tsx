@@ -28,10 +28,8 @@ import {
   Modal,
 } from "@/components/ui";
 import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
-import { AddUserModal } from "./add-user-modal";
+import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
-
-const ROLES = ["ALL", "ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"];
 
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
@@ -50,6 +48,7 @@ export default function UsersPage() {
     limit: 20,
   });
   const [searchInput, setSearchInput] = useState("");
+  const [searchIn, setSearchIn] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -98,6 +97,15 @@ export default function UsersPage() {
     setFilters((f) => ({ ...f, search: searchInput || undefined, page: 1 }));
   };
 
+  // Scope changes re-run the current query against the chosen field group.
+  useEffect(() => {
+    setFilters((f) => ({
+      ...f,
+      searchIn: searchIn === "all" ? undefined : searchIn,
+      page: 1,
+    }));
+  }, [searchIn]);
+
   // Auto-search: debounce typing into the query (no button needed)
   useEffect(() => {
     const id = setTimeout(() => {
@@ -109,14 +117,6 @@ export default function UsersPage() {
     }, 350);
     return () => clearTimeout(id);
   }, [searchInput]);
-
-  const handleRoleFilter = (role: string) => {
-    setFilters((f) => ({
-      ...f,
-      role: role === "ALL" ? undefined : role,
-      page: 1,
-    }));
-  };
 
   const handleDelete = async () => {
     if (deleteTarget) {
@@ -155,7 +155,7 @@ export default function UsersPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
               type="text"
-              placeholder="Search by name, email, or phone..."
+              placeholder="Search name, role, contact, status, code or class..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -163,22 +163,62 @@ export default function UsersPage() {
             />
           </div>
 
-          {/* Role tabs */}
-          <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
-            {ROLES.map((role) => (
-              <button
-                key={role}
-                onClick={() => handleRoleFilter(role)}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  (filters.role || "ALL") === role
-                    ? "bg-primary text-white"
-                    : "text-muted hover:bg-accent-light"
-                }`}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
+          {/* Search scope */}
+          <select
+            aria-label="Search in"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={searchIn}
+            onChange={(e) => setSearchIn(e.target.value)}
+          >
+            <option value="all">Everything</option>
+            <option value="name">Name</option>
+            <option value="class">Class</option>
+            <option value="email">Email</option>
+            <option value="phone">Phone</option>
+            <option value="code">Code</option>
+            <option value="role">Role</option>
+            <option value="status">Status</option>
+          </select>
+
+          {/* Account status */}
+          <select
+            aria-label="Account status"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={filters.isActive === undefined ? "" : String(filters.isActive)}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                isActive:
+                  e.target.value === "" ? undefined : e.target.value === "true",
+                page: 1,
+              }))
+            }
+          >
+            <option value="">Any status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+
+          {/* User type */}
+          <select
+            aria-label="User type"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            value={filters.role || ""}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                role: e.target.value || undefined,
+                page: 1,
+              }))
+            }
+          >
+            <option value="">All types</option>
+            <option value="ADMIN">Admin</option>
+            <option value="TEACHER">Teacher</option>
+            <option value="STUDENT">Student</option>
+            <option value="PARENT">Parent</option>
+            <option value="LIBRARIAN">Librarian</option>
+          </select>
         </div>
       </Card>
 
@@ -250,9 +290,9 @@ export default function UsersPage() {
                           <p className="font-medium">
                             {user.firstName} {user.lastName}
                           </p>
-                          {user.student?.studentIdNumber && (
+                          {(user.student?.studentIdNumber || user.code) && (
                             <p className="text-xs text-muted">
-                              {user.student.studentIdNumber}
+                              {user.student?.studentIdNumber || user.code}
                             </p>
                           )}
                         </div>
@@ -366,10 +406,7 @@ export default function UsersPage() {
       )}
 
       {/* Add User Modal */}
-      <AddUserModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-      />
+      <AddUserWizard isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
 
       {/* Bulk Import Modal */}
       <BulkImportModal

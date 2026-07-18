@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Download, FileText, AlertCircle } from "lucide-react";
+import { Upload, Download, FileText, AlertCircle, KeyRound } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/ui";
 import { useBulkImport } from "@/hooks/use-users";
 import api from "@/lib/api";
@@ -16,6 +16,9 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  const [credentials, setCredentials] = useState<
+    Array<{ name: string; login: string; password: string }>
+  >([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const bulkImport = useBulkImport();
 
@@ -65,9 +68,10 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
       // Fallback: generate template client-side
       const templates: Record<string, string> = {
         STUDENT:
-          "email,firstName,lastName,classSectionId,gender,dateOfBirth",
-        TEACHER: "email,phone,firstName,lastName",
-        PARENT: "phone,firstName,lastName,studentIds,relationship",
+          "email,firstName,lastName,classSectionId,gender,dateOfBirth,nationalId,nationality,province,district,sector,cell,village,fatherName,motherName,isBoarder,previousSchool",
+        TEACHER:
+          "email,phone,firstName,lastName,gender,dateOfBirth,nationalId,qualification,rssbNumber,hireDate",
+        PARENT: "phone,firstName,lastName,nationalId,studentIds,relationship",
       };
       const csv = templates[role] || templates.STUDENT;
       const blob = new Blob([csv], { type: "text/csv" });
@@ -83,16 +87,36 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
     const result = await bulkImport.mutateAsync({ role, rows: parsedRows });
     if (result.errors?.length) {
       setErrors(result.errors);
+    } else if (result.credentials?.length) {
+      // Every imported user got their own password; this is the one moment
+      // it is visible, so hand it to the admin as a file.
+      setCredentials(result.credentials);
+      setParsedRows([]);
     } else {
       handleReset();
       onClose();
     }
   };
 
+  const downloadCredentials = () => {
+    const csv = [
+      "name,login,password",
+      ...credentials.map((c) => `${c.name},${c.login},${c.password}`),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${role.toLowerCase()}_credentials.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleReset = () => {
     setParsedRows([]);
     setFileName("");
     setErrors([]);
+    setCredentials([]);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -189,6 +213,36 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
           </div>
         )}
 
+        {/* Credentials — shown once, right after a successful import */}
+        {credentials.length > 0 && (
+          <div className="rounded-lg border border-primary/30 bg-accent-light/50 p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-primary">
+              <KeyRound className="h-4 w-4" />
+              {credentials.length} users created, each with their own password
+            </div>
+            <p className="mb-3 text-xs text-muted">
+              Download and share these safely. They are shown only now, and
+              every user must change their password on first login.
+            </p>
+            <div className="mb-3 max-h-36 overflow-auto rounded border border-border bg-white text-xs">
+              {credentials.slice(0, 6).map((c, i) => (
+                <div key={i} className="flex justify-between border-b border-border px-2 py-1 last:border-0">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-muted">{c.login}</span>
+                  <span className="font-mono">{c.password}</span>
+                </div>
+              ))}
+              {credentials.length > 6 && (
+                <p className="px-2 py-1 text-muted">…and {credentials.length - 6} more in the file</p>
+              )}
+            </div>
+            <Button size="sm" onClick={downloadCredentials}>
+              <Download className="mr-2 h-4 w-4" />
+              Download credentials CSV
+            </Button>
+          </div>
+        )}
+
         {/* Errors */}
         {errors.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-red-50 p-3">
@@ -215,13 +269,24 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleImport}
-            disabled={parsedRows.length === 0}
-            isLoading={bulkImport.isPending}
-          >
-            Import {parsedRows.length} Users
-          </Button>
+          {credentials.length > 0 ? (
+            <Button
+              onClick={() => {
+                handleReset();
+                onClose();
+              }}
+            >
+              Done
+            </Button>
+          ) : (
+            <Button
+              onClick={handleImport}
+              disabled={parsedRows.length === 0}
+              isLoading={bulkImport.isPending}
+            >
+              Import {parsedRows.length} Users
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

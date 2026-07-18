@@ -40,24 +40,29 @@ export function Modal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
-
-      // Focus first focusable element inside modal
-      requestAnimationFrame(() => {
-        const dialog = dialogRef.current;
-        if (dialog) {
-          const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-          if (first) first.focus();
-        }
-      });
-    }
+    if (!isOpen) return;
+    document.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "unset";
     };
   }, [isOpen, handleEscape]);
+
+  // Focus the first focusable element ONLY when the modal opens. This must
+  // not depend on handleEscape: an inline onClose prop changes identity on
+  // every parent render, and re-running this on each keystroke would keep
+  // yanking focus to the close button while the user types.
+  useEffect(() => {
+    if (!isOpen) return;
+    requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (dialog) {
+        const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+        if (first) first.focus();
+      }
+    });
+  }, [isOpen]);
 
   // Return focus to trigger on close
   useEffect(() => {

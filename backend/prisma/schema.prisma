@@ -29,6 +29,13 @@ enum EmploymentStatus {
   CONTRACT
 }
 
+// Rwandan teaching credential levels: A0 bachelor's, A1 diploma, A2 secondary.
+enum TeacherQualification {
+  A0
+  A1
+  A2
+}
+
 enum StudentStatus {
   ACTIVE
   INACTIVE
@@ -126,6 +133,16 @@ model User {
   id                  String   @id @default(uuid())
   email               String?  @unique
   phone               String?  @unique
+  // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
+  // Students carry theirs on Student.studentIdNumber (STD prefix).
+  code                String?  @unique
+  // NIDA 16-digit national identification number (stored without spaces).
+  nationalId          String?  @unique @map("national_id")
+  nationality         String?
+  // For staff and parents. Students carry theirs on Student, which stays
+  // the single source of truth for student demographics.
+  gender              Gender?
+  dateOfBirth         DateTime? @map("date_of_birth")
   passwordHash        String?  @map("password_hash")
   role                Role
   firstName           String   @map("first_name")
@@ -358,6 +375,21 @@ model Student {
   allergies         String?
   medicalConditions String?       @map("medical_conditions")
   previousSchool    String?       @map("previous_school")
+  // Residence, the standard 5-level Rwandan address (SDMS requirement).
+  province          String?
+  district          String?
+  sector            String?
+  cell              String?
+  village           String?
+  // SDMS special-needs record; null means none declared.
+  disability        String?
+  // Guardians as recorded on enrollment, independent of parent accounts.
+  fatherName        String?       @map("father_name")
+  motherName        String?       @map("mother_name")
+  // Mutuelle de Sante or other insurance number.
+  insuranceNumber   String?       @map("insurance_number")
+  isBoarder         Boolean       @default(false) @map("is_boarder")
+  religion          String?
   enrollmentDate    DateTime      @default(now()) @map("enrollment_date")
   nfcCardId         String?       @unique @map("nfc_card_id")
   cardIssuedAt      DateTime?     @map("card_issued_at")
@@ -398,10 +430,13 @@ model ParentStudent {
 // ─── TEACHERS ───────────────────────────────────────────────────────────────────
 
 model Teacher {
-  id               String           @id @default(uuid())
-  userId           String           @unique @map("user_id")
-  employmentStatus EmploymentStatus @default(FULL_TIME) @map("employment_status")
-  isActive         Boolean          @default(true) @map("is_active")
+  id               String                @id @default(uuid())
+  userId           String                @unique @map("user_id")
+  employmentStatus EmploymentStatus      @default(FULL_TIME) @map("employment_status")
+  qualification    TeacherQualification? 
+  rssbNumber       String?               @map("rssb_number")
+  hireDate         DateTime?             @map("hire_date")
+  isActive         Boolean               @default(true) @map("is_active")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

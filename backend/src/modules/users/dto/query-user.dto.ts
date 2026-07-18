@@ -19,7 +19,14 @@ export class QueryUserDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  // Read the raw query string: with enableImplicitConversion the pipe turns
+  // the string "false" into boolean true before a value-based transform runs.
+  @Transform(({ obj }) => {
+    const raw = obj.isActive;
+    if (raw === true || raw === 'true') return true;
+    if (raw === false || raw === 'false') return false;
+    return undefined;
+  })
   @IsBoolean()
   isActive?: boolean;
 
@@ -35,4 +42,12 @@ export class QueryUserDto extends PaginationDto {
   @IsOptional()
   @IsIn(['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'])
   studentStatus?: string;
+
+  @ApiPropertyOptional({
+    enum: ['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'],
+    description: 'Restrict the search to one field group',
+  })
+  @IsOptional()
+  @IsIn(['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'])
+  searchIn?: string;
 }
