@@ -9,6 +9,7 @@ import {
   AbsenceReason,
   LoanStatus,
   DisciplineAction,
+  AppealStatus,
   ConversationType,
   MessageContentType,
   NotificationType,
@@ -2211,45 +2212,147 @@ async function main() {
     `  ✅ ${examRows.length} exam timetable entries seeded (every class, every term so far)`,
   );
 
-  // ─── DISCIPLINE INCIDENTS ───────────────────────────────────────────────────
-  const incidentDescriptions = [
-    'Late to morning assembly',
-    'Talking during class',
-    'Incomplete homework',
-    'Uniform violation',
-    'Disruptive behavior in lab',
-    'Phone use in class',
-    'Disrespect to staff',
-    'Bullying reported',
-    'Skipping prep',
-    'Vandalism (minor)',
+  // ─── DISCIPLINE (mostly minor, few majors, repeat offenders) ────────────────
+  // Roughly 8% of students have a record this year. The bulk is lateness,
+  // uniform and noise; a small band repeats and escalates (verbal → written
+  // → detention); majors are rare, mostly acknowledged by parents, and a few
+  // carry appeals. Chronic absentees show up here more than anyone else.
+  const MINOR_KINDS = [
+    { desc: 'Late to morning assembly', loc: 'Assembly Ground', time: '07:20' },
+    { desc: 'Incomplete uniform (no tie)', loc: 'Main Gate', time: '07:15' },
+    { desc: 'Noise during evening prep', loc: 'Prep Hall', time: '19:40' },
+    { desc: 'Talking during class', loc: 'Classroom', time: '10:15' },
+    { desc: 'Homework not submitted twice', loc: 'Classroom', time: '08:30' },
+    { desc: 'Late back after lunch', loc: 'Main Gate', time: '14:05' },
+    { desc: 'Skipped classroom cleaning duty', loc: 'Classroom', time: '16:30' },
   ];
-  // 30 incidents spread across students.
-  for (let i = 0; i < 30; i++) {
-    const student = students[(i * 11) % students.length];
-    const pts = 2 + (i % 5) * 2;
-    await prisma.disciplineIncident.create({
+  const MODERATE_KINDS = [
+    { desc: 'Phone found in class', loc: 'Classroom', time: '09:20' },
+    { desc: 'Skipping evening prep', loc: 'Prep Hall', time: '19:30' },
+    { desc: 'Left class without permission', loc: 'Classroom', time: '11:10' },
+    {
+      desc: 'Disrespectful language to a classmate',
+      loc: 'School Yard',
+      time: '13:20',
+    },
+  ];
+  const MAJOR_KINDS = [
+    { desc: 'Fighting in the dormitory corridor', loc: 'Dormitory', time: '21:30' },
+    { desc: 'Bullying a junior student', loc: 'School Yard', time: '13:00' },
+    { desc: 'Sneaked out of school premises', loc: 'Back Fence', time: '17:45' },
+    { desc: 'Caught cheating in a CAT', loc: 'Classroom', time: '10:00' },
+    { desc: 'Vandalism: broke a lab stool', loc: 'ICT Lab 1', time: '15:10' },
+  ];
+  const begunTerms = terms.filter(termBegun);
+  const schoolDaysByTerm = new Map<string, Date[]>();
+  for (const t of begunTerms) {
+    schoolDaysByTerm.set(
+      t.id,
+      schoolDays.filter((d) => d >= t.startDate && d <= t.endDate),
+    );
+  }
+  let incidentCount = 0;
+  let majorCount = 0;
+  const appealTargets: { incident: any; student: any }[] = [];
+  for (const { student, meta } of enrolled) {
+    const chronic = attProfileOf.get(student.id)!.chronic;
+    if (!chance(chronic ? 0.35 : 0.075)) continue;
+    const count = chance(chronic ? 0.5 : 0.18) ? 2 + rand(4) : 1;
+    const picks = Array.from({ length: count }, () => {
+      const term = sample(begunTerms);
+      return { term, date: sample(schoolDaysByTerm.get(term.id)!) };
+    }).sort((a, b) => a.date.getTime() - b.date.getTime());
+    for (let n = 0; n < picks.length; n++) {
+      const { term, date } = picks[n];
+      const sev = Math.random();
+      const isMajor = sev < 0.06;
+      const isModerate = !isMajor && sev < 0.3;
+      const kind = isMajor
+        ? sample(MAJOR_KINDS)
+        : isModerate
+          ? sample(MODERATE_KINDS)
+          : sample(MINOR_KINDS);
+      const pts = isMajor ? 10 + rand(6) : isModerate ? 5 + rand(4) : 2 + rand(3);
+      const action = isMajor
+        ? DisciplineAction.SUSPENSION
+        : isModerate
+          ? n >= 2 || chance(0.5)
+            ? DisciplineAction.DETENTION
+            : DisciplineAction.WRITTEN_WARNING
+          : n >= 1
+            ? DisciplineAction.WRITTEN_WARNING
+            : DisciplineAction.VERBAL_WARNING;
+      const acknowledged = chance(isMajor ? 0.85 : isModerate ? 0.4 : 0.15);
+      const recordedBy = chance(0.6)
+        ? teacherUsers[classTeacherIdxOf.get(meta.section.id)!]
+        : teacherUsers[0]; // the DOS records the rest
+      const incident = await prisma.disciplineIncident.create({
+        data: {
+          studentId: student.id,
+          termId: term.id,
+          recordedByUserId: recordedBy.id,
+          date,
+          time: kind.time,
+          location: kind.loc,
+          description: kind.desc,
+          pointsDeducted: pts,
+          actionTaken: action,
+          parentAcknowledged: acknowledged,
+          parentAcknowledgedAt: acknowledged
+            ? minDate(addDays(date, 1 + rand(4)), today)
+            : null,
+          createdAt: minDate(addDays(date, rand(2)), today),
+        },
+      });
+      incidentCount++;
+      if (isMajor) {
+        majorCount++;
+        if (appealTargets.length < 3) appealTargets.push({ incident, student });
+      }
+      // Points reset each term, so only the running term's deductions show.
+      if (term.id === currentTerm.id) {
+        await prisma.student.update({
+          where: { id: student.id },
+          data: { disciplinePoints: { decrement: pts } },
+        });
+      }
+    }
+  }
+  // A few appeals on the majors: one approved, one rejected, one pending.
+  const appealStatuses = [
+    AppealStatus.APPROVED,
+    AppealStatus.REJECTED,
+    AppealStatus.PENDING,
+  ];
+  let appealCount = 0;
+  for (let i = 0; i < appealTargets.length; i++) {
+    const { incident, student } = appealTargets[i];
+    const g = guardianByStudent.get(student.id);
+    const submitter = g?.father ?? g?.mother;
+    if (!submitter) continue;
+    const status = appealStatuses[i];
+    await prisma.disciplineAppeal.create({
       data: {
-        studentId: student.id,
-        termId: currentTerm.id,
-        recordedByUserId: teacherUsers[i % teacherUsers.length].id,
-        date: addDays(today, -((i % 28) + 1)), // within the last 4 weeks
-        time: '08:30',
-        location: i % 2 ? 'Classroom' : 'Main Hall',
-        description: incidentDescriptions[i % incidentDescriptions.length],
-        pointsDeducted: pts,
-        actionTaken:
-          i < 15 ? DisciplineAction.VERBAL_WARNING : DisciplineAction.WRITTEN_WARNING,
-        parentAcknowledged: i % 3 === 0,
-        parentAcknowledgedAt: i % 3 === 0 ? new Date() : null,
+        incidentId: incident.id,
+        submittedByUserId: submitter.id,
+        statement:
+          'My child explains the situation differently; we request a review of the record and the points deducted.',
+        evidenceUrls: [],
+        status,
+        reviewedByUserId: status === AppealStatus.PENDING ? null : admin.id,
+        reviewNotes:
+          status === AppealStatus.APPROVED
+            ? 'Reviewed with the class teacher; the account partially confirmed the appeal. Action reduced.'
+            : status === AppealStatus.REJECTED
+              ? 'Two staff witnesses confirmed the report. The record stands.'
+              : null,
       },
     });
-    await prisma.student.update({
-      where: { id: student.id },
-      data: { disciplinePoints: { decrement: pts } },
-    });
+    appealCount++;
   }
-  console.log('  ✅ 30 discipline incidents seeded');
+  console.log(
+    `  ✅ ${incidentCount} discipline incidents (${majorCount} major) + ${appealCount} appeals seeded`,
+  );
 
   // ─── LIBRARY BOOKS ──────────────────────────────────────────────────────────
   const bookData = [
