@@ -2354,68 +2354,180 @@ async function main() {
     `  ✅ ${incidentCount} discipline incidents (${majorCount} major) + ${appealCount} appeals seeded`,
   );
 
-  // ─── LIBRARY BOOKS ──────────────────────────────────────────────────────────
-  const bookData = [
-    { title: 'Introduction to Physics', author: 'Paul Hewitt', isbn: '978-0321909107', category: 'Sciences' },
-    { title: 'Chemistry: The Central Science', author: 'Brown & LeMay', isbn: '978-0134414232', category: 'Sciences' },
-    { title: 'Biology: A Global Approach', author: 'Neil Campbell', isbn: '978-1292341637', category: 'Sciences' },
-    { title: 'Calculus: Early Transcendentals', author: 'James Stewart', isbn: '978-1285741550', category: 'Mathematics' },
-    { title: 'English Grammar in Use', author: 'Raymond Murphy', isbn: '978-1108457651', category: 'Languages' },
-    { title: 'A History of Modern Africa', author: 'Richard Reid', isbn: '978-1108790543', category: 'Humanities' },
-    { title: 'World Geography', author: 'James Rubenstein', isbn: '978-0134746210', category: 'Humanities' },
-    { title: 'Computer Science: An Overview', author: 'Glenn Brookshear', isbn: '978-0134875460', category: 'Sciences' },
-    { title: 'Things Fall Apart', author: 'Chinua Achebe', isbn: '978-0385474542', category: 'Literature' },
-    { title: 'The River Between', author: 'Ngugi wa Thiongo', isbn: '978-0435905484', category: 'Literature' },
-    { title: 'Organic Chemistry', author: 'John McMurry', isbn: '978-1305080485', category: 'Sciences' },
-    { title: 'Linear Algebra Done Right', author: 'Sheldon Axler', isbn: '978-3319110790', category: 'Mathematics' },
-    { title: 'Practical English Usage', author: 'Michael Swan', isbn: '978-0194202428', category: 'Languages' },
-    { title: 'African Politics and Society', author: 'Peter Schraeder', isbn: '978-1626378070', category: 'Humanities' },
-    { title: 'Fundamentals of Physics', author: 'Halliday & Resnick', isbn: '978-1119460138', category: 'Sciences' },
-    { title: 'Python Programming', author: 'John Zelle', isbn: '978-1590282755', category: 'Sciences' },
-    { title: 'Song of Lawino', author: "Okot p'Bitek", isbn: '978-1478607649', category: 'Literature' },
-    { title: 'The Beautyful Ones Are Not Yet Born', author: 'Ayi Kwei Armah', isbn: '978-0435905361', category: 'Literature' },
-    { title: 'Statistics for Business', author: 'David Anderson', isbn: '978-0357715857', category: 'Mathematics' },
-    { title: 'Human Geography', author: 'Erin Fouberg', isbn: '978-1119626183', category: 'Humanities' },
+  // ─── LIBRARY (REB textbooks, trade shelves, African literature) ─────────────
+  // The catalog a Rwandan TSS actually holds: REB class-set textbooks per
+  // subject and level, technical references per trade, African and Rwandan
+  // literature, French classics and reference works. Loans carry a term of
+  // history: most returned (some late), a couple dozen out now, a few
+  // overdue and two lost.
+  type BookSpec = {
+    title: string;
+    author: string;
+    isbn?: string;
+    category: string;
+    qty: number;
+    cost: number;
+    shelf: string;
+  };
+  const bookData: BookSpec[] = [
+    // REB class sets — shelf A (no ISBN: local curriculum prints)
+    { title: 'Mathematics for Rwanda Schools, Senior 1', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
+    { title: 'Mathematics for Rwanda Schools, Senior 2', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
+    { title: 'Mathematics for Rwanda Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 35, cost: 6800, shelf: 'A1' },
+    { title: 'Physics for Rwanda Schools, Senior 2', author: 'REB', category: 'Textbooks', qty: 30, cost: 7200, shelf: 'A2' },
+    { title: 'Chemistry for Rwanda Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 30, cost: 7200, shelf: 'A2' },
+    { title: 'Biology and Health Sciences, Senior 1', author: 'REB', category: 'Textbooks', qty: 30, cost: 7000, shelf: 'A2' },
+    { title: 'English for Rwanda Secondary Schools, Senior 1', author: 'REB', category: 'Textbooks', qty: 35, cost: 6000, shelf: 'A3' },
+    { title: 'Ikinyarwanda mu Mashuri Yisumbuye, Igitabo 1', author: 'REB', category: 'Kinyarwanda', qty: 35, cost: 5500, shelf: 'A3' },
+    { title: 'Ikinyarwanda mu Mashuri Yisumbuye, Igitabo 2', author: 'REB', category: 'Kinyarwanda', qty: 32, cost: 5500, shelf: 'A3' },
+    { title: 'Kiswahili kwa Shule za Sekondari, Kitabu 1', author: 'REB', category: 'Textbooks', qty: 25, cost: 5800, shelf: 'A4' },
+    { title: 'Entrepreneurship for Rwandan Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 30, cost: 6200, shelf: 'A4' },
+    { title: 'Geography and Environment for Rwanda, Senior 2', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
+    { title: 'History and Citizenship, Senior 3', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
+    // Sciences and mathematics references — shelf B
+    { title: 'English Grammar in Use', author: 'Raymond Murphy', isbn: '978-1108457651', category: 'Languages', qty: 12, cost: 18000, shelf: 'B1' },
+    { title: 'Practical English Usage', author: 'Michael Swan', isbn: '978-0194202428', category: 'Languages', qty: 6, cost: 22000, shelf: 'B1' },
+    { title: 'Fundamentals of Physics', author: 'Halliday & Resnick', isbn: '978-1119460138', category: 'Sciences', qty: 5, cost: 38000, shelf: 'B2' },
+    { title: 'Chemistry: The Central Science', author: 'Brown & LeMay', isbn: '978-0134414232', category: 'Sciences', qty: 4, cost: 36000, shelf: 'B2' },
+    { title: 'Biology: A Global Approach', author: 'Neil Campbell', isbn: '978-1292341637', category: 'Sciences', qty: 4, cost: 34000, shelf: 'B2' },
+    { title: 'Calculus: Early Transcendentals', author: 'James Stewart', isbn: '978-1285741550', category: 'Mathematics', qty: 5, cost: 32000, shelf: 'B3' },
+    { title: 'Statistics for Business', author: 'David Anderson', isbn: '978-0357715857', category: 'Mathematics', qty: 4, cost: 28000, shelf: 'B3' },
+    // ICT and trades — shelf C
+    { title: 'HTML and CSS: Design and Build Websites', author: 'Jon Duckett', isbn: '978-1118008188', category: 'ICT & Trades', qty: 8, cost: 26000, shelf: 'C1' },
+    { title: 'JavaScript and JQuery', author: 'Jon Duckett', isbn: '978-1118531648', category: 'ICT & Trades', qty: 8, cost: 27000, shelf: 'C1' },
+    { title: 'Eloquent JavaScript', author: 'Marijn Haverbeke', isbn: '978-1593279509', category: 'ICT & Trades', qty: 6, cost: 24000, shelf: 'C1' },
+    { title: 'Python Crash Course', author: 'Eric Matthes', isbn: '978-1593279288', category: 'ICT & Trades', qty: 8, cost: 25000, shelf: 'C1' },
+    { title: 'Clean Code', author: 'Robert C. Martin', isbn: '978-0132350884', category: 'ICT & Trades', qty: 4, cost: 30000, shelf: 'C2' },
+    { title: 'Database System Concepts', author: 'Silberschatz, Korth & Sudarshan', isbn: '978-0078022159', category: 'ICT & Trades', qty: 4, cost: 40000, shelf: 'C2' },
+    { title: 'CCNA Routing and Switching Study Guide', author: 'Todd Lammle', isbn: '978-1118749616', category: 'ICT & Trades', qty: 6, cost: 35000, shelf: 'C2' },
+    { title: 'Networking All-in-One For Dummies', author: 'Doug Lowe', isbn: '978-1119689010', category: 'ICT & Trades', qty: 5, cost: 28000, shelf: 'C2' },
+    { title: 'Linux Pocket Guide', author: 'Daniel J. Barrett', isbn: '978-1491927571', category: 'ICT & Trades', qty: 6, cost: 15000, shelf: 'C3' },
+    { title: 'Automotive Technology: Principles, Diagnosis, and Service', author: 'James D. Halderman', isbn: '978-0134616797', category: 'ICT & Trades', qty: 6, cost: 42000, shelf: 'C3' },
+    { title: 'Modern Automotive Technology', author: 'James E. Duffy', isbn: '978-1590070956', category: 'ICT & Trades', qty: 5, cost: 40000, shelf: 'C3' },
+    { title: 'Tourism: Principles and Practice', author: 'John Fletcher', isbn: '978-1292172354', category: 'ICT & Trades', qty: 6, cost: 33000, shelf: 'C4' },
+    { title: 'Hotel Front Office Management', author: 'James A. Bardi', isbn: '978-0470637524', category: 'ICT & Trades', qty: 4, cost: 30000, shelf: 'C4' },
+    { title: 'First Aid Manual', author: 'St John Ambulance', isbn: '978-0241241233', category: 'ICT & Trades', qty: 10, cost: 12000, shelf: 'C4' },
+    // African and Rwandan literature — shelf D
+    { title: 'Things Fall Apart', author: 'Chinua Achebe', isbn: '978-0385474542', category: 'Literature', qty: 15, cost: 9000, shelf: 'D1' },
+    { title: 'The River Between', author: 'Ngugi wa Thiongo', isbn: '978-0435905484', category: 'Literature', qty: 12, cost: 8500, shelf: 'D1' },
+    { title: 'Weep Not, Child', author: 'Ngugi wa Thiongo', isbn: '978-0143106692', category: 'Literature', qty: 10, cost: 8500, shelf: 'D1' },
+    { title: 'A Grain of Wheat', author: 'Ngugi wa Thiongo', isbn: '978-0143106760', category: 'Literature', qty: 8, cost: 9000, shelf: 'D1' },
+    { title: 'Song of Lawino', author: "Okot p'Bitek", isbn: '978-1478607649', category: 'Literature', qty: 10, cost: 8000, shelf: 'D2' },
+    { title: 'So Long a Letter', author: 'Mariama Ba', isbn: '978-0435905552', category: 'Literature', qty: 10, cost: 7500, shelf: 'D2' },
+    { title: 'The Beautyful Ones Are Not Yet Born', author: 'Ayi Kwei Armah', isbn: '978-0435905361', category: 'Literature', qty: 8, cost: 8500, shelf: 'D2' },
+    { title: 'Purple Hibiscus', author: 'Chimamanda Ngozi Adichie', isbn: '978-1616202415', category: 'Literature', qty: 10, cost: 11000, shelf: 'D2' },
+    { title: 'Half of a Yellow Sun', author: 'Chimamanda Ngozi Adichie', isbn: '978-1400095209', category: 'Literature', qty: 6, cost: 12000, shelf: 'D3' },
+    { title: 'The Concubine', author: 'Elechi Amadi', isbn: '978-0435905569', category: 'Literature', qty: 6, cost: 7500, shelf: 'D3' },
+    { title: 'Mine Boy', author: 'Peter Abrahams', isbn: '978-0435905620', category: 'Literature', qty: 6, cost: 7500, shelf: 'D3' },
+    { title: 'Small Country', author: 'Gael Faye', isbn: '978-1524759872', category: 'Literature', qty: 8, cost: 13000, shelf: 'D3' },
+    { title: 'The Girl Who Smiled Beads', author: 'Clemantine Wamariya', isbn: '978-0451495334', category: 'Literature', qty: 6, cost: 14000, shelf: 'D4' },
+    { title: 'Baking Cakes in Kigali', author: 'Gaile Parkin', isbn: '978-0385343435', category: 'Literature', qty: 5, cost: 12000, shelf: 'D4' },
+    { title: 'Imigani y i Kinyarwanda: Rwandan Folktales', author: 'Anthology', category: 'Kinyarwanda', qty: 12, cost: 6000, shelf: 'D4' },
+    // French and reference — shelf E
+    { title: 'Le Petit Prince', author: 'Antoine de Saint-Exupery', isbn: '978-0156012195', category: 'Languages', qty: 10, cost: 9500, shelf: 'E1' },
+    { title: "L'Enfant Noir", author: 'Camara Laye', isbn: '978-2266083614', category: 'Languages', qty: 8, cost: 8500, shelf: 'E1' },
+    { title: "Oxford Advanced Learner's Dictionary", author: 'Oxford University Press', isbn: '978-0194798488', category: 'Reference', qty: 15, cost: 25000, shelf: 'E2' },
+    { title: 'Kinyarwanda-English Modern Dictionary', author: 'Emmanuel Bagabo', category: 'Reference', qty: 8, cost: 15000, shelf: 'E2' },
+    { title: 'Collins World Atlas', author: 'Collins', isbn: '978-0008436162', category: 'Reference', qty: 6, cost: 20000, shelf: 'E2' },
+    { title: 'A History of Modern Africa', author: 'Richard Reid', isbn: '978-1108790543', category: 'Humanities', qty: 5, cost: 26000, shelf: 'E3' },
+    { title: 'Human Geography', author: 'Erin Fouberg', isbn: '978-1119626183', category: 'Humanities', qty: 4, cost: 28000, shelf: 'E3' },
   ];
   const books: any[] = [];
   for (let i = 0; i < bookData.length; i++) {
+    const b = bookData[i];
     books.push(
       await prisma.book.create({
         data: {
-          ...bookData[i],
-          quantity: 10,
-          availableCount: 10,
+          title: b.title,
+          author: b.author,
+          isbn: b.isbn ?? null,
+          category: b.category,
+          quantity: b.qty,
+          availableCount: b.qty,
           barcode: `BK-${String(i + 1).padStart(5, '0')}`,
-          replacementCost: 25000 + rand(50000),
+          shelfLocation: b.shelf,
+          replacementCost: b.cost,
           isActive: true,
         },
       }),
     );
   }
-  // 20 active loans. Most are due in the future; the last 3 are intentionally
-  // overdue so the overdue list/reminders are demonstrable without the whole
-  // library looking delinquent.
-  for (let i = 0; i < 20; i++) {
-    const dueDate =
-      i < 17
-        ? addDays(today, 5 + (i % 9)) // due 5-13 days out
-        : addDays(today, -(2 + (i - 17) * 2)); // 3 loans overdue by 2-6 days
-    const checkedOutAt = addDays(today, -(7 + (i % 5)));
-    await prisma.bookLoan.create({
-      data: {
-        bookId: books[i % books.length].id,
-        borrowerUserId: studentUsers[i].id,
-        checkedOutAt,
-        dueDate,
-        status: LoanStatus.ACTIVE,
-      },
-    });
-    await prisma.book.update({
-      where: { id: books[i % books.length].id },
-      data: { availableCount: { decrement: 1 } },
+
+  // Loan history across the year: returned (some late), out now, overdue
+  // (kept ACTIVE — the app derives overdue from the due date), and lost.
+  const borrowDays = 14; // matches borrowing_duration_days config
+  const outByBook = new Map<string, number>();
+  const loanRows: any[] = [];
+  const borrowerPool = [
+    ...studentUsers,
+    ...teacherUsers.slice(0, 8), // teachers borrow too, less often
+  ];
+  const RETURNED_COUNT = 140;
+  for (let i = 0; i < RETURNED_COUNT; i++) {
+    const book = sample(books);
+    const out = addDays(today, -(20 + rand(240)));
+    const due = addDays(out, borrowDays);
+    const late = chance(0.18);
+    const returned = addDays(out, late ? borrowDays + 1 + rand(10) : 4 + rand(10));
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(borrowerPool).id,
+      checkedOutAt: out,
+      dueDate: due,
+      returnedAt: minDate(returned, today),
+      status: LoanStatus.RETURNED,
     });
   }
-  console.log(`  ✅ ${books.length} books + 20 active loans (3 overdue) seeded`);
+  for (let i = 0; i < 24; i++) {
+    const book = sample(books);
+    const out = addDays(today, -(1 + rand(12)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: out,
+      dueDate: addDays(out, borrowDays),
+      returnedAt: null,
+      status: LoanStatus.ACTIVE,
+    });
+  }
+  for (let i = 0; i < 6; i++) {
+    const book = sample(books);
+    const due = addDays(today, -(2 + rand(14)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: addDays(due, -borrowDays),
+      dueDate: due,
+      returnedAt: null,
+      status: LoanStatus.ACTIVE, // overdue by date
+    });
+  }
+  for (let i = 0; i < 2; i++) {
+    const book = books[10 + i * 7];
+    const out = addDays(today, -(90 + rand(60)));
+    outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
+    loanRows.push({
+      bookId: book.id,
+      borrowerUserId: sample(studentUsers).id,
+      checkedOutAt: out,
+      dueDate: addDays(out, borrowDays),
+      returnedAt: null,
+      status: LoanStatus.LOST,
+      replacementCost: bookData[10 + i * 7].cost,
+    });
+  }
+  await prisma.bookLoan.createMany({ data: loanRows });
+  for (const [bookId, out] of outByBook) {
+    await prisma.book.update({
+      where: { id: bookId },
+      data: { availableCount: { decrement: out } },
+    });
+  }
+  console.log(
+    `  ✅ ${books.length} library titles + ${loanRows.length} loans seeded (24 out, 6 overdue, 2 lost)`,
+  );
 
   // ─── HOMEWORK (every class, all year) ───────────────────────────────────────
   // Each class collects 3-5 assignments per term across its own subjects,
