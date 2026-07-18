@@ -17,7 +17,7 @@ import {
   SubjectScope,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
 import {
@@ -1712,7 +1712,7 @@ async function main() {
   // are GRADUATED, everyone else who left is TRANSFERRED. They exist so every
   // past rank and class average is computed against a full class. Their user
   // accounts are inactive, so they cannot log in.
-  type Alumni = { student: any; placements: Placement[] };
+  type Alumni = { student: any; user: any; placements: Placement[] };
   const alumni: Alumni[] = [];
   const alumniCounts = new Map<string, Map<string, number>>();
   const countsFor = (yearIdx: number, sectionId: string) => {
@@ -1774,7 +1774,7 @@ async function main() {
         ...extras.student,
       },
     });
-    alumni.push({ student, placements });
+    alumni.push({ student, user, placements });
   };
 
   // Pass 1: top last year's classes up to 25-30, extending each former
@@ -2947,6 +2947,70 @@ async function main() {
   console.log(
     `  ✅ ${timetableRows.length}/${demandTotal} weighted timetable periods placed across ${sectionMetas.length} classes`,
   );
+
+  // ─── PROFILE AVATARS ────────────────────────────────────────────────────────
+  // Deterministic duotone SVG initials written into uploads/avatars — real
+  // files served by the API, exercising the same pipeline uploaded photos
+  // use. Coverage varies like a real school's: all demo accounts, nearly
+  // all staff, most students, under half of parents, few alumni.
+  const AVATAR_PALETTES: [string, string][] = [
+    ['#1B4F72', '#2E86C1'],
+    ['#145A32', '#27AE60'],
+    ['#6E2C00', '#CA6F1E'],
+    ['#4A235A', '#8E44AD'],
+    ['#641E16', '#C0392B'],
+    ['#154360', '#5DADE2'],
+    ['#0B5345', '#16A085'],
+    ['#7B241C', '#E74C3C'],
+    ['#1C2833', '#566573'],
+    ['#7D6608', '#B7950B'],
+  ];
+  const avatarsDir = join(uploadsDir, 'avatars');
+  rmSync(avatarsDir, { recursive: true, force: true });
+  mkdirSync(avatarsDir, { recursive: true });
+  const avatarSvg = (first: string, last: string, key: number): string => {
+    const [a, b] = AVATAR_PALETTES[key % AVATAR_PALETTES.length];
+    const initials = `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">` +
+      `<rect width="160" height="160" fill="${a}"/>` +
+      `<path d="M0 160 L160 0 L160 160 Z" fill="${b}" opacity="0.85"/>` +
+      `<text x="80" y="80" dy="0.36em" text-anchor="middle" ` +
+      `font-family="Arial, Helvetica, sans-serif" font-size="62" ` +
+      `font-weight="700" fill="#FFFFFF">${initials}</text></svg>`
+    );
+  };
+  const hashOf = (s: string) => {
+    let h = 0;
+    for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h;
+  };
+  const photoRows: { id: string; url: string }[] = [];
+  const giveAvatar = (user: any, always = false, prob = 1) => {
+    if (!always && !chance(prob)) return;
+    const file = `${user.id}.svg`;
+    writeFileSync(
+      join(avatarsDir, file),
+      avatarSvg(user.firstName, user.lastName, hashOf(user.id)),
+    );
+    photoRows.push({ id: user.id, url: `/uploads/avatars/${file}` });
+  };
+  giveAvatar(admin, true);
+  giveAvatar(librarianUser, true);
+  teacherUsers.forEach((u, i) => giveAvatar(u, i === 0, 0.95));
+  studentUsers.forEach((u, i) => giveAvatar(u, i === 0, 0.85));
+  parentUsers.forEach((u) => giveAvatar(u, u.id === demoParent.id, 0.45));
+  alumni.forEach((a) => giveAvatar(a.user, false, 0.25));
+  for (let i = 0; i < photoRows.length; i += 500) {
+    const values = photoRows
+      .slice(i, i + 500)
+      .map((r) => `('${r.id}'::text, '${r.url}'::text)`)
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET photo_url = v.p FROM (VALUES ${values}) AS v(id, p) WHERE u.id = v.id`,
+    );
+  }
+  console.log(`  ✅ ${photoRows.length} profile avatars generated and linked`);
 
   // ─── SIGNS OF LIFE (created dates, last logins) ─────────────────────────────
   // The school adopted Markova a week before the 2024-25 year opened: staff
