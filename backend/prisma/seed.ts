@@ -695,168 +695,6 @@ async function main() {
   });
   console.log('  ✅ Admin user seeded');
 
-  const yrNow = new Date().getFullYear();
-
-  // ─── TEACHER SPECIALTIES ────────────────────────────────────────────────────
-  // A real TSS staff room: general-subject departments plus a small team per
-  // trade. Index-aligned with the teacher roster below, so teacher i owns
-  // exactly one family and never teaches outside it.
-  type Specialty = {
-    family: string;
-    subjectNames: Set<string> | null; // null = trade family (match by tradeId)
-    tradeCode: string | null;
-  };
-  const GENERAL_FAMILIES: { family: string; count: number; subjects: string[] }[] = [
-    {
-      family: 'Languages',
-      count: 8,
-      subjects: [
-        'Kinyarwanda',
-        'English',
-        'Kiswahili',
-        'French',
-        'English (Communication Skills)',
-      ],
-    },
-    {
-      family: 'Mathematics & Sciences',
-      count: 10,
-      subjects: [
-        'Mathematics',
-        'Physics',
-        'Chemistry',
-        'Biology and Health Sciences',
-        'ICT',
-        'Basic ICT',
-        'Mathematics for Technology',
-      ],
-    },
-    {
-      family: 'Humanities',
-      count: 4,
-      subjects: ['Geography and Environment', 'History and Citizenship'],
-    },
-    { family: 'Business', count: 3, subjects: ['Entrepreneurship'] },
-  ];
-  const TRADE_TEACHER_COUNTS: Record<string, number> = {
-    SWD: 4,
-    NIT: 4,
-    TOR: 3,
-    AUT: 4,
-  };
-  const specialtyByTeacher: Specialty[] = [];
-  for (const fam of GENERAL_FAMILIES) {
-    for (let k = 0; k < fam.count; k++) {
-      specialtyByTeacher.push({
-        family: fam.family,
-        subjectNames: new Set(fam.subjects),
-        tradeCode: null,
-      });
-    }
-  }
-  for (const t of TRADES) {
-    for (let k = 0; k < TRADE_TEACHER_COUNTS[t.code]; k++) {
-      specialtyByTeacher.push({
-        family: `${t.name} (${t.code})`,
-        subjectNames: null,
-        tradeCode: t.code,
-      });
-    }
-  }
-
-  // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
-  // No two teachers share any name component — 40 staff with a repeated name
-  // would read as fake immediately.
-  const TEACHER_COUNT = specialtyByTeacher.length; // 40, from the specialty layout
-  // The demo teacher keeps the address documented in CLAUDE.md; the other
-  // fixed staff follow the i.name scheme like everyone else.
-  const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
-    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
-    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
-    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
-  ];
-  const teacherComponents = new Set<string>(
-    fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
-  );
-  fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
-
-  const generatedTeachers: typeof fixedTeachers = [];
-  for (let i = 0; generatedTeachers.length < TEACHER_COUNT - fixedTeachers.length; i++) {
-    if (i > 2000) throw new Error('teacher name space exhausted');
-    const gender = generatedTeachers.length % 2 === 0 ? Gender.MALE : Gender.FEMALE;
-    const first = adultWestern[gender]();
-    const last = adultKinya[gender]();
-    if (teacherComponents.has(first) || teacherComponents.has(last)) continue;
-    if (!claimFullName(first, last)) continue;
-    teacherComponents.add(first);
-    teacherComponents.add(last);
-    generatedTeachers.push({
-      firstName: first,
-      lastName: last,
-      email: emailFor(first, last),
-      phone: realPhone(),
-      gender,
-    });
-  }
-  const teacherData = [...fixedTeachers, ...generatedTeachers];
-
-  const teacherUsers: any[] = [];
-  const teachers: any[] = [];
-  for (let ti = 0; ti < teacherData.length; ti++) {
-    const td = teacherData[ti];
-    const tBirthYear = yrNow - (26 + rand(30));
-    const user = await prisma.user.create({
-      data: {
-        email: td.email,
-        phone: td.phone,
-        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
-        gender: td.gender,
-        dateOfBirth: new Date(
-          Date.UTC(tBirthYear, rand(12), 1 + rand(27)),
-        ),
-        nationalId: makeNid(td.gender, tBirthYear),
-        nationality: 'Rwandan',
-        passwordHash,
-        role: Role.TEACHER,
-        firstName: td.firstName,
-        lastName: td.lastName,
-        isActive: true,
-        forcePasswordChange: ti !== 0, // teacher[0] is the demo account
-      },
-    });
-    const teacher = await prisma.teacher.create({
-      data: {
-        userId: user.id,
-        employmentStatus: EmploymentStatus.FULL_TIME,
-        // General-subject staff are mostly degree holders (A0); trade
-        // instructors are mostly technician diplomas (A1/A2), as in real TSSs.
-        qualification: specialtyByTeacher[ti].tradeCode
-          ? sample([
-              TeacherQualification.A1,
-              TeacherQualification.A1,
-              TeacherQualification.A2,
-              TeacherQualification.A2,
-              TeacherQualification.A0,
-            ])
-          : sample([
-              TeacherQualification.A0,
-              TeacherQualification.A0,
-              TeacherQualification.A0,
-              TeacherQualification.A1,
-              TeacherQualification.A1,
-            ]),
-        rssbNumber: String(10000000 + rand(89999999)),
-        hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
-        isActive: true,
-      },
-    });
-    teacherUsers.push(user);
-    teachers.push(teacher);
-  }
-  console.log(`  ✅ ${teachers.length} teachers seeded (no shared name components)`);
-
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   await prisma.user.create({
     data: {
@@ -1129,6 +967,251 @@ async function main() {
     ];
   }
 
+  // ─── WEEKLY PERIOD WEIGHTS ──────────────────────────────────────────────────
+  // 8 periods a day, 40 a week. O-Level: the national allocation — core
+  // papers heavy, electives light. A-Level: a 12-period general block and 28
+  // periods shared across the trade's modules for the level.
+  const O_WEEKLY: Record<string, number> = {
+    Mathematics: 6,
+    English: 5,
+    Kinyarwanda: 4,
+    Physics: 4,
+    Chemistry: 4,
+    'Biology and Health Sciences': 4,
+    'Geography and Environment': 3,
+    'History and Citizenship': 3,
+    Entrepreneurship: 2,
+    Kiswahili: 2,
+    ICT: 2,
+    French: 1,
+  }; // 40
+  const A_GENERAL_WEEKLY: Record<string, number> = {
+    Kinyarwanda: 2,
+    Entrepreneurship: 2,
+    'English (Communication Skills)': 3,
+    'Mathematics for Technology': 3,
+    'Basic ICT': 2,
+  }; // 12 — trade modules share the remaining 28
+
+  const planBySection = new Map<string, Map<string, number>>();
+  for (const meta of sectionMetas) {
+    const plan = new Map<string, number>();
+    const subjects = subjectsForSection(meta);
+    if (!meta.trade) {
+      for (const s of subjects) plan.set(s.id, O_WEEKLY[s.name]);
+    } else {
+      const modules = subjects.filter(
+        (s) => s.scope === SubjectScope.A_SPECIFIC,
+      );
+      let share = 40;
+      for (const s of subjects) {
+        if (s.scope !== SubjectScope.A_SPECIFIC) {
+          plan.set(s.id, A_GENERAL_WEEKLY[s.name]);
+          share -= A_GENERAL_WEEKLY[s.name];
+        }
+      }
+      const base = Math.floor(share / modules.length);
+      let extra = share - base * modules.length;
+      for (const s of modules) plan.set(s.id, base + (extra-- > 0 ? 1 : 0));
+    }
+    planBySection.set(meta.section.id, plan);
+  }
+
+  const GENERAL_FAMILIES: { family: string; count: number; subjects: string[] }[] = [
+    {
+      family: 'Languages',
+      count: 0,
+      subjects: [
+        'Kinyarwanda',
+        'English',
+        'Kiswahili',
+        'French',
+        'English (Communication Skills)',
+      ],
+    },
+    {
+      family: 'Mathematics & Sciences',
+      count: 0,
+      subjects: [
+        'Mathematics',
+        'Physics',
+        'Chemistry',
+        'Biology and Health Sciences',
+        'ICT',
+        'Basic ICT',
+        'Mathematics for Technology',
+      ],
+    },
+    {
+      family: 'Humanities',
+      count: 0,
+      subjects: ['Geography and Environment', 'History and Citizenship'],
+    },
+    { family: 'Business', count: 0, subjects: ['Entrepreneurship'] },
+  ];
+  const familyOfSubject = (subject: any): string => {
+    if (subject.tradeId) {
+      const t = TRADES.find(
+        (x) => tradeByCode.get(x.code)!.id === subject.tradeId,
+      )!;
+      return `${t.name} (${t.code})`;
+    }
+    return GENERAL_FAMILIES.find((f) => f.subjects.includes(subject.name))!
+      .family;
+  };
+
+  const yrNow = new Date().getFullYear();
+
+  // ─── TEACHER SPECIALTIES ────────────────────────────────────────────────────
+  // A real TSS staff room: general-subject departments plus a small team per
+  // trade. Index-aligned with the teacher roster below, so teacher i owns
+  // exactly one family and never teaches outside it.
+  type Specialty = {
+    family: string;
+    subjectNames: Set<string> | null; // null = trade family (match by tradeId)
+    tradeCode: string | null;
+  };
+  // Staff size follows the school's sections, as at a real TSS: enough
+  // teachers in each family to cover its weekly periods at a ~24-period
+  // teaching load (trade instructors run ~28, practical blocks included).
+  const familyPeriods = new Map<string, number>();
+  for (const meta of sectionMetas) {
+    const plan = planBySection.get(meta.section.id)!;
+    for (const subject of subjectsForSection(meta)) {
+      const fam = familyOfSubject(subject);
+      familyPeriods.set(
+        fam,
+        (familyPeriods.get(fam) ?? 0) + (plan.get(subject.id) ?? 0),
+      );
+    }
+  }
+  for (const fam of GENERAL_FAMILIES) {
+    fam.count = Math.max(
+      3,
+      Math.round((familyPeriods.get(fam.family) ?? 0) / 24),
+    );
+  }
+  const TRADE_TEACHER_COUNTS: Record<string, number> = {};
+  for (const t of TRADES) {
+    TRADE_TEACHER_COUNTS[t.code] = Math.max(
+      2,
+      Math.ceil((familyPeriods.get(`${t.name} (${t.code})`) ?? 0) / 28),
+    );
+  }
+  const specialtyByTeacher: Specialty[] = [];
+  for (const fam of GENERAL_FAMILIES) {
+    for (let k = 0; k < fam.count; k++) {
+      specialtyByTeacher.push({
+        family: fam.family,
+        subjectNames: new Set(fam.subjects),
+        tradeCode: null,
+      });
+    }
+  }
+  for (const t of TRADES) {
+    for (let k = 0; k < TRADE_TEACHER_COUNTS[t.code]; k++) {
+      specialtyByTeacher.push({
+        family: `${t.name} (${t.code})`,
+        subjectNames: null,
+        tradeCode: t.code,
+      });
+    }
+  }
+
+  // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
+  // No two teachers share any name component — 40 staff with a repeated name
+  // would read as fake immediately.
+  const TEACHER_COUNT = specialtyByTeacher.length; // 40, from the specialty layout
+  // The demo teacher keeps the address documented in CLAUDE.md; the other
+  // fixed staff follow the i.name scheme like everyone else.
+  const fixedTeachers = [
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
+  ];
+  const teacherComponents = new Set<string>(
+    fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
+  );
+  fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
+
+  const generatedTeachers: typeof fixedTeachers = [];
+  for (let i = 0; generatedTeachers.length < TEACHER_COUNT - fixedTeachers.length; i++) {
+    if (i > 2000) throw new Error('teacher name space exhausted');
+    const gender = generatedTeachers.length % 2 === 0 ? Gender.MALE : Gender.FEMALE;
+    const first = adultWestern[gender]();
+    const last = adultKinya[gender]();
+    if (teacherComponents.has(first) || teacherComponents.has(last)) continue;
+    if (!claimFullName(first, last)) continue;
+    teacherComponents.add(first);
+    teacherComponents.add(last);
+    generatedTeachers.push({
+      firstName: first,
+      lastName: last,
+      email: emailFor(first, last),
+      phone: realPhone(),
+      gender,
+    });
+  }
+  const teacherData = [...fixedTeachers, ...generatedTeachers];
+
+  const teacherUsers: any[] = [];
+  const teachers: any[] = [];
+  for (let ti = 0; ti < teacherData.length; ti++) {
+    const td = teacherData[ti];
+    const tBirthYear = yrNow - (26 + rand(30));
+    const user = await prisma.user.create({
+      data: {
+        email: td.email,
+        phone: td.phone,
+        code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
+        gender: td.gender,
+        dateOfBirth: new Date(
+          Date.UTC(tBirthYear, rand(12), 1 + rand(27)),
+        ),
+        nationalId: makeNid(td.gender, tBirthYear),
+        nationality: 'Rwandan',
+        passwordHash,
+        role: Role.TEACHER,
+        firstName: td.firstName,
+        lastName: td.lastName,
+        isActive: true,
+        forcePasswordChange: ti !== 0, // teacher[0] is the demo account
+      },
+    });
+    const teacher = await prisma.teacher.create({
+      data: {
+        userId: user.id,
+        employmentStatus: EmploymentStatus.FULL_TIME,
+        // General-subject staff are mostly degree holders (A0); trade
+        // instructors are mostly technician diplomas (A1/A2), as in real TSSs.
+        qualification: specialtyByTeacher[ti].tradeCode
+          ? sample([
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+              TeacherQualification.A2,
+              TeacherQualification.A2,
+              TeacherQualification.A0,
+            ])
+          : sample([
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+            ]),
+        rssbNumber: String(10000000 + rand(89999999)),
+        hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
+        isActive: true,
+      },
+    });
+    teacherUsers.push(user);
+    teachers.push(teacher);
+  }
+  console.log(`  ✅ ${teachers.length} teachers seeded (no shared name components)`);
+
+
   // ─── SUBJECT ASSIGNMENT MAP (who teaches what, everywhere) ──────────────────
   // For every (class, subject) pick the least-loaded teacher qualified for
   // that subject. Deterministic, so marks, timetables and homework all agree
@@ -1162,7 +1245,9 @@ async function main() {
       }
       let best = cands[0];
       for (const c of cands) if (teacherLoad[c] < teacherLoad[best]) best = c;
-      teacherLoad[best]++;
+      // Balance real teaching hours: 6 periods of Mathematics weigh six
+      // times one period of French.
+      teacherLoad[best] += planBySection.get(meta.section.id)!.get(subject.id)!;
       assignedTeacherIdx.set(`${meta.section.id}|${subject.id}`, best);
     }
   }
@@ -2096,11 +2181,12 @@ async function main() {
   });
   console.log('  ✅ FAQ articles seeded');
 
-  // ─── TIMETABLE ──────────────────────────────────────────────────────────────
-  // A full week for every class from its own subject set. A teacher is never
-  // booked in two classes during the same period; if every teacher of a class
-  // is busy in a slot, that slot stays free (which real timetables have too).
-  const days = [1, 2, 3, 4, 5];
+  // ─── TIMETABLE (weighted weekly plan) ───────────────────────────────────────
+  // Every class gets its weekly plan placed onto an 8-period day: core
+  // subjects carry more periods than electives, trade modules fill the
+  // technical block mostly as double periods in their own lab or workshop,
+  // and a teacher is never in two rooms at once. A few free periods remain,
+  // as on any real board.
   const timeSlots = [
     { start: '08:00', end: '08:45' },
     { start: '08:50', end: '09:35' },
@@ -2109,43 +2195,105 @@ async function main() {
     { start: '11:30', end: '12:15' },
     { start: '14:00', end: '14:45' },
     { start: '14:50', end: '15:35' },
+    { start: '15:40', end: '16:25' },
   ];
+  const TRADE_ROOMS: Record<string, string> = {
+    SWD: 'ICT Lab 1',
+    NIT: 'Networking Lab',
+    TOR: 'Tourism Training Room',
+    AUT: 'Auto Workshop',
+  };
   const timetableRows: any[] = [];
-  const busyTeachers = new Map<string, Set<string>>(); // "day-slot" -> teacher ids
+  const busyTeachers = new Map<string, Set<string>>();
+  const busyAt = (day: number, slot: number) => {
+    const key = `${day}-${slot}`;
+    if (!busyTeachers.has(key)) busyTeachers.set(key, new Set());
+    return busyTeachers.get(key)!;
+  };
+  let demandTotal = 0;
   for (let si = 0; si < sectionMetas.length; si++) {
     const meta = sectionMetas[si];
-    const subjectSet = subjectsForSection(meta);
-    for (const day of days) {
-      for (let slot = 0; slot < Math.min(timeSlots.length, subjectSet.length); slot++) {
-        const key = `${day}-${slot}`;
-        if (!busyTeachers.has(key)) busyTeachers.set(key, new Set());
-        const taken = busyTeachers.get(key)!;
-        let subjectIdx = -1;
-        for (let probe = 0; probe < subjectSet.length; probe++) {
-          const candidate = (day * 3 + slot + si + probe) % subjectSet.length;
-          if (!taken.has(teacherOf(meta.section.id, subjectSet[candidate].id).id)) {
-            subjectIdx = candidate;
+    const subjectsById = new Map<string, any>(
+      subjectsForSection(meta).map((s) => [s.id, s]),
+    );
+    const remaining = new Map(planBySection.get(meta.section.id)!);
+    for (const v of remaining.values()) demandTotal += v;
+    const homeRoom = `Room ${101 + si}`;
+    const roomFor = (subject: any) =>
+      subject.scope === SubjectScope.A_SPECIFIC
+        ? TRADE_ROOMS[meta.trade!.code]
+        : homeRoom;
+
+    for (const day of [1, 2, 3, 4, 5]) {
+      const todayCount = new Map<string, number>();
+      const occupied = new Set<number>();
+      const place = (subjectId: string, atSlot: number) => {
+        const t = teacherOf(meta.section.id, subjectId);
+        busyAt(day, atSlot).add(t.id);
+        occupied.add(atSlot);
+        timetableRows.push({
+          classSectionId: meta.section.id,
+          subjectId,
+          teacherId: t.id,
+          dayOfWeek: day,
+          startTime: timeSlots[atSlot].start,
+          endTime: timeSlots[atSlot].end,
+          room: roomFor(subjectsById.get(subjectId)!),
+        });
+        remaining.set(subjectId, remaining.get(subjectId)! - 1);
+        todayCount.set(subjectId, (todayCount.get(subjectId) ?? 0) + 1);
+      };
+
+      for (let slot = 0; slot < timeSlots.length; slot++) {
+        if (occupied.has(slot)) continue;
+        const taken = busyAt(day, slot);
+
+        // 1) A trade module with 2+ periods left takes a double block when
+        //    its teacher is free for both and the pair does not span lunch.
+        let chosen: string | null = null;
+        let asDouble = false;
+        const canDouble =
+          slot !== 4 && slot + 1 < timeSlots.length && !occupied.has(slot + 1);
+        if (canDouble) {
+          for (const [sid, left] of remaining) {
+            if (left < 2) continue;
+            if (subjectsById.get(sid)!.scope !== SubjectScope.A_SPECIFIC)
+              continue;
+            if ((todayCount.get(sid) ?? 0) > 0) continue;
+            const tid = teacherOf(meta.section.id, sid).id;
+            if (taken.has(tid) || busyAt(day, slot + 1).has(tid)) continue;
+            chosen = sid;
+            asDouble = true;
             break;
           }
         }
-        if (subjectIdx === -1) continue; // all of this class's teachers are busy
-        const teacher = teacherOf(meta.section.id, subjectSet[subjectIdx].id);
-        taken.add(teacher.id);
-        timetableRows.push({
-          classSectionId: meta.section.id,
-          subjectId: subjectSet[subjectIdx].id,
-          teacherId: teacher.id,
-          dayOfWeek: day,
-          startTime: timeSlots[slot].start,
-          endTime: timeSlots[slot].end,
-          room: `Room ${100 + (si % 20)}`,
-        });
+        // 2) Otherwise the subject with the most periods left whose teacher
+        //    is free — first one not yet seen today, then allowing a second
+        //    (non-consecutive) period.
+        if (!chosen) {
+          for (const pass of [0, 1] as const) {
+            let bestLeft = 0;
+            for (const [sid, left] of remaining) {
+              if (left <= 0) continue;
+              if ((todayCount.get(sid) ?? 0) > pass) continue;
+              if (taken.has(teacherOf(meta.section.id, sid).id)) continue;
+              if (left > bestLeft) {
+                bestLeft = left;
+                chosen = sid;
+              }
+            }
+            if (chosen) break;
+          }
+        }
+        if (!chosen) continue; // free period on the board
+        place(chosen, slot);
+        if (asDouble) place(chosen, slot + 1);
       }
     }
   }
   await prisma.timetable.createMany({ data: timetableRows });
   console.log(
-    `  ✅ ${timetableRows.length} timetable entries seeded across all ${sectionMetas.length} classes`,
+    `  ✅ ${timetableRows.length}/${demandTotal} weighted timetable periods placed across ${sectionMetas.length} classes`,
   );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
