@@ -5,15 +5,26 @@ import { Card, CardTitle, Button } from "@/components/ui";
 import { Download, FileText, Archive } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
-import { toLocalDateString, classDisplayName } from "@/lib/utils";
+import { toLocalDateString } from "@/lib/utils";
 
 const EXPORTS = [
   { key: "users", label: "All Users", description: "Export all users with roles and status" },
   { key: "students", label: "Students", description: "Export students with class, ID, and status" },
   { key: "teachers", label: "Teachers", description: "Export teachers with employment status" },
-  { key: "marks", label: "Marks", description: "Export all marks for current term" },
-  { key: "attendance", label: "Attendance", description: "Export attendance records" },
+  { key: "marks", label: "Marks", description: "Export all recorded marks with student, subject and term" },
+  { key: "attendance", label: "Attendance", description: "Export all attendance records" },
 ];
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export function DataExportTab() {
   const [loading, setLoading] = useState<string | null>(null);
@@ -23,14 +34,7 @@ export function DataExportTab() {
     setFullLoading(true);
     try {
       const res = await api.get("/reports/export/all", { responseType: "blob" });
-      const url = URL.createObjectURL(res.data as Blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `markova-export-${toLocalDateString(new Date())}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadBlob(res.data as Blob, `markova-export-${toLocalDateString(new Date())}.zip`);
       toast.success("Full export downloaded");
     } catch {
       toast.error("Full export failed");
@@ -39,59 +43,17 @@ export function DataExportTab() {
     }
   };
 
+  // The CSV is assembled server-side — one request regardless of table size,
+  // so big datasets (marks, attendance) don't hit pagination or rate limits.
   const handleExport = async (key: string) => {
     setLoading(key);
     try {
-      // Each export pulls its own dataset and flattens it to readable columns.
-      const base =
-        key === "students"
-          ? "/users?role=STUDENT"
-          : key === "teachers"
-          ? "/users?role=TEACHER"
-          : key === "marks"
-          ? "/marks"
-          : key === "attendance"
-          ? "/attendance"
-          : "/users";
-      const sep = base.includes("?") ? "&" : "?";
-
-      // Page through everything — these endpoints cap limit at 100 per request.
-      const data: any[] = [];
-      let pageNum = 1;
-      let totalPages = 1;
-      do {
-        const res = await api.get(`${base}${sep}page=${pageNum}&limit=100`);
-        data.push(...(res.data?.data || []));
-        totalPages = res.data?.meta?.totalPages || 1;
-        pageNum++;
-      } while (pageNum <= totalPages && pageNum <= 500);
-
-      if (data.length === 0) {
-        toast.warning("No data to export");
-        return;
-      }
-
-      const flatten =
-        key === "marks" ? flattenMark : key === "attendance" ? flattenAttendance : flattenUser;
-
-      const headers = Object.keys(flatten(data[0]));
-      const rows = data.map((item: any) => {
-        const flat = flatten(item);
-        return headers.map((h) => `"${String(flat[h] ?? "").replace(/"/g, '""')}"`).join(",");
+      const res = await api.get(`/reports/export/dataset/${key}`, {
+        responseType: "blob",
+        timeout: 120000,
       });
-      const csv = [headers.join(","), ...rows].join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${key}_export_${toLocalDateString(new Date())}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-      toast.success(`${key} exported successfully (${data.length} rows)`);
+      downloadBlob(res.data as Blob, `${key}_export_${toLocalDateString(new Date())}.csv`);
+      toast.success(`${key} exported successfully`);
     } catch {
       toast.error("Export failed");
     } finally {
@@ -160,43 +122,4 @@ export function DataExportTab() {
       </div>
     </Card>
   );
-}
-
-function flattenUser(user: any): Record<string, string> {
-  return {
-    id: user.id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email || "",
-    phone: user.phone || "",
-    role: user.role,
-    isActive: String(user.isActive),
-    studentId: user.student?.studentIdNumber || "",
-    class: user.student?.classSection
-      ? classDisplayName(user.student.classSection)
-      : "",
-  };
-}
-
-function flattenMark(m: any): Record<string, string> {
-  const u = m.student?.user;
-  return {
-    studentId: m.student?.studentIdNumber || "",
-    student: u ? `${u.firstName} ${u.lastName}` : "",
-    subject: m.subject?.name || "",
-    assessment: m.assessmentType?.name || "",
-    score: String(m.score ?? ""),
-    maxScore: String(m.maxScore ?? ""),
-  };
-}
-
-function flattenAttendance(a: any): Record<string, string> {
-  const u = a.student?.user;
-  return {
-    studentId: a.student?.studentIdNumber || "",
-    student: u ? `${u.firstName} ${u.lastName}` : "",
-    date: a.date ? new Date(a.date).toISOString().slice(0, 10) : "",
-    status: a.status || "",
-    reason: a.reasonCategory || "",
-  };
 }
