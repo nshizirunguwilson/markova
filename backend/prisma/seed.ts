@@ -697,10 +697,77 @@ async function main() {
 
   const yrNow = new Date().getFullYear();
 
+  // ─── TEACHER SPECIALTIES ────────────────────────────────────────────────────
+  // A real TSS staff room: general-subject departments plus a small team per
+  // trade. Index-aligned with the teacher roster below, so teacher i owns
+  // exactly one family and never teaches outside it.
+  type Specialty = {
+    family: string;
+    subjectNames: Set<string> | null; // null = trade family (match by tradeId)
+    tradeCode: string | null;
+  };
+  const GENERAL_FAMILIES: { family: string; count: number; subjects: string[] }[] = [
+    {
+      family: 'Languages',
+      count: 8,
+      subjects: [
+        'Kinyarwanda',
+        'English',
+        'Kiswahili',
+        'French',
+        'English (Communication Skills)',
+      ],
+    },
+    {
+      family: 'Mathematics & Sciences',
+      count: 10,
+      subjects: [
+        'Mathematics',
+        'Physics',
+        'Chemistry',
+        'Biology and Health Sciences',
+        'ICT',
+        'Basic ICT',
+        'Mathematics for Technology',
+      ],
+    },
+    {
+      family: 'Humanities',
+      count: 4,
+      subjects: ['Geography and Environment', 'History and Citizenship'],
+    },
+    { family: 'Business', count: 3, subjects: ['Entrepreneurship'] },
+  ];
+  const TRADE_TEACHER_COUNTS: Record<string, number> = {
+    SWD: 4,
+    NIT: 4,
+    TOR: 3,
+    AUT: 4,
+  };
+  const specialtyByTeacher: Specialty[] = [];
+  for (const fam of GENERAL_FAMILIES) {
+    for (let k = 0; k < fam.count; k++) {
+      specialtyByTeacher.push({
+        family: fam.family,
+        subjectNames: new Set(fam.subjects),
+        tradeCode: null,
+      });
+    }
+  }
+  for (const t of TRADES) {
+    for (let k = 0; k < TRADE_TEACHER_COUNTS[t.code]; k++) {
+      specialtyByTeacher.push({
+        family: `${t.name} (${t.code})`,
+        subjectNames: null,
+        tradeCode: t.code,
+      });
+    }
+  }
+
   // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
   // No two teachers share any name component — 40 staff with a repeated name
   // would read as fake immediately.
-  const TEACHER_COUNT = 40;
+  const TEACHER_COUNT = specialtyByTeacher.length; // 40, from the specialty layout
   // The demo teacher keeps the address documented in CLAUDE.md; the other
   // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
@@ -763,13 +830,23 @@ async function main() {
       data: {
         userId: user.id,
         employmentStatus: EmploymentStatus.FULL_TIME,
-        qualification: sample([
-          TeacherQualification.A0,
-          TeacherQualification.A0,
-          TeacherQualification.A1,
-          TeacherQualification.A1,
-          TeacherQualification.A2,
-        ]),
+        // General-subject staff are mostly degree holders (A0); trade
+        // instructors are mostly technician diplomas (A1/A2), as in real TSSs.
+        qualification: specialtyByTeacher[ti].tradeCode
+          ? sample([
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+              TeacherQualification.A2,
+              TeacherQualification.A2,
+              TeacherQualification.A0,
+            ])
+          : sample([
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A0,
+              TeacherQualification.A1,
+              TeacherQualification.A1,
+            ]),
         rssbNumber: String(10000000 + rand(89999999)),
         hireDate: new Date(Date.UTC(yrNow - rand(12), 8, 1)),
         isActive: true,
@@ -1052,6 +1129,51 @@ async function main() {
     ];
   }
 
+  // ─── SUBJECT ASSIGNMENT MAP (who teaches what, everywhere) ──────────────────
+  // For every (class, subject) pick the least-loaded teacher qualified for
+  // that subject. Deterministic, so marks, timetables and homework all agree
+  // with the assignment table, and balanced, so every teacher carries a
+  // believable load inside their own family.
+  const qualifiedFor = (subject: any): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i < specialtyByTeacher.length; i++) {
+      const sp = specialtyByTeacher[i];
+      if (sp.tradeCode) {
+        if (
+          subject.tradeId &&
+          subject.tradeId === tradeByCode.get(sp.tradeCode)!.id
+        ) {
+          out.push(i);
+        }
+      } else if (sp.subjectNames!.has(subject.name)) {
+        out.push(i);
+      }
+    }
+    return out;
+  };
+
+  const teacherLoad = new Array(teachers.length).fill(0);
+  const assignedTeacherIdx = new Map<string, number>();
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
+      const cands = qualifiedFor(subject);
+      if (cands.length === 0) {
+        throw new Error(`no specialty covers subject "${subject.name}"`);
+      }
+      let best = cands[0];
+      for (const c of cands) if (teacherLoad[c] < teacherLoad[best]) best = c;
+      teacherLoad[best]++;
+      assignedTeacherIdx.set(`${meta.section.id}|${subject.id}`, best);
+    }
+  }
+  if (teacherLoad.some((l) => l === 0)) {
+    throw new Error('specialization left a teacher with zero classes');
+  }
+  const teacherOf = (sectionId: string, subjectId: string) =>
+    teachers[assignedTeacherIdx.get(`${sectionId}|${subjectId}`)!];
+  const teacherUserOf = (sectionId: string, subjectId: string) =>
+    teacherUsers[assignedTeacherIdx.get(`${sectionId}|${subjectId}`)!];
+
   // ─── ASSESSMENT TYPES ───────────────────────────────────────────────────────
   const assessmentTypes: any[] = [];
   const assessmentByName = new Map<string, any>();
@@ -1063,52 +1185,73 @@ async function main() {
   console.log(`  ✅ ${assessmentTypes.length} assessment types seeded`);
 
   // ─── TEACHER SPECIAL ROLES ──────────────────────────────────────────────────
-  // DOS, two HoDs, plus one class teacher per class.
+  // DOS, one HoD per department (drawn from that department), and a class
+  // teacher per class who really teaches in it.
   await prisma.teacherRole.create({
     data: { teacherId: teachers[0].id, role: SpecialRole.DOS },
   });
+  const firstOfFamily = (family: string) =>
+    specialtyByTeacher.findIndex((s) => s.family === family);
   await prisma.teacherRole.create({
-    data: { teacherId: teachers[1].id, role: SpecialRole.HOD, department: 'Sciences' },
+    data: {
+      teacherId: teachers[firstOfFamily('Mathematics & Sciences')].id,
+      role: SpecialRole.HOD,
+      department: 'Sciences',
+    },
   });
   await prisma.teacherRole.create({
-    data: { teacherId: teachers[2].id, role: SpecialRole.HOD, department: 'Humanities' },
+    data: {
+      teacherId: teachers[firstOfFamily('Humanities')].id,
+      role: SpecialRole.HOD,
+      department: 'Humanities',
+    },
   });
-  for (let i = 0; i < sectionMetas.length; i++) {
-    const teacherIdx = (i + 3) % teachers.length;
-    await prisma.teacherRole.create({
-      data: {
-        teacherId: teachers[teacherIdx].id,
-        role: SpecialRole.CLASS_TEACHER,
-        classSectionId: sectionMetas[i].section.id,
-      },
-    });
+  const classTeacherIdxOf = new Map<string, number>();
+  {
+    // Spread the role: nobody is class teacher twice until everyone teaching
+    // has been considered once.
+    const roleCount = new Array(teachers.length).fill(0);
+    for (const meta of sectionMetas) {
+      const own = [
+        ...new Set(
+          subjectsForSection(meta).map(
+            (s) => assignedTeacherIdx.get(`${meta.section.id}|${s.id}`)!,
+          ),
+        ),
+      ];
+      let pick = own[0];
+      for (const c of own) if (roleCount[c] < roleCount[pick]) pick = c;
+      roleCount[pick]++;
+      classTeacherIdxOf.set(meta.section.id, pick);
+      await prisma.teacherRole.create({
+        data: {
+          teacherId: teachers[pick].id,
+          role: SpecialRole.CLASS_TEACHER,
+          classSectionId: meta.section.id,
+        },
+      });
+    }
   }
   console.log('  ✅ Teacher special roles seeded');
 
   // ─── TEACHER-SUBJECT-CLASS ASSIGNMENTS ──────────────────────────────────────
-  // Each class gets its own subject set taught by cycling teachers. The
-  // teacher for (class, subject) is deterministic so marks reference the same
-  // teacher as the assignment.
-  // si*7 walks the roster in larger strides so all 40 teachers get classes
-  // (plain si+subj left a few indices unreached).
-  const teacherFor = (sectionIdx: number, subjectIdx: number) =>
-    teachers[(sectionIdx * 7 + subjectIdx) % teachers.length];
-
   const assignmentRows: any[] = [];
-  for (let si = 0; si < sectionMetas.length; si++) {
-    const meta = sectionMetas[si];
-    const subjectSet = subjectsForSection(meta);
-    for (let subj = 0; subj < subjectSet.length; subj++) {
+  for (const meta of sectionMetas) {
+    for (const subject of subjectsForSection(meta)) {
       assignmentRows.push({
-        teacherId: teacherFor(si, subj).id,
-        subjectId: subjectSet[subj].id,
+        teacherId: teacherOf(meta.section.id, subject.id).id,
+        subjectId: subject.id,
         classSectionId: meta.section.id,
         academicYearId: academicYear.id,
       });
     }
   }
   await prisma.teacherSubjectClass.createMany({ data: assignmentRows });
-  console.log(`  ✅ ${assignmentRows.length} teacher-subject-class assignments seeded`);
+  console.log(
+    `  ✅ ${assignmentRows.length} assignments seeded (specialized: ` +
+      `${GENERAL_FAMILIES.map((f) => `${f.family} ${f.count}`).join(', ')}, ` +
+      `${TRADES.map((t) => `${t.code} ${TRADE_TEACHER_COUNTS[t.code]}`).join(', ')})`,
+  );
 
   // ─── ENROLLMENT JOURNEYS (across the 3 seeded years) ────────────────────────
   // Where was each person in the two previous years? Walked backwards with
@@ -1556,7 +1699,6 @@ async function main() {
     const drift = rand(6) - 2; // -2 .. +3 per term
     for (const pl of placements) {
       const yearTerms = allYears[pl.yearIdx].terms;
-      const si = sectionIndexBySectionId.get(pl.meta.section.id)!;
       const subjectSet = subjectsForSection(pl.meta);
       for (let ti = 0; ti < yearTerms.length; ti++) {
         if (!termBegun(yearTerms[ti])) continue; // future term: no marks yet
@@ -1569,7 +1711,7 @@ async function main() {
 
         for (let subj = 0; subj < subjectSet.length; subj++) {
           const subject = subjectSet[subj];
-          const teacher = teacherFor(si, subj);
+          const teacher = teacherOf(pl.meta.section.id, subject.id);
           const sKey = `${student.id}|${subject.id}`;
           if (!strength.has(sKey)) strength.set(sKey, rand(21) - 10);
           const perSubject = clamp(ability + strength.get(sKey)!, 25, 95);
@@ -1849,7 +1991,7 @@ async function main() {
   for (let i = 0; i < Math.min(s1aSubjects.length, 8); i++) {
     const hw = await prisma.homework.create({
       data: {
-        teacherId: teacherFor(0, i).id,
+        teacherId: teacherOf(sectionMetas[0].section.id, s1aSubjects[i].id).id,
         subjectId: s1aSubjects[i].id,
         classSectionId: sectionMetas[0].section.id,
         termId: currentTerm.id,
@@ -1981,13 +2123,13 @@ async function main() {
         let subjectIdx = -1;
         for (let probe = 0; probe < subjectSet.length; probe++) {
           const candidate = (day * 3 + slot + si + probe) % subjectSet.length;
-          if (!taken.has(teacherFor(si, candidate).id)) {
+          if (!taken.has(teacherOf(meta.section.id, subjectSet[candidate].id).id)) {
             subjectIdx = candidate;
             break;
           }
         }
         if (subjectIdx === -1) continue; // all of this class's teachers are busy
-        const teacher = teacherFor(si, subjectIdx);
+        const teacher = teacherOf(meta.section.id, subjectSet[subjectIdx].id);
         taken.add(teacher.id);
         timetableRows.push({
           classSectionId: meta.section.id,
