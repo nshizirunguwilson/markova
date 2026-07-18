@@ -2462,6 +2462,17 @@ async function main() {
     ...studentUsers,
     ...teacherUsers.slice(0, 8), // teachers borrow too, less often
   ];
+  // Never let open loans exceed a title's copies.
+  const canGoOut = (book: any, spec: BookSpec) =>
+    (outByBook.get(book.id) ?? 0) < spec.qty - 1;
+  const pickLendable = (): { book: any; spec: BookSpec } => {
+    for (;;) {
+      const idx = rand(books.length);
+      if (canGoOut(books[idx], bookData[idx])) {
+        return { book: books[idx], spec: bookData[idx] };
+      }
+    }
+  };
   const RETURNED_COUNT = 140;
   for (let i = 0; i < RETURNED_COUNT; i++) {
     const book = sample(books);
@@ -2479,7 +2490,7 @@ async function main() {
     });
   }
   for (let i = 0; i < 24; i++) {
-    const book = sample(books);
+    const { book } = pickLendable();
     const out = addDays(today, -(1 + rand(12)));
     outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
     loanRows.push({
@@ -2492,7 +2503,7 @@ async function main() {
     });
   }
   for (let i = 0; i < 6; i++) {
-    const book = sample(books);
+    const { book } = pickLendable();
     const due = addDays(today, -(2 + rand(14)));
     outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
     loanRows.push({
@@ -2505,7 +2516,7 @@ async function main() {
     });
   }
   for (let i = 0; i < 2; i++) {
-    const book = books[10 + i * 7];
+    const { book, spec } = pickLendable();
     const out = addDays(today, -(90 + rand(60)));
     outByBook.set(book.id, (outByBook.get(book.id) ?? 0) + 1);
     loanRows.push({
@@ -2515,7 +2526,7 @@ async function main() {
       dueDate: addDays(out, borrowDays),
       returnedAt: null,
       status: LoanStatus.LOST,
-      replacementCost: bookData[10 + i * 7].cost,
+      replacementCost: spec.cost,
     });
   }
   await prisma.bookLoan.createMany({ data: loanRows });
