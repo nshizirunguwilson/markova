@@ -32,6 +32,14 @@ export interface FieldProps extends Omit<TextInputProps, 'style'> {
    * being one.
    */
   minHeight?: number;
+  /**
+   * Says so out loud. Baymard's checkout work found that marking only the
+   * required fields leaves every unmarked field ambiguous, and that sites
+   * marking both are a small minority. In this app that matters most on the
+   * add-a-person form, where a national ID genuinely is optional for a
+   * thirteen year old and genuinely is not for a member of staff.
+   */
+  optional?: boolean;
 }
 
 export function Field({
@@ -41,6 +49,7 @@ export function Field({
   accessory,
   mono,
   required,
+  optional,
   minHeight,
   secureTextEntry,
   ...rest
@@ -61,6 +70,10 @@ export function Field({
         {required ? (
           <Text variant="subhead" tone="critical" accessibilityLabel="required">
             *
+          </Text>
+        ) : optional ? (
+          <Text variant="subhead" tone="placeholder">
+            optional
           </Text>
         ) : null}
       </View>

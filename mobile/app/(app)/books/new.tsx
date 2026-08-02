@@ -64,7 +64,7 @@ export default function NewBook() {
           <View style={{ gap: space.lg }}>
             <Field label="Title" value={title} onChangeText={setTitle} error={errors.title} required />
             <Field label="Author" value={author} onChangeText={setAuthor} error={errors.author} required />
-            <Field label="Category" value={category} onChangeText={setCategory} placeholder="Fiction, Science, Kinyarwanda" />
+            <Field label="Category" value={category} onChangeText={setCategory} optional placeholder="Fiction, Science, Kinyarwanda" />
           </View>
         </Section>
 
@@ -78,7 +78,7 @@ export default function NewBook() {
               error={errors.quantity}
               hint="Physical copies being added. What is on the shelf is worked out from loans."
             />
-            <Field label="Shelf" value={shelf} onChangeText={setShelf} placeholder="B3, upper" />
+            <Field label="Shelf" value={shelf} onChangeText={setShelf} optional placeholder="B3, upper" />
             <Field
               label="Replacement cost"
               value={cost}
@@ -90,7 +90,7 @@ export default function NewBook() {
         </Section>
 
         <Section title="Identifiers">
-          <Field label="ISBN" value={isbn} onChangeText={setIsbn} mono autoCapitalize="none" />
+          <Field label="ISBN" value={isbn} onChangeText={setIsbn} mono optional autoCapitalize="none" />
         </Section>
 
         <Button label="Add it" kind="primary" block loading={save.isPending} onPress={submit} />

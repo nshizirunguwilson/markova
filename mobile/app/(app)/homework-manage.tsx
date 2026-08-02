@@ -42,7 +42,7 @@ export default function HomeworkManage() {
             { value: 'mark', label: 'Mark' },
           ]}
         />
-        {tab === 'set' ? <SetHomework /> : <MarkHomework />}
+        {tab === 'set' ? <SetHomework /> : <MarkHomework onSwitchToSet={() => setTab('set')} />}
       </Screen>
     </>
   );
@@ -135,7 +135,7 @@ function SetHomework() {
   );
 }
 
-function MarkHomework() {
+function MarkHomework({ onSwitchToSet }: { onSwitchToSet: () => void }) {
   const { data: term } = useCurrentTerm();
   const { data, isPending } = useHomeworkList({ termId: term?.id });
   const grade = useGradeSubmission();
@@ -143,7 +143,14 @@ function MarkHomework() {
   const [marks, setMarks] = useState<Record<string, string>>({});
 
   if (isPending) return <LoadingRows count={5} />;
-  if (!data?.length) return <Empty title="Nothing set yet" body="Homework you set will appear here to mark." />;
+  if (!data?.length)
+    return (
+      <Empty
+        title="Nothing set yet"
+        body="Homework you set appears here once a class has something to hand in."
+        action={{ label: 'Set some homework', onPress: onSwitchToSet }}
+      />
+    );
 
   return (
     <View style={{ gap: space.xxl }}>

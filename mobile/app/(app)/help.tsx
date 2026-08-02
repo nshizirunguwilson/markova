@@ -150,7 +150,11 @@ export default function Help() {
             {ticketsPending ? (
               <LoadingRows count={3} />
             ) : !tickets?.length ? (
-              <Empty title="You have not asked anything yet" />
+              <Empty
+                title="You have not asked anything yet"
+                body="Anything you send goes straight to the office, and you can follow it here."
+                action={{ label: 'Ask the office something', onPress: () => setRaising(true) }}
+              />
             ) : (
               <Section title="What you have asked">
                 <RowGroup>

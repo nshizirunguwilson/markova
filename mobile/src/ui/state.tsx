@@ -9,7 +9,8 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { useTheme } from '@/design/provider';
-import { motion, radius, space, curve, gutter } from '@/design/tokens';
+import { radius, space, curve, gutter } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
 import { Text } from './text';
 import { Button } from './button';
 
@@ -36,18 +37,24 @@ import { Button } from './button';
  */
 export function Skeleton({ height = 16, width = '100%', round }: { height?: number; width?: number | `${number}%`; round?: boolean }) {
   const t = useTheme();
-  const pulse = useSharedValue(0.5);
+  const reduced = useReducedMotion();
+  const pulse = useSharedValue(reduced ? 0.85 : 0.5);
 
   useEffect(() => {
+    // An infinite pulse is the clearest example of the motion the vestibular
+    // guidance warns about, so when motion is turned down the placeholder sits
+    // still at a fixed opacity. It still says "something is coming", which is
+    // the whole job it had.
+    if (reduced) {
+      pulse.value = 0.85;
+      return;
+    }
     pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 700 }),
-        withTiming(0.5, { duration: 700 }),
-      ),
+      withSequence(withTiming(1, { duration: 700 }), withTiming(0.5, { duration: 700 })),
       -1,
       false,
     );
-  }, [pulse]);
+  }, [pulse, reduced]);
 
   const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
@@ -98,9 +105,23 @@ export function LoadingRows({ count = 5, lead = false }: { count?: number; lead?
 /**
  * Nothing here, and why.
  *
- * Every empty state names the thing that is missing and, where there is one,
- * offers the action that would fill it. "No data" is not an empty state, it is
- * a shrug.
+ * Nielsen Norman set three jobs for an empty state: say what the system is
+ * doing, teach what would fill the space, and offer a direct path to the task
+ * that fills it. The first two are always required here, which is why title
+ * and body are not optional in practice. "No data" is not an empty state, it
+ * is a shrug.
+ *
+ * The third only applies sometimes, and the distinction is deliberate rather
+ * than accidental. There are three kinds of empty in this app:
+ *
+ *   actionable   the person looking at it can fill it, so it carries the
+ *                action. An admin on an empty homework list can set homework.
+ *   blocked      the person cannot act, and the screen says who can. A parent
+ *                waiting on a term to be published is not given a button,
+ *                because there is nothing honest to put on it.
+ *   good news    nothing is missing. A full attendance record and an empty
+ *                appeals queue are not problems, and offering an action there
+ *                would invent a task out of a healthy state.
  */
 export function Empty({
   title,
@@ -113,9 +134,10 @@ export function Empty({
   action?: { label: string; onPress: () => void };
   icon?: ReactNode;
 }) {
+  const reduced = useReducedMotion();
   return (
     <Animated.View
-      entering={FadeIn.duration(motion.base)}
+      entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))}
       style={{
         alignItems: 'center',
         gap: space.md,

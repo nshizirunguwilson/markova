@@ -125,6 +125,7 @@ export default function NewPerson() {
             error={errors.nationalId}
             keyboardType="number-pad"
             mono
+            optional
             hint="Sixteen digits. Students under sixteen usually will not have one."
           />
         </Section>

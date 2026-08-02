@@ -233,18 +233,7 @@ export const touch = {
 
 // ─── Motion ─────────────────────────────────────────────────────────────────
 //
-// Short, and mostly about telling you where something came from. Nothing in
-// this app animates to be admired.
-
-export const motion = {
-  instant: 90,
-  fast: 140,
-  base: 220,
-  slow: 320,
-  /** Decelerating. Things arriving. */
-  enter: [0.16, 1, 0.3, 1] as const,
-  /** Accelerating. Things leaving. */
-  exit: [0.4, 0, 1, 1] as const,
-  /** Symmetric. Things moving in place. */
-  move: [0.4, 0, 0.2, 1] as const,
-} as const;
+// Lives in design/motion.ts, not here, because unlike everything else in this
+// file it is not a constant. Durations collapse to zero when a person has
+// asked their phone for less motion, so it needs a hook, and a hook does not
+// belong in a token file.

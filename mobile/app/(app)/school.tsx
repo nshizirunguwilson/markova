@@ -78,7 +78,7 @@ export default function School() {
         <Section title="Identity">
           <View style={{ gap: space.lg }}>
             <Field label="School name" value={name} onChangeText={setName} />
-            <Field label="Motto" value={motto} onChangeText={setMotto} placeholder="Optional" />
+            <Field label="Motto" value={motto} onChangeText={setMotto} optional />
           </View>
         </Section>
 

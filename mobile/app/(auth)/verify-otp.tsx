@@ -7,7 +7,8 @@ import { toast } from 'sonner-native';
 
 import { useAuthStore } from '@/stores/auth-store';
 import { useTheme } from '@/design';
-import { curve, motion, radius, space, type as typeScale } from '@/design/tokens';
+import { curve, radius, space, type as typeScale } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
 import { Screen, Text, Button } from '@/ui';
 
 const LENGTH = 6;
@@ -34,6 +35,7 @@ export default function VerifyOtp() {
 
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
+  const reduced = useReducedMotion();
 
   const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(''));
   const [busy, setBusy] = useState(false);
@@ -112,7 +114,7 @@ export default function VerifyOtp() {
       behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
-        <Animated.View entering={FadeIn.duration(motion.base)} style={{ gap: space.md }}>
+        <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))} style={{ gap: space.md }}>
           <Text variant="title1">Check your email</Text>
           <Text variant="body" tone="secondary" style={{ maxWidth: 400 }}>
             We sent a six digit code{identifier ? ` to ${identifier}` : ''}. It expires in five

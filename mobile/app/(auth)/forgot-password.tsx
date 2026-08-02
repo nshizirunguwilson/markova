@@ -5,7 +5,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { toast } from 'sonner-native';
 
 import api from '@/lib/api';
-import { motion, space } from '@/design/tokens';
+import { space } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
 import { Screen, Text, Field, Button } from '@/ui';
 
 /**
@@ -22,6 +23,7 @@ import { Screen, Text, Field, Button } from '@/ui';
 export default function ForgotPassword() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
+  const reduced = useReducedMotion();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string>();
@@ -50,7 +52,7 @@ export default function ForgotPassword() {
   if (sent) {
     return (
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
-        <Animated.View entering={FadeIn.duration(motion.base)} style={{ gap: space.md }}>
+        <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))} style={{ gap: space.md }}>
           <Text variant="title1">Check your messages</Text>
           <Text variant="body" tone="secondary" style={{ maxWidth: 420 }}>
             If {identifier.trim()} belongs to an account here, a reset code is on its way to it.

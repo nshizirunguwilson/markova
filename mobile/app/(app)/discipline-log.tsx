@@ -170,7 +170,7 @@ function Record() {
             minHeight={120}
             required
           />
-          <Field label="Where" value={location} onChangeText={setLocation} placeholder="Classroom, corridor, field" />
+          <Field label="Where" value={location} onChangeText={setLocation} optional placeholder="Classroom, corridor, field" />
           <Button label="Record it" kind="primary" block loading={create.isPending} onPress={submit} />
         </View>
       </Section>

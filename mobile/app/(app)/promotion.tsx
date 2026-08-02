@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 
 import {
@@ -28,6 +28,7 @@ import {
  */
 export default function Promotion() {
   const t = useTheme();
+  const router = useRouter();
   const { data: sections } = useClassSections();
   const { data: years } = useAcademicYears();
   const currentYear = years?.find((y) => y.isCurrent);
@@ -85,6 +86,7 @@ export default function Promotion() {
           <Empty
             title="Nothing to decide"
             body="Year results have to be worked out before promotion can be reviewed."
+            action={{ label: 'Go and work them out', onPress: () => router.push('/(app)/reports') }}
           />
         ) : (
           <>

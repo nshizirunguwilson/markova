@@ -10,7 +10,8 @@ import { toast } from 'sonner-native';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTheme } from '@/design';
-import { motion, radius, space, touch, curve } from '@/design/tokens';
+import { radius, space, touch, curve } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
 import { Screen, Text, Button } from '@/ui';
 
 /**
@@ -34,6 +35,7 @@ export default function Blocked() {
   const router = useRouter();
   const name = useAuthStore((s) => s.blockedName);
   const clearBlock = useAuthStore((s) => s.clearBlock);
+  const reduced = useReducedMotion();
 
   const { data } = useQuery({
     queryKey: ['branding'],
@@ -58,7 +60,7 @@ export default function Blocked() {
   return (
     <Screen>
       <Animated.View
-        entering={FadeInDown.duration(motion.slow).easing((x) => 1 - Math.pow(1 - x, 3))}
+        entering={FadeInDown.duration(withReducedMotion(reduced, duration.screen))}
         style={{ gap: space.xl, paddingTop: space.huge }}
       >
         <View style={{ gap: space.md }}>

@@ -293,18 +293,192 @@ larger, so the target grows without the visual weight growing with it.
 
 ## Motion
 
-Four durations: 90, 140, 220, 320. Three curves: decelerating for things
-arriving, accelerating for things leaving, symmetric for things moving in
-place.
+Four durations and three curves, and both came out of research rather than
+taste. They live in `design/motion.ts` rather than in the token file, because
+unlike everything else they are not constants.
 
-Nothing in this app animates to be admired. Motion exists to say where
-something came from.
+| Token | ms | For |
+| --- | --- | --- |
+| `feedback` | 100 | A control acknowledging a touch |
+| `enter` | 280 | Something arriving |
+| `exit` | 200 | Something leaving |
+| `screen` | 360 | A whole screen or sheet |
+
+**Entering is longer than exiting, deliberately.** Nielsen Norman's work on
+animation duration is explicit that a thing arriving needs more time than the
+same thing leaving, around 300ms in against 200 to 250ms out, because the eye
+has to find something that has appeared and needs no time at all to let go of
+something that has gone. The first version of this system used one duration in
+both directions, which makes entrances feel abrupt and exits feel sluggish
+simultaneously.
+
+The ceiling is 400. NN/G puts 500ms at the point where animation "starts to
+feel like a real drag", and the Doherty threshold work is the reason nothing
+here approaches it.
+
+Curves are decelerating in, accelerating out, symmetric for movement in place.
+Never linear, which reads as mechanical because nothing physical moves that
+way.
+
+### Motion is optional, and that is not a preference
+
+Every animated thing in the app asks first. `useReducedMotion()` reads the
+platform setting and durations collapse to zero, not to something small,
+because the guidance is to remove the animation rather than perform it
+quickly.
+
+This matters most for the skeleton loader, which pulsed forever. WCAG 2.3.3
+covers animation triggered by interaction, and the vestibular literature is
+clear that repeating motion can cause dizziness, nausea and headaches. An
+infinite pulse is close to the textbook example. With reduced motion on, the
+skeleton sits still at a fixed opacity and still says "something is coming",
+which was its only job.
+
+---
+
+## Navigation
+
+Four tabs plus More, per role.
+
+Apple puts the tab bar range at three to five, Material lands in the same
+place, and the usability work behind those guidelines reports meaningfully
+faster navigation for bars of three to five items than for six or more. Five is
+the practical ceiling before tap accuracy suffers, so this sits at the top of
+the researched range rather than past it.
+
+The rule for what earns a tab: used at least weekly by that role, and a place
+rather than an action. Marks entry is the single most used screen a teacher
+has and it is still not a tab, because it is something you do to a class you
+picked, not somewhere you go.
+
+---
+
+## Forms
+
+Three findings from Baymard's checkout research shaped these, all from studies
+of real people failing at real forms.
+
+**Labels sit above the field, never inside it.** Baymard tested more than a
+thousand mobile checkout fields across eighteen sites. Inline and left aligned
+labels leave too little room for the input on a narrow screen, so people cannot
+see what they typed, and when they get something wrong they delete the whole
+field and start again rather than correcting it. Above the field lets the input
+run the full width. This app asks parents for national ID numbers and teachers
+for marks against a named assessment, so the label has to survive the moment
+they start typing.
+
+**Optional fields are marked as explicitly as required ones.** Baymard found
+that marking only the required fields leaves every other field ambiguous, and
+that the sites doing both are a small minority. The `Field` component takes
+`required` and `optional` and the add-a-person form uses both, because a
+national ID genuinely is optional for a thirteen year old and genuinely is not
+for a member of staff.
+
+**Validation is inline where it can be.** The password rules on reset and in
+settings tick as you type rather than telling you what was wrong after you
+submitted. Marks entry catches an out of range value on the keystroke, because
+finding out at the end that entry nine was 105 means hunting for it.
+
+---
+
+## Empty states
+
+Nielsen Norman set three jobs for an empty state: say what the system is doing,
+teach what would fill the space, and offer a direct path to the task that fills
+it.
+
+The first two are always present here. The third is not, and the omission is
+deliberate. There are three kinds of empty in this app:
+
+- **Actionable.** The person can fill it, so it carries the action. An admin on
+  an empty homework list gets a button that sets homework.
+- **Blocked.** The person cannot act, and the screen says who can. A parent
+  waiting on a term to be published is not given a button, because there is
+  nothing honest to put on one.
+- **Good news.** Nothing is missing. A full attendance record and an empty
+  appeals queue are not problems, and putting an action there would invent a
+  task out of a healthy state.
+
+---
+
+## Lists
+
+Rows rather than cards, full bleed, separated by a hairline.
+
+The density argument is the one that decides it. A list gives more information
+per screen than a card grid and is faster to select from, and people scan
+rather than read, so the useful thing is to get more scannable lines in front
+of them rather than to give each line a box. A list of ten cards is ten
+competing objects. A register is one object with ten lines.
 
 ---
 
 ## Sources
 
-Read directly:
+Motion:
+
+- Nielsen Norman Group, *Executing UX Animations: Duration and Motion
+  Characteristics.* https://www.nngroup.com/articles/animation-duration/
+- W3C, *Understanding SC 2.3.3 Animation from Interactions*, WCAG 2.2.
+  https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html
+- web.dev, *Animation and motion*, accessibility course.
+  https://web.dev/learn/accessibility/motion
+- Deque University, *2.3.3 Animations from Interactions.*
+  https://dequeuniversity.com/resources/wcag2.1/2.3.3-animations-from-interactions
+- Val Head, *How fast should your UI animations be?*
+  https://valhead.com/2016/05/05/how-fast-should-your-ui-animations-be/
+- UXmatters, *Designing Interface Animation.*
+  https://www.uxmatters.com/mt/archives/2016/12/designing-interface-animation.php
+- Cited within the above: Card, Moran and Newell's Model Human Processor
+  (230ms to perceive), the Doherty threshold (Doherty and Thadhani, 1982), and
+  Pratt et al. (2010) on animate motion capturing attention.
+
+Navigation and information architecture:
+
+- Apple Human Interface Guidelines, tab bars, three to five items.
+- Material Design 3 navigation bar guidance.
+- UXPin, *Mobile Navigation Patterns: Pros and Cons.*
+  https://www.uxpin.com/studio/blog/mobile-navigation-patterns-pros-and-cons/
+- Nitrous Design, *Mobile Tab Navigation Best Practices.*
+  https://www.nitrousdesign.com/blogs/guideliness-for-designing-effective-tab-bar-navigation-on-mobile
+- *iOS Tab Bar: A Complete UX and Design Guide.*
+  https://uiuxdesigning.com/ios-tab-bar/
+- AppInstitute, *Best Practices for Mobile App Navigation Menus.*
+  https://appinstitute.com/best-practices-for-mobile-app-navigation-menus/
+
+Forms:
+
+- Baymard Institute, *Field Label UX: Place Labels Above the Field.* Read
+  directly. https://baymard.com/blog/mobile-form-usability-label-position
+- Baymard Institute, *Mobile Form Usability: Never Use Inline Labels.*
+  https://baymard.com/blog/mobile-forms-avoid-inline-labels
+- Baymard Institute, *Mark Both Required and Optional Fields Explicitly.*
+  https://baymard.com/blog/required-optional-form-fields
+- Baymard Institute, *Avoid Splitting Single Input Entities.*
+  https://baymard.com/blog/mobile-form-usability-single-input-fields
+- Baymard Institute, *8 Recommendations for Creating Effective Input Fields.*
+  https://baymard.com/learn/input-fields
+- Baymard Institute, *Form Design: 6 Best Practices.*
+  https://baymard.com/learn/form-design
+
+Empty states and list density:
+
+- Nielsen Norman Group, *Designing Empty States in Complex Applications: 3
+  Guidelines.* Read directly.
+  https://www.nngroup.com/articles/empty-state-interface-design/
+- Nielsen Norman Group, *Empty States in Application Design* (video).
+  https://www.nngroup.com/videos/empty-states-in-application-design-guidelines/
+- Nielsen Norman Group, information density collection.
+  https://www.nngroup.com/topic/information-density/
+- Nielsen Norman Group, *Utilize Available Screen Space.*
+  https://www.nngroup.com/articles/utilize-available-screen-space/
+- Nielsen Norman Group, *3 Strategies for Managing Visual Complexity.*
+  https://www.nngroup.com/videos/managing-visual-complexity/
+- Nielsen Norman Group, *Maps and Location Finders on Mobile Devices*, on list
+  layout giving higher information density and faster selection.
+  https://www.nngroup.com/articles/mobile-maps-locations/
+
+Typography, colour and space, read directly:
 
 - Rasmus Andersson, *Inter* typeface documentation. https://rsms.me/inter/
 - Wang, L. et al. *How to design font size for older adults: A systematic

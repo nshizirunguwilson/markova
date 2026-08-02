@@ -9,7 +9,8 @@ import { toast } from 'sonner-native';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTheme } from '@/design';
-import { motion, radius, space } from '@/design/tokens';
+import { radius, space } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
 import { Screen, Text, Field, Button } from '@/ui';
 
 /**
@@ -31,6 +32,7 @@ export default function Login() {
   const t = useTheme();
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const reduced = useReducedMotion();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -95,7 +97,7 @@ export default function Login() {
       behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
-        <Animated.View entering={FadeIn.duration(motion.slow)} style={{ gap: space.md }}>
+        <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.screen))} style={{ gap: space.md }}>
           {branding?.logoUrl ? (
             <Image
               source={{ uri: branding.logoUrl }}
