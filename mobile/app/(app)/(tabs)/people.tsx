@@ -1,200 +1,153 @@
-import { useState, useCallback, useMemo } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, Pressable, TextInput, RefreshControl,
-} from 'react-native';
-import { Search, Shield, GraduationCap, BookOpen, Users as UsersIcon, ChevronDown } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { useMemo, useState } from 'react';
+import { FlatList, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Search, UserPlus, Upload } from 'lucide-react-native';
 
-type RoleFilter = '' | 'ADMIN' | 'TEACHER' | 'PARENT' | 'STUDENT' | 'LIBRARIAN';
+import { usePeople, type DirectoryUser } from '@/hooks/useApi';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useTheme } from '@/design';
+import { gutter, space } from '@/design/tokens';
+import { Row, Avatar, Badge, Field, Segmented, Empty, LoadingRows, Failed, Text, Button } from '@/ui';
 
-interface UserItem {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  phone?: string;
-  isActive: boolean;
-  lastLoginAt?: string;
-  photoUrl?: string;
-}
+/**
+ * Everyone, in one list.
+ *
+ * The web splits this into three pages, users, students and teachers, because
+ * a sidebar has room for three links. On a phone that would mean three nearly
+ * identical screens and three different places to search, so it is one list
+ * with a role filter.
+ *
+ * A FlatList rather than the usual Screen, because a large school has a few
+ * thousand people in it and mounting all of them at once is the difference
+ * between a list that scrolls and one that stutters on the kind of Android
+ * phone this is actually used on.
+ */
 
-export default function UsersScreen() {
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('');
-  const [page, setPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
+const ROLES = [
+  { value: '', label: 'Everyone' },
+  { value: 'STUDENT', label: 'Students' },
+  { value: 'TEACHER', label: 'Teachers' },
+  { value: 'PARENT', label: 'Parents' },
+  { value: 'ADMIN', label: 'Admins' },
+  { value: 'LIBRARIAN', label: 'Librarians' },
+] as const;
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['admin-users', search, roleFilter, page],
-    queryFn: () =>
-      api.get('/users', {
-        params: {
-          search: search.trim() || undefined,
-          role: roleFilter || undefined,
-          page,
-          limit: 30,
-        },
-      }).then((r) => r.data),
+export default function People() {
+  const t = useTheme();
+  const router = useRouter();
+  const [role, setRole] = useState<string>('');
+  const [query, setQuery] = useState('');
+  const search = useDebounce(query, 300);
+
+  const { data, isPending, isError, refetch, isRefetching } = usePeople({
+    role: role || undefined,
+    search: search || undefined,
   });
 
-  const users: UserItem[] = data?.data ?? data?.users ?? (Array.isArray(data) ? data : []);
-  const total = data?.meta?.total ?? data?.total ?? users.length;
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
-  const roleIcon = (role: string) => {
-    switch (role) {
-      case 'ADMIN': return <Shield size={14} color={colors.danger} />;
-      case 'TEACHER': return <UsersIcon size={14} color={colors.primary} />;
-      case 'STUDENT': return <GraduationCap size={14} color={colors.success} />;
-      case 'LIBRARIAN': return <BookOpen size={14} color={colors.warning} />;
-      default: return <UsersIcon size={14} color={colors.muted} />;
-    }
-  };
-
-  const roleColor = (role: string) => {
-    switch (role) {
-      case 'ADMIN': return colors.dangerLight;
-      case 'TEACHER': return colors.accentLight;
-      case 'STUDENT': return colors.successLight;
-      case 'LIBRARIAN': return colors.warningLight;
-      default: return colors.borderLight;
-    }
-  };
-
-  const roles: { label: string; value: RoleFilter }[] = [
-    { label: 'All', value: '' },
-    { label: 'Admin', value: 'ADMIN' },
-    { label: 'Teacher', value: 'TEACHER' },
-    { label: 'Student', value: 'STUDENT' },
-    { label: 'Parent', value: 'PARENT' },
-    { label: 'Librarian', value: 'LIBRARIAN' },
-  ];
+  const people = useMemo<DirectoryUser[]>(() => data?.data ?? [], [data]);
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Users" subtitle={`${total} total`} />
-
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Search size={18} color={colors.muted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name or email..."
-          placeholderTextColor={colors.mutedLight}
-          value={search}
-          onChangeText={(t) => { setSearch(t); setPage(1); }}
+    <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+      <View style={{ paddingHorizontal: gutter, paddingTop: space.md, gap: space.lg }}>
+        <Field
+          label="Search"
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Name, email, phone, or ID"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessory={<Search size={18} color={t.fg.tertiary} strokeWidth={2} />}
         />
+        <Segmented value={role} onChange={setRole} options={ROLES as never} />
       </View>
 
-      {/* Role filter */}
-      <View style={styles.filterRow}>
-        {roles.map((r) => (
-          <Pressable
-            key={r.value}
-            style={[styles.filterChip, roleFilter === r.value && styles.filterChipActive]}
-            onPress={() => { setRoleFilter(r.value); setPage(1); }}
-          >
-            <Text style={[styles.filterText, roleFilter === r.value && styles.filterTextActive]}>
-              {r.label}
+      <FlatList
+        data={people}
+        keyExtractor={(item) => item.id}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        onRefresh={refetch}
+        refreshing={isRefetching}
+        contentContainerStyle={{ paddingTop: space.lg, paddingBottom: space.huge }}
+        ListHeaderComponent={
+          people.length ? (
+            <Text
+              variant="caption"
+              tone="tertiary"
+              caps
+              style={{ paddingHorizontal: gutter, paddingBottom: space.sm }}
+            >
+              {data?.total ?? people.length} found
             </Text>
-          </Pressable>
-        ))}
-      </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          isPending ? (
+            <LoadingRows count={8} lead />
+          ) : isError ? (
+            <Failed onRetry={refetch} />
+          ) : (
+            <Empty
+              title={search ? 'Nobody matches that' : 'Nobody here yet'}
+              body={
+                search
+                  ? 'Try part of a name, or an ID number.'
+                  : 'Add people one at a time, or import a spreadsheet.'
+              }
+              action={{ label: 'Add someone', onPress: () => router.push('/(app)/people/new') }}
+            />
+          )
+        }
+        renderItem={({ item, index }) => {
+          const name = `${item.firstName} ${item.lastName}`.trim();
+          return (
+            <Row
+              title={name}
+              subtitle={
+                item.student?.studentIdNumber ??
+                item.email ??
+                item.phone ??
+                undefined
+              }
+              lead={<Avatar name={name} photoUrl={item.photoUrl} size="md" />}
+              value={
+                !item.isActive ? (
+                  <Badge label="Off" tone="neutral" />
+                ) : role === '' ? (
+                  <Badge label={item.role.charAt(0) + item.role.slice(1).toLowerCase()} tone="neutral" />
+                ) : undefined
+              }
+              onPress={() => router.push(`/(app)/people/${item.id}`)}
+              last={index === people.length - 1}
+            />
+          );
+        }}
+      />
 
-      {/* User list */}
-      {isLoading ? (
-        <LoadingScreen />
-      ) : error ? (
-        <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-      ) : (
-        <FlatList
-          data={users}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-          }
-          renderItem={({ item }) => (
-            <View style={styles.userRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {item.firstName?.[0]}{item.lastName?.[0]}
-                </Text>
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.firstName} {item.lastName}</Text>
-                <Text style={styles.userEmail}>{item.email}</Text>
-              </View>
-              <View style={styles.userMeta}>
-                <View style={[styles.roleBadge, { backgroundColor: roleColor(item.role) }]}>
-                  {roleIcon(item.role)}
-                  <Text style={styles.roleText}>{item.role}</Text>
-                </View>
-                <View style={[styles.statusDot, { backgroundColor: item.isActive ? colors.success : colors.muted }]} />
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.noData}>No users found.</Text>
-          }
-          contentContainerStyle={{ paddingBottom: spacing['5xl'] }}
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: space.md,
+          paddingHorizontal: gutter,
+          paddingBottom: space.lg,
+          paddingTop: space.md,
+          borderTopWidth: 1,
+          borderTopColor: t.line.hairline,
+        }}
+      >
+        <Button
+          label="Add someone"
+          kind="primary"
+          icon={<UserPlus size={18} color={t.brand.onSolid} strokeWidth={2} />}
+          onPress={() => router.push('/(app)/people/new')}
         />
-      )}
+        <Button
+          label="Import"
+          kind="secondary"
+          icon={<Upload size={18} color={t.fg.primary} strokeWidth={2} />}
+          onPress={() => router.push('/(app)/people/import')}
+        />
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
-  filterRow: {
-    flexDirection: 'row', paddingHorizontal: spacing.lg, gap: spacing.sm,
-    marginBottom: spacing.sm, flexWrap: 'wrap',
-  },
-  filterChip: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.full,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-  },
-  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { fontSize: fontSize.xs, color: colors.foreground, fontWeight: fontWeight.medium },
-  filterTextActive: { color: colors.white },
-  userRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
-    backgroundColor: colors.white,
-  },
-  avatar: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white },
-  userInfo: { flex: 1 },
-  userName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  userEmail: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  userMeta: { alignItems: 'flex-end', gap: spacing.xs },
-  roleBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2,
-  },
-  roleText: { fontSize: 10, fontWeight: fontWeight.semibold, color: colors.foreground },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing['3xl'] },
-});

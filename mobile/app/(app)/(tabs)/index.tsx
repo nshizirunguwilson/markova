@@ -1,576 +1,355 @@
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  Calendar, BookOpen, TrendingUp, AlertTriangle, ClipboardList,
-  Users, Settings, BarChart3, GraduationCap, CreditCard, MessageSquare, Clock,
-  FileText,
-} from 'lucide-react-native';
+
 import { useAuthStore } from '@/stores/auth-store';
 import {
-  useParentChildren, useAdminDashboard, useNotifications,
-  useTeacherDashboardStats, useLibraryAnalytics,
+  useParentChildren,
+  useAdminDashboard,
+  useTeacherDashboardStats,
+  useLibraryAnalytics,
+  useOverdueLoans,
+  useCurrentTerm,
+  useNotifications,
+  useChronicAbsentees,
 } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import {
+  Screen,
+  Section,
+  Row,
+  RowGroup,
+  Text,
+  Stat,
+  StatRow,
+  Avatar,
+  Badge,
+  LoadingRows,
+  Meter,
+} from '@/ui';
 
-export default function DashboardScreen() {
-  const user = useAuthStore((s) => s.user);
-  const role = user?.role;
+/**
+ * Home.
+ *
+ * The previous dashboard opened with a coloured welcome card and then a grid
+ * of solid tiles that were mostly navigation. Navigation already exists at the
+ * bottom of the screen, so the tiles were decoration standing in for content.
+ *
+ * This one answers a question instead. Each role gets the thing they opened
+ * the app to find out, stated in words at the top, then the two or three
+ * figures that qualify it, then only the shortcuts that are genuinely faster
+ * from here than from their own tab.
+ *
+ * There is no greeting card. A person knows their own name.
+ */
+export default function Home() {
+  const role = useAuthStore((s) => s.user?.role);
 
-  if (role === 'PARENT') return <ParentDashboard />;
-  if (role === 'TEACHER') return <TeacherDashboard />;
-  if (role === 'ADMIN') return <AdminDashboard />;
-  return <GenericDashboard />;
+  if (role === 'PARENT') return <ParentHome />;
+  if (role === 'TEACHER') return <TeacherHome />;
+  if (role === 'ADMIN') return <AdminHome />;
+  if (role === 'LIBRARIAN') return <LibrarianHome />;
+  return <ParentHome />;
 }
 
-// ─── Parent Dashboard ─────────────────────────────────
-
-function ParentDashboard() {
-  const user = useAuthStore((s) => s.user);
-  const router = useRouter();
-  const { data: children, isLoading, error, refetch } = useParentChildren();
-  const [refreshing, setRefreshing] = useState(false);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
+/** The sentence at the top of every home screen. */
+function Headline({ lead, detail }: { lead: string; detail?: string }) {
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Dashboard" subtitle={`Welcome, ${user?.firstName}`} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeTitle}>My Children</Text>
-          <Text style={styles.welcomeText}>
-            Tap a child to view their attendance, marks, and more.
-          </Text>
-        </View>
-
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : children && children.length > 0 ? (
-          children.map((child) => (
-            <Pressable
-              key={child.id}
-              style={styles.childCard}
-              onPress={() =>
-                router.push({
-                  pathname: '/(app)/child/[studentId]',
-                  params: {
-                    studentId: child.id,
-                    name: `${child.user?.firstName} ${child.user?.lastName}`,
-                  },
-                })
-              }
-            >
-              <View style={styles.childAvatar}>
-                <Text style={styles.childAvatarText}>
-                  {child.user?.firstName?.[0]}
-                  {child.user?.lastName?.[0]}
-                </Text>
-              </View>
-              <View style={styles.childInfo}>
-                <Text style={styles.childName}>
-                  {child.user?.firstName} {child.user?.lastName}
-                </Text>
-                <Text style={styles.childClass}>
-                  {child.classSection?.classLevel?.name} - {child.classSection?.name}
-                </Text>
-                <Text style={styles.childId}>ID: {child.studentIdNumber}</Text>
-              </View>
-              <View style={styles.childActions}>
-                <QuickAction icon={<Calendar size={16} color={colors.primary} />} label="Attendance" />
-                <QuickAction icon={<TrendingUp size={16} color={colors.success} />} label="Marks" />
-              </View>
-              <View style={[styles.childActions, { marginTop: spacing.sm }]}>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/timetable',
-                      params: {
-                        classSectionId: child.classSectionId,
-                        studentName: `${child.user?.firstName} ${child.user?.lastName}`,
-                      },
-                    })
-                  }
-                >
-                  <QuickAction icon={<Clock size={16} color={colors.primaryLight} />} label="Timetable" />
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/exam-schedule',
-                      params: { classSectionId: child.classSectionId },
-                    })
-                  }
-                >
-                  <QuickAction icon={<FileText size={16} color={colors.danger} />} label="Exams" />
-                </Pressable>
-              </View>
-            </Pressable>
-          ))
-        ) : (
-          <View style={styles.emptyCard}>
-            <Users size={32} color={colors.mutedLight} />
-            <Text style={styles.emptyText}>No children linked to your account yet.</Text>
-          </View>
-        )}
-
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <Pressable
-          style={styles.chatWithTeachersBtn}
-          onPress={() => router.push('/(app)/parent-teacher-chat')}
-        >
-          <View style={styles.chatWithTeachersIcon}>
-            <MessageSquare size={22} color={colors.white} />
-          </View>
-          <View style={styles.chatWithTeachersInfo}>
-            <Text style={styles.chatWithTeachersTitle}>Chat with Teachers</Text>
-            <Text style={styles.chatWithTeachersText}>Send a direct message to your child's teachers</Text>
-          </View>
-        </Pressable>
-      </ScrollView>
+    <View style={{ gap: space.xs, paddingHorizontal: space.xl, paddingTop: space.sm }}>
+      <Text variant="title1">{lead}</Text>
+      {detail ? (
+        <Text variant="callout" tone="secondary">
+          {detail}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-function QuickAction({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <View style={styles.quickAction}>
-      {icon}
-      <Text style={styles.quickActionText}>{label}</Text>
-    </View>
-  );
-}
+// ─── Parent ─────────────────────────────────────────────
 
-// ─── Teacher Dashboard ────────────────────────────────
-
-function TeacherDashboard() {
-  const user = useAuthStore((s) => s.user);
+function ParentHome() {
   const router = useRouter();
-  const { data: stats, isLoading, error, refetch } = useTeacherDashboardStats(user?.teacherId);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
-  const quickActions = [
-    { icon: <ClipboardList size={24} color={colors.white} />, label: 'Take Attendance', bg: colors.primary, onPress: () => router.push('/(app)/(tabs)/attendance') },
-    { icon: <TrendingUp size={24} color={colors.white} />, label: 'Enter Marks', bg: colors.success, onPress: () => router.push('/(app)/marks-entry') },
-    { icon: <BookOpen size={24} color={colors.white} />, label: 'Homework', bg: colors.warning, onPress: () => router.push('/(app)/homework-manage') },
-    { icon: <AlertTriangle size={24} color={colors.white} />, label: 'Discipline', bg: colors.danger, onPress: () => router.push('/(app)/discipline-log') },
-    { icon: <Clock size={24} color={colors.white} />, label: 'My Timetable', bg: colors.primaryLight, onPress: () => router.push('/(app)/timetable') },
-    { icon: <FileText size={24} color={colors.white} />, label: 'Exam Schedule', bg: '#7D3C98', onPress: () => router.push('/(app)/exam-schedule') },
-  ];
-
-  return (
-    <View style={styles.container}>
-      <ScreenHeader title="Dashboard" subtitle={`Welcome, ${user?.firstName}`} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeTitle}>Good {getTimeGreeting()}</Text>
-          <Text style={styles.welcomeText}>Manage your classes and track student progress.</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionGrid}>
-          {quickActions.map((action, i) => (
-            <Pressable key={i} style={[styles.actionCard, { backgroundColor: action.bg }]} onPress={action.onPress}>
-              {action.icon}
-              <Text style={styles.actionLabel}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>Today's Overview</Text>
-        {error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : (
-          <View style={styles.statsGrid}>
-            <StatCard
-              title="Classes Today"
-              value={isLoading ? '...' : (stats?.classesToday ?? '--')}
-              color={colors.primaryLight}
-              icon={<Calendar size={18} color={colors.primaryLight} />}
-            />
-            <StatCard
-              title="Attendance"
-              value={isLoading ? '...' : (stats?.attendanceRate ?? '--')}
-              color={colors.success}
-              icon={<ClipboardList size={18} color={colors.success} />}
-            />
-            <StatCard
-              title="Pending Grades"
-              value={isLoading ? '...' : (stats?.pendingGrades ?? '--')}
-              color={colors.warning}
-              icon={<TrendingUp size={18} color={colors.warning} />}
-            />
-            <StatCard
-              title="Messages"
-              value={isLoading ? '...' : (stats?.unreadMessages ?? '--')}
-              color={colors.danger}
-              icon={<MessageSquare size={18} color={colors.danger} />}
-            />
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
-}
-
-// ─── Admin Dashboard (with real analytics) ───────────
-
-function AdminDashboard() {
-  const user = useAuthStore((s) => s.user);
-  const router = useRouter();
-  const { data: dashboard, isLoading, error, refetch } = useAdminDashboard();
+  const { data: children, isPending, refetch, isRefetching } = useParentChildren();
   const { data: notifications } = useNotifications();
-  const [refreshing, setRefreshing] = useState(false);
 
-  const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+  const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
+  const first = (useAuthStore.getState().user?.firstName ?? '').trim();
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  // A parent opens this to find out whether anything needs them. Say that
+  // first, in words, before any number.
+  const flagged = (children ?? []).filter((c: any) => (c.disciplinePoints ?? 100) < 90);
+  const headline =
+    flagged.length === 0
+      ? 'Nothing needs you today'
+      : flagged.length === 1
+        ? 'One thing needs a look'
+        : `${flagged.length} things need a look`;
 
-  const quickActions = [
-    { icon: <Settings size={24} color={colors.white} />, label: 'School Setup', bg: colors.primary, onPress: () => router.push('/(app)/onboarding') },
-    { icon: <Users size={24} color={colors.white} />, label: 'Users', bg: colors.primaryLight, onPress: () => router.push('/(app)/(tabs)/users') },
-    { icon: <CreditCard size={24} color={colors.white} />, label: 'NFC Cards', bg: colors.success, onPress: () => router.push('/(app)/nfc-register') },
-    { icon: <BarChart3 size={24} color={colors.white} />, label: 'Analytics', bg: colors.warning, onPress: () => {} },
-    { icon: <Settings size={24} color={colors.white} />, label: 'Settings', bg: '#7D3C98', onPress: () => router.push('/(app)/(tabs)/settings') },
-  ];
+  if (isPending)
+    return (
+      <Screen bleed>
+        <LoadingRows count={3} lead />
+      </Screen>
+    );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Dashboard" subtitle={`${getTimeGreeting()}, ${user?.firstName}`} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeTitle}>School Overview</Text>
-          <Text style={styles.welcomeText}>Manage your school from anywhere.</Text>
-        </View>
+    <Screen
+      bleed
+      onRefresh={refetch}
+      refreshing={isRefetching}
+      contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
+    >
+      <Headline
+        lead={headline}
+        detail={first ? `Good to see you, ${first}.` : undefined}
+      />
 
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Key Metrics</Text>
-            <View style={styles.statsGrid}>
-              <StatCard
-                title="Students"
-                value={dashboard?.totalStudents ?? '--'}
-                color={colors.primary}
-                icon={<GraduationCap size={18} color={colors.primary} />}
+      <Section title={children?.length === 1 ? 'Your child' : 'Your children'}>
+        <RowGroup>
+          {(children ?? []).map((child: any, i: number) => {
+            const name = `${child.user?.firstName ?? ''} ${child.user?.lastName ?? ''}`.trim();
+            const points: number = child.disciplinePoints ?? 100;
+            return (
+              <Row
+                key={child.id}
+                title={name}
+                subtitle={child.classSection?.name}
+                lead={<Avatar name={name} photoUrl={child.user?.photoUrl} size="md" />}
+                value={
+                  points < 90 ? (
+                    <Badge label={`${points} pts`} tone={points < 60 ? 'critical' : 'caution'} numeric />
+                  ) : undefined
+                }
+                onPress={() => router.push(`/(app)/child/${child.id}`)}
+                last={i === (children?.length ?? 0) - 1}
               />
-              <StatCard
-                title="Teachers"
-                value={dashboard?.totalTeachers ?? '--'}
-                color={colors.success}
-                icon={<Users size={18} color={colors.success} />}
-              />
-              <StatCard
-                title="Parents"
-                value={dashboard?.totalParents ?? '--'}
-                color={colors.warning}
-                icon={<Users size={18} color={colors.warning} />}
-              />
-              <StatCard
-                title="Classes"
-                value={dashboard?.totalClasses ?? '--'}
-                color={colors.primaryLight}
-                icon={<BookOpen size={18} color={colors.primaryLight} />}
-              />
-            </View>
+            );
+          })}
+        </RowGroup>
+      </Section>
 
-            {(dashboard?.attendanceRate !== undefined || dashboard?.averagePerformance !== undefined) && (
-              <>
-                <Text style={styles.sectionTitle}>Performance</Text>
-                <View style={styles.statsGrid}>
-                  {dashboard?.attendanceRate !== undefined && (
-                    <StatCard
-                      title="Attendance Rate"
-                      value={`${Math.round(dashboard.attendanceRate)}%`}
-                      color={colors.success}
-                    />
-                  )}
-                  {dashboard?.averagePerformance !== undefined && (
-                    <StatCard
-                      title="Avg Performance"
-                      value={`${Math.round(dashboard.averagePerformance)}%`}
-                      color={colors.primary}
-                    />
-                  )}
-                </View>
-              </>
-            )}
-          </>
-        )}
-
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionGrid}>
-          {quickActions.map((action, i) => (
-            <Pressable key={i} style={[styles.actionCard, { backgroundColor: action.bg }]} onPress={action.onPress}>
-              {action.icon}
-              <Text style={styles.actionLabel}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+      {unread > 0 ? (
+        <Section title="Waiting for you">
+          <RowGroup>
+            <Row
+              title={`${unread} unread alert${unread === 1 ? '' : 's'}`}
+              onPress={() => router.push('/(app)/(tabs)/alerts')}
+              last
+            />
+          </RowGroup>
+        </Section>
+      ) : null}
+    </Screen>
   );
 }
 
-// ─── Generic Dashboard (Librarian) ──────────────────
+// ─── Teacher ────────────────────────────────────────────
 
-function GenericDashboard() {
-  const user = useAuthStore((s) => s.user);
-  const isLibrarian = user?.role === 'LIBRARIAN';
-  const { data: analytics, isLoading, error, refetch } = useLibraryAnalytics(isLibrarian);
-  const { data: notifications } = useNotifications();
-  const [refreshing, setRefreshing] = useState(false);
+function TeacherHome() {
+  const router = useRouter();
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
+  const { data: term } = useCurrentTerm();
+  const { data: stats, isPending, refetch, isRefetching } = useTeacherDashboardStats(teacherId);
 
-  const unreadCount = notifications?.filter((n: any) => !n.isRead).length ?? 0;
+  const pending = stats?.pendingGrades ?? '0';
+  const headline =
+    pending === '0' || pending === '0%'
+      ? 'You are up to date'
+      : 'Some marks are still missing';
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  if (isPending)
+    return (
+      <Screen bleed>
+        <LoadingRows count={4} />
+      </Screen>
+    );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Dashboard" subtitle={`${getTimeGreeting()}, ${user?.firstName}`} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeTitle}>Welcome to Markova</Text>
-          <Text style={styles.welcomeText}>
-            {isLibrarian ? 'Manage the library catalog and loans.' : 'Your school management hub.'}
-          </Text>
-        </View>
+    <Screen
+      bleed
+      onRefresh={refetch}
+      refreshing={isRefetching}
+      contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
+    >
+      <Headline lead={headline} detail={term?.name} />
 
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : isLibrarian && analytics ? (
-          <>
-            <Text style={styles.sectionTitle}>Library Overview</Text>
-            <View style={styles.statsGrid}>
-              <StatCard
-                title="Total Books"
-                value={analytics.totalBooks}
-                color={colors.primary}
-                icon={<BookOpen size={18} color={colors.primary} />}
-              />
-              <StatCard
-                title="Available"
-                value={analytics.availableCopies}
-                color={colors.success}
-                icon={<BookOpen size={18} color={colors.success} />}
-              />
-              <StatCard
-                title="Active Loans"
-                value={analytics.activeLoans}
-                color={colors.warning}
-                icon={<Users size={18} color={colors.warning} />}
-              />
-              <StatCard
-                title="Overdue"
-                value={analytics.overdueLoans}
-                color={colors.danger}
-                icon={<AlertTriangle size={18} color={colors.danger} />}
-              />
-            </View>
+      <View style={{ paddingHorizontal: space.xl }}>
+        <StatRow>
+          <Stat value={stats?.classesToday ?? 0} label="Lessons today" />
+          <Stat value={stats?.attendanceRate ?? '0%'} label="Attendance" tone="positive" />
+          <Stat value={pending} label="Marks outstanding" tone={pending === '0' ? 'primary' : 'caution'} />
+        </StatRow>
+      </View>
 
-            {analytics.overdueRate > 0 && (
-              <View style={styles.overdueBar}>
-                <AlertTriangle size={16} color={colors.danger} />
-                <Text style={styles.overdueBarText}>
-                  {analytics.overdueRate}% overdue rate
-                  {analytics.lostBooks > 0 ? ` · ${analytics.lostBooks} lost` : ''}
-                </Text>
-              </View>
-            )}
+      <Section title="Do now">
+        <RowGroup>
+          <Row
+            title="Take the register"
+            subtitle="Manual, QR, or a card tap"
+            onPress={() => router.push('/(app)/(tabs)/attendance')}
+          />
+          <Row
+            title="Enter marks"
+            subtitle="Pick a class and an assessment"
+            onPress={() => router.push('/(app)/marks-entry')}
+          />
+          <Row title="Set or grade homework" onPress={() => router.push('/(app)/homework-manage')} />
+          <Row
+            title="Record an incident"
+            onPress={() => router.push('/(app)/discipline-log')}
+            last
+          />
+        </RowGroup>
+      </Section>
 
-            {analytics.popularBooks && analytics.popularBooks.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Most Borrowed</Text>
-                {analytics.popularBooks.slice(0, 5).map((book, i) => (
-                  <View key={i} style={styles.popularBookRow}>
-                    <View style={styles.popularBookRank}>
-                      <Text style={styles.popularBookRankText}>{i + 1}</Text>
-                    </View>
-                    <View style={styles.popularBookInfo}>
-                      <Text style={styles.popularBookTitle} numberOfLines={1}>{book.title}</Text>
-                      <Text style={styles.popularBookAuthor} numberOfLines={1}>{book.author}</Text>
-                    </View>
-                    <Text style={styles.popularBookCount}>{book.loanCount} loans</Text>
-                  </View>
-                ))}
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Quick Stats</Text>
-            <View style={styles.statsGrid}>
-              <StatCard title="Notifications" value={unreadCount} color={colors.primaryLight} />
-              <StatCard title="Messages" value="--" color={colors.success} />
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </View>
+      <Section title="Today">
+        <RowGroup>
+          <Row title="Your timetable" onPress={() => router.push('/(app)/timetable')} />
+          <Row title="Exam schedule" onPress={() => router.push('/(app)/exam-schedule')} last />
+        </RowGroup>
+      </Section>
+    </Screen>
   );
 }
 
-// ─── Shared Components ────────────────────────────────
+// ─── Admin ──────────────────────────────────────────────
 
-function StatCard({ title, value, color, icon }: { title: string; value: string | number; color: string; icon?: React.ReactNode }) {
+function AdminHome() {
+  const router = useRouter();
+  const { data: dash, isPending, refetch, isRefetching } = useAdminDashboard();
+  const { data: term } = useCurrentTerm();
+  const { data: chronic } = useChronicAbsentees();
+
+  const d: any = dash ?? {};
+  const chronicCount = chronic?.length ?? 0;
+
+  // An admin opens this to find out what is going wrong. If nothing is, say so
+  // plainly rather than filling the screen with healthy numbers.
+  const headline =
+    chronicCount > 0
+      ? `${chronicCount} student${chronicCount === 1 ? '' : 's'} missing too much school`
+      : 'The school is running normally';
+
+  if (isPending)
+    return (
+      <Screen bleed>
+        <LoadingRows count={5} />
+      </Screen>
+    );
+
   return (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      {icon && <View style={styles.statIcon}>{icon}</View>}
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statTitle}>{title}</Text>
-    </View>
+    <Screen
+      bleed
+      onRefresh={refetch}
+      refreshing={isRefetching}
+      contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
+    >
+      <Headline lead={headline} detail={term ? `${term.name}${term.isClosed ? ', closed for marks' : ''}` : undefined} />
+
+      <View style={{ paddingHorizontal: space.xl, gap: space.xl }}>
+        <StatRow>
+          <Stat value={d.totalStudents ?? d.students ?? 0} label="Students" />
+          <Stat value={d.totalTeachers ?? d.teachers ?? 0} label="Teachers" />
+          <Stat value={d.totalClasses ?? d.classes ?? 0} label="Classes" />
+        </StatRow>
+
+        {typeof d.attendanceRate === 'number' ? (
+          <Meter
+            value={d.attendanceRate}
+            label="Attendance across the school today"
+            tone={d.attendanceRate >= 90 ? 'positive' : d.attendanceRate >= 75 ? 'caution' : 'critical'}
+          />
+        ) : null}
+      </View>
+
+      {chronicCount > 0 ? (
+        <Section title="Needs a decision">
+          <RowGroup>
+            <Row
+              title="Chronic absence"
+              subtitle={`${chronicCount} student${chronicCount === 1 ? '' : 's'} past the threshold`}
+              value={<Badge label={String(chronicCount)} tone="critical" numeric />}
+              onPress={() => router.push('/(app)/(tabs)/attendance')}
+              last
+            />
+          </RowGroup>
+        </Section>
+      ) : null}
+
+      <Section title="Run the term">
+        <RowGroup>
+          <Row
+            title="Report cards"
+            subtitle="Calculate, comment, publish"
+            onPress={() => router.push('/(app)/reports')}
+          />
+          <Row
+            title="Marks completion"
+            subtitle="What teachers still owe"
+            onPress={() => router.push('/(app)/marks')}
+          />
+          <Row title="Discipline and appeals" onPress={() => router.push('/(app)/discipline-log')} />
+          <Row title="Analytics" onPress={() => router.push('/(app)/analytics')} last />
+        </RowGroup>
+      </Section>
+    </Screen>
   );
 }
 
-function getTimeGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Morning';
-  if (hour < 17) return 'Afternoon';
-  return 'Evening';
+// ─── Librarian ──────────────────────────────────────────
+
+function LibrarianHome() {
+  const router = useRouter();
+  const { data: stats, isPending, refetch, isRefetching } = useLibraryAnalytics();
+  const { data: overdue } = useOverdueLoans();
+
+  const overdueCount = overdue?.length ?? 0;
+  const s: any = stats ?? {};
+
+  const headline =
+    overdueCount === 0
+      ? 'Nothing is overdue'
+      : `${overdueCount} book${overdueCount === 1 ? '' : 's'} overdue`;
+
+  if (isPending)
+    return (
+      <Screen bleed>
+        <LoadingRows count={4} />
+      </Screen>
+    );
+
+  return (
+    <Screen
+      bleed
+      onRefresh={refetch}
+      refreshing={isRefetching}
+      contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
+    >
+      <Headline lead={headline} />
+
+      <View style={{ paddingHorizontal: space.xl }}>
+        <StatRow>
+          <Stat value={s.totalBooks ?? s.books ?? 0} label="Titles" />
+          <Stat value={s.activeLoans ?? 0} label="On loan" />
+          <Stat
+            value={overdueCount}
+            label="Overdue"
+            tone={overdueCount > 0 ? 'critical' : 'primary'}
+          />
+        </StatRow>
+      </View>
+
+      <Section title="At the desk">
+        <RowGroup>
+          <Row
+            title="Check out or return"
+            subtitle="Scan a book or search for it"
+            onPress={() => router.push('/(app)/(tabs)/circulate')}
+          />
+          <Row title="The catalogue" onPress={() => router.push('/(app)/(tabs)/books')} last />
+        </RowGroup>
+      </Section>
+    </Screen>
+  );
 }
-
-// ─── Styles ───────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  welcomeCard: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.xl,
-    padding: spacing['2xl'],
-    marginBottom: spacing.xl,
-  },
-  welcomeTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white, marginBottom: spacing.sm },
-  welcomeText: { fontSize: fontSize.sm, color: colors.accent, lineHeight: 20 },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md, marginTop: spacing.sm },
-
-  // Child cards (Parent)
-  childCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
-    marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
-  },
-  childAvatar: {
-    width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
-  },
-  childAvatarText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.white },
-  childInfo: { marginBottom: spacing.md },
-  childName: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.foreground },
-  childClass: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  childId: { fontSize: fontSize.xs, color: colors.mutedLight, marginTop: 2 },
-  childActions: { flexDirection: 'row', gap: spacing.md },
-  quickAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accentLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  quickActionText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.medium },
-  emptyCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'], alignItems: 'center' },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center' },
-  chatWithTeachersBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
-    marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
-  },
-  chatWithTeachersIcon: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  chatWithTeachersInfo: { flex: 1 },
-  chatWithTeachersTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  chatWithTeachersText: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-
-  // Action grid (Teacher/Admin)
-  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
-  actionCard: {
-    width: '47%', borderRadius: radius.xl, padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
-    minHeight: 100,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
-  },
-  actionLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.white, marginTop: spacing.sm, textAlign: 'center' },
-
-  // Stats
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  statCard: {
-    width: '47%', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, borderLeftWidth: 4,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
-  },
-  statIcon: { marginBottom: spacing.xs },
-  statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
-  statTitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
-
-  // Librarian dashboard
-  overdueBar: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
-    padding: spacing.md, marginTop: spacing.md,
-  },
-  overdueBarText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
-  popularBookRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
-    marginBottom: spacing.sm,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
-  },
-  popularBookRank: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accentLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  popularBookRankText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
-  popularBookInfo: { flex: 1 },
-  popularBookTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.foreground },
-  popularBookAuthor: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  popularBookCount: { fontSize: fontSize.xs, color: colors.muted, fontWeight: fontWeight.medium },
-});

@@ -1,158 +1,152 @@
-import { useState, useCallback } from 'react';
+import { useMemo } from 'react';
+import { SectionList, View } from 'react-native';
+import { BellOff, Check } from 'lucide-react-native';
+
 import {
-  View, Text, FlatList, StyleSheet, Pressable, RefreshControl,
-} from 'react-native';
-import {
-  Bell, Calendar, TrendingUp, AlertTriangle, BookOpen, MessageSquare,
-  CheckCircle,
-} from 'lucide-react-native';
-import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+  useNotifications,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from '@/hooks/useApi';
+import { useTheme } from '@/design';
+import { gutter, space } from '@/design/tokens';
+import { Row, Text, Empty, LoadingRows, Failed, Button } from '@/ui';
 import type { Notification } from '@/types';
 
-export default function NotificationsScreen() {
-  const { data: notifications, isLoading, error, refetch } = useNotifications();
+/**
+ * Alerts.
+ *
+ * Grouped by when rather than by kind. A parent does not think "show me my
+ * discipline notifications", they think "what happened while I was not
+ * looking", so the sections are Today, This week, and Earlier.
+ *
+ * Unread is marked with a dot on the left rather than by tinting the whole
+ * row. A tinted row in a list of tinted rows stops meaning anything, and the
+ * dot survives being colour blind because it is a shape appearing rather than
+ * a hue changing.
+ */
+
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+export default function Alerts() {
+  const t = useTheme();
+  const { data, isPending, isError, refetch, isRefetching } = useNotifications();
   const markRead = useMarkNotificationRead();
-  const markAllRead = useMarkAllNotificationsRead();
-  const [refreshing, setRefreshing] = useState(false);
+  const markAll = useMarkAllNotificationsRead();
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  const sections = useMemo(() => {
+    const today = startOfToday();
+    const week = today - 6 * 86_400_000;
+    const buckets: Record<string, Notification[]> = { Today: [], 'This week': [], Earlier: [] };
 
-  const handlePress = (notification: Notification) => {
-    if (!notification.isRead) {
-      markRead.mutate(notification.id);
+    for (const n of data ?? []) {
+      const at = new Date(n.createdAt).getTime();
+      if (at >= today) buckets.Today.push(n);
+      else if (at >= week) buckets['This week'].push(n);
+      else buckets.Earlier.push(n);
     }
-  };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'ATTENDANCE': return <Calendar size={20} color={colors.primaryLight} />;
-      case 'MARKS': return <TrendingUp size={20} color={colors.success} />;
-      case 'DISCIPLINE': return <AlertTriangle size={20} color={colors.danger} />;
-      case 'HOMEWORK': return <BookOpen size={20} color={colors.primary} />;
-      case 'MESSAGE': return <MessageSquare size={20} color={colors.primaryLight} />;
-      default: return <Bell size={20} color={colors.muted} />;
-    }
-  };
+    return Object.entries(buckets)
+      .filter(([, items]) => items.length > 0)
+      .map(([title, items]) => ({ title, data: items }));
+  }, [data]);
 
-  const getIconBg = (type: string) => {
-    switch (type) {
-      case 'ATTENDANCE': return colors.accentLight;
-      case 'MARKS': return colors.successLight;
-      case 'DISCIPLINE': return colors.dangerLight;
-      case 'HOMEWORK': return colors.accentLight;
-      default: return colors.borderLight;
-    }
-  };
+  const unread = (data ?? []).filter((n) => !n.isRead).length;
 
-  const formatTime = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHrs = Math.floor(diffMin / 60);
-    if (diffHrs < 24) return `${diffHrs}h ago`;
-    const diffDays = Math.floor(diffHrs / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  if (isPending)
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+        <LoadingRows count={7} />
+      </View>
+    );
 
-  const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;
+  if (isError)
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+        <Failed onRetry={refetch} />
+      </View>
+    );
+
+  if (!data?.length)
+    return (
+      <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+        <Empty
+          icon={<BellOff size={30} color={t.fg.placeholder} strokeWidth={1.6} />}
+          title="Nothing yet"
+          body="Marks being published, attendance concerns and discipline notes all arrive here."
+        />
+      </View>
+    );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Notifications" subtitle={unreadCount > 0 ? `${unreadCount} unread` : undefined} />
-      {unreadCount > 0 && (
-        <Pressable
-          style={styles.markAllBtn}
-          onPress={() => markAllRead.mutate()}
-          disabled={markAllRead.isPending}
+    <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+      {unread > 0 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: gutter,
+            paddingVertical: space.md,
+          }}
         >
-          <CheckCircle size={16} color={colors.primary} />
-          <Text style={styles.markAllText}>
-            {markAllRead.isPending ? 'Marking...' : 'Mark All as Read'}
+          <Text variant="subhead" tone="secondary" numeric>
+            {unread} unread
           </Text>
-        </Pressable>
-      )}
-      {isLoading ? (
-        <LoadingScreen />
-      ) : error ? (
-        <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-      ) : notifications && notifications.length > 0 ? (
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              style={[styles.notifRow, !item.isRead && styles.notifUnread]}
-              onPress={() => handlePress(item)}
-            >
-              <View style={[styles.notifIcon, { backgroundColor: getIconBg(item.type) }]}>
-                {getIcon(item.type)}
-              </View>
-              <View style={styles.notifContent}>
-                <View style={styles.notifTopRow}>
-                  <Text style={[styles.notifTitle, !item.isRead && styles.notifTitleBold]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.notifTime}>{formatTime(item.createdAt)}</Text>
-                </View>
-                <Text style={styles.notifMessage} numberOfLines={2}>
-                  {item.message}
-                </Text>
-              </View>
-              {!item.isRead && <View style={styles.unreadDot} />}
-            </Pressable>
-          )}
-        />
-      ) : (
-        <View style={styles.empty}>
-          <CheckCircle size={48} color={colors.mutedLight} />
-          <Text style={styles.emptyTitle}>All Caught Up</Text>
-          <Text style={styles.emptyText}>No notifications at the moment.</Text>
+          <Button
+            label="Mark all read"
+            kind="quiet"
+            icon={<Check size={16} color={t.brand.text} strokeWidth={2} />}
+            onPress={() => markAll.mutate()}
+          />
         </View>
-      )}
+      ) : null}
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        contentInsetAdjustmentBehavior="automatic"
+        onRefresh={refetch}
+        refreshing={isRefetching}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingBottom: space.huge }}
+        renderSectionHeader={({ section }) => (
+          <Text
+            variant="caption"
+            tone="tertiary"
+            caps
+            style={{ paddingHorizontal: gutter, paddingTop: space.xl, paddingBottom: space.sm }}
+          >
+            {section.title}
+          </Text>
+        )}
+        renderItem={({ item, index, section }) => (
+          <Row
+            title={item.title}
+            subtitle={item.message}
+            lead={
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: item.isRead ? 'transparent' : t.brand.solid,
+                }}
+              />
+            }
+            value={new Date(item.createdAt).toLocaleTimeString(undefined, {
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+            chevron={false}
+            onPress={item.isRead ? undefined : () => markRead.mutate(item.id)}
+            last={index === section.data.length - 1}
+          />
+        )}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  markAllBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    paddingVertical: spacing.sm, backgroundColor: colors.accentLight,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  markAllText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
-  notifRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
-    backgroundColor: colors.white,
-  },
-  notifUnread: { backgroundColor: colors.accentLight },
-  notifIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  notifContent: { flex: 1 },
-  notifTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  notifTitle: { fontSize: fontSize.sm, color: colors.foreground, flex: 1 },
-  notifTitleBold: { fontWeight: fontWeight.bold },
-  notifTime: { fontSize: fontSize.xs, color: colors.muted },
-  notifMessage: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm },
-});

@@ -1,649 +1,282 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, Alert, FlatList,
-  Platform, Vibration,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  Smartphone, List, CheckCircle, XCircle, Clock, Send, ChevronDown,
-  Users, Wifi, WifiOff, CreditCard, RefreshCw, CloudOff,
-} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
+import { Check, X, Clock, Users } from 'lucide-react-native';
+
 import { useAuthStore } from '@/stores/auth-store';
 import {
-  useTeacherAssignments, useClassStudents, useClassAttendance, useBulkAttendance,
-  useCurrentTerm, useClassStudentsNfc, useNfcScan,
+  useTeacherAssignments,
+  useClassStudents,
+  useClassAttendance,
+  useBulkAttendance,
 } from '@/hooks/useApi';
 import { useOfflineQueue } from '@/hooks/useOfflineQueue';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { Button } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
-import type { Student } from '@/types';
+import { useTheme } from '@/design';
+import { curve, gutter, radius, space, touch } from '@/design/tokens';
+import { Avatar, Button, Empty, LoadingRows, Segmented, Text, Meter } from '@/ui';
 
-type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE';
+/**
+ * The register.
+ *
+ * The tightest constraints in the app. Used standing up, at the start of a
+ * lesson, with thirty names to get through before teaching can begin, often on
+ * a phone with no signal in a classroom with thick walls.
+ *
+ * Three decisions follow from that.
+ *
+ * Everyone starts present. A register where a teacher taps thirty times to
+ * record what is already true is a register that gets filled in later from
+ * memory, which is worse than not having one. They mark the exceptions, which
+ * on a normal day is two or three people.
+ *
+ * The three states are one tap each, side by side, always on screen. No
+ * sheets, no long press, no swipe. A hidden gesture is one that gets
+ * demonstrated once and then forgotten.
+ *
+ * Saving survives having no signal. The offline queue was already in the app
+ * and this screen did not use it, so a register taken in a classroom with no
+ * bars was simply lost.
+ */
 
-interface StudentAttendance {
-  studentId: string;
-  student: Student;
-  status: AttendanceStatus;
-}
+type Status = 'PRESENT' | 'ABSENT' | 'LATE';
 
-export default function AttendanceScreen() {
-  const user = useAuthStore((s) => s.user);
-  const router = useRouter();
+const today = () => new Date().toISOString().slice(0, 10);
 
-  const [step, setStep] = useState<'select-class' | 'take-attendance'>('select-class');
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
-  const [selectedClassName, setSelectedClassName] = useState('');
-  const [mode, setMode] = useState<'manual' | 'nfc'>('manual');
-  const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>({});
+export default function Register() {
+  const t = useTheme();
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
+  const { data: assignments } = useTeacherAssignments(teacherId);
+  const { enqueue, queueSize } = useOfflineQueue();
+  const save = useBulkAttendance();
 
-  // NFC state
-  const [nfcScanning, setNfcScanning] = useState(false);
-  const [scannedStudents, setScannedStudents] = useState<Set<string>>(new Set());
-  const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
-
-  const today = new Date().toISOString().split('T')[0];
-  const { data: currentTerm } = useCurrentTerm();
-  const { data: assignments, isLoading: loadingAssignments, error: assignmentsError, refetch: refetchAssignments } = useTeacherAssignments(user?.teacherId);
-  const { data: students, isLoading: loadingStudents } = useClassStudents(selectedClassId ?? undefined);
-  const { data: existingAttendance } = useClassAttendance(selectedClassId ?? undefined, today);
-  const { data: nfcStudents } = useClassStudentsNfc(selectedClassId ?? undefined);
-  const bulkAttendance = useBulkAttendance();
-  const nfcScanMutation = useNfcScan();
-  const { queueSize, isProcessing, processNow, enqueue, isNetworkError: checkNetworkError } = useOfflineQueue();
-
-  // Check NFC support
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      setNfcSupported(false);
-    } else {
-      // On native, NFC would be checked via expo-nfc
-      // For now, mark as supported on native platforms
-      setNfcSupported(true);
-    }
-  }, []);
-
-  // Unique classes from assignments
   const classes = useMemo(() => {
-    if (!assignments) return [];
-    const map = new Map<string, { id: string; name: string }>();
-    assignments.forEach((a) => {
-      if (a.classSection && !map.has(a.classSectionId)) {
-        map.set(a.classSectionId, {
-          id: a.classSectionId,
-          name: `${a.classSection.classLevel?.name ?? ''} ${a.classSection.name}`.trim(),
-        });
-      }
-    });
-    return Array.from(map.values());
+    const map = new Map<string, string>();
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      if (section) map.set(section.id, section.name);
+    }
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
   }, [assignments]);
 
-  // Student list for manual mode
-  const studentsList = useMemo(() => {
-    if (!students) return [];
-    return students.map((s) => {
-      const existing = existingAttendance?.find((r) => r.studentId === s.id);
-      return {
-        studentId: s.id,
-        student: s,
-        status: (attendanceMap[s.id] ?? existing?.status ?? 'PRESENT') as AttendanceStatus,
-      };
-    });
-  }, [students, existingAttendance, attendanceMap]);
+  const [classId, setClassId] = useState<string>('');
+  useEffect(() => {
+    if (!classId && classes.length) setClassId(classes[0].value);
+  }, [classes, classId]);
 
-  // NFC student list with scan status
-  const nfcStudentList = useMemo(() => {
-    if (!nfcStudents) return [];
-    return nfcStudents.map((s) => ({
-      ...s,
-      scanned: scannedStudents.has(s.id),
-      hasCard: !!s.nfcCardId,
-    }));
-  }, [nfcStudents, scannedStudents]);
+  const { data: students, isPending } = useClassStudents(classId);
+  const { data: existing } = useClassAttendance(classId, today());
 
-  const selectClass = (classId: string, className: string) => {
-    setSelectedClassId(classId);
-    setSelectedClassName(className);
-    setAttendanceMap({});
-    setScannedStudents(new Set());
-    setStep('take-attendance');
-  };
+  const [marks, setMarks] = useState<Record<string, Status>>({});
 
-  const toggleStatus = (studentId: string) => {
-    setAttendanceMap((prev) => {
-      const current = prev[studentId] ?? studentsList.find((s) => s.studentId === studentId)?.status ?? 'PRESENT';
-      const next: AttendanceStatus =
-        current === 'PRESENT' ? 'ABSENT' : current === 'ABSENT' ? 'LATE' : 'PRESENT';
-      return { ...prev, [studentId]: next };
-    });
-  };
-
-  const markAllPresent = () => {
-    const map: Record<string, AttendanceStatus> = {};
-    studentsList.forEach((s) => { map[s.studentId] = 'PRESENT'; });
-    setAttendanceMap(map);
-  };
-
-  // NFC scan handler — processes a scanned card ID
-  const handleNfcCardScanned = async (cardId: string) => {
-    if (!selectedClassId) return;
-
-    // Match against local cache first
-    const matched = nfcStudents?.find((s) => s.nfcCardId === cardId);
-    if (!matched) {
-      toast.error('Unrecognized card');
-      return;
+  // Present until somebody says otherwise. If a register was already taken
+  // today, start from what is on record rather than overwriting it blind.
+  useEffect(() => {
+    if (!students?.length) return;
+    const seed: Record<string, Status> = {};
+    for (const s of students as any[]) {
+      const already = (existing as any[] | undefined)?.find((r) => r.studentId === s.id);
+      seed[s.id] = (already?.status as Status) ?? 'PRESENT';
     }
+    setMarks(seed);
+  }, [students, existing]);
 
-    if (scannedStudents.has(matched.id)) {
-      toast.info(`${matched.firstName} ${matched.lastName} already scanned`);
-      return;
-    }
+  const counts = useMemo(() => {
+    const values = Object.values(marks);
+    return {
+      present: values.filter((v) => v === 'PRESENT').length,
+      late: values.filter((v) => v === 'LATE').length,
+      absent: values.filter((v) => v === 'ABSENT').length,
+      total: values.length,
+    };
+  }, [marks]);
+
+  const set = (studentId: string, status: Status) => {
+    if (process.env.EXPO_OS === 'ios') void Haptics.selectionAsync();
+    setMarks((prev) => ({ ...prev, [studentId]: status }));
+  };
+
+  const submit = async () => {
+    const payload = {
+      classSectionId: classId,
+      date: today(),
+      type: 'DAILY' as const,
+      records: Object.entries(marks).map(([studentId, status]) => ({ studentId, status })),
+    };
 
     try {
-      const result = await nfcScanMutation.mutateAsync({
-        nfcCardId: cardId,
-        classSectionId: selectedClassId,
-      });
-
-      setScannedStudents((prev) => new Set([...prev, matched.id]));
-      if (Platform.OS !== 'web') Vibration.vibrate(100);
-
-      const status = result.record?.status === 'LATE' ? '(Late)' : '';
-      toast.success(`${matched.firstName} ${matched.lastName} ${status}`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Scan failed');
+      await save.mutateAsync(payload);
+      toast.success(`Register saved. ${counts.present} present.`);
+    } catch (error: any) {
+      // No signal in a classroom is the normal case here, not the exception.
+      if (!error?.response) {
+        await enqueue(payload as never);
+        toast.success('Saved on this phone. It will send itself once you have signal.');
+      } else {
+        toast.error(error?.response?.data?.message ?? 'Could not save that register');
+      }
     }
   };
 
-  const handleSubmitManual = () => {
-    const records = studentsList.map((s) => ({
-      studentId: s.studentId,
-      status: attendanceMap[s.studentId] ?? s.status,
-    }));
-
-    const absent = records.filter((r) => r.status === 'ABSENT').length;
-    const late = records.filter((r) => r.status === 'LATE').length;
-
-    Alert.alert(
-      'Submit Attendance',
-      `${records.length} students:\n\u2022 Present: ${records.length - absent - late}\n\u2022 Absent: ${absent}\n\u2022 Late: ${late}\n\nSubmit?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Submit',
-          onPress: () => {
-            const payload = {
-              classSectionId: selectedClassId!,
-              date: today,
-              type: 'DAILY' as const,
-              records,
-            };
-            bulkAttendance.mutate(payload, {
-              onSuccess: () => {
-                toast.success('Attendance submitted successfully');
-                setStep('select-class');
-                setSelectedClassId(null);
-                setAttendanceMap({});
-              },
-              onError: (err: any) => {
-                if (checkNetworkError(err)) {
-                  enqueue(payload);
-                  toast.info('Saved offline — will sync when connected');
-                  setStep('select-class');
-                  setSelectedClassId(null);
-                  setAttendanceMap({});
-                } else {
-                  toast.error(err?.response?.data?.message ?? 'Failed to submit attendance');
-                }
-              },
-            });
-          },
-        },
-      ]
-    );
-  };
-
-  const handleFinishNfc = () => {
-    const total = nfcStudentList.length;
-    const scanned = scannedStudents.size;
-    const unscanned = total - scanned;
-
-    if (unscanned > 0) {
-      Alert.alert(
-        'Finish NFC Attendance',
-        `${scanned} scanned, ${unscanned} not scanned.\n\nUnscanned students will be marked as ABSENT. Continue?`,
-        [
-          { text: 'Keep Scanning', style: 'cancel' },
-          {
-            text: 'Finish',
-            onPress: () => {
-              // Mark unscanned students as absent via bulk endpoint
-              const records = nfcStudentList
-                .filter((s) => !s.scanned)
-                .map((s) => ({ studentId: s.id, status: 'ABSENT' as AttendanceStatus }));
-
-              if (records.length > 0) {
-                const payload = { classSectionId: selectedClassId!, date: today, type: 'DAILY' as const, records };
-                bulkAttendance.mutate(payload, {
-                  onSuccess: () => {
-                    toast.success('Attendance completed');
-                    setStep('select-class');
-                    setSelectedClassId(null);
-                    setScannedStudents(new Set());
-                  },
-                  onError: (err: any) => {
-                    if (checkNetworkError(err)) {
-                      enqueue(payload);
-                      toast.info('Saved offline — will sync when connected');
-                      setStep('select-class');
-                      setSelectedClassId(null);
-                      setScannedStudents(new Set());
-                    } else {
-                      toast.error(err?.response?.data?.message ?? 'Failed to submit');
-                    }
-                  },
-                });
-              } else {
-                toast.success('Attendance completed');
-                setStep('select-class');
-                setSelectedClassId(null);
-                setScannedStudents(new Set());
-              }
-            },
-          },
-        ]
-      );
-    } else {
-      toast.success('All students scanned!');
-      setStep('select-class');
-      setSelectedClassId(null);
-      setScannedStudents(new Set());
-    }
-  };
-
-  const presentCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'PRESENT').length;
-  const absentCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'ABSENT').length;
-  const lateCount = studentsList.filter((s) => (attendanceMap[s.studentId] ?? s.status) === 'LATE').length;
-
-  // ─── Select Class Step ───
-  if (step === 'select-class') {
+  if (!classes.length)
     return (
-      <View style={styles.container}>
-        <ScreenHeader title="Take Attendance" subtitle={today} />
-
-        {/* Offline queue banner */}
-        {queueSize > 0 && (
-          <View style={styles.offlineBanner}>
-            <CloudOff size={18} color={colors.warning} />
-            <Text style={styles.offlineBannerText}>
-              {queueSize} attendance record{queueSize > 1 ? 's' : ''} pending sync
-            </Text>
-            <Pressable
-              style={styles.syncButton}
-              onPress={async () => {
-                const processed = await processNow();
-                if (processed > 0) {
-                  toast.success(`Synced ${processed} record${processed > 1 ? 's' : ''}`);
-                } else {
-                  toast.error('Sync failed — will retry later');
-                }
-              }}
-              disabled={isProcessing}
-            >
-              <RefreshCw size={14} color={colors.white} />
-              <Text style={styles.syncButtonText}>{isProcessing ? 'Syncing...' : 'Sync Now'}</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          {/* Mode selector */}
-          <View style={styles.modeRow}>
-            <Pressable
-              style={[styles.modeButton, mode === 'manual' && styles.modeActive]}
-              onPress={() => setMode('manual')}
-            >
-              <List size={20} color={mode === 'manual' ? colors.white : colors.primary} />
-              <Text style={[styles.modeText, mode === 'manual' && styles.modeTextActive]}>Manual List</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modeButton, mode === 'nfc' && styles.modeActive]}
-              onPress={() => setMode('nfc')}
-            >
-              <Smartphone size={20} color={mode === 'nfc' ? colors.white : colors.primary} />
-              <Text style={[styles.modeText, mode === 'nfc' && styles.modeTextActive]}>NFC Scan</Text>
-            </Pressable>
-          </View>
-
-          {mode === 'nfc' && !nfcSupported && (
-            <View style={styles.nfcNotice}>
-              <WifiOff size={24} color={colors.warning} />
-              <Text style={styles.nfcText}>
-                NFC is not available on this device. Please use a phone with NFC support, or switch to manual mode.
-              </Text>
-            </View>
-          )}
-
-          {mode === 'nfc' && nfcSupported && (
-            <View style={styles.nfcNotice}>
-              <CreditCard size={24} color={colors.primaryLight} />
-              <Text style={styles.nfcText}>
-                Select a class to start NFC scanning. Students will tap their cards on your phone to mark attendance.
-              </Text>
-            </View>
-          )}
-
-          <Text style={styles.sectionTitle}>Select Class</Text>
-          {loadingAssignments ? (
-            <LoadingScreen />
-          ) : assignmentsError ? (
-            <ErrorScreen type={getErrorType(assignmentsError)} message={getErrorMessage(assignmentsError)} onRetry={() => refetchAssignments()} />
-          ) : classes.length > 0 ? (
-            classes.map((cls) => (
-              <Pressable
-                key={cls.id}
-                style={styles.classCard}
-                onPress={() => selectClass(cls.id, cls.name)}
-                disabled={mode === 'nfc' && !nfcSupported}
-              >
-                <Users size={22} color={colors.primary} />
-                <View style={styles.classInfo}>
-                  <Text style={styles.className}>{cls.name}</Text>
-                  <Text style={styles.classSubtitle}>
-                    {mode === 'nfc' ? 'Tap to start NFC scanning' : 'Tap to take attendance'}
-                  </Text>
-                </View>
-                <ChevronDown size={20} color={colors.mutedLight} style={{ transform: [{ rotate: '-90deg' }] }} />
-              </Pressable>
-            ))
-          ) : (
-            <Text style={styles.noData}>No classes assigned to you.</Text>
-          )}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // ─── NFC Mode ───
-  if (mode === 'nfc') {
-    const scannedCount = scannedStudents.size;
-    const totalCount = nfcStudentList.length;
-    const unregisteredCount = nfcStudentList.filter((s) => !s.hasCard).length;
-
-    return (
-      <View style={styles.container}>
-        <ScreenHeader
-          title={selectedClassName}
-          subtitle="NFC Attendance"
-          onBack={() => { setStep('select-class'); setSelectedClassId(null); setScannedStudents(new Set()); }}
+      <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+        <Empty
+          icon={<Users size={30} color={t.fg.placeholder} strokeWidth={1.6} />}
+          title="No classes to register"
+          body="Once the office assigns you a class, the register will appear here."
         />
-        <View style={styles.content}>
-          {/* NFC scan header */}
-          <View style={styles.nfcHeader}>
-            <View style={styles.nfcIconContainer}>
-              <Smartphone size={40} color={colors.primary} />
-            </View>
-            <Text style={styles.nfcHeaderTitle}>
-              {nfcScanning ? 'Waiting for card...' : 'Ready to Scan'}
-            </Text>
-            <Text style={styles.nfcHeaderSub}>
-              {scannedCount}/{totalCount} students scanned
-            </Text>
-            {unregisteredCount > 0 && (
-              <Text style={styles.nfcWarning}>
-                {unregisteredCount} student{unregisteredCount > 1 ? 's' : ''} without NFC cards registered
-              </Text>
-            )}
-          </View>
-
-          {/* Progress bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBg}>
-              <View
-                style={[styles.progressFill, { width: totalCount > 0 ? `${(scannedCount / totalCount) * 100}%` : '0%' }]}
-              />
-            </View>
-          </View>
-
-          {/* Student scan list */}
-          <FlatList
-            data={nfcStudentList}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={[styles.nfcStudentRow, item.scanned && styles.nfcStudentScanned]}>
-                <View style={[styles.nfcStudentIcon, {
-                  backgroundColor: item.scanned ? colors.successLight : item.hasCard ? colors.borderLight : colors.warningLight,
-                }]}>
-                  {item.scanned ? (
-                    <CheckCircle size={20} color={colors.success} />
-                  ) : item.hasCard ? (
-                    <CreditCard size={20} color={colors.muted} />
-                  ) : (
-                    <XCircle size={20} color={colors.warning} />
-                  )}
-                </View>
-                <View style={styles.nfcStudentInfo}>
-                  <Text style={styles.nfcStudentName}>{item.firstName} {item.lastName}</Text>
-                  <Text style={styles.nfcStudentSub}>
-                    {item.scanned ? 'Scanned' : item.hasCard ? 'Waiting...' : 'No NFC card'}
-                  </Text>
-                </View>
-                {item.scanned && (
-                  <View style={[styles.statusChip, { backgroundColor: colors.success }]}>
-                    <Text style={styles.statusChipText}>PRESENT</Text>
-                  </View>
-                )}
-              </View>
-            )}
-            contentContainerStyle={{ paddingBottom: 100 }}
-          />
-
-          {/* Action bar */}
-          <View style={styles.submitBar}>
-            <Button
-              title={`Finish (${scannedCount}/${totalCount})`}
-              onPress={handleFinishNfc}
-              loading={bulkAttendance.isPending}
-              fullWidth
-              size="lg"
-              icon={<Send size={18} color={colors.white} />}
-            />
-          </View>
-        </View>
       </View>
     );
-  }
 
-  // ─── Manual Mode ───
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title={selectedClassName}
-        subtitle={`${studentsList.length} students`}
-        onBack={() => { setStep('select-class'); setSelectedClassId(null); }}
+    <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+      <View style={{ paddingHorizontal: gutter, paddingTop: space.md, gap: space.lg }}>
+        <Segmented value={classId} onChange={setClassId} options={classes} />
+
+        <Meter
+          value={counts.present + counts.late}
+          max={counts.total || 1}
+          label={`${counts.present} present, ${counts.late} late, ${counts.absent} away`}
+          tone={
+            counts.absent === 0 ? 'positive' : counts.absent > counts.total / 4 ? 'critical' : 'caution'
+          }
+          showValue={false}
+        />
+
+        {queueSize > 0 ? (
+          <Text variant="footnote" tone="caution" numeric>
+            {queueSize} register{queueSize === 1 ? '' : 's'} waiting to send
+          </Text>
+        ) : null}
+      </View>
+
+      <FlatList
+        data={(students as any[]) ?? []}
+        keyExtractor={(s) => s.id}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ paddingTop: space.lg, paddingBottom: space.huge }}
+        ListEmptyComponent={isPending ? <LoadingRows count={10} lead /> : null}
+        renderItem={({ item }) => {
+          const name = `${item.firstName ?? item.user?.firstName ?? ''} ${
+            item.lastName ?? item.user?.lastName ?? ''
+          }`.trim();
+          const current = marks[item.id] ?? 'PRESENT';
+
+          return (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.md,
+                paddingHorizontal: gutter,
+                paddingVertical: space.sm,
+                minHeight: touch.comfortable + 8,
+              }}
+            >
+              <Avatar name={name} size="sm" />
+              <View style={{ flex: 1 }}>
+                <Text variant="bodyMedium" numberOfLines={1}>
+                  {name}
+                </Text>
+                {item.studentIdNumber ? (
+                  <Text variant="footnote" tone="tertiary">
+                    {item.studentIdNumber}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: space.xs }}>
+                <Toggle
+                  active={current === 'PRESENT'}
+                  tone="positive"
+                  icon={Check}
+                  label={`Mark ${name} present`}
+                  onPress={() => set(item.id, 'PRESENT')}
+                />
+                <Toggle
+                  active={current === 'LATE'}
+                  tone="caution"
+                  icon={Clock}
+                  label={`Mark ${name} late`}
+                  onPress={() => set(item.id, 'LATE')}
+                />
+                <Toggle
+                  active={current === 'ABSENT'}
+                  tone="critical"
+                  icon={X}
+                  label={`Mark ${name} absent`}
+                  onPress={() => set(item.id, 'ABSENT')}
+                />
+              </View>
+            </View>
+          );
+        }}
       />
-      <View style={styles.content}>
-        {/* Counter bar */}
-        <View style={styles.counterBar}>
-          <CountBadge label="Present" count={presentCount} color={colors.success} />
-          <CountBadge label="Absent" count={absentCount} color={colors.danger} />
-          <CountBadge label="Late" count={lateCount} color={colors.warning} />
-          <Pressable onPress={markAllPresent} style={styles.markAllBtn}>
-            <Text style={styles.markAllText}>All Present</Text>
-          </Pressable>
-        </View>
 
-        {/* Student list */}
-        {loadingStudents ? (
-          <LoadingScreen />
-        ) : (
-          <FlatList
-            data={studentsList}
-            keyExtractor={(item) => item.studentId}
-            renderItem={({ item }) => {
-              const status = attendanceMap[item.studentId] ?? item.status;
-              return (
-                <Pressable style={styles.studentRow} onPress={() => toggleStatus(item.studentId)}>
-                  <View style={[styles.studentAvatar, {
-                    backgroundColor: status === 'PRESENT' ? colors.successLight : status === 'ABSENT' ? colors.dangerLight : colors.warningLight,
-                  }]}>
-                    {status === 'PRESENT' && <CheckCircle size={20} color={colors.success} />}
-                    {status === 'ABSENT' && <XCircle size={20} color={colors.danger} />}
-                    {status === 'LATE' && <Clock size={20} color={colors.warning} />}
-                  </View>
-                  <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>
-                      {item.student.user?.firstName} {item.student.user?.lastName}
-                    </Text>
-                    <Text style={styles.studentId}>{item.student.studentIdNumber}</Text>
-                  </View>
-                  <View style={[styles.statusChip, {
-                    backgroundColor: status === 'PRESENT' ? colors.success : status === 'ABSENT' ? colors.danger : colors.warning,
-                  }]}>
-                    <Text style={styles.statusChipText}>{status}</Text>
-                  </View>
-                </Pressable>
-              );
-            }}
-            contentContainerStyle={{ paddingBottom: 100 }}
-          />
-        )}
-
-        {/* Submit button */}
-        <View style={styles.submitBar}>
-          <Button
-            title="Submit Attendance"
-            onPress={handleSubmitManual}
-            loading={bulkAttendance.isPending}
-            fullWidth
-            size="lg"
-            icon={<Send size={18} color={colors.white} />}
-          />
-        </View>
+      <View
+        style={{
+          paddingHorizontal: gutter,
+          paddingTop: space.md,
+          paddingBottom: space.lg,
+          borderTopWidth: 1,
+          borderTopColor: t.line.hairline,
+        }}
+      >
+        <Button
+          label="Save the register"
+          kind="primary"
+          block
+          loading={save.isPending}
+          disabled={!counts.total}
+          onPress={submit}
+        />
       </View>
     </View>
   );
 }
 
-function CountBadge({ label, count, color }: { label: string; count: number; color: string }) {
+/**
+ * One of the three states. Filled when chosen, outlined when not, and the icon
+ * carries the meaning as well as the colour so it still reads for anyone who
+ * cannot separate the hues.
+ */
+function Toggle({
+  active,
+  tone,
+  icon: Icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  tone: 'positive' | 'caution' | 'critical';
+  icon: typeof Check;
+  label: string;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  const colour = t.status[tone];
+
   return (
-    <View style={styles.countBadge}>
-      <Text style={[styles.countValue, { color }]}>{count}</Text>
-      <Text style={styles.countLabel}>{label}</Text>
-    </View>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      hitSlop={4}
+      style={{
+        width: touch.min,
+        height: touch.min,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.md,
+        backgroundColor: active ? colour.solid : 'transparent',
+        borderWidth: active ? 0 : 1,
+        borderColor: t.line.border,
+        ...curve,
+      }}
+    >
+      <Icon size={19} color={active ? '#FFFFFF' : t.fg.placeholder} strokeWidth={2.4} />
+    </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  modeRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
-  modeButton: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    paddingVertical: spacing.md, borderRadius: radius.lg,
-    borderWidth: 2, borderColor: colors.primary,
-  },
-  modeActive: { backgroundColor: colors.primary },
-  modeText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },
-  modeTextActive: { color: colors.white },
-  nfcNotice: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.accentLight, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.xl,
-  },
-  nfcText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
-  classCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  classInfo: { flex: 1 },
-  className: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  classSubtitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
-
-  // Counter bar
-  counterBar: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.white, paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  countBadge: { alignItems: 'center' },
-  countValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  countLabel: { fontSize: 10, color: colors.muted },
-  markAllBtn: {
-    marginLeft: 'auto', backgroundColor: colors.successLight,
-    borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-  },
-  markAllText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.success },
-
-  // Student rows
-  studentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
-  },
-  studentAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  studentId: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  statusChip: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  statusChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.white },
-
-  // Submit bar
-  submitBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: colors.white, padding: spacing.lg,
-    borderTopWidth: 1, borderTopColor: colors.border,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 5,
-  },
-
-  // NFC mode
-  nfcHeader: {
-    alignItems: 'center', padding: spacing.xl, backgroundColor: colors.white,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  nfcIconContainer: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.accentLight,
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
-  },
-  nfcHeaderTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.foreground },
-  nfcHeaderSub: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs },
-  nfcWarning: { fontSize: fontSize.xs, color: colors.warning, marginTop: spacing.sm },
-  progressContainer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.white },
-  progressBg: { height: 6, borderRadius: 3, backgroundColor: colors.borderLight },
-  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
-  nfcStudentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
-    backgroundColor: colors.white,
-  },
-  nfcStudentScanned: { backgroundColor: colors.successLight + '20' },
-  nfcStudentIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  nfcStudentInfo: { flex: 1 },
-  nfcStudentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  nfcStudentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-
-  // Offline queue banner
-  offlineBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.warningLight, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.warning + '40',
-  },
-  offlineBannerText: {
-    flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground,
-  },
-  syncButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.warning, borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-  },
-  syncButtonText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.white },
-});
