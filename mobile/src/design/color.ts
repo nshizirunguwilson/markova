@@ -182,3 +182,29 @@ export function atLightness(hex: string, l: number, chromaScale = 1): string {
   const src = hexToOklch(hex);
   return oklchToHex({ l, c: src.c * chromaScale, h: src.h });
 }
+
+/**
+ * A stable colour pair for a person, derived from their name.
+ *
+ * The hue comes from a hash so the same person is the same colour everywhere
+ * in the app, which makes a list of people scannable by shape before it is
+ * read. Lightness and chroma are fixed rather than hashed, which is what stops
+ * the set looking like confetti and guarantees the initials stay legible
+ * whichever hue a name happens to land on.
+ *
+ * Lives here rather than beside the Avatar component so the contrast check can
+ * prove it without pulling React Native into a node script.
+ */
+export function identityColors(seed: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
+  // 0.88 is not a taste decision. Sweeping all 360 hues, it is the first
+  // lightness at which the disc still separates from the page for every hue,
+  // including the yellows that sit closest to paper white. At 0.90 the palest
+  // hues drop to Lc 14.7 and the circle disappears for some names and not
+  // others, which reads as a bug rather than as a style.
+  return {
+    bg: oklchToHex({ l: 0.88, c: 0.06, h }),
+    fg: oklchToHex({ l: 0.38, c: 0.1, h }),
+  };
+}

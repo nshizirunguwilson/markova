@@ -39,7 +39,9 @@
           "icon": "./assets/notification-icon.png",
           "color": "#1B4F72"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image"
     ]
   }
 }

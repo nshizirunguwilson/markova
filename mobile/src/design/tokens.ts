@@ -73,7 +73,7 @@ export const type = {
  * the layout jumping. Plex carries proper tabular figures, so this is a real
  * feature of the typeface rather than a monospace substitute.
  */
-export const tabular = { fontVariant: ['tabular-nums'] } as const;
+export const tabular = { fontVariant: ['tabular-nums' as const] };
 
 // ─── Neutrals ───────────────────────────────────────────────────────────────
 //

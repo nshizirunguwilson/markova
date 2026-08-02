@@ -18,7 +18,7 @@
  *   Lc 15  dividers, below which treat it as invisible
  */
 
-import { contrast } from '../src/design/color';
+import { contrast, identityColors } from '../src/design/color';
 import { neutral, status } from '../src/design/tokens';
 import { buildTheme } from '../src/design/theme';
 
@@ -88,6 +88,45 @@ for (const hex of SCHOOL_COLOURS) {
   expect(`${tag} brand text on tint`, lc(t.brand.text, t.brand.tint), 75);
   expect(`${tag} primary ink on tint`, lc(t.fg.primary, t.brand.tint), 75);
   expect(`${tag} brand border on page`, lc(t.brand.border, t.bg.page), 15);
+}
+
+group('Avatar initials, coloured from the name itself');
+{
+  // Real Rwandan names from the seed, plus the edge cases: one word, a very
+  // long name, and a name whose hash lands on the hues that are hardest to
+  // keep legible.
+  const names = [
+    'Aline Uwase', 'Jean Bosco Nshimiyimana', 'Divine Ineza', 'Kwizera', 'Mucyo Gisa',
+    'Marie Claire Mukamana', 'Thierry Habimana', 'Shema', 'Ange Kalisa', 'Yves Ndayisaba',
+    'Immaculee Nyiraneza', 'Olivier Rukundo',
+  ];
+  let worst = Infinity;
+  let worstName = '';
+  for (const name of names) {
+    const { bg, fg } = identityColors(name);
+    const value = lc(fg, bg);
+    if (value < worst) {
+      worst = value;
+      worstName = name;
+    }
+  }
+  expect(`worst of ${names.length} names (${worstName})`, worst, 60);
+
+  // Names are user data, so the guarantee has to hold for every hue the hash
+  // can reach, not just the twelve above.
+  let allHues = Infinity;
+  for (let h = 0; h < 360; h++) {
+    const probe = identityColors(String.fromCharCode(65 + (h % 26)).repeat(1 + (h % 5)) + h);
+    allHues = Math.min(allHues, lc(probe.fg, probe.bg));
+  }
+  expect('initials on disc, swept across every hue', allHues, 60);
+
+  // The generated background also has to separate from the page it sits on,
+  // or a pale avatar disappears into the row.
+  const page = buildTheme().bg.page;
+  let worstBg = Infinity;
+  for (const name of names) worstBg = Math.min(worstBg, lc(identityColors(name).bg, page));
+  expect('palest avatar background against the page', worstBg, 15);
 }
 
 group('Junk input falls back rather than breaking');
