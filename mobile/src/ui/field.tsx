@@ -26,6 +26,12 @@ export interface FieldProps extends Omit<TextInputProps, 'style'> {
   /** Codes read character by character get the mono face and wider tracking. */
   mono?: boolean;
   required?: boolean;
+  /**
+   * Grows the field for multi line entry. A number rather than a style prop,
+   * because letting callers pass arbitrary styles is how a design system stops
+   * being one.
+   */
+  minHeight?: number;
 }
 
 export function Field({
@@ -35,6 +41,7 @@ export function Field({
   accessory,
   mono,
   required,
+  minHeight,
   secureTextEntry,
   ...rest
 }: FieldProps) {
@@ -61,10 +68,11 @@ export function Field({
       <View
         style={{
           flexDirection: 'row',
-          alignItems: 'center',
           gap: space.sm,
-          minHeight: touch.comfortable,
+          minHeight: minHeight ?? touch.comfortable,
+          alignItems: minHeight ? 'flex-start' : 'center',
           paddingHorizontal: space.lg,
+          paddingVertical: minHeight ? space.md : 0,
           backgroundColor: t.bg.page,
           borderWidth: focused || error ? 2 : 1,
           borderColor: border,
@@ -89,6 +97,8 @@ export function Field({
             {
               flex: 1,
               color: t.fg.primary,
+              minHeight: minHeight ? minHeight - space.md * 2 : undefined,
+              textAlignVertical: minHeight ? 'top' : 'center',
               // Android adds its own vertical padding that fights the min
               // height and makes the field taller than the touch token.
               paddingVertical: 0,
