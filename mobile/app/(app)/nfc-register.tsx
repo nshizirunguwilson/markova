@@ -1,359 +1,169 @@
-import { useState, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput, Platform, Vibration,
-} from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import {
-  CreditCard, Search, CheckCircle, Smartphone, User, XCircle,
-} from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { Stack } from 'expo-router';
 import { toast } from 'sonner-native';
-import { useAuthStore } from '@/stores/auth-store';
-import { useTeacherAssignments, useClassStudentsNfc, useRegisterNfcCard } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { Button } from '@/components/ui/Button';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { Nfc } from 'lucide-react-native';
 
-type Step = 'select-class' | 'student-list' | 'scan-card';
+import { useClassSections, useClassStudentsNfc, useRegisterNfcCard } from '@/hooks/useApi';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import {
+  Screen, Section, Row, RowGroup, Text, Field, Button, Badge, Segmented,
+  Empty, LoadingRows, Avatar, Stat, StatRow,
+} from '@/ui';
 
-export default function NfcRegisterScreen() {
-  const user = useAuthStore((s) => s.user);
-  const [step, setStep] = useState<Step>('select-class');
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
-  const [selectedClassName, setSelectedClassName] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<{ id: string; firstName: string; lastName: string } | null>(null);
-  const [search, setSearch] = useState('');
-  const [manualCardId, setManualCardId] = useState('');
+/**
+ * Binding a physical card to a student.
+ *
+ * Done at a desk with a stack of cards and a queue of students, so it works
+ * the way that actually goes: pick the person, then read the card. The card
+ * number is typed or scanned into one field and the field clears itself and
+ * stays focused, because the next student is already standing there.
+ *
+ * Students who already have a card are shown but not offered, since binding a
+ * second one silently orphans the first.
+ */
+export default function NfcRegister() {
+  const t = useTheme();
+  const { data: sections } = useClassSections();
+  const classes = useMemo(
+    () => ((sections as any[]) ?? []).map((s) => ({ value: s.id, label: s.name })),
+    [sections],
+  );
 
-  const { data: assignments, isLoading: loadingAssignments } = useTeacherAssignments(user?.teacherId);
-  const { data: students, isLoading: loadingStudents, refetch } = useClassStudentsNfc(selectedClassId ?? undefined);
-  const registerNfc = useRegisterNfcCard();
+  const [classId, setClassId] = useState('');
+  const active = classId || classes[0]?.value;
+  const { data: students, isPending, refetch } = useClassStudentsNfc(active);
+  const register = useRegisterNfcCard();
 
-  const classes = useMemo(() => {
-    if (!assignments) return [];
-    const map = new Map<string, { id: string; name: string }>();
-    assignments.forEach((a) => {
-      if (a.classSection && !map.has(a.classSectionId)) {
-        map.set(a.classSectionId, {
-          id: a.classSectionId,
-          name: `${a.classSection.classLevel?.name ?? ''} ${a.classSection.name}`.trim(),
-        });
-      }
-    });
-    return Array.from(map.values());
-  }, [assignments]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [cardId, setCardId] = useState('');
 
-  const filteredStudents = useMemo(() => {
-    if (!students) return [];
-    if (!search.trim()) return students;
-    const q = search.toLowerCase();
-    return students.filter((s) =>
-      `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
-      s.studentIdNumber.toLowerCase().includes(q)
-    );
-  }, [students, search]);
+  const rows = (students as any[]) ?? [];
+  const without = rows.filter((s) => !s.nfcCardId);
+  const withCard = rows.filter((s) => s.nfcCardId);
+  const chosen = rows.find((s) => s.id === selected);
 
-  const registeredCount = students?.filter((s) => s.nfcCardId).length ?? 0;
-  const totalCount = students?.length ?? 0;
-
-  const handleRegister = async (cardId: string) => {
-    if (!selectedStudent || !cardId.trim()) return;
-
-    try {
-      await registerNfc.mutateAsync({
-        studentId: selectedStudent.id,
-        nfcCardId: cardId.trim(),
-      });
-      if (Platform.OS !== 'web') Vibration.vibrate(200);
-      toast.success(`Card registered for ${selectedStudent.firstName} ${selectedStudent.lastName}`);
-      setStep('student-list');
-      setSelectedStudent(null);
-      setManualCardId('');
-      refetch();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to register card');
-    }
-  };
-
-  const handleUnregister = (student: { id: string; firstName: string; lastName: string; nfcCardId: string | null }) => {
-    if (!student.nfcCardId) return;
-    Alert.alert(
-      'Remove NFC Card',
-      `Remove the NFC card from ${student.firstName} ${student.lastName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await registerNfc.mutateAsync({ studentId: student.id, nfcCardId: '' });
-              toast.success('NFC card removed');
-              refetch();
-            } catch (err: any) {
-              toast.error(err?.response?.data?.message ?? 'Failed to remove card');
-            }
-          },
+  const bind = () => {
+    if (!selected || !cardId.trim()) return;
+    register.mutate(
+      { studentId: selected, nfcCardId: cardId.trim() },
+      {
+        onSuccess: () => {
+          toast.success(`Card bound to ${chosen?.firstName ?? 'student'}`);
+          setCardId('');
+          setSelected(null);
+          void refetch();
         },
-      ]
+        onError: (e: any) =>
+          toast.error(e?.response?.data?.message ?? 'That card could not be bound. It may be in use.'),
+      },
     );
   };
 
-  // ─── Step 1: Select Class ───
-  if (step === 'select-class') {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader title="NFC Card Registration" subtitle="Link student cards" />
-        <View style={styles.content}>
-          <View style={styles.infoBox}>
-            <CreditCard size={24} color={colors.primaryLight} />
-            <Text style={styles.infoText}>
-              Register student NFC chip cards so they can tap to mark attendance. Select a class to begin.
-            </Text>
-          </View>
-
-          {loadingAssignments ? (
-            <LoadingScreen />
-          ) : classes.length > 0 ? (
-            <FlatList
-              data={classes}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.classCard}
-                  onPress={() => {
-                    setSelectedClassId(item.id);
-                    setSelectedClassName(item.name);
-                    setStep('student-list');
-                  }}
-                >
-                  <User size={22} color={colors.primary} />
-                  <View style={styles.classInfo}>
-                    <Text style={styles.className}>{item.name}</Text>
-                    <Text style={styles.classSub}>Tap to manage NFC cards</Text>
-                  </View>
-                </Pressable>
-              )}
-              contentContainerStyle={{ padding: spacing.lg }}
-            />
-          ) : (
-            <Text style={styles.noData}>No classes assigned.</Text>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  // ─── Step 3: Scan/Enter Card ───
-  if (step === 'scan-card' && selectedStudent) {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader
-          title="Register Card"
-          subtitle={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-          onBack={() => { setStep('student-list'); setSelectedStudent(null); setManualCardId(''); }}
-        />
-        <View style={styles.scanContent}>
-          <View style={styles.scanIconContainer}>
-            <Smartphone size={48} color={colors.primary} />
-          </View>
-          <Text style={styles.scanTitle}>Tap NFC Card on Phone</Text>
-          <Text style={styles.scanSub}>
-            Hold the student's chip card against the back of your phone to read the card ID.
-          </Text>
-
-          {Platform.OS === 'web' && (
-            <View style={styles.webFallback}>
-              <Text style={styles.webFallbackTitle}>NFC not available on web</Text>
-              <Text style={styles.webFallbackSub}>Enter the card ID manually:</Text>
-              <TextInput
-                style={styles.cardInput}
-                placeholder="Enter card UID..."
-                placeholderTextColor={colors.mutedLight}
-                value={manualCardId}
-                onChangeText={setManualCardId}
-                autoCapitalize="characters"
-              />
-              <Button
-                title="Register Card"
-                onPress={() => handleRegister(manualCardId)}
-                loading={registerNfc.isPending}
-                disabled={!manualCardId.trim()}
-                fullWidth
-                icon={<CreditCard size={18} color={colors.white} />}
-              />
-            </View>
-          )}
-
-          {Platform.OS !== 'web' && (
-            <View style={styles.nativeNfc}>
-              <Text style={styles.nfcWaiting}>Waiting for NFC card...</Text>
-              <Text style={styles.scanSub}>Or enter the card ID manually:</Text>
-              <TextInput
-                style={styles.cardInput}
-                placeholder="Card UID"
-                placeholderTextColor={colors.mutedLight}
-                value={manualCardId}
-                onChangeText={setManualCardId}
-                autoCapitalize="characters"
-              />
-              <Button
-                title="Register Manually"
-                onPress={() => handleRegister(manualCardId)}
-                loading={registerNfc.isPending}
-                disabled={!manualCardId.trim()}
-                fullWidth
-                variant="outline"
-              />
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  // ─── Step 2: Student List ───
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title={selectedClassName}
-        subtitle={`${registeredCount}/${totalCount} cards registered`}
-        onBack={() => { setStep('select-class'); setSelectedClassId(null); setSearch(''); }}
-      />
-      <View style={styles.content}>
-        {/* Progress */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBg}>
-            <View style={[styles.progressFill, { width: totalCount > 0 ? `${(registeredCount / totalCount) * 100}%` : '0%' }]} />
-          </View>
-          <Text style={styles.progressText}>{registeredCount}/{totalCount} registered</Text>
-        </View>
+    <>
+      <Stack.Screen options={{ title: 'Bind a card' }} />
+      <Screen contentContainerStyle={{ gap: space.xxl }}>
+        {classes.length ? <Segmented value={active} onChange={setClassId} options={classes} /> : null}
 
-        {/* Search */}
-        <View style={styles.searchBar}>
-          <Search size={18} color={colors.muted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search students..."
-            placeholderTextColor={colors.mutedLight}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-
-        {loadingStudents ? (
-          <LoadingScreen />
+        {isPending ? (
+          <LoadingRows count={8} lead />
+        ) : !rows.length ? (
+          <Empty title="No students" body="Pick a class with students in it." />
         ) : (
-          <FlatList
-            data={filteredStudents}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <Pressable
-                style={styles.studentRow}
-                onPress={() => {
-                  if (item.nfcCardId) {
-                    handleUnregister(item);
-                  } else {
-                    setSelectedStudent({ id: item.id, firstName: item.firstName, lastName: item.lastName });
-                    setStep('scan-card');
-                  }
-                }}
-              >
-                <View style={[styles.studentIcon, {
-                  backgroundColor: item.nfcCardId ? colors.successLight : colors.borderLight,
-                }]}>
-                  {item.nfcCardId ? (
-                    <CheckCircle size={20} color={colors.success} />
-                  ) : (
-                    <CreditCard size={20} color={colors.muted} />
-                  )}
+          <>
+            <StatRow>
+              <Stat value={withCard.length} label="Bound" tone="positive" />
+              <Stat value={without.length} label="Waiting" tone={without.length ? 'caution' : 'primary'} />
+            </StatRow>
+
+            {selected ? (
+              <Section title={`2. Read the card for ${chosen?.firstName ?? 'them'}`}>
+                <View style={{ gap: space.md }}>
+                  <Field
+                    label="Card number"
+                    value={cardId}
+                    onChangeText={setCardId}
+                    autoFocus
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    mono
+                    placeholder="Tap the card on the reader, or type it"
+                    onSubmitEditing={bind}
+                    returnKeyType="done"
+                    accessory={<Nfc size={18} color={t.fg.tertiary} strokeWidth={2} />}
+                  />
+                  <View style={{ flexDirection: 'row', gap: space.md }}>
+                    <Button
+                      label="Bind it"
+                      kind="primary"
+                      disabled={!cardId.trim()}
+                      loading={register.isPending}
+                      onPress={bind}
+                    />
+                    <Button label="Pick somebody else" kind="quiet" onPress={() => setSelected(null)} />
+                  </View>
                 </View>
-                <View style={styles.studentInfo}>
-                  <Text style={styles.studentName}>{item.firstName} {item.lastName}</Text>
-                  <Text style={styles.studentSub}>
-                    {item.nfcCardId ? `Card: ${item.nfcCardId.slice(0, 8)}...` : 'No card registered'}
-                  </Text>
-                </View>
-                <Text style={[styles.actionText, { color: item.nfcCardId ? colors.danger : colors.primary }]}>
-                  {item.nfcCardId ? 'Remove' : 'Register'}
-                </Text>
-              </Pressable>
+              </Section>
+            ) : null}
+
+            {without.length ? (
+              <Section title={selected ? 'Or pick another' : '1. Pick the student'}>
+                <RowGroup>
+                  {without.map((student, i) => {
+                    const name = `${student.firstName} ${student.lastName}`.trim();
+                    return (
+                      <Row
+                        key={student.id}
+                        title={name}
+                        subtitle={student.studentIdNumber}
+                        lead={<Avatar name={name} size="sm" />}
+                        value={selected === student.id ? <Badge label="Chosen" tone="brand" /> : undefined}
+                        chevron={false}
+                        onPress={() => {
+                          setSelected(student.id);
+                          setCardId('');
+                        }}
+                        last={i === without.length - 1}
+                      />
+                    );
+                  })}
+                </RowGroup>
+              </Section>
+            ) : (
+              <Text variant="callout" tone="positive">
+                Every student in this class has a card.
+              </Text>
             )}
-            contentContainerStyle={{ paddingBottom: spacing['5xl'] }}
-          />
+
+            {withCard.length ? (
+              <Section title="Already bound">
+                <RowGroup>
+                  {withCard.map((student, i) => {
+                    const name = `${student.firstName} ${student.lastName}`.trim();
+                    return (
+                      <Row
+                        key={student.id}
+                        title={name}
+                        subtitle={student.nfcCardId ?? undefined}
+                        lead={<Avatar name={name} size="sm" />}
+                        chevron={false}
+                        disabled
+                        last={i === withCard.length - 1}
+                      />
+                    );
+                  })}
+                </RowGroup>
+                <Text variant="footnote" tone="tertiary">
+                  Binding a second card would orphan the first, so these are not offered here. Revoke
+                  the old card from the ID cards screen first.
+                </Text>
+              </Section>
+            ) : null}
+          </>
         )}
-      </View>
-    </View>
+      </Screen>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  infoBox: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.accentLight, borderRadius: radius.lg, padding: spacing.lg,
-    margin: spacing.lg,
-  },
-  infoText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
-  classCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  classInfo: { flex: 1 },
-  className: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  classSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
-
-  // Progress
-  progressContainer: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  progressBg: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.borderLight },
-  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
-  progressText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: fontWeight.medium },
-
-  // Search
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
-
-  // Student rows
-  studentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white,
-  },
-  studentIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  studentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  actionText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-
-  // Scan screen
-  scanContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  scanIconContainer: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.accentLight,
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
-  },
-  scanTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginBottom: spacing.sm },
-  scanSub: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', lineHeight: 20, marginBottom: spacing.xl },
-  webFallback: { width: '100%', marginTop: spacing.lg },
-  webFallbackTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.warning, textAlign: 'center', marginBottom: spacing.xs },
-  webFallbackSub: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', marginBottom: spacing.md },
-  cardInput: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    fontSize: fontSize.base, color: colors.foreground, backgroundColor: colors.white,
-    marginBottom: spacing.lg, width: '100%',
-  },
-  nativeNfc: { width: '100%', alignItems: 'center', marginTop: spacing.lg },
-  nfcWaiting: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.primary, marginBottom: spacing.xl },
-});
