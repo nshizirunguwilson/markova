@@ -1,33 +1,46 @@
 import { Redirect, Stack } from 'expo-router';
 import { useAuthStore } from '@/stores/auth-store';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/design';
+import { type as typeScale } from '@/design/tokens';
 
+/**
+ * The authenticated stack.
+ *
+ * Headers are native and configured once, rather than being a navy bar
+ * component pasted onto every screen the way the old app did it. That means
+ * the back gesture, the platform back button and title truncation all behave
+ * the way the operating system intends, and a screen only has to say what it
+ * is called.
+ *
+ * Routes are not listed one by one any more either. File based routing already
+ * knows they exist, and the old list was thirty lines saying "slide from
+ * right" thirty times, which is the default.
+ */
 export default function AppLayout() {
+  const t = useTheme();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const blockedRole = useAuthStore((s) => s.blockedRole);
 
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/login" />;
-  }
+  if (blockedRole) return <Redirect href="/blocked" />;
+  if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="child/[studentId]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="child/attendance" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="child/marks" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="child/discipline" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="child/homework" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="marks-entry" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="homework-manage" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="discipline-log" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="nfc-register" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="class-analytics" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="support" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="help" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="parent-teacher-chat" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="timetable" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="exam-schedule" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="onboarding" options={{ animation: 'slide_from_right' }} />
+    <Stack
+      screenOptions={{
+        headerShown: true,
+        headerShadowVisible: false,
+        headerStyle: { backgroundColor: t.bg.page },
+        headerTintColor: t.brand.text,
+        headerTitleStyle: {
+          fontFamily: typeScale.title3.fontFamily,
+          fontSize: 17,
+          color: t.fg.primary,
+        },
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: t.bg.page },
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
 }

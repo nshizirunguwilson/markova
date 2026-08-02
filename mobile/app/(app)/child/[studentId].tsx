@@ -1,143 +1,161 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { CalendarDays, TrendingUp, AlertTriangle, BookOpen, FileText } from 'lucide-react-native';
+
 import {
-  Calendar,
-  TrendingUp,
-  AlertTriangle,
-  BookOpen,
-  FileText,
-  ChevronRight,
-} from 'lucide-react-native';
-import { useAttendanceSummary, useStudentDiscipline } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+  useAttendanceSummary,
+  useStudentDiscipline,
+  useParentChildren,
+  useCurrentTerm,
+  useStudentTermResult,
+} from '@/hooks/useApi';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import { Screen, Section, Row, RowGroup, Text, Stat, StatRow, Meter, Badge, Avatar } from '@/ui';
 
-export default function ChildDetailScreen() {
+/**
+ * One child at a glance, then a door into each part of their record.
+ *
+ * The three figures at the top are the three questions a parent actually opens
+ * this app to answer: are they turning up, are they behaving, and how are they
+ * doing. Everything below is a door rather than a summary, so the top of the
+ * screen stays readable in the two seconds someone gives it.
+ *
+ * The grade is absent until the term is published. Showing a running average a
+ * parent could act on before the school has signed it off would quietly
+ * undermine the publish step, and that step exists for a reason.
+ */
+export default function ChildOverview() {
+  const t = useTheme();
   const router = useRouter();
-  const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
-  const [refreshing, setRefreshing] = useState(false);
+  const { studentId } = useLocalSearchParams<{ studentId: string }>();
 
-  const { data: attendance, refetch: refetchAttendance } = useAttendanceSummary(studentId);
+  const { data: children } = useParentChildren();
+  const child: any = children?.find((c: any) => c.id === studentId);
+  const name = child
+    ? `${child.user?.firstName ?? ''} ${child.user?.lastName ?? ''}`.trim()
+    : 'Your child';
+
+  const { data: term } = useCurrentTerm();
+  const {
+    data: attendance,
+    refetch: refetchAttendance,
+    isRefetching,
+  } = useAttendanceSummary(studentId);
   const { data: discipline, refetch: refetchDiscipline } = useStudentDiscipline(studentId);
+  const { data: result } = useStudentTermResult(studentId, term?.id);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([refetchAttendance(), refetchDiscipline()]);
-    setRefreshing(false);
-  }, [refetchAttendance, refetchDiscipline]);
-  const attendanceRate = attendance?.attendanceRate ?? 0;
+  const rate = attendance?.attendanceRate ?? 0;
+  const points: number = child?.disciplinePoints ?? 100;
+  const incidents = discipline?.incidents?.length ?? 0;
+  const published = Boolean((result as any)?.isPublished);
 
-  const menuItems = [
-    {
-      icon: <Calendar size={22} color={colors.primary} />,
-      title: 'Attendance',
-      subtitle: `${attendanceRate.toFixed(0)}% attendance rate`,
-      color: colors.accentLight,
-      onPress: () => router.push({ pathname: '/(app)/child/attendance', params: { studentId, name } }),
-    },
-    {
-      icon: <TrendingUp size={22} color={colors.success} />,
-      title: 'Marks & Grades',
-      subtitle: 'View term results and report cards',
-      color: colors.successLight,
-      onPress: () => router.push({ pathname: '/(app)/child/marks', params: { studentId, name } }),
-    },
-    {
-      icon: <AlertTriangle size={22} color={colors.danger} />,
-      title: 'Discipline',
-      subtitle: `${discipline?.incidents?.length ?? 0} incident(s) on record`,
-      color: colors.dangerLight,
-      onPress: () => router.push({ pathname: '/(app)/child/discipline', params: { studentId, name } }),
-    },
-    {
-      icon: <BookOpen size={22} color={colors.primaryLight} />,
-      title: 'Homework',
-      subtitle: 'View assignments and submissions',
-      color: colors.accentLight,
-      onPress: () => router.push({ pathname: '/(app)/child/homework', params: { studentId, name } }),
-    },
-  ];
+  const refresh = () => {
+    void refetchAttendance();
+    void refetchDiscipline();
+  };
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title={name ?? 'Child'} onBack={() => router.back()} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
+    <>
+      <Stack.Screen options={{ title: name }} />
+      <Screen
+        bleed
+        onRefresh={refresh}
+        refreshing={isRefetching}
+        contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
       >
-        {/* Summary cards */}
-        <View style={styles.summaryRow}>
-          <SummaryCard
-            label="Attendance"
-            value={`${attendanceRate.toFixed(0)}%`}
-            color={attendanceRate >= 80 ? colors.success : attendanceRate >= 60 ? colors.warning : colors.danger}
-          />
-          <SummaryCard
-            label="Absences"
-            value={String(attendance?.absentDays ?? 0)}
-            color={colors.danger}
-          />
-          <SummaryCard
-            label="Incidents"
-            value={String(discipline?.incidents?.length ?? 0)}
-            color={discipline?.incidents?.length ? colors.warning : colors.success}
+        <View style={{ paddingHorizontal: space.xl, gap: space.xl }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
+            <Avatar name={name} photoUrl={child?.user?.photoUrl} size="xl" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="title2">{name}</Text>
+              <Text variant="callout" tone="secondary">
+                {child?.classSection?.name ?? 'Class not set'}
+              </Text>
+              {child?.studentIdNumber ? (
+                <Text variant="code" tone="tertiary" selectable>
+                  {child.studentIdNumber}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <StatRow>
+            <Stat
+              value={`${Math.round(rate)}%`}
+              label="Attendance"
+              detail={term?.name ?? 'This term'}
+              tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
+            />
+            <Stat
+              value={points}
+              label="Conduct points"
+              detail={incidents === 0 ? 'Nothing on record' : `${incidents} incident${incidents === 1 ? '' : 's'}`}
+              tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
+            />
+            {published ? (
+              <Stat
+                value={(result as any)?.letterGrade ?? '-'}
+                label="Term grade"
+                detail={(result as any)?.rank ? `Rank ${(result as any).rank} in class` : 'Published'}
+                tone="brand"
+              />
+            ) : null}
+          </StatRow>
+
+          <Meter
+            value={rate}
+            label="Days present this term"
+            tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
           />
         </View>
 
-        {/* Menu items */}
-        {menuItems.map((item, i) => (
-          <Pressable key={i} style={styles.menuItem} onPress={item.onPress}>
-            <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
-              {item.icon}
-            </View>
-            <View style={styles.menuContent}>
-              <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-            </View>
-            <ChevronRight size={20} color={colors.mutedLight} />
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
+        <Section title="Their record">
+          <RowGroup>
+            <Row
+              title="Marks"
+              subtitle={published ? 'Published for this term' : 'Not published yet'}
+              lead={<TrendingUp size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              value={published ? undefined : <Badge label="Pending" tone="neutral" />}
+              onPress={() => router.push({ pathname: '/(app)/child/marks', params: { studentId, name } })}
+            />
+            <Row
+              title="Attendance"
+              subtitle={`${Math.round(rate)}% this term`}
+              lead={<CalendarDays size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/attendance', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Discipline"
+              subtitle={incidents === 0 ? 'Nothing on record' : `${incidents} recorded`}
+              lead={<AlertTriangle size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              value={incidents > 0 ? <Badge label={String(incidents)} tone="caution" numeric /> : undefined}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/discipline', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Homework"
+              lead={<BookOpen size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/homework', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Report card"
+              subtitle={published ? 'Ready to read' : 'Available once the school publishes'}
+              lead={<FileText size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              disabled={!published}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/reports', params: { studentId, name } })
+              }
+              last
+            />
+          </RowGroup>
+        </Section>
+      </Screen>
+    </>
   );
 }
-
-function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <View style={styles.summaryCard}>
-      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  summaryRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
-  summaryCard: {
-    flex: 1, backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
-    alignItems: 'center',
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
-  },
-  summaryValue: { fontSize: fontSize.xl, fontWeight: fontWeight.bold },
-  summaryLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
-  menuItem: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
-    marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  menuIcon: {
-    width: 44, height: 44, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center',
-  },
-  menuContent: { flex: 1, marginLeft: spacing.md },
-  menuTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  menuSubtitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-});

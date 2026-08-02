@@ -555,3 +555,473 @@ export function useCreateIncident() {
     },
   });
 }
+
+// ════════════════════════════════════════════════════════
+// Added for the redesign. Everything below backs a screen in
+// docs/mobile-screen-inventory.md; nothing here is speculative.
+// ════════════════════════════════════════════════════════
+
+// ─── People ─────────────────────────────────────────────
+
+export interface DirectoryUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  phone?: string | null;
+  role: string;
+  photoUrl?: string | null;
+  isActive: boolean;
+  code?: string | null;
+  nationalId?: string | null;
+  student?: { id: string; studentIdNumber: string; classSection?: { name: string } } | null;
+  teacher?: { id: string } | null;
+}
+
+/** One searchable list of everyone, which on the web is three separate pages. */
+export function usePeople(params?: { role?: string; search?: string; page?: number }) {
+  return useQuery<{ data: DirectoryUser[]; total: number }>({
+    queryKey: ['people', params?.role ?? 'all', params?.search ?? '', params?.page ?? 1],
+    queryFn: () =>
+      api
+        .get('/users', {
+          params: { role: params?.role, search: params?.search, page: params?.page ?? 1, limit: 30 },
+        })
+        .then((r) => (Array.isArray(r.data) ? { data: r.data, total: r.data.length } : r.data)),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function usePerson(id?: string) {
+  return useQuery<DirectoryUser>({
+    queryKey: ['person', id],
+    queryFn: () => api.get(`/users/${id}`).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+export function useSaveUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Record<string, unknown> & { id?: string }) =>
+      id ? api.put(`/users/${id}`, body).then((r) => r.data) : api.post('/users', body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['people'] });
+      qc.invalidateQueries({ queryKey: ['person'] });
+    },
+  });
+}
+
+export function useDeactivateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/users/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['people'] }),
+  });
+}
+
+// ─── Academic structure ─────────────────────────────────
+
+export function useClassLevels() {
+  return useQuery<{ id: string; name: string; order: number; stage: string }[]>({
+    queryKey: ['class-levels'],
+    queryFn: () => api.get('/academic/class-levels').then((r) => r.data),
+  });
+}
+
+export function useTrades() {
+  return useQuery<{ id: string; code: string; name: string; sector: string }[]>({
+    queryKey: ['trades'],
+    queryFn: () => api.get('/academic/trades').then((r) => r.data),
+  });
+}
+
+export function useCloseTerm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reopen }: { id: string; reopen?: boolean }) =>
+      api.post(`/academic/terms/${id}/${reopen ? 'reopen' : 'close'}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['terms'] });
+      qc.invalidateQueries({ queryKey: ['current-term'] });
+    },
+  });
+}
+
+// ─── Marks and results ──────────────────────────────────
+
+export interface CompletionRow {
+  subjectId: string;
+  subjectName: string;
+  assessmentTypeId: string;
+  assessmentTypeName: string;
+  entered: number;
+  expected: number;
+}
+
+export function useMarksCompletion(classSectionId?: string, termId?: string) {
+  return useQuery<CompletionRow[]>({
+    queryKey: ['marks-completion', classSectionId, termId],
+    queryFn: () =>
+      api.get('/marks/completion', { params: { classSectionId, termId } }).then((r) => r.data),
+    enabled: !!classSectionId && !!termId,
+  });
+}
+
+export function useClassTermResults(classSectionId?: string, termId?: string) {
+  return useQuery<TermResult[]>({
+    queryKey: ['class-term-results', classSectionId, termId],
+    queryFn: () =>
+      api.get('/marks/term-results/class', { params: { classSectionId, termId } }).then((r) => r.data),
+    enabled: !!classSectionId && !!termId,
+  });
+}
+
+export function useCalculateTermResults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { classSectionId: string; termId: string }) =>
+      api.post('/marks/term-results/calculate', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['class-term-results'] }),
+  });
+}
+
+export function usePublishTermResults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { classSectionId: string; termId: string }) =>
+      api.post('/marks/term-results/publish', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['class-term-results'] }),
+  });
+}
+
+export function useSaveResultComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; teacherComment?: string; headmasterComment?: string }) =>
+      api.put(`/marks/term-results/${id}/comment`, body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['class-term-results'] }),
+  });
+}
+
+export function useStudentYearResult(studentId?: string, academicYearId?: string) {
+  return useQuery({
+    queryKey: ['year-result', studentId, academicYearId],
+    queryFn: () =>
+      api.get(`/marks/year-results/student/${studentId}`, { params: { academicYearId } }).then((r) => r.data),
+    enabled: !!studentId && !!academicYearId,
+  });
+}
+
+// ─── Attendance ─────────────────────────────────────────
+
+export function useAttendanceDashboard(date?: string) {
+  return useQuery({
+    queryKey: ['attendance-dashboard', date],
+    queryFn: () => api.get('/attendance/dashboard', { params: { date } }).then((r) => r.data),
+  });
+}
+
+export function useChronicAbsentees() {
+  return useQuery<{ studentId: string; studentName: string; absences: number; rate: number }[]>({
+    queryKey: ['chronic-absentees'],
+    queryFn: () => api.get('/attendance/chronic').then((r) => r.data),
+  });
+}
+
+export function useNotifyChronic() {
+  return useMutation({
+    mutationFn: (body?: { studentIds?: string[] }) =>
+      api.post('/attendance/chronic/notify', body ?? {}).then((r) => r.data),
+  });
+}
+
+// ─── Discipline ─────────────────────────────────────────
+
+export function useIncidents(params?: { termId?: string; studentId?: string }) {
+  return useQuery<DisciplineIncident[]>({
+    queryKey: ['incidents', params?.termId, params?.studentId],
+    queryFn: () => api.get('/discipline/incidents', { params }).then((r) => r.data),
+  });
+}
+
+export function usePendingAppeals() {
+  return useQuery({
+    queryKey: ['pending-appeals'],
+    queryFn: () => api.get('/discipline/appeals/pending').then((r) => r.data),
+  });
+}
+
+export function useReviewAppeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status: 'APPROVED' | 'REJECTED'; reviewNotes?: string }) =>
+      api.put(`/discipline/appeals/${id}/review`, body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-appeals'] }),
+  });
+}
+
+export function useDisciplineDashboard(termId?: string) {
+  return useQuery({
+    queryKey: ['discipline-dashboard', termId],
+    queryFn: () => api.get('/discipline/dashboard', { params: { termId } }).then((r) => r.data),
+  });
+}
+
+// ─── Library ────────────────────────────────────────────
+
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+  isbn?: string | null;
+  category?: string | null;
+  quantity: number;
+  availableCount: number;
+  barcode?: string | null;
+  shelfLocation?: string | null;
+  replacementCost?: number | null;
+  isActive: boolean;
+}
+
+export function useBooks(search?: string) {
+  return useQuery<Book[]>({
+    queryKey: ['books', search ?? ''],
+    queryFn: () =>
+      api
+        .get('/library/books', { params: { search, limit: 50 } })
+        .then((r) => (Array.isArray(r.data) ? r.data : (r.data?.data ?? []))),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useBook(id?: string) {
+  return useQuery<Book>({
+    queryKey: ['book', id],
+    queryFn: () => api.get(`/library/books/${id}`).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+export function useSaveBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Record<string, unknown> & { id?: string }) =>
+      id ? api.put(`/library/books/${id}`, body).then((r) => r.data) : api.post('/library/books', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['books'] }),
+  });
+}
+
+export interface Loan {
+  id: string;
+  bookId: string;
+  borrowerUserId: string;
+  checkedOutAt: string;
+  dueDate: string;
+  returnedAt?: string | null;
+  status: string;
+  book?: { title: string; author: string };
+  borrower?: { firstName: string; lastName: string };
+}
+
+export function useActiveLoans() {
+  return useQuery<Loan[]>({
+    queryKey: ['loans', 'active'],
+    queryFn: () => api.get('/library/loans/active').then((r) => r.data),
+  });
+}
+
+export function useOverdueLoans() {
+  return useQuery<Loan[]>({
+    queryKey: ['loans', 'overdue'],
+    queryFn: () => api.get('/library/loans/overdue').then((r) => r.data),
+  });
+}
+
+export function useMyLoans() {
+  return useQuery<Loan[]>({
+    queryKey: ['loans', 'mine'],
+    queryFn: () => api.get('/library/loans/my').then((r) => r.data),
+  });
+}
+
+export function useReportLostBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (loanId: string) => api.post('/library/lost', { loanId }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['loans'] }),
+  });
+}
+
+export function useSendLoanReminders() {
+  return useMutation({
+    mutationFn: () => api.post('/library/reminders/send').then((r) => r.data),
+  });
+}
+
+// ─── Reports, cards, exports ────────────────────────────
+
+export function useIdCardRegistry(params?: { classSectionId?: string }) {
+  return useQuery({
+    queryKey: ['id-card-registry', params?.classSectionId],
+    queryFn: () => api.get('/reports/id-cards/registry', { params }).then((r) => r.data),
+  });
+}
+
+export function useIssueIdCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId?: string; classSectionId?: string; force?: boolean }) =>
+      body.classSectionId
+        ? api.post('/reports/id-cards/issue-bulk', body).then((r) => r.data)
+        : api.post('/reports/id-cards/issue', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['id-card-registry'] }),
+  });
+}
+
+export function useRevokeIdCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (studentId: string) => api.post('/reports/id-cards/revoke', { studentId }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['id-card-registry'] }),
+  });
+}
+
+export function useGenerateDocument() {
+  return useMutation({
+    mutationFn: (body: { studentId: string; documentType: string }) =>
+      api.post('/reports/document', body).then((r) => r.data),
+  });
+}
+
+// ─── Promotion ──────────────────────────────────────────
+
+export interface PromotionRow {
+  studentId: string;
+  studentName: string;
+  average: number | null;
+  disciplinePoints: number;
+  passedAcademic: boolean;
+  passedDiscipline: boolean;
+  recommendation: string;
+}
+
+export function usePromotionPreview(body?: { fromClassSectionId?: string; academicYearId?: string }) {
+  return useQuery<{ rows: PromotionRow[] } | PromotionRow[]>({
+    queryKey: ['promotion-preview', body?.fromClassSectionId, body?.academicYearId],
+    queryFn: () => api.post('/academic/promote/preview', body).then((r) => r.data),
+    enabled: !!body?.fromClassSectionId && !!body?.academicYearId,
+  });
+}
+
+export function useCommitPromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { academicYearId: string; decisions: { studentId: string; promote: boolean; toClassSectionId?: string }[] }) =>
+      api.post('/academic/promote/commit', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['promotion-preview'] }),
+  });
+}
+
+// ─── Analytics ──────────────────────────────────────────
+
+export function useAdminAnalytics(view: string, params?: Record<string, string | undefined>) {
+  return useQuery({
+    queryKey: ['admin-analytics', view, JSON.stringify(params ?? {})],
+    queryFn: () => api.get(`/analytics/admin/${view}`, { params }).then((r) => r.data),
+  });
+}
+
+export function useStudentAnalytics(studentId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ['student-analytics', studentId, termId],
+    queryFn: () => api.get(`/analytics/student/${studentId}`, { params: { termId } }).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+export function useParentChildTrends(studentId?: string, academicYearId?: string) {
+  return useQuery({
+    queryKey: ['child-trends', studentId, academicYearId],
+    queryFn: () =>
+      api.get(`/analytics/parent/child/${studentId}/trends`, { params: { academicYearId } }).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+// ─── Messaging ──────────────────────────────────────────
+
+export interface Conversation {
+  id: string;
+  type: string;
+  name?: string | null;
+  participants?: { user: { id: string; firstName: string; lastName: string; photoUrl?: string | null } }[];
+  lastMessage?: { content: string; createdAt: string; contentType: string } | null;
+  unreadCount?: number;
+}
+
+export function useConversations() {
+  return useQuery<Conversation[]>({
+    queryKey: ['conversations'],
+    queryFn: () => api.get('/messaging/conversations').then((r) => r.data),
+  });
+}
+
+export function useContacts() {
+  return useQuery<{ id: string; firstName: string; lastName: string; role: string; photoUrl?: string | null }[]>({
+    queryKey: ['contacts'],
+    queryFn: () => api.get('/messaging/contacts').then((r) => r.data),
+  });
+}
+
+export function useStartConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { type: string; participantIds: string[]; name?: string }) =>
+      api.post('/messaging/conversations', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  });
+}
+
+// ─── School settings ────────────────────────────────────
+
+export function useSchoolConfig() {
+  return useQuery<Record<string, string>>({
+    queryKey: ['school-config'],
+    queryFn: () => api.get('/school-config').then((r) => r.data),
+  });
+}
+
+export function useSaveSchoolConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { key: string; value: string }) => api.put('/school-config', body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['school-config'] });
+      qc.invalidateQueries({ queryKey: ['branding'] });
+    },
+  });
+}
+
+export function useOnboardingStatus() {
+  return useQuery<{ currentStep: string; completed: boolean }>({
+    queryKey: ['onboarding'],
+    queryFn: () => api.get('/school-config/onboarding').then((r) => r.data),
+  });
+}
+
+// ─── Sessions ───────────────────────────────────────────
+
+export function useSessions() {
+  return useQuery<{ id: string; deviceInfo?: string; ipAddress?: string; createdAt: string; expiresAt: string }[]>({
+    queryKey: ['sessions'],
+    queryFn: () => api.get('/auth/sessions').then((r) => r.data),
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (body: { currentPassword: string; newPassword: string }) =>
+      api.post('/auth/change-password', body).then((r) => r.data),
+  });
+}
