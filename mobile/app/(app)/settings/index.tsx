@@ -1,148 +1,160 @@
-import { useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Alert, Linking,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  Settings as SettingsIcon, School, Globe, Mail, Phone, Image, Shield, LogOut,
-  ChevronRight, Database, Bell,
-} from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useState } from 'react';
+import { View } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { toast } from 'sonner-native';
+import { Check, Circle, Smartphone } from 'lucide-react-native';
+
 import { useAuthStore } from '@/stores/auth-store';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { useSessions, useChangePassword } from '@/hooks/useApi';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import { Screen, Section, Row, RowGroup, Text, Field, Button, LoadingRows } from '@/ui';
 
-interface ConfigItem {
-  id: string;
-  key: string;
-  value: string;
-}
+/**
+ * Settings.
+ *
+ * Only three things belong here, so only three things are here: your password,
+ * the devices you are signed in on, and the way out. The previous version also
+ * carried notification toggles that were never wired to anything and a theme
+ * switch for a theme that did not exist.
+ *
+ * The device list is the part worth having. Somebody who signed in on a shared
+ * computer in a staff room should be able to see that and do something about
+ * it, and the API has always exposed it.
+ */
 
-export default function SettingsScreen() {
+const RULES = [
+  { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
+  { label: 'One capital letter', test: (v: string) => /[A-Z]/.test(v) },
+  { label: 'One small letter', test: (v: string) => /[a-z]/.test(v) },
+  { label: 'One number', test: (v: string) => /\d/.test(v) },
+  { label: 'One symbol', test: (v: string) => /[^A-Za-z\d]/.test(v) },
+];
+
+export default function Settings() {
+  const t = useTheme();
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: sessions, isPending } = useSessions();
+  const change = useChangePassword();
 
-  const { data: configs, isLoading, refetch } = useQuery<ConfigItem[]>({
-    queryKey: ['school-config'],
-    queryFn: () => api.get('/school-config').then((r) => r.data?.configs ?? r.data),
-  });
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  const met = RULES.map((r) => r.test(next));
+  const ready = current.length > 0 && met.every(Boolean);
 
-  const getConfig = (key: string) => configs?.find((c) => c.key === key)?.value ?? '--';
-
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
+  const submit = () => {
+    change.mutate(
+      { currentPassword: current, newPassword: next },
       {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-          router.replace('/(auth)/login');
+        onSuccess: () => {
+          toast.success('Password changed');
+          setOpen(false);
+          setCurrent('');
+          setNext('');
         },
+        onError: (e: any) =>
+          toast.error(e?.response?.data?.message ?? 'That did not work. Check the current password.'),
       },
-    ]);
+    );
   };
 
-  const sections = [
-    {
-      title: 'School Information',
-      items: [
-        { icon: <School size={20} color={colors.primary} />, label: 'School Name', value: getConfig('school_name') },
-        { icon: <Globe size={20} color={colors.primary} />, label: 'Motto', value: getConfig('school_motto') },
-        { icon: <Mail size={20} color={colors.primary} />, label: 'Email', value: getConfig('school_email') },
-        { icon: <Phone size={20} color={colors.primary} />, label: 'Phone', value: getConfig('school_phone') },
-        { icon: <Globe size={20} color={colors.primary} />, label: 'Address', value: getConfig('school_address') },
-      ],
-    },
-    {
-      title: 'System',
-      items: [
-        { icon: <Image size={20} color={colors.primary} />, label: 'Logo', value: getConfig('logo_url') ? 'Configured' : 'Not set' },
-        { icon: <Shield size={20} color={colors.primary} />, label: 'Stamp', value: getConfig('stamp_url') ? 'Configured' : 'Not set' },
-        { icon: <Database size={20} color={colors.primary} />, label: 'Grading System', value: getConfig('grading_system') },
-      ],
-    },
-  ];
-
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Settings" />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        {isLoading ? (
-          <LoadingScreen />
-        ) : (
-          sections.map((section) => (
-            <View key={section.title} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <View style={styles.sectionCard}>
-                {section.items.map((item, i) => (
-                  <View
-                    key={item.label}
-                    style={[styles.settingRow, i < section.items.length - 1 && styles.settingRowBorder]}
-                  >
-                    {item.icon}
-                    <View style={styles.settingContent}>
-                      <Text style={styles.settingLabel}>{item.label}</Text>
-                      <Text style={styles.settingValue} numberOfLines={1}>{item.value}</Text>
+    <>
+      <Stack.Screen options={{ title: 'Settings' }} />
+      <Screen contentContainerStyle={{ gap: space.xxl }}>
+        <Section title="Password">
+          {open ? (
+            <View style={{ gap: space.lg }}>
+              <Field
+                label="Current password"
+                value={current}
+                onChangeText={setCurrent}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <View style={{ gap: space.md }}>
+                <Field
+                  label="New password"
+                  value={next}
+                  onChangeText={setNext}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoComplete="new-password"
+                />
+                <View style={{ gap: space.xs, paddingLeft: 2 }}>
+                  {RULES.map((rule, i) => (
+                    <View key={rule.label} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                      {met[i] ? (
+                        <Check size={14} color={t.status.positive.solid} strokeWidth={2.5} />
+                      ) : (
+                        <Circle size={14} color={t.fg.placeholder} strokeWidth={2} />
+                      )}
+                      <Text variant="footnote" tone={met[i] ? 'positive' : 'tertiary'}>
+                        {rule.label}
+                      </Text>
                     </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: space.md }}>
+                <Button
+                  label="Change it"
+                  kind="primary"
+                  disabled={!ready}
+                  loading={change.isPending}
+                  onPress={submit}
+                />
+                <Button label="Cancel" kind="quiet" onPress={() => setOpen(false)} />
               </View>
             </View>
-          ))
-        )}
+          ) : (
+            <RowGroup>
+              <Row title="Change your password" onPress={() => setOpen(true)} last />
+            </RowGroup>
+          )}
+        </Section>
 
-        <Text style={styles.hint}>
-          School settings can be managed from the web dashboard.
-        </Text>
+        <Section title="Where you are signed in">
+          {isPending ? (
+            <LoadingRows count={2} />
+          ) : (
+            <RowGroup>
+              {(sessions ?? []).map((s, i, arr) => (
+                <Row
+                  key={s.id}
+                  title={s.deviceInfo ?? 'Unknown device'}
+                  subtitle={`${s.ipAddress ?? 'Unknown address'}   ·   since ${new Date(
+                    s.createdAt,
+                  ).toLocaleDateString()}`}
+                  lead={<Smartphone size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+                  chevron={false}
+                  last={i === arr.length - 1}
+                />
+              ))}
+              {!sessions?.length ? (
+                <Row title="Only this device" chevron={false} last />
+              ) : null}
+            </RowGroup>
+          )}
+          <Text variant="footnote" tone="tertiary">
+            Signing out ends the session on this device only.
+          </Text>
+        </Section>
 
-        {/* Logout */}
-        <Pressable onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut size={20} color={colors.danger} />
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </Pressable>
-      </ScrollView>
-    </View>
+        <Section title="Leaving">
+          <RowGroup>
+            <Row
+              title="Sign out"
+              chevron={false}
+              onPress={() => void logout().then(() => router.replace('/(auth)/login'))}
+              last
+            />
+          </RowGroup>
+        </Section>
+      </Screen>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  section: { marginBottom: spacing.xl },
-  sectionTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.muted, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  settingRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg,
-  },
-  settingRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  settingContent: { flex: 1 },
-  settingLabel: { fontSize: fontSize.sm, color: colors.muted },
-  settingValue: { fontSize: fontSize.base, color: colors.foreground, fontWeight: fontWeight.medium, marginTop: 2 },
-  hint: { fontSize: fontSize.xs, color: colors.muted, textAlign: 'center', marginVertical: spacing.xl, lineHeight: 18 },
-  logoutButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
-    padding: spacing.lg, gap: spacing.sm,
-  },
-  logoutText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.danger },
-});
