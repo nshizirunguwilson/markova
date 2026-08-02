@@ -1,267 +1,254 @@
-import { useState, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, TextInput, Alert, FlatList,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Save, ChevronDown } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, TextInput, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { toast } from 'sonner-native';
+
 import { useAuthStore } from '@/stores/auth-store';
 import {
   useTeacherAssignments, useClassStudents, useAssessmentTypes,
-  useCurrentTerm, useBatchMarks,
+  useCurrentTerm, useBatchMarks, useStudentMarks,
 } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { Button } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { useTheme } from '@/design';
+import { curve, gutter, radius, space, touch, type as typeScale } from '@/design/tokens';
+import { Avatar, Button, Empty, LoadingRows, Segmented, Text, Meter } from '@/ui';
 
-type Step = 'select' | 'enter';
+/**
+ * Entering marks.
+ *
+ * The most repeated task a teacher has, so the whole screen is built around
+ * the loop of read a script, type a number, move on.
+ *
+ * The keyboard stays numeric and never dismisses between students. Each field
+ * advances to the next on submit, so a teacher can go down a class of thirty
+ * without touching the screen again after the first tap. Out of range values
+ * are caught as they are typed rather than on save, because finding out at the
+ * end that entry number nine was 105 means hunting for it.
+ *
+ * Nothing is saved until Save, and the count of what has been filled is always
+ * visible, because being interrupted halfway through a class is the normal
+ * case here.
+ */
+export default function MarksEntry() {
+  const t = useTheme();
+  const params = useLocalSearchParams<{ classSectionId?: string; className?: string }>();
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
 
-export default function MarksEntryScreen() {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
+  const { data: assignments } = useTeacherAssignments(teacherId);
+  const { data: term } = useCurrentTerm();
+  const { data: assessments } = useAssessmentTypes();
+  const batch = useBatchMarks();
 
-  const [step, setStep] = useState<Step>('select');
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
-  const [selectedAssessment, setSelectedAssessment] = useState<string>('');
-  const [showAssessments, setShowAssessments] = useState(false);
-  const [marksMap, setMarksMap] = useState<Record<string, string>>({});
+  const classes = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      if (section) map.set(section.id, section.name);
+    }
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [assignments]);
 
-  const { data: currentTerm } = useCurrentTerm();
-  const { data: assignments, isLoading: loadingAssignments } = useTeacherAssignments(user?.teacherId);
-  const { data: assessmentTypes } = useAssessmentTypes();
-  const { data: students, isLoading: loadingStudents } = useClassStudents(
-    selectedAssignment?.classSectionId
-  );
-  const batchMarks = useBatchMarks();
-
-  const handleSelectAssignment = (assignment: any) => {
-    setSelectedAssignment(assignment);
-    setStep('enter');
-    setMarksMap({});
+  const subjectsFor = (classId: string) => {
+    const map = new Map<string, string>();
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      const subject: any = (a as any).subject;
+      if (section?.id === classId && subject) map.set(subject.id, subject.name);
+    }
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
   };
 
-  const handleSubmit = () => {
-    if (!currentTerm) {
-      toast.error('No current term found. Please contact admin to set up the academic year.');
+  const [classId, setClassId] = useState(params.classSectionId ?? '');
+  const [subjectId, setSubjectId] = useState('');
+  const [assessmentId, setAssessmentId] = useState('');
+  const [scores, setScores] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!classId && classes.length) setClassId(classes[0].value);
+  }, [classes, classId]);
+
+  const subjects = useMemo(() => subjectsFor(classId), [assignments, classId]);
+  useEffect(() => {
+    if (subjects.length && !subjects.some((s) => s.value === subjectId)) setSubjectId(subjects[0].value);
+  }, [subjects, subjectId]);
+  useEffect(() => {
+    if (assessments?.length && !assessmentId) setAssessmentId(assessments[0].id);
+  }, [assessments, assessmentId]);
+
+  const { data: students, isPending } = useClassStudents(classId);
+  const inputs = useMemo(() => new Map<string, TextInput | null>(), []);
+
+  const filled = Object.values(scores).filter((v) => v.trim() !== '').length;
+  const total = (students as any[])?.length ?? 0;
+
+  const setScore = (studentId: string, raw: string) => {
+    const cleaned = raw.replace(/[^\d.]/g, '');
+    setScores((prev) => ({ ...prev, [studentId]: cleaned }));
+  };
+
+  const invalid = (value: string) => {
+    if (!value.trim()) return false;
+    const n = Number(value);
+    return Number.isNaN(n) || n < 0 || n > 100;
+  };
+
+  const anyInvalid = Object.values(scores).some(invalid);
+
+  const save = () => {
+    const records = Object.entries(scores)
+      .filter(([, v]) => v.trim() !== '')
+      .map(([studentId, v]) => ({ studentId, score: Number(v) }));
+
+    if (!records.length) {
+      toast.error('Nothing to save yet');
       return;
     }
-    if (!selectedAssessment) {
-      toast.error('Please select an assessment type');
-      return;
-    }
 
-    const marks = Object.entries(marksMap)
-      .filter(([, score]) => score.trim() !== '')
-      .map(([studentId, score]) => ({
-        studentId,
-        score: Math.round(Number(score) * 100) / 100, // Round to 2 decimal places
-        maxScore: 100,
-      }));
-
-    if (marks.length === 0) {
-      toast.error('Please enter at least one mark');
-      return;
-    }
-
-    const invalid = marks.find((m) => isNaN(m.score) || m.score < 0 || m.score > 100);
-    if (invalid) {
-      toast.error('All marks must be between 0 and 100');
-      return;
-    }
-
-    const totalStudents = students?.length ?? 0;
-    const enteredCount = marks.length;
-    const missingCount = totalStudents - enteredCount;
-
-    const confirmMsg = missingCount > 0
-      ? `Submit ${enteredCount} marks? (${missingCount} students have no marks entered)`
-      : `Submit ${enteredCount} marks for all students?`;
-
-    Alert.alert('Submit Marks', confirmMsg, [
-      { text: 'Cancel', style: 'cancel' },
+    batch.mutate(
+      { classSectionId: classId, subjectId, termId: term?.id, assessmentTypeId: assessmentId, marks: records } as never,
       {
-        text: 'Submit',
-        onPress: () => {
-          batchMarks.mutate(
-            {
-              subjectId: selectedAssignment.subjectId,
-              classSectionId: selectedAssignment.classSectionId,
-              termId: currentTerm!.id,
-              assessmentTypeId: selectedAssessment,
-              marks,
-            },
-            {
-              onSuccess: () => {
-                toast.success('Marks submitted successfully');
-                router.back();
-              },
-              onError: (err: any) => {
-                toast.error(err?.response?.data?.message ?? 'Failed to submit marks');
-              },
-            }
-          );
+        onSuccess: () => {
+          toast.success(`Saved ${records.length} mark${records.length === 1 ? '' : 's'}`);
+          setScores({});
         },
+        onError: (e: any) =>
+          toast.error(e?.response?.data?.message ?? 'Could not save those marks'),
       },
-    ]);
+    );
   };
 
-  const selectedAssessmentName = assessmentTypes?.find((a) => a.id === selectedAssessment)?.name;
-
-  // ─── Select assignment ───
-  if (step === 'select') {
+  if (!classes.length)
     return (
-      <View style={styles.container}>
-        <ScreenHeader title="Enter Marks" onBack={() => router.back()} />
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.sectionTitle}>Select Class & Subject</Text>
-          {loadingAssignments ? (
-            <LoadingScreen />
-          ) : assignments && assignments.length > 0 ? (
-            assignments.map((a) => (
-              <Pressable key={a.id} style={styles.card} onPress={() => handleSelectAssignment(a)}>
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{a.subject?.name ?? 'Subject'}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {a.classSection?.classLevel?.name} {a.classSection?.name}
-                  </Text>
-                </View>
-                <ChevronDown size={20} color={colors.mutedLight} style={{ transform: [{ rotate: '-90deg' }] }} />
-              </Pressable>
-            ))
-          ) : (
-            <Text style={styles.noData}>No assignments found.</Text>
-          )}
-        </ScrollView>
-      </View>
+      <>
+        <Stack.Screen options={{ title: 'Marks' }} />
+        <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+          <Empty title="No classes to mark" body="Once the office assigns you a subject and a class, it will show up here." />
+        </View>
+      </>
     );
-  }
 
-  // ─── Enter marks ───
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title={selectedAssignment?.subject?.name ?? 'Marks'}
-        subtitle={`${selectedAssignment?.classSection?.classLevel?.name ?? ''} ${selectedAssignment?.classSection?.name ?? ''}`}
-        onBack={() => { setStep('select'); setSelectedAssignment(null); }}
-      />
-      <View style={styles.content}>
-        {/* Assessment type picker */}
-        <Pressable style={styles.pickerButton} onPress={() => setShowAssessments(!showAssessments)}>
-          <Text style={selectedAssessment ? styles.pickerValue : styles.pickerPlaceholder}>
-            {selectedAssessmentName ?? 'Select Assessment Type'}
-          </Text>
-          <ChevronDown size={18} color={colors.muted} />
-        </Pressable>
-        {showAssessments && (
-          <View style={styles.dropdown}>
-            {assessmentTypes?.map((at) => (
-              <Pressable
-                key={at.id}
-                style={styles.dropdownItem}
-                onPress={() => { setSelectedAssessment(at.id); setShowAssessments(false); }}
-              >
-                <Text style={styles.dropdownText}>{at.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+    <>
+      <Stack.Screen options={{ title: params.className ?? 'Enter marks' }} />
+      <View style={{ flex: 1, backgroundColor: t.bg.page }}>
+        <View style={{ paddingHorizontal: gutter, paddingTop: space.md, gap: space.md }}>
+          <Segmented value={classId} onChange={setClassId} options={classes} />
+          {subjects.length ? <Segmented value={subjectId} onChange={setSubjectId} options={subjects} /> : null}
+          {assessments?.length ? (
+            <Segmented
+              value={assessmentId}
+              onChange={setAssessmentId}
+              options={assessments.map((a) => ({ value: a.id, label: a.name }))}
+            />
+          ) : null}
 
-        {/* Student list with mark inputs */}
-        {loadingStudents ? (
-          <LoadingScreen />
-        ) : (
-          <FlatList
-            data={students ?? []}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.markRow}>
-                <View style={styles.markStudent}>
-                  <Text style={styles.markName}>
-                    {item.user?.firstName} {item.user?.lastName}
-                  </Text>
-                  <Text style={styles.markId}>{item.studentIdNumber}</Text>
-                </View>
-                <TextInput
-                  style={styles.markInput}
-                  placeholder="--"
-                  placeholderTextColor={colors.mutedLight}
-                  value={marksMap[item.id] ?? ''}
-                  onChangeText={(text) => setMarksMap((prev) => ({ ...prev, [item.id]: text.replace(/[^0-9]/g, '') }))}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                />
-                <Text style={styles.maxMark}>/100</Text>
-              </View>
-            )}
-            contentContainerStyle={{ paddingBottom: 100 }}
+          <Meter
+            value={filled}
+            max={total || 1}
+            label={`${filled} of ${total} entered`}
+            tone={filled === total && total > 0 ? 'positive' : 'brand'}
+            showValue={false}
           />
-        )}
 
-        {/* Submit */}
-        <View style={styles.submitBar}>
+          {term?.isClosed ? (
+            <Text variant="footnote" tone="critical">
+              This term is closed. Marks cannot be saved until an admin reopens it.
+            </Text>
+          ) : null}
+        </View>
+
+        <FlatList
+          data={(students as any[]) ?? []}
+          keyExtractor={(s) => s.id}
+          keyboardShouldPersistTaps="handled"
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingTop: space.lg, paddingBottom: space.huge }}
+          ListEmptyComponent={isPending ? <LoadingRows count={10} lead /> : null}
+          renderItem={({ item, index }) => {
+            const name = `${item.firstName ?? item.user?.firstName ?? ''} ${
+              item.lastName ?? item.user?.lastName ?? ''
+            }`.trim();
+            const value = scores[item.id] ?? '';
+            const bad = invalid(value);
+            const list = (students as any[]) ?? [];
+
+            return (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.md,
+                  paddingHorizontal: gutter,
+                  paddingVertical: space.sm,
+                  minHeight: touch.comfortable + 8,
+                }}
+              >
+                <Avatar name={name} size="sm" />
+                <View style={{ flex: 1 }}>
+                  <Text variant="bodyMedium" numberOfLines={1}>{name}</Text>
+                  {item.studentIdNumber ? (
+                    <Text variant="footnote" tone="tertiary">{item.studentIdNumber}</Text>
+                  ) : null}
+                </View>
+
+                <TextInput
+                  ref={(el) => { inputs.set(item.id, el); }}
+                  value={value}
+                  onChangeText={(v) => setScore(item.id, v)}
+                  keyboardType="numeric"
+                  returnKeyType={index === list.length - 1 ? 'done' : 'next'}
+                  onSubmitEditing={() => {
+                    const nextStudent = list[index + 1];
+                    if (nextStudent) inputs.get(nextStudent.id)?.focus();
+                  }}
+                  blurOnSubmit={index === list.length - 1}
+                  placeholder="-"
+                  placeholderTextColor={t.fg.placeholder}
+                  selectTextOnFocus
+                  accessibilityLabel={`Mark for ${name}`}
+                  style={[
+                    typeScale.title3,
+                    {
+                      width: 76,
+                      height: touch.min,
+                      textAlign: 'center',
+                      color: bad ? t.status.critical.text : t.fg.primary,
+                      borderWidth: value ? 2 : 1,
+                      borderColor: bad ? t.status.critical.solid : value ? t.brand.solid : t.line.border,
+                      borderRadius: radius.md,
+                      ...curve,
+                    },
+                  ]}
+                />
+              </View>
+            );
+          }}
+        />
+
+        <View
+          style={{
+            paddingHorizontal: gutter,
+            paddingTop: space.md,
+            paddingBottom: space.lg,
+            borderTopWidth: 1,
+            borderTopColor: t.line.hairline,
+            gap: space.sm,
+          }}
+        >
+          {anyInvalid ? (
+            <Text variant="footnote" tone="critical">
+              A mark is outside 0 to 100. Fix it before saving.
+            </Text>
+          ) : null}
           <Button
-            title="Save Marks"
-            onPress={handleSubmit}
-            loading={batchMarks.isPending}
-            fullWidth
-            size="lg"
-            icon={<Save size={18} color={colors.white} />}
+            label={`Save ${filled} mark${filled === 1 ? '' : 's'}`}
+            kind="primary"
+            block
+            loading={batch.isPending}
+            disabled={!filled || anyInvalid || Boolean(term?.isClosed)}
+            onPress={save}
           />
         </View>
       </View>
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
-  card: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  cardSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
-
-  pickerButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg,
-    marginHorizontal: spacing.lg, marginTop: spacing.md,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  pickerValue: { fontSize: fontSize.base, color: colors.foreground },
-  pickerPlaceholder: { fontSize: fontSize.base, color: colors.mutedLight },
-  dropdown: {
-    backgroundColor: colors.white, borderRadius: radius.lg, marginHorizontal: spacing.lg,
-    borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs,
-  },
-  dropdownItem: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  dropdownText: { fontSize: fontSize.sm, color: colors.foreground },
-
-  markRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
-  },
-  markStudent: { flex: 1 },
-  markName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  markId: { fontSize: fontSize.xs, color: colors.muted },
-  markInput: {
-    width: 60, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.foreground,
-    backgroundColor: colors.white,
-  },
-  maxMark: { fontSize: fontSize.sm, color: colors.muted, marginLeft: spacing.xs },
-
-  submitBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: colors.white, padding: spacing.lg,
-    borderTopWidth: 1, borderTopColor: colors.border,
-  },
-});
