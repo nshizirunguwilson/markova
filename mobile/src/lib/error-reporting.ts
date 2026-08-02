@@ -80,7 +80,7 @@ class ErrorReporter {
 export const errorReporter = ErrorReporter.getInstance();
 
 /**
- * Global error handler setup — call this once in _layout.tsx
+ * Global error handler setup. Call this once in _layout.tsx
  */
 export function setupGlobalErrorHandling() {
   const originalHandler = ErrorUtils.getGlobalHandler();

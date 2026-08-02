@@ -70,12 +70,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data } = await api.post('/auth/login', { ...credential, password });
 
     if (data.requiresOtp) {
-      // Backend OTP is session-based — keep the sessionId for verify/resend
+      // Backend OTP is session based, so keep the sessionId for verify and resend
       set({ needsOtp: true, pendingEmail: identifier, pendingSessionId: data.sessionId });
       return { needsOtp: true };
     }
 
-    // Direct login (no OTP required — students). Verify the role is permitted
+    // Direct login, which means no OTP was required. Verify the role is permitted
     // on mobile before we keep the session.
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
     set({ needsOtp: false, pendingEmail: null });
