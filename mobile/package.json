@@ -4,12 +4,11 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android --localhost",
-    "ios": "expo start --ios --localhost",
+    "android": "expo start --android",
+    "ios": "open -a Simulator && expo start --ios",
     "web": "expo start --web --port 8081",
     "typecheck": "tsc --noEmit",
-    "design:check": "tsx scripts/check-contrast.ts",
-    "device": "expo start"
+    "design:check": "tsx scripts/check-contrast.ts"
   },
   "dependencies": {
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",

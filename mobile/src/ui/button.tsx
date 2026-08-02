@@ -72,7 +72,10 @@ export function Button({
       accessibilityState={{ disabled: off, busy: loading }}
       style={({ pressed }) => ({
         minHeight: touch.comfortable,
-        alignSelf: block ? 'stretch' : 'flex-start',
+        // Only claim alignment when filling the width. Setting alignSelf on
+        // every button means a parent can never centre one, which is exactly
+        // what went wrong with the forgot password link on the login screen.
+        alignSelf: block ? 'stretch' : undefined,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
