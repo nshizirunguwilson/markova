@@ -30,6 +30,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 type Decision = "PROMOTE" | "RETAIN";
 
@@ -131,13 +132,11 @@ export default function AdminPromotionPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Student Promotion
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Review each student&apos;s results and discipline, then promote or retain
-          them — the system recommends, you decide.
-        </p>
+        <PageHeader
+          title="Student Promotion"
+          description={<>Review each student&apos;s results and discipline, then promote or retain
+          them — the system recommends, you decide.</>}
+        />
       </div>
 
       {/* Settings */}

@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { exportData } from "@/lib/export";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 type Tab = "books" | "loans" | "overdue" | "analytics";
 
@@ -211,12 +212,12 @@ export default function AdminLibraryPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Library</h1>
-          <p className="mt-1 text-sm text-muted">Manage books, loans, and returns</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Library"
+        description="Manage books, loans, and returns"
+        actions={
+          <>
+            <div className="flex flex-wrap gap-2">
           {tab !== "analytics" && (
             <ExportDropdown onExport={handleExport} />
           )}
@@ -233,7 +234,9 @@ export default function AdminLibraryPage() {
             Add Book
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-5">
         {tabs.map((t) => (

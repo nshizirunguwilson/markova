@@ -25,6 +25,7 @@ import {
   useLibraryAnalytics,
 } from "@/hooks/use-library";
 import { Library, Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function LibrarianBooksPage() {
   const [search, setSearch] = useState("");
@@ -52,12 +53,12 @@ export default function LibrarianBooksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Book Catalog</h1>
-          <p className="text-sm text-muted">Manage library books</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Book Catalog"
+        description="Manage library books"
+        actions={
+          <>
+            <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
             <ArrowDownToLine className="mr-1 h-4 w-4" /> Checkout
           </Button>
@@ -68,7 +69,9 @@ export default function LibrarianBooksPage() {
             <Plus className="mr-1 h-4 w-4" /> Add Book
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Analytics */}
       {analytics && (

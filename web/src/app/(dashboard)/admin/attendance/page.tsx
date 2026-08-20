@@ -17,6 +17,7 @@ import { useAttendanceDashboard, useChronicallyAbsent } from "@/hooks/use-attend
 import { Button } from "@/components/ui";
 import { Calendar, AlertTriangle, Users, TrendingDown } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminAttendancePage() {
   const [date, setDate] = useState(toLocalDateString(new Date()));
@@ -27,12 +28,12 @@ export default function AdminAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Attendance Dashboard</h1>
-          <p className="text-sm text-muted">Real-time attendance monitoring</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Attendance Dashboard"
+        description="Real-time attendance monitoring"
+        actions={
+          <>
+            <div className="flex items-center gap-2">
           <input
             type="date"
             value={date}
@@ -49,7 +50,9 @@ export default function AdminAttendancePage() {
             </Button>
           )}
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-border">

@@ -26,6 +26,7 @@ import {
   Cell,
 } from "recharts";
 import { Users, GraduationCap, BookOpen, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 const COLORS = ["#1B4F72", "#2E86C1", "#5DADE2", "#85C1E9", "#AED6F1"];
 
@@ -44,7 +45,9 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Analytics Dashboard</h1>
+      <PageHeader
+        title="Analytics Dashboard"
+      />
 
       <div className="flex gap-4">
         <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>

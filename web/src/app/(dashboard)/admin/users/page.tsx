@@ -29,6 +29,7 @@ import {
 import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
 import { AddUserModal } from "./add-user-modal";
 import { BulkImportModal } from "./bulk-import-modal";
+import { PageHeader } from "@/components/layout/page-header";
 
 const ROLES = ["ALL", "ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"];
 
@@ -127,14 +128,12 @@ export default function UsersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Users</h1>
-          <p className="mt-1 text-sm text-muted">
-            Manage all users in the system
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+      <PageHeader
+        title="Users"
+        description="Manage all users in the system"
+        actions={
+          <>
+            <div className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => setShowImportModal(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
@@ -144,7 +143,9 @@ export default function UsersPage() {
             Add User
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card padding="sm" className="mb-5">

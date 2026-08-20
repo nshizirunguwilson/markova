@@ -25,6 +25,7 @@ import { useBrandStore } from "@/stores/brand-store";
 import { Logo } from "@/components/ui/logo";
 import { Avatar } from "@/components/ui/avatar";
 import { Printer, Search, Plus, IdCard, Ban } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 type StatusFilter = "all" | "issued" | "not_issued";
 
@@ -67,16 +68,12 @@ export default function AdminIdCardsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">
-            Student ID Cards
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            See who has a card, issue cards for those who don&apos;t, and print them.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Student ID Cards"
+        description="See who has a card, issue cards for those who don&apos;t, and print them."
+        actions={
+          <>
+            <div className="flex flex-wrap gap-2">
           {sectionId && (
             <Button
               variant="outline"
@@ -94,7 +91,9 @@ export default function AdminIdCardsPage() {
             </Button>
           )}
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 print:hidden">

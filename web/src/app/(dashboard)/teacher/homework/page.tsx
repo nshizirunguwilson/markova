@@ -28,6 +28,7 @@ import { FileText, Plus, Trash2, Eye, Check } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect } from "react";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Assignment {
   id: string;
@@ -91,15 +92,17 @@ export default function TeacherHomeworkPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
-          <p className="text-sm text-muted">Create and manage assignments</p>
-        </div>
-        <Button onClick={() => setShowAddModal(true)}>
+      <PageHeader
+        title="Homework"
+        description="Create and manage assignments"
+        actions={
+          <>
+            <Button onClick={() => setShowAddModal(true)}>
           <Plus className="mr-1 h-4 w-4" /> Create Homework
         </Button>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>

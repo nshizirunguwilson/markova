@@ -28,6 +28,7 @@ import {
 import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 const subjectSchema = z.object({
   name: z.string().min(1, "Subject name is required"),
@@ -98,21 +99,21 @@ export default function AdminSubjectsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Subjects</h1>
-          <p className="mt-1 text-sm text-muted">
-            Manage curriculum subjects
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Subjects"
+        description="Manage curriculum subjects"
+        actions={
+          <>
+            <div className="flex gap-2">
           <ExportDropdown onExport={handleExport} disabled={!subjects || subjects.length === 0} />
           <Button onClick={() => { resetForm(); setShowModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Add Subject
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <PageSpinner />

@@ -32,6 +32,7 @@ import {
 import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, School, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 const levelSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -166,19 +167,21 @@ export default function AdminClassesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Classes</h1>
-          <p className="mt-1 text-sm text-muted">Manage class levels and sections</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Classes"
+        description="Manage class levels and sections"
+        actions={
+          <>
+            <div className="flex gap-2">
           <ExportDropdown onExport={handleExport} disabled={!levels || levels.length === 0} />
           <Button onClick={() => { resetLevelForm(); setShowLevelModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Add Class Level
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <PageSpinner />

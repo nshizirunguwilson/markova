@@ -37,6 +37,7 @@ import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 const homeworkSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -178,19 +179,21 @@ export default function AdminHomeworkPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
-          <p className="mt-1 text-sm text-muted">Manage homework assignments</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Homework"
+        description="Manage homework assignments"
+        actions={
+          <>
+            <div className="flex gap-2">
           <ExportDropdown onExport={handleExport} disabled={!homeworks || homeworks.length === 0} />
           <Button onClick={() => { resetForm(); setShowModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Create Homework
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">

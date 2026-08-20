@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentLibraryPage() {
   const [tab, setTab] = useState<"loans" | "catalog">("loans");
@@ -26,13 +27,12 @@ export default function StudentLibraryPage() {
   const history = myLoans?.filter((l: any) => l.status !== "ACTIVE") || [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Library</h1>
-        <p className="text-sm text-muted">Your loans and book catalog</p>
-      </div>
-
-      <div className="flex gap-2 border-b border-border">
+    <PageHeader
+      title="Library"
+      description="Your loans and book catalog"
+      actions={
+        <>
+          <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setTab("loans")}
           className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -166,6 +166,8 @@ export default function StudentLibraryPage() {
           )}
         </>
       )}
-    </div>
+        </>
+      }
+    />
   );
 }

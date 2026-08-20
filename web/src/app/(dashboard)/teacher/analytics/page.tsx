@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { AlertTriangle, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function TeacherAnalyticsPage() {
   const [yearId, setYearId] = useState("");
@@ -29,7 +30,9 @@ export default function TeacherAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Class Analytics</h1>
+      <PageHeader
+        title="Class Analytics"
+      />
 
       <div className="flex gap-4 flex-wrap">
         <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>

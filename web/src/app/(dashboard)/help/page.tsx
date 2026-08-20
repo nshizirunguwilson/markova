@@ -13,6 +13,7 @@ import {
 import { useFaqs, useMyTickets, useCreateTicket } from "@/hooks/use-help";
 import { Search, HelpCircle, Plus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function HelpPage() {
   const [search, setSearch] = useState("");
@@ -59,7 +60,9 @@ export default function HelpPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Help Center</h1>
+        <PageHeader
+          title="Help Center"
+        />
         <Button onClick={() => setShowNewTicket(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Submit Ticket

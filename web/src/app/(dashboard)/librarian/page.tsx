@@ -11,6 +11,7 @@ import {
   BarChart3,
   ArrowRight,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function LibrarianDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -53,10 +54,10 @@ export default function LibrarianDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Welcome back, {user?.firstName}
-        </h1>
-        <p className="mt-1 text-sm text-muted">Librarian Dashboard</p>
+        <PageHeader
+          title={<>Welcome back, {user?.firstName}</>}
+          description="Librarian Dashboard"
+        />
       </div>
 
       <div className="grid grid-cols-4 gap-5">

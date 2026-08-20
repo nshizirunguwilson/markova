@@ -26,6 +26,7 @@ import {
 } from "@/hooks/use-help";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminHelpPage() {
   const [tab, setTab] = useState<"faqs" | "tickets">("faqs");
@@ -106,7 +107,9 @@ export default function AdminHelpPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Help & Support Management</h1>
+      <PageHeader
+        title="Help & Support Management"
+      />
 
       <div className="flex gap-2 border-b border-gray-200">
         {(["faqs", "tickets"] as const).map((t) => (

@@ -21,6 +21,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -104,12 +105,10 @@ export default function AdminDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Welcome back, {user?.firstName}
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Here&apos;s an overview of your school
-        </p>
+        <PageHeader
+          title={<>Welcome back, {user?.firstName}</>}
+          description="Here&apos;s an overview of your school"
+        />
       </div>
 
       <div data-guide="stat-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

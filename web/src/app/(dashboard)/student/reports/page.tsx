@@ -11,6 +11,7 @@ import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import { FileText, Printer } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentReportsPage() {
   const { user } = useAuthStore();
@@ -46,7 +47,9 @@ export default function StudentReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">My Report Cards</h1>
+      <PageHeader
+        title="My Report Cards"
+      />
 
       <div className="flex gap-4">
         <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>

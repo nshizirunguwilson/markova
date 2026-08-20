@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { useActiveLoans, useOverdueLoans } from "@/hooks/use-library";
 import { BookOpen, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function LibrarianLoansPage() {
   const [tab, setTab] = useState<"active" | "overdue">("active");
@@ -25,13 +26,12 @@ export default function LibrarianLoansPage() {
   const loading = tab === "active" ? loadingActive : loadingOverdue;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Loans</h1>
-        <p className="text-sm text-muted">Track active and overdue book loans</p>
-      </div>
-
-      <div className="flex gap-2 border-b border-border">
+    <PageHeader
+      title="Loans"
+      description="Track active and overdue book loans"
+      actions={
+        <>
+          <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setTab("active")}
           className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
@@ -95,6 +95,8 @@ export default function LibrarianLoansPage() {
       ) : (
         <Card><p className="text-center text-muted py-8">No {tab} loans.</p></Card>
       )}
-    </div>
+        </>
+      }
+    />
   );
 }

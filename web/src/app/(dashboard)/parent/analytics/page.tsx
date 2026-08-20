@@ -16,6 +16,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child { id: string; name: string; }
 
@@ -43,7 +44,9 @@ export default function ParentAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Child Performance Trends</h1>
+      <PageHeader
+        title="Child Performance Trends"
+      />
 
       <div className="flex gap-4 flex-wrap">
         {children.length > 1 && (

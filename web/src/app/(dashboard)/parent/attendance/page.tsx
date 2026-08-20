@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { Calendar, Check, X, Clock, Users } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import api from "@/lib/api";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child {
   id: string;
@@ -64,12 +65,12 @@ export default function ParentAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Attendance</h1>
-          <p className="text-sm text-muted">Monitor your child&apos;s attendance</p>
-        </div>
-        {children.length === 1 ? (
+      <PageHeader
+        title="Child&apos;s Attendance"
+        description="Monitor your child&apos;s attendance"
+        actions={
+          <>
+            {children.length === 1 ? (
           <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
             Viewing attendance for: <strong className="ml-1">{children[0].name}</strong>
           </span>
@@ -84,7 +85,9 @@ export default function ParentAttendancePage() {
             ))}
           </select>
         ) : null}
-      </div>
+          </>
+        }
+      />
 
       {children.length > 0 && (
         <Card>

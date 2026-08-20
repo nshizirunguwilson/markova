@@ -17,6 +17,7 @@ import {
 } from "@/hooks/use-academic";
 import { useUsers } from "@/hooks/use-users";
 import { CalendarDays, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 // FullCalendar must run client-side only
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false });
@@ -174,16 +175,13 @@ export default function AdminTimetablePage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Timetable</h1>
-        <p className="mt-1 text-sm text-muted">
-          Pick a class, then click a slot to add a lesson. Drag to move, drag the
-          edge to resize. Switch between month, week and day.
-        </p>
-      </div>
-
-      {/* Class picker */}
+    <PageHeader
+      title="Timetable"
+      description={<>Pick a class, then click a slot to add a lesson. Drag to move, drag the
+          edge to resize. Switch between month, week and day.</>}
+      actions={
+        <>
+          {/* Class picker */}
       <Card padding="sm">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -363,6 +361,8 @@ export default function AdminTimetablePage() {
           </div>
         )}
       </Modal>
-    </div>
+        </>
+      }
+    />
   );
 }

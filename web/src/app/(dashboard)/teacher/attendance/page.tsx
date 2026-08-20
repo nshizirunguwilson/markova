@@ -6,6 +6,7 @@ import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
 import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 
@@ -83,12 +84,12 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Attendance</h1>
-          <p className="text-sm text-muted">Mark student attendance</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Attendance"
+        description="Mark student attendance"
+        actions={
+          <>
+            <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowScanner(!showScanner)}>
             <QrCode className="mr-1 h-4 w-4" /> {showScanner ? "Hide Scanner" : "QR Scanner"}
           </Button>
@@ -96,7 +97,9 @@ export default function TeacherAttendancePage() {
             <Save className="mr-1 h-4 w-4" /> Save
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card>

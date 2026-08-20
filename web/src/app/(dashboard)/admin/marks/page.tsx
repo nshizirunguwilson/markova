@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminMarksPage() {
   const { data: years } = useAcademicYears();
@@ -87,12 +88,12 @@ export default function AdminMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Marks Overview</h1>
-          <p className="text-sm text-muted">View and manage class results</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Marks Overview"
+        description="View and manage class results"
+        actions={
+          <>
+            <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -113,7 +114,9 @@ export default function AdminMarksPage() {
             <Download className="mr-1 h-4 w-4" /> Export CSV
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card>

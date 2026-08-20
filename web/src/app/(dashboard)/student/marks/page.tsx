@@ -6,6 +6,7 @@ import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentMarksPage() {
   const { user } = useAuthStore();
@@ -49,12 +50,12 @@ export default function StudentMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">My Marks</h1>
-          <p className="text-sm text-muted">View your academic performance</p>
-        </div>
-        <select
+      <PageHeader
+        title="My Marks"
+        description="View your academic performance"
+        actions={
+          <>
+            <select
           value={selectedTerm}
           onChange={(e) => setSelectedTerm(e.target.value)}
           className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -66,7 +67,9 @@ export default function StudentMarksPage() {
             </option>
           ))}
         </select>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>

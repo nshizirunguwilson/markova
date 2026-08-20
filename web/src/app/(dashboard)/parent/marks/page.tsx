@@ -7,6 +7,7 @@ import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, Users } from "lucide-react";
 import api from "@/lib/api";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child {
   id: string; // student ID
@@ -77,12 +78,12 @@ export default function ParentMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Marks</h1>
-          <p className="text-sm text-muted">View your child&apos;s academic performance</p>
-        </div>
-        <div className="flex gap-3">
+      <PageHeader
+        title="Child&apos;s Marks"
+        description="View your child&apos;s academic performance"
+        actions={
+          <>
+            <div className="flex gap-3">
           {children.length === 1 ? (
             <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
               Viewing marks for: <strong className="ml-1">{children[0].name}</strong>
@@ -113,7 +114,9 @@ export default function ParentMarksPage() {
             ))}
           </select>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Child info card */}
       {children.length > 0 && (

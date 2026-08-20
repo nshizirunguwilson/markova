@@ -12,6 +12,7 @@ import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { FileText, Printer } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child { id: string; name: string; }
 
@@ -41,7 +42,9 @@ export default function ParentReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Report Cards</h1>
+      <PageHeader
+        title="Report Cards"
+      />
 
       <div className="flex gap-4 flex-wrap">
         {children.length > 1 && (

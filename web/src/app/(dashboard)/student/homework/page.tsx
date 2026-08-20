@@ -4,6 +4,7 @@ import { Card, CardTitle, Badge, Spinner, Button } from "@/components/ui";
 import { useStudentHomework, useSubmitHomework } from "@/hooks/use-homework";
 import { useAuthStore } from "@/stores/auth-store";
 import { FileText, Upload, Check, Clock, AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentHomeworkPage() {
   const { user } = useAuthStore();
@@ -17,13 +18,12 @@ export default function StudentHomeworkPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
-        <p className="text-sm text-muted">View assignments and submit work</p>
-      </div>
-
-      {isLoading ? (
+    <PageHeader
+      title="Homework"
+      description="View assignments and submit work"
+      actions={
+        <>
+          {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
       ) : homeworks?.length > 0 ? (
         <div className="space-y-4">
@@ -82,6 +82,8 @@ export default function StudentHomeworkPage() {
       ) : (
         <Card><p className="text-center text-muted py-8">No homework assigned.</p></Card>
       )}
-    </div>
+        </>
+      }
+    />
   );
 }

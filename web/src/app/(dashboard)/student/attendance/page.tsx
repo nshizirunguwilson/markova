@@ -6,6 +6,7 @@ import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
 import { Calendar, Check, X, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentAttendancePage() {
   const { user } = useAuthStore();
@@ -47,13 +48,12 @@ export default function StudentAttendancePage() {
   const monthName = viewDate.toLocaleString("default", { month: "long", year: "numeric" });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">My Attendance</h1>
-        <p className="text-sm text-muted">View your attendance record</p>
-      </div>
-
-      {isLoading ? (
+    <PageHeader
+      title="My Attendance"
+      description="View your attendance record"
+      actions={
+        <>
+          {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
       ) : data ? (
         <>
@@ -138,6 +138,8 @@ export default function StudentAttendancePage() {
           <p className="text-center text-muted py-8">No attendance records found.</p>
         </Card>
       )}
-    </div>
+        </>
+      }
+    />
   );
 }

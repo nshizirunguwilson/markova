@@ -24,6 +24,7 @@ import {
   PageSpinner,
 } from "@/components/ui";
 import { useUser, useUpdateUser } from "@/hooks/use-users";
+import { PageHeader } from "@/components/layout/page-header";
 
 const schema = z.object({
   firstName: z.string().min(1),
@@ -99,24 +100,9 @@ export default function UserDetailPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-4">
-            <Avatar
-              src={user.photoUrl}
-              fallback={`${user.firstName[0]}${user.lastName[0]}`}
-              size="lg"
-            />
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-foreground">
-                {user.firstName} {user.lastName}
-              </h1>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge variant={roleBadge[user.role]}>{user.role}</Badge>
-                <Badge variant={user.isActive ? "success" : "danger"}>
-                  {user.isActive ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-            </div>
-          </div>
+          <PageHeader
+            title={<>{user.firstName} {user.lastName}</>}
+          />
         </div>
         <div className="flex gap-3">
           {editing ? (

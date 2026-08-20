@@ -19,6 +19,7 @@ import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminStudentsPage() {
   const [filters, setFilters] = useState<UserFilters>({
@@ -80,15 +81,15 @@ export default function AdminStudentsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Students</h1>
-          <p className="mt-1 text-sm text-muted">
-            {meta.total} students enrolled
-          </p>
-        </div>
-        <ExportDropdown onExport={handleExport} disabled={students.length === 0} />
-      </div>
+      <PageHeader
+        title="Students"
+        description={<>{meta.total} students enrolled</>}
+        actions={
+          <>
+            <ExportDropdown onExport={handleExport} disabled={students.length === 0} />
+          </>
+        }
+      />
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">
