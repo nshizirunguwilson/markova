@@ -78,7 +78,7 @@ export default function ForgotPasswordScreen() {
               </Text>
               <Input
                 label="Email or Phone"
-                placeholder="you@markova.edu or +250 788 000 000"
+                placeholder="Email or phone number"
                 value={identifier}
                 onChangeText={setIdentifier}
                 keyboardType="email-address"

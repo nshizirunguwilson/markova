@@ -197,7 +197,7 @@ export default function AdminHomeworkPage() {
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={filterLevelId}
             onChange={(e) => { setFilterLevelId(e.target.value); setFilterSectionId(""); }}
            aria-label="All Levels">
@@ -208,7 +208,7 @@ export default function AdminHomeworkPage() {
           </select>
           {filterLevelId && (
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={filterSectionId}
               onChange={(e) => setFilterSectionId(e.target.value)}
              aria-label="All Sections">
@@ -219,7 +219,7 @@ export default function AdminHomeworkPage() {
             </select>
           )}
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={filterSubjectId}
             onChange={(e) => setFilterSubjectId(e.target.value)}
            aria-label="All Subjects">
@@ -343,7 +343,7 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Class Level</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
                 value={modalLevelId}
                 disabled={!!editingId}
                 onChange={(e) => { setModalLevelId(e.target.value); setValue("classSectionId", ""); }}

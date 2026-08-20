@@ -106,7 +106,7 @@ export default function AdminStudentsPage() {
           </div>
 
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={levelId}
             onChange={(e) => {
               setLevelId(e.target.value);
@@ -122,7 +122,7 @@ export default function AdminStudentsPage() {
 
           {levelId && (
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => {
                 setSectionId(e.target.value);

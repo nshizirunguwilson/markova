@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { Logo } from "./logo";
 import { useBrandStore } from "@/stores/brand-store";
 
@@ -17,11 +17,11 @@ describe("Logo", () => {
     resetBrand();
   });
 
-  it("falls back to the inline Markova mark when no crest is uploaded", () => {
+  it("falls back to Markova's own mark when no crest is uploaded", () => {
     const { container } = render(<Logo />);
-    // Inlined, so it cannot 404 and costs no request.
-    expect(container.querySelector("svg")).toBeTruthy();
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/brand/logo-mark.png"
+    );
   });
 
   it("renders the school's crest once one is uploaded", () => {
@@ -35,7 +35,6 @@ describe("Logo", () => {
     expect(img?.getAttribute("src")).toBe(
       "http://localhost:3000/uploads/branding/crest.png"
     );
-    expect(container.querySelector("svg")).toBeNull();
   });
 
   it("shows the school name beside the mark in the lockup variant", () => {
@@ -52,15 +51,38 @@ describe("Logo", () => {
 
   it("honours the requested size", () => {
     const { container } = render(<Logo size={64} />);
-    const svg = container.querySelector("svg");
-    expect(svg?.getAttribute("width")).toBe("64");
-    expect(svg?.getAttribute("height")).toBe("64");
+    const img = container.querySelector("img");
+    expect(img?.getAttribute("width")).toBe("64");
+    expect(img?.getAttribute("height")).toBe("64");
   });
 
-  it("is hidden from screen readers — the school name carries the meaning", () => {
+  it("names the image for screen readers", () => {
     const { container } = render(<Logo />);
-    expect(container.querySelector("svg")?.getAttribute("aria-hidden")).toBe(
-      "true"
+    expect(container.querySelector("img")?.getAttribute("alt")).toBe("Markova");
+
+    useBrandStore.setState({ logoUrl: "/uploads/branding/crest.png" });
+    const withCrest = render(<Logo />);
+    expect(
+      withCrest.container.querySelector("img")?.getAttribute("alt")
+    ).toContain("logo");
+  });
+
+  it("falls back to the Markova mark when a school crest fails to load", () => {
+    // Uploaded logos can point at a file that no longer exists.
+    useBrandStore.setState({ logoUrl: "/uploads/branding/missing.png" });
+    const { container } = render(<Logo />);
+    const img = container.querySelector("img")!;
+    fireEvent.error(img);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/brand/logo-mark.png"
+    );
+  });
+
+  it("ignores a school crest when asked for the product mark only", () => {
+    useBrandStore.setState({ logoUrl: "/uploads/branding/crest.png" });
+    const { container } = render(<Logo productOnly />);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/brand/logo-mark.png"
     );
   });
 });

@@ -66,7 +66,8 @@ const config: ExpoConfig = {
     [
       'expo-notifications',
       {
-        icon: './assets/android-icon-monochrome.png',
+        // White silhouette on transparent — Android tints it in the status bar.
+        icon: './assets/notification-icon.png',
         color: BRAND_NAVY,
       },
     ],

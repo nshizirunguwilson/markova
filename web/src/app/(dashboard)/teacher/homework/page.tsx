@@ -187,7 +187,7 @@ export default function TeacherHomeworkPage() {
                             min="0"
                             max={viewingHw.maxMarks}
                             placeholder="—"
-                            className="w-16 rounded border border-border px-2 py-1 text-sm"
+                            className="w-16 rounded border border-input px-2 py-1 text-sm"
                             onBlur={(e) => {
                               if (e.target.value) {
                                 gradeSubmission.mutate({ id: sub.id, marks: Number(e.target.value) });

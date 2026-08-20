@@ -6,7 +6,7 @@ the source of truth, and the two generated outputs must never be edited by hand.
 | Source | Generates | Command |
 | --- | --- | --- |
 | `design/tokens.json` | `web/src/app/tokens.css`, `mobile/src/constants/theme.ts` | `node scripts/sync-design-tokens.mjs` |
-| `design/logo-mark.svg`, `design/logo-glyph.svg` | 7 raster icon slots in `web/` and `mobile/` | `node scripts/build-brand-assets.mjs` |
+| `brand/noText.png` | the square icon slots in `web/` | `node scripts/build-brand-assets.mjs` |
 
 CI runs `sync-design-tokens.mjs --check` and `check-contrast.mjs`, so a drifted
 token file or a colour pair that fails WCAG AA fails the build.
@@ -61,27 +61,38 @@ generated theme exports `fontFamily` for exactly this.
 
 ## The mark
 
-`logo-mark.svg` is a navy badge (48×48, corner radius 11 ≈ 23%) holding a white
-geometric monogram. `logo-glyph.svg` is the same monogram alone in
-`currentColor` on a transparent ground, for the Android adaptive foreground,
-the themed-icon layer and any dark surface.
+Markova's mark is a graduation cap with a tassel and a pencil. The artwork is
+hand-authored and lives in `brand/`, which is the source of truth:
 
-The monogram's middle vertex descends all the way to the baseline, the way
-Poppins draws its own M. That was not the first attempt: a conventional
-half-depth vertex was rendered at 16px and **read as an H**, because the notch
-filled in at favicon size. Five candidates were rasterised at 16px and compared
-on the pixel grid before this construction was chosen. Any future edit to the
-mark should be re-checked the same way — render it at 16px, not at 512px.
+| File | What it is |
+| --- | --- |
+| `brand/noText.png` | the mark alone |
+| `brand/text.png` | the wordmark |
+| `brand/allBeside.png` | horizontal lockup |
+| `brand/allAbove.png` | stacked lockup |
 
-Round caps extend the stroke by 2.25 units, which puts the glyph's visual box at
-27.5×22.5 centred on (24,24), so the mark is optically centred rather than
-merely mathematically centred.
+Per-platform exports sit in `web/public/brand/`, `backend/assets/` (email and
+PDF headers) and `mobile/assets/` (app icon, splash, adaptive layers,
+notification silhouette). `scripts/build-brand-assets.mjs` re-derives the square
+icon slots from `brand/noText.png` so they stay in step if the artwork changes;
+the exported lockups and the mobile assets are authored, not generated, and the
+script leaves them alone.
+
+The source artwork is navy on transparent, so any slot with a navy ground —
+the iOS home-screen icon, the maskable PWA icon — is recoloured white first.
+Getting that wrong produces a navy mark on a navy square, which is invisible
+rather than obviously broken, so check the output rather than assuming.
 
 ### Where it appears
 
 `<Logo />` (`web/src/components/ui/logo.tsx`) and `<Logo />`
 (`mobile/src/components/Logo.tsx`) both render the school's uploaded
-`logo_url` when one exists and fall back to this mark when it does not. Every
-surface goes through those two components — sidebar, both login screens, ID
-cards, PDF report headers and the mobile header — so a school that uploads a
+`logo_url` when one exists and fall back to Markova's mark when it does not.
+Every surface goes through those two components — sidebar, both login screens,
+ID cards, PDF report headers and the mobile header — so a school that uploads a
 crest gets it everywhere at once.
+
+A school logo is user-uploaded and can point at a file that no longer exists,
+so both components fall back to the Markova mark on a load error rather than
+leaving a broken image. Pass `productOnly` where the product's own identity is
+wanted regardless of tenant — app chrome, the about screen.

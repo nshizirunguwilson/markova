@@ -52,7 +52,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    // Control boundaries need 3:1 contrast; `border` is the decorative divider
+    // at 1.2:1 and was effectively invisible around a field.
+    borderColor: colors.borderInput,
     borderRadius: radius.xl,
     backgroundColor: colors.white,
   },

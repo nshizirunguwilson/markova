@@ -168,7 +168,7 @@ export default function ProfilePage() {
             </label>
             {isEditing ? (
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.firstName}
                 onChange={(e) =>
                   setForm({ ...form, firstName: e.target.value })
@@ -185,7 +185,7 @@ export default function ProfilePage() {
             </label>
             {isEditing ? (
               <input
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                 aria-label="Last Name"
@@ -209,7 +209,7 @@ export default function ProfilePage() {
           </label>
           {isEditing ? (
             <input
-              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+              className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               placeholder="+250..."
@@ -253,7 +253,7 @@ export default function ProfilePage() {
               </label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.currentPassword}
                 onChange={(e) =>
                   setPasswordForm({
@@ -270,7 +270,7 @@ export default function ProfilePage() {
               </label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.newPassword}
                 onChange={(e) =>
                   setPasswordForm({
@@ -288,7 +288,7 @@ export default function ProfilePage() {
               </label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.confirmPassword}
                 onChange={(e) =>
                   setPasswordForm({

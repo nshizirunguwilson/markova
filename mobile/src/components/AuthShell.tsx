@@ -42,7 +42,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
       >
         <View style={styles.card}>
           <View style={styles.header}>
-            <Logo size={56} />
+            <Logo size={48} />
             <Text style={[styles.title, { color: primaryColor }]}>
               {title ?? schoolName}
             </Text>
@@ -62,12 +62,14 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: spacing['2xl'],
+    // A phone is ~393pt wide. The previous 24 + 32 of padding per side left
+    // only 281pt of usable width, which is what made the form feel blown up.
+    padding: spacing.xl,
   },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    padding: spacing['3xl'],
+    padding: spacing['2xl'],
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -76,11 +78,11 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing['3xl'],
-    gap: spacing.lg,
+    marginBottom: spacing['2xl'],
+    gap: spacing.md,
   },
   title: {
-    fontSize: fontSize['2xl'],
+    fontSize: fontSize.xl,
     fontFamily: fontFamily.bold,
     textAlign: 'center',
   },
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     textAlign: 'center',
-    marginTop: -spacing.md,
+    marginTop: -spacing.sm,
     fontFamily: fontFamily.regular,
   },
 });

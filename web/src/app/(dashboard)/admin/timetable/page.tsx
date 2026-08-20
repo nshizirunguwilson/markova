@@ -205,7 +205,7 @@ export default function AdminTimetablePage() {
               Class Level
             </label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => {
                 setLevelId(e.target.value);
@@ -226,7 +226,7 @@ export default function AdminTimetablePage() {
               Section
             </label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               disabled={!levelId}
@@ -307,7 +307,7 @@ export default function AdminTimetablePage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Subject</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.subjectId}
                 onChange={(e) =>
                   setModal({ ...modal, subjectId: e.target.value })
@@ -325,7 +325,7 @@ export default function AdminTimetablePage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Teacher</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.teacherId}
                 onChange={(e) =>
                   setModal({ ...modal, teacherId: e.target.value })
@@ -344,7 +344,7 @@ export default function AdminTimetablePage() {
               <div>
                 <label className="mb-1 block text-sm font-medium">Day</label>
                 <select
-                  className="w-full rounded-lg border border-border px-2 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.dayOfWeek}
                   onChange={(e) =>
                     setModal({ ...modal, dayOfWeek: Number(e.target.value) })
@@ -362,7 +362,7 @@ export default function AdminTimetablePage() {
                 <label className="mb-1 block text-sm font-medium">Start</label>
                 <input
                   type="time"
-                  className="w-full rounded-lg border border-border px-2 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.startTime}
                   onChange={(e) =>
                     setModal({ ...modal, startTime: e.target.value })
@@ -374,7 +374,7 @@ export default function AdminTimetablePage() {
                 <label className="mb-1 block text-sm font-medium">End</label>
                 <input
                   type="time"
-                  className="w-full rounded-lg border border-border px-2 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.endTime}
                   onChange={(e) =>
                     setModal({ ...modal, endTime: e.target.value })
@@ -389,7 +389,7 @@ export default function AdminTimetablePage() {
               </label>
               <input
                 type="text"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.room}
                 onChange={(e) => setModal({ ...modal, room: e.target.value })}
                 placeholder="e.g. Lab 2"

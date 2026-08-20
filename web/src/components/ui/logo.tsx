@@ -1,74 +1,62 @@
 "use client";
 
+import { useState } from "react";
 import { cn, mediaUrl } from "@/lib/utils";
 import { useBrandStore } from "@/stores/brand-store";
 
 /**
- * The Markova monogram, inlined rather than fetched so it never 404s, never
- * flashes, and costs no request. Geometry is identical to design/logo-mark.svg
- * — change one, run `node scripts/build-brand-assets.mjs`, and change the other.
+ * Markova's own mark — the graduation cap and pencil from `brand/`, shown when
+ * the school has not uploaded a logo of its own. Served from `web/public/brand`;
+ * the same artwork backs the favicon, the PWA icons and the email header.
  */
-function MarkovaMark({ size, className }: { size: number; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 48 48"
-      width={size}
-      height={size}
-      className={className}
-      role="img"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect width="48" height="48" rx="11" fill="var(--color-primary)" />
-      <path
-        d="M12.5 33V15L24 33L35.5 15V33"
-        fill="none"
-        stroke="var(--color-white)"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+const FALLBACK_MARK = "/brand/logo-mark.png";
 
 interface LogoProps {
   /** Edge length of the square mark, in px. */
   size?: number;
-  /** `mark` renders the badge alone; `lockup` adds the school name beside it. */
+  /** `mark` renders the mark alone; `lockup` adds the school name beside it. */
   variant?: "mark" | "lockup";
+  /** Ignore any school logo and always show Markova's own mark. */
+  productOnly?: boolean;
   className?: string;
   /** Applied to the wordmark in `lockup`, so callers control its scale/colour. */
   wordmarkClassName?: string;
 }
 
 /**
- * Renders the school's uploaded logo when one exists, and the Markova mark
- * when it does not. Every place a logo appears goes through this component, so
+ * Renders the school's uploaded logo when it has one, and Markova's mark when
+ * it does not. Every place a logo appears goes through this component, so
  * uploading a crest in Settings updates all of them at once.
+ *
+ * A school logo is user-uploaded and can point at a file that no longer exists,
+ * so a load failure falls back to the Markova mark rather than leaving a broken
+ * image.
  */
 export function Logo({
   size = 32,
   variant = "mark",
+  productOnly = false,
   className,
   wordmarkClassName,
 }: LogoProps) {
   const schoolName = useBrandStore((s) => s.schoolName);
   const logoUrl = useBrandStore((s) => s.logoUrl);
-  const resolved = mediaUrl(logoUrl);
+  const [failed, setFailed] = useState(false);
 
-  const mark = resolved ? (
+  const schoolLogo = productOnly || failed ? null : mediaUrl(logoUrl);
+  const src = schoolLogo ?? FALLBACK_MARK;
+
+  const mark = (
     // eslint-disable-next-line @next/next/no-img-element -- runtime URL on the API origin, not a build-time asset
     <img
-      src={resolved}
-      alt=""
+      src={src}
+      alt={schoolLogo ? `${schoolName} logo` : "Markova"}
       width={size}
       height={size}
-      className="rounded-lg object-contain"
+      className="object-contain"
       style={{ width: size, height: size }}
+      onError={() => setFailed(true)}
     />
-  ) : (
-    <MarkovaMark size={size} />
   );
 
   if (variant === "mark") {

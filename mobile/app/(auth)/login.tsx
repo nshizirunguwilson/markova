@@ -58,12 +58,9 @@ export default function LoginScreen() {
   return (
     <AuthShell subtitle="School Management System">
         <View>
-          <Text style={styles.formTitle}>Sign In</Text>
-          <Text style={styles.formSubtitle}>Enter your credentials to continue</Text>
-
           <Input
             label="Email or Phone"
-            placeholder="you@markova.edu or +250 788 000 000"
+            placeholder="Email or phone number"
             value={identifier}
             onChangeText={setIdentifier}
             keyboardType="email-address"
@@ -101,16 +98,6 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  formTitle: {
-    fontSize: fontSize.xl,
-    fontFamily: fontFamily.bold,
-    color: colors.foreground,
-    marginBottom: spacing.xs,
-  },
-  formSubtitle: {
-    fontSize: fontSize.sm,
-    color: colors.muted,
-    marginBottom: spacing['2xl'], fontFamily: fontFamily.regular },
   forgotLink: {
     alignSelf: 'center',
     marginTop: spacing.lg,

@@ -146,7 +146,7 @@ export default function AdminPromotionPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Academic Year</label>
             <select
-              className="w-full max-w-md rounded-lg border border-border px-3 py-2 text-sm"
+              className="w-full max-w-md rounded-lg border border-input px-3 py-2 text-sm"
               value={academicYearId}
               onChange={(e) => setAcademicYearId(e.target.value)}
              aria-label="Academic Year">
@@ -166,7 +166,7 @@ export default function AdminPromotionPage() {
               </h3>
               <div className="space-y-3">
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={fromLevelId}
                   onChange={(e) => { setFromLevelId(e.target.value); setFromSectionId(""); }}
                  aria-label="Select level">
@@ -176,7 +176,7 @@ export default function AdminPromotionPage() {
                   ))}
                 </select>
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={fromSectionId}
                   onChange={(e) => setFromSectionId(e.target.value)}
                   disabled={!fromLevelId}
@@ -195,7 +195,7 @@ export default function AdminPromotionPage() {
               </h3>
               <div className="space-y-3">
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={toLevelId}
                   onChange={(e) => { setToLevelId(e.target.value); setToSectionId(""); }}
                  aria-label="Select level">
@@ -205,7 +205,7 @@ export default function AdminPromotionPage() {
                   ))}
                 </select>
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={toSectionId}
                   onChange={(e) => setToSectionId(e.target.value)}
                   disabled={!toLevelId}
@@ -231,7 +231,7 @@ export default function AdminPromotionPage() {
               </label>
               <input
                 type="number" min="0" max="100"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 placeholder={defaultThreshold ? `${defaultThreshold}` : "50"}
                 value={passThreshold}
                 onChange={(e) => setPassThreshold(e.target.value)}
@@ -243,7 +243,7 @@ export default function AdminPromotionPage() {
               </label>
               <input
                 type="number" min="0" max="100"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 placeholder="50"
                 value={disciplineThreshold}
                 onChange={(e) => setDisciplineThreshold(e.target.value)}

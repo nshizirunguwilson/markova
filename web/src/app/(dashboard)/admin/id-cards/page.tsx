@@ -132,7 +132,7 @@ export default function AdminIdCardsPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
              aria-label="Class Level">
@@ -145,7 +145,7 @@ export default function AdminIdCardsPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Section</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               disabled={!levelId}
@@ -159,7 +159,7 @@ export default function AdminIdCardsPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Card status</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
              aria-label="Card status">
