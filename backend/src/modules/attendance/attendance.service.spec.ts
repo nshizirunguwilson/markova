@@ -116,7 +116,7 @@ describe('AttendanceService', () => {
         {
           parentUserId: 'parent-user-1',
           parent: {
-            phone: '+256700000000',
+            phone: '+250788000000',
             email: 'parent@test.com',
             firstName: 'Mary',
           },

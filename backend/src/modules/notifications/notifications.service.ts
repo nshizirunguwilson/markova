@@ -111,7 +111,7 @@ export class NotificationsService implements OnModuleInit {
       if (this.transporter) {
         const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
         const fromEmail =
-          this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+          this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
         const emailPromises = users
           .filter((u) => u.email)
@@ -302,7 +302,7 @@ export class NotificationsService implements OnModuleInit {
     if (!this.transporter) return;
 
     const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
-    const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+    const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
     await this.transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
@@ -340,7 +340,7 @@ export class NotificationsService implements OnModuleInit {
     }
 
     const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
-    const fromEmail = this.config.get('SMTP_FROM') || 'noreply@wilsonn.tech';
+    const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
     try {
       await this.transporter.sendMail({

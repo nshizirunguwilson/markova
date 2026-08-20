@@ -20,7 +20,7 @@ let TEST_PASSWORD_HASH: string;
 const makeUser = (overrides: Record<string, any> = {}) => ({
   id: 'user-1',
   email: 'wilsonshizirungu@gmail.com',
-  phone: '+256700000001',
+  phone: '+250788000001',
   role: 'ADMIN',
   firstName: 'Test',
   lastName: 'User',
