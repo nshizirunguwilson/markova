@@ -106,7 +106,7 @@ describe('DisciplineService', () => {
       });
       mockPrisma.disciplineAppeal.create.mockResolvedValue({ id: 'ap-1' });
 
-      await service.createAppeal(dto as any, 'parent-1', 'PARENT');
+      await service.createAppeal(dto, 'parent-1', 'PARENT');
 
       expect(mockOwnership.verifyStudentAccess).toHaveBeenCalledWith(
         'parent-1',

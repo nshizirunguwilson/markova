@@ -354,7 +354,9 @@ export class AcademicService {
     // Subject → Mark is a cascade delete, so removing a subject would silently
     // erase every mark recorded for it. Refuse when graded data exists; the
     // admin can deactivate the subject (isActive=false) instead.
-    const markCount = await this.prisma.mark.count({ where: { subjectId: id } });
+    const markCount = await this.prisma.mark.count({
+      where: { subjectId: id },
+    });
     if (markCount > 0) {
       throw new BadRequestException(
         'Cannot delete a subject that has recorded marks; deactivate it instead',

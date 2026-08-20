@@ -16,9 +16,12 @@ async function bootstrap() {
   // instead of the legacy `(.*)` form; this keeps /uploads served outside the
   // global `api` prefix without the LegacyRouteConverter boot warning.
   app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });
-  app.useStaticAssets(join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'), {
-    prefix: '/uploads/',
-  });
+  app.useStaticAssets(
+    join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
+    {
+      prefix: '/uploads/',
+    },
+  );
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },

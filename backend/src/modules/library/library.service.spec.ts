@@ -50,7 +50,7 @@ describe('LibraryService', () => {
         title: 'Algebra',
         author: 'X',
         quantity: 5,
-      } as any);
+      });
       expect(mockPrisma.book.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ quantity: 5, availableCount: 5 }),
@@ -93,9 +93,7 @@ describe('LibraryService', () => {
       });
       mockPrisma.schoolConfig.findUnique.mockImplementation(({ where }: any) =>
         Promise.resolve(
-          where.key === 'borrowing_limit'
-            ? { value: '3' }
-            : { value: '14' },
+          where.key === 'borrowing_limit' ? { value: '3' } : { value: '14' },
         ),
       );
       mockPrisma.bookLoan.create.mockResolvedValue({ id: 'loan-1' });
@@ -103,14 +101,16 @@ describe('LibraryService', () => {
       // Deterministic regardless of call order: the overdue check is the only
       // count() whose where-clause carries a dueDate filter.
       mockPrisma.bookLoan.count.mockImplementation(({ where }: any) =>
-        Promise.resolve(where?.dueDate ? (over.overdue ?? 0) : (over.activeLoans ?? 0)),
+        Promise.resolve(
+          where?.dueDate ? (over.overdue ?? 0) : (over.activeLoans ?? 0),
+        ),
       );
     };
 
     it('creates a loan and decrements availability (happy path)', async () => {
       arrange();
 
-      const result = await service.checkout(dto as any);
+      const result = await service.checkout(dto);
 
       expect(result).toMatchObject({ id: 'loan-1' });
       expect(mockPrisma.$transaction).toHaveBeenCalled();
@@ -139,7 +139,10 @@ describe('LibraryService', () => {
     });
 
     it('throws NotFoundException when the student is unknown', async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({ id: 'b1', availableCount: 2 });
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: 'b1',
+        availableCount: 2,
+      });
       mockPrisma.student.findFirst.mockResolvedValue(null);
       await expect(service.checkout(dto as any)).rejects.toThrow(
         NotFoundException,
@@ -157,7 +160,9 @@ describe('LibraryService', () => {
       mockPrisma.bookLoan.update.mockResolvedValue({ id: 'loan-1' });
       mockPrisma.book.update.mockResolvedValue({});
 
-      const result = await service.returnBook({ bookIdentifier: 'BC-1' } as any);
+      const result = await service.returnBook({
+        bookIdentifier: 'BC-1',
+      });
 
       expect(result).toMatchObject({ id: 'loan-1' });
       expect(mockPrisma.$transaction).toHaveBeenCalled();

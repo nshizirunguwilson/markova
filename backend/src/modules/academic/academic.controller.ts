@@ -419,7 +419,8 @@ export class AcademicController {
   @Post('promote/preview')
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'Deliberation preview: per-student average, discipline, recommendation',
+    summary:
+      'Deliberation preview: per-student average, discipline, recommendation',
   })
   promotionPreview(@Body() dto: PromotionPreviewDto) {
     return this.service.getPromotionPreview(dto);

@@ -21,7 +21,7 @@ export class HomeworkService {
   // HOMEWORK CRUD
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async create(dto: CreateHomeworkDto, teacherId: string, role?: string) {
+  async create(dto: CreateHomeworkDto, teacherId: string, _role?: string) {
     const resolvedTeacherId = teacherId || dto.teacherId;
     if (!resolvedTeacherId) {
       throw new ForbiddenException('Teacher ID is required');

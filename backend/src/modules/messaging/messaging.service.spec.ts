@@ -7,7 +7,11 @@ describe('MessagingService', () => {
   let service: MessagingService;
 
   const mockPrisma: any = {
-    conversation: { findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+    conversation: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
     conversationParticipant: { findFirst: jest.fn() },
     message: {
       create: jest.fn(),
@@ -21,7 +25,9 @@ describe('MessagingService', () => {
 
   /** The caller is a participant of the conversation. */
   const asParticipant = () =>
-    mockPrisma.conversationParticipant.findFirst.mockResolvedValue({ id: 'p1' });
+    mockPrisma.conversationParticipant.findFirst.mockResolvedValue({
+      id: 'p1',
+    });
   /** The caller is an outsider. */
   const asOutsider = () =>
     mockPrisma.conversationParticipant.findFirst.mockResolvedValue(null);
@@ -90,10 +96,7 @@ describe('MessagingService', () => {
       asParticipant();
       mockPrisma.message.create.mockResolvedValue({});
 
-      await service.sendMessage(
-        { conversationId: 'c1', content: 'hi' } as any,
-        'u1',
-      );
+      await service.sendMessage({ conversationId: 'c1', content: 'hi' }, 'u1');
 
       const data = mockPrisma.message.create.mock.calls[0][0].data;
       expect(data.contentType).toBe('TEXT');
@@ -206,7 +209,8 @@ describe('MessagingService', () => {
       );
 
       const created =
-        mockPrisma.conversation.create.mock.calls[0][0].data.participants.create;
+        mockPrisma.conversation.create.mock.calls[0][0].data.participants
+          .create;
       expect(created.map((p: any) => p.userId)).toEqual(['u1', 'u2', 'u3']);
       expect(created[0].isAdmin).toBe(true);
     });

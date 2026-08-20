@@ -105,7 +105,7 @@ describe('SchoolConfigService', () => {
           { key: 'school_name', value: 'Markova' },
           { key: 'school_phone', value: '+250788000000' },
         ],
-      } as any);
+      });
 
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
       expect(result).toHaveLength(2);

@@ -79,7 +79,9 @@ export class NotificationsService implements OnModuleInit {
             ...(dto.relatedEntityType && {
               relatedEntityType: dto.relatedEntityType,
             }),
-            ...(dto.relatedEntityId && { relatedEntityId: dto.relatedEntityId }),
+            ...(dto.relatedEntityId && {
+              relatedEntityId: dto.relatedEntityId,
+            }),
           });
           break;
       }
@@ -268,7 +270,9 @@ export class NotificationsService implements OnModuleInit {
         )
         .filter((t): t is string => Boolean(t));
       if (dead.length) {
-        await this.prisma.pushToken.deleteMany({ where: { token: { in: dead } } });
+        await this.prisma.pushToken.deleteMany({
+          where: { token: { in: dead } },
+        });
         this.logger.log(`Pruned ${dead.length} unregistered push token(s)`);
       }
 

@@ -126,7 +126,11 @@ describe('ReportsService', () => {
 
     it('draws the crest when the school has uploaded one', () => {
       const html = render(
-        { name: 'Markova', motto: '', logoDataUri: 'data:image/png;base64,AAA' },
+        {
+          name: 'Markova',
+          motto: '',
+          logoDataUri: 'data:image/png;base64,AAA',
+        },
         'TERM REPORT CARD',
       );
       expect(html).toContain('class="crest"');

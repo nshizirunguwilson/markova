@@ -15,11 +15,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
-  GenerateReportCardDto,
   GenerateClassReportCardsDto,
-  GenerateYearReportDto,
   GenerateDocumentDto,
-  GenerateIdCardDto,
   BulkIdCardsDto,
   IssueIdCardDto,
   IdCardRegistryQueryDto,
@@ -148,7 +145,9 @@ export class ReportsController {
 
   @Post('id-cards/issue-bulk')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Issue cards for all students in a section without one' })
+  @ApiOperation({
+    summary: 'Issue cards for all students in a section without one',
+  })
   issueBulkIdCards(@Body() dto: BulkIdCardsDto) {
     return this.service.issueBulkIdCards(dto.classSectionId);
   }

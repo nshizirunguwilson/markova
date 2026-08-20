@@ -68,7 +68,10 @@ describe('AnalyticsService', () => {
       mockPrisma.student.findMany.mockResolvedValue([
         { id: 's1', user: { firstName: 'A', lastName: 'B' } },
       ]);
-      mockPrisma.mark.findMany.mockResolvedValue([{ score: 80 }, { score: 60 }]);
+      mockPrisma.mark.findMany.mockResolvedValue([
+        { score: 80 },
+        { score: 60 },
+      ]);
       mockPrisma.termResult.findMany.mockResolvedValue([]);
 
       const result = await service.getTeacherClassAnalytics(

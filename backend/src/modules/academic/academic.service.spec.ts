@@ -169,7 +169,7 @@ describe('AcademicService', () => {
         isClosed: false,
       });
 
-      const result = await service.reopenTerm('term-1');
+      await service.reopenTerm('term-1');
 
       expect(mockPrisma.term.update).toHaveBeenCalledWith({
         where: { id: 'term-1' },

@@ -39,7 +39,11 @@ function resolveChromePath(): string {
           '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
           '/Applications/Chromium.app/Contents/MacOS/Chromium',
         ]
-      : ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'];
+      : [
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/usr/bin/google-chrome',
+        ];
   return candidates.find((p) => existsSync(p)) ?? candidates[0];
 }
 
@@ -543,8 +547,14 @@ export class ReportsService {
       name: 'users',
       rows: strip(await this.prisma.user.findMany(), ['passwordHash']),
     });
-    tables.push({ name: 'students', rows: await this.prisma.student.findMany() });
-    tables.push({ name: 'teachers', rows: await this.prisma.teacher.findMany() });
+    tables.push({
+      name: 'students',
+      rows: await this.prisma.student.findMany(),
+    });
+    tables.push({
+      name: 'teachers',
+      rows: await this.prisma.teacher.findMany(),
+    });
     tables.push({
       name: 'parent_students',
       rows: await this.prisma.parentStudent.findMany(),
@@ -562,7 +572,10 @@ export class ReportsService {
       name: 'class_sections',
       rows: await this.prisma.classSection.findMany(),
     });
-    tables.push({ name: 'subjects', rows: await this.prisma.subject.findMany() });
+    tables.push({
+      name: 'subjects',
+      rows: await this.prisma.subject.findMany(),
+    });
     tables.push({
       name: 'assessment_types',
       rows: await this.prisma.assessmentType.findMany(),
@@ -609,7 +622,10 @@ export class ReportsService {
       name: 'book_loans',
       rows: await this.prisma.bookLoan.findMany(),
     });
-    tables.push({ name: 'homework', rows: await this.prisma.homework.findMany() });
+    tables.push({
+      name: 'homework',
+      rows: await this.prisma.homework.findMany(),
+    });
     tables.push({
       name: 'homework_submissions',
       rows: await this.prisma.homeworkSubmission.findMany(),

@@ -9,7 +9,9 @@ export class AnalyticsService {
   // ADMIN ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getAdminDashboard(academicYearId?: string, termId?: string) {
+  // Params kept for call-site compatibility; the admin dashboard is not
+  // scoped by year or term yet.
+  async getAdminDashboard(_academicYearId?: string, _termId?: string) {
     const [
       totalStudents,
       totalTeachers,

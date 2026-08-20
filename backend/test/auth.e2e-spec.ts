@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -90,7 +90,10 @@ describe('Auth (e2e)', () => {
     it('should return 401 for wrong password', async () => {
       return request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'wilsonshizirungu@gmail.com', password: 'WrongPassword1!' })
+        .send({
+          email: 'wilsonshizirungu@gmail.com',
+          password: 'WrongPassword1!',
+        })
         .expect(401)
         .expect((res) => {
           expect(res.body.message).toBe('Invalid credentials');
@@ -100,7 +103,10 @@ describe('Auth (e2e)', () => {
     it('should return 401 for non-existent user', async () => {
       return request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'nonexistent@markova.academy', password: 'Password123!' })
+        .send({
+          email: 'nonexistent@markova.academy',
+          password: 'Password123!',
+        })
         .expect(401)
         .expect((res) => {
           expect(res.body.message).toBe('Invalid credentials');
@@ -214,7 +220,10 @@ describe('Auth (e2e)', () => {
     it('should require OTP for teacher and complete the flow', async () => {
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'sarah.nakamya@markova.academy', password: 'Password123!' })
+        .send({
+          email: 'sarah.nakamya@markova.academy',
+          password: 'Password123!',
+        })
         .expect(201);
 
       expect(loginRes.body.requiresOtp).toBe(true);
@@ -257,9 +266,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 401 without token', async () => {
-      return request(app.getHttpServer())
-        .get('/api/auth/profile')
-        .expect(401);
+      return request(app.getHttpServer()).get('/api/auth/profile').expect(401);
     });
 
     it('should return 401 with invalid token', async () => {
@@ -273,11 +280,17 @@ describe('Auth (e2e)', () => {
       // Full admin login flow
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'wilsonshizirungu@gmail.com', password: 'Password123!' });
+        .send({
+          email: 'wilsonshizirungu@gmail.com',
+          password: 'Password123!',
+        });
 
       const otpRes = await request(app.getHttpServer())
         .post('/api/auth/verify-otp')
-        .send({ sessionId: loginRes.body.sessionId, otp: loginRes.body.devOtp });
+        .send({
+          sessionId: loginRes.body.sessionId,
+          otp: loginRes.body.devOtp,
+        });
 
       const res = await request(app.getHttpServer())
         .get('/api/auth/profile')
@@ -334,9 +347,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 401 when logging out without token', async () => {
-      return request(app.getHttpServer())
-        .post('/api/auth/logout')
-        .expect(401);
+      return request(app.getHttpServer()).post('/api/auth/logout').expect(401);
     });
   });
 
@@ -363,7 +374,6 @@ describe('Auth (e2e)', () => {
       expect(res.body.message).toContain('reset link has been sent');
     });
   });
-
 });
 
 // Separate suite that keeps the ThrottlerGuard active so we can verify
