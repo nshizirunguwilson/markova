@@ -522,6 +522,37 @@ export class AuthService {
             id: true,
           },
         },
+        // A parent's linked children. The mobile dashboard reads these from the
+        // profile; without them it showed "No children linked to your account"
+        // to every parent, however many children they actually had.
+        parentStudents: {
+          select: {
+            student: {
+              select: {
+                id: true,
+                userId: true,
+                classSectionId: true,
+                studentIdNumber: true,
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    photoUrl: true,
+                  },
+                },
+                classSection: {
+                  select: {
+                    id: true,
+                    name: true,
+                    classLevel: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -530,7 +561,7 @@ export class AuthService {
     }
 
     // Flatten role-specific IDs onto the user object for convenience
-    const { student, teacher, ...rest } = user as any;
+    const { student, teacher, parentStudents, ...rest } = user as any;
     return {
       ...rest,
       ...(student && {
@@ -538,6 +569,11 @@ export class AuthService {
         classSectionId: student.classSectionId,
       }),
       ...(teacher && { teacherId: teacher.id }),
+      // Shaped as `Student` (nested `user` and `classSection`), which is what
+      // both clients already type these as.
+      ...(parentStudents?.length && {
+        children: parentStudents.map((link: any) => link.student),
+      }),
     };
   }
 

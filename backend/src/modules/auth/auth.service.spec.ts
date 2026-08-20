@@ -450,4 +450,72 @@ describe('AuthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getProfile()', () => {
+    const baseUser = {
+      id: 'u1',
+      email: null,
+      phone: '+250788100000',
+      role: 'PARENT',
+      firstName: 'Solange',
+      lastName: 'Hakizimana',
+      isActive: true,
+    };
+
+    it("returns a parent's linked children", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        parentStudents: [
+          {
+            student: {
+              id: 's1',
+              studentIdNumber: 'MKV-2026-0001',
+              user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+              classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+            },
+          },
+        ],
+      });
+
+      const profile: any = await service.getProfile('u1');
+
+      // Without this the mobile parent dashboard showed "No children linked to
+      // your account" to every parent, however many they actually had.
+      expect(profile.children).toHaveLength(1);
+      expect(profile.children[0].user.firstName).toBe('Divine');
+      expect(profile.children[0].classSection.classLevel.name).toBe('Senior 1');
+      // The join table itself is never leaked to the client.
+      expect(profile.parentStudents).toBeUndefined();
+    });
+
+    it('omits `children` entirely for a user with none', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        role: 'ADMIN',
+        parentStudents: [],
+      });
+
+      const profile: any = await service.getProfile('u1');
+      expect(profile.children).toBeUndefined();
+    });
+
+    it('flattens the student and teacher ids onto the profile', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        role: 'STUDENT',
+        student: { id: 'stu-1', classSectionId: 'cs-1' },
+        parentStudents: [],
+      });
+
+      const profile: any = await service.getProfile('u1');
+      expect(profile.studentId).toBe('stu-1');
+      expect(profile.classSectionId).toBe('cs-1');
+      expect(profile.student).toBeUndefined();
+    });
+
+    it('throws when the user no longer exists', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.getProfile('gone')).rejects.toThrow();
+    });
+  });
 });
