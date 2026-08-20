@@ -1,8 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join, normalize, extname } from 'path';
 import { PrismaService } from '../../prisma/prisma.service';
 import puppeteer from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
 
 function escapeHtml(str: string | null | undefined): string {
   if (!str) return '';
@@ -14,6 +26,23 @@ function escapeHtml(str: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * puppeteer-core ships no browser, so an executable path is mandatory. Set
+ * CHROME_PATH explicitly in any real deployment (backend/Dockerfile does); the
+ * fallbacks below only cover the common local-development installs.
+ */
+function resolveChromePath(): string {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const candidates =
+    process.platform === 'darwin'
+      ? [
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        ]
+      : ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'];
+  return candidates.find((p) => existsSync(p)) ?? candidates[0];
+}
+
 function sanitizeColor(color: string | null | undefined): string {
   if (!color) return '#1B4F72';
   return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(color) ? color : '#1B4F72';
@@ -21,13 +50,73 @@ function sanitizeColor(color: string | null | undefined): string {
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Read a stored upload off disk and return it as a data URI.
+   *
+   * PDFs are produced with `page.setContent`, which has no base URL, so a
+   * stored path like `/uploads/branding/logo.png` would resolve to nothing and
+   * the image would silently drop out of the document. Inlining also keeps
+   * rendering working with no network access, which is how it runs in Docker.
+   */
+  private async inlineUpload(url: string | null): Promise<string | null> {
+    if (!url) return null;
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    // Stored values always begin with `/uploads/`; strip it before joining so a
+    // crafted value cannot climb out of the upload directory.
+    const relative = normalize(url.replace(/^\/uploads\//, '')).replace(
+      /^(\.\.(\/|\\|$))+/,
+      '',
+    );
+    const mime = MIME_BY_EXT[extname(relative).toLowerCase()];
+    if (!mime) return null;
+    try {
+      const buf = await readFile(join(process.cwd(), uploadDir, relative));
+      return `data:${mime};base64,${buf.toString('base64')}`;
+    } catch {
+      this.logger.warn(`Branding asset missing on disk: ${url}`);
+      return null;
+    }
+  }
+
+  /**
+   * The masthead every generated document opens with: the school's crest when
+   * one has been uploaded, its name, motto, and the document title.
+   */
+  private renderSchoolHeader(
+    school: any,
+    title: string,
+    subline?: string,
+  ): string {
+    const crest = school.logoDataUri
+      ? `<img class="crest" src="${school.logoDataUri}" alt="">`
+      : '';
+    return `<div class="header">
+      ${crest}
+      <h1>${school.name}</h1>
+      ${school.motto ? `<p class="motto">${school.motto}</p>` : ''}
+      <h2>${escapeHtml(title)}</h2>
+      ${subline ? `<p>${subline}</p>` : ''}
+    </div>`;
+  }
+
+  /** Shared masthead styling, so all four document types look like one school. */
+  private headerCss(school: any): string {
+    return `
+      .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid ${school.primaryColor}; padding-bottom: 15px; }
+      .header .crest { display: block; margin: 0 auto 8px; height: 64px; width: auto; max-width: 200px; object-fit: contain; }
+      .header h1 { color: ${school.primaryColor}; margin: 5px 0; font-size: 28px; }
+      .header h2 { color: ${school.primaryColor}; margin: 8px 0; font-size: 18px; letter-spacing: 2px; }
+      .header .motto { font-style: italic; }
+      .header p { margin: 3px 0; color: #666; font-size: 14px; }`;
+  }
 
   private async htmlToPdf(html: string): Promise<Buffer> {
     const browser = await puppeteer.launch({
-      executablePath:
-        process.env.CHROME_PATH ||
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      executablePath: resolveChromePath(),
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
@@ -558,12 +647,20 @@ export class ReportsService {
     const configs = await this.prisma.schoolConfig.findMany();
     const map: Record<string, string> = {};
     for (const c of configs) map[c.key] = c.value;
+    const [logoDataUri, stampDataUri, signatureDataUri] = await Promise.all([
+      this.inlineUpload(map['logo_url'] || null),
+      this.inlineUpload(map['stamp_url'] || null),
+      this.inlineUpload(map['signature_url'] || null),
+    ]);
     return {
       name: escapeHtml(map['school_name']),
       motto: escapeHtml(map['motto']),
       logoUrl: map['logo_url'] || null,
       stampUrl: map['stamp_url'] || null,
       signatureUrl: map['signature_url'] || null,
+      logoDataUri,
+      stampDataUri,
+      signatureDataUri,
       primaryColor: sanitizeColor(map['primary_color']),
     };
   }
@@ -641,10 +738,7 @@ export class ReportsService {
     return `<!DOCTYPE html><html><head><style>
       @media print { body { margin: 0; } @page { margin: 15mm; } }
       body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #333; background: #fff; max-width: 800px; margin: 30px auto; }
-      .header { text-align: center; margin-bottom: 25px; border-bottom: 3px solid ${data.school.primaryColor}; padding-bottom: 15px; }
-      .header h1 { color: ${data.school.primaryColor}; margin: 5px 0; font-size: 28px; }
-      .header h2 { color: ${data.school.primaryColor}; margin: 8px 0; font-size: 18px; letter-spacing: 2px; }
-      .header p { margin: 3px 0; color: #666; font-size: 14px; }
+      ${this.headerCss(data.school)}
       .info { display: flex; justify-content: space-between; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
       .info div { font-size: 14px; line-height: 1.8; }
       table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -657,14 +751,14 @@ export class ReportsService {
       .footer { margin-top: 40px; display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #e0e0e0; font-size: 13px; color: #666; }
       .signature { margin-top: 50px; display: flex; justify-content: space-between; }
       .signature div { text-align: center; width: 200px; }
+      .signature .mark { display: block; margin: 0 auto -18px; height: 58px; width: auto; max-width: 180px; object-fit: contain; }
       .signature .line { border-top: 1px solid #333; margin-top: 40px; padding-top: 5px; font-size: 12px; }
     </style></head><body>
-      <div class="header">
-        <h1>${data.school.name}</h1>
-        <p>${data.school.motto}</p>
-        <h2>TERM REPORT CARD</h2>
-        <p>${escapeHtml(data.term.name)} — Academic Year ${escapeHtml(data.term.academicYear)}</p>
-      </div>
+      ${this.renderSchoolHeader(
+        data.school,
+        'TERM REPORT CARD',
+        `${escapeHtml(data.term.name)} — Academic Year ${escapeHtml(data.term.academicYear)}`,
+      )}
       <div class="info">
         <div>
           <strong>Name:</strong> ${escapeHtml(data.student.name)}<br>
@@ -692,8 +786,14 @@ export class ReportsService {
       </div>
       <div class="signature">
         <div><div class="line">Class Teacher</div></div>
-        <div><div class="line">Headmaster</div></div>
-        <div><div class="line">School Stamp</div></div>
+        <div>
+          ${data.school.signatureDataUri ? `<img class="mark" src="${data.school.signatureDataUri}" alt="">` : ''}
+          <div class="line">Headmaster</div>
+        </div>
+        <div>
+          ${data.school.stampDataUri ? `<img class="mark" src="${data.school.stampDataUri}" alt="">` : ''}
+          <div class="line">School Stamp</div>
+        </div>
       </div>
     </body></html>`;
   }
@@ -706,14 +806,18 @@ export class ReportsService {
   ): string {
     return `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-      .header { text-align: center; margin-bottom: 30px; }
-      .header h1 { color: ${school.primaryColor}; }
+      ${this.headerCss(school)}
       .content { margin: 30px 0; line-height: 1.8; }
       .footer { margin-top: 60px; }
+      .footer .mark { display: block; height: 58px; width: auto; max-width: 180px; object-fit: contain; margin-bottom: -14px; }
     </style></head><body>
-      <div class="header"><h1>${school.name}</h1><p>${school.motto}</p><h2>${escapeHtml(title)}</h2></div>
+      ${this.renderSchoolHeader(school, title)}
       <div class="content"><p>${body}</p></div>
-      <div class="footer"><p>Authorized Signature: _______________</p><p>Date: ${new Date().toLocaleDateString()}</p></div>
+      <div class="footer">
+        ${school.signatureDataUri ? `<img class="mark" src="${school.signatureDataUri}" alt="">` : ''}
+        <p>Authorized Signature: _______________</p>
+        <p>Date: ${new Date().toLocaleDateString()}</p>
+      </div>
     </body></html>`;
   }
 
@@ -730,13 +834,16 @@ export class ReportsService {
       .join('');
     return `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; margin: 40px; }
+      ${this.headerCss(school)}
       table { width: 100%; border-collapse: collapse; }
       th, td { border: 1px solid #ddd; padding: 8px; }
       th { background: ${school.primaryColor}; color: white; }
     </style></head><body>
-      <h1 style="color:${school.primaryColor}">${school.name}</h1>
-      <h2>Discipline Report — ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</h2>
-      <p>ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} | Points: ${student.disciplinePoints}</p>
+      ${this.renderSchoolHeader(
+        school,
+        'DISCIPLINE REPORT',
+        `${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} — ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(student.classSection.classLevel.name)} ${escapeHtml(student.classSection.name)} | Points: ${student.disciplinePoints}`,
+      )}
       <table><thead><tr><th>Date</th><th>Description</th><th>Points</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`;
   }
@@ -754,14 +861,19 @@ export class ReportsService {
       .join('');
     return `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; margin: 40px; }
+      ${this.headerCss(school)}
       table { width: 100%; border-collapse: collapse; }
       th, td { border: 1px solid #ddd; padding: 8px; }
       th { background: ${school.primaryColor}; color: white; }
+      .stamp { display: block; margin: 30px 0 0; height: 70px; width: auto; object-fit: contain; }
     </style></head><body>
-      <h1 style="color:${school.primaryColor}">${school.name}</h1>
-      <h2>Academic Transcript</h2>
-      <p>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} | ID: ${escapeHtml(student.studentIdNumber)}</p>
+      ${this.renderSchoolHeader(
+        school,
+        'ACADEMIC TRANSCRIPT',
+        `${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} — ID: ${escapeHtml(student.studentIdNumber)}`,
+      )}
       <table><thead><tr><th>Year</th><th>Term</th><th>Average</th><th>Grade</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table>
+      ${school.stampDataUri ? `<img class="stamp" src="${school.stampDataUri}" alt="">` : ''}
     </body></html>`;
   }
 }
