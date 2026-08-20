@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet,
+  View, StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AtSign, Lock, ArrowLeft, Check } from 'lucide-react-native';
@@ -9,7 +9,7 @@ import api from '@/lib/api';
 import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
 import { AuthShell } from '@/components/AuthShell';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { colors } from '@/constants/theme';
 
 type Step = 'request' | 'reset';
 
@@ -68,14 +68,17 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthShell title="Reset your password">
+    <AuthShell
+      title={step === 'request' ? 'Reset your password' : 'Enter your code'}
+      subtitle={
+        step === 'request'
+          ? "Enter your email or phone number and we'll send you a reset code."
+          : `Enter the code sent to ${identifier} and choose a new password.`
+      }
+    >
         <View>
           {step === 'request' ? (
             <>
-              <Text style={styles.formTitle}>Forgot Password</Text>
-              <Text style={styles.formSubtitle}>
-                Enter your email address or phone number and we'll send you a reset code.
-              </Text>
               <Input
                 label="Email or Phone"
                 placeholder="Email or phone number"
@@ -95,10 +98,6 @@ export default function ForgotPasswordScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.formTitle}>Reset Password</Text>
-              <Text style={styles.formSubtitle}>
-                Enter the code sent to {identifier} and your new password.
-              </Text>
               <Input
                 label="Reset Code"
                 placeholder="Enter the code you received"
@@ -146,6 +145,4 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  formTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground, marginBottom: spacing.xs },
-  formSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing['2xl'], lineHeight: 20, fontFamily: fontFamily.regular },
 });

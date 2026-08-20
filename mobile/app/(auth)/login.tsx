@@ -56,7 +56,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthShell subtitle="School Management System">
+    <AuthShell>
         <View>
           <Input
             label="Email or Phone"

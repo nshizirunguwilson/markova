@@ -13,7 +13,8 @@ import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme
 interface AuthShellProps {
   /** Heading under the mark. Defaults to the school name. */
   title?: string;
-  subtitle?: string;
+  /** One line saying what this screen is for. Omit on screens that are obvious. */
+  subtitle?: React.ReactNode;
   children: React.ReactNode;
 }
 

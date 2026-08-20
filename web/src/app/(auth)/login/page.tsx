@@ -236,7 +236,7 @@ export default function LoginPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AuthShell subtitle="School Management System">
+    <AuthShell>
 
         {/* Step: Login */}
         {step === "login" && (
