@@ -5,6 +5,7 @@ import {
 import { useRouter } from 'expo-router';
 import { AtSign, Lock, ArrowLeft, Check } from 'lucide-react-native';
 import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/hooks/useQueryError';
 import api from '@/lib/api';
 import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
@@ -33,7 +34,7 @@ export default function ForgotPasswordScreen() {
       toast.success('Reset code sent');
       setStep('reset');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to send reset code');
+      toast.error(getErrorMessage(err, 'Failed to send reset code'));
     } finally {
       setLoading(false);
     }

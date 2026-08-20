@@ -9,6 +9,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/hooks/useQueryError';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui';
 import { AuthShell } from '@/components/AuthShell';
@@ -81,7 +82,7 @@ export default function VerifyOtpScreen() {
       await verifyOtp(code);
       router.replace('/(app)/(tabs)');
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Invalid OTP. Please try again.';
+      const message = getErrorMessage(error, 'Invalid OTP. Please try again.');
       toast.error(message);
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
@@ -99,7 +100,7 @@ export default function VerifyOtpScreen() {
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Could not resend code');
+      toast.error(getErrorMessage(error, 'Could not resend code'));
     }
   };
 

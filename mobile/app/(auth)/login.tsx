@@ -7,6 +7,7 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { AtSign, Lock } from 'lucide-react-native';
 import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/hooks/useQueryError';
 import { useAuthStore, isValidIdentifier } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
 import { AuthShell } from '@/components/AuthShell';
@@ -46,10 +47,11 @@ export default function LoginScreen() {
       } else {
         router.replace('/(app)/(tabs)');
       }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message || 'Login failed. Please check your credentials.';
-      toast.error(message);
+    } catch (error) {
+      // Distinguishes an unreachable API from a rejected password. Reporting a
+      // connection failure as "check your credentials" sends people hunting for
+      // a problem that is not theirs.
+      toast.error(getErrorMessage(error, 'Login failed. Please check your credentials.'));
     } finally {
       setLoading(false);
     }

@@ -12,6 +12,7 @@ import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "@/components/layout/auth-shell";
+import { errorMessage } from "@/lib/errors";
 
 const schema = z
   .object({
@@ -56,7 +57,7 @@ function ResetPasswordInner() {
       toast.success("Password reset. Please log in with your new password.");
       router.push("/login");
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Reset link is invalid or has expired.");
+      toast.error(errorMessage(err, "Reset link is invalid or has expired."));
     } finally {
       setIsLoading(false);
     }

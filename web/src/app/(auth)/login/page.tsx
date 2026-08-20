@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell } from "@/components/layout/auth-shell";
+import { errorMessage } from "@/lib/errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ export default function LoginPage() {
         handleLoginSuccess(res.data);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Login failed";
+      const msg = errorMessage(err, "Login failed");
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -134,7 +135,7 @@ export default function LoginPage() {
       });
       handleLoginSuccess(res.data);
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Invalid OTP";
+      const msg = errorMessage(err, "Invalid OTP");
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -154,7 +155,7 @@ export default function LoginPage() {
       otpForm.reset({ otp: "" });
       toast.success("A new code has been sent");
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Could not resend code";
+      const msg = errorMessage(err, "Could not resend code");
       toast.error(msg);
       // Server-side cooldown hit — reflect a wait on the button
       if (err.response?.status === 429 && resendCooldown <= 0) {
@@ -206,7 +207,7 @@ export default function LoginPage() {
         router.push(getDashboardRoute(pendingUser.role));
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Failed to change password";
+      const msg = errorMessage(err, "Failed to change password");
       toast.error(msg);
     } finally {
       setIsLoading(false);
