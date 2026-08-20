@@ -72,6 +72,57 @@ jobs:
       - name: Run e2e tests
         run: npm run test:e2e -- --passWithNoTests
 
+  design-system:
+    name: Design System - Tokens & Contrast
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The generated token files must match design/tokens.json, otherwise web
+      # and mobile silently drift apart again.
+      - name: Verify design tokens are in sync
+        run: node scripts/sync-design-tokens.mjs --check
+
+      # Every colour pairing has to stay at WCAG AA.
+      - name: Verify colour contrast
+        run: node scripts/check-contrast.mjs
+
+  web-lint-test-build:
+    name: Web - Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
   mobile-typecheck:
     name: Mobile - TypeScript Check
     runs-on: ubuntu-latest

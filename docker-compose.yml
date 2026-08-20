@@ -1,3 +1,14 @@
+# Development infrastructure: Postgres and Redis only.
+#
+#   docker compose up -d
+#
+# Ports deliberately avoid the defaults so this cannot collide with another
+# Postgres/Redis already running on the machine.
+#
+# To run the whole stack in containers instead, add the `full` profile:
+#
+#   docker compose --profile full up -d --build
+#
 services:
   postgres:
     image: postgres:15
@@ -11,6 +22,11 @@ services:
       POSTGRES_DB: markova
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U markova']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
@@ -20,7 +36,55 @@ services:
       - '6380:6379'
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    profiles: ['full']
+    build:
+      context: ./backend
+    container_name: markova-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://markova:password@postgres:5432/markova
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGINS: http://localhost:3001
+      APP_URL: http://localhost:3001
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+      UPLOAD_DIR: ./uploads
+    ports:
+      - '3000:3000'
+    volumes:
+      # Uploaded crests, stamps, signatures and photos must outlive the container.
+      - uploads:/app/uploads
+
+  web:
+    profiles: ['full']
+    build:
+      context: ./web
+      args:
+        # Inlined into the client bundle at build time, so it is set here rather
+        # than as a runtime environment variable.
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api
+    container_name: markova-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '3001:3001'
 
 volumes:
   postgres_data:
   redis_data:
+  uploads:
