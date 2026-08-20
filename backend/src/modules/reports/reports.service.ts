@@ -670,7 +670,8 @@ export class ReportsService {
     ]);
     return {
       name: escapeHtml(map['school_name']),
-      motto: escapeHtml(map['motto']),
+      // Stored under `school_motto`; `motto` is accepted as a legacy alias.
+      motto: escapeHtml(map['school_motto'] || map['motto']),
       logoUrl: map['logo_url'] || null,
       stampUrl: map['stamp_url'] || null,
       signatureUrl: map['signature_url'] || null,

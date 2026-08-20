@@ -1,5 +1,19 @@
 "use client";
 
+// Charts are opted out of the React Compiler and of Recharts' own animation.
+//
+// 1. "use no memo": Recharts discovers its series by walking and cloning its
+//    children; the compiler's memoization stops the series from registering, so
+//    the axes and grid render while nothing is actually plotted.
+// 2. isAnimationActive={false}: the series shapes are emitted by a
+//    requestAnimationFrame animation that did not reliably run here, leaving
+//    empty shape groups in the DOM. A dashboard that refetches should not
+//    replay its animations on every update anyway.
+//
+// Both were confirmed in a browser: the bar paths go from absent to drawn.
+"use no memo";
+
+
 import { useState } from "react";
 import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
@@ -79,7 +93,7 @@ export default function StudentAnalyticsPage() {
                     <XAxis dataKey="subjectName" />
                     <YAxis domain={[0, 100]} />
                     <Tooltip />
-                    <Bar dataKey="average" fill={CHART_COLOR.brand} name="My Score" />
+                    <Bar isAnimationActive={false} dataKey="average" fill={CHART_COLOR.brand} name="My Score" />
                     <ReferenceLine y={data.classAverage} stroke={CHART_COLOR.danger} strokeDasharray="3 3" label="Class Avg" />
                   </BarChart>
                 </ResponsiveContainer>

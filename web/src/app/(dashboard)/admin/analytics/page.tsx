@@ -1,5 +1,19 @@
 "use client";
 
+// Charts are opted out of the React Compiler and of Recharts' own animation.
+//
+// 1. "use no memo": Recharts discovers its series by walking and cloning its
+//    children; the compiler's memoization stops the series from registering, so
+//    the axes and grid render while nothing is actually plotted.
+// 2. isAnimationActive={false}: the series shapes are emitted by a
+//    requestAnimationFrame animation that did not reliably run here, leaving
+//    empty shape groups in the DOM. A dashboard that refetches should not
+//    replay its animations on every update anyway.
+//
+// Both were confirmed in a browser: the bar paths go from absent to drawn.
+"use no memo";
+
+
 import { useState } from "react";
 import { Card, CardTitle } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
@@ -95,7 +109,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="termName" />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="averageScore" stroke={CHART_COLOR.brand} strokeWidth={2} />
+                  <Line isAnimationActive={false} type="monotone" dataKey="averageScore" stroke={CHART_COLOR.brand} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -113,7 +127,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="className" />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
-                  <Bar dataKey="averageScore" fill={CHART_COLOR.brandLight} />
+                  <Bar isAnimationActive={false} dataKey="averageScore" fill={CHART_COLOR.brandLight} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -127,7 +141,7 @@ export default function AdminAnalyticsPage() {
             <div className="h-64 mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
+                  <Pie isAnimationActive={false}
                     data={[
                       { name: "Present", value: attendance.present },
                       { name: "Absent", value: attendance.absent },
@@ -164,7 +178,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="count" fill={CHART_COLOR.danger} />
+                  <Bar isAnimationActive={false} dataKey="count" fill={CHART_COLOR.danger} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
