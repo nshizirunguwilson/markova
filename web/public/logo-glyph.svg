@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Markova">
+  <!-- Badge-less monogram on a transparent ground; takes its colour from
+       `currentColor` so it can sit on any surface (Android adaptive
+       foreground, PDF stamps, navy headers). Same geometry as logo-mark.svg. -->
+  <path d="M12.5 33V15L24 33L35.5 15V33"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="4.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
