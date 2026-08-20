@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card, CardTitle, Badge, Button, Spinner } from "@/components/ui";
+import { Card, CardTitle, Button, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
 import { Calendar, Check, X, Clock, ChevronLeft, ChevronRight } from "lucide-react";

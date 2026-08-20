@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Card,
-  CardTitle,
   Badge,
   Spinner,
   Table,
@@ -16,8 +15,10 @@ import {
 import { useActiveLoans, useOverdueLoans } from "@/hooks/use-library";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { useToday, daysFromToday } from "@/hooks/use-today";
 
 export default function LibrarianLoansPage() {
+  const today = useToday();
   const [tab, setTab] = useState<"active" | "overdue">("active");
   const { data: activeLoans, isLoading: loadingActive } = useActiveLoans();
   const { data: overdueLoans, isLoading: loadingOverdue } = useOverdueLoans();
@@ -66,8 +67,8 @@ export default function LibrarianLoansPage() {
             </TableHeader>
             <TableBody>
               {loans.map((loan: any) => {
-                const isOverdue = new Date(loan.dueDate) < new Date();
-                const daysUntilDue = Math.ceil((new Date(loan.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                const daysUntilDue = daysFromToday(loan.dueDate, today);
+                const isOverdue = daysUntilDue < 0;
                 return (
                   <TableRow key={loan.id}>
                     <TableCell>

@@ -16,8 +16,10 @@ import {
 import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { useToday, daysFromToday } from "@/hooks/use-today";
 
 export default function StudentLibraryPage() {
+  const today = useToday();
   const [tab, setTab] = useState<"loans" | "catalog">("loans");
   const [search, setSearch] = useState("");
   const { data: myLoans, isLoading: loadingLoans } = useMyLoans();
@@ -63,7 +65,7 @@ export default function StudentLibraryPage() {
                 {activeLoans.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {activeLoans.map((loan: any) => {
-                      const daysUntilDue = Math.ceil((new Date(loan.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      const daysUntilDue = daysFromToday(loan.dueDate, today);
                       const isOverdue = daysUntilDue < 0;
                       return (
                         <div key={loan.id} className="flex items-center justify-between rounded-lg border border-border/50 p-3">

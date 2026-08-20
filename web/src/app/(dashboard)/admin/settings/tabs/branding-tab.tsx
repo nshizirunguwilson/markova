@@ -7,7 +7,7 @@ import { Card, CardTitle, Button } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
 import { useBrandStore } from "@/stores/brand-store";
 import { useForm } from "react-hook-form";
-import { Upload, Save, ImageIcon } from "lucide-react";
+import { Upload, Save } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 

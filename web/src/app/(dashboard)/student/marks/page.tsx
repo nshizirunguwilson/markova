@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
+import { useState, useMemo } from "react";
+import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
@@ -14,12 +14,10 @@ export default function StudentMarksPage() {
   const currentYear = years?.find((y: any) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
 
-  const [selectedTerm, setSelectedTerm] = useState("");
-
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   const studentId = (user as any)?.studentId;
   const { data, isLoading } = useStudentTermResult(studentId, selectedTerm);

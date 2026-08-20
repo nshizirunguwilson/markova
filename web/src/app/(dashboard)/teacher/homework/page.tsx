@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Card,
-  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -24,7 +23,7 @@ import {
   useGradeSubmission,
 } from "@/hooks/use-homework";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
-import { FileText, Plus, Trash2, Eye, Check } from "lucide-react";
+import { Plus, Trash2, Eye, Check } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect } from "react";

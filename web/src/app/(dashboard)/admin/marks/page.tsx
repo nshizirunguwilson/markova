@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardTitle,
@@ -47,22 +47,19 @@ export default function AdminMarksPage() {
   const [confirmMessage, setConfirmMessage] = useState("");
 
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
-  const [selectedTerm, setSelectedTerm] = useState("");
+  const [selectedSectionChoice, setSelectedSection] = useState("");
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   const { data: sections } = useSections(selectedLevel);
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
   const { data: results, isLoading } = useTermResults(selectedSection, selectedTerm);
   const calculateResults = useCalculateTermResults();
   const publishResults = usePublishTermResults();
-
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
-
-  useEffect(() => {
-    if (sections?.length) setSelectedSection(sections[0].id);
-  }, [sections]);
 
   const handleExportCSV = () => {
     if (!results?.length) return;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
@@ -13,31 +13,53 @@ type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 export default function TeacherAttendancePage() {
   const { data: classLevels } = useClassLevels();
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
+  const [selectedSectionChoice, setSelectedSection] = useState("");
   const [date, setDate] = useState(toLocalDateString(new Date()));
   const [showScanner, setShowScanner] = useState(false);
   const [qrInput, setQrInput] = useState("");
-  const [localStatuses, setLocalStatuses] = useState<Record<string, Status>>({});
+  // Only the teacher's unsaved edits live in state. The effective statuses are
+  // derived by layering those over what the server returned, so there is no
+  // effect syncing server data into state (and no frame where the two disagree).
+  // Edits are stamped with the class+date they belong to, so switching either
+  // discards them without needing an effect to clear.
+  const [edits, setEdits] = useState<{
+    key: string;
+    values: Record<string, Status>;
+  }>({ key: "", values: {} });
 
   const { data: sections } = useSections(selectedLevel);
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
   const { data: classData, isLoading } = useClassAttendance(selectedSection, date);
   const bulkAttendance = useBulkAttendance();
   const qrScan = useQrScan();
   const qrInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (sections?.length) setSelectedSection(sections[0].id);
-  }, [sections]);
+  const editKey = `${selectedSection}:${date}`;
 
-  // Sync server data to local state
-  useEffect(() => {
-    if (!classData?.students) return;
-    const map: Record<string, Status> = {};
-    for (const s of classData.students) {
-      map[s.studentId] = s.status;
+  const localStatuses = useMemo<Record<string, Status>>(() => {
+    const fromServer: Record<string, Status> = {};
+    for (const s of classData?.students ?? []) {
+      fromServer[s.studentId] = s.status;
     }
-    setLocalStatuses(map);
-  }, [classData]);
+    return edits.key === editKey
+      ? { ...fromServer, ...edits.values }
+      : fromServer;
+  }, [classData, edits, editKey]);
+
+  const setLocalStatuses = (
+    update:
+      | Record<string, Status>
+      | ((prev: Record<string, Status>) => Record<string, Status>),
+  ) =>
+    setEdits((prev) => ({
+      key: editKey,
+      values:
+        typeof update === "function"
+          ? update(prev.key === editKey ? { ...localStatuses } : localStatuses)
+          : update,
+    }));
 
   const toggleStatus = (studentId: string) => {
     setLocalStatuses((prev) => {

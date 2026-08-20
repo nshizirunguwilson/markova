@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
+import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
@@ -23,7 +23,10 @@ export default function ParentMarksPage() {
 
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState("");
-  const [selectedTerm, setSelectedTerm] = useState("");
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   // Fetch linked children
   useEffect(() => {
@@ -45,11 +48,6 @@ export default function ParentMarksPage() {
       })
       .catch(() => {});
   }, [user?.id]);
-
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
 
   const { data, isLoading } = useStudentTermResult(selectedChild, selectedTerm);
   const result = data?.result;

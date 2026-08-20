@@ -40,12 +40,12 @@ import {
   Search,
   ArrowRightLeft,
   AlertTriangle,
-  BarChart3,
   Upload,
 } from "lucide-react";
 import { exportData } from "@/lib/export";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { useToday, daysFromToday } from "@/hooks/use-today";
 
 type Tab = "books" | "loans" | "overdue" | "analytics";
 
@@ -68,6 +68,7 @@ const checkoutSchema = z.object({
 type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 
 export default function AdminLibraryPage() {
+  const today = useToday();
   const [tab, setTab] = useState<Tab>("books");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -411,7 +412,7 @@ export default function AdminLibraryPage() {
                 </TableRow>
               ) : (
                 overdueLoans.map((l: any) => {
-                  const daysOverdue = Math.ceil((Date.now() - new Date(l.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+                  const daysOverdue = -daysFromToday(l.dueDate, today);
                   return (
                     <TableRow key={l.id}>
                       <TableCell className="font-medium">{l.book?.title}</TableCell>

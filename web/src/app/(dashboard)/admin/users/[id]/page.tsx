@@ -19,7 +19,6 @@ import {
   Card,
   CardTitle,
   Badge,
-  Avatar,
   Input,
   PageSpinner,
 } from "@/components/ui";

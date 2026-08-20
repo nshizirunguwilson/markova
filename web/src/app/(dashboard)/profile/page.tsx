@@ -7,8 +7,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
-import { Card, Button, Input } from "@/components/ui";
-import { User, Mail, Phone, Shield, Lock, Camera } from "lucide-react";
+import { Card, Button } from "@/components/ui";
+import { User, Mail, Phone, Shield, Lock } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function ProfilePage() {

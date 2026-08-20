@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Input, Button, Badge } from "@/components/ui";
 import { useClassLevels, useCreateClassLevel, useCreateSection } from "@/hooks/use-academic";
-import { Plus, CheckCircle2, Layers } from "lucide-react";
+import { Plus, Layers } from "lucide-react";
 
 export function StepClasses() {
   const { data: levels } = useClassLevels();

@@ -68,6 +68,9 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
     left = Math.max(8, Math.min(left, window.innerWidth - 320));
     top = Math.max(8, top);
 
+    // Position depends on the target's laid-out rect, which does not exist
+    // until after paint — it genuinely cannot be derived during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPos({ top, left });
 
     // Highlight the target element

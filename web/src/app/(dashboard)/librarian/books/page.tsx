@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Card,
-  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -24,7 +23,7 @@ import {
   useReturn,
   useLibraryAnalytics,
 } from "@/hooks/use-library";
-import { Library, Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function LibrarianBooksPage() {

@@ -1,9 +1,9 @@
 "use client";
 
-import { Card, CardTitle, Badge, Spinner, Button } from "@/components/ui";
+import { Card, Badge, Spinner, Button } from "@/components/ui";
 import { useStudentHomework, useSubmitHomework } from "@/hooks/use-homework";
 import { useAuthStore } from "@/stores/auth-store";
-import { FileText, Upload, Check, Clock, AlertCircle } from "lucide-react";
+import { FileText, Upload, Check, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentHomeworkPage() {

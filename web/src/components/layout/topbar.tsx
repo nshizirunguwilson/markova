@@ -71,11 +71,12 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const allNavItems = useMemo<NavItem[]>(() => {
-    if (!user?.role) return [];
-    const sections = getNavigation(user.role);
-    return sections.flatMap((s) => s.items);
-  }, [user?.role]);
+  // getNavigation is pure and returns a static table; the React Compiler
+  // memoizes this for us, and a hand-written useMemo here only gave the
+  // compiler a dependency list it could not verify.
+  const allNavItems: NavItem[] = user?.role
+    ? getNavigation(user.role).flatMap((s) => s.items)
+    : [];
 
   const searchResults = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return [];

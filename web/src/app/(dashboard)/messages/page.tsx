@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Card, Button, Badge, Spinner, Input, Modal, Avatar } from "@/components/ui";
+import { Button, Badge, Spinner, Input, Modal } from "@/components/ui";
 import {
   useConversations,
   useMessages,
@@ -11,7 +11,7 @@ import {
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, Users, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
+import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 
 export default function MessagesPage() {

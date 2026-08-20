@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardTitle, Spinner } from "@/components/ui";
+import { Card, CardTitle } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import {
   useAdminDashboard,
@@ -25,7 +25,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Users, GraduationCap, BookOpen, TrendingUp } from "lucide-react";
+import { Users, GraduationCap, BookOpen } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { CHART_COLOR, CHART_SERIES } from "@/lib/chart-colors";
 
