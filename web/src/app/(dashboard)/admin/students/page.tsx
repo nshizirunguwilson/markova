@@ -102,7 +102,7 @@ export default function AdminStudentsPage() {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+             aria-label="Search by name, email, or phone..."/>
           </div>
 
           <select
@@ -113,7 +113,7 @@ export default function AdminStudentsPage() {
               setSectionId("");
               setFilters((f) => ({ ...f, classSectionId: undefined, page: 1 }));
             }}
-          >
+           aria-label="All Levels">
             <option value="">All Levels</option>
             {levels?.map((l: any) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -128,7 +128,7 @@ export default function AdminStudentsPage() {
                 setSectionId(e.target.value);
                 setFilters((f) => ({ ...f, page: 1 }));
               }}
-            >
+             aria-label="All Sections">
               <option value="">All Sections</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>

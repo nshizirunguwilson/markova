@@ -140,7 +140,7 @@ export default function StudentLibraryPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search books..."
                 className="w-full rounded-lg border border-border bg-surface pl-10 pr-3 py-2 text-sm focus:border-primary focus:outline-none"
-              />
+               aria-label="Search books..."/>
             </div>
           </Card>
 

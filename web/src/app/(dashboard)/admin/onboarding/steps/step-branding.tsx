@@ -49,7 +49,7 @@ export function StepBranding() {
         <form onSubmit={handleSubmit(onSaveColor)} className="flex items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Primary Color</label>
-            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-border" />
+            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-border"  aria-label="Primary Color"/>
           </div>
           <Button type="submit" size="sm" isLoading={bulkUpsert.isPending}>
             <Save className="mr-1 h-4 w-4" /> Save
@@ -103,7 +103,7 @@ function FileUploadField({
               accept="image/*"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
-            />
+             aria-label="Upload image file"/>
           </label>
           <p className="text-xs text-muted">PNG, JPG or SVG, max 5MB</p>
           {currentUrl && <p className="text-xs text-success">Uploaded</p>}

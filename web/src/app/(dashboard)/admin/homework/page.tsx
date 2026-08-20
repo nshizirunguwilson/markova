@@ -201,7 +201,7 @@ export default function AdminHomeworkPage() {
             className="rounded-lg border border-border px-3 py-2 text-sm"
             value={filterLevelId}
             onChange={(e) => { setFilterLevelId(e.target.value); setFilterSectionId(""); }}
-          >
+           aria-label="All Levels">
             <option value="">All Levels</option>
             {levels?.map((l: any) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -212,7 +212,7 @@ export default function AdminHomeworkPage() {
               className="rounded-lg border border-border px-3 py-2 text-sm"
               value={filterSectionId}
               onChange={(e) => setFilterSectionId(e.target.value)}
-            >
+             aria-label="All Sections">
               <option value="">All Sections</option>
               {filterSections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -223,7 +223,7 @@ export default function AdminHomeworkPage() {
             className="rounded-lg border border-border px-3 py-2 text-sm"
             value={filterSubjectId}
             onChange={(e) => setFilterSubjectId(e.target.value)}
-          >
+           aria-label="All Subjects">
             <option value="">All Subjects</option>
             {subjects?.map((s: any) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -298,7 +298,7 @@ export default function AdminHomeworkPage() {
               className={`w-full rounded-lg border ${errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("title")}
               placeholder="Homework title"
-            />
+             aria-label="Title"/>
             {errors.title && <p className="mt-1 text-xs text-danger">{errors.title.message}</p>}
           </div>
           <div>
@@ -317,7 +317,7 @@ export default function AdminHomeworkPage() {
                 className={`w-full rounded-lg border ${errors.subjectId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("subjectId")}
-              >
+               aria-label="Subject">
                 <option value="">Select subject</option>
                 {subjects?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -331,7 +331,7 @@ export default function AdminHomeworkPage() {
                 className={`w-full rounded-lg border ${errors.teacherId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("teacherId")}
-              >
+               aria-label="Teacher">
                 <option value="">Select teacher</option>
                 {teachers.map((t: any) => (
                   <option key={t.id} value={t.teacher?.id || t.id}>{t.firstName} {t.lastName}</option>
@@ -348,7 +348,7 @@ export default function AdminHomeworkPage() {
                 value={modalLevelId}
                 disabled={!!editingId}
                 onChange={(e) => { setModalLevelId(e.target.value); setValue("classSectionId", ""); }}
-              >
+               aria-label="Class Level">
                 <option value="">Select level</option>
                 {levels?.map((l: any) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -362,7 +362,7 @@ export default function AdminHomeworkPage() {
                 disabled={!!editingId}
                 value={watch("classSectionId") || ""}
                 onChange={(e) => setValue("classSectionId", e.target.value, { shouldValidate: true })}
-              >
+               aria-label="Section">
                 <option value="">Select section</option>
                 {modalSections?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -378,7 +378,7 @@ export default function AdminHomeworkPage() {
                 className={`w-full rounded-lg border ${errors.termId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("termId")}
-              >
+               aria-label="Term">
                 <option value="">Select term</option>
                 {terms?.map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -392,7 +392,7 @@ export default function AdminHomeworkPage() {
                 type="date"
                 className={`w-full rounded-lg border ${errors.dueDate ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("dueDate")}
-              />
+               aria-label="Due Date"/>
               {errors.dueDate && <p className="mt-1 text-xs text-danger">{errors.dueDate.message}</p>}
             </div>
             <div>
@@ -401,7 +401,7 @@ export default function AdminHomeworkPage() {
                 type="number"
                 className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("maxMarks", { valueAsNumber: true })}
-              />
+               aria-label="Max Marks"/>
               {errors.maxMarks && <p className="mt-1 text-xs text-danger">{errors.maxMarks.message}</p>}
             </div>
           </div>

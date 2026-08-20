@@ -111,6 +111,7 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
       >
         <button
           onClick={dismiss}
+          aria-label="Dismiss this tip"
           className="absolute top-2 right-2 text-muted hover:text-foreground-muted"
         >
           <X className="h-4 w-4" />

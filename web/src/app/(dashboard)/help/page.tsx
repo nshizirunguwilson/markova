@@ -95,7 +95,7 @@ export default function HelpPage() {
               className="w-full border rounded-lg pl-10 pr-4 py-2 text-sm"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-            />
+             aria-label="Search FAQ..."/>
           </div>
 
           {faqsLoading && <div className="text-center py-8"><Spinner /></div>}
@@ -183,7 +183,7 @@ export default function HelpPage() {
               className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
               value={ticketForm.category}
               onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
-            >
+             aria-label="Category">
               <option value="">General</option>
               <option value="Technical">Technical</option>
               <option value="Account">Account</option>

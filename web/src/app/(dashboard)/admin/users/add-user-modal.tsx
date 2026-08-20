@@ -118,7 +118,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
             <select
               {...register("role")}
               className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
+             aria-label="Role">
               <option value="STUDENT">Student</option>
               <option value="TEACHER">Teacher</option>
               <option value="PARENT">Parent</option>
@@ -154,7 +154,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
                     setValue("classSectionId", "");
                   }}
                   className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
+                 aria-label="Class Level">
                   <option value="">Select level...</option>
                   {classLevels?.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
@@ -169,7 +169,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
                   {...register("classSectionId")}
                   disabled={!selectedLevel}
                   className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:bg-muted/10 disabled:text-muted"
-                >
+                 aria-label="Class Section">
                   <option value="">{selectedLevel ? "Select section..." : "Pick a level first"}</option>
                   {sections?.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -184,7 +184,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
               <select
                 {...register("gender")}
                 className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
+               aria-label="Gender">
                 <option value="">Select...</option>
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
@@ -211,7 +211,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
             <select
               {...register("employmentStatus")}
               className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
+             aria-label="Employment Status">
               <option value="FULL_TIME">Full Time</option>
               <option value="PART_TIME">Part Time</option>
               <option value="CONTRACT">Contract</option>

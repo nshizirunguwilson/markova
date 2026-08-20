@@ -322,7 +322,7 @@ export default function AdminDisciplinePage() {
                 value={form.actionTaken}
                 onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-              >
+               aria-label="Action Taken">
                 {Object.entries(ACTION_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}

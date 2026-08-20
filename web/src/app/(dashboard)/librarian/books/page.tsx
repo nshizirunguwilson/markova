@@ -110,13 +110,13 @@ export default function LibrarianBooksPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by title, author, or ISBN..."
               className="w-full rounded-lg border border-border bg-surface pl-10 pr-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
+             aria-label="Search by title, author, or ISBN..."/>
           </div>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+           aria-label="All Categories">
             <option value="">All Categories</option>
             {analytics?.categories?.map((c: any) => (
               <option key={c.category} value={c.category}>{c.category} ({c.count})</option>

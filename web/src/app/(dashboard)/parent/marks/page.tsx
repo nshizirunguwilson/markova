@@ -93,7 +93,7 @@ export default function ParentMarksPage() {
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
               className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Select child">
               {children.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.className})
@@ -105,7 +105,7 @@ export default function ParentMarksPage() {
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+           aria-label="Select term...">
             <option value="">Select term...</option>
             {terms?.map((t: any) => (
               <option key={t.id} value={t.id}>

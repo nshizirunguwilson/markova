@@ -51,13 +51,13 @@ export default function ParentAnalyticsPage() {
 
       <div className="flex gap-4 flex-wrap">
         {children.length > 1 && (
-          <select className="border rounded-lg px-3 py-2 text-sm" value={selectedChild} onChange={(e) => setSelectedChild(e.target.value)}>
+          <select className="border rounded-lg px-3 py-2 text-sm" value={selectedChild} onChange={(e) => setSelectedChild(e.target.value)} aria-label="Select child">
             {children.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => setYearId(e.target.value)}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => setYearId(e.target.value)} aria-label="Select Year">
           <option value="">Select Year</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>

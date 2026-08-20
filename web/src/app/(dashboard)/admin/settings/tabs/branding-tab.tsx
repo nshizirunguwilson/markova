@@ -47,7 +47,7 @@ export function BrandingTab() {
         <form onSubmit={handleSubmit(onSaveColor)} className="mt-4 flex items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Color</label>
-            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-border" />
+            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-border"  aria-label="Color"/>
           </div>
           <Button type="submit" size="sm" isLoading={bulkUpsert.isPending}>
             <Save className="mr-1 h-4 w-4" /> Save
@@ -80,7 +80,7 @@ export function BrandingTab() {
                   accept="image/*"
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && uploadFile(type, e.target.files[0])}
-                />
+                 aria-label="Upload image file"/>
               </label>
               {map[`${type}_url`] && <p className="mt-1 text-xs text-success">Uploaded</p>}
             </div>

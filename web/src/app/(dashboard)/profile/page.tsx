@@ -138,7 +138,7 @@ export default function ProfilePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-              />
+               aria-label="First Name"/>
             ) : (
               <p className="text-sm text-foreground">{user.firstName}</p>
             )}
@@ -152,7 +152,7 @@ export default function ProfilePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-              />
+               aria-label="Last Name"/>
             ) : (
               <p className="text-sm text-foreground">{user.lastName}</p>
             )}
@@ -176,7 +176,7 @@ export default function ProfilePage() {
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               placeholder="+250..."
-            />
+             aria-label="+250..."/>
           ) : (
             <p className="text-sm text-foreground">{user.phone || "Not set"}</p>
           )}
@@ -212,7 +212,7 @@ export default function ProfilePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.currentPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-              />
+               aria-label="Current Password"/>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground-muted">New Password</label>
@@ -222,7 +222,7 @@ export default function ProfilePage() {
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                 placeholder="Min 8 characters"
-              />
+               aria-label="New Password"/>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground-muted">Confirm New Password</label>
@@ -231,7 +231,7 @@ export default function ProfilePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.confirmPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-              />
+               aria-label="Confirm New Password"/>
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => { setShowPassword(false); setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); }}>

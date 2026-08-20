@@ -51,11 +51,11 @@ export default function AdminAnalyticsPage() {
       />
 
       <div className="flex gap-4">
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }} aria-label="All Years">
           <option value="">All Years</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)} aria-label="All Terms">
           <option value="">All Terms</option>
           {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>

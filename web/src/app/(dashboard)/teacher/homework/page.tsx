@@ -194,7 +194,7 @@ export default function TeacherHomeworkPage() {
                                 gradeSubmission.mutate({ id: sub.id, marks: Number(e.target.value) });
                               }
                             }}
-                          />
+                           aria-label="—"/>
                         )}
                       </TableCell>
                       <TableCell>
@@ -229,7 +229,7 @@ export default function TeacherHomeworkPage() {
               value={form.assignmentId}
               onChange={(e) => setForm({ ...form, assignmentId: e.target.value })}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class & Subject">
               <option value="">Select...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>

@@ -165,7 +165,7 @@ export default function AdminReportsPage() {
                   setYearId(e.target.value);
                   setTermId("");
                 }}
-              >
+               aria-label="Academic Year">
                 <option value="">Academic Year</option>
                 {years?.map((y: any) => (
                   <option key={y.id} value={y.id}>{y.name}</option>
@@ -176,7 +176,7 @@ export default function AdminReportsPage() {
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={termId}
                 onChange={(e) => setTermId(e.target.value)}
-              >
+               aria-label="Term">
                 <option value="">Term</option>
                 {terms?.map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -190,7 +190,7 @@ export default function AdminReportsPage() {
                   setLevelId(e.target.value);
                   setSectionId("");
                 }}
-              >
+               aria-label="Class Level">
                 <option value="">Class Level</option>
                 {levels?.map((l: any) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -201,7 +201,7 @@ export default function AdminReportsPage() {
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
-              >
+               aria-label="Section">
                 <option value="">Section</option>
                 {sections?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -343,7 +343,7 @@ export default function AdminReportsPage() {
               className="border rounded-lg px-3 py-2 text-sm"
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
-            >
+             aria-label="Report type">
               <option value="TRANSFER_LETTER">Transfer Letter</option>
               <option value="ENROLLMENT_CONFIRMATION">Enrollment Confirmation</option>
               <option value="DISCIPLINE_REPORT">Discipline Report</option>

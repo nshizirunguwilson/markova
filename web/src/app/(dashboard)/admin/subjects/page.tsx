@@ -175,7 +175,7 @@ export default function AdminSubjectsPage() {
               className={`w-full rounded-lg border ${errors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("name")}
               placeholder="e.g. Mathematics"
-            />
+             aria-label="Name"/>
             {errors.name && <p className="mt-1 text-xs text-danger">{errors.name.message}</p>}
           </div>
           <div>
@@ -184,7 +184,7 @@ export default function AdminSubjectsPage() {
               className={`w-full rounded-lg border ${errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("category")}
               placeholder="e.g. Sciences, Languages, Humanities"
-            />
+             aria-label="Category"/>
             {errors.category && <p className="mt-1 text-xs text-danger">{errors.category.message}</p>}
           </div>
           <div>
@@ -193,7 +193,7 @@ export default function AdminSubjectsPage() {
               type="number"
               className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("maxMarks", { valueAsNumber: true })}
-            />
+             aria-label="Max Marks"/>
             {errors.maxMarks && <p className="mt-1 text-xs text-danger">{errors.maxMarks.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">

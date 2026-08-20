@@ -130,7 +130,7 @@ export default function AdminMarksPage() {
                 setSelectedSection("");
               }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class Level">
               <option value="">Select level...</option>
               {classLevels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -143,7 +143,7 @@ export default function AdminMarksPage() {
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Section">
               <option value="">Select section...</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -156,7 +156,7 @@ export default function AdminMarksPage() {
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Term">
               <option value="">Select term...</option>
               {terms?.map((t: any) => (
                 <option key={t.id} value={t.id}>

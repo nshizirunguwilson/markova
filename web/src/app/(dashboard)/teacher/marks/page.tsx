@@ -241,7 +241,7 @@ export default function TeacherMarksPage() {
               value={selectedAssignment}
               onChange={(e) => setSelectedAssignment(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class & Subject">
               <option value="">Select assignment...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -256,7 +256,7 @@ export default function TeacherMarksPage() {
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Term">
               <option value="">Select term...</option>
               {terms?.map((t: any) => (
                 <option key={t.id} value={t.id}>
@@ -271,7 +271,7 @@ export default function TeacherMarksPage() {
               value={selectedAT}
               onChange={(e) => setSelectedAT(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Assessment Type">
               <option value="">Select type...</option>
               {assessmentTypes?.map((at: any) => (
                 <option key={at.id} value={at.id}>{at.name}</option>
@@ -361,7 +361,7 @@ export default function TeacherMarksPage() {
                             }
                           }
                         }}
-                      />
+                       aria-label="—"/>
                     </td>
                     <td className="py-2">
                       {entry.score !== "" ? (

@@ -149,7 +149,7 @@ export default function AdminPromotionPage() {
               className="w-full max-w-md rounded-lg border border-border px-3 py-2 text-sm"
               value={academicYearId}
               onChange={(e) => setAcademicYearId(e.target.value)}
-            >
+             aria-label="Academic Year">
               <option value="">Select academic year</option>
               {years?.map((y: any) => (
                 <option key={y.id} value={y.id}>
@@ -169,7 +169,7 @@ export default function AdminPromotionPage() {
                   className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                   value={fromLevelId}
                   onChange={(e) => { setFromLevelId(e.target.value); setFromSectionId(""); }}
-                >
+                 aria-label="Select level">
                   <option value="">Select level</option>
                   {levels?.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
@@ -180,7 +180,7 @@ export default function AdminPromotionPage() {
                   value={fromSectionId}
                   onChange={(e) => setFromSectionId(e.target.value)}
                   disabled={!fromLevelId}
-                >
+                 aria-label="Select section">
                   <option value="">Select section</option>
                   {fromSections?.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -198,7 +198,7 @@ export default function AdminPromotionPage() {
                   className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                   value={toLevelId}
                   onChange={(e) => { setToLevelId(e.target.value); setToSectionId(""); }}
-                >
+                 aria-label="Select level">
                   <option value="">Select level</option>
                   {levels?.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
@@ -209,7 +209,7 @@ export default function AdminPromotionPage() {
                   value={toSectionId}
                   onChange={(e) => setToSectionId(e.target.value)}
                   disabled={!toLevelId}
-                >
+                 aria-label="Select section">
                   <option value="">Select section</option>
                   {toSections?.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -235,7 +235,7 @@ export default function AdminPromotionPage() {
                 placeholder={defaultThreshold ? `${defaultThreshold}` : "50"}
                 value={passThreshold}
                 onChange={(e) => setPassThreshold(e.target.value)}
-              />
+               aria-label="Pass mark (%) {defaultThreshold && ( default )}"/>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">
@@ -247,7 +247,7 @@ export default function AdminPromotionPage() {
                 placeholder="50"
                 value={disciplineThreshold}
                 onChange={(e) => setDisciplineThreshold(e.target.value)}
-              />
+               aria-label="Min discipline points"/>
             </div>
           </div>
 

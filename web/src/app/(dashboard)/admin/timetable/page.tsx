@@ -188,7 +188,7 @@ export default function AdminTimetablePage() {
               className="rounded-lg border border-border px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
-            >
+             aria-label="Class Level">
               <option value="">Select level</option>
               {levels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -202,7 +202,7 @@ export default function AdminTimetablePage() {
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               disabled={!levelId}
-            >
+             aria-label="Section">
               <option value="">Select section</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -274,7 +274,7 @@ export default function AdminTimetablePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                 value={modal.subjectId}
                 onChange={(e) => setModal({ ...modal, subjectId: e.target.value })}
-              >
+               aria-label="Subject">
                 <option value="">Select subject</option>
                 {subjects?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -287,7 +287,7 @@ export default function AdminTimetablePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                 value={modal.teacherId}
                 onChange={(e) => setModal({ ...modal, teacherId: e.target.value })}
-              >
+               aria-label="Teacher">
                 <option value="">Select teacher</option>
                 {teachers.map((t: any) => (
                   <option key={t.id} value={t.teacher?.id || t.id}>
@@ -303,7 +303,7 @@ export default function AdminTimetablePage() {
                   className="w-full rounded-lg border border-border px-2 py-2 text-sm"
                   value={modal.dayOfWeek}
                   onChange={(e) => setModal({ ...modal, dayOfWeek: Number(e.target.value) })}
-                >
+                 aria-label="Day">
                   {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                     <option key={d} value={d}>{DAY_NAMES[d]}</option>
                   ))}
@@ -316,7 +316,7 @@ export default function AdminTimetablePage() {
                   className="w-full rounded-lg border border-border px-2 py-2 text-sm"
                   value={modal.startTime}
                   onChange={(e) => setModal({ ...modal, startTime: e.target.value })}
-                />
+                 aria-label="Start"/>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">End</label>
@@ -325,7 +325,7 @@ export default function AdminTimetablePage() {
                   className="w-full rounded-lg border border-border px-2 py-2 text-sm"
                   value={modal.endTime}
                   onChange={(e) => setModal({ ...modal, endTime: e.target.value })}
-                />
+                 aria-label="End"/>
               </div>
             </div>
             <div>
@@ -336,7 +336,7 @@ export default function AdminTimetablePage() {
                 value={modal.room}
                 onChange={(e) => setModal({ ...modal, room: e.target.value })}
                 placeholder="e.g. Lab 2"
-              />
+               aria-label="Room (optional)"/>
             </div>
 
             <div className="flex items-center justify-between pt-2">

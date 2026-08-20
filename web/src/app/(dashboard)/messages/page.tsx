@@ -355,7 +355,7 @@ export default function MessagesPage() {
                   placeholder="Type a message..."
                   className="flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm focus:border-primary focus:outline-none"
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                />
+                 aria-label="Type a message..."/>
                 <Button onClick={handleSend} className="rounded-full">
                   <Send className="h-4 w-4" />
                 </Button>
@@ -389,7 +389,7 @@ export default function MessagesPage() {
                 if (e.target.value === "ONE_ON_ONE") setSelectedUserIds(selectedUserIds.slice(0, 1));
               }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Type">
               <option value="ONE_ON_ONE">Direct Message</option>
               <option value="GROUP">Group</option>
               <option value="BROADCAST">Broadcast</option>
@@ -432,7 +432,7 @@ export default function MessagesPage() {
               onChange={(e) => setUserSearch(e.target.value)}
               placeholder="Search users by name..."
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
+             aria-label="Search users by name..."/>
             {/* User dropdown list */}
             {userSearch.trim() && (
               <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-surface">

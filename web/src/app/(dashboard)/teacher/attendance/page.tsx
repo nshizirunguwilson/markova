@@ -110,7 +110,7 @@ export default function TeacherAttendancePage() {
               value={selectedLevel}
               onChange={(e) => { setSelectedLevel(e.target.value); setSelectedSection(""); }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class Level">
               <option value="">Select level...</option>
               {classLevels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -123,7 +123,7 @@ export default function TeacherAttendancePage() {
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Section">
               <option value="">Select section...</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -137,7 +137,7 @@ export default function TeacherAttendancePage() {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
+             aria-label="Date"/>
           </div>
         </div>
       </Card>
@@ -157,7 +157,7 @@ export default function TeacherAttendancePage() {
               className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
               onKeyDown={(e) => e.key === "Enter" && handleQrSubmit()}
               autoFocus
-            />
+             aria-label="Scan QR or type student ID..."/>
             <Button onClick={handleQrSubmit} isLoading={qrScan.isPending}>Scan</Button>
           </div>
         </Card>

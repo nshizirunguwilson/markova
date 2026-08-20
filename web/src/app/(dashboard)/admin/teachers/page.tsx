@@ -103,7 +103,7 @@ export default function AdminTeachersPage() {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+             aria-label="Search by name, email, or phone..."/>
           </div>
           <Button variant="outline" size="sm" onClick={handleSearch}>
             Search

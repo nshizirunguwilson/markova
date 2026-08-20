@@ -211,7 +211,7 @@ export default function AdminHelpPage() {
       {tab === "tickets" && (
         <>
           <div className="flex gap-4">
-            <select className="border rounded-lg px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <select className="border rounded-lg px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="All Status">
               <option value="">All Status</option>
               <option value="OPEN">Open</option>
               <option value="IN_PROGRESS">In Progress</option>
@@ -255,7 +255,7 @@ export default function AdminHelpPage() {
                           className="border rounded px-2 py-1 text-xs"
                           value={ticket.status}
                           onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
-                        >
+                         aria-label="Ticket status">
                           <option value="OPEN">Open</option>
                           <option value="IN_PROGRESS">In Progress</option>
                           <option value="RESOLVED">Resolved</option>

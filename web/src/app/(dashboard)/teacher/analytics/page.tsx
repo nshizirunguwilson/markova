@@ -36,19 +36,19 @@ export default function TeacherAnalyticsPage() {
       />
 
       <div className="flex gap-4 flex-wrap">
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }} aria-label="Year">
           <option value="">Year</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)} aria-label="Term">
           <option value="">Term</option>
           {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={levelId} onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={levelId} onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }} aria-label="Level">
           <option value="">Level</option>
           {levels?.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={sectionId} onChange={(e) => setSectionId(e.target.value)} aria-label="Section">
           <option value="">Section</option>
           {sections?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

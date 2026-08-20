@@ -160,7 +160,7 @@ export default function UsersPage() {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+             aria-label="Search by name, email, or phone..."/>
           </div>
 
           {/* Role tabs */}
@@ -331,7 +331,7 @@ export default function UsersPage() {
                   setFilters((f) => ({ ...f, limit: newLimit, page: 1 }));
                 }}
                 className="rounded-lg border border-border bg-surface px-2 py-1 text-sm focus:border-primary focus:outline-none"
-              >
+               aria-label="Filter by role">
                 {[10, 20, 50].map((n) => (
                   <option key={n} value={n}>{n} per page</option>
                 ))}

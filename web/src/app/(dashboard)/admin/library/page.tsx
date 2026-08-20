@@ -270,7 +270,7 @@ export default function AdminLibraryPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-                />
+                 aria-label="Search books by title, author, or ISBN..."/>
               </div>
             </div>
           </Card>
@@ -493,7 +493,7 @@ export default function AdminLibraryPage() {
               <input
                 className={`w-full rounded-lg border ${bookForm.formState.errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("title")}
-              />
+               aria-label="Title"/>
               {bookForm.formState.errors.title && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.title.message}</p>
               )}
@@ -503,7 +503,7 @@ export default function AdminLibraryPage() {
               <input
                 className={`w-full rounded-lg border ${bookForm.formState.errors.author ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("author")}
-              />
+               aria-label="Author"/>
               {bookForm.formState.errors.author && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.author.message}</p>
               )}
@@ -515,7 +515,7 @@ export default function AdminLibraryPage() {
               <input
                 className={`w-full rounded-lg border ${bookForm.formState.errors.isbn ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("isbn")}
-              />
+               aria-label="ISBN"/>
               {bookForm.formState.errors.isbn && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.isbn.message}</p>
               )}
@@ -526,7 +526,7 @@ export default function AdminLibraryPage() {
                 className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("category")}
                 placeholder="e.g. Fiction, Science, History"
-              />
+               aria-label="Category"/>
               {bookForm.formState.errors.category && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.category.message}</p>
               )}
@@ -539,7 +539,7 @@ export default function AdminLibraryPage() {
                 type="number"
                 className={`w-full rounded-lg border ${bookForm.formState.errors.quantity ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("quantity", { valueAsNumber: true })}
-              />
+               aria-label="Total Copies"/>
               {bookForm.formState.errors.quantity && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.quantity.message}</p>
               )}
@@ -550,7 +550,7 @@ export default function AdminLibraryPage() {
                 className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("shelfLocation")}
                 placeholder="e.g. A-3-12"
-              />
+               aria-label="Shelf Location"/>
               {bookForm.formState.errors.shelfLocation && (
                 <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.shelfLocation.message}</p>
               )}
@@ -573,7 +573,7 @@ export default function AdminLibraryPage() {
             <select
               className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.bookIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("bookIdentifier")}
-            >
+             aria-label="Book">
               <option value="">Select book</option>
               {books?.filter((b: any) => b.availableCount > 0).map((b: any) => (
                 <option key={b.id} value={b.id}>{b.title} ({b.availableCount} available)</option>
@@ -588,7 +588,7 @@ export default function AdminLibraryPage() {
             <select
               className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.studentIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("studentIdentifier")}
-            >
+             aria-label="Borrower (Student)">
               <option value="">Select student</option>
               {students.map((s: any) => (
                 <option key={s.id} value={s.student?.studentIdNumber || s.id}>{s.firstName} {s.lastName} {s.student?.studentIdNumber ? `(${s.student.studentIdNumber})` : ""}</option>
@@ -732,7 +732,7 @@ function BulkImportBooksModal({
             accept=".csv"
             onChange={handleFileChange}
             className="block w-full text-sm text-muted file:mr-4 file:rounded-lg file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary/20"
-          />
+           aria-label="Select item"/>
           <div className="flex justify-end">
             <Button variant="outline" onClick={handleClose}>Cancel</Button>
           </div>
