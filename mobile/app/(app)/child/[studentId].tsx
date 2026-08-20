@@ -41,14 +41,14 @@ export default function ChildDetailScreen() {
       icon: <TrendingUp size={22} color={colors.success} />,
       title: 'Marks & Grades',
       subtitle: 'View term results and report cards',
-      color: colors.successLight,
+      color: colors.successWash,
       onPress: () => router.push({ pathname: '/(app)/child/marks', params: { studentId, name } }),
     },
     {
       icon: <AlertTriangle size={22} color={colors.danger} />,
       title: 'Discipline',
       subtitle: `${discipline?.incidents?.length ?? 0} incident(s) on record`,
-      color: colors.dangerLight,
+      color: colors.dangerWash,
       onPress: () => router.push({ pathname: '/(app)/child/discipline', params: { studentId, name } }),
     },
     {
@@ -99,7 +99,7 @@ export default function ChildDetailScreen() {
               <Text style={styles.menuTitle}>{item.title}</Text>
               <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
             </View>
-            <ChevronRight size={20} color={colors.mutedLight} />
+            <ChevronRight size={20} color={colors.muted} />
           </Pressable>
         ))}
       </ScrollView>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   summaryRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
   summaryCard: {
-    flex: 1, backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
+    flex: 1, backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md,
     alignItems: 'center',
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
@@ -130,12 +130,12 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
   menuItem: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   menuIcon: {
-    width: 44, height: 44, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: radius.xl, alignItems: 'center', justifyContent: 'center',
   },
   menuContent: { flex: 1, marginLeft: spacing.md },
   menuTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },

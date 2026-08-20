@@ -31,7 +31,7 @@ export default function HelpScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search FAQs..."
-          placeholderTextColor={colors.mutedLight}
+          placeholderTextColor={colors.muted}
           value={search}
           onChangeText={setSearch}
         />
@@ -74,7 +74,7 @@ export default function HelpScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <HelpCircle size={48} color={colors.mutedLight} />
+              <HelpCircle size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No FAQs Found</Text>
               <Text style={styles.emptyText}>
                 {search.trim() ? 'Try a different search term.' : 'No FAQs available yet.'}
@@ -93,12 +93,12 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
   faqCard: {
-    backgroundColor: colors.white, borderRadius: radius.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
     overflow: 'hidden',
   },
@@ -109,12 +109,12 @@ const styles = StyleSheet.create({
   faqQuestion: { flex: 1, fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
   faqAnswerBox: {
     paddingHorizontal: spacing.lg, paddingBottom: spacing.lg,
-    borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: spacing.md,
+    borderTopWidth: 1, borderTopColor: colors.surfaceMuted, paddingTop: spacing.md,
   },
   faqAnswer: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 22 },
   categoryBadge: {
     alignSelf: 'flex-start', marginTop: spacing.sm,
-    backgroundColor: colors.accentLight, borderRadius: radius.sm,
+    backgroundColor: colors.accentLight, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: 2,
   },
   categoryText: { fontSize: 10, color: colors.primary, fontWeight: fontWeight.semibold },

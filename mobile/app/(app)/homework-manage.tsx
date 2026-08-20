@@ -140,7 +140,7 @@ export default function HomeworkManageScreen() {
           })
         ) : (
           <View style={styles.emptyCard}>
-            <BookOpen size={32} color={colors.mutedLight} />
+            <BookOpen size={32} color={colors.muted} />
             <Text style={styles.noData}>No homework created yet.</Text>
           </View>
         )}
@@ -289,11 +289,11 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   hwCard: {
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   hwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 3 },
   subjectText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
   hwTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.sm },
   hwMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing['2xl'], maxHeight: '85%' },
+  modalContent: { backgroundColor: colors.white, borderTopLeftRadius: radius['2xl'], borderTopRightRadius: radius['2xl'], padding: spacing['2xl'], maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl },
   modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground, marginBottom: spacing.sm },
@@ -319,12 +319,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
 
   // Submission
-  subRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  subRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
   subInfo: { flex: 1 },
   subName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
   subDate: { fontSize: fontSize.xs, color: colors.muted },
   gradeInput: {
-    width: 50, height: 36, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    width: 50, height: 36, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     textAlign: 'center', fontSize: fontSize.sm, fontWeight: fontWeight.bold,
   },
   gradeBtn: { marginLeft: spacing.sm, padding: spacing.xs },

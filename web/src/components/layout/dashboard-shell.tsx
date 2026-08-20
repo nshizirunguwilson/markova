@@ -75,8 +75,8 @@ export function DashboardShell({
   }
 
   return (
-    <div className="min-h-screen bg-accent-light/30">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:text-primary focus:shadow-lg focus:rounded-lg">
+    <div className="min-h-screen bg-background">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-surface focus:px-4 focus:py-2 focus:text-primary focus:shadow-lg focus:rounded-lg">
         Skip to content
       </a>
       {/* Mobile backdrop */}

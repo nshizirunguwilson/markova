@@ -125,7 +125,7 @@ function ParentDashboard() {
           ))
         ) : (
           <View style={styles.emptyCard}>
-            <Users size={32} color={colors.mutedLight} />
+            <Users size={32} color={colors.muted} />
             <Text style={styles.emptyText}>No children linked to your account yet.</Text>
           </View>
         )}
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   welcomeCard: {
     backgroundColor: colors.primary,
-    borderRadius: radius.xl,
+    borderRadius: radius['2xl'],
     padding: spacing['2xl'],
     marginBottom: spacing.xl,
   },
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
 
   // Child cards (Parent)
   childCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
@@ -512,15 +512,15 @@ const styles = StyleSheet.create({
   childInfo: { marginBottom: spacing.md },
   childName: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.foreground },
   childClass: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  childId: { fontSize: fontSize.xs, color: colors.mutedLight, marginTop: 2 },
+  childId: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
   childActions: { flexDirection: 'row', gap: spacing.md },
-  quickAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accentLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  quickAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   quickActionText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.medium },
-  emptyCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'], alignItems: 'center' },
+  emptyCard: { backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing['3xl'], alignItems: 'center' },
   emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center' },
   chatWithTeachersBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   // Action grid (Teacher/Admin)
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
   actionCard: {
-    width: '47%', borderRadius: radius.xl, padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
+    width: '47%', borderRadius: radius['2xl'], padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
     minHeight: 100,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
   },
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   // Stats
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   statCard: {
-    width: '47%', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, borderLeftWidth: 4,
+    width: '47%', backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, borderLeftWidth: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
   statIcon: { marginBottom: spacing.xs },
@@ -554,13 +554,13 @@ const styles = StyleSheet.create({
   // Librarian dashboard
   overdueBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
+    backgroundColor: colors.dangerWash, borderRadius: radius.xl,
     padding: spacing.md, marginTop: spacing.md,
   },
   overdueBarText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
   popularBookRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md,
     marginBottom: spacing.sm,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },

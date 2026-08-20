@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 72,
     height: 72,
-    borderRadius: radius.xl,
+    borderRadius: radius['2xl'],
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   },
   form: {
     backgroundColor: colors.white,
-    borderRadius: radius.xl,
+    borderRadius: radius['2xl'],
     padding: spacing['3xl'],
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },

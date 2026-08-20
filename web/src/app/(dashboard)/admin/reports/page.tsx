@@ -321,7 +321,7 @@ export default function AdminReportsPage() {
                 </div>
               </div>
               <div
-                className="border rounded-lg p-4 bg-white"
+                className="border rounded-lg p-4 bg-surface"
                 dangerouslySetInnerHTML={{ __html: viewingHtml }}
               />
             </Card>

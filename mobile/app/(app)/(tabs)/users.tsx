@@ -65,11 +65,11 @@ export default function UsersScreen() {
 
   const roleColor = (role: string) => {
     switch (role) {
-      case 'ADMIN': return colors.dangerLight;
+      case 'ADMIN': return colors.dangerWash;
       case 'TEACHER': return colors.accentLight;
-      case 'STUDENT': return colors.successLight;
-      case 'LIBRARIAN': return colors.warningLight;
-      default: return colors.borderLight;
+      case 'STUDENT': return colors.successWash;
+      case 'LIBRARIAN': return colors.warningWash;
+      default: return colors.surfaceMuted;
     }
   };
 
@@ -92,7 +92,7 @@ export default function UsersScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search by name or email..."
-          placeholderTextColor={colors.mutedLight}
+          placeholderTextColor={colors.muted}
           value={search}
           onChangeText={(t) => { setSearch(t); setPage(1); }}
         />
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   userRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
   avatar: {

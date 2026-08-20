@@ -203,13 +203,13 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   summaryCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.dangerLight, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.xl,
+    backgroundColor: colors.dangerWash, borderRadius: radius['2xl'], padding: spacing.lg, marginBottom: spacing.xl,
   },
   summaryText: { flex: 1 },
   summaryTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.danger },
   summarySubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
   incidentCard: {
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   incidentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   acknowledgedText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.medium },
   appealBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.accentLight, borderRadius: radius.sm,
+    backgroundColor: colors.accentLight, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
   appealBtnText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },

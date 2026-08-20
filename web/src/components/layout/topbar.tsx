@@ -154,7 +154,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   };
 
   return (
-    <header className="fixed left-0 md:left-60 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-white px-4 md:px-6">
+    <header className="fixed left-0 md:left-60 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
       {/* Mobile hamburger */}
       <button
         onClick={onToggleSidebar}
@@ -202,7 +202,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
         )}
 
         {searchOpen && searchQuery.trim() && (
-          <div className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-border bg-white py-1 shadow-lg">
+          <div className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-border bg-surface py-1 shadow-lg">
             {searchResults.length > 0 ? (
               searchResults.map((item) => {
                 const Icon = item.icon;
@@ -247,7 +247,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-border bg-white shadow-lg">
+            <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-border bg-surface shadow-lg">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold text-foreground">
                   Notifications
@@ -337,7 +337,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-white py-1 shadow-lg">
+            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface py-1 shadow-lg">
               <button
                 onClick={() => {
                   setDropdownOpen(false);

@@ -358,7 +358,7 @@ export default function AttendanceScreen() {
                     {mode === 'nfc' ? 'Tap to start NFC scanning' : 'Tap to take attendance'}
                   </Text>
                 </View>
-                <ChevronDown size={20} color={colors.mutedLight} style={{ transform: [{ rotate: '-90deg' }] }} />
+                <ChevronDown size={20} color={colors.muted} style={{ transform: [{ rotate: '-90deg' }] }} />
               </Pressable>
             ))
           ) : (
@@ -417,7 +417,7 @@ export default function AttendanceScreen() {
             renderItem={({ item }) => (
               <View style={[styles.nfcStudentRow, item.scanned && styles.nfcStudentScanned]}>
                 <View style={[styles.nfcStudentIcon, {
-                  backgroundColor: item.scanned ? colors.successLight : item.hasCard ? colors.borderLight : colors.warningLight,
+                  backgroundColor: item.scanned ? colors.successWash : item.hasCard ? colors.surfaceMuted : colors.warningWash,
                 }]}>
                   {item.scanned ? (
                     <CheckCircle size={20} color={colors.success} />
@@ -490,7 +490,7 @@ export default function AttendanceScreen() {
               return (
                 <Pressable style={styles.studentRow} onPress={() => toggleStatus(item.studentId)}>
                   <View style={[styles.studentAvatar, {
-                    backgroundColor: status === 'PRESENT' ? colors.successLight : status === 'ABSENT' ? colors.dangerLight : colors.warningLight,
+                    backgroundColor: status === 'PRESENT' ? colors.successWash : status === 'ABSENT' ? colors.dangerWash : colors.warningWash,
                   }]}>
                     {status === 'PRESENT' && <CheckCircle size={20} color={colors.success} />}
                     {status === 'ABSENT' && <XCircle size={20} color={colors.danger} />}
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   modeRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
   modeButton: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    paddingVertical: spacing.md, borderRadius: radius.lg,
+    paddingVertical: spacing.md, borderRadius: radius.xl,
     borderWidth: 2, borderColor: colors.primary,
   },
   modeActive: { backgroundColor: colors.primary },
@@ -554,13 +554,13 @@ const styles = StyleSheet.create({
   modeTextActive: { color: colors.white },
   nfcNotice: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.accentLight, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.xl,
+    backgroundColor: colors.accentLight, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.xl,
   },
   nfcText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
   sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
   classCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   classInfo: { flex: 1 },
@@ -578,8 +578,8 @@ const styles = StyleSheet.create({
   countValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
   countLabel: { fontSize: 10, color: colors.muted },
   markAllBtn: {
-    marginLeft: 'auto', backgroundColor: colors.successLight,
-    borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    marginLeft: 'auto', backgroundColor: colors.successWash,
+    borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
   markAllText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.success },
 
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   studentRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   studentAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   studentInfo: { flex: 1 },
@@ -617,15 +617,15 @@ const styles = StyleSheet.create({
   nfcHeaderSub: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs },
   nfcWarning: { fontSize: fontSize.xs, color: colors.warning, marginTop: spacing.sm },
   progressContainer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.white },
-  progressBg: { height: 6, borderRadius: 3, backgroundColor: colors.borderLight },
+  progressBg: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceMuted },
   progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
   nfcStudentRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
-  nfcStudentScanned: { backgroundColor: colors.successLight + '20' },
+  nfcStudentScanned: { backgroundColor: colors.successWash + '20' },
   nfcStudentIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   nfcStudentInfo: { flex: 1 },
   nfcStudentName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   // Offline queue banner
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.warningLight, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    backgroundColor: colors.warningWash, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     borderBottomWidth: 1, borderBottomColor: colors.warning + '40',
   },
   offlineBannerText: {
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   },
   syncButton: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.warning, borderRadius: radius.sm,
+    backgroundColor: colors.warning, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
   syncButtonText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.white },

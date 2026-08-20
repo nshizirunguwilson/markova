@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   warningBanner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.warningLight, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.xl,
+    backgroundColor: colors.warningWash, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.xl,
   },
   warningText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
   label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground, marginBottom: spacing.sm, marginTop: spacing.md },

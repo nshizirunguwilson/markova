@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
     textAlign: 'center', marginBottom: spacing.sm,
   },
   progressBar: {
-    height: 6, backgroundColor: colors.borderLight, borderRadius: 3, overflow: 'hidden',
+    height: 6, backgroundColor: colors.surfaceMuted, borderRadius: 3, overflow: 'hidden',
   },
   progressFill: {
     height: '100%', backgroundColor: colors.primary, borderRadius: 3,
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md,
   },
   progressDot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.borderLight,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMuted,
   },
   progressDotActive: { backgroundColor: colors.primaryLight },
   progressDotCurrent: { backgroundColor: colors.primary, width: 20, borderRadius: 4 },
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
 
   // Cards
   card: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    backgroundColor: colors.primaryLight, borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight, borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   addButtonText: {
@@ -793,14 +793,14 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight,
+    backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.surfaceMuted,
   },
   footerSpacer: { flex: 1 },
 
   // Done screen
   doneContainer: { alignItems: 'center', paddingTop: spacing['4xl'] },
   doneIconWrap: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.successLight,
+    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.successWash,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
   },
   doneTitle: {

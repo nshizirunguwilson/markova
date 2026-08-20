@@ -163,13 +163,13 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing['3xl'] },
   header: { alignItems: 'center', marginBottom: spacing['3xl'] },
   logoContainer: {
-    width: 60, height: 60, borderRadius: radius.xl, backgroundColor: colors.white,
+    width: 60, height: 60, borderRadius: radius['2xl'], backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
   },
   logoText: { fontSize: 28, fontWeight: fontWeight.bold, color: colors.primary },
   title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white },
   form: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'],
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing['3xl'],
     shadowColor: colors.black, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
   formTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginBottom: spacing.xs },

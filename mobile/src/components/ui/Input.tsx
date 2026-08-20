@@ -19,7 +19,7 @@ export function Input({ label, error, leftIcon, secureTextEntry, style, ...props
         {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
         <TextInput
           style={[styles.input, leftIcon ? styles.inputWithIcon : null, style]}
-          placeholderTextColor={colors.mutedLight}
+          placeholderTextColor={colors.muted}
           secureTextEntry={secureTextEntry && !showPassword}
           {...props}
         />
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.white,
   },
   inputError: {

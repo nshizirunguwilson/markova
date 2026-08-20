@@ -169,7 +169,7 @@ export default function NfcRegisterScreen() {
               <TextInput
                 style={styles.cardInput}
                 placeholder="Enter card UID..."
-                placeholderTextColor={colors.mutedLight}
+                placeholderTextColor={colors.muted}
                 value={manualCardId}
                 onChangeText={setManualCardId}
                 autoCapitalize="characters"
@@ -192,7 +192,7 @@ export default function NfcRegisterScreen() {
               <TextInput
                 style={styles.cardInput}
                 placeholder="Card UID"
-                placeholderTextColor={colors.mutedLight}
+                placeholderTextColor={colors.muted}
                 value={manualCardId}
                 onChangeText={setManualCardId}
                 autoCapitalize="characters"
@@ -235,7 +235,7 @@ export default function NfcRegisterScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search students..."
-            placeholderTextColor={colors.mutedLight}
+            placeholderTextColor={colors.muted}
             value={search}
             onChangeText={setSearch}
           />
@@ -260,7 +260,7 @@ export default function NfcRegisterScreen() {
                 }}
               >
                 <View style={[styles.studentIcon, {
-                  backgroundColor: item.nfcCardId ? colors.successLight : colors.borderLight,
+                  backgroundColor: item.nfcCardId ? colors.successWash : colors.surfaceMuted,
                 }]}>
                   {item.nfcCardId ? (
                     <CheckCircle size={20} color={colors.success} />
@@ -292,13 +292,13 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   infoBox: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.accentLight, borderRadius: radius.lg, padding: spacing.lg,
+    backgroundColor: colors.accentLight, borderRadius: radius.xl, padding: spacing.lg,
     margin: spacing.lg,
   },
   infoText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
   classCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   classInfo: { flex: 1 },
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  progressBg: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.borderLight },
+  progressBg: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.surfaceMuted },
   progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
   progressText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: fontWeight.medium },
 
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   studentRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted, backgroundColor: colors.white,
   },
   studentIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   studentInfo: { flex: 1 },
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   webFallbackTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.warning, textAlign: 'center', marginBottom: spacing.xs },
   webFallbackSub: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', marginBottom: spacing.md },
   cardInput: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
     fontSize: fontSize.base, color: colors.foreground, backgroundColor: colors.white,
     marginBottom: spacing.lg, width: '100%',

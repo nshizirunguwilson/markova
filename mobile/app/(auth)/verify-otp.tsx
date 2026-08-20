@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   otpInput: {
     width: 48,
     height: 56,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: 'rgba(255,255,255,0.15)',
     textAlign: 'center',
     fontSize: fontSize.xl,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   countdown: {
     fontSize: fontSize.sm,
-    color: colors.mutedLight,
+    color: colors.muted,
   },
   resendLink: {
     fontSize: fontSize.sm,

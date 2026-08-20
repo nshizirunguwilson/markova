@@ -183,7 +183,7 @@ export default function LibraryScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search books..."
-            placeholderTextColor={colors.mutedLight}
+            placeholderTextColor={colors.muted}
             value={search}
             onChangeText={setSearch}
           />
@@ -423,18 +423,18 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
   bookCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
   bookIcon: {
-    width: 42, height: 42, borderRadius: radius.lg, backgroundColor: colors.accentLight,
+    width: 42, height: 42, borderRadius: radius.xl, backgroundColor: colors.accentLight,
     alignItems: 'center', justifyContent: 'center',
   },
   bookInfo: { flex: 1 },
@@ -447,10 +447,10 @@ const styles = StyleSheet.create({
   loanRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
-  loanOverdue: { backgroundColor: colors.dangerLight },
+  loanOverdue: { backgroundColor: colors.dangerWash },
   loanBookInfo: { flex: 1 },
   loanTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
   loanUserRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 3 },
@@ -470,17 +470,17 @@ const styles = StyleSheet.create({
   statsContainer: { flex: 1, padding: spacing.lg },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
   statBox: {
-    width: '47%', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg,
+    width: '47%', backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
     borderLeftWidth: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
   statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
   statLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
-  popularSection: { backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg },
+  popularSection: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg },
   popularTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
   popularRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   popularRank: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary, width: 28 },
   popularName: { flex: 1, fontSize: fontSize.sm, color: colors.foreground },
@@ -498,22 +498,22 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
   selectedBookBox: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.accentLight, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,
+    backgroundColor: colors.accentLight, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.lg,
   },
   selectedBookTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.foreground },
   selectedBookAuthor: { fontSize: fontSize.xs, color: colors.muted },
   borrowerList: {
-    backgroundColor: colors.background, borderRadius: radius.lg, marginBottom: spacing.md, maxHeight: 200,
+    backgroundColor: colors.background, borderRadius: radius.xl, marginBottom: spacing.md, maxHeight: 200,
   },
   borrowerRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   borrowerName: { flex: 1, fontSize: fontSize.sm, color: colors.foreground },
   borrowerRole: { fontSize: fontSize.xs, color: colors.muted },
   selectedBorrowerBox: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.successLight, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,
+    backgroundColor: colors.successWash, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.lg,
   },
   selectedBorrowerName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.foreground, flex: 1 },
 });

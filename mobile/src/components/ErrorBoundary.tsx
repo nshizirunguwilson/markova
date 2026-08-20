@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: spacing.xl,
   },
   iconContainer: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.dangerLight,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.dangerWash,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
   },
   title: {
@@ -81,14 +81,14 @@ const styles = StyleSheet.create({
     textAlign: 'center', lineHeight: 22, marginBottom: spacing.xl,
   },
   errorBox: {
-    maxHeight: 120, width: '100%', backgroundColor: colors.borderLight,
-    borderRadius: radius.lg, marginBottom: spacing.xl,
+    maxHeight: 120, width: '100%', backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.xl, marginBottom: spacing.xl,
   },
   errorBoxContent: { padding: spacing.md },
   errorText: { fontSize: fontSize.xs, color: colors.danger, fontFamily: 'monospace' },
   retryButton: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.primary, borderRadius: radius.lg,
+    backgroundColor: colors.primary, borderRadius: radius.xl,
     paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
   },
   retryText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },

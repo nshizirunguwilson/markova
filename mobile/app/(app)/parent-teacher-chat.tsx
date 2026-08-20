@@ -189,7 +189,7 @@ function TeacherListView({
         <TextInput
           style={styles.searchInput}
           placeholder="Search teachers or subjects..."
-          placeholderTextColor={colors.mutedLight}
+          placeholderTextColor={colors.muted}
           value={search}
           onChangeText={setSearch}
         />
@@ -250,7 +250,7 @@ function TeacherListView({
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Users size={48} color={colors.mutedLight} />
+          <Users size={48} color={colors.muted} />
           <Text style={styles.emptyTitle}>No Teachers Found</Text>
           <Text style={styles.emptyText}>
             {search.trim()
@@ -322,8 +322,8 @@ function InlineChatThread({
 
   const renderTicks = (status: string) => {
     if (status === 'READ') return <CheckCheck size={14} color={colors.primaryLight} />;
-    if (status === 'DELIVERED') return <CheckCheck size={14} color={colors.mutedLight} />;
-    return <Check size={14} color={colors.mutedLight} />;
+    if (status === 'DELIVERED') return <CheckCheck size={14} color={colors.muted} />;
+    return <Check size={14} color={colors.muted} />;
   };
 
   return (
@@ -374,7 +374,7 @@ function InlineChatThread({
           <TextInput
             style={styles.messageInput}
             placeholder="Type a message..."
-            placeholderTextColor={colors.mutedLight}
+            placeholderTextColor={colors.muted}
             value={input}
             onChangeText={handleTyping}
             multiline
@@ -385,7 +385,7 @@ function InlineChatThread({
             style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]}
             disabled={!input.trim()}
           >
-            <Send size={20} color={input.trim() ? colors.white : colors.mutedLight} />
+            <Send size={20} color={input.trim() ? colors.white : colors.muted} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   teacherRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
   avatarContainer: { position: 'relative' },
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   messageList: { padding: spacing.lg, paddingBottom: spacing.sm },
 
   bubble: {
-    maxWidth: '78%', borderRadius: radius.lg, padding: spacing.md,
+    maxWidth: '78%', borderRadius: radius.xl, padding: spacing.md,
     marginBottom: spacing.sm,
   },
   bubbleMine: {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border,
   },
   messageInput: {
-    flex: 1, backgroundColor: colors.background, borderRadius: radius.xl,
+    flex: 1, backgroundColor: colors.background, borderRadius: radius['2xl'],
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     fontSize: fontSize.base, color: colors.foreground,
     maxHeight: 100, minHeight: 40,
@@ -492,5 +492,5 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendButtonDisabled: { backgroundColor: colors.borderLight },
+  sendButtonDisabled: { backgroundColor: colors.surfaceMuted },
 });

@@ -46,10 +46,10 @@ export default function NotificationsScreen() {
   const getIconBg = (type: string) => {
     switch (type) {
       case 'ATTENDANCE': return colors.accentLight;
-      case 'MARKS': return colors.successLight;
-      case 'DISCIPLINE': return colors.dangerLight;
+      case 'MARKS': return colors.successWash;
+      case 'DISCIPLINE': return colors.dangerWash;
       case 'HOMEWORK': return colors.accentLight;
-      default: return colors.borderLight;
+      default: return colors.surfaceMuted;
     }
   };
 
@@ -120,7 +120,7 @@ export default function NotificationsScreen() {
         />
       ) : (
         <View style={styles.empty}>
-          <CheckCircle size={48} color={colors.mutedLight} />
+          <CheckCircle size={48} color={colors.muted} />
           <Text style={styles.emptyTitle}>All Caught Up</Text>
           <Text style={styles.emptyText}>No notifications at the moment.</Text>
         </View>
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
   notifUnread: { backgroundColor: colors.accentLight },

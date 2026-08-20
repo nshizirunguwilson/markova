@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
   },
   fullWidth: {
     width: '100%',
@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
 const variantStyles: Record<ButtonVariant, ViewStyle> = {
   primary: { backgroundColor: colors.primary },
   secondary: { backgroundColor: colors.primaryLight },
-  outline: { backgroundColor: colors.transparent, borderWidth: 1, borderColor: colors.border },
-  ghost: { backgroundColor: colors.transparent },
+  outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+  ghost: { backgroundColor: 'transparent' },
   danger: { backgroundColor: colors.danger },
 };
 

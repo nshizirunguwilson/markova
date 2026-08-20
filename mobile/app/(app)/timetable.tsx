@@ -214,7 +214,7 @@ export default function TimetableScreen() {
 
           {dayEntries.length === 0 ? (
             <View style={styles.empty}>
-              <BookOpen size={48} color={colors.mutedLight} />
+              <BookOpen size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No Classes</Text>
               <Text style={styles.emptyText}>
                 No classes scheduled for {DAYS.find((d) => d.key === selectedDay)?.full}.
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   dayTabsWrapper: {
     backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.surfaceMuted,
   },
   dayTabs: {
     flexDirection: 'row',
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.background,
     minWidth: 52,
   },
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   // Period cards
   periodCard: {
     backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: colors.primary,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderBottomLeftRadius: radius.sm,
+    borderBottomLeftRadius: radius.md,
   },
   badgeNow: {
     backgroundColor: colors.success,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   // Separator
   periodSeparator: {
     width: 1,
-    backgroundColor: colors.borderLight,
+    backgroundColor: colors.surfaceMuted,
     marginHorizontal: spacing.md,
   },
 

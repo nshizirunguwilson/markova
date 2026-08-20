@@ -128,20 +128,20 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing.xl },
   sectionTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.muted, marginBottom: spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   sectionCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl,
+    backgroundColor: colors.white, borderRadius: radius['2xl'],
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   settingRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg,
   },
-  settingRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  settingRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
   settingContent: { flex: 1 },
   settingLabel: { fontSize: fontSize.sm, color: colors.muted },
   settingValue: { fontSize: fontSize.base, color: colors.foreground, fontWeight: fontWeight.medium, marginTop: 2 },
   hint: { fontSize: fontSize.xs, color: colors.muted, textAlign: 'center', marginVertical: spacing.xl, lineHeight: 18 },
   logoutButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
+    backgroundColor: colors.dangerWash, borderRadius: radius.xl,
     padding: spacing.lg, gap: spacing.sm,
   },
   logoutText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.danger },

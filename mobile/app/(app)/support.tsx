@@ -113,7 +113,7 @@ export default function SupportScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <LifeBuoy size={48} color={colors.mutedLight} />
+              <LifeBuoy size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No Tickets Yet</Text>
               <Text style={styles.emptyText}>Submit a ticket if you need help.</Text>
             </View>
@@ -170,19 +170,19 @@ const styles = StyleSheet.create({
   newTicketBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     backgroundColor: colors.primary, marginHorizontal: spacing.lg, marginVertical: spacing.md,
-    borderRadius: radius.lg, paddingVertical: spacing.md,
+    borderRadius: radius.xl, paddingVertical: spacing.md,
   },
   newTicketText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
   ticketRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted, backgroundColor: colors.white,
   },
   ticketInfo: { flex: 1 },
   ticketSubject: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
   ticketDesc: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18 },
-  ticketDate: { fontSize: fontSize.xs, color: colors.mutedLight, marginTop: 4 },
-  statusBadge: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  ticketDate: { fontSize: fontSize.xs, color: colors.muted, marginTop: 4 },
+  statusBadge: { borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   statusText: { fontSize: 10, fontWeight: fontWeight.semibold, textTransform: 'uppercase' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
   emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },

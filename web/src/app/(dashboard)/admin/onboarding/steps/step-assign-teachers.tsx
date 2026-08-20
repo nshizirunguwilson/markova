@@ -73,7 +73,7 @@ export function StepAssignTeachers() {
           <select
             value={teacherId}
             onChange={(e) => setTeacherId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
           >
             <option value="">Select teacher...</option>
             {teachers.map((t: any) => (
@@ -88,7 +88,7 @@ export function StepAssignTeachers() {
           <select
             value={subjectId}
             onChange={(e) => setSubjectId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
           >
             <option value="">Select subject...</option>
             {subjects?.map((s: any) => (
@@ -101,7 +101,7 @@ export function StepAssignTeachers() {
           <select
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
           >
             <option value="">Select class...</option>
             {sections?.map((s: any) => (

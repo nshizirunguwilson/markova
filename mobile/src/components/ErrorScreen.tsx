@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl,
   },
   iconContainer: {
-    width: 70, height: 70, borderRadius: 35, backgroundColor: colors.borderLight,
+    width: 70, height: 70, borderRadius: 35, backgroundColor: colors.surfaceMuted,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg,
   },
   title: {
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    borderWidth: 1, borderColor: colors.primary, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.primary, borderRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
   },
   retryText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary },

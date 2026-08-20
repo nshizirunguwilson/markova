@@ -126,7 +126,7 @@ export default function MarksEntryScreen() {
                     {a.classSection?.classLevel?.name} {a.classSection?.name}
                   </Text>
                 </View>
-                <ChevronDown size={20} color={colors.mutedLight} style={{ transform: [{ rotate: '-90deg' }] }} />
+                <ChevronDown size={20} color={colors.muted} style={{ transform: [{ rotate: '-90deg' }] }} />
               </Pressable>
             ))
           ) : (
@@ -185,7 +185,7 @@ export default function MarksEntryScreen() {
                 <TextInput
                   style={styles.markInput}
                   placeholder="--"
-                  placeholderTextColor={colors.mutedLight}
+                  placeholderTextColor={colors.muted}
                   value={marksMap[item.id] ?? ''}
                   onChangeText={(text) => setMarksMap((prev) => ({ ...prev, [item.id]: text.replace(/[^0-9]/g, '') }))}
                   keyboardType="number-pad"
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
   card: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   cardContent: { flex: 1 },
@@ -231,29 +231,29 @@ const styles = StyleSheet.create({
 
   pickerButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
     marginHorizontal: spacing.lg, marginTop: spacing.md,
     borderWidth: 1, borderColor: colors.border,
   },
   pickerValue: { fontSize: fontSize.base, color: colors.foreground },
-  pickerPlaceholder: { fontSize: fontSize.base, color: colors.mutedLight },
+  pickerPlaceholder: { fontSize: fontSize.base, color: colors.muted },
   dropdown: {
-    backgroundColor: colors.white, borderRadius: radius.lg, marginHorizontal: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius.xl, marginHorizontal: spacing.lg,
     borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs,
   },
-  dropdownItem: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  dropdownItem: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
   dropdownText: { fontSize: fontSize.sm, color: colors.foreground },
 
   markRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   markStudent: { flex: 1 },
   markName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
   markId: { fontSize: fontSize.xs, color: colors.muted },
   markInput: {
-    width: 60, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    width: 60, height: 40, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.foreground,
     backgroundColor: colors.white,
   },
