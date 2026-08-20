@@ -11,7 +11,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 import type { Notification } from '@/types';
 
 export default function NotificationsScreen() {
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm, backgroundColor: colors.accentLight,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  markAllText: { fontSize: fontSize.sm, color: colors.primary, fontWeight: fontWeight.semibold },
+  markAllText: { fontSize: fontSize.sm, color: colors.primary, fontFamily: fontFamily.semibold },
   notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
@@ -147,12 +147,12 @@ const styles = StyleSheet.create({
   notifIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   notifContent: { flex: 1 },
   notifTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  notifTitle: { fontSize: fontSize.sm, color: colors.foreground, flex: 1 },
-  notifTitleBold: { fontWeight: fontWeight.bold },
-  notifTime: { fontSize: fontSize.xs, color: colors.muted },
-  notifMessage: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18 },
+  notifTitle: { fontSize: fontSize.sm, color: colors.foreground, flex: 1, fontFamily: fontFamily.regular },
+  notifTitleBold: { fontFamily: fontFamily.bold },
+  notifTime: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
+  notifMessage: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18, fontFamily: fontFamily.regular },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm },
+  emptyTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginTop: spacing.lg },
+  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, fontFamily: fontFamily.regular },
 });

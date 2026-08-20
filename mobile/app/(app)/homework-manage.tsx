@@ -16,7 +16,7 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 import type { Homework } from '@/types';
 
 export default function HomeworkManageScreen() {
@@ -294,38 +294,38 @@ const styles = StyleSheet.create({
   },
   hwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  subjectText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
-  hwTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.sm },
+  subjectText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
+  hwTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.sm },
   hwMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hwDate: { fontSize: fontSize.xs, color: colors.muted },
+  hwDate: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   emptyCard: { alignItems: 'center', padding: spacing['3xl'] },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', marginTop: spacing.md },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', marginTop: spacing.md, fontFamily: fontFamily.regular },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: colors.white, borderTopLeftRadius: radius['2xl'], borderTopRightRadius: radius['2xl'], padding: spacing['2xl'], maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl },
-  modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
-  label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground, marginBottom: spacing.sm },
+  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
+  label: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground, marginBottom: spacing.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.xs, color: colors.foreground },
+  chipText: { fontSize: fontSize.xs, color: colors.foreground, fontFamily: fontFamily.regular },
   chipTextActive: { color: colors.white },
 
   // Detail
-  detailDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md },
-  detailMeta: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 22, marginBottom: spacing.xl },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
+  detailDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md, fontFamily: fontFamily.regular },
+  detailMeta: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 22, marginBottom: spacing.xl, fontFamily: fontFamily.regular },
+  sectionTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.md },
 
   // Submission
   subRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
   subInfo: { flex: 1 },
-  subName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  subDate: { fontSize: fontSize.xs, color: colors.muted },
+  subName: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
+  subDate: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   gradeInput: {
     width: 50, height: 36, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    textAlign: 'center', fontSize: fontSize.sm, fontWeight: fontWeight.bold,
+    textAlign: 'center', fontSize: fontSize.sm, fontFamily: fontFamily.bold,
   },
   gradeBtn: { marginLeft: spacing.sm, padding: spacing.xs },
 });

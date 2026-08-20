@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, TextInput, Text, Pressable, StyleSheet, TextInputProps } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
-import { colors, radius, fontSize, fontWeight, spacing } from '@/constants/theme';
+import { colors, radius, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     color: colors.foreground,
     marginBottom: spacing.sm,
   },
@@ -64,8 +64,7 @@ const styles = StyleSheet.create({
     height: 48,
     paddingHorizontal: spacing.lg,
     fontSize: fontSize.base,
-    color: colors.foreground,
-  },
+    color: colors.foreground, fontFamily: fontFamily.regular },
   inputWithIcon: {
     paddingLeft: spacing.xs,
   },
@@ -79,6 +78,5 @@ const styles = StyleSheet.create({
   error: {
     fontSize: fontSize.xs,
     color: colors.danger,
-    marginTop: spacing.xs,
-  },
+    marginTop: spacing.xs, fontFamily: fontFamily.regular },
 });

@@ -14,7 +14,7 @@ import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -337,20 +337,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImage: { width: 90, height: 90, borderRadius: 45 },
-  avatarText: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.white },
+  avatarText: { fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.white },
   cameraBtn: {
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: colors.white,
   },
-  name: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginTop: spacing.md },
+  name: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground, marginTop: spacing.md },
   roleBadge: {
     backgroundColor: colors.accent, borderRadius: radius.full,
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginTop: spacing.sm,
   },
-  roleText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
-  email: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs },
+  roleText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
+  email: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs, fontFamily: fontFamily.regular },
   infoCard: {
     backgroundColor: colors.white, borderRadius: radius['2xl'],
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
@@ -361,8 +361,8 @@ const styles = StyleSheet.create({
   },
   infoRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
   infoContent: { flex: 1 },
-  infoLabel: { fontSize: fontSize.xs, color: colors.muted },
-  infoValue: { fontSize: fontSize.base, color: colors.foreground, fontWeight: fontWeight.medium, marginTop: 2 },
+  infoLabel: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
+  infoValue: { fontSize: fontSize.base, color: colors.foreground, fontFamily: fontFamily.medium, marginTop: 2 },
   actionsCard: {
     backgroundColor: colors.white, borderRadius: radius['2xl'],
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
@@ -372,13 +372,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg,
   },
   actionDivider: { height: 1, backgroundColor: colors.surfaceMuted },
-  actionText: { fontSize: fontSize.base, color: colors.foreground, fontWeight: fontWeight.medium },
+  actionText: { fontSize: fontSize.base, color: colors.foreground, fontFamily: fontFamily.medium },
   logoutButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.dangerWash, borderRadius: radius.xl,
     padding: spacing.lg, gap: spacing.sm,
   },
-  logoutText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.danger },
+  logoutText: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.danger },
 
   // Modal
   modalOverlay: {
@@ -393,5 +393,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
+  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
 });

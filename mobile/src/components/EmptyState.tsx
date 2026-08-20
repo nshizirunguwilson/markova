@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fontSize, fontWeight, spacing } from '@/constants/theme';
+import { colors, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginTop: spacing.lg,
     textAlign: 'center',
@@ -36,6 +36,5 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: spacing.sm,
     textAlign: 'center',
-    lineHeight: 20,
-  },
+    lineHeight: 20, fontFamily: fontFamily.regular },
 });

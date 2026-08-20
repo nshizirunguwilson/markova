@@ -12,7 +12,7 @@ import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   // Progress
   progressContainer: { marginBottom: spacing.xl },
   progressText: {
-    fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.muted,
+    fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.muted,
     textAlign: 'center', marginBottom: spacing.sm,
   },
   progressBar: {
@@ -739,13 +739,12 @@ const styles = StyleSheet.create({
   // Step header
   stepHeader: { alignItems: 'center', marginBottom: spacing.xl },
   stepTitle: {
-    fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground,
+    fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground,
     marginTop: spacing.md,
   },
   stepDescription: {
     fontSize: fontSize.sm, color: colors.muted, textAlign: 'center',
-    marginTop: spacing.sm, lineHeight: 20, paddingHorizontal: spacing.lg,
-  },
+    marginTop: spacing.sm, lineHeight: 20, paddingHorizontal: spacing.lg, fontFamily: fontFamily.regular },
 
   // Cards
   card: {
@@ -755,10 +754,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
   cardTitle: {
-    fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground,
+    fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground,
   },
   cardSubtitle: {
-    fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground,
+    fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -776,7 +775,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   addButtonText: {
-    fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.white,
+    fontSize: fontSize.sm, fontFamily: fontFamily.semibold, color: colors.white,
   },
 
   // Inline row (for class levels / sections)
@@ -804,11 +803,10 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
   },
   doneTitle: {
-    fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground,
+    fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.foreground,
     marginBottom: spacing.md,
   },
   doneText: {
     fontSize: fontSize.base, color: colors.muted, textAlign: 'center',
-    lineHeight: 22, marginBottom: spacing['3xl'], paddingHorizontal: spacing.lg,
-  },
+    lineHeight: 22, marginBottom: spacing['3xl'], paddingHorizontal: spacing.lg, fontFamily: fontFamily.regular },
 });

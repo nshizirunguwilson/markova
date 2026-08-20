@@ -12,7 +12,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -312,19 +312,19 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
   },
   summaryLabel: {
     fontSize: 10,
     color: colors.muted,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     marginTop: 2,
   },
 
   // Section
   sectionTitle: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginBottom: spacing.md,
   },
@@ -362,14 +362,14 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     fontSize: 11,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     letterSpacing: 0.3,
   },
 
   // Subject
   examSubject: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   textPast: {
@@ -387,8 +387,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: fontSize.sm,
-    color: colors.muted,
-  },
+    color: colors.muted, fontFamily: fontFamily.regular },
 
   // Syllabus
   syllabusToggle: {
@@ -400,7 +399,7 @@ const styles = StyleSheet.create({
   syllabusToggleText: {
     fontSize: fontSize.sm,
     color: colors.primary,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     flex: 1,
   },
   syllabusContent: {
@@ -413,8 +412,7 @@ const styles = StyleSheet.create({
   syllabusText: {
     fontSize: fontSize.sm,
     color: colors.muted,
-    lineHeight: 22,
-  },
+    lineHeight: 22, fontFamily: fontFamily.regular },
 
   // Past toggle
   pastToggle: {
@@ -428,7 +426,7 @@ const styles = StyleSheet.create({
   },
   pastToggleText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     color: colors.muted,
   },
 
@@ -442,7 +440,7 @@ const styles = StyleSheet.create({
   },
   allDoneText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.success,
   },
 
@@ -453,7 +451,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginTop: spacing.lg,
   },
@@ -461,6 +459,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     marginTop: spacing.sm,
-    textAlign: 'center',
-  },
+    textAlign: 'center', fontFamily: fontFamily.regular },
 });

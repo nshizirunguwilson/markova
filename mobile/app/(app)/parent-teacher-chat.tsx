@@ -12,7 +12,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore, type Conversation, type Message } from '@/stores/chat-store';
 import { useParentChildren } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 import api from '@/lib/api';
 
 interface TeacherInfo {
@@ -405,11 +405,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
-  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
+  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36, fontFamily: fontFamily.regular },
 
   // Loading
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md },
+  loadingText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, fontFamily: fontFamily.regular },
 
   // Section headers
   listContent: { paddingBottom: spacing['3xl'] },
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   sectionHeaderText: {
-    fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primary,
+    fontSize: fontSize.sm, fontFamily: fontFamily.semibold, color: colors.primary,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
 
@@ -435,19 +435,19 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  avatarText: { fontSize: fontSize.base, fontFamily: fontFamily.bold, color: colors.white },
   onlineDot: {
     position: 'absolute', bottom: 0, right: 0, width: 14, height: 14,
     borderRadius: 7, backgroundColor: colors.success, borderWidth: 2, borderColor: colors.white,
   },
   teacherInfo: { flex: 1 },
-  teacherName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  teacherSubjects: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
+  teacherName: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground },
+  teacherSubjects: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
 
   // Empty state
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginTop: spacing.lg },
+  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, textAlign: 'center', fontFamily: fontFamily.regular },
 
   // Chat thread
   chatContainer: { flex: 1 },
@@ -466,16 +466,16 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1,
   },
-  bubbleText: { fontSize: fontSize.base, lineHeight: 22 },
+  bubbleText: { fontSize: fontSize.base, lineHeight: 22, fontFamily: fontFamily.regular },
   bubbleTextMine: { color: colors.white },
   bubbleTextTheirs: { color: colors.foreground },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, justifyContent: 'flex-end' },
-  bubbleTime: { fontSize: 11 },
+  bubbleTime: { fontSize: 11, fontFamily: fontFamily.regular },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
   bubbleTimeTheirs: { color: colors.muted },
 
   typingBar: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
-  typingText: { fontSize: fontSize.xs, color: colors.muted, fontStyle: 'italic' },
+  typingText: { fontSize: fontSize.xs, color: colors.muted, fontStyle: 'italic', fontFamily: fontFamily.regular },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm,
@@ -486,8 +486,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: colors.background, borderRadius: radius['2xl'],
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     fontSize: fontSize.base, color: colors.foreground,
-    maxHeight: 100, minHeight: 40,
-  },
+    maxHeight: 100, minHeight: 40, fontFamily: fontFamily.regular },
   sendButton: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',

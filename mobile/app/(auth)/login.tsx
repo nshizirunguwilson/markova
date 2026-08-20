@@ -13,7 +13,7 @@ import { AtSign, Lock } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore, isValidIdentifier } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -147,19 +147,18 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 36,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.primary,
   },
   title: {
     fontSize: fontSize['3xl'],
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
   },
   subtitle: {
     fontSize: fontSize.sm,
     color: colors.accent,
-    marginTop: spacing.xs,
-  },
+    marginTop: spacing.xs, fontFamily: fontFamily.regular },
   form: {
     backgroundColor: colors.white,
     borderRadius: radius['2xl'],
@@ -172,15 +171,14 @@ const styles = StyleSheet.create({
   },
   formTitle: {
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.foreground,
     marginBottom: spacing.xs,
   },
   formSubtitle: {
     fontSize: fontSize.sm,
     color: colors.muted,
-    marginBottom: spacing['2xl'],
-  },
+    marginBottom: spacing['2xl'], fontFamily: fontFamily.regular },
   forgotLink: {
     alignSelf: 'center',
     marginTop: spacing.lg,
@@ -188,6 +186,6 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: fontSize.sm,
     color: colors.primary,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
   },
 });

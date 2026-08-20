@@ -1,5 +1,5 @@
 import { Pressable, Text, ActivityIndicator, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, radius, fontSize, fontWeight, spacing } from '@/constants/theme';
+import { colors, radius, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   text: {
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
   },
 });
 
@@ -109,7 +109,7 @@ const sizeStyles: Record<ButtonSize, ViewStyle> = {
 };
 
 const sizeTextStyles: Record<ButtonSize, TextStyle> = {
-  sm: { fontSize: fontSize.sm },
-  md: { fontSize: fontSize.base },
-  lg: { fontSize: fontSize.lg },
+  sm: { fontSize: fontSize.sm, fontFamily: fontFamily.regular },
+  md: { fontSize: fontSize.base, fontFamily: fontFamily.regular },
+  lg: { fontSize: fontSize.lg, fontFamily: fontFamily.regular },
 };

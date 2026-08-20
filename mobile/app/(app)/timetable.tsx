@@ -10,7 +10,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   dayTabText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   dayTabTextSelected: {
@@ -352,14 +352,14 @@ const styles = StyleSheet.create({
   },
   dayHeadingText: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     flex: 1,
   },
   periodCount: {
     fontSize: fontSize.xs,
     color: colors.muted,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
   },
 
   // Period cards
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
     letterSpacing: 0.5,
   },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   timeStart: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   timeNow: {
@@ -434,8 +434,7 @@ const styles = StyleSheet.create({
   },
   timeEnd: {
     fontSize: fontSize.xs,
-    color: colors.muted,
-  },
+    color: colors.muted, fontFamily: fontFamily.regular },
 
   // Separator
   periodSeparator: {
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
   },
   subjectName: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginBottom: 2,
   },
@@ -463,8 +462,7 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: fontSize.sm,
     color: colors.muted,
-    flex: 1,
-  },
+    flex: 1, fontFamily: fontFamily.regular },
 
   // Empty state
   empty: {
@@ -473,7 +471,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginTop: spacing.lg,
   },
@@ -481,6 +479,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     marginTop: spacing.sm,
-    textAlign: 'center',
-  },
+    textAlign: 'center', fontFamily: fontFamily.regular },
 });

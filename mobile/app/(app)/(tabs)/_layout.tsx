@@ -14,7 +14,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
 import { useNotifications } from '@/hooks/useApi';
-import { colors, fontSize, fontWeight } from '@/constants/theme';
+import { colors, fontSize, fontFamily } from '@/constants/theme';
 import type { UserRole } from '@/constants/config';
 
 type TabConfig = {
@@ -91,7 +91,7 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontSize: fontSize.xs,
-          fontWeight: fontWeight.medium,
+          fontFamily: fontFamily.medium,
         },
       }}
     >
@@ -127,7 +127,7 @@ const badgeStyle = {
   backgroundColor: colors.danger,
   color: colors.white,
   fontSize: 10,
-  fontWeight: '700' as const,
+  fontFamily: fontFamily.bold,
   minWidth: 18,
   height: 18,
   lineHeight: 14,

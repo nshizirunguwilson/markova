@@ -10,7 +10,7 @@ import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
 import { Button } from '@/components/ui';
 import { Input } from '@/components/ui/Input';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function ChildDisciplineScreen() {
   const router = useRouter();
@@ -206,29 +206,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerWash, borderRadius: radius['2xl'], padding: spacing.lg, marginBottom: spacing.xl,
   },
   summaryText: { flex: 1 },
-  summaryTitle: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.danger },
-  summarySubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
+  summaryTitle: { fontSize: fontSize.base, fontFamily: fontFamily.bold, color: colors.danger },
+  summarySubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
   incidentCard: {
     backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   incidentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   actionBadge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  actionText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
-  pointsBadge: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.danger },
-  incidentDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md },
+  actionText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold },
+  pointsBadge: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.danger },
+  incidentDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md, fontFamily: fontFamily.regular },
   incidentMeta: { gap: spacing.xs, marginBottom: spacing.md },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  metaText: { fontSize: fontSize.xs, color: colors.muted },
+  metaText: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   incidentActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   acknowledged: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  acknowledgedText: { fontSize: fontSize.sm, color: colors.success, fontWeight: fontWeight.medium },
+  acknowledgedText: { fontSize: fontSize.sm, color: colors.success, fontFamily: fontFamily.medium },
   appealBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.accentLight, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
-  appealBtnText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
+  appealBtnText: { fontSize: fontSize.xs, color: colors.primary, fontFamily: fontFamily.semibold },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm,
   },
-  modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
-  modalSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.lg, lineHeight: 20 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
+  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
+  modalSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.lg, lineHeight: 20, fontFamily: fontFamily.regular },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
 });

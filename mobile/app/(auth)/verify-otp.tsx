@@ -13,7 +13,7 @@ import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 const OTP_LENGTH = 6;
 
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: fontSize['2xl'],
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
     marginBottom: spacing.sm,
   },
@@ -209,10 +209,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.accent,
     textAlign: 'center',
-    lineHeight: 20,
-  },
+    lineHeight: 20, fontFamily: fontFamily.regular },
   email: {
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.white,
   },
   otpRow: {
@@ -228,7 +227,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     textAlign: 'center',
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.3)',
@@ -245,15 +244,13 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: fontSize.sm,
-    color: colors.accent,
-  },
+    color: colors.accent, fontFamily: fontFamily.regular },
   countdown: {
     fontSize: fontSize.sm,
-    color: colors.muted,
-  },
+    color: colors.muted, fontFamily: fontFamily.regular },
   resendLink: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.white,
     textDecorationLine: 'underline',
   },

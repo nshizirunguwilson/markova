@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 const ACTIONS = [
   'VERBAL_WARNING',
@@ -186,12 +186,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.warningWash, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.xl,
   },
-  warningText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
-  label: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground, marginBottom: spacing.sm, marginTop: spacing.md },
+  warningText: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, fontFamily: fontFamily.regular },
+  label: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground, marginBottom: spacing.sm, marginTop: spacing.md },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipDanger: { backgroundColor: colors.danger, borderColor: colors.danger },
-  chipText: { fontSize: fontSize.xs, color: colors.foreground, fontWeight: fontWeight.medium },
+  chipText: { fontSize: fontSize.xs, color: colors.foreground, fontFamily: fontFamily.medium },
   chipTextActive: { color: colors.white },
 });

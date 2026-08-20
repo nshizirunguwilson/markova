@@ -8,7 +8,7 @@ import { toast } from 'sonner-native';
 import api from '@/lib/api';
 import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 type Step = 'request' | 'reset';
 
@@ -167,12 +167,12 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: radius['2xl'], backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
   },
-  logoText: { fontSize: 28, fontWeight: fontWeight.bold, color: colors.primary },
-  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white },
+  logoText: { fontSize: 28, fontFamily: fontFamily.bold, color: colors.primary },
+  title: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.white },
   form: {
     backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing['3xl'],
     shadowColor: colors.black, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
-  formTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginBottom: spacing.xs },
-  formSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing['2xl'], lineHeight: 20 },
+  formTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground, marginBottom: spacing.xs },
+  formSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing['2xl'], lineHeight: 20, fontFamily: fontFamily.regular },
 });

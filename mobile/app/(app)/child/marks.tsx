@@ -10,7 +10,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function ChildMarksScreen() {
   const router = useRouter();
@@ -157,8 +157,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentLight, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
-  downloadText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
-  termText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
+  downloadText: { fontSize: fontSize.xs, color: colors.primary, fontFamily: fontFamily.semibold },
+  termText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
   resultCard: {
     backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg, marginBottom: spacing.xl,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
@@ -166,24 +166,24 @@ const styles = StyleSheet.create({
   resultRow: { flexDirection: 'row', alignItems: 'center' },
   resultItem: { flex: 1, alignItems: 'center', gap: spacing.xs },
   resultDivider: { width: 1, height: 40, backgroundColor: colors.border },
-  resultValue: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
-  resultLabel: { fontSize: fontSize.xs, color: colors.muted },
+  resultValue: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
+  resultLabel: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   commentBox: { marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.surfaceMuted },
-  commentLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.muted, marginBottom: spacing.xs },
-  commentText: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20 },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
+  commentLabel: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.muted, marginBottom: spacing.xs },
+  commentText: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, fontFamily: fontFamily.regular },
+  sectionTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.md },
   subjectCard: {
     backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   subjectHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  subjectName: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  subjectAvg: { fontSize: fontSize.base, fontWeight: fontWeight.bold },
+  subjectName: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground },
+  subjectAvg: { fontSize: fontSize.base, fontFamily: fontFamily.bold },
   markRow: {
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs,
     borderTopWidth: 1, borderTopColor: colors.surfaceMuted,
   },
-  markType: { fontSize: fontSize.sm, color: colors.muted },
-  markScore: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
+  markType: { fontSize: fontSize.sm, color: colors.muted, fontFamily: fontFamily.regular },
+  markScore: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
 });

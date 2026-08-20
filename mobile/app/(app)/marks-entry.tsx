@@ -13,7 +13,7 @@ import {
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Button } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 type Step = 'select' | 'enter';
 
@@ -218,16 +218,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md },
+  sectionTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.md },
   card: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   cardContent: { flex: 1 },
-  cardTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  cardSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
+  cardTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground },
+  cardSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
 
   pickerButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -235,14 +235,14 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg, marginTop: spacing.md,
     borderWidth: 1, borderColor: colors.border,
   },
-  pickerValue: { fontSize: fontSize.base, color: colors.foreground },
-  pickerPlaceholder: { fontSize: fontSize.base, color: colors.muted },
+  pickerValue: { fontSize: fontSize.base, color: colors.foreground, fontFamily: fontFamily.regular },
+  pickerPlaceholder: { fontSize: fontSize.base, color: colors.muted, fontFamily: fontFamily.regular },
   dropdown: {
     backgroundColor: colors.white, borderRadius: radius.xl, marginHorizontal: spacing.lg,
     borderWidth: 1, borderColor: colors.border, marginTop: spacing.xs,
   },
   dropdownItem: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
-  dropdownText: { fontSize: fontSize.sm, color: colors.foreground },
+  dropdownText: { fontSize: fontSize.sm, color: colors.foreground, fontFamily: fontFamily.regular },
 
   markRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -250,14 +250,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
   },
   markStudent: { flex: 1 },
-  markName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  markId: { fontSize: fontSize.xs, color: colors.muted },
+  markName: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
+  markId: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   markInput: {
     width: 60, height: 40, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    textAlign: 'center', fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.foreground,
+    textAlign: 'center', fontSize: fontSize.base, fontFamily: fontFamily.bold, color: colors.foreground,
     backgroundColor: colors.white,
   },
-  maxMark: { fontSize: fontSize.sm, color: colors.muted, marginLeft: spacing.xs },
+  maxMark: { fontSize: fontSize.sm, color: colors.muted, marginLeft: spacing.xs, fontFamily: fontFamily.regular },
 
   submitBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,

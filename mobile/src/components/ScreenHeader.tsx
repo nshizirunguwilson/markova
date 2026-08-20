@@ -1,7 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
-import { colors, fontSize, fontWeight, spacing } from '@/constants/theme';
+import { colors, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 interface ScreenHeaderProps {
   title: string;
@@ -59,12 +59,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
   },
   subtitle: {
     fontSize: fontSize.xs,
     color: colors.accent,
-    marginTop: 2,
-  },
+    marginTop: 2, fontFamily: fontFamily.regular },
 });

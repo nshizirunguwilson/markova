@@ -10,7 +10,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore, type Conversation, type Message } from '@/stores/chat-store';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function MessagesScreen() {
   const user = useAuthStore((s) => s.user);
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
-  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
+  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36, fontFamily: fontFamily.regular },
 
   // Conversation list
   convRow: {
@@ -318,28 +318,28 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  convAvatarText: { fontSize: fontSize.base, fontWeight: fontWeight.bold, color: colors.white },
+  convAvatarText: { fontSize: fontSize.base, fontFamily: fontFamily.bold, color: colors.white },
   onlineDot: {
     position: 'absolute', bottom: 0, right: 0, width: 14, height: 14,
     borderRadius: 7, backgroundColor: colors.success, borderWidth: 2, borderColor: colors.white,
   },
   convContent: { flex: 1 },
   convTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  convName: { fontSize: fontSize.base, color: colors.foreground, flex: 1 },
-  convNameBold: { fontWeight: fontWeight.bold },
-  convTime: { fontSize: fontSize.xs, color: colors.muted },
+  convName: { fontSize: fontSize.base, color: colors.foreground, flex: 1, fontFamily: fontFamily.regular },
+  convNameBold: { fontFamily: fontFamily.bold },
+  convTime: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   convBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 },
-  convPreview: { fontSize: fontSize.sm, color: colors.muted, flex: 1 },
-  convPreviewBold: { color: colors.foreground, fontWeight: fontWeight.semibold },
+  convPreview: { fontSize: fontSize.sm, color: colors.muted, flex: 1, fontFamily: fontFamily.regular },
+  convPreviewBold: { color: colors.foreground, fontFamily: fontFamily.semibold },
   unreadBadge: {
     backgroundColor: colors.primary, borderRadius: 10, minWidth: 20, height: 20,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
   },
-  unreadText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.white },
+  unreadText: { fontSize: 11, fontFamily: fontFamily.bold, color: colors.white },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginTop: spacing.lg },
+  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, textAlign: 'center', fontFamily: fontFamily.regular },
 
   // Chat thread
   chatContainer: { flex: 1 },
@@ -358,16 +358,16 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1,
   },
-  bubbleText: { fontSize: fontSize.base, lineHeight: 22 },
+  bubbleText: { fontSize: fontSize.base, lineHeight: 22, fontFamily: fontFamily.regular },
   bubbleTextMine: { color: colors.white },
   bubbleTextTheirs: { color: colors.foreground },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, justifyContent: 'flex-end' },
-  bubbleTime: { fontSize: 11 },
+  bubbleTime: { fontSize: 11, fontFamily: fontFamily.regular },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
   bubbleTimeTheirs: { color: colors.muted },
 
   typingBar: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
-  typingText: { fontSize: fontSize.xs, color: colors.muted, fontStyle: 'italic' },
+  typingText: { fontSize: fontSize.xs, color: colors.muted, fontStyle: 'italic', fontFamily: fontFamily.regular },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm,
@@ -378,8 +378,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: colors.background, borderRadius: radius['2xl'],
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     fontSize: fontSize.base, color: colors.foreground,
-    maxHeight: 100, minHeight: 40,
-  },
+    maxHeight: 100, minHeight: 40, fontFamily: fontFamily.regular },
   sendButton: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
