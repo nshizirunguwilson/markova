@@ -14,7 +14,7 @@ export class LoginDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ example: '+256700000001' })
+  @ApiPropertyOptional({ example: '+250788000001' })
   @IsOptional()
   @IsString()
   phone?: string;

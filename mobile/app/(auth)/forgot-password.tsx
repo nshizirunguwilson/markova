@@ -1,37 +1,40 @@
 import { useState } from 'react';
 import {
-  View, Text, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
+  View, StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mail, Lock, ArrowLeft, Check } from 'lucide-react-native';
+import { AtSign, Lock, ArrowLeft, Check } from 'lucide-react-native';
 import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/hooks/useQueryError';
 import api from '@/lib/api';
+import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { AuthShell } from '@/components/AuthShell';
+import { colors } from '@/constants/theme';
 
 type Step = 'request' | 'reset';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('request');
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRequest = async () => {
-    if (!email.trim()) {
-      toast.error('Please enter your email');
+    if (!identifier.trim()) {
+      toast.error('Enter your email address or phone number');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/auth/request-reset', { email: email.trim().toLowerCase() });
-      toast.success('Reset code sent to your email');
+      await api.post('/auth/request-reset', buildLoginPayload(identifier));
+      toast.success('Reset code sent');
       setStep('reset');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to send reset code');
+      toast.error(getErrorMessage(err, 'Failed to send reset code'));
     } finally {
       setLoading(false);
     }
@@ -66,36 +69,25 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <AuthShell
+      title={step === 'request' ? 'Reset your password' : 'Enter your code'}
+      subtitle={
+        step === 'request'
+          ? "Enter your email or phone number and we'll send you a reset code."
+          : `Enter the code sent to ${identifier} and choose a new password.`
+      }
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
-          <Text style={styles.title}>Markova</Text>
-        </View>
-
-        <View style={styles.form}>
+        <View>
           {step === 'request' ? (
             <>
-              <Text style={styles.formTitle}>Forgot Password</Text>
-              <Text style={styles.formSubtitle}>
-                Enter your email address and we'll send you a reset code.
-              </Text>
               <Input
-                label="Email"
-                placeholder="you@school.com"
-                value={email}
-                onChangeText={setEmail}
+                label="Email or Phone"
+                placeholder="Email or phone number"
+                value={identifier}
+                onChangeText={setIdentifier}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                leftIcon={<Mail size={20} color={colors.muted} />}
+                leftIcon={<AtSign size={20} color={colors.muted} />}
               />
               <Button
                 title="Send Reset Code"
@@ -107,13 +99,9 @@ export default function ForgotPasswordScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.formTitle}>Reset Password</Text>
-              <Text style={styles.formSubtitle}>
-                Enter the code sent to {email} and your new password.
-              </Text>
               <Input
                 label="Reset Code"
-                placeholder="Enter the code from your email"
+                placeholder="Enter the code you received"
                 value={token}
                 onChangeText={setToken}
                 autoCapitalize="characters"
@@ -153,25 +141,9 @@ export default function ForgotPasswordScreen() {
             icon={<ArrowLeft size={18} color={colors.primary} />}
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.primary },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing['3xl'] },
-  header: { alignItems: 'center', marginBottom: spacing['3xl'] },
-  logoContainer: {
-    width: 60, height: 60, borderRadius: radius.xl, backgroundColor: colors.white,
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
-  },
-  logoText: { fontSize: 28, fontWeight: fontWeight.bold, color: colors.primary },
-  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white },
-  form: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'],
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
-  },
-  formTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground, marginBottom: spacing.xs },
-  formSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing['2xl'], lineHeight: 20 },
 });

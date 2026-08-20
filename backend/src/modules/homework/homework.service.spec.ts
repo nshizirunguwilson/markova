@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { HomeworkService } from './homework.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -14,7 +18,11 @@ describe('HomeworkService', () => {
       delete: jest.fn(),
       findMany: jest.fn(),
     },
-    homeworkSubmission: { upsert: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    homeworkSubmission: {
+      upsert: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
     student: { findUnique: jest.fn(), count: jest.fn() },
     notification: { create: jest.fn() },
   };
@@ -40,7 +48,7 @@ describe('HomeworkService', () => {
           termId: 't-1',
           title: 'Essay',
           dueDate: '2026-04-01',
-        } as any,
+        },
         'teacher-1',
         'TEACHER',
       );
@@ -106,7 +114,7 @@ describe('HomeworkService', () => {
       mockPrisma.homeworkSubmission.update.mockResolvedValue({ id: 'sub-1' });
       mockPrisma.student.findUnique.mockResolvedValue({ user: { id: 'u1' } });
 
-      await service.grade('sub-1', { marks: 18 } as any, 'teacher-1');
+      await service.grade('sub-1', { marks: 18 }, 'teacher-1');
 
       // 2 days late * 2/day = 4 deducted -> 14
       const saved = mockPrisma.homeworkSubmission.update.mock.calls[0][0].data;
@@ -141,10 +149,12 @@ describe('HomeworkService', () => {
         classSectionId: 'cls-1',
         dueDate: new Date('2020-01-01T00:00:00Z'),
       });
-      mockPrisma.student.findUnique.mockResolvedValue({ classSectionId: 'cls-1' });
+      mockPrisma.student.findUnique.mockResolvedValue({
+        classSectionId: 'cls-1',
+      });
       mockPrisma.homeworkSubmission.upsert.mockResolvedValue({ id: 'sub-1' });
 
-      await service.submit({ homeworkId: 'hw-1', fileUrl: 'f' } as any, 's1');
+      await service.submit({ homeworkId: 'hw-1', fileUrl: 'f' }, 's1');
 
       const arg = mockPrisma.homeworkSubmission.upsert.mock.calls[0][0];
       expect(arg.create.isLate).toBe(true);
@@ -156,7 +166,9 @@ describe('HomeworkService', () => {
         classSectionId: 'cls-OTHER',
         dueDate: new Date(),
       });
-      mockPrisma.student.findUnique.mockResolvedValue({ classSectionId: 'cls-mine' });
+      mockPrisma.student.findUnique.mockResolvedValue({
+        classSectionId: 'cls-mine',
+      });
       await expect(
         service.submit({ homeworkId: 'hw-1' } as any, 's1'),
       ).rejects.toThrow(ForbiddenException);

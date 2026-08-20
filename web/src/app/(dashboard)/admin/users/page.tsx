@@ -30,6 +30,7 @@ import {
 import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
 import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
+import { PageHeader } from "@/components/layout/page-header";
 
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
@@ -98,13 +99,14 @@ export default function UsersPage() {
   };
 
   // Scope changes re-run the current query against the chosen field group.
-  useEffect(() => {
+  const changeSearchScope = (scope: string) => {
+    setSearchIn(scope);
     setFilters((f) => ({
       ...f,
-      searchIn: searchIn === "all" ? undefined : searchIn,
+      searchIn: scope === "all" ? undefined : scope,
       page: 1,
     }));
-  }, [searchIn]);
+  };
 
   // Auto-search: debounce typing into the query (no button needed)
   useEffect(() => {
@@ -128,14 +130,12 @@ export default function UsersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Users</h1>
-          <p className="mt-1 text-sm text-muted">
-            Manage all users in the system
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+      <PageHeader
+        title="Users"
+        description="Manage all users in the system"
+        actions={
+          <>
+            <div className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => setShowImportModal(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Bulk Import
@@ -145,7 +145,9 @@ export default function UsersPage() {
             Add User
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card padding="sm" className="mb-5">
@@ -159,16 +161,16 @@ export default function UsersPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+             aria-label="Search by name, email, or phone..."/>
           </div>
 
           {/* Search scope */}
           <select
             aria-label="Search in"
-            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            className="rounded-lg border border-input bg-surface px-3 py-2 text-sm"
             value={searchIn}
-            onChange={(e) => setSearchIn(e.target.value)}
+            onChange={(e) => changeSearchScope(e.target.value)}
           >
             <option value="all">Everything</option>
             <option value="name">Name</option>
@@ -183,7 +185,7 @@ export default function UsersPage() {
           {/* Account status */}
           <select
             aria-label="Account status"
-            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            className="rounded-lg border border-input bg-surface px-3 py-2 text-sm"
             value={filters.isActive === undefined ? "" : String(filters.isActive)}
             onChange={(e) =>
               setFilters((f) => ({
@@ -202,7 +204,7 @@ export default function UsersPage() {
           {/* User type */}
           <select
             aria-label="User type"
-            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+            className="rounded-lg border border-input bg-surface px-3 py-2 text-sm"
             value={filters.role || ""}
             onChange={(e) =>
               setFilters((f) => ({
@@ -370,7 +372,7 @@ export default function UsersPage() {
                   setFilters((f) => ({ ...f, limit: newLimit, page: 1 }));
                 }}
                 className="rounded-lg border border-border bg-surface px-2 py-1 text-sm focus:border-primary focus:outline-none"
-              >
+               aria-label="Filter by role">
                 {[10, 20, 50].map((n) => (
                   <option key={n} value={n}>{n} per page</option>
                 ))}

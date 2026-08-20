@@ -8,11 +8,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { KeyRound, ArrowLeft } from "lucide-react";
-import { BrandMark } from "@/components/brand-mark";
+
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
+import { errorMessage } from "@/lib/errors";
 
 const schema = z
   .object({
@@ -57,22 +58,16 @@ function ResetPasswordInner() {
       toast.success("Password reset. Please log in with your new password.");
       router.push("/login");
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Reset link is invalid or has expired.");
+      toast.error(errorMessage(err, "Reset link is invalid or has expired."));
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-md" padding="lg">
-      <div className="mb-8 text-center">
-        <BrandMark className="mx-auto mb-4 h-14 w-auto max-w-[180px]" />
-        <h1 className="text-xl md:text-2xl font-bold text-primary">Set a new password</h1>
-        <p className="mt-1 text-sm text-muted">Choose a strong password you don&apos;t use elsewhere.</p>
-      </div>
-
+    <>
       {!token ? (
-        <div className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+        <div className="rounded-lg bg-danger-wash p-4 text-center text-sm text-danger">
           This reset link is missing its token. Request a new one from the
           {" "}
           <Link href="/forgot-password" className="font-medium underline">forgot-password</Link> page.
@@ -108,16 +103,19 @@ function ResetPasswordInner() {
       >
         <ArrowLeft className="h-4 w-4" /> Back to login
       </Link>
-    </Card>
+    </>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent-light">
-      <Suspense fallback={<Card className="w-full max-w-md" padding="lg">Loading…</Card>}>
+    <AuthShell
+      title="Set a new password"
+      subtitle="Choose a strong password you don't use elsewhere."
+    >
+      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
         <ResetPasswordInner />
       </Suspense>
-    </div>
+    </AuthShell>
   );
 }

@@ -116,7 +116,7 @@ describe('AttendanceService', () => {
         {
           parentUserId: 'parent-user-1',
           parent: {
-            phone: '+256700000000',
+            phone: '+250788000000',
             email: 'parent@test.com',
             firstName: 'Mary',
           },
@@ -405,7 +405,7 @@ describe('AttendanceService', () => {
       };
       mockPrisma.attendance.create.mockResolvedValue(createdRecord);
 
-      const result = await service.processQrScan(qrDto as any, 'teacher-1');
+      const result = await service.processQrScan(qrDto, 'teacher-1');
 
       expect(result.duplicate).toBe(false);
       expect(result.record).toEqual(createdRecord);
@@ -431,7 +431,7 @@ describe('AttendanceService', () => {
       const existingRecord = { id: 'att-existing', status: 'PRESENT' };
       mockPrisma.attendance.findFirst.mockResolvedValue(existingRecord);
 
-      const result = await service.processQrScan(qrDto as any, 'teacher-1');
+      const result = await service.processQrScan(qrDto, 'teacher-1');
 
       expect(result.duplicate).toBe(true);
       expect(result.record).toEqual(existingRecord);
@@ -480,21 +480,21 @@ describe('AttendanceService', () => {
       it('marks a 10:05 daily check-in as LATE', async () => {
         jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 10, 5, 0));
         arrangeScan();
-        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        const result = await service.processQrScan(qrDto, 'teacher-1');
         expect(result.record.status).toBe('LATE');
       });
 
       it('marks an 08:15 daily check-in as PRESENT (before cutoff)', async () => {
         jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 8, 15, 0));
         arrangeScan();
-        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        const result = await service.processQrScan(qrDto, 'teacher-1');
         expect(result.record.status).toBe('PRESENT');
       });
 
       it('marks an 08:45 daily check-in as LATE (after the 08:30 cutoff)', async () => {
         jest.useFakeTimers().setSystemTime(new Date(2026, 0, 15, 8, 45, 0));
         arrangeScan();
-        const result = await service.processQrScan(qrDto as any, 'teacher-1');
+        const result = await service.processQrScan(qrDto, 'teacher-1');
         expect(result.record.status).toBe('LATE');
       });
     });

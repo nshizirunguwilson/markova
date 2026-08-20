@@ -3,23 +3,23 @@ import {
   View,
   Text,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
+
 import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/hooks/useQueryError';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { AuthShell } from '@/components/AuthShell';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 const OTP_LENGTH = 6;
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { identifier } = useLocalSearchParams<{ identifier: string }>();
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
 
@@ -82,7 +82,7 @@ export default function VerifyOtpScreen() {
       await verifyOtp(code);
       router.replace('/(app)/(tabs)');
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Invalid OTP. Please try again.';
+      const message = getErrorMessage(error, 'Invalid OTP. Please try again.');
       toast.error(message);
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
@@ -100,32 +100,17 @@ export default function VerifyOtpScreen() {
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Could not resend code');
+      toast.error(getErrorMessage(error, 'Could not resend code'));
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        {/* Back */}
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.white} />
-        </Pressable>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <ShieldCheck size={40} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>Verify OTP</Text>
-          <Text style={styles.subtitle}>
-            Enter the 6-digit code sent to{'\n'}
-            <Text style={styles.email}>{email}</Text>
-          </Text>
-        </View>
+    <AuthShell title="Verify your code">
+      <View>
+        <Text style={styles.subtitle}>
+          Enter the 6-digit code sent to{'\n'}
+          <Text style={styles.email}>{identifier}</Text>
+        </Text>
 
         {/* OTP Inputs */}
         <View style={styles.otpRow}>
@@ -165,55 +150,22 @@ export default function VerifyOtpScreen() {
           )}
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.primary,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing['3xl'],
-  },
-  backButton: {
-    position: 'absolute',
-    top: 60,
-    left: spacing['3xl'],
-    zIndex: 1,
-    padding: spacing.sm,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing['4xl'],
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: radius.full,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontSize: fontSize['2xl'],
-    fontWeight: fontWeight.bold,
-    color: colors.white,
-    marginBottom: spacing.sm,
-  },
   subtitle: {
     fontSize: fontSize.sm,
-    color: colors.accent,
+    color: colors.muted,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: spacing['2xl'],
+    fontFamily: fontFamily.regular,
   },
   email: {
-    fontWeight: fontWeight.semibold,
-    color: colors.white,
+    color: colors.foreground,
+    fontFamily: fontFamily.semibold,
   },
   otpRow: {
     flexDirection: 'row',
@@ -224,18 +176,18 @@ const styles = StyleSheet.create({
   otpInput: {
     width: 48,
     height: 56,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radius.xl,
+    backgroundColor: colors.background,
     textAlign: 'center',
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.white,
+    fontFamily: fontFamily.bold,
+    color: colors.foreground,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: colors.borderInput,
   },
   otpInputFilled: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderColor: colors.white,
+    backgroundColor: colors.accentLight,
+    borderColor: colors.primary,
   },
   resendRow: {
     flexDirection: 'row',
@@ -245,16 +197,18 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: fontSize.sm,
-    color: colors.accent,
+    color: colors.muted,
+    fontFamily: fontFamily.regular,
   },
   countdown: {
     fontSize: fontSize.sm,
-    color: colors.mutedLight,
+    color: colors.foregroundMuted,
+    fontFamily: fontFamily.regular,
   },
   resendLink: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.white,
+    fontFamily: fontFamily.semibold,
+    color: colors.primary,
     textDecorationLine: 'underline',
   },
 });

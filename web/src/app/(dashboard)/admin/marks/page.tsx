@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardTitle,
@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminMarksPage() {
   const { data: years } = useAcademicYears();
@@ -46,22 +47,19 @@ export default function AdminMarksPage() {
   const [confirmMessage, setConfirmMessage] = useState("");
 
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
-  const [selectedTerm, setSelectedTerm] = useState("");
+  const [selectedSectionChoice, setSelectedSection] = useState("");
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   const { data: sections } = useSections(selectedLevel);
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
   const { data: results, isLoading } = useTermResults(selectedSection, selectedTerm);
   const calculateResults = useCalculateTermResults();
   const publishResults = usePublishTermResults();
-
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
-
-  useEffect(() => {
-    if (sections?.length) setSelectedSection(sections[0].id);
-  }, [sections]);
 
   const handleExportCSV = () => {
     if (!results?.length) return;
@@ -87,12 +85,12 @@ export default function AdminMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Marks Overview</h1>
-          <p className="text-sm text-muted">View and manage class results</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Marks Overview"
+        description="View and manage class results"
+        actions={
+          <>
+            <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -113,7 +111,9 @@ export default function AdminMarksPage() {
             <Download className="mr-1 h-4 w-4" /> Export CSV
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card>
@@ -127,7 +127,7 @@ export default function AdminMarksPage() {
                 setSelectedSection("");
               }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class Level">
               <option value="">Select level...</option>
               {classLevels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -140,7 +140,7 @@ export default function AdminMarksPage() {
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Section">
               <option value="">Select section...</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
@@ -153,7 +153,7 @@ export default function AdminMarksPage() {
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Term">
               <option value="">Select term...</option>
               {terms?.map((t: any) => (
                 <option key={t.id} value={t.id}>
@@ -261,9 +261,9 @@ export default function AdminMarksPage() {
                   <TableRow key={r.id}>
                     <TableCell>
                       <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                        r.rank === 1 ? "bg-yellow-100 text-yellow-800" :
-                        r.rank === 2 ? "bg-gray-100 text-gray-700" :
-                        r.rank === 3 ? "bg-orange-100 text-orange-800" :
+                        r.rank === 1 ? "bg-warning-wash text-warning" :
+                        r.rank === 2 ? "bg-surface-muted text-foreground-muted" :
+                        r.rank === 3 ? "bg-warning-wash text-warning" :
                         "bg-muted/10 text-muted"
                       }`}>
                         {r.rank || "—"}

@@ -30,12 +30,7 @@ export class SchoolConfigService {
   // publicly. Nothing else is returned.
 
   async getPublicBranding() {
-    const keys = [
-      'school_name',
-      'school_motto',
-      'primary_color',
-      'logo_url',
-    ];
+    const keys = ['school_name', 'school_motto', 'primary_color', 'logo_url'];
     const configs = await this.prisma.schoolConfig.findMany({
       where: { key: { in: keys } },
     });

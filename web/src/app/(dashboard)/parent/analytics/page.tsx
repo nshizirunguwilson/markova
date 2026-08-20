@@ -46,7 +46,7 @@ export default function ParentAnalyticsPage() {
         </div>
         {children.length > 1 && (
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={selectedChild}
             onChange={(e) => setSelectedChild(e.target.value)}
           >

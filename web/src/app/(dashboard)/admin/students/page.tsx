@@ -21,6 +21,7 @@ import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminStudentsPage() {
   const router = useRouter();
@@ -90,15 +91,15 @@ export default function AdminStudentsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Students</h1>
-          <p className="mt-1 text-sm text-muted">
-            {meta.total} students enrolled
-          </p>
-        </div>
-        <ExportDropdown onExport={handleExport} disabled={students.length === 0} />
-      </div>
+      <PageHeader
+        title="Students"
+        description={<>{meta.total} students enrolled</>}
+        actions={
+          <>
+            <ExportDropdown onExport={handleExport} disabled={students.length === 0} />
+          </>
+        }
+      />
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">
@@ -110,19 +111,19 @@ export default function AdminStudentsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+             aria-label="Search by name, email, or phone..."/>
           </div>
 
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={levelId}
             onChange={(e) => {
               setLevelId(e.target.value);
               setSectionId("");
               setFilters((f) => ({ ...f, classSectionId: undefined, page: 1 }));
             }}
-          >
+           aria-label="All Levels">
             <option value="">All Levels</option>
             {levels?.map((l: any) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -131,13 +132,13 @@ export default function AdminStudentsPage() {
 
           {levelId && (
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => {
                 setSectionId(e.target.value);
                 setFilters((f) => ({ ...f, page: 1 }));
               }}
-            >
+             aria-label="All Sections">
               <option value="">All Sections</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
@@ -146,7 +147,7 @@ export default function AdminStudentsPage() {
           )}
 
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);

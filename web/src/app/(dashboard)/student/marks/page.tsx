@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
+import { useState, useMemo } from "react";
+import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentMarksPage() {
   const { user } = useAuthStore();
@@ -13,12 +14,10 @@ export default function StudentMarksPage() {
   const currentYear = years?.find((y: any) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
 
-  const [selectedTerm, setSelectedTerm] = useState("");
-
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   const studentId = (user as any)?.studentId;
   const { data, isLoading } = useStudentTermResult(studentId, selectedTerm);
@@ -49,16 +48,16 @@ export default function StudentMarksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">My Marks</h1>
-          <p className="text-sm text-muted">View your academic performance</p>
-        </div>
-        <select
+      <PageHeader
+        title="My Marks"
+        description="View your academic performance"
+        actions={
+          <>
+            <select
           value={selectedTerm}
           onChange={(e) => setSelectedTerm(e.target.value)}
           className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-        >
+         aria-label="Select term...">
           <option value="">Select term...</option>
           {terms?.map((t: any) => (
             <option key={t.id} value={t.id}>
@@ -66,7 +65,9 @@ export default function StudentMarksPage() {
             </option>
           ))}
         </select>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>

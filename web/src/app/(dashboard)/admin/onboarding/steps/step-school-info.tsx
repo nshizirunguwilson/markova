@@ -38,8 +38,8 @@ export function StepSchoolInfo() {
         <Input id="school_motto" label="School Motto" placeholder="e.g. Excellence Through Knowledge" {...register("school_motto")} />
         <Input id="school_address" label="Address" placeholder="123 Education Street" {...register("school_address")} />
         <div className="grid grid-cols-2 gap-4">
-          <Input id="school_phone" label="Phone" placeholder="+256700000000" {...register("school_phone")} />
-          <Input id="school_email" label="Email" placeholder="info@school.com" {...register("school_email")} />
+          <Input id="school_phone" label="Phone" placeholder="+250788000000" {...register("school_phone")} />
+          <Input id="school_email" label="Email" placeholder="info@markova.edu" {...register("school_email")} />
         </div>
         <Button type="submit" isLoading={bulkUpsert.isPending}>
           <Save className="mr-2 h-4 w-4" /> Save

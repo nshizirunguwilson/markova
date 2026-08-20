@@ -169,7 +169,7 @@ describe('AcademicService', () => {
         service.createClassLevel({
           name: 'Level 5',
           order: 6,
-          stage: 'A_LEVEL' as never,
+          stage: 'A_LEVEL',
         }),
       ).resolves.toBeDefined();
       expect(mockPrisma.classLevel.count).not.toHaveBeenCalled();
@@ -269,7 +269,7 @@ describe('AcademicService', () => {
         isClosed: false,
       });
 
-      const result = await service.reopenTerm('term-1');
+      await service.reopenTerm('term-1');
 
       expect(mockPrisma.term.update).toHaveBeenCalledWith({
         where: { id: 'term-1' },

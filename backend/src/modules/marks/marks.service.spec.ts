@@ -1,11 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MarksService } from './marks.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 describe('MarksService', () => {
   let service: MarksService;
@@ -81,11 +77,7 @@ describe('MarksService', () => {
         teacherId: 'teacher-1',
       });
 
-      const result = await service.create(
-        baseDto as any,
-        'teacher-1',
-        'TEACHER',
-      );
+      const result = await service.create(baseDto, 'teacher-1', 'TEACHER');
 
       // create() upserts on the unique (student, subject, term, assessment) key
       // so re-entering a score updates it instead of throwing a duplicate.
@@ -177,11 +169,7 @@ describe('MarksService', () => {
         .mockResolvedValueOnce({ id: 'mark-1', score: 80 })
         .mockResolvedValueOnce({ id: 'mark-2', score: 90 });
 
-      const result = await service.batchEntry(
-        batchDto as any,
-        'teacher-1',
-        'TEACHER',
-      );
+      const result = await service.batchEntry(batchDto, 'teacher-1', 'TEACHER');
 
       expect(result.count).toBe(2);
       expect(result.marks).toHaveLength(2);
@@ -257,7 +245,7 @@ describe('MarksService', () => {
         rank: 1,
       });
 
-      const result = await service.calculateTermResults(dto as any);
+      const result = await service.calculateTermResults(dto);
 
       expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -287,7 +275,7 @@ describe('MarksService', () => {
       });
       mockTx.termResult.update.mockResolvedValue({});
 
-      await service.calculateTermResults(dto as any);
+      await service.calculateTermResults(dto);
 
       expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -322,7 +310,7 @@ describe('MarksService', () => {
       });
       mockTx.termResult.update.mockResolvedValue({});
 
-      await service.calculateTermResults(dto as any);
+      await service.calculateTermResults(dto);
 
       expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -359,7 +347,7 @@ describe('MarksService', () => {
         });
       mockTx.termResult.update.mockResolvedValue({});
 
-      await service.calculateTermResults(dto as any);
+      await service.calculateTermResults(dto);
 
       // After sorting by average desc, student-2 (90) gets rank 1, student-1 (60) gets rank 2
       const updateCalls = mockTx.termResult.update.mock.calls;
@@ -393,7 +381,7 @@ describe('MarksService', () => {
       });
       mockTx.termResult.update.mockResolvedValue({});
 
-      await service.calculateTermResults(dto as any);
+      await service.calculateTermResults(dto);
 
       expect(mockTx.termResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -463,7 +451,7 @@ describe('MarksService', () => {
       });
       mockTx.yearResult.update.mockResolvedValue({});
 
-      const result = await service.calculateYearResults(dto as any);
+      const result = await service.calculateYearResults(dto);
 
       expect(mockTx.yearResult.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -504,7 +492,7 @@ describe('MarksService', () => {
         });
       mockTx.yearResult.update.mockResolvedValue({});
 
-      await service.calculateYearResults(dto as any);
+      await service.calculateYearResults(dto);
 
       const upsertCalls = mockTx.yearResult.upsert.mock.calls;
 

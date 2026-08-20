@@ -15,7 +15,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
@@ -125,7 +125,7 @@ function ParentDashboard() {
           ))
         ) : (
           <View style={styles.emptyCard}>
-            <Users size={32} color={colors.mutedLight} />
+            <Users size={32} color={colors.muted} />
             <Text style={styles.emptyText}>No children linked to your account yet.</Text>
           </View>
         )}
@@ -490,17 +490,17 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   welcomeCard: {
     backgroundColor: colors.primary,
-    borderRadius: radius.xl,
+    borderRadius: radius['2xl'],
     padding: spacing['2xl'],
     marginBottom: spacing.xl,
   },
-  welcomeTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.white, marginBottom: spacing.sm },
-  welcomeText: { fontSize: fontSize.sm, color: colors.accent, lineHeight: 20 },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.md, marginTop: spacing.sm },
+  welcomeTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.white, marginBottom: spacing.sm },
+  welcomeText: { fontSize: fontSize.sm, color: colors.accent, lineHeight: 20, fontFamily: fontFamily.regular },
+  sectionTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.md, marginTop: spacing.sm },
 
   // Child cards (Parent)
   childCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
@@ -508,19 +508,19 @@ const styles = StyleSheet.create({
     width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
   },
-  childAvatarText: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.white },
+  childAvatarText: { fontSize: fontSize.lg, fontFamily: fontFamily.bold, color: colors.white },
   childInfo: { marginBottom: spacing.md },
-  childName: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.foreground },
-  childClass: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  childId: { fontSize: fontSize.xs, color: colors.mutedLight, marginTop: 2 },
+  childName: { fontSize: fontSize.lg, fontFamily: fontFamily.bold, color: colors.foreground },
+  childClass: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
+  childId: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
   childActions: { flexDirection: 'row', gap: spacing.md },
-  quickAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accentLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  quickActionText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.medium },
-  emptyCard: { backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing['3xl'], alignItems: 'center' },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center' },
+  quickAction: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  quickActionText: { fontSize: fontSize.xs, color: colors.primary, fontFamily: fontFamily.medium },
+  emptyCard: { backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing['3xl'], alignItems: 'center' },
+  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.md, textAlign: 'center', fontFamily: fontFamily.regular },
   chatWithTeachersBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
@@ -529,38 +529,38 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   chatWithTeachersInfo: { flex: 1 },
-  chatWithTeachersTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground },
-  chatWithTeachersText: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
+  chatWithTeachersTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground },
+  chatWithTeachersText: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
 
   // Action grid (Teacher/Admin)
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
   actionCard: {
-    width: '47%', borderRadius: radius.xl, padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
+    width: '47%', borderRadius: radius['2xl'], padding: spacing.lg, alignItems: 'center', justifyContent: 'center',
     minHeight: 100,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
   },
-  actionLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.white, marginTop: spacing.sm, textAlign: 'center' },
+  actionLabel: { fontSize: fontSize.sm, fontFamily: fontFamily.semibold, color: colors.white, marginTop: spacing.sm, textAlign: 'center' },
 
   // Stats
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   statCard: {
-    width: '47%', backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, borderLeftWidth: 4,
+    width: '47%', backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, borderLeftWidth: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
   },
   statIcon: { marginBottom: spacing.xs },
-  statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
-  statTitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs },
+  statValue: { fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.foreground },
+  statTitle: { fontSize: fontSize.xs, color: colors.muted, marginTop: spacing.xs, fontFamily: fontFamily.regular },
 
   // Librarian dashboard
   overdueBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.dangerLight, borderRadius: radius.lg,
+    backgroundColor: colors.dangerWash, borderRadius: radius.xl,
     padding: spacing.md, marginTop: spacing.md,
   },
-  overdueBarText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
+  overdueBarText: { fontSize: fontSize.sm, color: colors.danger, fontFamily: fontFamily.medium },
   popularBookRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md,
     marginBottom: spacing.sm,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
@@ -568,9 +568,9 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accentLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  popularBookRankText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary },
+  popularBookRankText: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.primary },
   popularBookInfo: { flex: 1 },
-  popularBookTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.foreground },
-  popularBookAuthor: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  popularBookCount: { fontSize: fontSize.xs, color: colors.muted, fontWeight: fontWeight.medium },
+  popularBookTitle: { fontSize: fontSize.sm, fontFamily: fontFamily.semibold, color: colors.foreground },
+  popularBookAuthor: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1, fontFamily: fontFamily.regular },
+  popularBookCount: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.medium },
 });

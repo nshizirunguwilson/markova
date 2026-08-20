@@ -253,7 +253,7 @@ export default function AdminClassesPage() {
     return (
       <Card key={level.id} className="overflow-hidden" padding="sm">
         <div
-          className="flex items-center justify-between p-2 cursor-pointer rounded-lg hover:bg-gray-50"
+          className="flex items-center justify-between p-2 cursor-pointer rounded-lg hover:bg-surface-muted"
           onClick={() => setExpandedLevel(isExpanded ? null : level.id)}
         >
           <div className="flex items-center gap-3">
@@ -473,27 +473,27 @@ export default function AdminClassesPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
             <input
-              className={`w-full rounded-lg border ${levelErrors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${levelErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerLevel("name")}
               placeholder="e.g. Senior 1 or Level 3"
             />
-            {levelErrors.name && <p className="mt-1 text-xs text-red-500">{levelErrors.name.message}</p>}
+            {levelErrors.name && <p className="mt-1 text-xs text-danger">{levelErrors.name.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Order</label>
             <input
               type="number"
-              className={`w-full rounded-lg border ${levelErrors.order ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${levelErrors.order ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerLevel("order", { valueAsNumber: true })}
               placeholder="Display order (e.g. 1, 2, 3)"
             />
-            {levelErrors.order && <p className="mt-1 text-xs text-red-500">{levelErrors.order.message}</p>}
+            {levelErrors.order && <p className="mt-1 text-xs text-danger">{levelErrors.order.message}</p>}
           </div>
           {!editingLevelId && (
             <div>
               <label className="mb-1 block text-sm font-medium">Stage</label>
               <select
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...registerLevel("stage")}
               >
                 <option value="O_LEVEL">Ordinary Level</option>
@@ -521,7 +521,7 @@ export default function AdminClassesPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Trade</label>
               <select
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...registerSection("tradeId")}
               >
                 <option value="">Select a trade…</option>
@@ -536,11 +536,11 @@ export default function AdminClassesPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Stream</label>
             <input
-              className={`w-full rounded-lg border ${sectionErrors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${sectionErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerSection("name")}
               placeholder="e.g. A"
             />
-            {sectionErrors.name && <p className="mt-1 text-xs text-red-500">{sectionErrors.name.message}</p>}
+            {sectionErrors.name && <p className="mt-1 text-xs text-danger">{sectionErrors.name.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={resetSectionForm}>Cancel</Button>
@@ -557,29 +557,29 @@ export default function AdminClassesPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Code</label>
             <input
-              className={`w-full rounded-lg border ${tradeErrors.code ? "border-red-400" : "border-border"} px-3 py-2 text-sm uppercase focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${tradeErrors.code ? "border-danger" : "border-border"} px-3 py-2 text-sm uppercase focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("code")}
               placeholder="e.g. SWD"
             />
-            {tradeErrors.code && <p className="mt-1 text-xs text-red-500">{tradeErrors.code.message}</p>}
+            {tradeErrors.code && <p className="mt-1 text-xs text-danger">{tradeErrors.code.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
             <input
-              className={`w-full rounded-lg border ${tradeErrors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${tradeErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("name")}
               placeholder="e.g. Software Development"
             />
-            {tradeErrors.name && <p className="mt-1 text-xs text-red-500">{tradeErrors.name.message}</p>}
+            {tradeErrors.name && <p className="mt-1 text-xs text-danger">{tradeErrors.name.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Sector</label>
             <input
-              className={`w-full rounded-lg border ${tradeErrors.sector ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${tradeErrors.sector ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("sector")}
               placeholder="e.g. ICT and Multimedia"
             />
-            {tradeErrors.sector && <p className="mt-1 text-xs text-red-500">{tradeErrors.sector.message}</p>}
+            {tradeErrors.sector && <p className="mt-1 text-xs text-danger">{tradeErrors.sector.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={resetTradeForm}>Cancel</Button>

@@ -59,7 +59,7 @@ export class CreateUserDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ example: '+256700000001' })
+  @ApiPropertyOptional({ example: '+250788000001' })
   @IsOptional()
   @Matches(/^\+250(78|79|72|73)\d{7}$/, {
     message:
@@ -116,48 +116,82 @@ export class CreateUserDto {
   @IsDateString()
   enrollmentDate?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(10)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
   bloodType?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   allergies?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   medicalConditions?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   previousSchool?: string;
 
   @ApiPropertyOptional({ example: 'Kigali City' })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   province?: string;
 
   @ApiPropertyOptional({ example: 'Gasabo' })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   district?: string;
 
   @ApiPropertyOptional({ example: 'Kacyiru' })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   sector?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   cell?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   village?: string;
 
   @ApiPropertyOptional({ description: 'Special-needs record; omit for none' })
-  @IsOptional() @IsString() @MaxLength(255)
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   disability?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   fatherName?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   motherName?: string;
 
   @ApiPropertyOptional({ description: 'Mutuelle or other insurance number' })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   insuranceNumber?: string;
 
   @ApiPropertyOptional({ default: false })
@@ -173,7 +207,10 @@ export class CreateUserDto {
   @IsBoolean()
   isBoarder?: boolean;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   religion?: string;
 
   // ─── Teacher-specific fields ──────────────────────────────────────────────
@@ -188,7 +225,9 @@ export class CreateUserDto {
   qualification?: TeacherQualification;
 
   @ApiPropertyOptional({ description: 'RSSB social security number' })
-  @IsOptional() @IsString() @MaxLength(50)
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
   rssbNumber?: string;
 
   @ApiPropertyOptional({ example: '2024-09-01' })

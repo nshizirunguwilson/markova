@@ -135,7 +135,7 @@ const STEP_FIELDS: Record<string, (keyof FormData)[]> = {
 };
 
 const selectCls =
-  "w-full rounded-lg border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
+  "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -433,13 +433,13 @@ export function AddUserWizard({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 id="firstName"
-                label={<>First Name <span className="text-red-500">*</span></>}
+                label={<>First Name <span className="text-danger">*</span></>}
                 error={errors.firstName?.message}
                 {...register("firstName")}
               />
               <Input
                 id="lastName"
-                label={<>Last Name <span className="text-red-500">*</span></>}
+                label={<>Last Name <span className="text-danger">*</span></>}
                 error={errors.lastName?.message}
                 {...register("lastName")}
               />
@@ -471,7 +471,7 @@ export function AddUserWizard({
                         ) : role === "STUDENT" ? (
                           "Email"
                         ) : (
-                          <>Email <span className="text-red-500">*</span></>
+                          <>Email <span className="text-danger">*</span></>
                         )
                       }
                       type="email"
@@ -489,7 +489,7 @@ export function AddUserWizard({
               </div>
               <Input
                 id="phone"
-                label={role === "PARENT" ? <>Phone <span className="text-red-500">*</span></> : "Phone"}
+                label={role === "PARENT" ? <>Phone <span className="text-danger">*</span></> : "Phone"}
                 placeholder="+2507XXXXXXXX"
                 error={errors.phone?.message}
                 {...register("phone")}
@@ -501,7 +501,7 @@ export function AddUserWizard({
                   <div className="flex-1">
                     <Input
                       id="password"
-                      label={<>Password <span className="text-red-500">*</span></>}
+                      label={<>Password <span className="text-danger">*</span></>}
                       type={showPassword ? "text" : "password"}
                       placeholder="Min 8 characters"
                       error={errors.password?.message}
@@ -731,7 +731,7 @@ export function AddUserWizard({
                   value={childQuery}
                   onChange={(e) => setChildQuery(e.target.value)}
                   placeholder="e.g. Keza or STD-2026-0042"
-                  className="w-full rounded-lg border border-border bg-white py-2.5 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="w-full rounded-lg border border-border bg-surface py-2.5 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
             </Field>

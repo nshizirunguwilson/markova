@@ -16,11 +16,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
-  GenerateReportCardDto,
   GenerateClassReportCardsDto,
-  GenerateYearReportDto,
   GenerateDocumentDto,
-  GenerateIdCardDto,
   BulkIdCardsDto,
   IssueIdCardDto,
   IdCardRegistryQueryDto,
@@ -158,7 +155,9 @@ export class ReportsController {
 
   @Post('id-cards/issue-bulk')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Issue cards for all students in a section without one' })
+  @ApiOperation({
+    summary: 'Issue cards for all students in a section without one',
+  })
   issueBulkIdCards(@Body() dto: BulkIdCardsDto) {
     return this.service.issueBulkIdCards(dto.classSectionId);
   }
@@ -175,10 +174,7 @@ export class ReportsController {
   @Get('export/dataset/:key')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Export one dataset as a readable CSV' })
-  async exportDataset(
-    @Param('key') key: string,
-    @Res() res: express.Response,
-  ) {
+  async exportDataset(@Param('key') key: string, @Res() res: express.Response) {
     const { filename, csv } = await this.service.exportDatasetCsv(key);
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',

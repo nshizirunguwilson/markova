@@ -145,11 +145,46 @@ export function useClassAttendance(classSectionId?: string, date?: string) {
   });
 }
 
+/**
+ * The students in one class section.
+ *
+ * Reads the attendance module's class roster rather than `GET /users`, which is
+ * an ADMIN-only endpoint — it returned 403 for every teacher, so marks entry,
+ * attendance, discipline logging and NFC registration all showed an empty class.
+ *
+ * That route answers with a flat row, so it is mapped back into the nested
+ * `Student` shape the screens are typed against.
+ */
 export function useClassStudents(classSectionId?: string) {
   return useQuery<Student[]>({
     queryKey: ['class-students', classSectionId],
     queryFn: () =>
-      api.get('/users', { params: { role: 'STUDENT', classSectionId } }).then((r) => r.data?.users ?? r.data),
+      api
+        .get('/attendance/class-students', { params: { classSectionId } })
+        .then((r) =>
+          (r.data ?? []).map(
+            (s: {
+              id: string;
+              userId: string;
+              studentIdNumber: string;
+              nfcCardId: string | null;
+              firstName: string;
+              lastName: string;
+            }) => ({
+              id: s.id,
+              userId: s.userId,
+              classSectionId: classSectionId!,
+              studentIdNumber: s.studentIdNumber,
+              nfcCardId: s.nfcCardId ?? undefined,
+              user: {
+                id: s.userId,
+                firstName: s.firstName,
+                lastName: s.lastName,
+                email: '',
+              },
+            }),
+          ),
+        ),
     enabled: !!classSectionId,
   });
 }
@@ -206,12 +241,23 @@ export function useRegisterNfcCard() {
 
 // ─── Marks ──────────────────────────────────────────────
 
+/**
+ * A single student's marks for a term.
+ *
+ * Reads the term-result endpoint rather than `GET /marks`: the latter is an
+ * unscoped admin/teacher query that returns 403 for parents and students, so
+ * the child marks screen always showed "No marks recorded for this term yet."
+ * even when the student had a full set. This route is ownership-checked, so a
+ * parent only ever sees a child actually linked to them.
+ */
 export function useStudentMarks(studentId?: string, termId?: string) {
   return useQuery<Mark[]>({
     queryKey: ['student-marks', studentId, termId],
     queryFn: () =>
-      api.get('/marks', { params: { studentId, termId } }).then((r) => r.data?.data ?? r.data),
-    enabled: !!studentId,
+      api
+        .get(`/marks/term-results/student/${studentId}`, { params: { termId } })
+        .then((r) => r.data?.marks ?? []),
+    enabled: !!studentId && !!termId,
   });
 }
 
@@ -219,7 +265,10 @@ export function useStudentTermResult(studentId?: string, termId?: string) {
   return useQuery<TermResult>({
     queryKey: ['term-result', studentId, termId],
     queryFn: () =>
-      api.get(`/marks/term-results/student/${studentId}`, { params: { termId } }).then((r) => r.data),
+      api
+        .get(`/marks/term-results/student/${studentId}`, { params: { termId } })
+        // The endpoint returns { result, marks }; useStudentMarks reads the rest.
+        .then((r) => r.data?.result ?? r.data),
     enabled: !!studentId && !!termId,
   });
 }

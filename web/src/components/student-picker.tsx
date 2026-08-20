@@ -42,7 +42,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
             setSection("");
             onChange("");
           }}
-        >
+         aria-label="Level…">
           <option value="">Level…</option>
           {levels?.map((l: any) => (
             <option key={l.id} value={l.id}>{l.name}</option>
@@ -56,7 +56,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
             setSection(e.target.value);
             onChange("");
           }}
-        >
+         aria-label="Section…">
           <option value="">Section…</option>
           {sections?.map((s: any) => (
             <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
@@ -67,7 +67,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
           value={value}
           disabled={!section}
           onChange={(e) => onChange(e.target.value)}
-        >
+         aria-label="Student…">
           <option value="">Student…</option>
           {students.map((u: any) => (
             <option key={u.id} value={u.student?.id}>

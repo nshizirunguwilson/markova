@@ -23,7 +23,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-white transition-transform duration-200 ease-in-out",
+        "fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-surface transition-transform duration-200 ease-in-out",
         "md:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}

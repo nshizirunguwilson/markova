@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 type RoleFilter = '' | 'ADMIN' | 'TEACHER' | 'PARENT' | 'STUDENT' | 'LIBRARIAN';
 
@@ -65,11 +65,11 @@ export default function UsersScreen() {
 
   const roleColor = (role: string) => {
     switch (role) {
-      case 'ADMIN': return colors.dangerLight;
+      case 'ADMIN': return colors.dangerWash;
       case 'TEACHER': return colors.accentLight;
-      case 'STUDENT': return colors.successLight;
-      case 'LIBRARIAN': return colors.warningLight;
-      default: return colors.borderLight;
+      case 'STUDENT': return colors.successWash;
+      case 'LIBRARIAN': return colors.warningWash;
+      default: return colors.surfaceMuted;
     }
   };
 
@@ -92,7 +92,7 @@ export default function UsersScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search by name or email..."
-          placeholderTextColor={colors.mutedLight}
+          placeholderTextColor={colors.muted}
           value={search}
           onChangeText={(t) => { setSearch(t); setPage(1); }}
         />
@@ -160,10 +160,10 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.white, marginHorizontal: spacing.lg, marginVertical: spacing.sm,
-    borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
-  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36 },
+  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.foreground, height: 36, fontFamily: fontFamily.regular },
   filterRow: {
     flexDirection: 'row', paddingHorizontal: spacing.lg, gap: spacing.sm,
     marginBottom: spacing.sm, flexWrap: 'wrap',
@@ -173,28 +173,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
   },
   filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterText: { fontSize: fontSize.xs, color: colors.foreground, fontWeight: fontWeight.medium },
+  filterText: { fontSize: fontSize.xs, color: colors.foreground, fontFamily: fontFamily.medium },
   filterTextActive: { color: colors.white },
   userRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted,
     backgroundColor: colors.white,
   },
   avatar: {
     width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.white },
+  avatarText: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.white },
   userInfo: { flex: 1 },
-  userName: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  userEmail: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  userName: { fontSize: fontSize.base, fontFamily: fontFamily.medium, color: colors.foreground },
+  userEmail: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1, fontFamily: fontFamily.regular },
   userMeta: { alignItems: 'flex-end', gap: spacing.xs },
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2,
   },
-  roleText: { fontSize: 10, fontWeight: fontWeight.semibold, color: colors.foreground },
+  roleText: { fontSize: 10, fontFamily: fontFamily.semibold, color: colors.foreground },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing['3xl'] },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing['3xl'], fontFamily: fontFamily.regular },
 });

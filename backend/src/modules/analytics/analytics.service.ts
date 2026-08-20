@@ -54,7 +54,12 @@ export class AnalyticsService {
     );
   }
 
-  private async computeAdminDashboard(academicYearId?: string, termId?: string) {
+  // Params are part of the cache key and the public signature; the dashboard
+  // is not scoped by year or term yet.
+  private async computeAdminDashboard(
+    _academicYearId?: string,
+    _termId?: string,
+  ) {
     const [
       totalStudents,
       totalTeachers,
@@ -351,7 +356,11 @@ export class AnalyticsService {
     >();
     for (const s of students) {
       const lvl = s.classSection.classLevel;
-      const e = byLevel.get(lvl.name) ?? { order: lvl.order, male: 0, female: 0 };
+      const e = byLevel.get(lvl.name) ?? {
+        order: lvl.order,
+        male: 0,
+        female: 0,
+      };
       if (s.gender === 'MALE') e.male++;
       else if (s.gender === 'FEMALE') e.female++;
       byLevel.set(lvl.name, e);
@@ -370,7 +379,14 @@ export class AnalyticsService {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
       include: {
-        user: { select: { firstName: true, lastName: true, photoUrl: true, email: true } },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            photoUrl: true,
+            email: true,
+          },
+        },
         classSection: { include: { classLevel: true, trade: true } },
       },
     });
@@ -424,14 +440,15 @@ export class AnalyticsService {
       term: { id: string; name: string; startDate: Date };
       bySubject: Map<
         string,
-        { scope: SubjectScope; rows: { assessmentName: string; score: number; maxScore: number }[] }
+        {
+          scope: SubjectScope;
+          rows: { assessmentName: string; score: number; maxScore: number }[];
+        }
       >;
     };
     const byTerm = new Map<string, TermAgg>();
     for (const m of marks) {
-      const t =
-        byTerm.get(m.term.id) ??
-        ({ term: m.term, bySubject: new Map() } as TermAgg);
+      const t = byTerm.get(m.term.id) ?? { term: m.term, bySubject: new Map() };
       const subj = t.bySubject.get(m.subject.name) ?? {
         scope: m.subject.scope,
         rows: [],
@@ -480,7 +497,9 @@ export class AnalyticsService {
 
         const own = ownByTerm.get(term.id);
         const termAttendance = attendance.filter(
-          (a) => a.date >= (term as any).startDate && a.date <= (term as any).endDate,
+          (a) =>
+            a.date >= (term as any).startDate &&
+            a.date <= (term as any).endDate,
         );
         const presentish = termAttendance.filter(
           (a) => a.status === 'PRESENT' || a.status === 'LATE',
@@ -532,7 +551,10 @@ export class AnalyticsService {
         class: classDisplayName(student.classSection),
         stage: student.classSection.classLevel.stage,
         trade: student.classSection.trade
-          ? { code: student.classSection.trade.code, name: student.classSection.trade.name }
+          ? {
+              code: student.classSection.trade.code,
+              name: student.classSection.trade.name,
+            }
           : null,
         classSize,
       },

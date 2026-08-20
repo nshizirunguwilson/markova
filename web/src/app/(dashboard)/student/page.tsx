@@ -12,6 +12,7 @@ import {
   Calendar,
   ArrowRight,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -33,10 +34,10 @@ export default function StudentDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Welcome back, {user?.firstName}
-        </h1>
-        <p className="mt-1 text-sm text-muted">Student Dashboard</p>
+        <PageHeader
+          title={<>Welcome back, {user?.firstName}</>}
+          description="Student Dashboard"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -49,14 +50,14 @@ export default function StudentDashboard() {
             {disciplinePoints}
             <span className="text-lg font-normal text-muted"> / 100</span>
           </p>
-          <div className="mt-3 h-2 rounded-full bg-gray-100">
+          <div className="mt-3 h-2 rounded-full bg-surface-muted">
             <div
               className={`h-2 rounded-full transition-all ${
                 disciplinePoints >= 70
-                  ? "bg-green-500"
+                  ? "bg-success"
                   : disciplinePoints >= 40
-                    ? "bg-amber-500"
-                    : "bg-red-500"
+                    ? "bg-warning"
+                    : "bg-danger"
               }`}
               style={{ width: `${Math.min(disciplinePoints, 100)}%` }}
             />

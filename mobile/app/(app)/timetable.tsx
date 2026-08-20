@@ -10,7 +10,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -214,7 +214,7 @@ export default function TimetableScreen() {
 
           {dayEntries.length === 0 ? (
             <View style={styles.empty}>
-              <BookOpen size={48} color={colors.mutedLight} />
+              <BookOpen size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No Classes</Text>
               <Text style={styles.emptyText}>
                 No classes scheduled for {DAYS.find((d) => d.key === selectedDay)?.full}.
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   dayTabsWrapper: {
     backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.surfaceMuted,
   },
   dayTabs: {
     flexDirection: 'row',
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.background,
     minWidth: 52,
   },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   dayTabText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   dayTabTextSelected: {
@@ -352,20 +352,20 @@ const styles = StyleSheet.create({
   },
   dayHeadingText: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     flex: 1,
   },
   periodCount: {
     fontSize: fontSize.xs,
     color: colors.muted,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
   },
 
   // Period cards
   periodCard: {
     backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: colors.primary,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderBottomLeftRadius: radius.sm,
+    borderBottomLeftRadius: radius.md,
   },
   badgeNow: {
     backgroundColor: colors.success,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     color: colors.white,
     letterSpacing: 0.5,
   },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   timeStart: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   timeNow: {
@@ -434,13 +434,12 @@ const styles = StyleSheet.create({
   },
   timeEnd: {
     fontSize: fontSize.xs,
-    color: colors.muted,
-  },
+    color: colors.muted, fontFamily: fontFamily.regular },
 
   // Separator
   periodSeparator: {
     width: 1,
-    backgroundColor: colors.borderLight,
+    backgroundColor: colors.surfaceMuted,
     marginHorizontal: spacing.md,
   },
 
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
   },
   subjectName: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginBottom: 2,
   },
@@ -463,8 +462,7 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: fontSize.sm,
     color: colors.muted,
-    flex: 1,
-  },
+    flex: 1, fontFamily: fontFamily.regular },
 
   // Empty state
   empty: {
@@ -473,7 +471,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginTop: spacing.lg,
   },
@@ -481,6 +479,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     marginTop: spacing.sm,
-    textAlign: 'center',
-  },
+    textAlign: 'center', fontFamily: fontFamily.regular },
 });

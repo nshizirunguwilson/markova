@@ -11,7 +11,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 interface Ticket {
   id: string;
@@ -113,7 +113,7 @@ export default function SupportScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <LifeBuoy size={48} color={colors.mutedLight} />
+              <LifeBuoy size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No Tickets Yet</Text>
               <Text style={styles.emptyText}>Submit a ticket if you need help.</Text>
             </View>
@@ -170,23 +170,23 @@ const styles = StyleSheet.create({
   newTicketBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     backgroundColor: colors.primary, marginHorizontal: spacing.lg, marginVertical: spacing.md,
-    borderRadius: radius.lg, paddingVertical: spacing.md,
+    borderRadius: radius.xl, paddingVertical: spacing.md,
   },
-  newTicketText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  newTicketText: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.white },
   ticketRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted, backgroundColor: colors.white,
   },
   ticketInfo: { flex: 1 },
-  ticketSubject: { fontSize: fontSize.base, fontWeight: fontWeight.medium, color: colors.foreground },
-  ticketDesc: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18 },
-  ticketDate: { fontSize: fontSize.xs, color: colors.mutedLight, marginTop: 4 },
-  statusBadge: { borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  statusText: { fontSize: 10, fontWeight: fontWeight.semibold, textTransform: 'uppercase' },
+  ticketSubject: { fontSize: fontSize.base, fontFamily: fontFamily.medium, color: colors.foreground },
+  ticketDesc: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, lineHeight: 18, fontFamily: fontFamily.regular },
+  ticketDate: { fontSize: fontSize.xs, color: colors.muted, marginTop: 4, fontFamily: fontFamily.regular },
+  statusBadge: { borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  statusText: { fontSize: 10, fontFamily: fontFamily.semibold, textTransform: 'uppercase' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing['3xl'] },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground, marginTop: spacing.lg },
-  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm },
+  emptyTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginTop: spacing.lg },
+  emptyText: { fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.sm, fontFamily: fontFamily.regular },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -195,5 +195,5 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl,
   },
-  modalTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground },
+  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
 });

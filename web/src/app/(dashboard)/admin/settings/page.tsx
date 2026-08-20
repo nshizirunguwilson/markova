@@ -18,6 +18,7 @@ import { ClassesTab } from "./tabs/classes-tab";
 import { SubjectsTab } from "./tabs/subjects-tab";
 import { SystemTab } from "./tabs/system-tab";
 import { DataExportTab } from "./tabs/data-export-tab";
+import { PageHeader } from "@/components/layout/page-header";
 
 const TABS = [
   { key: "general", label: "General", icon: Settings },
@@ -49,8 +50,10 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">School Settings</h1>
-        <p className="mt-1 text-sm text-muted">Configure your school&apos;s settings</p>
+        <PageHeader
+          title="School Settings"
+          description="Configure your school&apos;s settings"
+        />
       </div>
 
       <div className="flex gap-6">

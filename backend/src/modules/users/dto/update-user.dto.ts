@@ -119,40 +119,75 @@ export class UpdateUserDto {
   })
   nationalId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   nationality?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   previousSchool?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsDateString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
   enrollmentDate?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   province?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   district?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   sector?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   cell?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   village?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   disability?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   fatherName?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(255)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   motherName?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   insuranceNumber?: string;
 
   @ApiPropertyOptional()
@@ -166,7 +201,10 @@ export class UpdateUserDto {
   @IsBoolean()
   isBoarder?: boolean;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   religion?: string;
 
   @ApiPropertyOptional({ enum: TeacherQualification })
@@ -174,9 +212,14 @@ export class UpdateUserDto {
   @IsEnum(TeacherQualification)
   qualification?: TeacherQualification;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(50)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
   rssbNumber?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsDateString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
   hireDate?: string;
 }

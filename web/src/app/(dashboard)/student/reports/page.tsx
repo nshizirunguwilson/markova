@@ -86,7 +86,7 @@ export default function StudentReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">My Report Cards</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-primary">My Report Cards</h1>
 
       <div className="flex gap-4">
         <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
@@ -124,17 +124,17 @@ export default function StudentReportsPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Average</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.average ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Average</p>
+              <p className="text-xl font-bold text-primary">{report.average ?? "—"}</p>
             </Card>
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Grade</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.letterGrade ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Grade</p>
+              <p className="text-xl font-bold text-primary">{report.letterGrade ?? "—"}</p>
             </Card>
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Rank</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.rank ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Rank</p>
+              <p className="text-xl font-bold text-primary">{report.rank ?? "—"}</p>
             </Card>
           </div>
 
@@ -144,7 +144,7 @@ export default function StudentReportsPage() {
                 <span className="font-medium">{s.subjectName}</span>
                 <div className="flex gap-4 text-sm">
                   <span>{s.average}%</span>
-                  <span className="font-medium text-[#1B4F72]">{s.grade}</span>
+                  <span className="font-medium text-primary">{s.grade}</span>
                 </div>
               </div>
             ))}
@@ -157,8 +157,8 @@ export default function StudentReportsPage() {
           )}
 
           {report.teacherComment && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-gray-600">Teacher&apos;s Comment</p>
+            <div className="bg-surface-muted rounded-lg p-4">
+              <p className="text-sm font-medium text-foreground-muted">Teacher&apos;s Comment</p>
               <p className="text-sm mt-1">{report.teacherComment}</p>
             </div>
           )}
@@ -166,8 +166,8 @@ export default function StudentReportsPage() {
       )}
 
       {!isLoading && !report && termId && (
-        <Card className="p-8 text-center text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+        <Card className="p-8 text-center text-muted">
+          <FileText className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No report card available for this term
         </Card>
       )}

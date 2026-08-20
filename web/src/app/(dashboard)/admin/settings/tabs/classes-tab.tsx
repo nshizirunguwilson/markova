@@ -83,7 +83,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {[s.trade?.code, s.name].filter(Boolean).join(" ")} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-red-700">
+                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
@@ -122,7 +122,7 @@ export function ClassesTab() {
         <form onSubmit={handleSubmit((d) => createLevel.mutate({ name: d.name, order: Number(d.order), stage: d.stage }, { onSuccess: () => reset() }))} className="mt-4 flex items-end gap-3 max-w-2xl">
           <div>
             <label htmlFor="cl-stage" className="block text-sm font-medium text-foreground mb-1.5">Stage</label>
-            <select id="cl-stage" {...register("stage")} className="rounded-lg border border-border px-2 py-2 text-sm focus:border-primary focus:outline-none">
+            <select id="cl-stage" {...register("stage")} className="rounded-lg border border-input px-2 py-2 text-sm focus:border-primary focus:outline-none">
               <option value="O_LEVEL">O-Level</option>
               <option value="A_LEVEL">A-Level (TVET)</option>
             </select>

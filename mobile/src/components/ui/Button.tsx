@@ -1,5 +1,5 @@
 import { Pressable, Text, ActivityIndicator, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, radius, fontSize, fontWeight, spacing } from '@/constants/theme';
+import { colors, radius, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
   },
   fullWidth: {
     width: '100%',
@@ -82,15 +82,15 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   text: {
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
   },
 });
 
 const variantStyles: Record<ButtonVariant, ViewStyle> = {
   primary: { backgroundColor: colors.primary },
   secondary: { backgroundColor: colors.primaryLight },
-  outline: { backgroundColor: colors.transparent, borderWidth: 1, borderColor: colors.border },
-  ghost: { backgroundColor: colors.transparent },
+  outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+  ghost: { backgroundColor: 'transparent' },
   danger: { backgroundColor: colors.danger },
 };
 
@@ -109,7 +109,7 @@ const sizeStyles: Record<ButtonSize, ViewStyle> = {
 };
 
 const sizeTextStyles: Record<ButtonSize, TextStyle> = {
-  sm: { fontSize: fontSize.sm },
-  md: { fontSize: fontSize.base },
-  lg: { fontSize: fontSize.lg },
+  sm: { fontSize: fontSize.sm, fontFamily: fontFamily.regular },
+  md: { fontSize: fontSize.base, fontFamily: fontFamily.regular },
+  lg: { fontSize: fontSize.lg, fontFamily: fontFamily.regular },
 };

@@ -12,7 +12,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -61,9 +61,9 @@ function getUrgencyColor(daysRemaining: number): string {
 }
 
 function getUrgencyBg(daysRemaining: number): string {
-  if (daysRemaining < 0) return colors.borderLight;
-  if (daysRemaining <= 3) return colors.dangerLight;
-  if (daysRemaining <= 7) return colors.warningLight;
+  if (daysRemaining < 0) return colors.surfaceMuted;
+  if (daysRemaining <= 3) return colors.dangerWash;
+  if (daysRemaining <= 7) return colors.warningWash;
   return colors.accentLight;
 }
 
@@ -149,20 +149,20 @@ export default function ExamScheduleScreen() {
           {/* Date and time */}
           <View style={styles.examMeta}>
             <View style={styles.metaRow}>
-              <Calendar size={14} color={isPast ? colors.mutedLight : colors.muted} />
+              <Calendar size={14} color={isPast ? colors.muted : colors.muted} />
               <Text style={[styles.metaText, isPast && styles.textPast]}>
                 {formatDate(exam.examDate)}
               </Text>
             </View>
             <View style={styles.metaRow}>
-              <Clock size={14} color={isPast ? colors.mutedLight : colors.muted} />
+              <Clock size={14} color={isPast ? colors.muted : colors.muted} />
               <Text style={[styles.metaText, isPast && styles.textPast]}>
                 {formatTime(exam.startTime)} - {formatTime(exam.endTime)}
               </Text>
             </View>
             {exam.room && (
               <View style={styles.metaRow}>
-                <MapPin size={14} color={isPast ? colors.mutedLight : colors.muted} />
+                <MapPin size={14} color={isPast ? colors.muted : colors.muted} />
                 <Text style={[styles.metaText, isPast && styles.textPast]}>
                   {exam.room}
                 </Text>
@@ -219,13 +219,13 @@ export default function ExamScheduleScreen() {
           {/* Summary stats */}
           {upcoming.length > 0 && (
             <View style={styles.summaryRow}>
-              <View style={[styles.summaryCard, { backgroundColor: colors.dangerLight }]}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.dangerWash }]}>
                 <Text style={[styles.summaryValue, { color: colors.danger }]}>
                   {upcoming.filter((e) => getDaysRemaining(e.examDate) <= 3).length}
                 </Text>
                 <Text style={styles.summaryLabel}>Within 3 days</Text>
               </View>
-              <View style={[styles.summaryCard, { backgroundColor: colors.warningLight }]}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.warningWash }]}>
                 <Text style={[styles.summaryValue, { color: colors.warning }]}>
                   {upcoming.filter((e) => getDaysRemaining(e.examDate) <= 7).length}
                 </Text>
@@ -243,7 +243,7 @@ export default function ExamScheduleScreen() {
           {/* Upcoming exams */}
           {upcoming.length === 0 && past.length === 0 ? (
             <View style={styles.empty}>
-              <Calendar size={48} color={colors.mutedLight} />
+              <Calendar size={48} color={colors.muted} />
               <Text style={styles.emptyTitle}>No Exams Scheduled</Text>
               <Text style={styles.emptyText}>
                 There are no exams scheduled for this term yet.
@@ -306,25 +306,25 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.md,
     alignItems: 'center',
   },
   summaryValue: {
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
   },
   summaryLabel: {
     fontSize: 10,
     color: colors.muted,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     marginTop: 2,
   },
 
   // Section
   sectionTitle: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginBottom: spacing.md,
   },
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   // Exam card
   examCard: {
     backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: colors.primary,
@@ -356,24 +356,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
   countdownText: {
     fontSize: 11,
-    fontWeight: fontWeight.bold,
+    fontFamily: fontFamily.bold,
     letterSpacing: 0.3,
   },
 
   // Subject
   examSubject: {
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
   },
   textPast: {
-    color: colors.mutedLight,
+    color: colors.muted,
   },
 
   // Meta
@@ -387,8 +387,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: fontSize.sm,
-    color: colors.muted,
-  },
+    color: colors.muted, fontFamily: fontFamily.regular },
 
   // Syllabus
   syllabusToggle: {
@@ -400,21 +399,20 @@ const styles = StyleSheet.create({
   syllabusToggleText: {
     fontSize: fontSize.sm,
     color: colors.primary,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     flex: 1,
   },
   syllabusContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: colors.surfaceMuted,
     paddingTop: spacing.md,
   },
   syllabusText: {
     fontSize: fontSize.sm,
     color: colors.muted,
-    lineHeight: 22,
-  },
+    lineHeight: 22, fontFamily: fontFamily.regular },
 
   // Past toggle
   pastToggle: {
@@ -428,21 +426,21 @@ const styles = StyleSheet.create({
   },
   pastToggleText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontFamily: fontFamily.medium,
     color: colors.muted,
   },
 
   // All done
   allDoneBanner: {
-    backgroundColor: colors.successLight,
-    borderRadius: radius.lg,
+    backgroundColor: colors.successWash,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
   allDoneText: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.success,
   },
 
@@ -453,7 +451,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
+    fontFamily: fontFamily.semibold,
     color: colors.foreground,
     marginTop: spacing.lg,
   },
@@ -461,6 +459,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.muted,
     marginTop: spacing.sm,
-    textAlign: 'center',
-  },
+    textAlign: 'center', fontFamily: fontFamily.regular },
 });

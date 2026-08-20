@@ -123,7 +123,7 @@ export function Modal({
         aria-modal="true"
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative z-10 w-full rounded-xl border border-border bg-white p-6 shadow-modal",
+          "relative z-10 w-full rounded-xl border border-border bg-surface p-6 shadow-modal",
           sizes[size]
         )}
       >

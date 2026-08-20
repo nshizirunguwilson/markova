@@ -2,7 +2,7 @@ import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import * as Sentry from '@sentry/react-native';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 interface Props {
   children: ReactNode;
@@ -69,27 +69,26 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: spacing.xl,
   },
   iconContainer: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.dangerLight,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.dangerWash,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
   },
   title: {
-    fontSize: fontSize.xl, fontWeight: fontWeight.bold,
+    fontSize: fontSize.xl, fontFamily: fontFamily.bold,
     color: colors.foreground, marginBottom: spacing.sm,
   },
   message: {
     fontSize: fontSize.base, color: colors.muted,
-    textAlign: 'center', lineHeight: 22, marginBottom: spacing.xl,
-  },
+    textAlign: 'center', lineHeight: 22, marginBottom: spacing.xl, fontFamily: fontFamily.regular },
   errorBox: {
-    maxHeight: 120, width: '100%', backgroundColor: colors.borderLight,
-    borderRadius: radius.lg, marginBottom: spacing.xl,
+    maxHeight: 120, width: '100%', backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.xl, marginBottom: spacing.xl,
   },
   errorBoxContent: { padding: spacing.md },
   errorText: { fontSize: fontSize.xs, color: colors.danger, fontFamily: 'monospace' },
   retryButton: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.primary, borderRadius: radius.lg,
+    backgroundColor: colors.primary, borderRadius: radius.xl,
     paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
   },
-  retryText: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.white },
+  retryText: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.white },
 });

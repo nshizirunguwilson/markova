@@ -1,7 +1,10 @@
 "use client";
 
+
+import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
+
 import { useState } from "react";
-import { Upload, Image as ImageIcon } from "lucide-react";
+import { Upload } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useBulkUpsertConfig, useSchoolConfig } from "@/hooks/use-academic";
 import { Input } from "@/components/ui";
@@ -9,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { Save } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { resolveUploadUrl } from "@/lib/assets";
 
 export function StepBranding() {
   const { data } = useSchoolConfig();
@@ -16,7 +20,7 @@ export function StepBranding() {
   const map = data?.map || {};
 
   const { register, handleSubmit } = useForm({
-    values: { primary_color: map.primary_color || "#1B4F72" },
+    values: { primary_color: map.primary_color || DEFAULT_BRAND_COLOR },
   });
 
   const onSaveColor = (data: any) => {
@@ -46,7 +50,7 @@ export function StepBranding() {
         <form onSubmit={handleSubmit(onSaveColor)} className="flex items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Primary Color</label>
-            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-border" />
+            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-input"  aria-label="Primary Color"/>
           </div>
           <Button type="submit" size="sm" isLoading={bulkUpsert.isPending}>
             <Save className="mr-1 h-4 w-4" /> Save
@@ -80,11 +84,16 @@ function FileUploadField({
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-border bg-accent-light/50">
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-accent-light/50">
           {currentUrl ? (
-            <ImageIcon className="h-6 w-6 text-primary" />
+            /* eslint-disable-next-line @next/next/no-img-element -- runtime upload on the API origin */
+            <img
+              src={resolveUploadUrl(currentUrl) ?? undefined}
+              alt={`Current ${label.toLowerCase()}`}
+              className="h-full w-full object-contain p-1.5"
+            />
           ) : (
-            <Upload className="h-6 w-6 text-muted" />
+            <Upload className="h-6 w-6 text-muted" aria-hidden="true" />
           )}
         </div>
         <div>
@@ -95,7 +104,7 @@ function FileUploadField({
               accept="image/*"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])}
-            />
+             aria-label="Upload image file"/>
           </label>
           <p className="text-xs text-muted">PNG, JPG or SVG, max 5MB</p>
           {currentUrl && <p className="text-xs text-success">Uploaded</p>}

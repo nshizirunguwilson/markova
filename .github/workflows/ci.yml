@@ -7,11 +7,43 @@ on:
 
 jobs:
   backend:
-    name: Backend (typecheck + tests)
+    name: Backend (typecheck + lint + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: markova
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: markova_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret
+      JWT_REFRESH_SECRET: ci-test-refresh-secret
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,19 +51,27 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      # @nestjs/schedule@4 predates Nest 11's peer ranges; the project installs
-      # with legacy peer resolution locally, so CI must match.
-      - run: npm ci --legacy-peer-deps
+      # @nestjs/schedule is on v6, whose peer range covers Nest 11, so a plain
+      # `npm ci` resolves. It previously needed --legacy-peer-deps.
+      - run: npm ci
       - run: npx prisma generate
       - run: npx tsc --noEmit -p tsconfig.json
+      - run: npm run lint
       - run: npx jest --silent
+      - run: npx prisma migrate deploy
+      # The auth e2e suite signs in as real seeded users, so the database has
+      # to hold the demo data first.
+      - run: npx prisma db seed
+      - run: npm run test:e2e -- --passWithNoTests
 
   web:
-    name: Web (typecheck + tests + build)
+    name: Web (typecheck + lint + tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,5 +81,36 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm run lint
       - run: npx vitest run
       - run: npm run build
+
+  design-system:
+    name: Design system (token drift + contrast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The generated theme files must match design/tokens.json, otherwise web
+      # and mobile silently drift apart again.
+      - run: node scripts/sync-design-tokens.mjs --check
+      # Every colour pairing has to stay at WCAG AA.
+      - run: node scripts/check-contrast.mjs
+
+  mobile:
+    name: Mobile (typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit

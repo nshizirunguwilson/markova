@@ -67,7 +67,7 @@ export function AcademicTab() {
           <Input id="yr-start" label="Start" type="date" {...yearForm.register("startDate")} />
           <Input id="yr-end" label="End" type="date" {...yearForm.register("endDate")} />
           <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground whitespace-nowrap">
-            <input type="checkbox" {...yearForm.register("isCurrent")} className="h-4 w-4 rounded border-border accent-primary" />
+            <input type="checkbox" {...yearForm.register("isCurrent")} className="h-4 w-4 rounded border-input accent-primary" />
             Make current
           </label>
           <Button type="submit" size="sm" isLoading={createYear.isPending}><Plus className="h-4 w-4" /></Button>

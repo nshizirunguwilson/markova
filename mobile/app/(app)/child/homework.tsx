@@ -7,7 +7,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorScreen } from '@/components/ErrorScreen';
 import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function ChildHomeworkScreen() {
   const router = useRouter();
@@ -91,18 +91,18 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   hwCard: {
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
   },
   hwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  subjectText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.primary },
+  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 3 },
+  subjectText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
-  hwTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground, marginBottom: spacing.xs },
-  hwDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18, marginBottom: spacing.sm },
+  statusText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold },
+  hwTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.xs },
+  hwDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18, marginBottom: spacing.sm, fontFamily: fontFamily.regular },
   hwFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hwDue: { fontSize: fontSize.xs, color: colors.muted, flex: 1 },
-  hwMarks: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.foreground },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
+  hwDue: { fontSize: fontSize.xs, color: colors.muted, flex: 1, fontFamily: fontFamily.regular },
+  hwMarks: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.foreground },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
 });

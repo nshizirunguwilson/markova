@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { Shield, AlertTriangle, Users, Gavel } from "lucide-react";
 import api from "@/lib/api";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child { id: string; name: string; className: string; }
 
@@ -67,23 +68,25 @@ export default function ParentDisciplinePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Discipline</h1>
-          <p className="text-sm text-muted">View incidents and submit appeals</p>
-        </div>
-        {children.length > 1 && (
+      <PageHeader
+        title="Child&apos;s Discipline"
+        description="View incidents and submit appeals"
+        actions={
+          <>
+            {children.length > 1 && (
           <select
             value={selectedChild}
             onChange={(e) => setSelectedChild(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+           aria-label="Select child">
             {children.map((c) => (
               <option key={c.id} value={c.id}>{c.name} ({c.className})</option>
             ))}
           </select>
         )}
-      </div>
+          </>
+        }
+      />
 
       {children.length > 0 && (
         <Card>

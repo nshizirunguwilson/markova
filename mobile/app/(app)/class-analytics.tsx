@@ -9,7 +9,7 @@ import {
 import { useTeacherClassAnalytics } from '@/hooks/useApi';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 export default function ClassAnalyticsScreen() {
   const router = useRouter();
@@ -115,7 +115,7 @@ export default function ClassAnalyticsScreen() {
                 <Text style={styles.sectionTitle}>Top Performers</Text>
                 {analytics.topStudents.slice(0, 5).map((s: any, i: number) => (
                   <View key={i} style={styles.studentRow}>
-                    <View style={[styles.studentAvatar, { backgroundColor: colors.successLight }]}>
+                    <View style={[styles.studentAvatar, { backgroundColor: colors.successWash }]}>
                       <Text style={[styles.studentAvatarText, { color: colors.success }]}>#{i + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
@@ -156,39 +156,39 @@ const styles = StyleSheet.create({
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
   statsGrid: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
   statBox: {
-    flex: 1, backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, borderLeftWidth: 4,
+    flex: 1, backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, borderLeftWidth: 4,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
     gap: spacing.xs,
   },
-  statValue: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground },
-  statLabel: { fontSize: fontSize.xs, color: colors.muted },
+  statValue: { fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.foreground },
+  statLabel: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
   sectionTitle: {
-    fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground,
+    fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground,
     marginBottom: spacing.md, marginTop: spacing.lg,
   },
   subjectRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.sm,
   },
-  subjectName: { width: 80, fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  barBg: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.borderLight },
+  subjectName: { width: 80, fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
+  barBg: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMuted },
   barFill: { height: 8, borderRadius: 4 },
-  subjectAvg: { width: 40, fontSize: fontSize.sm, fontWeight: fontWeight.bold, textAlign: 'right' },
+  subjectAvg: { width: 40, fontSize: fontSize.sm, fontFamily: fontFamily.bold, textAlign: 'right' },
   alertBox: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.warningLight, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    backgroundColor: colors.warningWash, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.md,
   },
-  alertText: { fontSize: fontSize.sm, color: colors.warning, fontWeight: fontWeight.medium, flex: 1 },
+  alertText: { fontSize: fontSize.sm, color: colors.warning, fontFamily: fontFamily.medium, flex: 1 },
   studentRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.sm,
   },
   studentAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.dangerLight,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.dangerWash,
     alignItems: 'center', justifyContent: 'center',
   },
-  studentAvatarText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.danger },
-  studentName: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.foreground },
-  studentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl },
+  studentAvatarText: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.danger },
+  studentName: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
+  studentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1, fontFamily: fontFamily.regular },
+  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
 });

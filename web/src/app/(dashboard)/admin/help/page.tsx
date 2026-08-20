@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Card,
-  CardTitle,
   Button,
   Input,
   Spinner,
@@ -26,6 +25,7 @@ import {
 } from "@/hooks/use-help";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminHelpPage() {
   const [tab, setTab] = useState<"faqs" | "tickets">("faqs");
@@ -98,25 +98,27 @@ export default function AdminHelpPage() {
   };
 
   const statusColor = (s: string) => {
-    if (s === "OPEN") return "bg-blue-100 text-blue-700";
-    if (s === "IN_PROGRESS") return "bg-yellow-100 text-yellow-700";
-    if (s === "RESOLVED") return "bg-green-100 text-green-700";
-    return "bg-gray-100 text-gray-700";
+    if (s === "OPEN") return "bg-accent text-primary";
+    if (s === "IN_PROGRESS") return "bg-warning-wash text-warning";
+    if (s === "RESOLVED") return "bg-success-wash text-success";
+    return "bg-surface-muted text-foreground-muted";
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Help & Support Management</h1>
+      <PageHeader
+        title="Help & Support Management"
+      />
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-border">
         {(["faqs", "tickets"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t
-                ? "border-[#1B4F72] text-[#1B4F72]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
             {t === "faqs" ? "FAQ Articles" : "Support Tickets"}
@@ -154,16 +156,16 @@ export default function AdminHelpPage() {
                       <TableCell className="font-medium">{faq.title}</TableCell>
                       <TableCell>{faq.category || "—"}</TableCell>
                       <TableCell>
-                        <Badge className={faq.isPublished ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}>
+                        <Badge className={faq.isPublished ? "bg-success-wash text-success" : "bg-surface-muted text-muted"}>
                           {faq.isPublished ? "Yes" : "No"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <button onClick={() => openEditFaq(faq)} className="text-[#2E86C1] hover:text-[#1B4F72]">
+                          <button onClick={() => openEditFaq(faq)} className="text-primary-light hover:text-primary">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteFaq(faq.id)} className="text-red-400 hover:text-red-600">
+                          <button onClick={() => handleDeleteFaq(faq.id)} className="text-danger hover:text-danger">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -208,7 +210,7 @@ export default function AdminHelpPage() {
       {tab === "tickets" && (
         <>
           <div className="flex gap-4">
-            <select className="border rounded-lg px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <select className="border rounded-lg px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="All Status">
               <option value="">All Status</option>
               <option value="OPEN">Open</option>
               <option value="IN_PROGRESS">In Progress</option>
@@ -238,7 +240,7 @@ export default function AdminHelpPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{ticket.title}</p>
-                          <p className="text-xs text-gray-500 truncate max-w-xs">{ticket.description}</p>
+                          <p className="text-xs text-muted truncate max-w-xs">{ticket.description}</p>
                         </div>
                       </TableCell>
                       <TableCell>{ticket.user?.firstName} {ticket.user?.lastName}</TableCell>
@@ -252,7 +254,7 @@ export default function AdminHelpPage() {
                           className="border rounded px-2 py-1 text-xs"
                           value={ticket.status}
                           onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
-                        >
+                         aria-label="Ticket status">
                           <option value="OPEN">Open</option>
                           <option value="IN_PROGRESS">In Progress</option>
                           <option value="RESOLVED">Resolved</option>
@@ -263,7 +265,7 @@ export default function AdminHelpPage() {
                   ))}
                   {(!tickets || tickets.length === 0) && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={6} className="text-center text-muted py-8">
                         No tickets found
                       </TableCell>
                     </TableRow>

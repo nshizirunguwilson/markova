@@ -23,7 +23,10 @@ export default function ParentMarksPage() {
 
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState("");
-  const [selectedTerm, setSelectedTerm] = useState("");
+  const [selectedTermChoice, setSelectedTerm] = useState("");
+  // Derived during render: the user's explicit choice wins, otherwise the
+  // server's current term.
+  const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   // Fetch linked children
   useEffect(() => {
@@ -46,10 +49,6 @@ export default function ParentMarksPage() {
       .catch(() => {});
   }, [user?.id]);
 
-  useEffect(() => {
-    const current = terms?.find((t: any) => t.isCurrent);
-    if (current) setSelectedTerm(current.id);
-  }, [terms]);
 
   const { data, isLoading } = useStudentTermResult(selectedChild, selectedTerm);
   const result = data?.result;

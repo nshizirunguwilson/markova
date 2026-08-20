@@ -27,23 +27,20 @@ const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
 
 export default function AdminAnalyticsPage() {
-  const [yearId, setYearId] = useState("");
-  const [termId, setTermId] = useState("");
+  const [yearChoice, setYearId] = useState("");
+  const [termChoice, setTermId] = useState("");
 
   const { data: years } = useAcademicYears();
-  const { data: terms } = useTerms(yearId);
 
   // Land on the current year and term so every chart has data immediately.
-  useEffect(() => {
-    if (!yearId && years?.length) {
-      setYearId((years.find((y: any) => y.isCurrent) ?? years[0]).id);
-    }
-  }, [years, yearId]);
-  useEffect(() => {
-    if (!termId && terms?.length) {
-      setTermId((terms.find((t: any) => t.isCurrent) ?? terms[0]).id);
-    }
-  }, [terms, termId]);
+  // Derived during render rather than synced in an effect: an explicit choice
+  // wins, otherwise fall back to the server's current period.
+  const yearId =
+    yearChoice || (years?.find((y: any) => y.isCurrent) ?? years?.[0])?.id || "";
+
+  const { data: terms } = useTerms(yearId);
+  const termId =
+    termChoice || (terms?.find((t: any) => t.isCurrent) ?? terms?.[0])?.id || "";
 
   const { data: dashboard } = useAdminDashboard(yearId || undefined, termId || undefined);
   const { data: classComp } = useClassComparisons(termId);
@@ -441,14 +438,14 @@ export default function AdminAnalyticsPage() {
         </div>
         <div className="flex gap-3">
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={yearId}
             onChange={(e) => { setYearId(e.target.value); setTermId(""); }}
           >
             {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
           </select>
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={termId}
             onChange={(e) => setTermId(e.target.value)}
           >

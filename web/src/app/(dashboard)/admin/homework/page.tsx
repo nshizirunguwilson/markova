@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Card,
-  CardTitle,
   Button,
   Badge,
   Table,
@@ -37,6 +36,7 @@ import { exportData } from "@/lib/export";
 import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 const homeworkSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -178,27 +178,29 @@ export default function AdminHomeworkPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
-          <p className="mt-1 text-sm text-muted">Manage homework assignments</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Homework"
+        description="Manage homework assignments"
+        actions={
+          <>
+            <div className="flex gap-2">
           <ExportDropdown onExport={handleExport} disabled={!homeworks || homeworks.length === 0} />
           <Button onClick={() => { resetForm(); setShowModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Create Homework
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={filterLevelId}
             onChange={(e) => { setFilterLevelId(e.target.value); setFilterSectionId(""); }}
-          >
+           aria-label="All Levels">
             <option value="">All Levels</option>
             {levels?.map((l: any) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -206,10 +208,10 @@ export default function AdminHomeworkPage() {
           </select>
           {filterLevelId && (
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={filterSectionId}
               onChange={(e) => setFilterSectionId(e.target.value)}
-            >
+             aria-label="All Sections">
               <option value="">All Sections</option>
               {filterSections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -217,10 +219,10 @@ export default function AdminHomeworkPage() {
             </select>
           )}
           <select
-            className="rounded-lg border border-border px-3 py-2 text-sm"
+            className="rounded-lg border border-input px-3 py-2 text-sm"
             value={filterSubjectId}
             onChange={(e) => setFilterSubjectId(e.target.value)}
-          >
+           aria-label="All Subjects">
             <option value="">All Subjects</option>
             {subjects?.map((s: any) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -292,60 +294,60 @@ export default function AdminHomeworkPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Title</label>
             <input
-              className={`w-full rounded-lg border ${errors.title ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("title")}
               placeholder="Homework title"
-            />
-            {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title.message}</p>}
+             aria-label="Title"/>
+            {errors.title && <p className="mt-1 text-xs text-danger">{errors.title.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Description</label>
             <textarea
-              className={`w-full rounded-lg border ${errors.description ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${errors.description ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               rows={3}
               {...register("description")}
             />
-            {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description.message}</p>}
+            {errors.description && <p className="mt-1 text-xs text-danger">{errors.description.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Subject</label>
               <select
-                className={`w-full rounded-lg border ${errors.subjectId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                className={`w-full rounded-lg border ${errors.subjectId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("subjectId")}
-              >
+               aria-label="Subject">
                 <option value="">Select subject</option>
                 {subjects?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              {errors.subjectId && <p className="mt-1 text-xs text-red-500">{errors.subjectId.message}</p>}
+              {errors.subjectId && <p className="mt-1 text-xs text-danger">{errors.subjectId.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Teacher</label>
               <select
-                className={`w-full rounded-lg border ${errors.teacherId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                className={`w-full rounded-lg border ${errors.teacherId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("teacherId")}
-              >
+               aria-label="Teacher">
                 <option value="">Select teacher</option>
                 {teachers.map((t: any) => (
                   <option key={t.id} value={t.teacher?.id || t.id}>{t.firstName} {t.lastName}</option>
                 ))}
               </select>
-              {errors.teacherId && <p className="mt-1 text-xs text-red-500">{errors.teacherId.message}</p>}
+              {errors.teacherId && <p className="mt-1 text-xs text-danger">{errors.teacherId.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Class Level</label>
               <select
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
                 value={modalLevelId}
                 disabled={!!editingId}
                 onChange={(e) => { setModalLevelId(e.target.value); setValue("classSectionId", ""); }}
-              >
+               aria-label="Class Level">
                 <option value="">Select level</option>
                 {levels?.map((l: any) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -355,51 +357,51 @@ export default function AdminHomeworkPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">Section</label>
               <select
-                className={`w-full rounded-lg border ${errors.classSectionId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                className={`w-full rounded-lg border ${errors.classSectionId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 value={watch("classSectionId") || ""}
                 onChange={(e) => setValue("classSectionId", e.target.value, { shouldValidate: true })}
-              >
+               aria-label="Section">
                 <option value="">Select section</option>
                 {modalSections?.map((s: any) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              {errors.classSectionId && <p className="mt-1 text-xs text-red-500">{errors.classSectionId.message}</p>}
+              {errors.classSectionId && <p className="mt-1 text-xs text-danger">{errors.classSectionId.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Term</label>
               <select
-                className={`w-full rounded-lg border ${errors.termId ? "border-red-400" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
+                className={`w-full rounded-lg border ${errors.termId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("termId")}
-              >
+               aria-label="Term">
                 <option value="">Select term</option>
                 {terms?.map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              {errors.termId && <p className="mt-1 text-xs text-red-500">{errors.termId.message}</p>}
+              {errors.termId && <p className="mt-1 text-xs text-danger">{errors.termId.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Due Date</label>
               <input
                 type="date"
-                className={`w-full rounded-lg border ${errors.dueDate ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${errors.dueDate ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("dueDate")}
-              />
-              {errors.dueDate && <p className="mt-1 text-xs text-red-500">{errors.dueDate.message}</p>}
+               aria-label="Due Date"/>
+              {errors.dueDate && <p className="mt-1 text-xs text-danger">{errors.dueDate.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Max Marks</label>
               <input
                 type="number"
-                className={`w-full rounded-lg border ${errors.maxMarks ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("maxMarks", { valueAsNumber: true })}
-              />
-              {errors.maxMarks && <p className="mt-1 text-xs text-red-500">{errors.maxMarks.message}</p>}
+               aria-label="Max Marks"/>
+              {errors.maxMarks && <p className="mt-1 text-xs text-danger">{errors.maxMarks.message}</p>}
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">

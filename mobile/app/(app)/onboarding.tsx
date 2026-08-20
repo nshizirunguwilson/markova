@@ -12,7 +12,7 @@ import api from '@/lib/api';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -718,11 +718,11 @@ const styles = StyleSheet.create({
   // Progress
   progressContainer: { marginBottom: spacing.xl },
   progressText: {
-    fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.muted,
+    fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.muted,
     textAlign: 'center', marginBottom: spacing.sm,
   },
   progressBar: {
-    height: 6, backgroundColor: colors.borderLight, borderRadius: 3, overflow: 'hidden',
+    height: 6, backgroundColor: colors.surfaceMuted, borderRadius: 3, overflow: 'hidden',
   },
   progressFill: {
     height: '100%', backgroundColor: colors.primary, borderRadius: 3,
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md,
   },
   progressDot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.borderLight,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMuted,
   },
   progressDotActive: { backgroundColor: colors.primaryLight },
   progressDotCurrent: { backgroundColor: colors.primary, width: 20, borderRadius: 4 },
@@ -739,26 +739,25 @@ const styles = StyleSheet.create({
   // Step header
   stepHeader: { alignItems: 'center', marginBottom: spacing.xl },
   stepTitle: {
-    fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.foreground,
+    fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground,
     marginTop: spacing.md,
   },
   stepDescription: {
     fontSize: fontSize.sm, color: colors.muted, textAlign: 'center',
-    marginTop: spacing.sm, lineHeight: 20, paddingHorizontal: spacing.lg,
-  },
+    marginTop: spacing.sm, lineHeight: 20, paddingHorizontal: spacing.lg, fontFamily: fontFamily.regular },
 
   // Cards
   card: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg,
+    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing.lg,
     marginBottom: spacing.md,
     shadowColor: colors.black, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
   },
   cardTitle: {
-    fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.foreground,
+    fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground,
   },
   cardSubtitle: {
-    fontSize: fontSize.base, fontWeight: fontWeight.semibold, color: colors.foreground,
+    fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -772,11 +771,11 @@ const styles = StyleSheet.create({
   },
   addButton: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    backgroundColor: colors.primaryLight, borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight, borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   addButtonText: {
-    fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.white,
+    fontSize: fontSize.sm, fontFamily: fontFamily.semibold, color: colors.white,
   },
 
   // Inline row (for class levels / sections)
@@ -793,22 +792,21 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight,
+    backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.surfaceMuted,
   },
   footerSpacer: { flex: 1 },
 
   // Done screen
   doneContainer: { alignItems: 'center', paddingTop: spacing['4xl'] },
   doneIconWrap: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.successLight,
+    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.successWash,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
   },
   doneTitle: {
-    fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.foreground,
+    fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.foreground,
     marginBottom: spacing.md,
   },
   doneText: {
     fontSize: fontSize.base, color: colors.muted, textAlign: 'center',
-    lineHeight: 22, marginBottom: spacing['3xl'], paddingHorizontal: spacing.lg,
-  },
+    lineHeight: 22, marginBottom: spacing['3xl'], paddingHorizontal: spacing.lg, fontFamily: fontFamily.regular },
 });

@@ -73,7 +73,7 @@ export function StepImportTeachers() {
             <Badge>{parsedRows.length} rows</Badge>
           </div>
         )}
-        <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile} />
+        <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile}  aria-label="Choose a teacher CSV file"/>
       </div>
 
       {parsedRows.length > 0 && (

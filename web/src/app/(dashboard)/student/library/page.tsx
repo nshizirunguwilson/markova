@@ -15,28 +15,32 @@ import {
 } from "@/components/ui";
 import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { useToday, daysFromToday } from "@/hooks/use-today";
 
 export default function StudentLibraryPage() {
+  const today = useToday();
   const [tab, setTab] = useState<"loans" | "catalog">("loans");
   const [search, setSearch] = useState("");
   const { data: myLoans, isLoading: loadingLoans } = useMyLoans();
-  const { data: books, isLoading: loadingBooks } = useBooks(search ? { search } : undefined);
+  const { data: books, isLoading: loadingBooks } = useBooks(
+    search ? { search } : undefined,
+  );
 
   const activeLoans = myLoans?.filter((l: any) => l.status === "ACTIVE") || [];
   const history = myLoans?.filter((l: any) => l.status !== "ACTIVE") || [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Library</h1>
-        <p className="text-sm text-muted">Your loans and book catalog</p>
-      </div>
+      <PageHeader title="Library" description="Your loans and book catalog" />
 
       <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setTab("loans")}
           className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === "loans" ? "border-primary text-primary" : "border-transparent text-muted"
+            tab === "loans"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted"
           }`}
         >
           <BookOpen className="h-4 w-4" /> My Loans ({activeLoans.length})
@@ -44,7 +48,9 @@ export default function StudentLibraryPage() {
         <button
           onClick={() => setTab("catalog")}
           className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            tab === "catalog" ? "border-primary text-primary" : "border-transparent text-muted"
+            tab === "catalog"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted"
           }`}
         >
           <Library className="h-4 w-4" /> Catalog
@@ -54,7 +60,9 @@ export default function StudentLibraryPage() {
       {tab === "loans" && (
         <>
           {loadingLoans ? (
-            <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+            <div className="flex justify-center py-12">
+              <Spinner size="lg" />
+            </div>
           ) : (
             <>
               {/* Active Loans */}
@@ -63,20 +71,35 @@ export default function StudentLibraryPage() {
                 {activeLoans.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {activeLoans.map((loan: any) => {
-                      const daysUntilDue = Math.ceil((new Date(loan.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      const daysUntilDue = daysFromToday(loan.dueDate, today);
                       const isOverdue = daysUntilDue < 0;
                       return (
-                        <div key={loan.id} className="flex items-center justify-between rounded-lg border border-border/50 p-3">
+                        <div
+                          key={loan.id}
+                          className="flex items-center justify-between rounded-lg border border-border/50 p-3"
+                        >
                           <div>
-                            <p className="font-medium text-foreground">{loan.book.title}</p>
-                            <p className="text-xs text-muted">{loan.book.author}</p>
+                            <p className="font-medium text-foreground">
+                              {loan.book.title}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {loan.book.author}
+                            </p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-muted">Due: {new Date(loan.dueDate).toLocaleDateString()}</p>
+                            <p className="text-xs text-muted">
+                              Due: {new Date(loan.dueDate).toLocaleDateString()}
+                            </p>
                             {isOverdue ? (
-                              <Badge variant="danger">{Math.abs(daysUntilDue)} days overdue</Badge>
+                              <Badge variant="danger">
+                                {Math.abs(daysUntilDue)} days overdue
+                              </Badge>
                             ) : (
-                              <Badge variant={daysUntilDue <= 2 ? "warning" : "success"}>
+                              <Badge
+                                variant={
+                                  daysUntilDue <= 2 ? "warning" : "success"
+                                }
+                              >
                                 {daysUntilDue} days left
                               </Badge>
                             )}
@@ -86,7 +109,9 @@ export default function StudentLibraryPage() {
                     })}
                   </div>
                 ) : (
-                  <p className="mt-4 text-center text-muted py-4">No active loans.</p>
+                  <p className="mt-4 text-center text-muted py-4">
+                    No active loans.
+                  </p>
                 )}
               </Card>
 
@@ -107,13 +132,25 @@ export default function StudentLibraryPage() {
                       <TableBody>
                         {history.map((loan: any) => (
                           <TableRow key={loan.id}>
-                            <TableCell className="font-medium">{loan.book.title}</TableCell>
-                            <TableCell className="text-sm">{new Date(loan.checkedOutAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium">
+                              {loan.book.title}
+                            </TableCell>
                             <TableCell className="text-sm">
-                              {loan.returnedAt ? new Date(loan.returnedAt).toLocaleDateString() : "—"}
+                              {new Date(loan.checkedOutAt).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {loan.returnedAt
+                                ? new Date(loan.returnedAt).toLocaleDateString()
+                                : "—"}
                             </TableCell>
                             <TableCell>
-                              <Badge variant={loan.status === "RETURNED" ? "success" : "danger"}>
+                              <Badge
+                                variant={
+                                  loan.status === "RETURNED"
+                                    ? "success"
+                                    : "danger"
+                                }
+                              >
                                 {loan.status}
                               </Badge>
                             </TableCell>
@@ -140,12 +177,15 @@ export default function StudentLibraryPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search books..."
                 className="w-full rounded-lg border border-border bg-surface pl-10 pr-3 py-2 text-sm focus:border-primary focus:outline-none"
+                aria-label="Search books..."
               />
             </div>
           </Card>
 
           {loadingBooks ? (
-            <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+            <div className="flex justify-center py-12">
+              <Spinner size="lg" />
+            </div>
           ) : books?.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book: any) => (
@@ -154,15 +194,21 @@ export default function StudentLibraryPage() {
                   <p className="text-sm text-muted">{book.author}</p>
                   <div className="mt-2 flex items-center gap-2">
                     {book.category && <Badge>{book.category}</Badge>}
-                    <Badge variant={book.availableCount > 0 ? "success" : "danger"}>
-                      {book.availableCount > 0 ? `${book.availableCount} available` : "Unavailable"}
+                    <Badge
+                      variant={book.availableCount > 0 ? "success" : "danger"}
+                    >
+                      {book.availableCount > 0
+                        ? `${book.availableCount} available`
+                        : "Unavailable"}
                     </Badge>
                   </div>
                 </Card>
               ))}
             </div>
           ) : (
-            <Card><p className="text-center text-muted py-8">No books found.</p></Card>
+            <Card>
+              <p className="text-center text-muted py-8">No books found.</p>
+            </Card>
           )}
         </>
       )}
