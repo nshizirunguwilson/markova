@@ -3,16 +3,15 @@ import {
   View,
   Text,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
+
 import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui';
+import { AuthShell } from '@/components/AuthShell';
 import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 const OTP_LENGTH = 6;
@@ -105,27 +104,12 @@ export default function VerifyOtpScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        {/* Back */}
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.white} />
-        </Pressable>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <ShieldCheck size={40} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>Verify OTP</Text>
-          <Text style={styles.subtitle}>
-            Enter the 6-digit code sent to{'\n'}
-            <Text style={styles.email}>{identifier}</Text>
-          </Text>
-        </View>
+    <AuthShell title="Verify your code">
+      <View>
+        <Text style={styles.subtitle}>
+          Enter the 6-digit code sent to{'\n'}
+          <Text style={styles.email}>{identifier}</Text>
+        </Text>
 
         {/* OTP Inputs */}
         <View style={styles.otpRow}>
@@ -165,54 +149,22 @@ export default function VerifyOtpScreen() {
           )}
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.primary,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing['3xl'],
-  },
-  backButton: {
-    position: 'absolute',
-    top: 60,
-    left: spacing['3xl'],
-    zIndex: 1,
-    padding: spacing.sm,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing['4xl'],
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: radius.full,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    fontSize: fontSize['2xl'],
-    fontFamily: fontFamily.bold,
-    color: colors.white,
-    marginBottom: spacing.sm,
-  },
   subtitle: {
     fontSize: fontSize.sm,
-    color: colors.accent,
+    color: colors.muted,
     textAlign: 'center',
-    lineHeight: 20, fontFamily: fontFamily.regular },
+    lineHeight: 20,
+    marginBottom: spacing['2xl'],
+    fontFamily: fontFamily.regular,
+  },
   email: {
+    color: colors.foreground,
     fontFamily: fontFamily.semibold,
-    color: colors.white,
   },
   otpRow: {
     flexDirection: 'row',

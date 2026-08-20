@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
+  View, Text, StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AtSign, Lock, ArrowLeft, Check } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { toast } from 'sonner-native';
 import api from '@/lib/api';
 import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
+import { AuthShell } from '@/components/AuthShell';
 import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 type Step = 'request' | 'reset';
@@ -67,22 +68,8 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
-          <Text style={styles.title}>Markova</Text>
-        </View>
-
-        <View style={styles.form}>
+    <AuthShell title="Reset your password">
+        <View>
           {step === 'request' ? (
             <>
               <Text style={styles.formTitle}>Forgot Password</Text>
@@ -91,7 +78,7 @@ export default function ForgotPasswordScreen() {
               </Text>
               <Input
                 label="Email or Phone"
-                placeholder="you@school.com"
+                placeholder="you@markova.edu or +250 788 000 000"
                 value={identifier}
                 onChangeText={setIdentifier}
                 keyboardType="email-address"
@@ -154,25 +141,11 @@ export default function ForgotPasswordScreen() {
             icon={<ArrowLeft size={18} color={colors.primary} />}
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.primary },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing['3xl'] },
-  header: { alignItems: 'center', marginBottom: spacing['3xl'] },
-  logoContainer: {
-    width: 60, height: 60, borderRadius: radius['2xl'], backgroundColor: colors.white,
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
-  },
-  logoText: { fontSize: 28, fontFamily: fontFamily.bold, color: colors.primary },
-  title: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.white },
-  form: {
-    backgroundColor: colors.white, borderRadius: radius['2xl'], padding: spacing['3xl'],
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
-  },
   formTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground, marginBottom: spacing.xs },
   formSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing['2xl'], lineHeight: 20, fontFamily: fontFamily.regular },
 });

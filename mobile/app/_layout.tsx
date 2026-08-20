@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Toaster } from 'sonner-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth-store';
+import { useBrandStore } from '@/stores/brand-store';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { setupGlobalErrorHandling, errorReporter } from '@/lib/error-reporting';
@@ -48,8 +49,14 @@ export default function RootLayout() {
     Poppins_700Bold,
   });
 
+  const loadBrand = useBrandStore((s) => s.loadBrand);
+  const primaryColor = useBrandStore((s) => s.primaryColor);
+
   useEffect(() => {
     checkAuth();
+    // Public route — the school's name, colour and crest are needed on the
+    // login screen, before anyone has signed in.
+    loadBrand();
   }, []);
 
   useEffect(() => {
@@ -71,7 +78,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
-            <StatusBar style="light" backgroundColor={colors.primary} />
+            <StatusBar style="light" backgroundColor={primaryColor} />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />

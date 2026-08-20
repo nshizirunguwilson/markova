@@ -12,6 +12,7 @@ import {
   Settings,
 } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth-store';
+import { useBrandStore } from '@/stores/brand-store';
 import { useChatStore } from '@/stores/chat-store';
 import { useNotifications } from '@/hooks/useApi';
 import { colors, fontSize, fontFamily } from '@/constants/theme';
@@ -56,6 +57,7 @@ const ALL_TAB_NAMES = ['index', 'users', 'attendance', 'messages', 'notification
 export default function TabsLayout() {
   const user = useAuthStore((s) => s.user);
   const chatUnread = useChatStore((s) => s.unreadCount);
+  const primaryColor = useBrandStore((s) => s.primaryColor);
   const { data: notifications } = useNotifications();
   const notifUnread = notifications?.filter((n) => !n.isRead).length ?? 0;
 
@@ -79,7 +81,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: primaryColor,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
           backgroundColor: colors.white,

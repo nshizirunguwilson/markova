@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, fontSize, spacing, fontFamily } from '@/constants/theme';
+import { useBrandStore } from '@/stores/brand-store';
 
 interface ScreenHeaderProps {
   title: string;
@@ -12,9 +13,15 @@ interface ScreenHeaderProps {
 
 export function ScreenHeader({ title, subtitle, onBack, rightAction }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
+  const primaryColor = useBrandStore((s) => s.primaryColor);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: insets.top + spacing.sm, backgroundColor: primaryColor },
+      ]}
+    >
       <View style={styles.row}>
         {onBack ? (
           <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>

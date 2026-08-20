@@ -12,6 +12,8 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { Logo } from '@/components/Logo';
+import { useBrandStore } from '@/stores/brand-store';
 import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
 
 interface ConfigItem {
@@ -73,6 +75,9 @@ export default function SettingsScreen() {
     },
   ];
 
+  const schoolName = useBrandStore((s) => s.schoolName);
+  const schoolMotto = useBrandStore((s) => s.schoolMotto);
+
   return (
     <View style={styles.container}>
       <ScreenHeader title="Settings" />
@@ -83,6 +88,13 @@ export default function SettingsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
+        {/* The school's actual identity, not just a "Configured" label */}
+        <View style={styles.brandCard}>
+          <Logo size={64} />
+          <Text style={styles.brandName}>{schoolName}</Text>
+          {schoolMotto ? <Text style={styles.brandMotto}>{schoolMotto}</Text> : null}
+        </View>
+
         {isLoading ? (
           <LoadingScreen />
         ) : (
@@ -122,6 +134,27 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  brandCard: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing['2xl'],
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  brandName: {
+    fontSize: fontSize.lg,
+    fontFamily: fontFamily.bold,
+    color: colors.foreground,
+  },
+  brandMotto: {
+    fontSize: fontSize.sm,
+    color: colors.muted,
+    fontStyle: 'italic',
+    fontFamily: fontFamily.regular,
+  },
   container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
   contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },

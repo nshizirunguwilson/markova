@@ -2,18 +2,15 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
-  Image,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { AtSign, Lock } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import { useAuthStore, isValidIdentifier } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { AuthShell } from '@/components/AuthShell';
+import { colors, fontSize, spacing, fontFamily } from '@/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -59,26 +56,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Logo & Title */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
-          <Text style={styles.title}>Markova</Text>
-          <Text style={styles.subtitle}>School Management System</Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.form}>
+    <AuthShell subtitle="School Management System">
+        <View>
           <Text style={styles.formTitle}>Sign In</Text>
           <Text style={styles.formSubtitle}>Enter your credentials to continue</Text>
 
@@ -117,58 +96,11 @@ export default function LoginScreen() {
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </Link>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.primary,
-  },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing['3xl'],
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing['4xl'],
-  },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: radius['2xl'],
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  logoText: {
-    fontSize: 36,
-    fontFamily: fontFamily.bold,
-    color: colors.primary,
-  },
-  title: {
-    fontSize: fontSize['3xl'],
-    fontFamily: fontFamily.bold,
-    color: colors.white,
-  },
-  subtitle: {
-    fontSize: fontSize.sm,
-    color: colors.accent,
-    marginTop: spacing.xs, fontFamily: fontFamily.regular },
-  form: {
-    backgroundColor: colors.white,
-    borderRadius: radius['2xl'],
-    padding: spacing['3xl'],
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
   formTitle: {
     fontSize: fontSize.xl,
     fontFamily: fontFamily.bold,
