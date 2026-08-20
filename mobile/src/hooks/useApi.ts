@@ -145,11 +145,46 @@ export function useClassAttendance(classSectionId?: string, date?: string) {
   });
 }
 
+/**
+ * The students in one class section.
+ *
+ * Reads the attendance module's class roster rather than `GET /users`, which is
+ * an ADMIN-only endpoint — it returned 403 for every teacher, so marks entry,
+ * attendance, discipline logging and NFC registration all showed an empty class.
+ *
+ * That route answers with a flat row, so it is mapped back into the nested
+ * `Student` shape the screens are typed against.
+ */
 export function useClassStudents(classSectionId?: string) {
   return useQuery<Student[]>({
     queryKey: ['class-students', classSectionId],
     queryFn: () =>
-      api.get('/users', { params: { role: 'STUDENT', classSectionId } }).then((r) => r.data?.users ?? r.data),
+      api
+        .get('/attendance/class-students', { params: { classSectionId } })
+        .then((r) =>
+          (r.data ?? []).map(
+            (s: {
+              id: string;
+              userId: string;
+              studentIdNumber: string;
+              nfcCardId: string | null;
+              firstName: string;
+              lastName: string;
+            }) => ({
+              id: s.id,
+              userId: s.userId,
+              classSectionId: classSectionId!,
+              studentIdNumber: s.studentIdNumber,
+              nfcCardId: s.nfcCardId ?? undefined,
+              user: {
+                id: s.userId,
+                firstName: s.firstName,
+                lastName: s.lastName,
+                email: '',
+              },
+            }),
+          ),
+        ),
     enabled: !!classSectionId,
   });
 }
