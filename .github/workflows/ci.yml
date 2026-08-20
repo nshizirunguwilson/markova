@@ -69,6 +69,11 @@ jobs:
       - name: Run unit tests
         run: npm test -- --passWithNoTests
 
+      # The auth e2e suite signs in as real users, so the database has to hold
+      # the demo data first.
+      - name: Seed demo data
+        run: npx prisma db seed
+
       - name: Run e2e tests
         run: npm run test:e2e -- --passWithNoTests
 

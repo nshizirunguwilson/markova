@@ -4,9 +4,21 @@ import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from './../src/prisma/prisma.service';
+
+/**
+ * Credentials are looked up from the seeded database rather than hardcoded.
+ * The previous fixtures (`student1@markova.academy`, `+256700000001`) had not
+ * matched the seed for a long time, so every test that signed in was failing.
+ */
+const SEED_PASSWORD = 'Password123!';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
+  let prisma: PrismaService;
+  let studentEmail: string;
+  let adminPhone: string;
+  let teacherEmail: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -38,6 +50,30 @@ describe('Auth (e2e)', () => {
     );
 
     await app.init();
+
+    prisma = app.get(PrismaService);
+
+    const student = await prisma.user.findFirst({
+      where: { role: 'STUDENT', isActive: true, email: { not: null } },
+      orderBy: { email: 'asc' },
+    });
+    const admin = await prisma.user.findFirst({
+      where: { role: 'ADMIN', isActive: true, phone: { not: null } },
+    });
+    const teacher = await prisma.user.findFirst({
+      where: { role: 'TEACHER', isActive: true, email: { not: null } },
+      orderBy: { email: 'asc' },
+    });
+
+    if (!student || !admin || !teacher) {
+      throw new Error(
+        'Auth e2e needs seeded data. Run `npx prisma db seed` first.',
+      );
+    }
+
+    studentEmail = student.email!;
+    adminPhone = admin.phone!;
+    teacherEmail = teacher.email!;
   });
 
   afterAll(async () => {
@@ -78,7 +114,7 @@ describe('Auth (e2e)', () => {
     it('should return tokens directly for student user (no OTP)', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student1@markova.academy', password: 'Password123!' })
+        .send({ email: studentEmail, password: SEED_PASSWORD })
         .expect(201);
 
       expect(res.body.accessToken).toBeDefined();
@@ -104,7 +140,7 @@ describe('Auth (e2e)', () => {
       return request(app.getHttpServer())
         .post('/api/auth/login')
         .send({
-          email: 'nonexistent@markova.academy',
+          email: 'nobody@markova.edu',
           password: 'Password123!',
         })
         .expect(401)
@@ -130,7 +166,7 @@ describe('Auth (e2e)', () => {
     it('should accept phone-based login for admin user', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ phone: '+256700000001', password: 'Password123!' })
+        .send({ phone: adminPhone, password: SEED_PASSWORD })
         .expect(201);
 
       expect(res.body.requiresOtp).toBe(true);
@@ -221,8 +257,8 @@ describe('Auth (e2e)', () => {
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
         .send({
-          email: 'sarah.nakamya@markova.academy',
-          password: 'Password123!',
+          email: teacherEmail,
+          password: SEED_PASSWORD,
         })
         .expect(201);
 
@@ -247,7 +283,7 @@ describe('Auth (e2e)', () => {
       // Login as student (direct token, no OTP)
       const res = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student1@markova.academy', password: 'Password123!' });
+        .send({ email: studentEmail, password: SEED_PASSWORD });
 
       accessToken = res.body.accessToken;
     });
@@ -259,7 +295,7 @@ describe('Auth (e2e)', () => {
         .expect(200);
 
       expect(res.body.id).toBeDefined();
-      expect(res.body.email).toBe('student1@markova.academy');
+      expect(res.body.email).toBe(studentEmail);
       expect(res.body.role).toBe('STUDENT');
       expect(res.body.firstName).toBeDefined();
       expect(res.body.lastName).toBeDefined();
@@ -309,7 +345,7 @@ describe('Auth (e2e)', () => {
       // Login as student to get tokens
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student1@markova.academy', password: 'Password123!' });
+        .send({ email: studentEmail, password: SEED_PASSWORD });
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/refresh')
@@ -336,7 +372,7 @@ describe('Auth (e2e)', () => {
     it('should logout successfully with valid token', async () => {
       const loginRes = await request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ email: 'student1@markova.academy', password: 'Password123!' });
+        .send({ email: studentEmail, password: SEED_PASSWORD });
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/logout')
@@ -368,7 +404,7 @@ describe('Auth (e2e)', () => {
     it('should return same success message for non-existent user (prevent enumeration)', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/request-reset')
-        .send({ email: 'nobody@markova.academy' })
+        .send({ email: 'nobody@markova.edu' })
         .expect(201);
 
       expect(res.body.message).toContain('reset link has been sent');

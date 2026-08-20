@@ -162,7 +162,7 @@ async function main() {
     { key: 'grading_scale', value: 'A:90,B:80,C:70,D:60,F:0' },
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
     { key: 'school_phone', value: '+250788000000' },
-    { key: 'school_email', value: 'info@markova.academy' },
+    { key: 'school_email', value: 'info@markova.edu' },
     { key: 'email_provider', value: 'smtp' },
   ];
   for (const config of configs) {
@@ -199,17 +199,17 @@ async function main() {
   const TEACHER_COUNT = 30;
   // First 5 have stable, documented emails. The first is the demo teacher.
   const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.academy', phone: '+250788000010' },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: 'eric.niyonkuru@markova.academy', phone: '+250788000011' },
-    { firstName: 'Diane', lastName: 'Mukamana', email: 'diane.mukamana@markova.academy', phone: '+250788000012' },
-    { firstName: 'Patrick', lastName: 'Habimana', email: 'patrick.habimana@markova.academy', phone: '+250788000013' },
-    { firstName: 'Solange', lastName: 'Ingabire', email: 'solange.ingabire@markova.academy', phone: '+250788000014' },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010' },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: 'eric.niyonkuru@markova.edu', phone: '+250788000011' },
+    { firstName: 'Diane', lastName: 'Mukamana', email: 'diane.mukamana@markova.edu', phone: '+250788000012' },
+    { firstName: 'Patrick', lastName: 'Habimana', email: 'patrick.habimana@markova.edu', phone: '+250788000013' },
+    { firstName: 'Solange', lastName: 'Ingabire', email: 'solange.ingabire@markova.edu', phone: '+250788000014' },
   ];
   const generatedTeachers = names.take(TEACHER_COUNT - fixedTeachers.length).map(
     (n, idx) => ({
       firstName: n.first,
       lastName: n.last,
-      email: `${n.first.toLowerCase()}.${n.last.toLowerCase()}${idx}@markova.academy`,
+      email: `${n.first.toLowerCase()}.${n.last.toLowerCase()}${idx}@markova.edu`,
       phone: `+250788${String(100 + idx).padStart(6, '0')}`,
     }),
   );
@@ -246,7 +246,7 @@ async function main() {
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   const librarianUser = await prisma.user.create({
     data: {
-      email: 'librarian@markova.academy',
+      email: 'librarian@markova.edu',
       phone: '+250788000020',
       passwordHash,
       role: Role.LIBRARIAN,
@@ -407,10 +407,10 @@ async function main() {
     const sectionIdx = Math.floor(i / STUDENTS_PER_SECTION);
     const section = classSections[sectionIdx];
     const { first, last, gender } = studentNames[i];
-    const email = `${first.toLowerCase()}.${last.toLowerCase()}${i + 1}@student.markova.academy`;
+    const email = `${first.toLowerCase()}.${last.toLowerCase()}${i + 1}@student.markova.edu`;
     const user = await prisma.user.create({
       data: {
-        email: i < 30 ? `student${i + 1}@markova.academy` : email, // keep doc-referenced student1
+        email: i < 30 ? `student${i + 1}@markova.edu` : email, // keep doc-referenced student1
         passwordHash,
         role: Role.STUDENT,
         firstName: first,
@@ -449,7 +449,7 @@ async function main() {
       data: {
         phone,
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? `${first.toLowerCase()}.${last.toLowerCase()}${i}@parent.markova.academy` : null,
+        email: i >= 15 ? `${first.toLowerCase()}.${last.toLowerCase()}${i}@parent.markova.edu` : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
@@ -792,9 +792,11 @@ async function main() {
   console.log('   Default password for all users: Password123!');
   console.log('   Demo accounts (no forced password change):');
   console.log('     Admin     wilsonshizirungu@gmail.com');
-  console.log('     Teacher   aline.uwase@markova.academy');
-  console.log('     Student   student1@markova.academy');
-  console.log('     Librarian librarian@markova.academy');
+  console.log('     Teacher   aline.uwase@markova.edu');
+  // Student addresses are derived from the student's own name, so print a real
+  // one rather than a placeholder nobody can actually sign in with.
+  console.log(`     Student   ${studentUsers[0]?.email ?? '(none seeded)'}`);
+  console.log('     Librarian librarian@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
 }
 

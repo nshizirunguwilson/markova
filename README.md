@@ -106,8 +106,9 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 | --- | --- |
 | Admin | `wilsonshizirungu@gmail.com` |
 | Teacher | `aline.uwase@markova.edu` |
+| Librarian | `librarian@markova.edu` |
 | Student | `student1@markova.edu` (web only) |
-| Parent | `+250788100000` (phone, no email) |
+| Parent | `+250788100000` (phone only — no email) |
 
 Login may return an OTP step; outside production the code is included in the
 response as `devOtp`.
