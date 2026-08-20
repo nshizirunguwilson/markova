@@ -29,27 +29,36 @@ export default function ProfilePage() {
   });
 
   const updateProfile = useMutation({
-    mutationFn: async (data: typeof form) => (await api.patch("/auth/profile", data)).data,
+    mutationFn: async (data: typeof form) =>
+      (await api.patch("/auth/profile", data)).data,
     onSuccess: (data) => {
       setUser({ ...user!, ...data });
       setIsEditing(false);
       toast.success("Profile updated");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update profile"),
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Failed to update profile"),
   });
 
   const changePassword = useMutation({
     mutationFn: async (data: typeof passwordForm) =>
-      (await api.post("/auth/change-password", {
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      })).data,
+      (
+        await api.post("/auth/change-password", {
+          currentPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        })
+      ).data,
     onSuccess: () => {
       setShowPassword(false);
-      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
       toast.success("Password changed successfully");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to change password"),
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Failed to change password"),
   });
 
   const handleSave = () => {
@@ -74,14 +83,17 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  const initials = `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase();
+  const initials =
+    `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase();
 
   return (
-    <PageHeader
-      title="My Profile"
-      actions={
-        <>
-          {/* Avatar & Name Header */}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <PageHeader
+        title="My Profile"
+        description="Manage your account details"
+      />
+
+      {/* Avatar & Name Header */}
       <Card className="p-6">
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -111,17 +123,38 @@ export default function ProfilePage() {
       {/* Profile Details */}
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-foreground">Personal Information</h3>
+          <h3 className="text-base font-semibold text-foreground">
+            Personal Information
+          </h3>
           {!isEditing ? (
-            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+            >
               Edit
             </Button>
           ) : (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setIsEditing(false); setForm({ firstName: user.firstName, lastName: user.lastName, phone: user.phone || "" }); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsEditing(false);
+                  setForm({
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    phone: user.phone || "",
+                  });
+                }}
+              >
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleSave} isLoading={updateProfile.isPending}>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                isLoading={updateProfile.isPending}
+              >
                 Save
               </Button>
             </div>
@@ -137,8 +170,11 @@ export default function ProfilePage() {
               <input
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-               aria-label="First Name"/>
+                onChange={(e) =>
+                  setForm({ ...form, firstName: e.target.value })
+                }
+                aria-label="First Name"
+              />
             ) : (
               <p className="text-sm text-foreground">{user.firstName}</p>
             )}
@@ -152,7 +188,8 @@ export default function ProfilePage() {
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-               aria-label="Last Name"/>
+                aria-label="Last Name"
+              />
             ) : (
               <p className="text-sm text-foreground">{user.lastName}</p>
             )}
@@ -176,7 +213,8 @@ export default function ProfilePage() {
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               placeholder="+250..."
-             aria-label="+250..."/>
+              aria-label="+250..."
+            />
           ) : (
             <p className="text-sm text-foreground">{user.phone || "Not set"}</p>
           )}
@@ -197,7 +235,11 @@ export default function ProfilePage() {
             <Lock className="inline h-4 w-4 mr-1" /> Security
           </h3>
           {!showPassword && (
-            <Button variant="outline" size="sm" onClick={() => setShowPassword(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPassword(true)}
+            >
               Change Password
             </Button>
           )}
@@ -206,46 +248,83 @@ export default function ProfilePage() {
         {showPassword && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">Current Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+                Current Password
+              </label>
               <input
                 type="password"
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.currentPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-               aria-label="Current Password"/>
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    currentPassword: e.target.value,
+                  })
+                }
+                aria-label="Current Password"
+              />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">New Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+                New Password
+              </label>
               <input
                 type="password"
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.newPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    newPassword: e.target.value,
+                  })
+                }
                 placeholder="Min 8 characters"
-               aria-label="New Password"/>
+                aria-label="New Password"
+              />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">Confirm New Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+                Confirm New Password
+              </label>
               <input
                 type="password"
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-               aria-label="Confirm New Password"/>
+                onChange={(e) =>
+                  setPasswordForm({
+                    ...passwordForm,
+                    confirmPassword: e.target.value,
+                  })
+                }
+                aria-label="Confirm New Password"
+              />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => { setShowPassword(false); setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowPassword(false);
+                  setPasswordForm({
+                    currentPassword: "",
+                    newPassword: "",
+                    confirmPassword: "",
+                  });
+                }}
+              >
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleChangePassword} isLoading={changePassword.isPending}>
+              <Button
+                size="sm"
+                onClick={handleChangePassword}
+                isLoading={changePassword.isPending}
+              >
                 Update Password
               </Button>
             </div>
           </div>
         )}
       </Card>
-        </>
-      }
-    />
+    </div>
   );
 }
