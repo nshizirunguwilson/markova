@@ -75,7 +75,12 @@ export class NotificationsService implements OnModuleInit {
           await this.sendEmail(dto.userId, dto.title, dto.message);
           break;
         case 'PUSH':
-          // Push notifications via Firebase — placeholder for Phase 2 (mobile)
+          await this.sendPushNotification(dto.userId, dto.title, dto.message, {
+            ...(dto.relatedEntityType && {
+              relatedEntityType: dto.relatedEntityType,
+            }),
+            ...(dto.relatedEntityId && { relatedEntityId: dto.relatedEntityId }),
+          });
           break;
       }
     } catch (e) {
@@ -240,12 +245,33 @@ export class NotificationsService implements OnModuleInit {
     }));
 
     try {
+      const accessToken = this.config.get<string>('EXPO_ACCESS_TOKEN');
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+        },
         body: JSON.stringify(messages),
       });
       const result = await response.json();
+
+      // Expo replies per message; a DeviceNotRegistered ticket means the app
+      // was uninstalled, so drop the token instead of retrying it forever.
+      const tickets: any[] = Array.isArray(result?.data) ? result.data : [];
+      const dead = tickets
+        .map((ticket, i) =>
+          ticket?.details?.error === 'DeviceNotRegistered'
+            ? tokens[i]?.token
+            : null,
+        )
+        .filter((t): t is string => Boolean(t));
+      if (dead.length) {
+        await this.prisma.pushToken.deleteMany({ where: { token: { in: dead } } });
+        this.logger.log(`Pruned ${dead.length} unregistered push token(s)`);
+      }
+
       this.logger.log(
         `Push sent to ${tokens.length} devices for user ${userId}`,
       );
