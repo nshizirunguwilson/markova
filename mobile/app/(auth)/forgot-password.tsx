@@ -3,9 +3,10 @@ import {
   View, Text, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mail, Lock, ArrowLeft, Check } from 'lucide-react-native';
+import { AtSign, Lock, ArrowLeft, Check } from 'lucide-react-native';
 import { toast } from 'sonner-native';
 import api from '@/lib/api';
+import { buildLoginPayload } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
@@ -14,21 +15,21 @@ type Step = 'request' | 'reset';
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('request');
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRequest = async () => {
-    if (!email.trim()) {
-      toast.error('Please enter your email');
+    if (!identifier.trim()) {
+      toast.error('Enter your email address or phone number');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/auth/request-reset', { email: email.trim().toLowerCase() });
-      toast.success('Reset code sent to your email');
+      await api.post('/auth/request-reset', buildLoginPayload(identifier));
+      toast.success('Reset code sent');
       setStep('reset');
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Failed to send reset code');
@@ -86,16 +87,16 @@ export default function ForgotPasswordScreen() {
             <>
               <Text style={styles.formTitle}>Forgot Password</Text>
               <Text style={styles.formSubtitle}>
-                Enter your email address and we'll send you a reset code.
+                Enter your email address or phone number and we'll send you a reset code.
               </Text>
               <Input
-                label="Email"
+                label="Email or Phone"
                 placeholder="you@school.com"
-                value={email}
-                onChangeText={setEmail}
+                value={identifier}
+                onChangeText={setIdentifier}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                leftIcon={<Mail size={20} color={colors.muted} />}
+                leftIcon={<AtSign size={20} color={colors.muted} />}
               />
               <Button
                 title="Send Reset Code"
@@ -109,11 +110,11 @@ export default function ForgotPasswordScreen() {
             <>
               <Text style={styles.formTitle}>Reset Password</Text>
               <Text style={styles.formSubtitle}>
-                Enter the code sent to {email} and your new password.
+                Enter the code sent to {identifier} and your new password.
               </Text>
               <Input
                 label="Reset Code"
-                placeholder="Enter the code from your email"
+                placeholder="Enter the code you received"
                 value={token}
                 onChangeText={setToken}
                 autoCapitalize="characters"

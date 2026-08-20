@@ -373,6 +373,16 @@ export class AuthService {
          <p style="font-size:12px;color:#666;">Or paste this link into your browser:<br>${resetLink}</p>
          <p>This link expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
       );
+    } else if (user.phone) {
+      // Parents are commonly registered with a phone and no email at all.
+      // Without this branch their reset token was only ever written to the
+      // server log, so they could never recover an account.
+      const appUrl =
+        this.configService.get<string>('APP_URL') || 'http://localhost:3001';
+      await this.notificationsService.sendSMSToPhone(
+        user.phone,
+        `Markova password reset: ${appUrl}/reset-password?token=${token} (expires in 30 minutes)`,
+      );
     }
     this.logger.log(
       `Password reset token for ${user.email || user.phone}: ${token}`,

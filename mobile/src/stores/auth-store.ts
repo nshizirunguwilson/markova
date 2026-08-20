@@ -9,6 +9,35 @@ const MOBILE_BLOCKED_ROLES: string[] = ['STUDENT'];
 const MOBILE_BLOCK_MESSAGE =
   'The mobile app is for staff and parents. Students, please use the web portal.';
 
+/**
+ * The API accepts either `email` or `phone`, and a great many parents are
+ * registered with a phone number and no email at all. Sending only `email`
+ * locked every one of them out of the app built for them.
+ */
+export function buildLoginPayload(identifier: string): {
+  email?: string;
+  phone?: string;
+} {
+  const value = identifier.trim();
+  return value.includes('@')
+    ? { email: value.toLowerCase() }
+    : { phone: normalisePhone(value) };
+}
+
+/** Strip spaces, dashes and brackets; keep a leading `+`. */
+export function normalisePhone(value: string): string {
+  const digits = value.replace(/[^\d+]/g, '');
+  return digits.startsWith('+') ? digits : digits.replace(/^00/, '+');
+}
+
+/** True when the value looks like an email or a usable phone number. */
+export function isValidIdentifier(value: string): boolean {
+  const v = value.trim();
+  if (v.includes('@')) return /\S+@\S+\.\S+/.test(v);
+  const digits = normalisePhone(v).replace(/\D/g, '');
+  return digits.length >= 9;
+}
+
 function buildBlockedError() {
   // Shaped so the existing screens' `error.response.data.message` path shows it.
   const err: any = new Error(MOBILE_BLOCK_MESSAGE);
@@ -35,10 +64,11 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   needsOtp: boolean;
-  pendingEmail: string | null;
+  /** Whatever the user typed to sign in — an email address or a phone number. */
+  pendingIdentifier: string | null;
   pendingSessionId: string | null;
 
-  login: (email: string, password: string) => Promise<{ needsOtp: boolean }>;
+  login: (identifier: string, password: string) => Promise<{ needsOtp: boolean }>;
   verifyOtp: (otp: string) => Promise<void>;
   resendOtp: () => Promise<void>;
   loadProfile: () => Promise<void>;
@@ -51,22 +81,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   needsOtp: false,
-  pendingEmail: null,
+  pendingIdentifier: null,
   pendingSessionId: null,
 
-  login: async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
+  login: async (identifier, password) => {
+    const { data } = await api.post('/auth/login', {
+      ...buildLoginPayload(identifier),
+      password,
+    });
 
     if (data.requiresOtp) {
       // Backend OTP is session-based — keep the sessionId for verify/resend
-      set({ needsOtp: true, pendingEmail: email, pendingSessionId: data.sessionId });
+      set({
+        needsOtp: true,
+        pendingIdentifier: identifier,
+        pendingSessionId: data.sessionId,
+      });
       return { needsOtp: true };
     }
 
     // Direct login (no OTP required — students). Verify the role is permitted
     // on mobile before we keep the session.
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingEmail: null });
+    set({ needsOtp: false, pendingIdentifier: null });
     await get().loadProfile();
     if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
       await get().logout();
@@ -80,7 +117,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const sessionId = get().pendingSessionId;
     const { data } = await api.post('/auth/verify-otp', { sessionId, otp });
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingEmail: null, pendingSessionId: null });
+    set({ needsOtp: false, pendingIdentifier: null, pendingSessionId: null });
     await get().loadProfile();
     if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
       await get().logout();
@@ -117,7 +154,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: false,
       isLoading: false,
       needsOtp: false,
-      pendingEmail: null,
+      pendingIdentifier: null,
       pendingSessionId: null,
     });
   },

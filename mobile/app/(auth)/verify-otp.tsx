@@ -19,7 +19,7 @@ const OTP_LENGTH = 6;
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { identifier } = useLocalSearchParams<{ identifier: string }>();
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
 
@@ -123,7 +123,7 @@ export default function VerifyOtpScreen() {
           <Text style={styles.title}>Verify OTP</Text>
           <Text style={styles.subtitle}>
             Enter the 6-digit code sent to{'\n'}
-            <Text style={styles.email}>{email}</Text>
+            <Text style={styles.email}>{identifier}</Text>
           </Text>
         </View>
 

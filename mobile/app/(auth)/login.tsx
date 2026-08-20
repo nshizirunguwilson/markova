@@ -9,9 +9,9 @@ import {
   Image,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
-import { Mail, Lock } from 'lucide-react-native';
+import { AtSign, Lock } from 'lucide-react-native';
 import { toast } from 'sonner-native';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAuthStore, isValidIdentifier } from '@/stores/auth-store';
 import { Button, Input } from '@/components/ui';
 import { colors, fontSize, fontWeight, spacing, radius } from '@/constants/theme';
 
@@ -19,15 +19,16 @@ export default function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
 
   const validate = () => {
     const newErrors: typeof errors = {};
-    if (!email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Invalid email format';
+    if (!identifier.trim()) newErrors.identifier = 'Email or phone is required';
+    else if (!isValidIdentifier(identifier))
+      newErrors.identifier = 'Enter a valid email address or phone number';
     if (!password) newErrors.password = 'Password is required';
     else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
     setErrors(newErrors);
@@ -39,11 +40,11 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const result = await login(email.trim().toLowerCase(), password);
+      const result = await login(identifier.trim(), password);
       if (result.needsOtp) {
         router.push({
           pathname: '/(auth)/verify-otp',
-          params: { email: email.trim().toLowerCase() },
+          params: { identifier: identifier.trim() },
         });
       } else {
         router.replace('/(app)/(tabs)');
@@ -82,15 +83,15 @@ export default function LoginScreen() {
           <Text style={styles.formSubtitle}>Enter your credentials to continue</Text>
 
           <Input
-            label="Email"
-            placeholder="you@school.com"
-            value={email}
-            onChangeText={setEmail}
+            label="Email or Phone"
+            placeholder="you@markova.edu or +250 788 000 000"
+            value={identifier}
+            onChangeText={setIdentifier}
             keyboardType="email-address"
             autoCapitalize="none"
-            autoComplete="email"
-            error={errors.email}
-            leftIcon={<Mail size={20} color={colors.muted} />}
+            autoComplete="username"
+            error={errors.identifier}
+            leftIcon={<AtSign size={20} color={colors.muted} />}
           />
 
           <Input
