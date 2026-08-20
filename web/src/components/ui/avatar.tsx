@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, mediaUrl } from "@/lib/utils";
 import { User } from "lucide-react";
 
 interface AvatarProps {
@@ -28,10 +28,13 @@ export function Avatar({
     lg: "h-7 w-7",
   };
 
-  if (src) {
+  // Stored photos are root-relative paths on the API origin, not this one.
+  const resolved = mediaUrl(src);
+
+  if (resolved) {
     return (
       <img
-        src={src}
+        src={resolved}
         alt={alt}
         className={cn(
           "rounded-full object-cover border border-border",

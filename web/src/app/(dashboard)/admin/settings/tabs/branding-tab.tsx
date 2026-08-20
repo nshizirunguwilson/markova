@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUrl } from "@/lib/utils";
+
 import { Card, CardTitle, Button } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
 import { useBrandStore } from "@/stores/brand-store";
@@ -57,8 +59,17 @@ export function BrandingTab() {
         <div className="mt-4 grid grid-cols-3 gap-6">
           {(["logo", "stamp", "signature"] as const).map((type) => (
             <div key={type} className="text-center">
-              <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center rounded-xl border-2 border-dashed border-border bg-accent-light/50">
-                <Upload className="h-8 w-8 text-muted" />
+              <div className="mx-auto mb-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-border bg-accent-light/50">
+                {map[`${type}_url`] ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- runtime upload on the API origin */
+                  <img
+                    src={mediaUrl(map[`${type}_url`])}
+                    alt={`Current school ${type}`}
+                    className="h-full w-full object-contain p-2"
+                  />
+                ) : (
+                  <Upload className="h-8 w-8 text-muted" aria-hidden="true" />
+                )}
               </div>
               <p className="mb-2 text-sm font-medium capitalize">{type}</p>
               <label className="cursor-pointer text-xs font-medium text-primary hover:underline">

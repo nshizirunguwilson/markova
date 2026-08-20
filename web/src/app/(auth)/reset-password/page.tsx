@@ -7,11 +7,11 @@ import { z } from "zod/v4";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
+import { KeyRound, ArrowLeft } from "lucide-react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
 
 const schema = z
   .object({
@@ -63,17 +63,9 @@ function ResetPasswordInner() {
   };
 
   return (
-    <Card className="w-full max-w-md" padding="lg">
-      <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-          <ShieldCheck className="h-7 w-7 text-white" />
-        </div>
-        <h1 className="text-xl md:text-2xl font-bold text-primary">Set a new password</h1>
-        <p className="mt-1 text-sm text-muted">Choose a strong password you don&apos;t use elsewhere.</p>
-      </div>
-
+    <>
       {!token ? (
-        <div className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+        <div className="rounded-lg bg-danger-wash p-4 text-center text-sm text-danger">
           This reset link is missing its token. Request a new one from the
           {" "}
           <Link href="/forgot-password" className="font-medium underline">forgot-password</Link> page.
@@ -109,16 +101,19 @@ function ResetPasswordInner() {
       >
         <ArrowLeft className="h-4 w-4" /> Back to login
       </Link>
-    </Card>
+    </>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent-light">
-      <Suspense fallback={<Card className="w-full max-w-md" padding="lg">Loading…</Card>}>
+    <AuthShell
+      title="Set a new password"
+      subtitle="Choose a strong password you don't use elsewhere."
+    >
+      <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
         <ResetPasswordInner />
       </Suspense>
-    </div>
+    </AuthShell>
   );
 }

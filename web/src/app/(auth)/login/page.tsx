@@ -6,13 +6,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Eye, EyeOff, LogIn, ShieldCheck, KeyRound } from "lucide-react";
+import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import { useBrandStore } from "@/stores/brand-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +74,6 @@ function formatMmSs(total: number): string {
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
-  const schoolName = useBrandStore((s) => s.schoolName);
 
   const [step, setStep] = useState<"login" | "otp" | "change-password">("login");
   const [isLoading, setIsLoading] = useState(false);
@@ -238,16 +236,7 @@ export default function LoginPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent-light">
-      <Card className="w-full max-w-md" padding="lg">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <ShieldCheck className="h-7 w-7 text-white" />
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold text-primary">{schoolName}</h1>
-          <p className="mt-1 text-sm text-muted">School Management System</p>
-        </div>
+    <AuthShell subtitle="School Management System">
 
         {/* Step: Login */}
         {step === "login" && (
@@ -438,7 +427,6 @@ export default function LoginPage() {
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+    </AuthShell>
   );
 }

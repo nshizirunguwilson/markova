@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUrl } from "@/lib/utils";
+
 import { useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMutation } from "@tanstack/react-query";
@@ -86,7 +88,7 @@ export default function ProfilePage() {
           <div className="relative">
             {user.photoUrl ? (
               <img
-                src={user.photoUrl}
+                src={mediaUrl(user.photoUrl)}
                 alt={user.firstName}
                 className="h-20 w-20 rounded-full object-cover border-2 border-[#1B4F72]/20"
               />

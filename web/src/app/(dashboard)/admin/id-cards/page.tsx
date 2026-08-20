@@ -22,7 +22,9 @@ import {
   useRevokeIdCard,
 } from "@/hooks/use-reports";
 import { useBrandStore } from "@/stores/brand-store";
-import { CreditCard, Printer, Search, Plus, IdCard, Ban } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
+import { Avatar } from "@/components/ui/avatar";
+import { Printer, Search, Plus, IdCard, Ban } from "lucide-react";
 
 type StatusFilter = "all" | "issued" | "not_issued";
 
@@ -243,19 +245,33 @@ export default function AdminIdCardsPage() {
       {showPrint && (
         <div className="hidden print:grid print:grid-cols-2 print:gap-4">
           {issuedItems.map((it) => (
-            <div key={it.id} className="rounded-lg border-2 border-[#1B4F72] p-4">
-              <div className="text-center space-y-2">
-                <p className="text-xs uppercase text-gray-500">{schoolName}</p>
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#D6EAF8]">
-                  <CreditCard className="h-8 w-8 text-[#1B4F72]" />
-                </div>
-                <p className="text-lg font-bold">{it.name}</p>
-                <p className="text-sm text-gray-600">{it.class}</p>
-                <p className="inline-block rounded bg-gray-100 px-2 py-1 font-mono text-sm">
-                  {it.studentIdNumber}
+            <div
+              key={it.id}
+              className="overflow-hidden rounded-xl border-2 border-primary"
+              style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+            >
+              {/* Identity band — the school's crest, or the Markova mark */}
+              <div className="flex items-center gap-2 bg-primary px-3 py-2">
+                <Logo size={22} />
+                <p className="truncate text-xs font-semibold uppercase tracking-wide text-white">
+                  {schoolName}
                 </p>
-                <p className="text-xs text-gray-500">Card: {it.cardId}</p>
               </div>
+
+              <div className="flex items-center gap-3 p-3">
+                <Avatar src={it.photoUrl} size="lg" fallback={it.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-bold text-foreground">{it.name}</p>
+                  <p className="truncate text-sm text-muted">{it.class}</p>
+                  <p className="mt-1 inline-block rounded bg-surface-muted px-2 py-0.5 font-mono text-xs text-foreground">
+                    {it.studentIdNumber}
+                  </p>
+                </div>
+              </div>
+
+              <p className="border-t border-border px-3 py-1.5 font-mono text-[10px] text-muted">
+                Card {it.cardId}
+              </p>
             </div>
           ))}
         </div>

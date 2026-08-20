@@ -1,7 +1,9 @@
 "use client";
 
+import { mediaUrl } from "@/lib/utils";
+
 import { useState } from "react";
-import { Upload, Image as ImageIcon } from "lucide-react";
+import { Upload } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useBulkUpsertConfig, useSchoolConfig } from "@/hooks/use-academic";
 import { Input } from "@/components/ui";
@@ -80,11 +82,16 @@ function FileUploadField({
     <div>
       <label className="block text-sm font-medium text-foreground mb-1.5">{label}</label>
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-border bg-accent-light/50">
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-accent-light/50">
           {currentUrl ? (
-            <ImageIcon className="h-6 w-6 text-primary" />
+            /* eslint-disable-next-line @next/next/no-img-element -- runtime upload on the API origin */
+            <img
+              src={mediaUrl(currentUrl)}
+              alt={`Current ${label.toLowerCase()}`}
+              className="h-full w-full object-contain p-1.5"
+            />
           ) : (
-            <Upload className="h-6 w-6 text-muted" />
+            <Upload className="h-6 w-6 text-muted" aria-hidden="true" />
           )}
         </div>
         <div>
