@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { classDisplayName } from "@/lib/utils";
 import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import {
   useAcademicYears,
@@ -245,7 +246,7 @@ export default function TeacherMarksPage() {
               <option value="">Select assignment...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.classSection.classLevel.name} {a.classSection.name} — {a.subject.name}
+                  {classDisplayName(a.classSection)} — {a.subject.name}
                 </option>
               ))}
             </select>

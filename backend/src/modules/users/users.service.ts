@@ -5,8 +5,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Role, Prisma } from '@prisma/client';
+import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
 
@@ -24,6 +25,8 @@ export class UsersService {
       search,
       isActive,
       classSectionId,
+      studentStatus,
+      searchIn,
     } = query;
     const skip = (page - 1) * limit;
 
@@ -33,16 +36,118 @@ export class UsersService {
     if (isActive !== undefined) where.isActive = isActive;
 
     if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search } },
-      ];
+      // Every word of the query must match something about the user. The
+      // optional searchIn scope pins matching to one field group, so "NIT"
+      // scoped to class never drags in Anitha by her name.
+      const scope = searchIn && searchIn !== 'all' ? searchIn : 'all';
+      const inScope = (f: string) => scope === 'all' || scope === f;
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+
+      where.AND = tokens.map((token) => {
+        const upper = token.toUpperCase();
+        const single = token.length === 1;
+        const digit = /^\d$/.test(token);
+        const or: Prisma.UserWhereInput[] = [];
+
+        if (inScope('name') && !digit) {
+          // A lone letter is an initial; matching it inside every name
+          // would flood the list.
+          if (single) {
+            or.push(
+              { firstName: { startsWith: token, mode: 'insensitive' } },
+              { lastName: { startsWith: token, mode: 'insensitive' } },
+            );
+          } else {
+            or.push(
+              { firstName: { contains: token, mode: 'insensitive' } },
+              { lastName: { contains: token, mode: 'insensitive' } },
+            );
+          }
+        }
+
+        if (inScope('email') && !single) {
+          or.push({ email: { contains: token, mode: 'insensitive' } });
+        }
+        if (inScope('phone') && !single) {
+          or.push({ phone: { contains: token } });
+        }
+
+        if (inScope('code') && (!single || scope === 'code')) {
+          or.push(
+            {
+              student: {
+                studentIdNumber: { contains: token, mode: 'insensitive' },
+              },
+            },
+            { code: { contains: token, mode: 'insensitive' } },
+          );
+        }
+
+        if (inScope('class')) {
+          if (digit) {
+            // A lone digit points at the year level ("5" in Level 5).
+            or.push({
+              student: {
+                classSection: { classLevel: { name: { contains: token } } },
+              },
+            });
+          } else if (single) {
+            or.push({
+              student: {
+                classSection: { name: { equals: token, mode: 'insensitive' } },
+              },
+            });
+          } else {
+            or.push({
+              student: {
+                classSection: {
+                  OR: [
+                    {
+                      classLevel: {
+                        name: { contains: token, mode: 'insensitive' },
+                      },
+                    },
+                    {
+                      trade: { code: { contains: token, mode: 'insensitive' } },
+                    },
+                    {
+                      trade: { name: { contains: token, mode: 'insensitive' } },
+                    },
+                  ],
+                },
+              },
+            });
+          }
+        }
+
+        if (inScope('role') && !single) {
+          const roleMatches = Object.values(Role).filter((r) =>
+            r.startsWith(upper),
+          );
+          if (roleMatches.length) or.push({ role: { in: roleMatches } });
+        }
+
+        if (inScope('status') && !single) {
+          if ('ACTIVE'.startsWith(upper)) or.push({ isActive: true });
+          if ('INACTIVE'.startsWith(upper)) or.push({ isActive: false });
+          const statusMatches = Object.values(StudentStatus).filter((st) =>
+            st.startsWith(upper),
+          );
+          if (statusMatches.length) {
+            or.push({ student: { status: { in: statusMatches } } });
+          }
+        }
+
+        // A token no field can match must yield zero rows, not be ignored.
+        return or.length ? { OR: or } : { id: { equals: '__no_match__' } };
+      });
     }
 
-    if (classSectionId) {
-      where.student = { classSectionId };
+    if (classSectionId || studentStatus) {
+      where.student = {
+        ...(classSectionId && { classSectionId }),
+        ...(studentStatus && { status: studentStatus as any }),
+      };
     }
 
     const [data, total] = await Promise.all([
@@ -55,6 +160,7 @@ export class UsersService {
           id: true,
           email: true,
           phone: true,
+          code: true,
           role: true,
           firstName: true,
           lastName: true,
@@ -73,6 +179,7 @@ export class UsersService {
                 select: {
                   name: true,
                   classLevel: { select: { name: true } },
+                  trade: { select: { code: true, name: true } },
                 },
               },
             },
@@ -81,7 +188,21 @@ export class UsersService {
             select: {
               id: true,
               employmentStatus: true,
+              qualification: true,
               roles: true,
+              // The teachers page lists what each teacher teaches; without
+              // this include every row read "No assignments".
+              teacherSubjectClasses: {
+                include: {
+                  subject: { select: { name: true } },
+                  classSection: {
+                    include: {
+                      classLevel: { select: { name: true } },
+                      trade: { select: { code: true } },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -113,7 +234,7 @@ export class UsersService {
         student: {
           include: {
             classSection: {
-              include: { classLevel: true },
+              include: { classLevel: true, trade: true },
             },
             parentStudents: {
               include: {
@@ -137,7 +258,10 @@ export class UsersService {
               include: {
                 subject: { select: { name: true } },
                 classSection: {
-                  include: { classLevel: { select: { name: true } } },
+                  include: {
+                    classLevel: { select: { name: true } },
+                    trade: { select: { code: true, name: true } },
+                  },
                 },
               },
             },
@@ -149,7 +273,10 @@ export class UsersService {
               include: {
                 user: { select: { firstName: true, lastName: true } },
                 classSection: {
-                  include: { classLevel: { select: { name: true } } },
+                  include: {
+                    classLevel: { select: { name: true } },
+                    trade: { select: { code: true, name: true } },
+                  },
                 },
               },
             },
@@ -168,6 +295,26 @@ export class UsersService {
   // ─── CREATE USER ────────────────────────────────────────────────────────────
 
   async create(dto: CreateUserDto) {
+    // Login identifiers are role-shaped: staff sign in with email, parents
+    // with their phone, students with either.
+    const emailRoles: Role[] = [Role.TEACHER, Role.ADMIN, Role.LIBRARIAN];
+    if (emailRoles.includes(dto.role) && !dto.email) {
+      throw new BadRequestException(
+        'Staff accounts log in with email, so an email address is required',
+      );
+    }
+    if (dto.role === Role.PARENT && !dto.phone) {
+      throw new BadRequestException(
+        'Parents log in by phone, so a phone number is required',
+      );
+    }
+    if (!dto.email && !dto.phone) {
+      throw new BadRequestException(
+        'Provide an email or a phone number so the user can log in',
+      );
+    }
+    this.validateNationalId(dto.nationalId, dto.gender, dto.dateOfBirth);
+
     // Check uniqueness
     if (dto.email) {
       const existing = await this.prisma.user.findUnique({
@@ -180,6 +327,15 @@ export class UsersService {
         where: { phone: dto.phone },
       });
       if (existing) throw new ConflictException('Phone already in use');
+    }
+
+    if (dto.nationalId) {
+      const existing = await this.prisma.user.findFirst({
+        where: { nationalId: dto.nationalId },
+      });
+      if (existing) {
+        throw new ConflictException('National ID already registered');
+      }
     }
 
     // Students need a section up front — fail before any write.
@@ -197,6 +353,15 @@ export class UsersService {
         data: {
           email: dto.email || null,
           phone: dto.phone || null,
+          code: await this.generateUserCode(dto.role, tx),
+          nationalId: dto.nationalId || null,
+          nationality: dto.nationality || null,
+          // Student demographics live on the Student record; everyone else
+          // carries them here.
+          ...(dto.role !== Role.STUDENT && {
+            gender: dto.gender || null,
+            dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+          }),
           passwordHash,
           role: dto.role,
           firstName: dto.firstName,
@@ -217,6 +382,24 @@ export class UsersService {
             gender: dto.gender || null,
             status: dto.status || 'ACTIVE',
             disciplinePoints: 100,
+            ...(dto.enrollmentDate && {
+              enrollmentDate: new Date(dto.enrollmentDate),
+            }),
+            bloodType: dto.bloodType || null,
+            allergies: dto.allergies || null,
+            medicalConditions: dto.medicalConditions || null,
+            previousSchool: dto.previousSchool || null,
+            province: dto.province || null,
+            district: dto.district || null,
+            sector: dto.sector || null,
+            cell: dto.cell || null,
+            village: dto.village || null,
+            disability: dto.disability || null,
+            fatherName: dto.fatherName || null,
+            motherName: dto.motherName || null,
+            insuranceNumber: dto.insuranceNumber || null,
+            isBoarder: dto.isBoarder ?? false,
+            religion: dto.religion || null,
           },
         });
       }
@@ -226,18 +409,29 @@ export class UsersService {
           data: {
             userId: created.id,
             employmentStatus: dto.employmentStatus || 'FULL_TIME',
+            qualification: dto.qualification || null,
+            rssbNumber: dto.rssbNumber || null,
+            hireDate: dto.hireDate ? new Date(dto.hireDate) : null,
             isActive: true,
           },
         });
       }
 
-      if (dto.role === Role.PARENT && dto.studentIds?.length) {
-        for (const studentId of dto.studentIds) {
+      if (dto.role === Role.PARENT) {
+        // Preferred shape: children with their own relationship each. The
+        // legacy studentIds + single relationship stays for bulk import.
+        const links = dto.children?.length
+          ? dto.children
+          : (dto.studentIds || []).map((studentId) => ({
+              studentId,
+              relationship: dto.relationship || 'Parent',
+            }));
+        for (const link of links) {
           await tx.parentStudent.create({
             data: {
               parentUserId: created.id,
-              studentId,
-              relationship: dto.relationship || 'Parent',
+              studentId: link.studentId,
+              relationship: link.relationship,
             },
           });
         }
@@ -270,6 +464,16 @@ export class UsersService {
         ...(dto.firstName !== undefined && { firstName: dto.firstName }),
         ...(dto.lastName !== undefined && { lastName: dto.lastName }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.nationalId !== undefined && { nationalId: dto.nationalId }),
+        ...(dto.nationality !== undefined && { nationality: dto.nationality }),
+        ...(!user.student &&
+          dto.gender && {
+            gender: dto.gender,
+          }),
+        ...(!user.student &&
+          dto.dateOfBirth && {
+            dateOfBirth: new Date(dto.dateOfBirth),
+          }),
       },
     });
 
@@ -287,15 +491,47 @@ export class UsersService {
           ...(dto.medicalConditions !== undefined && {
             medicalConditions: dto.medicalConditions,
           }),
+          ...(dto.previousSchool !== undefined && {
+            previousSchool: dto.previousSchool,
+          }),
+          ...(dto.enrollmentDate && {
+            enrollmentDate: new Date(dto.enrollmentDate),
+          }),
+          ...(dto.province !== undefined && { province: dto.province }),
+          ...(dto.district !== undefined && { district: dto.district }),
+          ...(dto.sector !== undefined && { sector: dto.sector }),
+          ...(dto.cell !== undefined && { cell: dto.cell }),
+          ...(dto.village !== undefined && { village: dto.village }),
+          ...(dto.disability !== undefined && { disability: dto.disability }),
+          ...(dto.fatherName !== undefined && { fatherName: dto.fatherName }),
+          ...(dto.motherName !== undefined && { motherName: dto.motherName }),
+          ...(dto.insuranceNumber !== undefined && {
+            insuranceNumber: dto.insuranceNumber,
+          }),
+          ...(dto.isBoarder !== undefined && { isBoarder: dto.isBoarder }),
+          ...(dto.religion !== undefined && { religion: dto.religion }),
         },
       });
     }
 
     // Update teacher-specific fields
-    if (user.teacher && dto.employmentStatus) {
+    if (
+      user.teacher &&
+      (dto.employmentStatus ||
+        dto.qualification ||
+        dto.rssbNumber !== undefined ||
+        dto.hireDate)
+    ) {
       await this.prisma.teacher.update({
         where: { id: user.teacher.id },
-        data: { employmentStatus: dto.employmentStatus },
+        data: {
+          ...(dto.employmentStatus && {
+            employmentStatus: dto.employmentStatus,
+          }),
+          ...(dto.qualification && { qualification: dto.qualification }),
+          ...(dto.rssbNumber !== undefined && { rssbNumber: dto.rssbNumber }),
+          ...(dto.hireDate && { hireDate: new Date(dto.hireDate) }),
+        },
       });
     }
 
@@ -371,12 +607,34 @@ export class UsersService {
       dateOfBirth?: string;
       relationship?: string;
       studentIds?: string[];
+      nationalId?: string;
+      nationality?: string;
+      province?: string;
+      district?: string;
+      sector?: string;
+      cell?: string;
+      village?: string;
+      fatherName?: string;
+      motherName?: string;
+      isBoarder?: string;
+      previousSchool?: string;
+      qualification?: string;
+      rssbNumber?: string;
+      hireDate?: string;
     }>,
   ) {
-    const passwordHash = await bcrypt.hash('Markova2025!', 10);
-
     return this.prisma.$transaction(async (tx) => {
-      const results = { created: 0, errors: [] as string[] };
+      const results = {
+        created: 0,
+        errors: [] as string[],
+        // Each user gets their own generated password, returned once so the
+        // admin can distribute them; first login forces a change.
+        credentials: [] as Array<{
+          name: string;
+          login: string;
+          password: string;
+        }>,
+      };
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -402,17 +660,30 @@ export class UsersService {
           }
         }
 
+        const password = this.generateTempPassword();
         const user = await tx.user.create({
           data: {
             email: row.email || null,
             phone: row.phone || null,
-            passwordHash,
+            code: await this.generateUserCode(row.role, tx),
+            nationalId: row.nationalId?.replace(/\s+/g, '') || null,
+            nationality: row.nationality || null,
+            ...(row.role !== Role.STUDENT && {
+              gender: (row.gender as any) || null,
+              dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : null,
+            }),
+            passwordHash: await bcrypt.hash(password, 10),
             role: row.role,
             firstName: row.firstName,
             lastName: row.lastName,
             isActive: true,
             forcePasswordChange: true,
           },
+        });
+        results.credentials.push({
+          name: `${row.firstName} ${row.lastName}`,
+          login: row.email || row.phone || '',
+          password,
         });
 
         if (row.role === Role.STUDENT) {
@@ -431,6 +702,15 @@ export class UsersService {
               gender: (row.gender as any) || null,
               status: 'ACTIVE',
               disciplinePoints: 100,
+              province: row.province || null,
+              district: row.district || null,
+              sector: row.sector || null,
+              cell: row.cell || null,
+              village: row.village || null,
+              fatherName: row.fatherName || null,
+              motherName: row.motherName || null,
+              isBoarder: String(row.isBoarder).toLowerCase() === 'true',
+              previousSchool: row.previousSchool || null,
             },
           });
         }
@@ -439,6 +719,9 @@ export class UsersService {
           await tx.teacher.create({
             data: {
               userId: user.id,
+              qualification: (row.qualification as any) || null,
+              rssbNumber: row.rssbNumber || null,
+              hireDate: row.hireDate ? new Date(row.hireDate) : null,
               employmentStatus: 'FULL_TIME',
               isActive: true,
             },
@@ -468,23 +751,79 @@ export class UsersService {
 
   getImportTemplate(role: Role): string {
     const headers: Record<string, string> = {
-      STUDENT: 'email,firstName,lastName,classSectionId,gender,dateOfBirth',
-      TEACHER: 'email,phone,firstName,lastName',
-      PARENT: 'phone,firstName,lastName,studentIds,relationship',
-      ADMIN: 'email,phone,firstName,lastName',
-      LIBRARIAN: 'email,phone,firstName,lastName',
+      STUDENT:
+        'email,firstName,lastName,classSectionId,gender,dateOfBirth,nationalId,nationality,province,district,sector,cell,village,fatherName,motherName,isBoarder,previousSchool',
+      TEACHER:
+        'email,phone,firstName,lastName,gender,dateOfBirth,nationalId,qualification,rssbNumber,hireDate',
+      PARENT: 'phone,firstName,lastName,nationalId,studentIds,relationship',
+      ADMIN: 'email,phone,firstName,lastName,nationalId',
+      LIBRARIAN: 'email,phone,firstName,lastName,nationalId',
     };
 
     return headers[role] || headers.STUDENT;
   }
 
+  // Same policy shape as the wizard's generator: 10 chars with an upper, a
+  // lower, a digit and a symbol guaranteed.
+  private generateTempPassword(): string {
+    const lower = 'abcdefghjkmnpqrstuvwxyz';
+    const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    const digits = '23456789';
+    const symbols = '!@#$%&*';
+    const all = lower + upper + digits + symbols;
+    const pick = (pool: string) => pool[randomInt(pool.length)];
+    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
+    while (chars.length < 10) chars.push(pick(all));
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
+  }
+
   // ─── HELPERS ────────────────────────────────────────────────────────────────
+
+  // NIDA semantic checks beyond the regex: plausible birth year, and the
+  // gender digit / birth year must agree with the profile when provided.
+  private validateNationalId(
+    nationalId?: string,
+    gender?: Gender | null,
+    dateOfBirth?: string | null,
+  ) {
+    if (!nationalId) return;
+    const year = parseInt(nationalId.slice(1, 5));
+    const currentYear = new Date().getFullYear();
+    if (year < 1900 || year > currentYear) {
+      throw new BadRequestException(
+        `National ID carries an impossible birth year (${year})`,
+      );
+    }
+    const genderDigit = nationalId[5];
+    if (gender === 'MALE' && genderDigit !== '8') {
+      throw new BadRequestException(
+        'National ID gender digit does not match: male IDs carry 8',
+      );
+    }
+    if (gender === 'FEMALE' && genderDigit !== '7') {
+      throw new BadRequestException(
+        'National ID gender digit does not match: female IDs carry 7',
+      );
+    }
+    if (dateOfBirth) {
+      const dobYear = new Date(dateOfBirth).getFullYear();
+      if (!Number.isNaN(dobYear) && dobYear !== year) {
+        throw new BadRequestException(
+          `National ID birth year (${year}) does not match the date of birth (${dobYear})`,
+        );
+      }
+    }
+  }
 
   private async generateStudentId(
     client: PrismaService | Prisma.TransactionClient = this.prisma,
   ): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = `MKV-${year}-`;
+    const prefix = `STD-${year}-`;
 
     const lastStudent = await client.student.findFirst({
       where: { studentIdNumber: { startsWith: prefix } },
@@ -500,5 +839,34 @@ export class UsersService {
     }
 
     return `${prefix}${String(sequence).padStart(4, '0')}`;
+  }
+
+  // Role-based registration code for everyone who is not a student:
+  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001.
+  private async generateUserCode(
+    role: Role,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ): Promise<string | null> {
+    const prefixes: Partial<Record<Role, string>> = {
+      [Role.TEACHER]: 'TCH',
+      [Role.PARENT]: 'PAR',
+      [Role.LIBRARIAN]: 'LIB',
+      [Role.ADMIN]: 'ADM',
+    };
+    const rolePrefix = prefixes[role];
+    if (!rolePrefix) return null;
+
+    const year = new Date().getFullYear();
+    const prefix = `${rolePrefix}-${year}-`;
+    const digits = role === Role.PARENT ? 4 : 3;
+
+    const last = await client.user.findFirst({
+      where: { code: { startsWith: prefix } },
+      orderBy: { code: 'desc' },
+    });
+    const sequence = last
+      ? parseInt(last.code!.split('-').pop() || '0') + 1
+      : 1;
+    return `${prefix}${String(sequence).padStart(digits, '0')}`;
   }
 }

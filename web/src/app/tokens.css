@@ -15,8 +15,9 @@
   --color-foreground: #1E293B;
   --color-foreground-muted: #475569;
   --color-muted: #5F6E85;
-  --color-border: #E2E8F0;
+  --color-border: rgb(16 24 40 / 0.08);
   --color-border-strong: #CBD5E1;
+  --color-field: #F8FAFC;
   --color-border-input: #7C8DA3;
   --color-success: #0E7C4A;
   --color-success-wash: #E7F4EE;
@@ -45,6 +46,11 @@
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
   --text-3xl: 1.875rem;
+
+  /* ── elevation ──────────────────────────────────────────────────────────── */
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.05), 0 4px 16px -2px rgb(16 24 40 / 0.09);
+  --shadow-popover: 0 6px 16px -4px rgb(16 24 40 / 0.1), 0 16px 36px -8px rgb(16 24 40 / 0.12);
+  --shadow-modal: 0 12px 28px -8px rgb(16 24 40 / 0.12), 0 32px 64px -16px rgb(16 24 40 / 0.16);
 
   /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
   --color-chart-1: #1B4F72;

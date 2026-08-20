@@ -25,10 +25,12 @@ export const colors = {
   foregroundMuted: '#475569',
   /** Labels, captions, placeholders. AA (>=4.5:1) on every surface token, including surfaceMuted and accentLight. */
   muted: '#5F6E85',
-  /** Decorative dividers and card edges. */
-  border: '#E2E8F0',
+  /** Decorative dividers and card edges. Softened by master's UI pass; not contrast-checked because it never carries meaning on its own. */
+  border: 'rgb(16 24 40 / 0.08)',
   /** Emphasised dividers, table rules. */
   borderStrong: '#CBD5E1',
+  /** Inset background for form controls and read-only fields. */
+  field: '#F8FAFC',
   /** Form control boundaries. 3.4:1 on surface — meets the 3:1 UI threshold. */
   borderInput: '#7C8DA3',
   /** Present, passed, approved, returned. 5.3:1 on surface. */

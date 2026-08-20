@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('ReportsService', () => {
   let service: ReportsService;
-  let uploadRoot: string;
+  let root: string;
   const originalCwd = process.cwd;
 
   const mockPrisma: any = {
@@ -15,19 +15,22 @@ describe('ReportsService', () => {
   };
 
   beforeAll(() => {
-    // Lay out a fake uploads tree and point the service's cwd at it.
-    uploadRoot = mkdtempSync(join(tmpdir(), 'markova-reports-'));
-    mkdirSync(join(uploadRoot, 'uploads', 'branding'), { recursive: true });
+    // A fake project root holding both an uploads tree and the bundled brand
+    // assets, so logoDataUri's fallback chain can be exercised for real.
+    root = mkdtempSync(join(tmpdir(), 'markova-reports-'));
+    mkdirSync(join(root, 'uploads', 'branding'), { recursive: true });
+    mkdirSync(join(root, 'assets'), { recursive: true });
+
     // 1×1 transparent PNG
-    writeFileSync(
-      join(uploadRoot, 'uploads', 'branding', 'crest.png'),
-      Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-        'base64',
-      ),
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64',
     );
-    writeFileSync(join(uploadRoot, 'secret.txt'), 'do not leak me');
-    process.cwd = () => uploadRoot;
+    writeFileSync(join(root, 'uploads', 'branding', 'crest.png'), png);
+    writeFileSync(join(root, 'assets', 'logo-horizontal.png'), png);
+    writeFileSync(join(root, 'secret.txt'), 'do not leak me');
+
+    process.cwd = () => root;
   });
 
   afterAll(() => {
@@ -46,113 +49,110 @@ describe('ReportsService', () => {
     service = module.get<ReportsService>(ReportsService);
   });
 
-  const inline = (url: string | null) => (service as any).inlineUpload(url);
-
-  describe('inlineUpload()', () => {
-    it('returns null when nothing is configured', async () => {
-      await expect(inline(null)).resolves.toBeNull();
-    });
-
-    it('inlines a stored image as a data URI', async () => {
-      const result = await inline('/uploads/branding/crest.png');
-      expect(result).toMatch(/^data:image\/png;base64,/);
-    });
-
-    it('returns null rather than throwing when the file is gone', async () => {
-      await expect(inline('/uploads/branding/missing.png')).resolves.toBeNull();
-    });
-
-    it('refuses a file type that is not an image', async () => {
-      await expect(inline('/uploads/branding/notes.txt')).resolves.toBeNull();
-    });
-
-    it('cannot be walked out of the upload directory', async () => {
-      // Even though secret.txt exists one level up, traversal must not reach it.
-      await expect(
-        inline('/uploads/../../../etc/passwd.png'),
-      ).resolves.toBeNull();
-      await expect(inline('/uploads/../secret.png')).resolves.toBeNull();
-    });
-  });
+  const schoolInfo = () => (service as any).getSchoolInfo();
 
   describe('getSchoolInfo()', () => {
-    const call = () => (service as any).getSchoolInfo();
-
-    it('escapes the school name so a stray quote cannot break the document', async () => {
+    it('escapes the school name so markup cannot break the document', async () => {
       mockPrisma.schoolConfig.findMany.mockResolvedValue([
         { key: 'school_name', value: '<script>alert(1)</script>' },
       ]);
 
-      const info = await call();
+      const info = await schoolInfo();
 
       expect(info.name).not.toContain('<script>');
       expect(info.name).toContain('&lt;script&gt;');
+    });
+
+    it('reads the motto from school_motto, with `motto` as a legacy alias', async () => {
+      // Settings writes `school_motto`; documents used to read `motto` and so
+      // silently printed report cards with no motto at all.
+      mockPrisma.schoolConfig.findMany.mockResolvedValue([
+        { key: 'school_motto', value: 'Excellence Through Knowledge' },
+      ]);
+      await expect(schoolInfo()).resolves.toMatchObject({
+        motto: 'Excellence Through Knowledge',
+      });
+
+      mockPrisma.schoolConfig.findMany.mockResolvedValue([
+        { key: 'motto', value: 'Older key' },
+      ]);
+      await expect(schoolInfo()).resolves.toMatchObject({ motto: 'Older key' });
     });
 
     it('falls back to the brand navy for a malformed colour', async () => {
       mockPrisma.schoolConfig.findMany.mockResolvedValue([
         { key: 'primary_color', value: 'red; } body { display:none' },
       ]);
-
-      await expect(call()).resolves.toMatchObject({ primaryColor: '#1B4F72' });
+      await expect(schoolInfo()).resolves.toMatchObject({
+        primaryColor: '#1B4F72',
+      });
     });
 
     it("keeps the school's own colour when it is well formed", async () => {
       mockPrisma.schoolConfig.findMany.mockResolvedValue([
         { key: 'primary_color', value: '#7D3C98' },
       ]);
-
-      await expect(call()).resolves.toMatchObject({ primaryColor: '#7D3C98' });
+      await expect(schoolInfo()).resolves.toMatchObject({
+        primaryColor: '#7D3C98',
+      });
     });
 
-    it('inlines the crest, stamp and signature together', async () => {
+    it('escapes the contact details too', async () => {
       mockPrisma.schoolConfig.findMany.mockResolvedValue([
-        { key: 'logo_url', value: '/uploads/branding/crest.png' },
-        { key: 'stamp_url', value: '/uploads/branding/crest.png' },
-        { key: 'signature_url', value: '/uploads/branding/crest.png' },
+        { key: 'school_email', value: '"><img src=x onerror=1>' },
       ]);
-
-      const info = await call();
-
-      expect(info.logoDataUri).toMatch(/^data:image\/png;base64,/);
-      expect(info.stampDataUri).toMatch(/^data:image\/png;base64,/);
-      expect(info.signatureDataUri).toMatch(/^data:image\/png;base64,/);
+      const info = await schoolInfo();
+      expect(info.email).not.toContain('<img');
     });
   });
 
-  describe('renderSchoolHeader()', () => {
-    const render = (school: any, title: string, subline?: string) =>
-      (service as any).renderSchoolHeader(school, title, subline);
+  describe('report-card rendering', () => {
+    const render = (data: any) => (service as any).renderTermReportHtml(data);
 
-    it('draws the crest when the school has uploaded one', () => {
-      const html = render(
-        {
-          name: 'Markova',
-          motto: '',
-          logoDataUri: 'data:image/png;base64,AAA',
-        },
-        'TERM REPORT CARD',
-      );
-      expect(html).toContain('class="crest"');
-      expect(html).toContain('data:image/png;base64,AAA');
+    const baseData = {
+      school: {
+        name: 'Markova Academy',
+        motto: '',
+        primaryColor: '#1B4F72',
+        logoUrl: null,
+      },
+      student: { name: 'Divine Niyonkuru', studentIdNumber: 'MKV-2026-0001' },
+      term: { name: 'Term 1', academicYear: '2026-2027' },
+      subjects: [],
+      classStats: {},
+    };
+
+    it("embeds a logo as a data URI — a stored path can never be fetched by Chrome", () => {
+      // setContent() has no base URL, so /uploads/... would silently render as
+      // a broken image in the PDF.
+      const html = render(baseData);
+      expect(html).toMatch(/data:image\/png;base64,/);
+      expect(html).not.toMatch(/src="\/uploads\//);
     });
 
-    it('omits the crest element entirely when none is set', () => {
-      const html = render({ name: 'Markova', motto: '' }, 'TRANSCRIPT');
-      expect(html).not.toContain('class="crest"');
-      expect(html).toContain('TRANSCRIPT');
+    it("falls back to Markova's own mark when the school has uploaded none", () => {
+      const html = render(baseData);
+      // assets/logo-horizontal.png is the bundled fallback.
+      expect(html).toMatch(/data:image\/png;base64,/);
     });
 
-    it('escapes the document title', () => {
-      const html = render({ name: 'X', motto: '' }, '<b>oops</b>');
-      expect(html).not.toContain('<b>oops</b>');
+    it('prefers the school crest when one is uploaded', () => {
+      const html = render({
+        ...baseData,
+        school: { ...baseData.school, logoUrl: '/uploads/branding/crest.png' },
+      });
+      expect(html).toMatch(/data:image\/png;base64,/);
     });
 
-    it('renders the motto only when the school has one', () => {
-      expect(render({ name: 'X', motto: '' }, 'T')).not.toContain('motto');
-      expect(render({ name: 'X', motto: 'Learn well' }, 'T')).toContain(
-        'Learn well',
-      );
+    it('cannot be walked out of the upload directory', () => {
+      // Even though secret.txt exists above the upload dir, traversal must not
+      // reach it, and a non-image must never be inlined.
+      const html = render({
+        ...baseData,
+        school: { ...baseData.school, logoUrl: '/uploads/../secret.txt' },
+      });
+      expect(html).not.toContain('do not leak me');
+      expect(html).not.toMatch(/data:text\/plain/);
     });
   });
 });

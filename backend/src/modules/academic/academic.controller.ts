@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SubjectScope } from '@prisma/client';
 import { AcademicService } from './academic.service';
 import {
   CreateAcademicYearDto,
@@ -24,6 +25,8 @@ import {
   UpdateClassSectionDto,
   CreateSubjectDto,
   UpdateSubjectDto,
+  CreateTradeDto,
+  UpdateTradeDto,
   CreateAssessmentTypeDto,
   CreateAssignmentDto,
   BulkAssignmentDto,
@@ -185,6 +188,39 @@ export class AcademicController {
     return this.service.deleteClassLevel(id);
   }
 
+  // ─── TRADES (A-LEVEL TVET SECTIONS) ─────────────────────────────────────────
+
+  @Get('trades')
+  @Roles(...ALL_ROLES)
+  @ApiOperation({ summary: 'List all trades with class/module counts' })
+  findAllTrades() {
+    return this.service.findAllTrades();
+  }
+
+  @Post('trades')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Create trade' })
+  createTrade(@Body() dto: CreateTradeDto) {
+    return this.service.createTrade(dto);
+  }
+
+  @Put('trades/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Update trade' })
+  updateTrade(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTradeDto,
+  ) {
+    return this.service.updateTrade(id, dto);
+  }
+
+  @Delete('trades/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Delete trade (blocked while it has classes)' })
+  deleteTrade(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.deleteTrade(id);
+  }
+
   // ─── CLASS SECTIONS ─────────────────────────────────────────────────────────
 
   @Get('sections')
@@ -223,8 +259,21 @@ export class AcademicController {
   @Get('subjects')
   @Roles('ADMIN', 'TEACHER')
   @ApiOperation({ summary: 'List all subjects' })
-  findAllSubjects() {
-    return this.service.findAllSubjects();
+  findAllSubjects(
+    @Query('scope') scope?: string,
+    @Query('tradeId') tradeId?: string,
+    @Query('classLevelId') classLevelId?: string,
+  ) {
+    const validScope = Object.values(SubjectScope).includes(
+      scope as SubjectScope,
+    )
+      ? (scope as SubjectScope)
+      : undefined;
+    return this.service.findAllSubjects({
+      scope: validScope,
+      tradeId,
+      classLevelId,
+    });
   }
 
   @Post('subjects')

@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Logo } from "@/components/ui/logo";
+import { BrandMark } from "@/components/brand-mark";
 import { useBrandStore } from "@/stores/brand-store";
 
 interface AuthShellProps {
@@ -27,7 +27,7 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
     <div className="flex min-h-screen items-center justify-center bg-linear-to-b from-primary to-primary-dark p-4">
       <Card className="w-full max-w-md" padding="lg">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Logo size={56} className="mb-4" />
+          <BrandMark className="mb-4 h-14 w-auto max-w-[180px]" />
           <h1 className="text-xl md:text-2xl font-bold text-primary text-balance">
             {title ?? schoolName}
           </h1>

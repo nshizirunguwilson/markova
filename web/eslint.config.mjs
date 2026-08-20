@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // A standalone Playwright script run with `node`, not app code — CommonJS
+    // require() is correct there.
+    "e2e/**",
   ]),
   {
     rules: {

@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardTitle, Spinner } from "@/components/ui";
+import { classDisplayName } from "@/lib/utils";
+import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, Users } from "lucide-react";
 import api from "@/lib/api";
-import { PageHeader } from "@/components/layout/page-header";
 
 interface Child {
   id: string; // student ID
@@ -24,8 +24,8 @@ export default function ParentMarksPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState("");
   const [selectedTermChoice, setSelectedTerm] = useState("");
-  // Derived during render rather than synced in an effect: the user's
-  // explicit choice wins, otherwise fall back to the server default.
+  // Derived during render: the user's explicit choice wins, otherwise the
+  // server's current term.
   const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
   // Fetch linked children
@@ -40,7 +40,7 @@ export default function ParentMarksPage() {
             id: ps.student.id,
             name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
             className: ps.student.classSection
-              ? `${ps.student.classSection.classLevel?.name || ""} ${ps.student.classSection.name || ""}`
+              ? classDisplayName(ps.student.classSection)
               : "",
           }))
         );
@@ -48,6 +48,7 @@ export default function ParentMarksPage() {
       })
       .catch(() => {});
   }, [user?.id]);
+
 
   const { data, isLoading } = useStudentTermResult(selectedChild, selectedTerm);
   const result = data?.result;
@@ -76,12 +77,12 @@ export default function ParentMarksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Child&apos;s Marks"
-        description="View your child&apos;s academic performance"
-        actions={
-          <>
-            <div className="flex gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Child&apos;s Marks</h1>
+          <p className="text-sm text-muted">View your child&apos;s academic performance</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
           {children.length === 1 ? (
             <span className="flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground">
               Viewing marks for: <strong className="ml-1">{children[0].name}</strong>
@@ -91,7 +92,7 @@ export default function ParentMarksPage() {
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
               className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-             aria-label="Select child">
+            >
               {children.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.className})
@@ -103,7 +104,7 @@ export default function ParentMarksPage() {
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-           aria-label="Select term...">
+          >
             <option value="">Select term...</option>
             {terms?.map((t: any) => (
               <option key={t.id} value={t.id}>
@@ -112,9 +113,7 @@ export default function ParentMarksPage() {
             ))}
           </select>
         </div>
-          </>
-        }
-      />
+      </div>
 
       {/* Child info card */}
       {children.length > 0 && (
@@ -186,7 +185,7 @@ export default function ParentMarksPage() {
                         style={{ width: `${s.average}%` }}
                       />
                     </div>
-                    <div className="mt-1 flex gap-2">
+                    <div className="mt-1 flex flex-wrap gap-2">
                       {s.assessments.map((a: any, j: number) => (
                         <span key={j} className="text-xs text-muted">
                           {a.type}: {a.score}/{a.maxScore}

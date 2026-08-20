@@ -32,6 +32,7 @@ const spacingEntries = Object.entries(tokens.spacing).filter(([k]) => !k.startsW
 const weightEntries = Object.entries(tokens.fontWeight).filter(([k]) => !k.startsWith('$'));
 const chartSeries = tokens.chartSeries.values;
 const chartCategorical = tokens.chartCategorical.values;
+const shadowEntries = Object.entries(tokens.shadow).filter(([k]) => !k.startsWith('$'));
 
 // ── web: Tailwind v4 @theme block ───────────────────────────────────────────
 
@@ -58,6 +59,9 @@ ${radii}
 
   /* ── type scale (same pixels as mobile's fontSize.*) ────────────────────── */
 ${sizes}
+
+  /* ── elevation ──────────────────────────────────────────────────────────── */
+${shadowEntries.map(([name, v]) => `  --shadow-${name}: ${v};`).join('\n')}
 
   /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
 ${chartSeries.map((c, i) => `  --color-chart-${i + 1}: ${c};`).join('\n')}

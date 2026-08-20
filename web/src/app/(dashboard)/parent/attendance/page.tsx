@@ -5,7 +5,7 @@ import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
 import { Calendar, Check, X, Clock, Users } from "lucide-react";
-import { toLocalDateString } from "@/lib/utils";
+import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -30,7 +30,7 @@ export default function ParentAttendancePage() {
           id: ps.student.id,
           name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
           className: ps.student.classSection
-            ? `${ps.student.classSection.classLevel?.name || ""} ${ps.student.classSection.name || ""}`
+            ? classDisplayName(ps.student.classSection)
             : "",
         }));
         setChildren(mapped);

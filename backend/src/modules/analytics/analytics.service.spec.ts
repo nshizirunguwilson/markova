@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+import { createMockRedis } from '../../__test__/redis-mock';
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
@@ -24,6 +26,7 @@ describe('AnalyticsService', () => {
       providers: [
         AnalyticsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: RedisService, useValue: createMockRedis() },
       ],
     }).compile();
     service = module.get<AnalyticsService>(AnalyticsService);

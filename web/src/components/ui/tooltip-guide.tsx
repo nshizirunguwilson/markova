@@ -109,7 +109,7 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="fixed z-50 w-[300px] bg-surface rounded-xl shadow-xl border border-accent p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
+        className="fixed z-50 w-[300px] bg-surface rounded-xl shadow-popover border border-accent p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
         style={{ top: pos.top, left: pos.left }}
       >
         <button

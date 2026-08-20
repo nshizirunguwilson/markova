@@ -2,13 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, 'audit/**', 'feat/**', 'fix/**']
   pull_request:
-    branches: [master, main]
 
 jobs:
-  backend-lint-and-test:
-    name: Backend - Lint & Test
+  backend:
+    name: Backend (typecheck + lint + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,138 +46,71 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      # @nestjs/schedule is on v6, whose peer range covers Nest 11, so a plain
+      # `npm ci` resolves. It previously needed --legacy-peer-deps.
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit -p tsconfig.json
+      - run: npm run lint
+      - run: npx jest --silent
+      - run: npx prisma migrate deploy
+      # The auth e2e suite signs in as real seeded users, so the database has
+      # to hold the demo data first.
+      - run: npx prisma db seed
+      - run: npm run test:e2e -- --passWithNoTests
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Run database migrations
-        run: npx prisma migrate deploy
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Run unit tests
-        run: npm test -- --passWithNoTests
-
-      # The auth e2e suite signs in as real users, so the database has to hold
-      # the demo data first.
-      - name: Seed demo data
-        run: npx prisma db seed
-
-      - name: Run e2e tests
-        run: npm run test:e2e -- --passWithNoTests
-
-  design-system:
-    name: Design System - Tokens & Contrast
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # The generated token files must match design/tokens.json, otherwise web
-      # and mobile silently drift apart again.
-      - name: Verify design tokens are in sync
-        run: node scripts/sync-design-tokens.mjs --check
-
-      # Every colour pairing has to stay at WCAG AA.
-      - name: Verify colour contrast
-        run: node scripts/check-contrast.mjs
-
-  web-lint-test-build:
-    name: Web - Lint, Test & Build
+  web:
+    name: Web (typecheck + lint + tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
-
     env:
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npx vitest run
+      - run: npm run build
 
-      - name: Install dependencies
-        run: npm ci
+  design-system:
+    name: Design system (token drift + contrast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The generated theme files must match design/tokens.json, otherwise web
+      # and mobile silently drift apart again.
+      - run: node scripts/sync-design-tokens.mjs --check
+      # Every colour pairing has to stay at WCAG AA.
+      - run: node scripts/check-contrast.mjs
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Run unit tests
-        run: npx vitest run
-
-      - name: Build
-        run: npm run build
-
-  mobile-typecheck:
-    name: Mobile - TypeScript Check
+  mobile:
+    name: Mobile (typecheck)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mobile
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript type check
-        run: npx tsc --noEmit
-
-  backend-build:
-    name: Backend - Build
-    runs-on: ubuntu-latest
-    needs: backend-lint-and-test
-    defaults:
-      run:
-        working-directory: backend
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-dist
-          path: backend/dist/
-          retention-days: 7
+      - run: npm ci
+      - run: npx tsc --noEmit

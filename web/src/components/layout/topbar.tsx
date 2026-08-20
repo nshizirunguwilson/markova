@@ -203,7 +203,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
         )}
 
         {searchOpen && searchQuery.trim() && (
-          <div className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-border bg-surface py-1 shadow-lg">
+          <div className="absolute left-0 top-full z-30 mt-1 w-full rounded-lg border border-border bg-surface py-1 shadow-popover">
             {searchResults.length > 0 ? (
               searchResults.map((item) => {
                 const Icon = item.icon;
@@ -248,7 +248,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-border bg-surface shadow-lg">
+            <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-border bg-surface shadow-popover">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold text-foreground">
                   Notifications
@@ -338,7 +338,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface py-1 shadow-lg">
+            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface py-1 shadow-popover">
               <button
                 onClick={() => {
                   setDropdownOpen(false);

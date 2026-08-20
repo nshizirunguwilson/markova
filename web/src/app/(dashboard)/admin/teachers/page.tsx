@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { classDisplayName } from "@/lib/utils";
 import {
   Card,
   Button,
@@ -169,7 +170,7 @@ export default function AdminTeachersPage() {
                           <div className="flex flex-wrap gap-1">
                             {teacherAssignments.slice(0, 3).map((a: any) => (
                               <Badge key={a.id} variant="info">
-                                {a.subject?.name} – {a.classSection?.classLevel?.name} {a.classSection?.name}
+                                {a.subject?.name} – {classDisplayName(a.classSection)}
                               </Badge>
                             ))}
                             {teacherAssignments.length > 3 && (

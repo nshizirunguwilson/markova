@@ -38,10 +38,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
-    this.logger.error(
-      `${request.method} ${request.url} ${status} - ${exception instanceof Error ? exception.message : 'Unknown error'}`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
+    // Client errors (bad input, missing files, unauthorized) are expected
+    // traffic: one warn line, no stack. Full stacks are for real 5xx faults.
+    const summary = `${request.method} ${request.url} ${status} - ${exception instanceof Error ? exception.message : 'Unknown error'}`;
+    if (status >= 500) {
+      this.logger.error(
+        summary,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    } else {
+      this.logger.warn(summary);
+    }
 
     response.status(status).json({
       statusCode: status,

@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { Roles } from '../../common/decorators';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
 
 @ApiTags('Analytics')
@@ -69,6 +70,32 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Attendance statistics' })
   getAttendanceStats(@Query('termId') termId?: string) {
     return this.service.getAttendanceStats(termId);
+  }
+
+  @Get('admin/grade-distribution')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Grade counts per class level' })
+  getGradeDistribution(@Query('termId') termId: string) {
+    return this.service.getGradeDistribution(termId);
+  }
+
+  @Get('admin/enrollment')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Enrollment by level and gender' })
+  getEnrollment() {
+    return this.service.getEnrollmentBreakdown();
+  }
+
+  @Get('student/:studentId/profile')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Student performance across subjects and terms' })
+  async getStudentProfile(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+  ) {
+    // Students see only themselves, parents only their own children.
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    return this.service.getStudentProfileAnalytics(studentId);
   }
 
   // ── Teacher ───────────────────────────────────────────────────────────────

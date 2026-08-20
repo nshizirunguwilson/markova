@@ -40,7 +40,7 @@ export class HomeworkService {
       },
       include: {
         subject: { select: { name: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
       },
     });
   }
@@ -89,7 +89,7 @@ export class HomeworkService {
       where,
       include: {
         subject: { select: { name: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
         teacher: {
           include: { user: { select: { firstName: true, lastName: true } } },
         },
@@ -104,7 +104,7 @@ export class HomeworkService {
       where: { id },
       include: {
         subject: { select: { name: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
         teacher: {
           include: { user: { select: { firstName: true, lastName: true } } },
         },

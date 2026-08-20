@@ -1,6 +1,6 @@
 "use client";
 
-import { mediaUrl } from "@/lib/utils";
+
 
 import { useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Card, Button } from "@/components/ui";
 import { User, Mail, Phone, Shield, Lock } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { resolveUploadUrl } from "@/lib/assets";
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -99,7 +100,7 @@ export default function ProfilePage() {
           <div className="relative">
             {user.photoUrl ? (
               <img
-                src={mediaUrl(user.photoUrl)}
+                src={resolveUploadUrl(user.photoUrl) ?? undefined}
                 alt={user.firstName}
                 className="h-20 w-20 rounded-full object-cover border-2 border-primary/20"
               />

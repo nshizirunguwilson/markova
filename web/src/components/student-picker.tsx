@@ -22,7 +22,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
   const { data: sections } = useSections(level || undefined);
   const { data: studentsData } = useUsers(
     section
-      ? { role: "STUDENT", classSectionId: section, limit: 100 }
+      ? { role: "STUDENT", classSectionId: section, studentStatus: "ACTIVE", limit: 100 }
       : { role: "STUDENT", limit: 1 }
   );
   const students = section ? studentsData?.data || [] : [];
@@ -59,7 +59,7 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
          aria-label="Section…">
           <option value="">Section…</option>
           {sections?.map((s: any) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
           ))}
         </select>
         <select

@@ -29,6 +29,13 @@ enum EmploymentStatus {
   CONTRACT
 }
 
+// Rwandan teaching credential levels: A0 bachelor's, A1 diploma, A2 secondary.
+enum TeacherQualification {
+  A0
+  A1
+  A2
+}
+
 enum StudentStatus {
   ACTIVE
   INACTIVE
@@ -39,6 +46,18 @@ enum StudentStatus {
 enum Gender {
   MALE
   FEMALE
+}
+
+enum EducationStage {
+  O_LEVEL
+  A_LEVEL
+}
+
+enum SubjectScope {
+  O_CORE
+  O_ELECTIVE
+  A_GENERAL
+  A_SPECIFIC
 }
 
 enum AttendanceStatus {
@@ -114,6 +133,16 @@ model User {
   id                  String   @id @default(uuid())
   email               String?  @unique
   phone               String?  @unique
+  // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
+  // Students carry theirs on Student.studentIdNumber (STD prefix).
+  code                String?  @unique
+  // NIDA 16-digit national identification number (stored without spaces).
+  nationalId          String?  @unique @map("national_id")
+  nationality         String?
+  // For staff and parents. Students carry theirs on Student, which stays
+  // the single source of truth for student demographics.
+  gender              Gender?
+  dateOfBirth         DateTime? @map("date_of_birth")
   passwordHash        String?  @map("password_hash")
   role                Role
   firstName           String   @map("first_name")
@@ -225,21 +254,39 @@ model Term {
 }
 
 model ClassLevel {
-  id    String @id @default(uuid())
-  name  String @unique
+  id    String         @id @default(uuid())
+  name  String         @unique
   order Int
+  stage EducationStage @default(O_LEVEL)
 
   sections ClassSection[]
+  subjects Subject[]
 
   @@map("class_levels")
 }
 
+// A-Level (TVET) trade section, e.g. SWD — Software Development, under the
+// national sector it belongs to (e.g. ICT and Multimedia). O-Level has none.
+model Trade {
+  id     String @id @default(uuid())
+  code   String @unique
+  name   String @unique
+  sector String
+
+  sections ClassSection[]
+  subjects Subject[]
+
+  @@map("trades")
+}
+
 model ClassSection {
-  id           String @id @default(uuid())
-  classLevelId String @map("class_level_id")
+  id           String  @id @default(uuid())
+  classLevelId String  @map("class_level_id")
+  tradeId      String? @map("trade_id")
   name         String
 
   classLevel ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+  trade      Trade?     @relation(fields: [tradeId], references: [id], onDelete: Restrict)
 
   students              Student[]
   timetables            Timetable[]
@@ -251,16 +298,25 @@ model ClassSection {
   homeworks             Homework[]
   examSchedules         ExamSchedule[]
 
-  @@unique([classLevelId, name])
+  // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
+  // null) are additionally guarded in AcademicService.
+  @@unique([classLevelId, tradeId, name])
+  @@index([tradeId])
   @@map("class_sections")
 }
 
 model Subject {
-  id       String  @id @default(uuid())
-  name     String  @unique
-  category String?
-  maxMarks Int     @default(100) @map("max_marks")
-  isActive Boolean @default(true) @map("is_active")
+  id           String       @id @default(uuid())
+  name         String
+  category     String?
+  scope        SubjectScope @default(O_CORE)
+  tradeId      String?      @map("trade_id")
+  classLevelId String?      @map("class_level_id")
+  maxMarks     Int          @default(100) @map("max_marks")
+  isActive     Boolean      @default(true) @map("is_active")
+
+  trade      Trade?      @relation(fields: [tradeId], references: [id], onDelete: Restrict)
+  classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
 
   timetables            Timetable[]
   teacherSubjectClasses TeacherSubjectClass[]
@@ -269,6 +325,11 @@ model Subject {
   homeworks             Homework[]
   examSchedules         ExamSchedule[]
 
+  // Same module name may exist in two trades (e.g. Database Development in
+  // both SWD and NIT). General subjects (tradeId null) are service-guarded.
+  @@unique([name, tradeId])
+  @@index([tradeId])
+  @@index([classLevelId])
   @@map("subjects")
 }
 
@@ -314,6 +375,21 @@ model Student {
   allergies         String?
   medicalConditions String?       @map("medical_conditions")
   previousSchool    String?       @map("previous_school")
+  // Residence, the standard 5-level Rwandan address (SDMS requirement).
+  province          String?
+  district          String?
+  sector            String?
+  cell              String?
+  village           String?
+  // SDMS special-needs record; null means none declared.
+  disability        String?
+  // Guardians as recorded on enrollment, independent of parent accounts.
+  fatherName        String?       @map("father_name")
+  motherName        String?       @map("mother_name")
+  // Mutuelle de Sante or other insurance number.
+  insuranceNumber   String?       @map("insurance_number")
+  isBoarder         Boolean       @default(false) @map("is_boarder")
+  religion          String?
   enrollmentDate    DateTime      @default(now()) @map("enrollment_date")
   nfcCardId         String?       @unique @map("nfc_card_id")
   cardIssuedAt      DateTime?     @map("card_issued_at")
@@ -354,10 +430,13 @@ model ParentStudent {
 // ─── TEACHERS ───────────────────────────────────────────────────────────────────
 
 model Teacher {
-  id               String           @id @default(uuid())
-  userId           String           @unique @map("user_id")
-  employmentStatus EmploymentStatus @default(FULL_TIME) @map("employment_status")
-  isActive         Boolean          @default(true) @map("is_active")
+  id               String                @id @default(uuid())
+  userId           String                @unique @map("user_id")
+  employmentStatus EmploymentStatus      @default(FULL_TIME) @map("employment_status")
+  qualification    TeacherQualification? 
+  rssbNumber       String?               @map("rssb_number")
+  hireDate         DateTime?             @map("hire_date")
+  isActive         Boolean               @default(true) @map("is_active")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -441,18 +520,34 @@ model TermResult {
   totalMarks        Float?  @map("total_marks")
   average           Float?
   letterGrade       String? @map("letter_grade")
+  aggregate         Int?
+  aggregateMax      Int?    @map("aggregate_max")
   rank              Int?
   teacherComment    String? @map("teacher_comment")
   headmasterComment String? @map("headmaster_comment")
   isPublished       Boolean @default(false) @map("is_published")
 
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
-  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  term         Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
+  verification ReportVerification?
 
   @@unique([studentId, classSectionId, termId])
   @@index([classSectionId, termId])
   @@map("term_results")
+}
+
+// One permanent 12-digit code per issued report card. The code is printed on
+// the paper copy (QR + link) and resolves to the digital original.
+model ReportVerification {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  termResultId String   @unique @map("term_result_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  termResult TermResult @relation(fields: [termResultId], references: [id], onDelete: Cascade)
+
+  @@map("report_verifications")
 }
 
 model YearResult {

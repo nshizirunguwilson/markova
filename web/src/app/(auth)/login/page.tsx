@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
+
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { Button } from "@/components/ui/button";
@@ -249,7 +250,7 @@ export default function LoginPage() {
             <Input
               id="identifier"
               label="Email or Phone"
-              placeholder="Email or phone number"
+              placeholder="Enter your email or phone"
               error={loginForm.formState.errors.identifier?.message}
               {...loginForm.register("identifier")}
             />

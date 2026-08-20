@@ -1,4 +1,5 @@
-import { cn, mediaUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { resolveUploadUrl } from "@/lib/assets";
 import { User } from "lucide-react";
 
 interface AvatarProps {
@@ -28,8 +29,9 @@ export function Avatar({
     lg: "h-7 w-7",
   };
 
-  // Stored photos are root-relative paths on the API origin, not this one.
-  const resolved = mediaUrl(src);
+  // API-stored photos are root-relative (/uploads/...) and live on the API
+  // origin, not the web one — resolve before rendering.
+  const resolved = resolveUploadUrl(src);
 
   if (resolved) {
     return (

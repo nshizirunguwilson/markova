@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
 import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateIncidentDto,
@@ -153,7 +154,7 @@ export class DisciplineService {
         student: {
           include: {
             user: { select: { firstName: true, lastName: true } },
-            classSection: { include: { classLevel: true } },
+            classSection: { include: { classLevel: true, trade: true } },
           },
         },
         recordedBy: { select: { firstName: true, lastName: true } },
@@ -172,7 +173,7 @@ export class DisciplineService {
             user: {
               select: { firstName: true, lastName: true, photoUrl: true },
             },
-            classSection: { include: { classLevel: true } },
+            classSection: { include: { classLevel: true, trade: true } },
           },
         },
         recordedBy: { select: { firstName: true, lastName: true } },
@@ -334,7 +335,7 @@ export class DisciplineService {
             student: {
               include: {
                 user: { select: { firstName: true, lastName: true } },
-                classSection: { include: { classLevel: true } },
+                classSection: { include: { classLevel: true, trade: true } },
               },
             },
           },
@@ -385,7 +386,9 @@ export class DisciplineService {
       where,
       include: {
         student: {
-          include: { classSection: { include: { classLevel: true } } },
+          include: {
+            classSection: { include: { classLevel: true, trade: true } },
+          },
         },
       },
     });
@@ -406,7 +409,7 @@ export class DisciplineService {
       if (!studentMap.has(key)) {
         studentMap.set(key, {
           name: key,
-          class: `${i.student.classSection.classLevel.name} ${i.student.classSection.name}`,
+          class: classDisplayName(i.student.classSection),
           count: 0,
           totalPoints: 0,
         });

@@ -13,6 +13,7 @@ import {
   useCreateAssessmentType,
 } from "@/hooks/use-academic";
 import { Plus, Lock, Unlock } from "lucide-react";
+import { toast } from "sonner";
 
 export function AcademicTab() {
   const { data: years } = useAcademicYears();
@@ -25,9 +26,17 @@ export function AcademicTab() {
   const closeTerm = useCloseTerm();
   const reopenTerm = useReopenTerm();
 
-  const yearForm = useForm({ defaultValues: { name: "", startDate: "", endDate: "" } });
+  const yearForm = useForm({ defaultValues: { name: "", startDate: "", endDate: "", isCurrent: false } });
   const termForm = useForm({ defaultValues: { name: "", startDate: "", endDate: "" } });
   const atForm = useForm({ defaultValues: { name: "" } });
+
+  const validDates = (d: { startDate: string; endDate: string }) => {
+    if (!d.startDate || !d.endDate || d.endDate <= d.startDate) {
+      toast.error("End date must be after the start date");
+      return false;
+    }
+    return true;
+  };
 
   const toggleTerm = (id: string, isClosed: boolean) => {
     if (isClosed) {
@@ -53,12 +62,19 @@ export function AcademicTab() {
             </div>
           ))}
         </div>
-        <form onSubmit={yearForm.handleSubmit((d) => createYear.mutate({ ...d, isCurrent: true }, { onSuccess: () => yearForm.reset() }))} className="flex items-end gap-3">
+        <form onSubmit={yearForm.handleSubmit((d) => { if (!validDates(d)) return; createYear.mutate(d, { onSuccess: () => yearForm.reset() }); })} className="flex items-end gap-3">
           <Input id="yr-name" label="Name" placeholder="2026-2027" {...yearForm.register("name")} />
           <Input id="yr-start" label="Start" type="date" {...yearForm.register("startDate")} />
           <Input id="yr-end" label="End" type="date" {...yearForm.register("endDate")} />
+          <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground whitespace-nowrap">
+            <input type="checkbox" {...yearForm.register("isCurrent")} className="h-4 w-4 rounded border-input accent-primary" />
+            Make current
+          </label>
           <Button type="submit" size="sm" isLoading={createYear.isPending}><Plus className="h-4 w-4" /></Button>
         </form>
+        <p className="mt-2 text-xs text-muted">
+          Leave &quot;Make current&quot; off to prepare a future year — the whole school switches to the current year.
+        </p>
       </Card>
 
       {/* Terms */}
@@ -82,7 +98,7 @@ export function AcademicTab() {
           ))}
         </div>
         {currentYear && (
-          <form onSubmit={termForm.handleSubmit((d) => createTerm.mutate({ ...d, academicYearId: currentYear.id }, { onSuccess: () => termForm.reset() }))} className="flex items-end gap-3">
+          <form onSubmit={termForm.handleSubmit((d) => { if (!validDates(d)) return; createTerm.mutate({ ...d, academicYearId: currentYear.id }, { onSuccess: () => termForm.reset() }); })} className="flex items-end gap-3">
             <Input id="tm-name" label="Name" placeholder="Term 1" {...termForm.register("name")} />
             <Input id="tm-start" label="Start" type="date" {...termForm.register("startDate")} />
             <Input id="tm-end" label="End" type="date" {...termForm.register("endDate")} />

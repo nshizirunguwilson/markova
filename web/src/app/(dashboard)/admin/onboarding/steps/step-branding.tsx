@@ -1,6 +1,6 @@
 "use client";
 
-import { mediaUrl } from "@/lib/utils";
+
 import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
 
 import { useState } from "react";
@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { Save } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { resolveUploadUrl } from "@/lib/assets";
 
 export function StepBranding() {
   const { data } = useSchoolConfig();
@@ -87,7 +88,7 @@ function FileUploadField({
           {currentUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element -- runtime upload on the API origin */
             <img
-              src={mediaUrl(currentUrl)}
+              src={resolveUploadUrl(currentUrl) ?? undefined}
               alt={`Current ${label.toLowerCase()}`}
               className="h-full w-full object-contain p-1.5"
             />

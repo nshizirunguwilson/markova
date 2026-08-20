@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
 }
 
 const FOCUSABLE_SELECTOR =
@@ -40,24 +40,29 @@ export function Modal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
-
-      // Focus first focusable element inside modal
-      requestAnimationFrame(() => {
-        const dialog = dialogRef.current;
-        if (dialog) {
-          const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-          if (first) first.focus();
-        }
-      });
-    }
+    if (!isOpen) return;
+    document.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "unset";
     };
   }, [isOpen, handleEscape]);
+
+  // Focus the first focusable element ONLY when the modal opens. This must
+  // not depend on handleEscape: an inline onClose prop changes identity on
+  // every parent render, and re-running this on each keystroke would keep
+  // yanking focus to the close button while the user types.
+  useEffect(() => {
+    if (!isOpen) return;
+    requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (dialog) {
+        const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+        if (first) first.focus();
+      }
+    });
+  }, [isOpen]);
 
   // Return focus to trigger on close
   useEffect(() => {
@@ -99,6 +104,10 @@ export function Modal({
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
+    "2xl": "max-w-2xl",
+    "3xl": "max-w-3xl",
+    "4xl": "max-w-4xl",
+    "5xl": "max-w-5xl",
   };
 
   return (
@@ -114,7 +123,7 @@ export function Modal({
         aria-modal="true"
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative z-10 w-full rounded-xl border border-border bg-surface p-6 shadow-xl",
+          "relative z-10 w-full rounded-xl border border-border bg-surface p-6 shadow-modal",
           sizes[size]
         )}
       >

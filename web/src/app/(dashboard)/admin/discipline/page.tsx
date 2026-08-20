@@ -33,8 +33,7 @@ import {
   Shield,
   Gavel,
 } from "lucide-react";
-import { toLocalDateString } from "@/lib/utils";
-import { PageHeader } from "@/components/layout/page-header";
+import { toLocalDateString, classDisplayName } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -83,17 +82,15 @@ export default function AdminDisciplinePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Discipline"
-        description="Manage incidents and appeals"
-        actions={
-          <>
-            <Button onClick={() => setShowAddModal(true)}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Discipline</h1>
+          <p className="text-sm text-muted">Manage incidents and appeals</p>
+        </div>
+        <Button onClick={() => setShowAddModal(true)}>
           <Plus className="mr-1 h-4 w-4" /> Record Incident
         </Button>
-          </>
-        }
-      />
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
@@ -142,7 +139,7 @@ export default function AdminDisciplinePage() {
                       {inc.student.user.firstName} {inc.student.user.lastName}
                     </TableCell>
                     <TableCell className="text-sm text-muted">
-                      {inc.student.classSection?.classLevel?.name} {inc.student.classSection?.name}
+                      {classDisplayName(inc.student.classSection)}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm">{inc.description}</TableCell>
                     <TableCell><Badge variant="danger">-{inc.pointsDeducted}</Badge></TableCell>
@@ -184,7 +181,7 @@ export default function AdminDisciplinePage() {
                     <p className="font-medium text-foreground">
                       {a.incident.student.user.firstName} {a.incident.student.user.lastName}
                       <span className="ml-2 text-xs text-muted">
-                        {a.incident.student.classSection?.classLevel?.name} {a.incident.student.classSection?.name}
+                        {classDisplayName(a.incident.student.classSection)}
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-muted">Incident: {a.incident.description}</p>
@@ -322,7 +319,7 @@ export default function AdminDisciplinePage() {
                 value={form.actionTaken}
                 onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-               aria-label="Action Taken">
+              >
                 {Object.entries(ACTION_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}

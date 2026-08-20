@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
-import { Logo } from "@/components/ui/logo";
+import { useBrandStore } from "@/stores/brand-store";
+import { BrandMark } from "@/components/brand-mark";
 import type { Role } from "@/types";
 
 interface SidebarProps {
@@ -16,6 +17,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const schoolName = useBrandStore((s) => s.schoolName);
   const sections = getNavigation((user?.role || "ADMIN") as Role);
 
   return (
@@ -26,9 +28,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      {/* Logo */}
-      <div className="flex h-16 items-center border-b border-border px-5">
-        <Logo variant="lockup" size={32} />
+      {/* Logo — the school's own uploaded logo when set, otherwise Markova's mark */}
+      <div className="flex h-16 items-center justify-center border-b border-border px-5">
+        {/* The uploaded logo carries the school name itself, so it stands
+            alone; BrandMark keeps the name as the image's alt text. */}
+        <BrandMark className="h-9 w-auto max-w-full shrink-0" />
       </div>
 
       {/* Navigation */}

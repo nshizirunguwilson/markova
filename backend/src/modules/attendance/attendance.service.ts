@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/dto';
@@ -560,7 +561,7 @@ export class AttendanceService {
       where: studentWhere,
       include: {
         user: { select: { firstName: true, lastName: true } },
-        classSection: { include: { classLevel: true } },
+        classSection: { include: { classLevel: true, trade: true } },
         _count: {
           select: { attendances: { where: { type: 'daily' } } },
         },
@@ -592,7 +593,7 @@ export class AttendanceService {
           studentId: s.id,
           name: `${s.user.firstName} ${s.user.lastName}`,
           studentIdNumber: s.studentIdNumber,
-          class: `${s.classSection.classLevel.name} ${s.classSection.name}`,
+          class: classDisplayName(s.classSection),
           totalDays: total,
           absentDays: absent,
           absenceRate: rate,
@@ -659,7 +660,7 @@ export class AttendanceService {
 
       return {
         sectionId: section.id,
-        className: `${section.classLevel.name} ${section.name}`,
+        className: classDisplayName(section),
         total: totalStudents,
         present,
         late,

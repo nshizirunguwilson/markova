@@ -9,6 +9,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
 import { Twilio } from 'twilio';
+import { existsSync } from 'fs';
+import { join } from 'path';
+
+/** Referenced from the email HTML as `cid:<LOGO_CID>`. */
+const LOGO_CID = 'markova-logo';
+const LOGO_PATH = join(process.cwd(), 'assets', 'logo-horizontal-white.png');
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -16,6 +22,24 @@ export class NotificationsService implements OnModuleInit {
   private transporter: nodemailer.Transporter | null = null;
   private twilioClient: Twilio | null = null;
   private twilioSenderId: string | null = null;
+
+  /**
+   * Email clients (Gmail especially) strip `data:` URIs, so the logo is sent as
+   * an embedded CID attachment instead. Returns an empty list if the asset is
+   * missing, in which case the header falls back to the plain text name.
+   */
+  private logoAttachments(): nodemailer.SendMailOptions['attachments'] {
+    if (!existsSync(LOGO_PATH)) return [];
+    return [{ filename: 'markova-logo.png', path: LOGO_PATH, cid: LOGO_CID }];
+  }
+
+  /** Branded blue header band — white logo when available, else the name. */
+  private emailHeader(fromName: string): string {
+    const inner = existsSync(LOGO_PATH)
+      ? `<img src="cid:${LOGO_CID}" alt="${fromName}" style="height: 34px; width: auto; display: block; margin: 0 auto;" />`
+      : `<h1 style="margin: 0; font-size: 24px;">${fromName}</h1>`;
+    return `<div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">${inner}</div>`;
+  }
 
   constructor(
     private prisma: PrismaService,
@@ -127,11 +151,10 @@ export class NotificationsService implements OnModuleInit {
               from: `"${fromName}" <${fromEmail}>`,
               to: u.email!,
               subject: dto.title,
+              attachments: this.logoAttachments(),
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
-                  </div>
+                  ${this.emailHeader(fromName)}
                   <div style="padding: 20px; background: #f9f9f9;">
                     <p>Dear ${u.firstName || 'User'},</p>
                     <div style="margin: 16px 0;">${dto.message}</div>
@@ -338,11 +361,10 @@ export class NotificationsService implements OnModuleInit {
       from: `"${fromName}" <${fromEmail}>`,
       to: user.email,
       subject,
+      attachments: this.logoAttachments(),
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
-          </div>
+          ${this.emailHeader(fromName)}
           <div style="padding: 20px; background: #f9f9f9;">
             <p>Dear ${user.firstName || 'User'},</p>
             <div style="margin: 16px 0;">${body}</div>
@@ -377,11 +399,10 @@ export class NotificationsService implements OnModuleInit {
         from: `"${fromName}" <${fromEmail}>`,
         to: email,
         subject,
+        attachments: this.logoAttachments(),
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #1B4F72; color: white; padding: 20px; text-align: center;">
-              <h1 style="margin: 0; font-size: 24px;">${fromName}</h1>
-            </div>
+            ${this.emailHeader(fromName)}
             <div style="padding: 20px; background: #f9f9f9;">
               <p>Dear ${name || 'User'},</p>
               <div style="margin: 16px 0;">${body}</div>

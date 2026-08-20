@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Card,
+  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -23,8 +24,7 @@ import {
   useReturn,
   useLibraryAnalytics,
 } from "@/hooks/use-library";
-import { Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
+import { Library, Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 
 export default function LibrarianBooksPage() {
   const [search, setSearch] = useState("");
@@ -52,12 +52,12 @@ export default function LibrarianBooksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Book Catalog"
-        description="Manage library books"
-        actions={
-          <>
-            <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Book Catalog</h1>
+          <p className="text-sm text-muted">Manage library books</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
             <ArrowDownToLine className="mr-1 h-4 w-4" /> Checkout
           </Button>
@@ -68,9 +68,7 @@ export default function LibrarianBooksPage() {
             <Plus className="mr-1 h-4 w-4" /> Add Book
           </Button>
         </div>
-          </>
-        }
-      />
+      </div>
 
       {/* Analytics */}
       {analytics && (
@@ -100,7 +98,7 @@ export default function LibrarianBooksPage() {
 
       {/* Search */}
       <Card>
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
             <input
@@ -109,13 +107,13 @@ export default function LibrarianBooksPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by title, author, or ISBN..."
               className="w-full rounded-lg border border-border bg-surface pl-10 pr-3 py-2 text-sm focus:border-primary focus:outline-none"
-             aria-label="Search by title, author, or ISBN..."/>
+            />
           </div>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-           aria-label="All Categories">
+          >
             <option value="">All Categories</option>
             {analytics?.categories?.map((c: any) => (
               <option key={c.category} value={c.category}>{c.category} ({c.count})</option>
@@ -129,6 +127,7 @@ export default function LibrarianBooksPage() {
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
       ) : books?.length > 0 ? (
         <Card>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -163,6 +162,7 @@ export default function LibrarianBooksPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       ) : (
         <Card>

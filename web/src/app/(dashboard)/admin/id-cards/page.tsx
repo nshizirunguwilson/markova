@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Card,
+  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -21,10 +22,8 @@ import {
   useRevokeIdCard,
 } from "@/hooks/use-reports";
 import { useBrandStore } from "@/stores/brand-store";
-import { Logo } from "@/components/ui/logo";
-import { Avatar } from "@/components/ui/avatar";
 import { Printer, Search, Plus, IdCard, Ban } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
+import { BrandMark } from "@/components/brand-mark";
 
 type StatusFilter = "all" | "issued" | "not_issued";
 
@@ -67,12 +66,16 @@ export default function AdminIdCardsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Student ID Cards"
-        description="See who has a card, issue cards for those who don&apos;t, and print them."
-        actions={
-          <>
-            <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">
+            Student ID Cards
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            See who has a card, issue cards for those who don&apos;t, and print them.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {sectionId && (
             <Button
               variant="outline"
@@ -90,9 +93,7 @@ export default function AdminIdCardsPage() {
             </Button>
           )}
         </div>
-          </>
-        }
-      />
+      </div>
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 print:hidden">
@@ -127,7 +128,7 @@ export default function AdminIdCardsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-             aria-label="Search by name, student ID, or card ID..."/>
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
@@ -135,7 +136,7 @@ export default function AdminIdCardsPage() {
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
-             aria-label="Class Level">
+            >
               <option value="">All levels</option>
               {levels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -149,10 +150,10 @@ export default function AdminIdCardsPage() {
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               disabled={!levelId}
-             aria-label="Section">
+            >
               <option value="">All sections</option>
               {sections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
             </select>
           </div>
@@ -162,7 +163,7 @@ export default function AdminIdCardsPage() {
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
-             aria-label="Card status">
+            >
               <option value="all">All</option>
               <option value="issued">Has a card</option>
               <option value="not_issued">No card</option>
@@ -243,33 +244,17 @@ export default function AdminIdCardsPage() {
       {showPrint && (
         <div className="hidden print:grid print:grid-cols-2 print:gap-4">
           {issuedItems.map((it) => (
-            <div
-              key={it.id}
-              className="overflow-hidden rounded-xl border-2 border-primary"
-              style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
-            >
-              {/* Identity band — the school's crest, or the Markova mark */}
-              <div className="flex items-center gap-2 bg-primary px-3 py-2">
-                <Logo size={22} />
-                <p className="truncate text-xs font-semibold uppercase tracking-wide text-white">
-                  {schoolName}
+            <div key={it.id} className="rounded-lg border-2 border-primary p-4">
+              <div className="text-center space-y-2">
+                <p className="text-xs uppercase text-muted">{schoolName}</p>
+                <BrandMark className="mx-auto h-12 w-auto max-w-[120px]" />
+                <p className="text-lg font-bold">{it.name}</p>
+                <p className="text-sm text-foreground-muted">{it.class}</p>
+                <p className="inline-block rounded bg-surface-muted px-2 py-1 font-mono text-sm">
+                  {it.studentIdNumber}
                 </p>
+                <p className="text-xs text-muted">Card: {it.cardId}</p>
               </div>
-
-              <div className="flex items-center gap-3 p-3">
-                <Avatar src={it.photoUrl} size="lg" fallback={it.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-bold text-foreground">{it.name}</p>
-                  <p className="truncate text-sm text-muted">{it.class}</p>
-                  <p className="mt-1 inline-block rounded bg-surface-muted px-2 py-0.5 font-mono text-xs text-foreground">
-                    {it.studentIdNumber}
-                  </p>
-                </div>
-              </div>
-
-              <p className="border-t border-border px-3 py-1.5 font-mono text-[10px] text-muted">
-                Card {it.cardId}
-              </p>
             </div>
           ))}
         </div>

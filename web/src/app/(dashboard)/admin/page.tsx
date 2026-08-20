@@ -1,9 +1,18 @@
 "use client";
 
+import { useMemo } from "react";
+import type { EChartsOption } from "echarts";
 import { useAuthStore } from "@/stores/auth-store";
 import { Card, CardTitle, PageSpinner } from "@/components/ui";
+import { EChart } from "@/components/ui/echart";
 import { TooltipGuide } from "@/components/ui/tooltip-guide";
-import { useAdminDashboard } from "@/hooks/use-analytics";
+import {
+  useAdminDashboard,
+  useAttendanceAnalytics,
+  usePerformanceTrends,
+} from "@/hooks/use-analytics";
+import { useAcademicYears } from "@/hooks/use-academic";
+import { viz, axisLabel, splitLine, tooltipStyle, legendStyle } from "@/lib/chart-theme";
 import { useAttendanceDashboard } from "@/hooks/use-attendance";
 import { useLibraryAnalytics } from "@/hooks/use-library";
 import Link from "next/link";
@@ -30,6 +39,90 @@ export default function AdminDashboard() {
     toLocalDateString(new Date())
   );
   const { data: library, isLoading: loadingLibrary, isError: libraryError, refetch: refetchLibrary } = useLibraryAnalytics();
+  const { data: years } = useAcademicYears();
+  const currentYearId = years?.find((y: any) => y.isCurrent)?.id ?? "";
+  const { data: trends } = usePerformanceTrends(currentYearId);
+  const { data: attendanceStats } = useAttendanceAnalytics();
+
+  // Term-by-term school average: the one line that says how the year is going.
+  const trendOption = useMemo<EChartsOption | null>(() => {
+    const pts = (trends ?? []).filter((t: any) => t.studentCount > 0);
+    if (pts.length < 2) return null;
+    return {
+      grid: { left: 40, right: 20, top: 20, bottom: 28 },
+      xAxis: {
+        type: "category",
+        data: pts.map((t: any) => t.termName),
+        boundaryGap: false,
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: viz.grid } },
+        axisLabel,
+      },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
+      tooltip: {
+        ...tooltipStyle,
+        trigger: "axis",
+        valueFormatter: (v: any) => `${Number(v).toFixed(1)}%`,
+      },
+      series: [
+        {
+          name: "School average",
+          type: "line",
+          data: pts.map((t: any) => t.averageScore),
+          lineStyle: { color: viz.navy, width: 2.5 },
+          itemStyle: { color: viz.navy, borderColor: "#fff", borderWidth: 2 },
+          symbolSize: 9,
+          label: {
+            show: true,
+            position: "top",
+            color: viz.muted,
+            fontSize: 11,
+            formatter: (p: any) => `${Number(p.value).toFixed(1)}%`,
+          },
+          areaStyle: { color: "rgba(42,120,214,0.08)" },
+        },
+      ],
+    };
+  }, [trends]);
+
+  // The last school days, present / late / absent stacked.
+  const attendanceOption = useMemo<EChartsOption | null>(() => {
+    const days = attendanceStats?.byDate;
+    if (!days?.length) return null;
+    const label = (iso: string) =>
+      new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+    const bar = (name: string, color: string, key: string, top = false) => ({
+      name,
+      type: "bar" as const,
+      stack: "att",
+      barWidth: 14,
+      itemStyle: {
+        color,
+        borderColor: "#fff",
+        borderWidth: 1,
+        ...(top ? { borderRadius: [3, 3, 0, 0] as [number, number, number, number] } : {}),
+      },
+      data: days.map((d: any) => d[key]),
+    });
+    return {
+      grid: { left: 40, right: 12, top: 14, bottom: 50 },
+      xAxis: {
+        type: "category",
+        data: days.map((d: any) => label(d.date)),
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: viz.grid } },
+        axisLabel: { ...axisLabel, fontSize: 10 },
+      },
+      yAxis: { type: "value", axisLabel, splitLine },
+      legend: { ...legendStyle, bottom: 0 },
+      tooltip: { ...tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
+      series: [
+        bar("Present", viz.attendance.present, "present"),
+        bar("Late", viz.attendance.late, "late"),
+        bar("Absent", viz.attendance.absent, "absent", true),
+      ],
+    };
+  }, [attendanceStats]);
 
   const isLoading = loadingDashboard && loadingAttendance && loadingLibrary;
   const isError = dashboardError || attendanceError || libraryError;
@@ -127,7 +220,26 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
+      {(trendOption || attendanceOption) && (
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
+          {trendOption && (
+            <Card>
+              <CardTitle>The year so far</CardTitle>
+              <p className="mt-0.5 text-sm text-muted">School average, term by term</p>
+              <EChart option={trendOption} height={215} />
+            </Card>
+          )}
+          {attendanceOption && (
+            <Card>
+              <CardTitle>Recent school days</CardTitle>
+              <p className="mt-0.5 text-sm text-muted">Who was in, late or missing</p>
+              <EChart option={attendanceOption} height={215} />
+            </Card>
+          )}
+        </div>
+      )}
+
+      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card>
           <CardTitle data-guide="quick-actions">Quick Actions</CardTitle>
           <div className="mt-4 grid grid-cols-2 gap-3">

@@ -15,4 +15,3 @@ export { Avatar } from "./avatar";
 export { Spinner, PageSpinner } from "./spinner";
 export { ExportDropdown } from "./export-dropdown";
 export { TooltipGuide } from "./tooltip-guide";
-export { Logo } from "./logo";

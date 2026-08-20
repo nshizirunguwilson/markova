@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { classDisplayName } from "@/lib/utils";
 import {
   Card,
   CardTitle,
@@ -47,7 +48,7 @@ export default function ParentDisciplinePage() {
         id: ps.student.id,
         name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
         className: ps.student.classSection
-          ? `${ps.student.classSection.classLevel?.name || ""} ${ps.student.classSection.name || ""}`
+          ? classDisplayName(ps.student.classSection)
           : "",
       }));
       setChildren(mapped);

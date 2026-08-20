@@ -11,21 +11,22 @@ export interface UserFilters {
   search?: string;
   isActive?: boolean;
   classSectionId?: string;
+  studentStatus?: string;
+  searchIn?: string;
 }
 
 export function useUsers(filters: UserFilters = {}) {
   return useQuery({
     queryKey: ["users", filters],
     queryFn: async () => {
+      // Send every set filter — hand-picking keys here is how filters get
+      // silently dropped when a new one is added.
       const params = new URLSearchParams();
-      if (filters.page) params.set("page", String(filters.page));
-      if (filters.limit) params.set("limit", String(filters.limit));
-      if (filters.role) params.set("role", filters.role);
-      if (filters.search) params.set("search", filters.search);
-      if (filters.isActive !== undefined)
-        params.set("isActive", String(filters.isActive));
-      if (filters.classSectionId)
-        params.set("classSectionId", filters.classSectionId);
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined && value !== "") {
+          params.set(key, String(value));
+        }
+      }
       const res = await api.get(`/users?${params.toString()}`);
       return res.data;
     },

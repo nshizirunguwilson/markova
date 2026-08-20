@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { EducationStage, SubjectScope } from '@prisma/client';
 
 // ─── ACADEMIC YEAR ────────────────────────────────────────────────────────────
 
@@ -125,6 +126,14 @@ export class CreateClassLevelDto {
   @IsInt()
   @Min(1)
   order: number;
+
+  @ApiPropertyOptional({
+    enum: EducationStage,
+    default: EducationStage.O_LEVEL,
+  })
+  @IsOptional()
+  @IsEnum(EducationStage)
+  stage?: EducationStage;
 }
 
 export class UpdateClassLevelDto {
@@ -141,6 +150,45 @@ export class UpdateClassLevelDto {
   order?: number;
 }
 
+// ─── TRADE ────────────────────────────────────────────────────────────────────
+
+export class CreateTradeDto {
+  @ApiProperty({ example: 'SWD' })
+  @IsString()
+  @MaxLength(10)
+  code: string;
+
+  @ApiProperty({ example: 'Software Development' })
+  @IsString()
+  @MaxLength(255)
+  name: string;
+
+  @ApiProperty({ example: 'ICT and Multimedia' })
+  @IsString()
+  @MaxLength(255)
+  sector: string;
+}
+
+export class UpdateTradeDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  code?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  sector?: string;
+}
+
 // ─── CLASS SECTION ────────────────────────────────────────────────────────────
 
 export class CreateClassSectionDto {
@@ -152,6 +200,11 @@ export class CreateClassSectionDto {
   @IsString()
   @MaxLength(255)
   name: string;
+
+  @ApiPropertyOptional({ description: 'Required for A-Level classes' })
+  @IsOptional()
+  @IsUUID()
+  tradeId?: string;
 }
 
 export class UpdateClassSectionDto {
@@ -165,6 +218,11 @@ export class UpdateClassSectionDto {
   @IsOptional()
   @IsUUID()
   classLevelId?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsUUID()
+  tradeId?: string | null;
 }
 
 // ─── SUBJECT ──────────────────────────────────────────────────────────────────
@@ -180,6 +238,21 @@ export class CreateSubjectDto {
   @IsString()
   @MaxLength(255)
   category?: string;
+
+  @ApiPropertyOptional({ enum: SubjectScope, default: SubjectScope.O_CORE })
+  @IsOptional()
+  @IsEnum(SubjectScope)
+  scope?: SubjectScope;
+
+  @ApiPropertyOptional({ description: 'Required when scope is A_SPECIFIC' })
+  @IsOptional()
+  @IsUUID()
+  tradeId?: string;
+
+  @ApiPropertyOptional({ description: 'Pin a module to one year level' })
+  @IsOptional()
+  @IsUUID()
+  classLevelId?: string;
 
   @ApiPropertyOptional({ example: 100 })
   @IsOptional()
@@ -199,6 +272,21 @@ export class UpdateSubjectDto {
   @IsString()
   @MaxLength(255)
   category?: string;
+
+  @ApiPropertyOptional({ enum: SubjectScope })
+  @IsOptional()
+  @IsEnum(SubjectScope)
+  scope?: SubjectScope;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsUUID()
+  tradeId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsUUID()
+  classLevelId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

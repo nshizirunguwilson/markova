@@ -7,12 +7,13 @@ import {
   Spinner,
   Button,
 } from "@/components/ui";
+import { A4Preview } from "@/components/a4-preview";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
-import { FileText, Printer } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
-import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
+import api from "@/lib/api";
+import { toast } from "sonner";
+import { Download, Eye, FileText, Printer } from "lucide-react";
 
 export default function StudentReportsPage() {
   const { user } = useAuthStore();
@@ -23,41 +24,76 @@ export default function StudentReportsPage() {
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
   const { data: report, isLoading } = useTermReport(studentId, termId);
+  const [officialHtml, setOfficialHtml] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"" | "view" | "print" | "download">("");
 
-  const handlePrint = () => {
-    if (!report) return;
+  const fetchOfficialHtml = async (): Promise<string | null> => {
+    try {
+      const res = await api.get(`/reports/term/${studentId}/html`, {
+        params: { termId },
+      });
+      return res.data;
+    } catch {
+      toast.error("Could not load the official report card");
+      return null;
+    }
+  };
+
+  // Print the same A4 card the school issues, not a homemade table.
+  const handlePrint = async () => {
+    setBusy("print");
+    const html = officialHtml ?? (await fetchOfficialHtml());
+    setBusy("");
+    if (!html) return;
+    setOfficialHtml(html);
     const w = window.open("", "_blank");
     if (w) {
-      w.document.write(`<html><head><title>Report Card</title><style>
-        body { font-family: Arial; margin: 40px; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: ${DEFAULT_BRAND_COLOR}; color: white; }
-        .header { text-align: center; margin-bottom: 20px; }
-      </style></head><body>
-        <div class="header"><h2>${report.student?.user?.firstName} ${report.student?.user?.lastName} — Term Report</h2></div>
-        <table><tr><th>Subject</th><th>Score</th><th>Grade</th></tr>
-        ${report.subjects?.map((s: any) => `<tr><td>${s.subjectName}</td><td>${s.average}</td><td>${s.grade}</td></tr>`).join("")}
-        </table>
-        <p><strong>Average:</strong> ${report.average} | <strong>Rank:</strong> ${report.rank}</p>
-      </body></html>`);
+      w.document.write(html);
       w.document.close();
       w.print();
     }
   };
 
+  const handleView = async () => {
+    if (officialHtml) return setOfficialHtml(null);
+    setBusy("view");
+    const html = await fetchOfficialHtml();
+    setBusy("");
+    if (html) setOfficialHtml(html);
+  };
+
+  const handleDownload = async () => {
+    setBusy("download");
+    try {
+      const res = await api.get(`/reports/term/${studentId}/pdf`, {
+        params: { termId },
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(
+        new Blob([res.data], { type: "application/pdf" }),
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "My-Report-Card.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Could not download the PDF");
+    } finally {
+      setBusy("");
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="My Report Cards"
-      />
+      <h1 className="text-xl md:text-2xl font-bold text-primary">My Report Cards</h1>
 
       <div className="flex gap-4">
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }} aria-label="Select Year">
+        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
           <option value="">Select Year</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)} aria-label="Select Term">
+        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
           <option value="">Select Term</option>
           {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -71,9 +107,20 @@ export default function StudentReportsPage() {
             <CardTitle>
               {report.student?.user?.firstName} {report.student?.user?.lastName} — {report.termName}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={handlePrint}>
-              <Printer className="w-4 h-4 mr-1" /> Print
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleView} disabled={busy !== ""}>
+                {busy === "view" ? <Spinner className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                {officialHtml ? "Hide card" : "View card"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload} disabled={busy !== ""}>
+                {busy === "download" ? <Spinner className="w-4 h-4 mr-1" /> : <Download className="w-4 h-4 mr-1" />}
+                Download
+              </Button>
+              <Button variant="outline" size="sm" onClick={handlePrint} disabled={busy !== ""}>
+                {busy === "print" ? <Spinner className="w-4 h-4 mr-1" /> : <Printer className="w-4 h-4 mr-1" />}
+                Print
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
@@ -102,6 +149,12 @@ export default function StudentReportsPage() {
               </div>
             ))}
           </div>
+
+          {officialHtml && (
+            <div className="rounded-lg border border-border bg-accent-light/40 p-3">
+              <A4Preview html={officialHtml} title="My report card" />
+            </div>
+          )}
 
           {report.teacherComment && (
             <div className="bg-surface-muted rounded-lg p-4">

@@ -41,7 +41,7 @@ export function ExportDropdown({ onExport, disabled }: ExportDropdownProps) {
         Export
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-border bg-surface py-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-border bg-surface py-1 shadow-popover">
           {formats.map(({ format, label, icon: Icon }) => (
             <button
               key={format}

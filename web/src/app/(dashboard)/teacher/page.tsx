@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthStore } from "@/stores/auth-store";
+import { classDisplayName } from "@/lib/utils";
 import { Card, CardTitle, PageSpinner } from "@/components/ui";
 import { useAssignments } from "@/hooks/use-academic";
 import Link from "next/link";
@@ -29,7 +30,7 @@ export default function TeacherDashboard() {
     const section = a.classSection;
     if (section && !uniqueClasses.has(section.id)) {
       const label = section.classLevel
-        ? `${section.classLevel.name} ${section.name}`
+        ? classDisplayName(section)
         : section.name;
       uniqueClasses.set(section.id, label);
     }
@@ -84,7 +85,7 @@ export default function TeacherDashboard() {
                     </span>
                     <span className="mx-2 text-muted">|</span>
                     <span className="text-sm text-muted">
-                      {a.classSection?.classLevel?.name} {a.classSection?.name}
+                      {classDisplayName(a.classSection)}
                     </span>
                   </div>
                 </div>
