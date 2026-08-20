@@ -172,29 +172,29 @@ export default function AdminSubjectsPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
             <input
-              className={`w-full rounded-lg border ${errors.name ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${errors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("name")}
               placeholder="e.g. Mathematics"
             />
-            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
+            {errors.name && <p className="mt-1 text-xs text-danger">{errors.name.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Category</label>
             <input
-              className={`w-full rounded-lg border ${errors.category ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("category")}
               placeholder="e.g. Sciences, Languages, Humanities"
             />
-            {errors.category && <p className="mt-1 text-xs text-red-500">{errors.category.message}</p>}
+            {errors.category && <p className="mt-1 text-xs text-danger">{errors.category.message}</p>}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Max Marks</label>
             <input
               type="number"
-              className={`w-full rounded-lg border ${errors.maxMarks ? "border-red-400" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("maxMarks", { valueAsNumber: true })}
             />
-            {errors.maxMarks && <p className="mt-1 text-xs text-red-500">{errors.maxMarks.message}</p>}
+            {errors.maxMarks && <p className="mt-1 text-xs text-danger">{errors.maxMarks.message}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={resetForm}>Cancel</Button>

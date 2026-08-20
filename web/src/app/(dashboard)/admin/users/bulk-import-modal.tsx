@@ -191,7 +191,7 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
 
         {/* Errors */}
         {errors.length > 0 && (
-          <div className="rounded-lg border border-danger/30 bg-red-50 p-3">
+          <div className="rounded-lg border border-danger/30 bg-danger-wash p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-danger">
               <AlertCircle className="h-4 w-4" />
               Import Errors

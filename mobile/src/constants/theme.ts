@@ -102,4 +102,27 @@ export const fontFamily = {
   bold: 'Poppins_700Bold',
 } as const;
 
+/** Sequential brand ramp for single-measure charts. Fills only, not text. */
+export const chartSeries = [
+  '#1B4F72',
+  '#2E86C1',
+  '#5DADE2',
+  '#85C1E9',
+  '#AED6F1',
+] as const;
+
+/** Distinct hues for unordered categories; each clears 4.5:1 against white. */
+export const chartCategorical = [
+  '#1B4F72',
+  '#117A65',
+  '#9A6208',
+  '#7D3C98',
+  '#943126',
+  '#1A5276',
+  '#0E6655',
+  '#6C3483',
+  '#A04000',
+  '#21618C',
+] as const;
+
 export type ThemeColor = keyof typeof colors;

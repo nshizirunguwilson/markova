@@ -1,6 +1,7 @@
 "use client";
 
 import { mediaUrl } from "@/lib/utils";
+import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
 
 import { Card, CardTitle, Button } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
@@ -17,7 +18,7 @@ export function BrandingTab() {
   const map = data?.map || {};
 
   const { register, handleSubmit } = useForm({
-    values: { primary_color: map.primary_color || "#1B4F72" },
+    values: { primary_color: map.primary_color || DEFAULT_BRAND_COLOR },
   });
 
   const onSaveColor = (data: any) => {

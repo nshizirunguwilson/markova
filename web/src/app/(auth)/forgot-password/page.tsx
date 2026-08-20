@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
           </form>
         ) : (
           <div className="space-y-5 text-center">
-            <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700">
+            <div className="rounded-lg bg-success-wash p-4 text-sm text-success">
               If an account with that email exists, a password-reset link is on its way.
               The link expires in 30 minutes.
             </div>

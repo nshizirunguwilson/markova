@@ -159,7 +159,7 @@ export default function MessagesPage() {
     const status = msg.status || "SENT";
 
     if (status === "READ") {
-      return <CheckCheck className="inline h-3.5 w-3.5 text-blue-400" />;
+      return <CheckCheck className="inline h-3.5 w-3.5 text-primary-light" />;
     }
     if (status === "DELIVERED") {
       return <CheckCheck className="inline h-3.5 w-3.5 text-white/50" />;
@@ -171,7 +171,7 @@ export default function MessagesPage() {
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-0">
       {/* WebSocket disconnect indicator */}
       {!chatStore.connected && (
-        <div className="flex items-center justify-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 mb-2 text-sm text-yellow-700">
+        <div className="flex items-center justify-center gap-2 bg-warning-wash border border-warning/30 rounded-lg px-4 py-2 mb-2 text-sm text-warning">
           <WifiOff className="h-4 w-4" />
           Reconnecting...
         </div>
@@ -212,7 +212,7 @@ export default function MessagesPage() {
                         {conv.type === "ONE_ON_ONE" && (
                           <span
                             className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
-                              isOtherOnline ? "bg-green-500" : "bg-gray-400"
+                              isOtherOnline ? "bg-success" : "bg-muted"
                             }`}
                           />
                         )}
@@ -266,7 +266,7 @@ export default function MessagesPage() {
                       return (
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
-                            chatStore.isOnline(other.id) ? "bg-green-500" : "bg-gray-400"
+                            chatStore.isOnline(other.id) ? "bg-success" : "bg-muted"
                           }`}
                         />
                       );
@@ -368,8 +368,8 @@ export default function MessagesPage() {
               <MessageSquare className="mx-auto h-12 w-12 text-muted/30" />
               <p className="mt-2 text-muted">Select a conversation or start a new one</p>
               {chatStore.connected && (
-                <p className="mt-1 text-xs text-green-500 flex items-center justify-center gap-1">
-                  <Circle className="h-2 w-2 fill-green-500" /> Connected
+                <p className="mt-1 text-xs text-success flex items-center justify-center gap-1">
+                  <Circle className="h-2 w-2 fill-success" /> Connected
                 </p>
               )}
             </div>

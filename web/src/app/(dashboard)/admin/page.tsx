@@ -61,13 +61,13 @@ export default function AdminDashboard() {
       label: "Total Students",
       value: dashboard?.totalStudents ?? "—",
       icon: GraduationCap,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-primary bg-accent-light",
     },
     {
       label: "Total Teachers",
       value: dashboard?.totalTeachers ?? "—",
       icon: UserCheck,
-      color: "text-emerald-600 bg-emerald-50",
+      color: "text-success bg-success-wash",
     },
     {
       label: "Total Users",
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
       label: "Subjects",
       value: dashboard?.totalSubjects ?? "—",
       icon: BookOpen,
-      color: "text-amber-600 bg-amber-50",
+      color: "text-warning bg-warning-wash",
     },
     {
       label: "Attendance Today",
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
       label: "Books on Loan",
       value: library?.activeLoans ?? "—",
       icon: Library,
-      color: "text-orange-600 bg-orange-50",
+      color: "text-warning bg-warning-wash",
     },
   ];
 
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
                 {attendance ? `${attendanceRate}%` : "—"}
               </span>
             </div>
-            <div className="h-2 rounded-full bg-gray-100">
+            <div className="h-2 rounded-full bg-surface-muted">
               <div
                 className="h-2 rounded-full bg-cyan-500 transition-all"
                 style={{ width: `${attendanceRate}%` }}

@@ -30,6 +30,8 @@ const radiusEntries = Object.entries(tokens.radius).filter(([k]) => !k.startsWit
 const fontSizeEntries = Object.entries(tokens.fontSize).filter(([k]) => !k.startsWith('$'));
 const spacingEntries = Object.entries(tokens.spacing).filter(([k]) => !k.startsWith('$'));
 const weightEntries = Object.entries(tokens.fontWeight).filter(([k]) => !k.startsWith('$'));
+const chartSeries = tokens.chartSeries.values;
+const chartCategorical = tokens.chartCategorical.values;
 
 // ── web: Tailwind v4 @theme block ───────────────────────────────────────────
 
@@ -56,6 +58,10 @@ ${radii}
 
   /* ── type scale (same pixels as mobile's fontSize.*) ────────────────────── */
 ${sizes}
+
+  /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
+${chartSeries.map((c, i) => `  --color-chart-${i + 1}: ${c};`).join('\n')}
+${chartCategorical.map((c, i) => `  --color-category-${i + 1}: ${c};`).join('\n')}
 
   /* ── families ───────────────────────────────────────────────────────────── */
   --font-sans: var(--font-poppins), ${tokens.font.fallback.web};
@@ -124,6 +130,16 @@ ${weights}
 export const fontFamily = {
 ${families}
 } as const;
+
+/** Sequential brand ramp for single-measure charts. Fills only, not text. */
+export const chartSeries = [
+${chartSeries.map((c) => `  '${c}',`).join('\n')}
+] as const;
+
+/** Distinct hues for unordered categories; each clears 4.5:1 against white. */
+export const chartCategorical = [
+${chartCategorical.map((c) => `  '${c}',`).join('\n')}
+] as const;
 
 export type ThemeColor = keyof typeof colors;
 `;

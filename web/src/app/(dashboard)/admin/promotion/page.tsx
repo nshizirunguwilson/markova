@@ -278,7 +278,7 @@ export default function AdminPromotionPage() {
               <span className="text-success font-medium">Promote: {tally.promote}</span>
               <span className="text-danger font-medium">Retain: {tally.retain}</span>
               {tally.overrides > 0 && (
-                <span className="flex items-center gap-1 text-amber-600">
+                <span className="flex items-center gap-1 text-warning">
                   <AlertTriangle className="h-4 w-4" /> {tally.overrides} override(s)
                 </span>
               )}
@@ -334,7 +334,7 @@ export default function AdminPromotionPage() {
                           </button>
                         </div>
                         {isOverride && (
-                          <span className="ml-2 text-xs text-amber-600">overridden</span>
+                          <span className="ml-2 text-xs text-warning">overridden</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -354,7 +354,7 @@ export default function AdminPromotionPage() {
               Commit decisions
             </Button>
             {!toSectionId && (
-              <span className="text-xs text-amber-600">Select a destination class above to commit.</span>
+              <span className="text-xs text-warning">Select a destination class above to commit.</span>
             )}
           </div>
         </Card>

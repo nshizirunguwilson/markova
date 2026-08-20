@@ -46,6 +46,23 @@
   --text-2xl: 1.5rem;
   --text-3xl: 1.875rem;
 
+  /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
+  --color-chart-1: #1B4F72;
+  --color-chart-2: #2E86C1;
+  --color-chart-3: #5DADE2;
+  --color-chart-4: #85C1E9;
+  --color-chart-5: #AED6F1;
+  --color-category-1: #1B4F72;
+  --color-category-2: #117A65;
+  --color-category-3: #9A6208;
+  --color-category-4: #7D3C98;
+  --color-category-5: #943126;
+  --color-category-6: #1A5276;
+  --color-category-7: #0E6655;
+  --color-category-8: #6C3483;
+  --color-category-9: #A04000;
+  --color-category-10: #21618C;
+
   /* ── families ───────────────────────────────────────────────────────────── */
   --font-sans: var(--font-poppins), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;

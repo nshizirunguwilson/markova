@@ -136,15 +136,15 @@ export default function AdminReportsPage() {
         title="Reports & Documents"
       />
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-border">
         {(["report-cards", "documents"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t
-                ? "border-[#1B4F72] text-[#1B4F72]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
             {t === "report-cards" ? "Report Cards" : "Documents"}

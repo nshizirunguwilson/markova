@@ -238,15 +238,15 @@ export default function AdminLibraryPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 mb-5">
+      <div className="flex flex-wrap gap-2 border-b border-border mb-5">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t.key
-                ? "border-[#1B4F72] text-[#1B4F72]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
             {t.label}
@@ -441,19 +441,19 @@ export default function AdminLibraryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-6">
               <p className="text-sm text-muted">Total Books</p>
-              <p className="text-3xl font-bold text-[#1B4F72]">{analytics?.totalBooks ?? 0}</p>
+              <p className="text-3xl font-bold text-primary">{analytics?.totalBooks ?? 0}</p>
             </Card>
             <Card className="p-6">
               <p className="text-sm text-muted">Active Loans</p>
-              <p className="text-3xl font-bold text-[#2E86C1]">{analytics?.activeLoans ?? 0}</p>
+              <p className="text-3xl font-bold text-primary-light">{analytics?.activeLoans ?? 0}</p>
             </Card>
             <Card className="p-6">
               <p className="text-sm text-muted">Overdue</p>
-              <p className="text-3xl font-bold text-red-600">{analytics?.overdueLoans ?? 0}</p>
+              <p className="text-3xl font-bold text-danger">{analytics?.overdueLoans ?? 0}</p>
             </Card>
             <Card className="p-6">
               <p className="text-sm text-muted">Total Checkouts</p>
-              <p className="text-3xl font-bold text-[#1B4F72]">{analytics?.totalCheckouts ?? 0}</p>
+              <p className="text-3xl font-bold text-primary">{analytics?.totalCheckouts ?? 0}</p>
             </Card>
             {analytics?.popularBooks && analytics.popularBooks.length > 0 && (
               <Card className="p-6 col-span-full">
@@ -489,23 +489,23 @@ export default function AdminLibraryPage() {
         <form onSubmit={handleSaveBook} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Title <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-sm font-medium">Title <span className="text-danger">*</span></label>
               <input
-                className={`w-full rounded-lg border ${bookForm.formState.errors.title ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("title")}
               />
               {bookForm.formState.errors.title && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.title.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.title.message}</p>
               )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Author <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-sm font-medium">Author <span className="text-danger">*</span></label>
               <input
-                className={`w-full rounded-lg border ${bookForm.formState.errors.author ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.author ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("author")}
               />
               {bookForm.formState.errors.author && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.author.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.author.message}</p>
               )}
             </div>
           </div>
@@ -513,22 +513,22 @@ export default function AdminLibraryPage() {
             <div>
               <label className="mb-1 block text-sm font-medium">ISBN</label>
               <input
-                className={`w-full rounded-lg border ${bookForm.formState.errors.isbn ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.isbn ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("isbn")}
               />
               {bookForm.formState.errors.isbn && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.isbn.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.isbn.message}</p>
               )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Category</label>
               <input
-                className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("category")}
                 placeholder="e.g. Fiction, Science, History"
               />
               {bookForm.formState.errors.category && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.category.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.category.message}</p>
               )}
             </div>
           </div>
@@ -537,22 +537,22 @@ export default function AdminLibraryPage() {
               <label className="mb-1 block text-sm font-medium">Total Copies</label>
               <input
                 type="number"
-                className={`w-full rounded-lg border ${bookForm.formState.errors.quantity ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.quantity ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("quantity", { valueAsNumber: true })}
               />
               {bookForm.formState.errors.quantity && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.quantity.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.quantity.message}</p>
               )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Shelf Location</label>
               <input
-                className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-red-500" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("shelfLocation")}
                 placeholder="e.g. A-3-12"
               />
               {bookForm.formState.errors.shelfLocation && (
-                <p className="mt-1 text-xs text-red-500">{bookForm.formState.errors.shelfLocation.message}</p>
+                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.shelfLocation.message}</p>
               )}
             </div>
           </div>
@@ -571,7 +571,7 @@ export default function AdminLibraryPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Book</label>
             <select
-              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.bookIdentifier ? "border-red-500" : "border-border"} px-3 py-2 text-sm`}
+              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.bookIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("bookIdentifier")}
             >
               <option value="">Select book</option>
@@ -580,13 +580,13 @@ export default function AdminLibraryPage() {
               ))}
             </select>
             {checkoutFormHook.formState.errors.bookIdentifier && (
-              <p className="mt-1 text-xs text-red-500">{checkoutFormHook.formState.errors.bookIdentifier.message}</p>
+              <p className="mt-1 text-xs text-danger">{checkoutFormHook.formState.errors.bookIdentifier.message}</p>
             )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Borrower (Student)</label>
             <select
-              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.studentIdentifier ? "border-red-500" : "border-border"} px-3 py-2 text-sm`}
+              className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.studentIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("studentIdentifier")}
             >
               <option value="">Select student</option>
@@ -595,7 +595,7 @@ export default function AdminLibraryPage() {
               ))}
             </select>
             {checkoutFormHook.formState.errors.studentIdentifier && (
-              <p className="mt-1 text-xs text-red-500">{checkoutFormHook.formState.errors.studentIdentifier.message}</p>
+              <p className="mt-1 text-xs text-danger">{checkoutFormHook.formState.errors.studentIdentifier.message}</p>
             )}
           </div>
           <div className="flex justify-end gap-3 pt-2">

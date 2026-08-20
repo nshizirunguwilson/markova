@@ -24,19 +24,19 @@ export default function LibrarianDashboard() {
       label: "Total Books",
       value: analytics?.totalBooks ?? 0,
       icon: BookOpen,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-primary bg-accent-light",
     },
     {
       label: "Active Loans",
       value: analytics?.activeLoans ?? 0,
       icon: BookMarked,
-      color: "text-emerald-600 bg-emerald-50",
+      color: "text-success bg-success-wash",
     },
     {
       label: "Overdue",
       value: analytics?.overdueLoans ?? 0,
       icon: AlertTriangle,
-      color: "text-red-600 bg-red-50",
+      color: "text-danger bg-danger-wash",
     },
     {
       label: "Total Checkouts",

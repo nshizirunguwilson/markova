@@ -73,7 +73,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {s.name} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-red-700">
+                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>

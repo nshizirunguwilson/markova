@@ -351,7 +351,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
               <hr className="my-1 border-border" />
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-red-50"
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger-wash"
               >
                 <LogOut className="h-4 w-4" />
                 Sign Out

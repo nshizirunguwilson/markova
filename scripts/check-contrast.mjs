@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const { color } = JSON.parse(readFileSync(join(root, 'design/tokens.json'), 'utf8'));
+const { color, chartCategorical } = JSON.parse(readFileSync(join(root, 'design/tokens.json'), 'utf8'));
 const c = (name) => color[name].value;
 
 const toRgb = (h) => {
@@ -62,6 +62,12 @@ const checks = [
   ['borderInput on background', 'borderInput', 'background', 3.0],
   ['primaryLight focus ring on surface', 'primaryLight', 'surface', 3.0],
 ];
+
+// Categorical chart fills carry white labels, so each must clear 4.5:1.
+chartCategorical.values.forEach((hex, i) => {
+  color[`__category${i + 1}`] = { value: hex };
+  checks.push([`white on categorical ${i + 1} (${hex})`, 'white', `__category${i + 1}`, 4.5]);
+});
 
 let failed = 0;
 console.log('WCAG contrast — design/tokens.json\n');

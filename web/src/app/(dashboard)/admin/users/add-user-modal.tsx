@@ -80,13 +80,13 @@ export function AddUserModal({ isOpen, onClose }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             id="firstName"
-            label={<>First Name <span className="text-red-500">*</span></>}
+            label={<>First Name <span className="text-danger">*</span></>}
             error={errors.firstName?.message}
             {...register("firstName")}
           />
           <Input
             id="lastName"
-            label={<>Last Name <span className="text-red-500">*</span></>}
+            label={<>Last Name <span className="text-danger">*</span></>}
             error={errors.lastName?.message}
             {...register("lastName")}
           />
@@ -113,7 +113,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Role <span className="text-red-500">*</span>
+              Role <span className="text-danger">*</span>
             </label>
             <select
               {...register("role")}
@@ -129,7 +129,7 @@ export function AddUserModal({ isOpen, onClose }: Props) {
           <div>
             <Input
               id="password"
-              label={<>Password <span className="text-red-500">*</span></>}
+              label={<>Password <span className="text-danger">*</span></>}
               type="password"
               placeholder="Min 8 characters"
               error={errors.password?.message}

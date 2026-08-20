@@ -89,19 +89,19 @@ export default function ProfilePage() {
               <img
                 src={mediaUrl(user.photoUrl)}
                 alt={user.firstName}
-                className="h-20 w-20 rounded-full object-cover border-2 border-[#1B4F72]/20"
+                className="h-20 w-20 rounded-full object-cover border-2 border-primary/20"
               />
             ) : (
-              <div className="h-20 w-20 rounded-full bg-[#1B4F72] flex items-center justify-center text-white text-2xl font-bold">
+              <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold">
                 {initials}
               </div>
             )}
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               {user.firstName} {user.lastName}
             </h2>
-            <span className="inline-block mt-1 rounded-full bg-[#1B4F72]/10 px-3 py-0.5 text-xs font-medium text-[#1B4F72]">
+            <span className="inline-block mt-1 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
               {user.role}
             </span>
           </div>
@@ -111,7 +111,7 @@ export default function ProfilePage() {
       {/* Profile Details */}
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900">Personal Information</h3>
+          <h3 className="text-base font-semibold text-foreground">Personal Information</h3>
           {!isEditing ? (
             <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
               Edit
@@ -130,70 +130,70 @@ export default function ProfilePage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1 block text-sm font-medium text-foreground-muted">
               <User className="inline h-4 w-4 mr-1" /> First Name
             </label>
             {isEditing ? (
               <input
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
               />
             ) : (
-              <p className="text-sm text-gray-900">{user.firstName}</p>
+              <p className="text-sm text-foreground">{user.firstName}</p>
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1 block text-sm font-medium text-foreground-muted">
               <User className="inline h-4 w-4 mr-1" /> Last Name
             </label>
             {isEditing ? (
               <input
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
               />
             ) : (
-              <p className="text-sm text-gray-900">{user.lastName}</p>
+              <p className="text-sm text-foreground">{user.lastName}</p>
             )}
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-600">
+          <label className="mb-1 block text-sm font-medium text-foreground-muted">
             <Mail className="inline h-4 w-4 mr-1" /> Email
           </label>
-          <p className="text-sm text-gray-900">{user.email || "Not set"}</p>
+          <p className="text-sm text-foreground">{user.email || "Not set"}</p>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-600">
+          <label className="mb-1 block text-sm font-medium text-foreground-muted">
             <Phone className="inline h-4 w-4 mr-1" /> Phone
           </label>
           {isEditing ? (
             <input
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               placeholder="+250..."
             />
           ) : (
-            <p className="text-sm text-gray-900">{user.phone || "Not set"}</p>
+            <p className="text-sm text-foreground">{user.phone || "Not set"}</p>
           )}
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-600">
+          <label className="mb-1 block text-sm font-medium text-foreground-muted">
             <Shield className="inline h-4 w-4 mr-1" /> Role
           </label>
-          <p className="text-sm text-gray-900">{user.role}</p>
+          <p className="text-sm text-foreground">{user.role}</p>
         </div>
       </Card>
 
       {/* Change Password */}
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900">
+          <h3 className="text-base font-semibold text-foreground">
             <Lock className="inline h-4 w-4 mr-1" /> Security
           </h3>
           {!showPassword && (
@@ -206,29 +206,29 @@ export default function ProfilePage() {
         {showPassword && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-600">Current Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">Current Password</label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.currentPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-600">New Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">New Password</label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                 placeholder="Min 8 characters"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-600">Confirm New Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground-muted">Confirm New Password</label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#1B4F72] focus:outline-none focus:ring-1 focus:ring-[#1B4F72]/30"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.confirmPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
               />

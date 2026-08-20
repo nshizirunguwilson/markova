@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { CHART_COLOR } from "@/lib/chart-colors";
 
 export default function StudentAnalyticsPage() {
   const { user } = useAuthStore();
@@ -50,21 +51,21 @@ export default function StudentAnalyticsPage() {
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="p-4 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">My Average</p>
-              <p className="text-2xl font-bold text-[#1B4F72]">{data.studentAverage}%</p>
+            <Card className="p-4 bg-accent">
+              <p className="text-xs text-foreground-muted">My Average</p>
+              <p className="text-2xl font-bold text-primary">{data.studentAverage}%</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Class Average</p>
-              <p className="text-2xl font-bold text-[#2E86C1]">{data.classAverage}%</p>
+              <p className="text-xs text-foreground-muted">Class Average</p>
+              <p className="text-2xl font-bold text-primary-light">{data.classAverage}%</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Rank</p>
-              <p className="text-2xl font-bold text-[#1B4F72]">{data.rank ?? "—"}</p>
+              <p className="text-xs text-foreground-muted">Rank</p>
+              <p className="text-2xl font-bold text-primary">{data.rank ?? "—"}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Total Students</p>
-              <p className="text-2xl font-bold text-gray-600">{data.totalStudents}</p>
+              <p className="text-xs text-foreground-muted">Total Students</p>
+              <p className="text-2xl font-bold text-foreground-muted">{data.totalStudents}</p>
             </Card>
           </div>
 
@@ -78,8 +79,8 @@ export default function StudentAnalyticsPage() {
                     <XAxis dataKey="subjectName" />
                     <YAxis domain={[0, 100]} />
                     <Tooltip />
-                    <Bar dataKey="average" fill="#1B4F72" name="My Score" />
-                    <ReferenceLine y={data.classAverage} stroke="#E74C3C" strokeDasharray="3 3" label="Class Avg" />
+                    <Bar dataKey="average" fill={CHART_COLOR.brand} name="My Score" />
+                    <ReferenceLine y={data.classAverage} stroke={CHART_COLOR.danger} strokeDasharray="3 3" label="Class Avg" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -89,8 +90,8 @@ export default function StudentAnalyticsPage() {
       )}
 
       {!isLoading && !data && termId && (
-        <Card className="p-8 text-center text-gray-500">
-          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+        <Card className="p-8 text-center text-muted">
+          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No analytics data available for this term
         </Card>
       )}

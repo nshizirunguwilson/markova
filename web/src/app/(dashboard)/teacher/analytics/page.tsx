@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { CHART_COLOR } from "@/lib/chart-colors";
 
 export default function TeacherAnalyticsPage() {
   const [yearId, setYearId] = useState("");
@@ -68,8 +69,8 @@ export default function TeacherAnalyticsPage() {
                     <XAxis dataKey="subjectName" />
                     <YAxis domain={[0, 100]} />
                     <Tooltip />
-                    <Bar dataKey="averageScore" fill="#2E86C1" name="Average" />
-                    <Bar dataKey="highestScore" fill="#1B4F72" name="Highest" />
+                    <Bar dataKey="averageScore" fill={CHART_COLOR.brandLight} name="Average" />
+                    <Bar dataKey="highestScore" fill={CHART_COLOR.brand} name="Highest" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -80,7 +81,7 @@ export default function TeacherAnalyticsPage() {
           {data.underperforming?.length > 0 && (
             <Card className="p-6">
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                <AlertTriangle className="w-5 h-5 text-warning" />
                 Underperforming Students
               </CardTitle>
               <div className="mt-4 space-y-2">
@@ -88,8 +89,8 @@ export default function TeacherAnalyticsPage() {
                   <div key={i} className="flex justify-between items-center py-2 border-b">
                     <span className="font-medium">{s.name}</span>
                     <div className="flex gap-3 text-sm">
-                      <span className="text-red-600 font-bold">{s.average}%</span>
-                      <span className="text-gray-500">{s.letterGrade}</span>
+                      <span className="text-danger font-bold">{s.average}%</span>
+                      <span className="text-muted">{s.letterGrade}</span>
                     </div>
                   </div>
                 ))}
@@ -100,8 +101,8 @@ export default function TeacherAnalyticsPage() {
       )}
 
       {!isLoading && !data && sectionId && termId && (
-        <Card className="p-8 text-center text-gray-500">
-          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+        <Card className="p-8 text-center text-muted">
+          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No analytics data available
         </Card>
       )}

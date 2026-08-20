@@ -50,14 +50,14 @@ export default function StudentDashboard() {
             {disciplinePoints}
             <span className="text-lg font-normal text-muted"> / 100</span>
           </p>
-          <div className="mt-3 h-2 rounded-full bg-gray-100">
+          <div className="mt-3 h-2 rounded-full bg-surface-muted">
             <div
               className={`h-2 rounded-full transition-all ${
                 disciplinePoints >= 70
-                  ? "bg-green-500"
+                  ? "bg-success"
                   : disciplinePoints >= 40
-                    ? "bg-amber-500"
-                    : "bg-red-500"
+                    ? "bg-warning"
+                    : "bg-danger"
               }`}
               style={{ width: `${Math.min(disciplinePoints, 100)}%` }}
             />

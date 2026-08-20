@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { CHART_COLOR } from "@/lib/chart-colors";
 
 interface Child { id: string; name: string; }
 
@@ -69,20 +70,20 @@ export default function ParentAnalyticsPage() {
           {/* Attendance Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Total Days</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{data.attendance?.totalDays}</p>
+              <p className="text-xs text-foreground-muted">Total Days</p>
+              <p className="text-xl font-bold text-primary">{data.attendance?.totalDays}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Present</p>
-              <p className="text-xl font-bold text-green-600">{data.attendance?.presentDays}</p>
+              <p className="text-xs text-foreground-muted">Present</p>
+              <p className="text-xl font-bold text-success">{data.attendance?.presentDays}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Absent</p>
-              <p className="text-xl font-bold text-red-600">{data.attendance?.absentDays}</p>
+              <p className="text-xs text-foreground-muted">Absent</p>
+              <p className="text-xl font-bold text-danger">{data.attendance?.absentDays}</p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-gray-600">Attendance Rate</p>
-              <p className="text-xl font-bold text-[#2E86C1]">{data.attendance?.rate}%</p>
+              <p className="text-xs text-foreground-muted">Attendance Rate</p>
+              <p className="text-xl font-bold text-primary-light">{data.attendance?.rate}%</p>
             </Card>
           </div>
 
@@ -97,7 +98,7 @@ export default function ParentAnalyticsPage() {
                     <XAxis dataKey="termName" />
                     <YAxis domain={[0, 100]} />
                     <Tooltip />
-                    <Line type="monotone" dataKey="average" stroke="#1B4F72" strokeWidth={2} dot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="average" stroke={CHART_COLOR.brand} strokeWidth={2} dot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -113,8 +114,8 @@ export default function ParentAnalyticsPage() {
                   <span className="font-medium">{t.termName}</span>
                   <div className="flex gap-4 text-sm">
                     <span>{t.average !== null ? `${t.average}%` : "—"}</span>
-                    <span className="text-[#1B4F72]">{t.letterGrade ?? "—"}</span>
-                    <span className="text-gray-500">Rank: {t.rank ?? "—"}</span>
+                    <span className="text-primary">{t.letterGrade ?? "—"}</span>
+                    <span className="text-muted">Rank: {t.rank ?? "—"}</span>
                   </div>
                 </div>
               ))}
@@ -124,8 +125,8 @@ export default function ParentAnalyticsPage() {
       )}
 
       {!isLoading && !data && yearId && selectedChild && (
-        <Card className="p-8 text-center text-gray-500">
-          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+        <Card className="p-8 text-center text-muted">
+          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No trend data available
         </Card>
       )}

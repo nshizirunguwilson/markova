@@ -71,10 +71,10 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
     setPos({ top, left });
 
     // Highlight the target element
-    el.classList.add("ring-2", "ring-[#2E86C1]", "ring-offset-2", "rounded-lg", "relative", "z-50");
+    el.classList.add("ring-2", "ring-primary-light", "ring-offset-2", "rounded-lg", "relative", "z-50");
 
     return () => {
-      el.classList.remove("ring-2", "ring-[#2E86C1]", "ring-offset-2", "rounded-lg", "relative", "z-50");
+      el.classList.remove("ring-2", "ring-primary-light", "ring-offset-2", "rounded-lg", "relative", "z-50");
     };
   }, [visible, currentStep, steps]);
 
@@ -106,39 +106,39 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="fixed z-50 w-[300px] bg-surface rounded-xl shadow-xl border border-[#D6EAF8] p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
+        className="fixed z-50 w-[300px] bg-surface rounded-xl shadow-xl border border-accent p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
         style={{ top: pos.top, left: pos.left }}
       >
         <button
           onClick={dismiss}
-          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+          className="absolute top-2 right-2 text-muted hover:text-foreground-muted"
         >
           <X className="h-4 w-4" />
         </button>
 
-        <h4 className="font-semibold text-[#1B4F72] text-sm mb-1">
+        <h4 className="font-semibold text-primary text-sm mb-1">
           {steps[currentStep].title}
         </h4>
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-foreground-muted mb-3">
           {steps[currentStep].content}
         </p>
 
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted">
             {currentStep + 1} of {steps.length}
           </span>
           <div className="flex gap-2">
             {currentStep > 0 && (
               <button
                 onClick={prev}
-                className="flex items-center text-xs text-[#2E86C1] hover:text-[#1B4F72] font-medium"
+                className="flex items-center text-xs text-primary-light hover:text-primary font-medium"
               >
                 <ChevronLeft className="h-3 w-3 mr-0.5" /> Back
               </button>
             )}
             <button
               onClick={next}
-              className="flex items-center text-xs bg-[#1B4F72] text-white px-3 py-1.5 rounded-lg hover:bg-[#2E86C1] font-medium"
+              className="flex items-center text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-light font-medium"
             >
               {currentStep < steps.length - 1 ? (
                 <>Next <ChevronRight className="h-3 w-3 ml-0.5" /></>

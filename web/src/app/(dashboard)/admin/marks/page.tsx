@@ -264,9 +264,9 @@ export default function AdminMarksPage() {
                   <TableRow key={r.id}>
                     <TableCell>
                       <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                        r.rank === 1 ? "bg-yellow-100 text-yellow-800" :
-                        r.rank === 2 ? "bg-gray-100 text-gray-700" :
-                        r.rank === 3 ? "bg-orange-100 text-orange-800" :
+                        r.rank === 1 ? "bg-warning-wash text-warning" :
+                        r.rank === 2 ? "bg-surface-muted text-foreground-muted" :
+                        r.rank === 3 ? "bg-warning-wash text-warning" :
                         "bg-muted/10 text-muted"
                       }`}>
                         {r.rank || "—"}

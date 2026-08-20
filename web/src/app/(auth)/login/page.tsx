@@ -384,8 +384,8 @@ export default function LoginPage() {
             onSubmit={changeForm.handleSubmit(onChangePassword)}
             className="space-y-5"
           >
-            <div className="mb-2 rounded-lg bg-amber-50 p-3 text-center">
-              <p className="text-sm font-medium text-amber-700">
+            <div className="mb-2 rounded-lg bg-warning-wash p-3 text-center">
+              <p className="text-sm font-medium text-warning">
                 You must change your password before continuing
               </p>
             </div>

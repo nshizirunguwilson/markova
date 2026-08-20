@@ -35,7 +35,7 @@ export function ExportDropdown({ onExport, disabled }: ExportDropdownProps) {
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted disabled:opacity-50"
       >
         <Download className="h-4 w-4" />
         Export

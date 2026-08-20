@@ -43,10 +43,10 @@ export default function HelpPage() {
   };
 
   const statusColor = (s: string) => {
-    if (s === "OPEN") return "bg-blue-100 text-blue-700";
-    if (s === "IN_PROGRESS") return "bg-yellow-100 text-yellow-700";
-    if (s === "RESOLVED") return "bg-green-100 text-green-700";
-    return "bg-gray-100 text-gray-700";
+    if (s === "OPEN") return "bg-accent text-primary";
+    if (s === "IN_PROGRESS") return "bg-warning-wash text-warning";
+    if (s === "RESOLVED") return "bg-success-wash text-success";
+    return "bg-surface-muted text-foreground-muted";
   };
 
   // Group FAQs by category
@@ -69,15 +69,15 @@ export default function HelpPage() {
         </Button>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-border">
         {(["faqs", "tickets"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t
-                ? "border-[#1B4F72] text-[#1B4F72]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
             {t === "faqs" ? "FAQ" : "My Tickets"}
@@ -88,7 +88,7 @@ export default function HelpPage() {
       {tab === "faqs" && (
         <div className="space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input
               type="text"
               placeholder="Search FAQ..."
@@ -102,23 +102,23 @@ export default function HelpPage() {
 
           {Object.entries(categories).map(([category, articles]) => (
             <div key={category}>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">{category}</h3>
+              <h3 className="text-sm font-semibold text-muted uppercase mb-2">{category}</h3>
               <div className="space-y-2">
                 {(articles as any[]).map((faq: any) => (
                   <Card key={faq.id} className="p-0 overflow-hidden">
                     <button
-                      className="w-full flex justify-between items-center p-4 text-left hover:bg-gray-50"
+                      className="w-full flex justify-between items-center p-4 text-left hover:bg-surface-muted"
                       onClick={() => setExpanded(expanded === faq.id ? null : faq.id)}
                     >
                       <span className="font-medium">{faq.title}</span>
                       {expanded === faq.id ? (
-                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                        <ChevronUp className="w-4 h-4 text-muted" />
                       ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                        <ChevronDown className="w-4 h-4 text-muted" />
                       )}
                     </button>
                     {expanded === faq.id && (
-                      <div className="px-4 pb-4 text-sm text-gray-600 border-t">
+                      <div className="px-4 pb-4 text-sm text-foreground-muted border-t">
                         <p className="mt-3 whitespace-pre-wrap">{faq.content}</p>
                       </div>
                     )}
@@ -129,8 +129,8 @@ export default function HelpPage() {
           ))}
 
           {!faqsLoading && Object.keys(categories).length === 0 && (
-            <Card className="p-8 text-center text-gray-500">
-              <HelpCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+            <Card className="p-8 text-center text-muted">
+              <HelpCircle className="w-12 h-12 mx-auto mb-2 text-border-strong" />
               No FAQ articles found
             </Card>
           )}
@@ -146,8 +146,8 @@ export default function HelpPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-medium">{ticket.title}</h3>
-                  <p className="text-sm text-gray-500 mt-1">{ticket.description}</p>
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-sm text-muted mt-1">{ticket.description}</p>
+                  <p className="text-xs text-muted mt-2">
                     {new Date(ticket.createdAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -157,8 +157,8 @@ export default function HelpPage() {
           ))}
 
           {!ticketsLoading && (!tickets || tickets.length === 0) && (
-            <Card className="p-8 text-center text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+            <Card className="p-8 text-center text-muted">
+              <MessageSquare className="w-12 h-12 mx-auto mb-2 text-border-strong" />
               No support tickets
             </Card>
           )}

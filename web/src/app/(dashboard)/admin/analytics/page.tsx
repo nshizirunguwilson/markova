@@ -27,8 +27,9 @@ import {
 } from "recharts";
 import { Users, GraduationCap, BookOpen, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { CHART_COLOR, CHART_SERIES } from "@/lib/chart-colors";
 
-const COLORS = ["#1B4F72", "#2E86C1", "#5DADE2", "#85C1E9", "#AED6F1"];
+const COLORS = CHART_SERIES;
 
 export default function AdminAnalyticsPage() {
   const [yearId, setYearId] = useState("");
@@ -64,20 +65,20 @@ export default function AdminAnalyticsPage() {
       {dashboard && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-[#D6EAF8] rounded-lg"><GraduationCap className="w-5 h-5 text-[#1B4F72]" /></div>
-            <div><p className="text-sm text-gray-500">Students</p><p className="text-xl font-bold">{dashboard.totalStudents}</p></div>
+            <div className="p-2 bg-accent rounded-lg"><GraduationCap className="w-5 h-5 text-primary" /></div>
+            <div><p className="text-sm text-muted">Students</p><p className="text-xl font-bold">{dashboard.totalStudents}</p></div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-[#D6EAF8] rounded-lg"><Users className="w-5 h-5 text-[#1B4F72]" /></div>
-            <div><p className="text-sm text-gray-500">Teachers</p><p className="text-xl font-bold">{dashboard.totalTeachers}</p></div>
+            <div className="p-2 bg-accent rounded-lg"><Users className="w-5 h-5 text-primary" /></div>
+            <div><p className="text-sm text-muted">Teachers</p><p className="text-xl font-bold">{dashboard.totalTeachers}</p></div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-[#D6EAF8] rounded-lg"><Users className="w-5 h-5 text-[#2E86C1]" /></div>
-            <div><p className="text-sm text-gray-500">Parents</p><p className="text-xl font-bold">{dashboard.totalParents}</p></div>
+            <div className="p-2 bg-accent rounded-lg"><Users className="w-5 h-5 text-primary-light" /></div>
+            <div><p className="text-sm text-muted">Parents</p><p className="text-xl font-bold">{dashboard.totalParents}</p></div>
           </Card>
           <Card className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-[#D6EAF8] rounded-lg"><BookOpen className="w-5 h-5 text-[#1B4F72]" /></div>
-            <div><p className="text-sm text-gray-500">Classes</p><p className="text-xl font-bold">{dashboard.totalClasses}</p></div>
+            <div className="p-2 bg-accent rounded-lg"><BookOpen className="w-5 h-5 text-primary" /></div>
+            <div><p className="text-sm text-muted">Classes</p><p className="text-xl font-bold">{dashboard.totalClasses}</p></div>
           </Card>
         </div>
       )}
@@ -94,7 +95,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="termName" />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="averageScore" stroke="#1B4F72" strokeWidth={2} />
+                  <Line type="monotone" dataKey="averageScore" stroke={CHART_COLOR.brand} strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -112,7 +113,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="className" />
                   <YAxis domain={[0, 100]} />
                   <Tooltip />
-                  <Bar dataKey="averageScore" fill="#2E86C1" />
+                  <Bar dataKey="averageScore" fill={CHART_COLOR.brandLight} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -138,16 +139,16 @@ export default function AdminAnalyticsPage() {
                     dataKey="value"
                     label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >
-                    <Cell fill="#2E86C1" />
-                    <Cell fill="#E74C3C" />
-                    <Cell fill="#F39C12" />
+                    <Cell fill={CHART_COLOR.brandLight} />
+                    <Cell fill={CHART_COLOR.danger} />
+                    <Cell fill={CHART_COLOR.warning} />
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <p className="text-center text-sm text-gray-500 mt-2">
-              Attendance Rate: <span className="font-bold text-[#1B4F72]">{attendance.attendanceRate}%</span>
+            <p className="text-center text-sm text-muted mt-2">
+              Attendance Rate: <span className="font-bold text-primary">{attendance.attendanceRate}%</span>
             </p>
           </Card>
         )}
@@ -163,7 +164,7 @@ export default function AdminAnalyticsPage() {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#E74C3C" />
+                  <Bar dataKey="count" fill={CHART_COLOR.danger} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -176,29 +177,29 @@ export default function AdminAnalyticsPage() {
             <CardTitle>Library Usage</CardTitle>
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-[#1B4F72]">{library.totalBooks}</p>
-                <p className="text-sm text-gray-500">Total Books</p>
+                <p className="text-2xl font-bold text-primary">{library.totalBooks}</p>
+                <p className="text-sm text-muted">Total Books</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-[#2E86C1]">{library.activeLoans}</p>
-                <p className="text-sm text-gray-500">Active Loans</p>
+                <p className="text-2xl font-bold text-primary-light">{library.activeLoans}</p>
+                <p className="text-sm text-muted">Active Loans</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-red-500">{library.overdueLoans}</p>
-                <p className="text-sm text-gray-500">Overdue</p>
+                <p className="text-2xl font-bold text-danger">{library.overdueLoans}</p>
+                <p className="text-sm text-muted">Overdue</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{library.totalLoans}</p>
-                <p className="text-sm text-gray-500">Total Loans</p>
+                <p className="text-2xl font-bold text-success">{library.totalLoans}</p>
+                <p className="text-sm text-muted">Total Loans</p>
               </div>
             </div>
             {library.popularBooks?.length > 0 && (
               <div className="mt-4">
-                <p className="text-sm font-medium text-gray-600 mb-2">Popular Books</p>
+                <p className="text-sm font-medium text-foreground-muted mb-2">Popular Books</p>
                 {library.popularBooks.slice(0, 5).map((b: any, i: number) => (
                   <div key={i} className="flex justify-between text-sm py-1 border-b">
                     <span>{b.title}</span>
-                    <span className="text-gray-500">{b.loanCount} loans</span>
+                    <span className="text-muted">{b.loanCount} loans</span>
                   </div>
                 ))}
               </div>

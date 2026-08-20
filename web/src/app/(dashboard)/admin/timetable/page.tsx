@@ -18,6 +18,7 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { CalendarDays, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { CHART_CATEGORICAL } from "@/lib/chart-colors";
 
 // FullCalendar must run client-side only
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false });
@@ -28,10 +29,7 @@ const modelToJsDay = (m: number) => (m === 7 ? 0 : m);
 const hhmm = (d: Date) =>
   `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
-const SUBJECT_COLORS = [
-  "#1B4F72", "#117A65", "#B9770E", "#7D3C98", "#943126",
-  "#1A5276", "#0E6655", "#6C3483", "#A04000", "#21618C",
-];
+const SUBJECT_COLORS = CHART_CATEGORICAL;
 function colorFor(key: string) {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
