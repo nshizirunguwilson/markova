@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload, PayloadWithId } from "./types";
 import { errorMessage } from "@/lib/errors";
 
 // ─── Marks CRUD ──────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ export function useMarks(params?: Record<string, string>) {
 export function useCreateMark() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/marks", data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
@@ -31,7 +32,7 @@ export function useCreateMark() {
 export function useUpdateMark() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/marks/${id}`, data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
@@ -43,8 +44,8 @@ export function useUpdateMark() {
 export function useBatchMarks() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/batch", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/batch", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
       toast.success(`${data.count} marks saved`);
@@ -87,8 +88,8 @@ export function useStudentTermResult(studentId?: string, termId?: string) {
 export function useCalculateTermResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/term-results/calculate", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/term-results/calculate", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success(`Calculated results for ${data.count} students`);
     },
@@ -99,7 +100,7 @@ export function useCalculateTermResults() {
 export function usePublishTermResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/term-results/publish", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/marks/term-results/publish", data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Results published");
@@ -111,7 +112,7 @@ export function usePublishTermResults() {
 export function useUpdateTermResultComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/term-results/${id}/comment`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/marks/term-results/${id}/comment`, data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Comment saved");
@@ -143,8 +144,8 @@ export function useStudentYearResult(studentId?: string, academicYearId?: string
 export function useCalculateYearResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/year-results/calculate", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/year-results/calculate", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["year-results"] });
       toast.success(`Calculated year results for ${data.count} students`);
     },

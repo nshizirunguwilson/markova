@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload, PayloadWithId } from "./types";
 import { errorMessage } from "@/lib/errors";
 
 // ─── Academic Years ─────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ export function useAcademicYears() {
 export function useCreateAcademicYear() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/years", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/years", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["academic-years"] }); toast.success("Academic year created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -38,7 +39,7 @@ export function useTerms(academicYearId?: string) {
 export function useCreateTerm() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/terms", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/terms", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -115,7 +116,7 @@ export function useClassLevels() {
 export function useCreateClassLevel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/class-levels", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/class-levels", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Class level created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -124,7 +125,7 @@ export function useCreateClassLevel() {
 export function useUpdateClassLevel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/class-levels/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/academic/class-levels/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Class level updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -151,7 +152,7 @@ export function useTrades() {
 export function useCreateTrade() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/trades", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/trades", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -160,7 +161,7 @@ export function useCreateTrade() {
 export function useUpdateTrade() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/trades/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/academic/trades/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -190,7 +191,7 @@ export function useSections(classLevelId?: string) {
 export function useCreateSection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/sections", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/sections", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Section created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -199,7 +200,7 @@ export function useCreateSection() {
 export function useUpdateSection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/sections/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/academic/sections/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Section updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -226,7 +227,7 @@ export function useSubjects() {
 export function useCreateSubject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/subjects", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/subjects", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subjects"] }); toast.success("Subject created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -235,7 +236,7 @@ export function useCreateSubject() {
 export function useUpdateSubject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/subjects/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/academic/subjects/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subjects"] }); toast.success("Subject updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -262,7 +263,7 @@ export function useAssessmentTypes() {
 export function useCreateAssessmentType() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/assessment-types", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/assessment-types", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assessment-types"] }); toast.success("Assessment type created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -286,7 +287,7 @@ export function useAssignments(filters?: { teacherId?: string; classSectionId?: 
 export function useCreateAssignment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/assignments", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/assignments", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assignments"] }); toast.success("Assignment created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -295,7 +296,7 @@ export function useCreateAssignment() {
 export function useBulkAssignments() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/assignments/bulk", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/assignments/bulk", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assignments"] }); toast.success("Assignments created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -328,7 +329,7 @@ export function useTimetable(classSectionId?: string, teacherId?: string) {
 export function useCreateTimetable() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/academic/timetable", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/academic/timetable", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Lesson added"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed to add lesson")),
   });
@@ -337,7 +338,7 @@ export function useCreateTimetable() {
 export function useUpdateTimetable() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/timetable/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/academic/timetable/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed to update lesson")),
   });

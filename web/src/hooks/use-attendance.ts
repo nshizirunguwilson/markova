@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { BulkSaveResponse, Payload, ScanResponse } from "./types";
 import { errorMessage } from "@/lib/errors";
 
 export function useClassAttendance(classSectionId?: string, date?: string) {
@@ -17,8 +18,8 @@ export function useClassAttendance(classSectionId?: string, date?: string) {
 export function useBulkAttendance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/attendance/bulk", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/attendance/bulk", data)).data,
+    onSuccess: (data: BulkSaveResponse) => {
       qc.invalidateQueries({ queryKey: ["class-attendance"] });
       qc.invalidateQueries({ queryKey: ["attendance-dashboard"] });
       toast.success(`${data.count} records saved`);
@@ -30,8 +31,8 @@ export function useBulkAttendance() {
 export function useQrScan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/attendance/qr-scan", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/attendance/qr-scan", data)).data,
+    onSuccess: (data: ScanResponse) => {
       qc.invalidateQueries({ queryKey: ["class-attendance"] });
       // Read defensively: a scan that reached the server has been recorded,
       // and the toast naming the student must not be able to report it as a

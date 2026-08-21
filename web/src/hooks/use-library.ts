@@ -3,6 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type {
+  BulkSaveResponse,
+  LoanResponse,
+  Payload,
+  PayloadWithId,
+} from "./types";
 import { errorMessage } from "@/lib/errors";
 
 export function useBooks(params?: Record<string, string>) {
@@ -24,7 +30,7 @@ export function useBook(id?: string) {
 export function useCreateBook() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/library/books", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/library/books", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success("Book added"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -33,7 +39,7 @@ export function useCreateBook() {
 export function useUpdateBook() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/library/books/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/library/books/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success("Book updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -51,8 +57,8 @@ export function useDeleteBook() {
 export function useCheckout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/library/checkout", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/library/checkout", data)).data,
+    onSuccess: (data: LoanResponse) => {
       qc.invalidateQueries({ queryKey: ["books"] });
       qc.invalidateQueries({ queryKey: ["active-loans"] });
       // Reads defensively. The success toast is decoration, and it should not
@@ -69,8 +75,8 @@ export function useCheckout() {
 export function useReturn() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/library/return", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/library/return", data)).data,
+    onSuccess: (data: LoanResponse) => {
       qc.invalidateQueries({ queryKey: ["books"] });
       qc.invalidateQueries({ queryKey: ["active-loans"] });
       const title = data?.book?.title ?? "Book";
@@ -106,7 +112,7 @@ export function useBulkImportBooks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: { books: any[] }) => (await api.post("/library/books/bulk", data)).data,
-    onSuccess: (data: any) => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success(`${data.count} books imported`); },
+    onSuccess: (data: BulkSaveResponse) => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success(`${data?.count ?? 0} books imported`); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Import failed")),
   });
 }

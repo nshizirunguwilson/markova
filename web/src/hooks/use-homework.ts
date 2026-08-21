@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload, PayloadWithId } from "./types";
 import { errorMessage } from "@/lib/errors";
 
 export function useHomeworks(params?: Record<string, string>) {
@@ -24,7 +25,7 @@ export function useHomework(id?: string) {
 export function useCreateHomework() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/homework", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/homework", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework created"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -33,7 +34,7 @@ export function useCreateHomework() {
 export function useUpdateHomework() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/homework/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/homework/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework updated"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -51,7 +52,7 @@ export function useDeleteHomework() {
 export function useSubmitHomework() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/homework/submit", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/homework/submit", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["student-homework"] }); toast.success("Submitted"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -60,7 +61,7 @@ export function useSubmitHomework() {
 export function useGradeSubmission() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/homework/submissions/${id}/grade`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/homework/submissions/${id}/grade`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homework"] }); toast.success("Graded"); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });

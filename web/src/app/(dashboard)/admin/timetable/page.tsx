@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -175,11 +176,15 @@ export default function AdminTimetablePage() {
         { classSectionId: sectionId, ...payload },
         { onSuccess: () => setModal(null) }
       );
-    } else {
+    } else if (modal.entryId) {
       updateTt.mutate(
         { id: modal.entryId, ...payload },
         { onSuccess: () => setModal(null) }
       );
+    } else {
+      // Edit mode with no entry id would PUT to /timetable/undefined. The
+      // delete handler already guards for this; this one did not.
+      toast.error("That timetable entry could not be identified.");
     }
   };
 

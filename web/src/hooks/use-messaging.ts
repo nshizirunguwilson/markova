@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload } from "./types";
 import { errorMessage } from "@/lib/errors";
 
 export function useContacts(search?: string) {
@@ -35,7 +36,7 @@ export function useMessages(conversationId?: string) {
 export function useCreateConversation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/messaging/conversations", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/messaging/conversations", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); },
     onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
@@ -44,7 +45,7 @@ export function useCreateConversation() {
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/messaging/messages", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/messaging/messages", data)).data,
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
