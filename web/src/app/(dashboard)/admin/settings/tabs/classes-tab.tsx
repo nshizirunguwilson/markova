@@ -8,6 +8,7 @@ import { Plus, Layers, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorMessage } from "@/lib/errors";
 
 export function ClassesTab() {
   const { data: levels } = useClassLevels();
@@ -51,8 +52,8 @@ export function ClassesTab() {
       await api.delete(`/academic/class-levels/${id}`);
       qc.invalidateQueries({ queryKey: ["class-levels"] });
       toast.success("Class level deleted");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed — may have linked data");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed — may have linked data"));
     }
   };
 
@@ -62,8 +63,8 @@ export function ClassesTab() {
       qc.invalidateQueries({ queryKey: ["class-levels"] });
       qc.invalidateQueries({ queryKey: ["sections"] });
       toast.success("Section deleted");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed — may have students");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed — may have students"));
     }
   };
 

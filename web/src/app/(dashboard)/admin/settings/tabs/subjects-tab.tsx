@@ -21,6 +21,7 @@ import { Plus, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorMessage } from "@/lib/errors";
 
 export function SubjectsTab() {
   const { data: subjects } = useSubjects();
@@ -45,8 +46,8 @@ export function SubjectsTab() {
       await api.put(`/academic/subjects/${id}`, { isActive: !isActive });
       qc.invalidateQueries({ queryKey: ["subjects"] });
       toast.success(isActive ? "Subject deactivated" : "Subject activated");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed"));
     }
   };
 
@@ -55,8 +56,8 @@ export function SubjectsTab() {
       await api.delete(`/academic/subjects/${id}`);
       qc.invalidateQueries({ queryKey: ["subjects"] });
       toast.success("Subject deleted");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed — may have linked marks");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed — may have linked marks"));
     }
   };
 
