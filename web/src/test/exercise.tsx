@@ -120,6 +120,43 @@ export async function clickEverything({ limit = 40 }: ExerciseOptions = {}) {
   return clicked;
 }
 
+/**
+ * Walks a multi-step flow forward.
+ *
+ * Wizards validate the current step before advancing, so each round fills what
+ * is on screen first. Without this, everything past step one is unreachable:
+ * the add-user wizard alone is five steps of fields nothing else ever sees.
+ */
+export async function walkForward(maxSteps = 8) {
+  const FORWARD = /^(next|continue|proceed|save and continue)\b/i;
+  let advanced = 0;
+
+  for (let step = 0; step < maxSteps; step += 1) {
+    await fillEverything();
+
+    const forward = screen
+      .queryAllByRole("button")
+      .find(
+        (b) =>
+          !(b as HTMLButtonElement).disabled &&
+          FORWARD.test((b.textContent ?? "").trim()),
+      );
+    if (!forward) break;
+
+    const before = document.body.textContent;
+    await act(async () => {
+      fireEvent.click(forward);
+    });
+    advanced += 1;
+
+    // A step that refuses to advance is showing a validation error, and
+    // clicking the same button again will not change its mind.
+    if (document.body.textContent === before) break;
+  }
+
+  return advanced;
+}
+
 /** Submits every form on the page, after filling it. */
 export async function submitEveryForm() {
   const forms = Array.from(document.querySelectorAll("form"));
@@ -146,6 +183,7 @@ export async function exercisePage(options: ExerciseOptions = {}) {
 
   try {
     await fillEverything();
+    await walkForward();
     await clickEverything(options);
     await submitEveryForm();
     await waitFor(() => expect(document.body).toBeTruthy());
