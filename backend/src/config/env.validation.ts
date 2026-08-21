@@ -33,7 +33,15 @@ export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
   const problems: string[] = [];
-  const get = (key: string) => String(config[key] ?? '').trim();
+  // Values arrive as `unknown`. Anything that is not a string or a number is
+  // not a value this app was given on the command line or in a .env file, so it
+  // is treated as absent rather than stringified into '[object Object]'.
+  const get = (key: string): string => {
+    const value = config[key];
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return String(value);
+    return '';
+  };
 
   const isProduction = get('NODE_ENV') === 'production';
 

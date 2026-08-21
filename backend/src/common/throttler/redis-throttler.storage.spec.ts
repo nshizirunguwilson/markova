@@ -29,7 +29,9 @@ describe('RedisThrottlerStorage', () => {
   });
 
   it('reports a block', async () => {
-    const storage = makeStorage(jest.fn().mockResolvedValue([101, 30_000, 1, 30_000]));
+    const storage = makeStorage(
+      jest.fn().mockResolvedValue([101, 30_000, 1, 30_000]),
+    );
     const record = await storage.increment('key', 60_000, 100, 0, 'default');
     expect(record).toMatchObject({ isBlocked: true, timeToBlockExpire: 30 });
   });

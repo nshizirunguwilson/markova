@@ -19,9 +19,7 @@ describe('validateEnv()', () => {
   it.each(['JWT_SECRET', 'JWT_REFRESH_SECRET'])('requires %s', (key) => {
     const config: Record<string, unknown> = { ...valid };
     delete config[key];
-    expect(() => validateEnv(config)).toThrow(
-      new RegExp(`${key} is required`),
-    );
+    expect(() => validateEnv(config)).toThrow(new RegExp(`${key} is required`));
   });
 
   // The reason this validator exists. An unset refresh secret falls back to

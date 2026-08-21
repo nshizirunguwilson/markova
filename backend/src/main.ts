@@ -28,7 +28,10 @@ async function bootstrap() {
   // X-Forwarded-For and sidestep rate limiting entirely.
   const trustProxy = process.env.TRUST_PROXY?.trim();
   if (trustProxy) {
-    app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+    app.set(
+      'trust proxy',
+      /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy,
+    );
   }
 
   app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });

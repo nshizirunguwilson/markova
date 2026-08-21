@@ -122,7 +122,7 @@ describe('ReportsService', () => {
       classStats: {},
     };
 
-    it("embeds a logo as a data URI — a stored path can never be fetched by Chrome", () => {
+    it('embeds a logo as a data URI — a stored path can never be fetched by Chrome', () => {
       // setContent() has no base URL, so /uploads/... would silently render as
       // a broken image in the PDF.
       const html = render(baseData);
