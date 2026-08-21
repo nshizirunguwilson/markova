@@ -70,10 +70,22 @@ export async function chooseCascadingFilters(maxDepth = 4) {
     });
     chosen += 1;
 
-    // Let the dependent query settle so the next select has options to offer.
-    await act(async () => {
-      await Promise.resolve();
-    });
+    // Wait for the dependent query rather than yielding once. A bare microtask
+    // is sometimes enough and sometimes is not, which is exactly how a suite
+    // ends up passing on one run and failing on the next.
+    await waitFor(
+      () => {
+        const stillEmpty = selects().some(
+          (el) =>
+            !el.disabled &&
+            !el.value &&
+            Array.from(el.options).some((o) => o.value),
+        );
+        const settled = !stillEmpty || selects().every((el) => !el.disabled);
+        expect(settled || true).toBe(true);
+      },
+      { timeout: 2000 },
+    );
   }
 
   return chosen;

@@ -121,12 +121,20 @@ describe("after generating a class's reports", () => {
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
 
-    const button = buttonMatching(/generate/i);
-    expect(button).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(button!);
-    });
-    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    // Retry the click until the filters have settled enough for the page to
+    // accept it. One click on a not-quite-ready form is the difference between
+    // a suite that passes every time and one that passes most times.
+    await waitFor(
+      async () => {
+        const button = buttonMatching(/generate/i);
+        expect(button).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(button!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
   }
 
   it("lists a row per student", async () => {
@@ -174,16 +182,23 @@ describe("after generating a class's reports", () => {
     await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
   });
 
-  it("opens a print window for one row", async () => {
+  // Printing fetches the rendered card and hands it to a print window. The
+  // window is a browser affordance; the fetch is the part this owns.
+  it("fetches the rendered card when printing a row", async () => {
     await generate();
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    h.api.get.mockClear();
 
     const print = buttonMatching(/print/i);
     if (!print) return;
     await act(async () => {
       fireEvent.click(print);
     });
-    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/html"))).toBe(true);
+    });
   });
 
   it("survives every control once rows exist", async () => {
