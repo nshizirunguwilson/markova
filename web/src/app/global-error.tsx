@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { displayableError } from "@/lib/error-display";
 
 export default function GlobalError({
   error,
@@ -20,7 +21,7 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p className="text-sm text-muted mb-6">
-            {error.message || "An unexpected error occurred."}
+            {displayableError(error).message}
           </p>
           <button
             onClick={reset}

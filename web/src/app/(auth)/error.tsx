@@ -3,6 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui";
+import { displayableError } from "@/lib/error-display";
 
 export default function AuthError({
   error,
@@ -21,7 +22,7 @@ export default function AuthError({
           Something went wrong
         </h1>
         <p className="text-sm text-muted mb-6">
-          {error.message || "An unexpected error occurred."}
+          {displayableError(error).message}
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
