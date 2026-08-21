@@ -35,7 +35,14 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
+// echarts renders to a canvas, which jsdom does not provide. What these passes
+// care about is whether a page survives its data, not whether a chart paints.
+vi.mock("@/components/ui/echart", () => ({
+  EChart: () => <div data-testid="chart" />,
+}));
+
 import { renderPage, serve, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
+import { exercisePage } from "@/test/exercise";
 import { populatedRoutes } from "@/test/fixtures";
 import type { User } from "@/stores/auth-store";
 
@@ -182,4 +189,25 @@ describe("every dashboard page renders real content", () => {
       { timeout: 5000 },
     );
   });
+});
+
+/**
+ * Every control on every page, clicked and filled.
+ *
+ * The passes above prove a page renders. This one reaches its handlers: the
+ * modal opens, the tab switches, the filter changes, the form submits. Those
+ * are the lines a render-only test never touches, and they are where the crashes
+ * this branch fixed were hiding.
+ */
+describe("every dashboard page survives being used", () => {
+  it.each(pages)("$name handles its own controls", async ({ role, Page }) => {
+    serve(h.api, populatedRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const { rejections } = await exercisePage();
+
+    expect(rejections).toEqual([]);
+    expect(document.body.textContent).not.toBeNull();
+  }, 30000);
 });

@@ -42,8 +42,8 @@ export default function StudentDisciplinePage() {
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
                     className={`h-3 rounded-full transition-all ${
-                      data.student.percentage >= 80 ? "bg-success" :
-                      data.student.percentage >= 50 ? "bg-warning" :
+                      (data.student?.percentage ?? 0) >= 80 ? "bg-success" :
+                      (data.student?.percentage ?? 0) >= 50 ? "bg-warning" :
                       "bg-danger"
                     }`}
                     style={{ width: `${data.student?.percentage ?? 0}%` }}
@@ -58,11 +58,11 @@ export default function StudentDisciplinePage() {
           </Card>
 
           {/* Incidents List */}
-          {data.incidents.length > 0 ? (
+          {(data.incidents?.length ?? 0) > 0 ? (
             <Card>
               <CardTitle><AlertTriangle className="mr-2 inline h-5 w-5" /> Incidents</CardTitle>
               <div className="mt-4 space-y-3">
-                {data.incidents.map((inc: any) => (
+                {(data.incidents ?? []).map((inc: any) => (
                   <div key={inc.id} className="rounded-lg border border-border/50 p-4">
                     <div className="flex items-start justify-between">
                       <div>

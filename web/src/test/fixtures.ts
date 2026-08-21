@@ -119,13 +119,25 @@ export const populatedRoutes: Record<string, unknown> = {
   "/attendance/class": [attendanceRecord],
   "/attendance/class-students": students,
   "/attendance/student-summary": { present: 58, absent: 2, late: 1, excused: 0, rate: 95.1, records: [attendanceRecord] },
-  "/attendance/dashboard": { present: 300, absent: 12, late: 5, rate: 94.6, byClass: [{ classSection, present: 30, absent: 2 }] },
+  "/attendance/dashboard": {
+    date: "2026-08-21",
+    overall: { totalStudents: 320, present: 300, late: 8, absent: 12, rate: 96 },
+    sections: [
+      { sectionId: "section-1", className: "Senior 1 A", total: 32, present: 30, late: 1, absent: 1, rate: 97 },
+    ],
+  },
   "/attendance/chronic": [{ student: students[1], absences: 7 }],
 
   "/discipline/incidents": [incident],
   "/discipline/student": [incident],
   "/discipline/appeals/pending": [],
-  "/discipline/dashboard": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }], recent: [incident] },
+  "/discipline/dashboard": {
+    totalIncidents: 4,
+    totalPointsDeducted: 20,
+    pendingAppeals: 0,
+    byAction: { WARNING: 3, SUSPENSION: 1 },
+    topOffenders: [{ student: students[1], count: 2, points: 10 }],
+  },
 
   "/library/books": [book],
   "/library/loans/active": [loan],
@@ -148,13 +160,17 @@ export const populatedRoutes: Record<string, unknown> = {
   "/help/tickets": [ticket],
 
   "/analytics/admin/dashboard": { students: 320, teachers: 24, classes: 12, attendanceRate: 94.6, averageScore: 71.2 },
-  "/analytics/admin/performance-trends": [{ term: "Term 1", average: 71.2 }],
-  "/analytics/admin/class-comparisons": [{ classSection, average: 73.1 }],
+  "/analytics/admin/performance-trends": [{ termName: "Term 1", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 }],
+  "/analytics/admin/class-comparisons": [{ className: "Senior 1 A", averageScore: 73.1, studentCount: 32 }],
   "/analytics/admin/discipline": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }] },
   "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
   "/analytics/admin/attendance": { rate: 94.6, byClass: [{ classSection, rate: 95 }] },
-  "/analytics/admin/grade-distribution": [{ grade: "A", count: 40 }],
-  "/analytics/admin/enrollment": [{ level: "Senior 1", count: 120 }],
+  // Per level, with a letter->count map. See analytics.service.ts.
+  "/analytics/admin/grade-distribution": [
+    { level: "Senior 1", total: 32, counts: { A: 8, B: 12, C: 9, D: 2, F: 1 } },
+    { level: "Senior 2", total: 30, counts: { A: 6, B: 11, C: 10, D: 3 } },
+  ],
+  "/analytics/admin/enrollment": [{ level: "Senior 1", male: 60, female: 60, total: 120 }],
   "/analytics/student": { subjects: [{ subject, average: 82 }], trend: [{ term: "Term 1", average: 82 }] },
   "/analytics/teacher/class": { average: 73.1, distribution: [{ grade: "A", count: 10 }], students: students },
   "/analytics/parent/child": { trend: [{ term: "Term 1", average: 82 }] },
