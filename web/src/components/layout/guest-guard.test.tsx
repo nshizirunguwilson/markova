@@ -1,0 +1,119 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const h = vi.hoisted(() => {
+  const fn = () => vi.fn();
+  return {
+    api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
+    router: { push: fn(), replace: fn(), back: fn(), refresh: fn(), prefetch: fn() },
+    pathname: { current: "/login" },
+  };
+});
+
+vi.mock("@/lib/api", () => ({ default: h.api }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => h.router,
+  usePathname: () => h.pathname.current,
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+import { render, screen, waitFor } from "@testing-library/react";
+import { GuestGuard } from "./guest-guard";
+import { signIn, signOut } from "@/test/harness";
+
+const Child = () => <div>the sign in form</div>;
+
+beforeEach(() => {
+  for (const m of Object.values(h.api)) m.mockReset();
+  for (const m of Object.values(h.router)) m.mockReset();
+  h.pathname.current = "/login";
+  localStorage.clear();
+  signOut();
+});
+
+describe("GuestGuard with no session", () => {
+  it("shows the page when there is no token at all", async () => {
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+    expect(h.api.get).not.toHaveBeenCalled();
+  });
+
+  // A token in storage is not proof of a live session. It may be revoked, past
+  // refreshing, or belong to a since-deactivated user.
+  it("shows the page when the stored token turns out to be dead", async () => {
+    localStorage.setItem("access_token", "stale");
+    h.api.get.mockRejectedValue({ response: { status: 401 } });
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+    expect(localStorage.getItem("access_token")).toBeNull();
+  });
+
+  it("hides the form while it is still checking", () => {
+    localStorage.setItem("access_token", "maybe-valid");
+    h.api.get.mockImplementation(() => new Promise(() => {}));
+    render(<GuestGuard><Child /></GuestGuard>);
+    expect(screen.queryByText(/the sign in form/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/checking your session/i)).toBeInTheDocument();
+  });
+});
+
+describe("GuestGuard with a live session", () => {
+  it("sends an already-resolved user to their dashboard", async () => {
+    signIn("TEACHER");
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/teacher"));
+    expect(screen.queryByText(/the sign in form/i)).not.toBeInTheDocument();
+  });
+
+  it("verifies a stored token with the API before redirecting", async () => {
+    localStorage.setItem("access_token", "good");
+    h.api.get.mockResolvedValue({
+      data: { id: "u-1", role: "ADMIN", firstName: "Aline", forcePasswordChange: false },
+    });
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/admin"));
+    expect(h.api.get).toHaveBeenCalledWith("/auth/profile");
+  });
+
+  it.each([
+    ["ADMIN", "/admin"],
+    ["STUDENT", "/student"],
+    ["PARENT", "/parent"],
+    ["LIBRARIAN", "/librarian"],
+  ])("sends a %s to %s", async (role, path) => {
+    signIn(role as "ADMIN");
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith(path));
+  });
+
+  // Someone mid forced-change has a live token but must not be waved through:
+  // the step that handles it lives on the login page.
+  it("leaves a user who must change their password on the page", async () => {
+    localStorage.setItem("access_token", "good");
+    h.api.get.mockResolvedValue({
+      data: { id: "u-1", role: "ADMIN", forcePasswordChange: true },
+    });
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("GuestGuard exemptions", () => {
+  // A reset link arrives by email with its own single-use token. The recipient
+  // is often already signed in on this browser, and bouncing them would burn
+  // the link for nothing.
+  it("lets a signed-in user reach the reset page", async () => {
+    h.pathname.current = "/reset-password";
+    signIn("ADMIN");
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("still guards the forgot-password page", async () => {
+    h.pathname.current = "/forgot-password";
+    signIn("ADMIN");
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/admin"));
+  });
+});
