@@ -76,7 +76,7 @@ export const incident = { id: "inc-1", studentId: "student-1", student: students
 
 export const homework = { id: "hw-1", title: "Algebra sheet 3", description: "Questions 1 to 12", subjectId: "subject-1", subject, classSectionId: "section-1", classSection, dueDate: "2026-08-30", submissions: [] };
 
-export const conversation = { id: "conv-1", participants: [user("u-1", "Divine", "Niyonkuru")], lastMessage: { body: "Muraho", createdAt: "2026-08-21T09:00:00Z" }, unreadCount: 1 };
+export const conversation = { id: "conv-1", type: "ONE_ON_ONE", participants: [{ user: user("u-1", "Divine", "Niyonkuru") }], lastMessage: { body: "Muraho", createdAt: "2026-08-21T09:00:00Z" }, unreadCount: 1 };
 export const message = { id: "msg-1", conversationId: "conv-1", senderId: "u-1", sender: user("u-1", "Divine", "Niyonkuru"), body: "Muraho neza", createdAt: "2026-08-21T09:00:00Z" };
 
 export const attendanceRecord = { id: "att-1", studentId: "student-1", student: students[0], status: "PRESENT", date: "2026-08-21" };

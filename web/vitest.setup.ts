@@ -43,3 +43,28 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
     });
   }
 }
+
+/**
+ * jsdom implements no layout, so these three do not exist on its elements.
+ * Components that scroll a thread into view or measure an element are not doing
+ * anything wrong; there is simply nothing to scroll. Stubbing them here keeps
+ * that gap out of individual test files.
+ */
+if (typeof Element !== "undefined") {
+  Element.prototype.scrollIntoView ??= () => {};
+  Element.prototype.scrollTo ??= () => {};
+}
+
+if (typeof window !== "undefined" && !window.matchMedia) {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}
