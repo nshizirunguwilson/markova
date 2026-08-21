@@ -74,6 +74,10 @@ export class CreateUserDto {
     message:
       'Password must contain at least 8 characters, one uppercase, one lowercase, one number, and one special character',
   })
+  // bcrypt reads at most 72 bytes and silently drops the rest, so two long
+  // passwords sharing a 72 byte prefix are one password to it. OWASP asks for
+  // this cap to be stated rather than left implied.
+  @MaxLength(72)
   password: string;
 
   @ApiProperty({ enum: Role })
