@@ -1,3 +1,4 @@
+import { validateEnv } from './config/env.validation';
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -28,7 +29,7 @@ import { AuditLogInterceptor } from './common/interceptors';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {

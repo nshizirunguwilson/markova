@@ -41,8 +41,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
       REDIS_URL: redis://localhost:6379
-      JWT_SECRET: ci-test-secret
-      JWT_REFRESH_SECRET: ci-test-refresh-secret
+      # Distinct, and long enough to model the production rules the app checks
+      # at boot. See backend/src/config/env.validation.ts.
+      JWT_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210fedcba9876543210
 
     steps:
       - uses: actions/checkout@v4
