@@ -59,7 +59,7 @@ export function StepClasses() {
                   className="w-40 rounded-lg border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSection(level.id))}
                  aria-label="Section name (e.g. A)"/>
-                <Button size="sm" variant="outline" onClick={() => addSection(level.id)}>
+                <Button aria-label="Add" size="sm" variant="outline" onClick={() => addSection(level.id)}>
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>

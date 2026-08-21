@@ -199,7 +199,7 @@ export default function AdminTeachersPage() {
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">
-              <Button
+              <Button aria-label="Previous page"
                 variant="outline"
                 size="sm"
                 disabled={meta.page <= 1}
@@ -210,7 +210,7 @@ export default function AdminTeachersPage() {
               <span className="flex items-center px-3 text-sm text-muted">
                 Page {meta.page} of {meta.totalPages}
               </span>
-              <Button
+              <Button aria-label="Next page"
                 variant="outline"
                 size="sm"
                 disabled={meta.page >= meta.totalPages}

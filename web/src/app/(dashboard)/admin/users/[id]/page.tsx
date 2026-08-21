@@ -183,7 +183,7 @@ export default function UserDetailPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
+          <Button aria-label="Go back"
             variant="ghost"
             size="sm"
             onClick={() => router.push("/admin/users")}

@@ -321,10 +321,10 @@ export default function AdminLibraryPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleEditBook(b)}>
+                          <Button aria-label="Edit" variant="ghost" size="sm" onClick={() => handleEditBook(b)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: b.id, title: b.title })}>
+                          <Button aria-label="Delete" variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: b.id, title: b.title })}>
                             <Trash2 className="h-4 w-4 text-danger" />
                           </Button>
                         </div>

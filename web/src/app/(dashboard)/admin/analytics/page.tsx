@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { Card, CardTitle } from "@/components/ui";
 import { EChart } from "@/components/ui/echart";
@@ -16,7 +16,7 @@ import {
   useEnrollment,
 } from "@/hooks/use-analytics";
 import { viz, axisLabel, splitLine, tooltipStyle, legendStyle } from "@/lib/chart-theme";
-import { Users, GraduationCap, BookOpen, School } from "lucide-react";
+import { Users, GraduationCap, School } from "lucide-react";
 
 const GRADES = ["A", "B", "C", "D", "E", "S", "F"];
 
@@ -438,6 +438,7 @@ export default function AdminAnalyticsPage() {
         </div>
         <div className="flex gap-3">
           <select
+            aria-label="Academic year"
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={yearId}
             onChange={(e) => { setYearId(e.target.value); setTermId(""); }}
@@ -445,6 +446,7 @@ export default function AdminAnalyticsPage() {
             {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
           </select>
           <select
+            aria-label="Term"
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={termId}
             onChange={(e) => setTermId(e.target.value)}

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Card,
-  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -24,7 +23,7 @@ import {
   useReturn,
   useLibraryAnalytics,
 } from "@/hooks/use-library";
-import { Library, Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 
 export default function LibrarianBooksPage() {
   const [search, setSearch] = useState("");
@@ -154,7 +153,7 @@ export default function LibrarianBooksPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => { setConfirmAction(() => () => deleteBook.mutate(book.id)); }}>
+                    <Button aria-label="Delete" size="sm" variant="ghost" onClick={() => { setConfirmAction(() => () => deleteBook.mutate(book.id)); }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </TableCell>

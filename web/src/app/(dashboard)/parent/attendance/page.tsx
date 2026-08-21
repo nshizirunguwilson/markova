@@ -144,9 +144,9 @@ export default function ParentAttendancePage() {
                     key={i}
                     className={`flex h-10 items-center justify-center rounded-lg text-xs font-medium ${
                       !cell ? "" :
-                      cell.status === "PRESENT" ? "bg-success/10 text-success" :
-                      cell.status === "LATE" ? "bg-warning/10 text-warning" :
-                      cell.status === "ABSENT" ? "bg-danger/10 text-danger" :
+                      cell.status === "PRESENT" ? "bg-success-wash text-success" :
+                      cell.status === "LATE" ? "bg-warning-wash text-warning" :
+                      cell.status === "ABSENT" ? "bg-danger-wash text-danger" :
                       "bg-surface text-muted"
                     }`}
                   >

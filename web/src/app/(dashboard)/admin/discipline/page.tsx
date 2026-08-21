@@ -156,7 +156,7 @@ export default function AdminDisciplinePage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage("Are you sure you want to delete this incident?"); setConfirmAction(() => () => deleteIncident.mutate(inc.id)); }}>
+                      <Button aria-label="Delete" size="sm" variant="ghost" onClick={() => { setConfirmMessage("Are you sure you want to delete this incident?"); setConfirmAction(() => () => deleteIncident.mutate(inc.id)); }}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </TableCell>

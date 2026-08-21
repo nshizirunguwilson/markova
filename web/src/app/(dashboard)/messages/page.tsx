@@ -182,7 +182,7 @@ export default function MessagesPage() {
       <div className={`${selectedConv ? "hidden md:block" : "block"} w-full md:w-80 flex-shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-3`}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-foreground">Messages</h2>
-          <Button size="sm" variant="ghost" onClick={() => setShowNewModal(true)}>
+          <Button aria-label="Add" size="sm" variant="ghost" onClick={() => setShowNewModal(true)}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -356,7 +356,7 @@ export default function MessagesPage() {
                   className="flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm focus:border-primary focus:outline-none"
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
                  aria-label="Type a message..."/>
-                <Button onClick={handleSend} className="rounded-full">
+                <Button aria-label="Send message" onClick={handleSend} className="rounded-full">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>

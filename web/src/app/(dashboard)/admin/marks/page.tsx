@@ -208,7 +208,7 @@ export default function AdminMarksPage() {
           <Card>
             <p className="text-xs text-muted">Status</p>
             <div className="mt-1">
-              <Button
+              <Button aria-label="Hide"
                 size="sm"
                 variant={isPublished ? "danger" : "primary"}
                 onClick={() => {

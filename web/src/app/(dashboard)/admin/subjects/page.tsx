@@ -145,10 +145,10 @@ export default function AdminSubjectsPage() {
                   <TableCell>{s.maxMarks ?? 100}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(s)}>
+                      <Button aria-label="Edit" variant="ghost" size="sm" onClick={() => handleEdit(s)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: s.id, name: s.name })}>
+                      <Button aria-label="Delete" variant="ghost" size="sm" onClick={() => setDeleteTarget({ id: s.id, name: s.name })}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </div>

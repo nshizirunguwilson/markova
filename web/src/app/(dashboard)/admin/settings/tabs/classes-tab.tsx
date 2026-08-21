@@ -73,7 +73,7 @@ export function ClassesTab() {
               <Badge>{level.stage === "A_LEVEL" ? "A-Level (TVET)" : "O-Level"}</Badge>
               <Badge>Order: {level.order}</Badge>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${level.name}"? This cannot be undone.`); setConfirmAction(() => () => deleteLevel(level.id)); }}>
+            <Button aria-label="Delete" size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${level.name}"? This cannot be undone.`); setConfirmAction(() => () => deleteLevel(level.id)); }}>
               <Trash2 className="h-4 w-4 text-danger" />
             </Button>
           </div>
@@ -109,7 +109,7 @@ export function ClassesTab() {
               className="w-40 rounded-lg border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSection(level))}
             />
-            <Button size="sm" variant="outline" onClick={() => addSection(level)}>
+            <Button aria-label="Add" size="sm" variant="outline" onClick={() => addSection(level)}>
               <Plus className="h-3 w-3" />
             </Button>
           </div>
