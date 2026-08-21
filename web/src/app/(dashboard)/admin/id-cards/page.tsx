@@ -127,13 +127,13 @@ export default function AdminIdCardsPage() {
               placeholder="Search by name, student ID, or card ID..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
             >
@@ -146,7 +146,7 @@ export default function AdminIdCardsPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Section</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
               disabled={!levelId}
@@ -160,7 +160,7 @@ export default function AdminIdCardsPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Card status</label>
             <select
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="rounded-lg border border-input px-3 py-2 text-sm"
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
             >
@@ -244,16 +244,16 @@ export default function AdminIdCardsPage() {
       {showPrint && (
         <div className="hidden print:grid print:grid-cols-2 print:gap-4">
           {issuedItems.map((it) => (
-            <div key={it.id} className="rounded-lg border-2 border-[#1B4F72] p-4">
+            <div key={it.id} className="rounded-lg border-2 border-primary p-4">
               <div className="text-center space-y-2">
-                <p className="text-xs uppercase text-gray-500">{schoolName}</p>
+                <p className="text-xs uppercase text-muted">{schoolName}</p>
                 <BrandMark className="mx-auto h-12 w-auto max-w-[120px]" />
                 <p className="text-lg font-bold">{it.name}</p>
-                <p className="text-sm text-gray-600">{it.class}</p>
-                <p className="inline-block rounded bg-gray-100 px-2 py-1 font-mono text-sm">
+                <p className="text-sm text-foreground-muted">{it.class}</p>
+                <p className="inline-block rounded bg-surface-muted px-2 py-1 font-mono text-sm">
                   {it.studentIdNumber}
                 </p>
-                <p className="text-xs text-gray-500">Card: {it.cardId}</p>
+                <p className="text-xs text-muted">Card: {it.cardId}</p>
               </div>
             </div>
           ))}

@@ -55,7 +55,9 @@ docker-compose.override.yml
 # Redis
 dump.rdb
 
-
+CLAUDE.md
+me.txt
+skills.zip
 readiness.md
 markova-implementation-plan-v2.md
 

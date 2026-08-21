@@ -4,7 +4,6 @@ import { useState } from "react";
 import { classDisplayName } from "@/lib/utils";
 import {
   Card,
-  CardTitle,
   Button,
   Badge,
   Spinner,
@@ -25,10 +24,11 @@ import {
   useGradeSubmission,
 } from "@/hooks/use-homework";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
-import { FileText, Plus, Trash2, Eye, Check } from "lucide-react";
+import { Plus, Trash2, Eye, Check } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect } from "react";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Assignment {
   id: string;
@@ -92,15 +92,17 @@ export default function TeacherHomeworkPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Homework</h1>
-          <p className="text-sm text-muted">Create and manage assignments</p>
-        </div>
-        <Button onClick={() => setShowAddModal(true)}>
+      <PageHeader
+        title="Homework"
+        description="Create and manage assignments"
+        actions={
+          <>
+            <Button onClick={() => setShowAddModal(true)}>
           <Plus className="mr-1 h-4 w-4" /> Create Homework
         </Button>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -186,13 +188,13 @@ export default function TeacherHomeworkPage() {
                             min="0"
                             max={viewingHw.maxMarks}
                             placeholder="—"
-                            className="w-16 rounded border border-border px-2 py-1 text-sm"
+                            className="w-16 rounded border border-input px-2 py-1 text-sm"
                             onBlur={(e) => {
                               if (e.target.value) {
                                 gradeSubmission.mutate({ id: sub.id, marks: Number(e.target.value) });
                               }
                             }}
-                          />
+                           aria-label="—"/>
                         )}
                       </TableCell>
                       <TableCell>
@@ -227,7 +229,7 @@ export default function TeacherHomeworkPage() {
               value={form.assignmentId}
               onChange={(e) => setForm({ ...form, assignmentId: e.target.value })}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class & Subject">
               <option value="">Select...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>

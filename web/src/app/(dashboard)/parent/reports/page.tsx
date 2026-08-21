@@ -12,6 +12,7 @@ import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { FileText, Printer } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Child { id: string; name: string; }
 
@@ -41,21 +42,23 @@ export default function ParentReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Report Cards</h1>
+      <PageHeader
+        title="Report Cards"
+      />
 
       <div className="flex gap-4 flex-wrap">
         {children.length > 1 && (
-          <select className="border rounded-lg px-3 py-2 text-sm" value={selectedChild} onChange={(e) => setSelectedChild(e.target.value)}>
+          <select className="border rounded-lg px-3 py-2 text-sm" value={selectedChild} onChange={(e) => setSelectedChild(e.target.value)} aria-label="Select child">
             {children.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }} aria-label="Select Year">
           <option value="">Select Year</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)} aria-label="Select Term">
           <option value="">Select Term</option>
           {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -85,17 +88,17 @@ export default function ParentReportsPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Average</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.average ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Average</p>
+              <p className="text-xl font-bold text-primary">{report.average ?? "—"}</p>
             </Card>
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Grade</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.letterGrade ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Grade</p>
+              <p className="text-xl font-bold text-primary">{report.letterGrade ?? "—"}</p>
             </Card>
-            <Card className="p-3 bg-[#D6EAF8]">
-              <p className="text-xs text-gray-600">Rank</p>
-              <p className="text-xl font-bold text-[#1B4F72]">{report.rank ?? "—"}</p>
+            <Card className="p-3 bg-accent">
+              <p className="text-xs text-foreground-muted">Rank</p>
+              <p className="text-xl font-bold text-primary">{report.rank ?? "—"}</p>
             </Card>
           </div>
 
@@ -105,7 +108,7 @@ export default function ParentReportsPage() {
                 <span className="font-medium">{s.subjectName}</span>
                 <div className="flex gap-4 text-sm">
                   <span>{s.average}%</span>
-                  <span className="font-medium text-[#1B4F72]">{s.grade}</span>
+                  <span className="font-medium text-primary">{s.grade}</span>
                 </div>
               </div>
             ))}
@@ -114,8 +117,8 @@ export default function ParentReportsPage() {
       )}
 
       {!isLoading && !report && termId && (
-        <Card className="p-8 text-center text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+        <Card className="p-8 text-center text-muted">
+          <FileText className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No report card available for this term
         </Card>
       )}

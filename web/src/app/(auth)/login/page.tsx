@@ -7,13 +7,13 @@ import { z } from "zod/v4";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
-import { BrandMark } from "@/components/brand-mark";
+
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import { useBrandStore } from "@/stores/brand-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
+import { errorMessage } from "@/lib/errors";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +76,6 @@ function formatMmSs(total: number): string {
 export default function LoginPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
-  const schoolName = useBrandStore((s) => s.schoolName);
 
   const [step, setStep] = useState<"login" | "otp" | "change-password">("login");
   const [isLoading, setIsLoading] = useState(false);
@@ -114,7 +113,7 @@ export default function LoginPage() {
         handleLoginSuccess(res.data);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Login failed";
+      const msg = errorMessage(err, "Login failed");
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -137,7 +136,7 @@ export default function LoginPage() {
       });
       handleLoginSuccess(res.data);
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Invalid OTP";
+      const msg = errorMessage(err, "Invalid OTP");
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -157,7 +156,7 @@ export default function LoginPage() {
       otpForm.reset({ otp: "" });
       toast.success("A new code has been sent");
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Could not resend code";
+      const msg = errorMessage(err, "Could not resend code");
       toast.error(msg);
       // Server-side cooldown hit — reflect a wait on the button
       if (err.response?.status === 429 && resendCooldown <= 0) {
@@ -209,7 +208,7 @@ export default function LoginPage() {
         router.push(getDashboardRoute(pendingUser.role));
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Failed to change password";
+      const msg = errorMessage(err, "Failed to change password");
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -239,14 +238,7 @@ export default function LoginPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent-light">
-      <Card className="w-full max-w-md" padding="lg">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <BrandMark className="mx-auto mb-4 h-14 w-auto max-w-[180px]" />
-          <h1 className="text-xl md:text-2xl font-bold text-primary">{schoolName}</h1>
-          <p className="mt-1 text-sm text-muted">School Management System</p>
-        </div>
+    <AuthShell>
 
         {/* Step: Login */}
         {step === "login" && (
@@ -394,8 +386,8 @@ export default function LoginPage() {
             onSubmit={changeForm.handleSubmit(onChangePassword)}
             className="space-y-5"
           >
-            <div className="mb-2 rounded-lg bg-amber-50 p-3 text-center">
-              <p className="text-sm font-medium text-amber-700">
+            <div className="mb-2 rounded-lg bg-warning-wash p-3 text-center">
+              <p className="text-sm font-medium text-warning">
                 You must change your password before continuing
               </p>
             </div>
@@ -437,7 +429,6 @@ export default function LoginPage() {
             </Button>
           </form>
         )}
-      </Card>
-    </div>
+    </AuthShell>
   );
 }

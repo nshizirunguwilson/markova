@@ -7,11 +7,11 @@ import { z } from "zod/v4";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Mail, ArrowLeft } from "lucide-react";
-import { BrandMark } from "@/components/brand-mark";
+
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -47,15 +47,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-accent-light">
-      <Card className="w-full max-w-md" padding="lg">
-        <div className="mb-8 text-center">
-          <BrandMark className="mx-auto mb-4 h-14 w-auto max-w-[180px]" />
-          <h1 className="text-xl md:text-2xl font-bold text-primary">Reset your password</h1>
-          <p className="mt-1 text-sm text-muted">
-            Enter your email and we&apos;ll send you a reset link.
-          </p>
-        </div>
+    <AuthShell
+      title="Reset your password"
+      subtitle="Enter your email and we'll send you a reset link."
+    >
 
         {!sent ? (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -74,7 +69,7 @@ export default function ForgotPasswordPage() {
           </form>
         ) : (
           <div className="space-y-5 text-center">
-            <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700">
+            <div className="rounded-lg bg-success-wash p-4 text-sm text-success">
               If an account with that email exists, a password-reset link is on its way.
               The link expires in 30 minutes.
             </div>
@@ -95,7 +90,6 @@ export default function ForgotPasswordPage() {
         >
           <ArrowLeft className="h-4 w-4" /> Back to login
         </Link>
-      </Card>
-    </div>
+    </AuthShell>
   );
 }

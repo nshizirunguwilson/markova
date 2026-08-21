@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Input, Button, Badge } from "@/components/ui";
 import { useClassLevels, useCreateClassLevel, useCreateSection } from "@/hooks/use-academic";
-import { Plus, CheckCircle2, Layers } from "lucide-react";
+import { Plus, Layers } from "lucide-react";
 
 export function StepClasses() {
   const { data: levels } = useClassLevels();
@@ -58,7 +58,7 @@ export function StepClasses() {
                   onChange={(e) => setSectionInputs((s) => ({ ...s, [level.id]: e.target.value }))}
                   className="w-40 rounded-lg border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSection(level.id))}
-                />
+                 aria-label="Section name (e.g. A)"/>
                 <Button size="sm" variant="outline" onClick={() => addSection(level.id)}>
                   <Plus className="h-3 w-3" />
                 </Button>

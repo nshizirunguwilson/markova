@@ -1,4 +1,5 @@
 import { oklch } from './color';
+import { sansFont, monoFont } from './generated';
 
 /**
  * The fixed half of the design system. Everything here is decided once and
@@ -11,7 +12,11 @@ import { oklch } from './color';
 
 // ─── Type ───────────────────────────────────────────────────────────────────
 //
-// IBM Plex Sans for the interface, IBM Plex Mono for machine codes.
+// Poppins for the interface, JetBrains Mono for machine codes.
+//
+// The families are not chosen here. They come from design/tokens.json, which is
+// what web loads too, so the two clients cannot drift onto different typefaces.
+// The weights below are the ones that file declares.
 //
 // The scale is anchored on 16, which is where both platform scales put their
 // primary reading size and comfortably above the point at which measured
@@ -19,21 +24,11 @@ import { oklch } from './color';
 //
 // Tracking follows the shape of Apple's own optical compensation: negative at
 // display sizes where letters would otherwise drift apart, zero through the
-// reading sizes, positive at the small end where letters crowd. Plex sets a
-// little tighter than SF by default, so the positive end is nudged further
-// than Apple's numbers rather than copied from them.
+// reading sizes, positive at the small end where letters crowd. Poppins is a
+// geometric face and sets wider than SF, so the negative end is pulled a little
+// further than Apple's numbers rather than copied from them.
 
-export const font = {
-  sans: {
-    regular: 'IBMPlexSans_400Regular',
-    medium: 'IBMPlexSans_500Medium',
-    semibold: 'IBMPlexSans_600SemiBold',
-  },
-  mono: {
-    regular: 'IBMPlexMono_400Regular',
-    medium: 'IBMPlexMono_500Medium',
-  },
-} as const;
+export const font = { sans: sansFont, mono: monoFont } as const;
 
 export type TypeStyle = {
   fontFamily: string;

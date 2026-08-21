@@ -45,42 +45,48 @@ voice of its own and looked materially different on iOS and Android.
 
 ### The choice
 
-**IBM Plex Sans** for the interface. **IBM Plex Mono** for machine codes.
+**Poppins** for the interface. **JetBrains Mono** for machine codes.
 
-### Why not Inter
+Neither is mobile's decision to make alone. Both names come from
+`design/tokens.json`, the file web reads too, and mobile generates its font
+constants from it into `src/design/generated.ts`. A report card should look the
+same to the parent on a phone as it does to the teacher in a browser, and that
+only holds if both clients load the same family. Generating the names rather
+than typing them is what stops the two drifting apart again.
 
-Inter is the technically strongest candidate and I want to be honest that it
-was the near miss. Rasmus Andersson designed it specifically for screen
-interfaces: a tall x-height, deliberately open apertures, ink traps and bridges
-at text sizes, a disambiguation stylistic set that separates the characters
-people confuse, a slashed zero, and proper tabular figures. Its own
-documentation describes two optical sizes, text and display, tuned separately.
-On the metrics alone it wins.
+### What this replaced, and what it cost
 
-Two things moved me off it.
+An earlier draft of this system shipped IBM Plex Sans and Plex Mono. The
+argument was that Plex was commissioned to carry a large institution's identity
+across documents, interfaces and signage at once, which is exactly what a
+school's records are: screens and printed report cards, one identity. That
+argument still holds on its own terms. It lost to a constraint from outside
+mobile, which is that web had already standardised on Poppins through the
+shared token source, and one product cannot wear two typefaces.
 
-The first is a brief constraint: Inter has become the default face of generated
-interfaces. It is what appears when nobody made a decision. For a project whose
-explicit goal is not to look automatically produced, the most-defaulted
-typeface in the world is the wrong starting point.
-
-The second is a better fit elsewhere. Plex was commissioned to carry a large
-institution's identity across documents, interfaces and signage at the same
-time. That is exactly this product: a school's records, which exist as screens
-and as printed report cards. Plex reads as considered rather than as unchosen,
-and it sets slightly tighter than Inter, which gives lists and tables an
-organised, document-like quality that suits a register.
+The cost is real and is written down here rather than glossed over. Poppins is
+a geometric face. Geometric letters are built from shared circular forms, and
+that is precisely the property that reduces differentiation at 12 and 13 points
+on a low density Android screen. This app runs on cheap phones in Rwandan
+classrooms, so this is not a hypothetical. Two things in the scale below carry
+more weight under Poppins than they did under Plex: the hard floor at 12, and
+setting the smallest style, `caption`, in medium rather than regular so its
+strokes survive on a low density panel. If small-size legibility turns out to
+be a problem in the field, this is the decision to revisit, and the place to do
+it is `design/tokens.json`, for both clients at once.
 
 ### Why not the alternatives
 
-**Plus Jakarta Sans** was the strongest of the geometric options and it is on
-the standing font whitelist. Its design brief cites Neuzeit Grotesk and Futura
-and claims a raised x-height with open counters, and it carries tabular
-figures under the SIL Open Font Licence. The problem is the lineage: geometric
-faces build their letters from shared circular forms, which is precisely what
-reduces differentiation at 12 and 13 points on a low density Android screen.
-This app runs on cheap phones in Rwandan classrooms. Differentiation at small
-sizes outranks personality at large ones.
+Kept because the reasoning still applies to any future change.
+
+**Inter** is the technically strongest candidate and was the near miss. Rasmus
+Andersson designed it specifically for screen interfaces: a tall x-height,
+deliberately open apertures, ink traps and bridges at text sizes, a
+disambiguation stylistic set that separates the characters people confuse, a
+slashed zero, and proper tabular figures. On the metrics alone it wins. It was
+passed over because it has become the default face of generated interfaces. It
+is what appears when nobody made a decision, and for a project whose explicit
+goal is not to look automatically produced, that is the wrong starting point.
 
 **Geist** reads as a developer tool. **Satoshi** reads as a fintech product.
 Neither is what a school looks like.
@@ -90,23 +96,24 @@ rendering, zero bundle cost, native feel. It was rejected because it makes the
 product look different on every device, and a report card should look the same
 to the parent as it does to the teacher.
 
-### The superfamily argument
+### Two kinds of number
 
-Plex Sans and Plex Mono are one design with two jobs. That matters more here
-than it would in most apps, because this product is full of two different kinds
-of number:
+This product is full of two different kinds of number, and they are set
+differently:
 
 - **Quantities** that a person reads as a value: marks, percentages, ranks,
-  aggregates, conduct points, counts. These are set in Plex Sans with tabular
+  aggregates, conduct points, counts. These are set in Poppins with tabular
   figures, so a column of them aligns and a changing figure does not shift the
   layout.
 - **Codes** that a person reads character by character and may have to read
   aloud or copy: the twelve digit report verification code, student ID numbers,
-  NIDA numbers, NFC card IDs. These are set in Plex Mono, where every glyph
+  NIDA numbers, NFC card IDs. These are set in JetBrains Mono, where every glyph
   occupies the same width and the confusable pairs are unambiguous.
 
-Pairing Inter with JetBrains Mono would be two unrelated decisions. Plex Sans
-with Plex Mono is one decision applied twice.
+Plex Sans with Plex Mono was one decision applied twice, and pairing Poppins
+with JetBrains Mono gives that up: they are two unrelated designs. The pairing
+works because the two never meet in the same line of text. Mono appears only in
+codes, which sit in their own fields and rows, never inline in a sentence.
 
 ### The scale
 
@@ -142,15 +149,18 @@ optimise.
 Tracking follows the shape of Apple's optical compensation rather than its
 exact numbers: negative at display sizes where letters drift apart, zero
 through the reading sizes, positive at the small end where they crowd. The
-positive end is pushed a little further than Apple's values because Plex sets
-tighter than SF by default.
+negative end is pulled further than Apple's values because Poppins is a wide
+geometric face and sets looser than SF by default, so large headings need more
+pulling in. For the same reason the positive end stays modest: the letters are
+already generously spaced at 12 and 13, and adding much there would loosen
+lines that are short to begin with.
 
 ### Weights bundled
 
-Three sans weights and two mono. Plex ships nine weights plus italics for each;
-bundling all of them would cost roughly a megabyte for weights this interface
-never asks for. Since hierarchy here comes from size and space, 400, 500 and
-600 cover every style in the scale with nothing spare.
+Three sans weights and two mono. Poppins ships nine weights plus italics for
+each; bundling all of them would cost roughly a megabyte for weights this
+interface never asks for. Since hierarchy here comes from size and space, 400,
+500 and 600 cover every style in the scale with nothing spare.
 
 ---
 

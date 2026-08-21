@@ -34,7 +34,7 @@ export function NationalIdInput({
         onBlur={onBlur}
         className={`w-full rounded-lg border ${
           error ? "border-danger" : "border-border"
-        } bg-field px-3.5 py-2.5 font-mono text-sm tracking-wider text-foreground placeholder:font-sans placeholder:tracking-normal placeholder:text-muted focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/50`}
+        } bg-field px-3.5 py-2.5 font-mono text-sm tracking-wider text-foreground placeholder:font-sans placeholder:tracking-normal placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/50`}
       />
       {error ? (
         <p className="mt-1 text-sm text-danger">{error}</p>

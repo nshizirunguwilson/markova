@@ -1,3 +1,4 @@
+import { brandDefault } from './generated';
 import { atLightness, contrast, hexToOklch, oklchToHex, MIN_LC } from './color';
 import { neutral, status } from './tokens';
 
@@ -91,7 +92,7 @@ export function deriveBrand(primaryColor: string | undefined | null): Brand {
   };
 }
 
-const DEFAULT_BRAND = '#1B4F72';
+const DEFAULT_BRAND = brandDefault;
 
 function normaliseHex(value: string | undefined | null): string | null {
   if (!value) return null;

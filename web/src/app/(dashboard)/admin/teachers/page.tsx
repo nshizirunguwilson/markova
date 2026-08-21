@@ -20,6 +20,7 @@ import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useAssignments, useAcademicYears } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminTeachersPage() {
   const [filters, setFilters] = useState<UserFilters>({
@@ -82,15 +83,15 @@ export default function AdminTeachersPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Teachers</h1>
-          <p className="mt-1 text-sm text-muted">
-            {meta.total} teachers in the system
-          </p>
-        </div>
-        <ExportDropdown onExport={handleExport} disabled={teachers.length === 0} />
-      </div>
+      <PageHeader
+        title="Teachers"
+        description={<>{meta.total} teachers in the system</>}
+        actions={
+          <>
+            <ExportDropdown onExport={handleExport} disabled={teachers.length === 0} />
+          </>
+        }
+      />
 
       <Card padding="sm" className="mb-5">
         <div className="flex items-center gap-4">
@@ -102,8 +103,8 @@ export default function AdminTeachersPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+              className="w-full rounded-lg border border-border bg-surface py-2 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+             aria-label="Search by name, email, or phone..."/>
           </div>
           <Button variant="outline" size="sm" onClick={handleSearch}>
             Search

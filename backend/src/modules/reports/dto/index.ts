@@ -1,10 +1,4 @@
-import {
-  IsUUID,
-  IsOptional,
-  IsString,
-  IsBoolean,
-  IsEnum,
-} from 'class-validator';
+import { IsUUID, IsOptional, IsString, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum DocumentType {

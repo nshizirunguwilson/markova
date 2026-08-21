@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, AlertCircle } from "lucide-react";
-import { Button, Badge } from "@/components/ui";
+import { Button } from "@/components/ui";
 import {
   useSchoolConfig,
   useAcademicYears,

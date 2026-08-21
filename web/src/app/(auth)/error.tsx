@@ -14,8 +14,8 @@ export default function AuthError({
   return (
     <div className="flex items-center justify-center min-h-[60vh] p-4">
       <Card className="w-full max-w-md text-center" padding="lg">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
-          <AlertTriangle className="h-7 w-7 text-red-500" />
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-danger-wash">
+          <AlertTriangle className="h-7 w-7 text-danger" />
         </div>
         <h1 className="text-xl font-semibold text-foreground mb-2">
           Something went wrong

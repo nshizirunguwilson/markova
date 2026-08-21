@@ -61,6 +61,8 @@ export function TableHead({
 }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
+      // Column headers must announce which column a cell belongs to.
+      scope="col"
       className={cn(
         "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted",
         className

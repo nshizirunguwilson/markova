@@ -1,31 +1,30 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
-@theme inline {
-  --color-primary: #1B4F72;
-  --color-primary-light: #2E86C1;
-  --color-primary-dark: #154360;
-  --color-accent: #D6EAF8;
-  --color-accent-light: #EBF5FB;
-  --color-background: #ffffff;
-  --color-foreground: #1a1a2e;
-  --color-muted: #6b7280;
-  --color-border: rgb(16 24 40 / 0.08);
-  --color-field: #f8fafc;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  /* Soft elevation scale: present but diffuse, blue-gray tint, never harsh */
-  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.05), 0 4px 16px -2px rgb(16 24 40 / 0.09);
-  --shadow-popover: 0 6px 16px -4px rgb(16 24 40 / 0.1), 0 16px 36px -8px rgb(16 24 40 / 0.12);
-  --shadow-modal: 0 12px 28px -8px rgb(16 24 40 / 0.12), 0 32px 64px -16px rgb(16 24 40 / 0.16);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* Markova is deliberately light-only on both web and mobile
+   (see design/tokens.json → meta.colorScheme). */
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
-/* Remove dark mode — light only */
+/* Every interactive element gets a visible keyboard focus ring.
+   --color-primary-light clears the 3:1 non-text contrast threshold. */
+:focus-visible {
+  outline: 2px solid var(--color-primary-light);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -12,10 +12,28 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Report cards, transcripts and letters are rendered by headless Chrome through
+# puppeteer-core, which ships no browser of its own. Without this the PDF
+# endpoints throw at runtime while every other route looks healthy.
+RUN apk add --no-cache \
+      chromium \
+      nss \
+      freetype \
+      harfbuzz \
+      ca-certificates \
+      ttf-freefont \
+    && rm -rf /var/cache/apk/*
+ENV CHROME_PATH=/usr/bin/chromium-browser
+
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+
+# Uploaded logos, stamps, signatures and photos live here. Mount a volume over
+# it in production — a container rebuild otherwise discards the school's crest.
+RUN mkdir -p /app/uploads
+VOLUME ["/app/uploads"]
 
 EXPOSE 3000
 

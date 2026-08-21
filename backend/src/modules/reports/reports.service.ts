@@ -31,6 +31,28 @@ import {
  * Falls back to Markova's own mark when the school has not uploaded a logo (or
  * points at a file that no longer exists).
  */
+/**
+ * puppeteer-core ships no browser, so an executable path is mandatory. Set
+ * CHROME_PATH explicitly in any real deployment (backend/Dockerfile does); the
+ * fallbacks below only cover the common local-development installs, on Linux
+ * as well as macOS.
+ */
+function resolveChromePath(): string {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const candidates =
+    process.platform === 'darwin'
+      ? [
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        ]
+      : [
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/usr/bin/google-chrome',
+        ];
+  return candidates.find((p) => existsSync(p)) ?? candidates[0];
+}
+
 function logoDataUri(logoUrl?: string | null): string | null {
   const uploadDir = join(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
   const candidates: string[] = [];
@@ -88,9 +110,7 @@ export class ReportsService implements OnModuleDestroy {
   private getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
       this.browserPromise = puppeteer.launch({
-        executablePath:
-          process.env.CHROME_PATH ||
-          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: resolveChromePath(),
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
       });
@@ -121,7 +141,7 @@ export class ReportsService implements OnModuleDestroy {
   ): Promise<Buffer> {
     const page = await this.newPage();
     try {
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'load' });
       const m = `${opts?.marginMm ?? 10}mm`;
       const pdf = await page.pdf({
         format: 'A4',
@@ -1039,7 +1059,9 @@ export class ReportsService implements OnModuleDestroy {
       ? `<img class="crest-img" src="${logo}" alt="" />`
       : `<div class="crest">${initials}</div>`;
 
-    const regTail = String(data.student.studentIdNumber || '').split('-').pop();
+    const regTail = String(data.student.studentIdNumber || '')
+      .split('-')
+      .pop();
     const issued = new Date().toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',
@@ -1133,9 +1155,7 @@ export class ReportsService implements OnModuleDestroy {
       : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th style="text-align:left">Remark</th>`;
 
     const totalMax = data.subjects.length * 100;
-    const overall = data.result
-      ? overallGrade(data.result.average || 0)
-      : null;
+    const overall = data.result ? overallGrade(data.result.average || 0) : null;
     const specificSubjects = data.subjects.filter(
       (s: any) => s.scope === 'A_SPECIFIC',
     );
@@ -1152,11 +1172,7 @@ export class ReportsService implements OnModuleDestroy {
         `${Math.round(data.result?.totalMarks ?? 0)}`,
         `/ ${totalMax}`,
       ),
-      summaryCell(
-        'Average',
-        `${(data.result?.average ?? 0).toFixed(1)}%`,
-        '',
-      ),
+      summaryCell('Average', `${(data.result?.average ?? 0).toFixed(1)}%`, ''),
       summaryCell(
         'Overall grade',
         data.result?.letterGrade || '–',
@@ -1194,12 +1210,30 @@ export class ReportsService implements OnModuleDestroy {
       </div>`;
 
     const coreScaleRows = [
-      ['Marks %', '70-100', '65-69', '60-64', '50-59', '40-49', '20-39', '0-19'],
+      [
+        'Marks %',
+        '70-100',
+        '65-69',
+        '60-64',
+        '50-59',
+        '40-49',
+        '20-39',
+        '0-19',
+      ],
       ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
       ['Points', '6', '5', '4', '3', '2', '1', '0'],
     ];
     const electiveScaleRows = [
-      ['Marks %', '80-100', '75-79', '70-74', '65-69', '60-64', '50-59', '0-49'],
+      [
+        'Marks %',
+        '80-100',
+        '75-79',
+        '70-74',
+        '65-69',
+        '60-64',
+        '50-59',
+        '0-49',
+      ],
       ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
       ['Points', '6', '5', '4', '3', '2', '1', '0'],
     ];
@@ -1227,9 +1261,7 @@ export class ReportsService implements OnModuleDestroy {
       </div>`
       : '';
 
-    const stageTitle = isALevel
-      ? 'Advanced Level (TVET)'
-      : 'Ordinary Level';
+    const stageTitle = isALevel ? 'Advanced Level (TVET)' : 'Ordinary Level';
     const sectorLine = isALevel
       ? ` &nbsp;•&nbsp; Sector of ${escapeHtml(data.student.trade?.sector || '')}`
       : '';

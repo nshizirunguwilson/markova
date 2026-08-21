@@ -33,7 +33,7 @@ export function A4Preview({ html, title }: { html: string; title: string }) {
           <iframe
             srcDoc={html}
             title={title}
-            className="rounded bg-white shadow-card"
+            className="rounded bg-surface shadow-card"
             style={{
               width: A4_W,
               height: A4_H,

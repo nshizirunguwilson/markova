@@ -1,24 +1,17 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
-// import { Roboto } from "next/font/google";
-// import { Inter } from "next/font/google";
-// import { Outfit } from "next/font/google";
-// import { Open_Sans } from "next/font/google";
-// import { Urbanist } from "next/font/google";
-// import { Lexend } from "next/font/google";
-// import { Lexend_Deca } from "next/font/google";
-// import { Montserrat } from "next/font/google";
-// import { DM_Sans } from "next/font/google";
-// import { Playfair } from "next/font/google";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/lib/query-provider";
 import { BrandProvider } from "@/components/brand-provider";
 import "./globals.css";
 
+// The shared type family — mobile loads the same four weights via expo-font.
+// See design/tokens.json → font.
 const poppins = Poppins({
   variable: "--font-poppins",
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {

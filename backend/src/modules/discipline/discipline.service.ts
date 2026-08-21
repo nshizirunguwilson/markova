@@ -386,7 +386,9 @@ export class DisciplineService {
       where,
       include: {
         student: {
-          include: { classSection: { include: { classLevel: true, trade: true } } },
+          include: {
+            classSection: { include: { classLevel: true, trade: true } },
+          },
         },
       },
     });

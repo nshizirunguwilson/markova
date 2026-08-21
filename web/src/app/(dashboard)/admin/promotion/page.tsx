@@ -30,6 +30,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/page-header";
 
 type Decision = "PROMOTE" | "RETAIN";
 
@@ -131,13 +132,11 @@ export default function AdminPromotionPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Student Promotion
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Review each student&apos;s results and discipline, then promote or retain
-          them — the system recommends, you decide.
-        </p>
+        <PageHeader
+          title="Student Promotion"
+          description={<>Review each student&apos;s results and discipline, then promote or retain
+          them — the system recommends, you decide.</>}
+        />
       </div>
 
       {/* Settings */}
@@ -147,10 +146,10 @@ export default function AdminPromotionPage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Academic Year</label>
             <select
-              className="w-full max-w-md rounded-lg border border-border px-3 py-2 text-sm"
+              className="w-full max-w-md rounded-lg border border-input px-3 py-2 text-sm"
               value={academicYearId}
               onChange={(e) => setAcademicYearId(e.target.value)}
-            >
+             aria-label="Academic Year">
               <option value="">Select academic year</option>
               {years?.map((y: any) => (
                 <option key={y.id} value={y.id}>
@@ -167,21 +166,21 @@ export default function AdminPromotionPage() {
               </h3>
               <div className="space-y-3">
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={fromLevelId}
                   onChange={(e) => { setFromLevelId(e.target.value); setFromSectionId(""); }}
-                >
+                 aria-label="Select level">
                   <option value="">Select level</option>
                   {levels?.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
                 </select>
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={fromSectionId}
                   onChange={(e) => setFromSectionId(e.target.value)}
                   disabled={!fromLevelId}
-                >
+                 aria-label="Select section">
                   <option value="">Select section</option>
                   {fromSections?.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -196,21 +195,21 @@ export default function AdminPromotionPage() {
               </h3>
               <div className="space-y-3">
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={toLevelId}
                   onChange={(e) => { setToLevelId(e.target.value); setToSectionId(""); }}
-                >
+                 aria-label="Select level">
                   <option value="">Select level</option>
                   {levels?.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
                 </select>
                 <select
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={toSectionId}
                   onChange={(e) => setToSectionId(e.target.value)}
                   disabled={!toLevelId}
-                >
+                 aria-label="Select section">
                   <option value="">Select section</option>
                   {toSections?.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -232,11 +231,11 @@ export default function AdminPromotionPage() {
               </label>
               <input
                 type="number" min="0" max="100"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 placeholder={defaultThreshold ? `${defaultThreshold}` : "50"}
                 value={passThreshold}
                 onChange={(e) => setPassThreshold(e.target.value)}
-              />
+               aria-label="Pass mark (%) {defaultThreshold && ( default )}"/>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">
@@ -244,11 +243,11 @@ export default function AdminPromotionPage() {
               </label>
               <input
                 type="number" min="0" max="100"
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 placeholder="50"
                 value={disciplineThreshold}
                 onChange={(e) => setDisciplineThreshold(e.target.value)}
-              />
+               aria-label="Min discipline points"/>
             </div>
           </div>
 
@@ -279,7 +278,7 @@ export default function AdminPromotionPage() {
               <span className="text-success font-medium">Promote: {tally.promote}</span>
               <span className="text-danger font-medium">Retain: {tally.retain}</span>
               {tally.overrides > 0 && (
-                <span className="flex items-center gap-1 text-amber-600">
+                <span className="flex items-center gap-1 text-warning">
                   <AlertTriangle className="h-4 w-4" /> {tally.overrides} override(s)
                 </span>
               )}
@@ -323,19 +322,19 @@ export default function AdminPromotionPage() {
                         <div className="inline-flex overflow-hidden rounded-lg border border-border">
                           <button
                             onClick={() => setDecision(s.studentId, "PROMOTE")}
-                            className={`px-3 py-1 text-xs font-medium ${d === "PROMOTE" ? "bg-success text-white" : "bg-white text-muted hover:bg-muted/10"}`}
+                            className={`px-3 py-1 text-xs font-medium ${d === "PROMOTE" ? "bg-success text-white" : "bg-surface text-muted hover:bg-muted/10"}`}
                           >
                             Promote
                           </button>
                           <button
                             onClick={() => setDecision(s.studentId, "RETAIN")}
-                            className={`px-3 py-1 text-xs font-medium ${d === "RETAIN" ? "bg-danger text-white" : "bg-white text-muted hover:bg-muted/10"}`}
+                            className={`px-3 py-1 text-xs font-medium ${d === "RETAIN" ? "bg-danger text-white" : "bg-surface text-muted hover:bg-muted/10"}`}
                           >
                             Retain
                           </button>
                         </div>
                         {isOverride && (
-                          <span className="ml-2 text-xs text-amber-600">overridden</span>
+                          <span className="ml-2 text-xs text-warning">overridden</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -355,7 +354,7 @@ export default function AdminPromotionPage() {
               Commit decisions
             </Button>
             {!toSectionId && (
-              <span className="text-xs text-amber-600">Select a destination class above to commit.</span>
+              <span className="text-xs text-warning">Select a destination class above to commit.</span>
             )}
           </div>
         </Card>

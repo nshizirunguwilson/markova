@@ -16,9 +16,12 @@ async function bootstrap() {
   // instead of the legacy `(.*)` form; this keeps /uploads served outside the
   // global `api` prefix without the LegacyRouteConverter boot warning.
   app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });
-  app.useStaticAssets(join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'), {
-    prefix: '/uploads/',
-  });
+  app.useStaticAssets(
+    join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
+    {
+      prefix: '/uploads/',
+    },
+  );
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -26,7 +29,11 @@ async function bootstrap() {
   );
   app.use(compression());
 
-  const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000')
+  // Defaults cover the local dev surfaces: the Next.js dashboard on :3001 and
+  // Expo web on :8081. The API itself (:3000) is not an origin that calls us.
+  const corsOrigins = (
+    process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081'
+  )
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);

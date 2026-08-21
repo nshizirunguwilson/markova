@@ -294,17 +294,17 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-[#1B4F72]">Reports & Documents</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-primary">Reports & Documents</h1>
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-border">
         {(["report-cards", "documents"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t
-                ? "border-[#1B4F72] text-[#1B4F72]"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
             {t === "report-cards" ? "Report Cards" : "Documents"}
@@ -589,7 +589,7 @@ export default function AdminReportsPage() {
                 </div>
 
                 {/* The roll call: every student on their own ruled line */}
-                <ol className="max-h-60 overflow-y-auto rounded-lg border border-border bg-white px-3 py-1">
+                <ol className="max-h-60 overflow-y-auto rounded-lg border border-border bg-surface px-3 py-1">
                   {bulk.items.map((it, i) => {
                     const name =
                       generatedReports[i]?.data?.student?.name || `Student ${i + 1}`;
@@ -720,7 +720,7 @@ export default function AdminReportsPage() {
               <iframe
                 srcDoc={(generateDoc.data as any).html || (generateDoc.data as string)}
                 title="Document preview"
-                className="w-full rounded-lg border border-border bg-white"
+                className="w-full rounded-lg border border-border bg-surface"
                 style={{ minHeight: "70vh" }}
               />
             </div>

@@ -142,8 +142,8 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
               setRole(e.target.value);
               handleReset();
             }}
-            className="w-full rounded-lg border border-border bg-white px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
+            className="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+           aria-label="Import as">
             <option value="STUDENT">Students</option>
             <option value="TEACHER">Teachers</option>
             <option value="PARENT">Parents</option>
@@ -184,7 +184,7 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
             accept=".csv"
             className="hidden"
             onChange={handleFileUpload}
-          />
+           aria-label="Choose a CSV file to import"/>
         </div>
 
         {/* Preview */}
@@ -224,7 +224,7 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
               Download and share these safely. They are shown only now, and
               every user must change their password on first login.
             </p>
-            <div className="mb-3 max-h-36 overflow-auto rounded border border-border bg-white text-xs">
+            <div className="mb-3 max-h-36 overflow-auto rounded border border-border bg-surface text-xs">
               {credentials.slice(0, 6).map((c, i) => (
                 <div key={i} className="flex justify-between border-b border-border px-2 py-1 last:border-0">
                   <span className="font-medium">{c.name}</span>
@@ -245,7 +245,7 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
 
         {/* Errors */}
         {errors.length > 0 && (
-          <div className="rounded-lg border border-danger/30 bg-red-50 p-3">
+          <div className="rounded-lg border border-danger/30 bg-danger-wash p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-danger">
               <AlertCircle className="h-4 w-4" />
               Import Errors

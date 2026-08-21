@@ -1,42 +1,65 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
 import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 
 export default function TeacherAttendancePage() {
   const { data: classLevels } = useClassLevels();
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
+  const [selectedSectionChoice, setSelectedSection] = useState("");
   const [date, setDate] = useState(toLocalDateString(new Date()));
   const [showScanner, setShowScanner] = useState(false);
   const [qrInput, setQrInput] = useState("");
-  const [localStatuses, setLocalStatuses] = useState<Record<string, Status>>({});
+  // Only the teacher's unsaved edits live in state. The effective statuses are
+  // derived by layering those over what the server returned, so there is no
+  // effect syncing server data into state (and no frame where the two disagree).
+  // Edits are stamped with the class+date they belong to, so switching either
+  // discards them without needing an effect to clear.
+  const [edits, setEdits] = useState<{
+    key: string;
+    values: Record<string, Status>;
+  }>({ key: "", values: {} });
 
   const { data: sections } = useSections(selectedLevel);
+  // Derived during render rather than synced in an effect: the user's
+  // explicit choice wins, otherwise fall back to the server default.
+  const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
   const { data: classData, isLoading } = useClassAttendance(selectedSection, date);
   const bulkAttendance = useBulkAttendance();
   const qrScan = useQrScan();
   const qrInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (sections?.length) setSelectedSection(sections[0].id);
-  }, [sections]);
+  const editKey = `${selectedSection}:${date}`;
 
-  // Sync server data to local state
-  useEffect(() => {
-    if (!classData?.students) return;
-    const map: Record<string, Status> = {};
-    for (const s of classData.students) {
-      map[s.studentId] = s.status;
+  const localStatuses = useMemo<Record<string, Status>>(() => {
+    const fromServer: Record<string, Status> = {};
+    for (const s of classData?.students ?? []) {
+      fromServer[s.studentId] = s.status;
     }
-    setLocalStatuses(map);
-  }, [classData]);
+    return edits.key === editKey
+      ? { ...fromServer, ...edits.values }
+      : fromServer;
+  }, [classData, edits, editKey]);
+
+  const setLocalStatuses = (
+    update:
+      | Record<string, Status>
+      | ((prev: Record<string, Status>) => Record<string, Status>),
+  ) =>
+    setEdits((prev) => ({
+      key: editKey,
+      values:
+        typeof update === "function"
+          ? update(prev.key === editKey ? { ...localStatuses } : localStatuses)
+          : update,
+    }));
 
   const toggleStatus = (studentId: string) => {
     setLocalStatuses((prev) => {
@@ -83,12 +106,12 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Attendance</h1>
-          <p className="text-sm text-muted">Mark student attendance</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Attendance"
+        description="Mark student attendance"
+        actions={
+          <>
+            <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowScanner(!showScanner)}>
             <QrCode className="mr-1 h-4 w-4" /> {showScanner ? "Hide Scanner" : "QR Scanner"}
           </Button>
@@ -96,7 +119,9 @@ export default function TeacherAttendancePage() {
             <Save className="mr-1 h-4 w-4" /> Save
           </Button>
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Card>
@@ -107,7 +132,7 @@ export default function TeacherAttendancePage() {
               value={selectedLevel}
               onChange={(e) => { setSelectedLevel(e.target.value); setSelectedSection(""); }}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class Level">
               <option value="">Select level...</option>
               {classLevels?.map((l: any) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -120,7 +145,7 @@ export default function TeacherAttendancePage() {
               value={selectedSection}
               onChange={(e) => setSelectedSection(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Section">
               <option value="">Select section...</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
@@ -134,7 +159,7 @@ export default function TeacherAttendancePage() {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
+             aria-label="Date"/>
           </div>
         </div>
       </Card>
@@ -154,7 +179,7 @@ export default function TeacherAttendancePage() {
               className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
               onKeyDown={(e) => e.key === "Enter" && handleQrSubmit()}
               autoFocus
-            />
+             aria-label="Scan QR or type student ID..."/>
             <Button onClick={handleQrSubmit} isLoading={qrScan.isPending}>Scan</Button>
           </div>
         </Card>

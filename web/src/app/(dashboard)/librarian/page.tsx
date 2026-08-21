@@ -11,6 +11,7 @@ import {
   BarChart3,
   ArrowRight,
 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function LibrarianDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -23,19 +24,19 @@ export default function LibrarianDashboard() {
       label: "Total Books",
       value: analytics?.totalBooks ?? 0,
       icon: BookOpen,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-primary bg-accent-light",
     },
     {
       label: "Active Loans",
       value: analytics?.activeLoans ?? 0,
       icon: BookMarked,
-      color: "text-emerald-600 bg-emerald-50",
+      color: "text-success bg-success-wash",
     },
     {
       label: "Overdue",
       value: analytics?.overdueLoans ?? 0,
       icon: AlertTriangle,
-      color: "text-red-600 bg-red-50",
+      color: "text-danger bg-danger-wash",
     },
     {
       label: "Total Checkouts",
@@ -53,10 +54,10 @@ export default function LibrarianDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">
-          Welcome back, {user?.firstName}
-        </h1>
-        <p className="mt-1 text-sm text-muted">Librarian Dashboard</p>
+        <PageHeader
+          title={<>Welcome back, {user?.firstName}</>}
+          description="Librarian Dashboard"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">

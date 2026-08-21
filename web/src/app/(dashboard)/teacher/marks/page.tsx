@@ -14,6 +14,7 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import { savePendingMarks, getPendingMarks, clearPendingMarks, getPendingCount } from "@/lib/offline-db";
+import { PageHeader } from "@/components/layout/page-header";
 
 interface Assignment {
   id: string;
@@ -210,12 +211,12 @@ export default function TeacherMarksPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Marks Entry</h1>
-          <p className="text-sm text-muted">Enter and manage student marks</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Marks Entry"
+        description="Enter and manage student marks"
+        actions={
+          <>
+            <div className="flex flex-wrap items-center gap-2">
           {isOnline ? (
             <Badge variant="success"><Wifi className="mr-1 h-3 w-3" /> Online</Badge>
           ) : (
@@ -228,7 +229,9 @@ export default function TeacherMarksPage() {
           )}
           {syncing && <Spinner className="h-4 w-4" />}
         </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Selectors */}
       <Card>
@@ -239,7 +242,7 @@ export default function TeacherMarksPage() {
               value={selectedAssignment}
               onChange={(e) => setSelectedAssignment(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Class & Subject">
               <option value="">Select assignment...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -254,7 +257,7 @@ export default function TeacherMarksPage() {
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Term">
               <option value="">Select term...</option>
               {terms?.map((t: any) => (
                 <option key={t.id} value={t.id}>
@@ -269,7 +272,7 @@ export default function TeacherMarksPage() {
               value={selectedAT}
               onChange={(e) => setSelectedAT(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
+             aria-label="Assessment Type">
               <option value="">Select type...</option>
               {assessmentTypes?.map((at: any) => (
                 <option key={at.id} value={at.id}>{at.name}</option>
@@ -359,7 +362,7 @@ export default function TeacherMarksPage() {
                             }
                           }
                         }}
-                      />
+                       aria-label="—"/>
                     </td>
                     <td className="py-2">
                       {entry.score !== "" ? (

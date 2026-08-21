@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-white shadow-card",
+        "rounded-xl border border-border bg-surface shadow-card",
         paddings[padding],
         className
       )}

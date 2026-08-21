@@ -21,6 +21,7 @@ import { useTerms, useAcademicYears } from "@/hooks/use-academic";
 import { StudentPicker } from "@/components/student-picker";
 import { AlertTriangle, Plus } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -60,15 +61,17 @@ export default function TeacherDisciplinePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Discipline</h1>
-          <p className="text-sm text-muted">Record and view incidents</p>
-        </div>
-        <Button onClick={() => setShowAddModal(true)}>
+      <PageHeader
+        title="Discipline"
+        description="Record and view incidents"
+        actions={
+          <>
+            <Button onClick={() => setShowAddModal(true)}>
           <Plus className="mr-1 h-4 w-4" /> Record Incident
         </Button>
-      </div>
+          </>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
@@ -129,7 +132,7 @@ export default function TeacherDisciplinePage() {
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">Action</label>
               <select value={form.actionTaken} onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none" aria-label="Action">
                 {Object.entries(ACTION_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
               </select>
             </div>

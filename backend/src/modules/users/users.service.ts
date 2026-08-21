@@ -420,13 +420,12 @@ export class UsersService {
       if (dto.role === Role.PARENT) {
         // Preferred shape: children with their own relationship each. The
         // legacy studentIds + single relationship stays for bulk import.
-        const links =
-          dto.children?.length
-            ? dto.children
-            : (dto.studentIds || []).map((studentId) => ({
-                studentId,
-                relationship: dto.relationship || 'Parent',
-              }));
+        const links = dto.children?.length
+          ? dto.children
+          : (dto.studentIds || []).map((studentId) => ({
+              studentId,
+              relationship: dto.relationship || 'Parent',
+            }));
         for (const link of links) {
           await tx.parentStudent.create({
             data: {

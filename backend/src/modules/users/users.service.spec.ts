@@ -55,7 +55,10 @@ describe('UsersService', () => {
       mockPrisma.teacher.create.mockResolvedValue({ id: 't1' });
       // findOne() at the end
       mockPrisma.user.findUnique.mockResolvedValueOnce(null); // email check
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'TEACHER' });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        role: 'TEACHER',
+      });
 
       const result = await service.create(baseDto);
 
@@ -130,13 +133,13 @@ describe('UsersService', () => {
 
       await service.create({
         ...baseDto,
-        role: 'PARENT' as any,
+        role: 'PARENT',
         phone: '+250731112223',
         children: [
           { studentId: 's1', relationship: 'Father' },
           { studentId: 's2', relationship: 'Guardian' },
         ],
-      } as any);
+      });
 
       expect(mockPrisma.parentStudent.create).toHaveBeenCalledTimes(2);
       expect(mockPrisma.parentStudent.create).toHaveBeenCalledWith(
@@ -183,7 +186,10 @@ describe('UsersService', () => {
       mockPrisma.student.update.mockResolvedValue({});
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1' }); // findOne
 
-      await service.update('u1', { firstName: 'Edited', gender: 'MALE' } as any);
+      await service.update('u1', {
+        firstName: 'Edited',
+        gender: 'MALE',
+      } as any);
 
       expect(mockPrisma.user.update).toHaveBeenCalled();
       expect(mockPrisma.student.update).toHaveBeenCalled();

@@ -74,8 +74,8 @@ export function StepAssignTeachers() {
           <select
             value={teacherId}
             onChange={(e) => setTeacherId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+           aria-label="Teacher">
             <option value="">Select teacher...</option>
             {teachers.map((t: any) => (
               <option key={t.id} value={t.id}>
@@ -89,8 +89,8 @@ export function StepAssignTeachers() {
           <select
             value={subjectId}
             onChange={(e) => setSubjectId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+           aria-label="Subject">
             <option value="">Select subject...</option>
             {subjects?.map((s: any) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -102,8 +102,8 @@ export function StepAssignTeachers() {
           <select
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          >
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+           aria-label="Class">
             <option value="">Select class...</option>
             {sections?.map((s: any) => (
               <option key={s.id} value={s.id}>

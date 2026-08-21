@@ -35,13 +35,13 @@ export function ExportDropdown({ onExport, disabled }: ExportDropdownProps) {
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium text-foreground hover:bg-gray-50 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted disabled:opacity-50"
       >
         <Download className="h-4 w-4" />
         Export
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-border bg-white py-1 shadow-popover">
+        <div className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-border bg-surface py-1 shadow-popover">
           {formats.map(({ format, label, icon: Icon }) => (
             <button
               key={format}

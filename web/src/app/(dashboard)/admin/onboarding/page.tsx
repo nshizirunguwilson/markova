@@ -32,6 +32,7 @@ import { StepImportTeachers } from "./steps/step-import-teachers";
 import { StepImportStudents } from "./steps/step-import-students";
 import { StepAssignTeachers } from "./steps/step-assign-teachers";
 import { StepReview } from "./steps/step-review";
+import { PageHeader } from "@/components/layout/page-header";
 
 const STEPS = [
   { label: "School Info", icon: School },
@@ -94,10 +95,10 @@ export default function OnboardingPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">School Setup Wizard</h1>
-        <p className="mt-1 text-sm text-muted">
-          Configure your school in {STEPS.length} easy steps
-        </p>
+        <PageHeader
+          title="School Setup Wizard"
+          description={<>Configure your school in {STEPS.length} easy steps</>}
+        />
       </div>
 
       {/* Progress bar */}

@@ -697,7 +697,7 @@ export class MarksService {
     return {
       school: {
         name: configMap['school_name'] || '',
-        motto: configMap['motto'] || '',
+        motto: configMap['school_motto'] || configMap['motto'] || '',
         logoUrl: configMap['logo_url'] || null,
         stampUrl: configMap['stamp_url'] || null,
         signatureUrl: configMap['signature_url'] || null,
