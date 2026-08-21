@@ -3,11 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ACCESS_TOKEN_TYPE } from '../token-types';
 
 export interface JwtPayload {
   sub: string; // user id
   role: string;
   email?: string;
+  /** 'access' or 'refresh'. Absent on tokens minted before the claim existed. */
+  typ?: string;
 }
 
 @Injectable()
@@ -30,6 +33,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // A refresh token must not open a request. It is signed with a different
+    // key, so this only bites if the two secrets are ever made equal, which the
+    // boot time environment check now refuses. Tokens issued before the claim
+    // existed carry no `typ` and are accepted until they expire.
+    if (payload.typ && payload.typ !== ACCESS_TOKEN_TYPE) {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {

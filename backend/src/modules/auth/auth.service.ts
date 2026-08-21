@@ -1,3 +1,4 @@
+import { ACCESS_TOKEN_TYPE, REFRESH_TOKEN_TYPE } from './token-types';
 import {
   Injectable,
   UnauthorizedException,
@@ -250,6 +251,13 @@ export class AuthService {
       const payload = this.jwtService.verify(dto.refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
+
+      // Reject an access token presented here. Tokens minted before this claim
+      // existed have no `typ` at all, so they are allowed through until they
+      // expire and are replaced by a labelled pair.
+      if (payload.typ && payload.typ !== REFRESH_TOKEN_TYPE) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
 
       // Check session is still active
       const session = await this.prisma.userSession.findFirst({
@@ -587,13 +595,19 @@ export class AuthService {
   ) {
     const payload = { sub: userId, role };
 
+    // `typ` says which kind of token this is. The two used to be
+    // indistinguishable once decoded, so anything holding a refresh token could
+    // present it wherever an access token was expected and get seven days of
+    // access instead of fifteen minutes. Separate secrets are the primary
+    // defence and are now enforced at boot; this is the second one, and it
+    // holds even if the keys are ever misconfigured again.
     const accessToken = this.jwtService.sign(
-      { ...payload, jti: uuidv4() },
+      { ...payload, typ: ACCESS_TOKEN_TYPE, jti: uuidv4() },
       { expiresIn: ACCESS_TOKEN_EXPIRY },
     );
 
     const refreshToken = this.jwtService.sign(
-      { ...payload, jti: uuidv4() },
+      { ...payload, typ: REFRESH_TOKEN_TYPE, jti: uuidv4() },
       {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: REFRESH_TOKEN_EXPIRY,
