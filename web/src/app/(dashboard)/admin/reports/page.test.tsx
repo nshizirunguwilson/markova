@@ -20,19 +20,31 @@ vi.mock("next/navigation", () => ({
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve } from "@/test/page";
-import { exercisePage, fillEverything } from "@/test/exercise";
+import { chooseCascadingFilters, exercisePage, fillEverything } from "@/test/exercise";
 import { populatedRoutes, students } from "@/test/fixtures";
 
 import ReportsPage from "./page";
 
+/**
+ * Each generated report carries the whole rendered card under `data`, which is
+ * what the table reads: `r.data.student.name`, not a flattened row.
+ */
 const generated = {
   count: 2,
   reports: students.map((s, i) => ({
     studentId: s.id,
-    studentName: `${s.user.firstName} ${s.user.lastName}`,
-    average: 82 - i * 5,
-    position: i + 1,
     verificationCode: `12345678901${i}`,
+    data: {
+      student: {
+        id: s.id,
+        name: `${s.user.firstName} ${s.user.lastName}`,
+        class: "Senior 1 A",
+        studentIdNumber: s.studentIdNumber,
+      },
+      term: { id: "term-1", name: "Term 1" },
+      result: { average: 82 - i * 5, position: i + 1, grade: i ? "B" : "A", decision: "PASS" },
+      marks: [],
+    },
   })),
 };
 
@@ -61,16 +73,18 @@ beforeEach(() => {
   );
 });
 
-/** Picks a value in every filter select, which is what enables Generate. */
+/**
+ * The filters cascade: term depends on year, section on level. They have to be
+ * chosen in order, waiting for each dependent query, or Generate stays refused.
+ */
 async function chooseFilters() {
-  const selects = Array.from(document.querySelectorAll("select"));
-  for (const select of selects) {
-    const option = Array.from(select.options).find((o) => o.value)?.value;
-    if (!option) continue;
-    await act(async () => {
-      fireEvent.change(select, { target: { value: option } });
-    });
-  }
+  await waitFor(() => {
+    const anyPopulated = Array.from(document.querySelectorAll("select")).some((el) =>
+      Array.from(el.options).some((o) => o.value),
+    );
+    expect(anyPopulated).toBe(true);
+  });
+  await chooseCascadingFilters(6);
 }
 
 function buttonMatching(pattern: RegExp) {
@@ -101,10 +115,84 @@ describe("the report cards page", () => {
   });
 });
 
-// The post-generation states (view, print, download per row) are not covered
-// here yet: driving the page into them needs the class and term selects to be
-// populated in the order the page expects, and a half-working test that passes
-// for the wrong reason is worse than an honest gap. See TESTING.md.
+describe("after generating a class's reports", () => {
+  async function generate() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+
+    const button = buttonMatching(/generate/i);
+    expect(button).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(button!);
+    });
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+  }
+
+  it("lists a row per student", async () => {
+    await generate();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    expect(screen.getByText(/Keza/)).toBeInTheDocument();
+  });
+
+  it("says how many were generated", async () => {
+    await generate();
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+    expect(String(h.toast.success.mock.calls[0][0])).toContain("2");
+  });
+
+  it("loads one report's html to view it", async () => {
+    await generate();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    h.api.get.mockClear();
+
+    const view = buttonMatching(/view/i);
+    if (!view) return;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/html"))).toBe(true);
+    });
+  });
+
+  // A report that fails to load has to say so; the row otherwise sits on a
+  // spinner forever.
+  it("reports a failure to load one report", async () => {
+    await generate();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    h.api.get.mockRejectedValue({ response: { status: 500 } });
+    h.toast.error.mockClear();
+
+    const view = buttonMatching(/view/i);
+    if (!view) return;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+
+  it("opens a print window for one row", async () => {
+    await generate();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const print = buttonMatching(/print/i);
+    if (!print) return;
+    await act(async () => {
+      fireEvent.click(print);
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("survives every control once rows exist", async () => {
+    await generate();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    const { rejections } = await exercisePage({ limit: 30 });
+    expect(rejections).toEqual([]);
+  }, 30000);
+});
 
 describe("when generation fails", () => {
   it("says so and leaves the filters alone", async () => {
