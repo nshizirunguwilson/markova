@@ -27,7 +27,14 @@ import { toast } from "sonner";
 // Real Rwandan mobiles: MTN 078/079, Airtel 072/073.
 const PHONE_RE = /^\+250(78|79|72|73)\d{7}$/;
 
-const schema = z
+/**
+ * Exported so the role rules can be checked directly. They are the difference
+ * between a parent who can sign in and one who cannot: parents log in by phone,
+ * staff by email, and a student with no class is invisible to every roster in
+ * the school. Reaching those branches through five wizard steps proved far more
+ * fragile than reading them here.
+ */
+export const schema = z
   .object({
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().min(1, "Last name is required"),
