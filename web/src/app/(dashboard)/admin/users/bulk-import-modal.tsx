@@ -84,7 +84,16 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
   };
 
   const handleImport = async () => {
-    const result = await bulkImport.mutateAsync({ role, rows: parsedRows });
+    let result;
+    try {
+      result = await bulkImport.mutateAsync({ role, rows: parsedRows });
+    } catch {
+      // The hook already tells the user what went wrong. Swallowing the
+      // rejection here keeps it from escaping as an unhandled promise, and
+      // leaves the parsed rows on screen so the import can be retried after a
+      // fix rather than re-uploaded from scratch.
+      return;
+    }
     if (result.errors?.length) {
       setErrors(result.errors);
     } else if (result.credentials?.length) {
