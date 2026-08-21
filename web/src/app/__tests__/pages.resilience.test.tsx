@@ -6,6 +6,10 @@
  * screen or a thrown error. All three happen to real users, and the empty case
  * in particular is exactly what a brand new school sees on its first day.
  *
+ * A fourth pass renders each page against populated responses, which is what
+ * actually walks the "draw the rows" branches. Between the two, a page is
+ * exercised both full and empty.
+ *
  * Deliberately shallow. This proves a page survives; a page's own test file
  * proves it is correct. The table is generated from the route tree, so a new
  * page that is not resilient fails here without anyone remembering to add it.
@@ -31,7 +35,8 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
-import { renderPage, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
+import { renderPage, serve, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
+import { populatedRoutes } from "@/test/fixtures";
 import type { User } from "@/stores/auth-store";
 
 import AdminAnalytics from "@/app/(dashboard)/admin/analytics/page";
@@ -162,5 +167,19 @@ describe("every dashboard page survives a slow API", () => {
     serveNever(h.api);
     const { container } = renderPage(Page, { role, user: asUser });
     expect(container).toBeTruthy();
+  });
+});
+
+describe("every dashboard page renders real content", () => {
+  it.each(pages)("$name draws its data when the school has some", async ({ role, Page }) => {
+    serve(h.api, populatedRoutes);
+    renderPage(Page, { role, user: asUser });
+    // Waits for real content rather than for "not empty": a page still showing
+    // its spinner has a textContent of null, which is not "" and would sail
+    // straight through a looser check.
+    await waitFor(
+      () => expect((document.body.textContent ?? "").length).toBeGreaterThan(40),
+      { timeout: 5000 },
+    );
   });
 });
