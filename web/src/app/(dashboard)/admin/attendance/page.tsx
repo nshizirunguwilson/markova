@@ -120,7 +120,7 @@ export default function AdminAttendancePage() {
                 <CardTitle>
                   <Users className="mr-2 inline h-5 w-5" /> Class Breakdown
                 </CardTitle>
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance table, scrolls horizontally">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -163,7 +163,7 @@ export default function AdminAttendancePage() {
               {/* Visual bar chart */}
               <Card>
                 <CardTitle>Attendance by Class</CardTitle>
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance table, scrolls horizontally">
                   <div className="flex items-end gap-3 h-40 min-w-max">
                   {dashboard.sections.map((s: any) => (
                     <div key={s.sectionId} className="flex h-full w-12 shrink-0 flex-col items-center">
@@ -199,7 +199,7 @@ export default function AdminAttendancePage() {
             Students with absence rate above {chronic?.threshold || 20}%
           </p>
           {chronic?.students?.length > 0 ? (
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance table, scrolls horizontally">
               <Table>
                 <TableHeader>
                   <TableRow>

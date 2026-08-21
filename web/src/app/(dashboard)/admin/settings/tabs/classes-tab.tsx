@@ -83,7 +83,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {[s.trade?.code, s.name].filter(Boolean).join(" ")} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
+                <button aria-label="Delete" onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>

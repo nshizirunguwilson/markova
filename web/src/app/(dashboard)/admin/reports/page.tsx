@@ -318,7 +318,7 @@ export default function AdminReportsPage() {
             <CardTitle>Generate Class Report Cards</CardTitle>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <select
+              <select aria-label="Academic year"
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={yearId}
                 onChange={(e) => {
@@ -332,7 +332,7 @@ export default function AdminReportsPage() {
                 ))}
               </select>
 
-              <select
+              <select aria-label="Term"
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={termId}
                 onChange={(e) => setTermId(e.target.value)}
@@ -343,7 +343,7 @@ export default function AdminReportsPage() {
                 ))}
               </select>
 
-              <select
+              <select aria-label="Class level"
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={levelId}
                 onChange={(e) => {
@@ -357,7 +357,7 @@ export default function AdminReportsPage() {
                 ))}
               </select>
 
-              <select
+              <select aria-label="Class section"
                 className="border rounded-lg px-3 py-2 text-sm"
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
@@ -670,7 +670,7 @@ export default function AdminReportsPage() {
           <StudentPicker value={docStudentId} onChange={setDocStudentId} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select
+            <select aria-label="Document type"
               className="border rounded-lg px-3 py-2 text-sm"
               value={docType}
               onChange={(e) => setDocType(e.target.value)}

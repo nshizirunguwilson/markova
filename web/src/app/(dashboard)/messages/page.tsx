@@ -250,7 +250,7 @@ export default function MessagesPage() {
             {/* Header with online status */}
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center gap-3">
-                <button
+                <button aria-label="Go back"
                   onClick={() => setSelectedConv(null)}
                   className="md:hidden flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/10"
                 >

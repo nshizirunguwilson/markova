@@ -162,10 +162,10 @@ export default function AdminHelpPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <button onClick={() => openEditFaq(faq)} className="text-primary-light hover:text-primary">
+                          <button aria-label="Edit" onClick={() => openEditFaq(faq)} className="text-primary-light hover:text-primary">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteFaq(faq.id)} className="text-danger hover:text-danger">
+                          <button aria-label="Delete" onClick={() => handleDeleteFaq(faq.id)} className="text-danger hover:text-danger">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>

@@ -285,7 +285,7 @@ export default function LoginPage() {
 
             <p className="text-center text-xs text-muted">
               Forgot password?{" "}
-              <a href="/forgot-password" className="text-primary-light hover:underline">
+              <a href="/forgot-password" className="text-primary underline hover:no-underline">
                 Reset it here
               </a>
             </p>

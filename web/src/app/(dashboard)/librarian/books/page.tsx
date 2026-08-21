@@ -108,7 +108,7 @@ export default function LibrarianBooksPage() {
               className="w-full rounded-lg border border-border bg-surface pl-10 pr-3 py-2 text-sm focus:border-primary focus:outline-none"
             />
           </div>
-          <select
+          <select aria-label="Category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
