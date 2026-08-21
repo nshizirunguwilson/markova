@@ -177,14 +177,9 @@ export default function LoginPage() {
     return () => clearInterval(id);
   }, [step]);
 
-  // Auto-submit once all 6 digits are entered
-  const otpValue = otpForm.watch("otp");
-  useEffect(() => {
-    if (step === "otp" && otpValue?.length === 6 && !isLoading) {
-      otpForm.handleSubmit(onVerifyOtp)();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otpValue]);
+  // The sixth digit does not submit the form. Verification is an explicit act:
+  // auto-firing on the last keystroke burned a code on any typo, and left no
+  // room to correct one before the attempt counted.
 
   // ─── Change Password Form ──────────────────────────────────────────────────
 
