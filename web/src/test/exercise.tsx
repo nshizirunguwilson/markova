@@ -47,6 +47,39 @@ function selects() {
 }
 
 /**
+ * Waits for the selects on screen to have real options, then picks one in each,
+ * top to bottom, with a render between every choice.
+ *
+ * Filter bars cascade: the section select is disabled until a level is chosen,
+ * the term until a year. Setting them all in one synchronous pass leaves every
+ * dependent control still disabled and does nothing, which is how whole pages
+ * end up unreachable past their filters.
+ */
+export async function chooseCascadingFilters(maxDepth = 4) {
+  let chosen = 0;
+
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    const next = selects().find(
+      (el) => !el.value && Array.from(el.options).some((o) => o.value),
+    );
+    if (!next) break;
+
+    const value = Array.from(next.options).find((o) => o.value)!.value;
+    await act(async () => {
+      fireEvent.change(next, { target: { value } });
+    });
+    chosen += 1;
+
+    // Let the dependent query settle so the next select has options to offer.
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  return chosen;
+}
+
+/**
  * Fills every text field and picks a value in every select, then reports how
  * many it touched. Forms only reach their submit handler once they validate, so
  * this is what makes the submit worth clicking.
@@ -182,6 +215,9 @@ export async function exercisePage(options: ExerciseOptions = {}) {
   process.on("unhandledRejection", onRejection);
 
   try {
+    // Filters first: most pages render nothing worth clicking until their
+    // class, term or year is chosen.
+    await chooseCascadingFilters();
     await fillEverything();
     await walkForward();
     await clickEverything(options);
