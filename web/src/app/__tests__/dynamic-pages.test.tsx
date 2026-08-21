@@ -29,6 +29,7 @@ vi.mock("@/components/ui/echart", () => ({
   EChart: () => <div data-testid="chart" />,
 }));
 
+import { render } from "@testing-library/react";
 import { renderPage, serve, serveAll, serveFailure, waitFor } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
 import { populatedRoutes, students, teachers } from "@/test/fixtures";
@@ -102,18 +103,42 @@ describe("record pages", () => {
   }, 30000);
 });
 
-// The public report verification page. Anyone with a printed report card can
+// The public report verification page. Anyone holding a printed report card can
 // reach it, signed in or not, so it has to hold up on its own.
+//
+// It is an async server component: it takes a params promise and fetches with
+// the global fetch rather than the axios client, so it is awaited into an
+// element instead of being rendered like a client page.
 describe("public report verification", () => {
+  const renderVerify = async (code: string) => {
+    const element = await VerifyPage({ params: Promise.resolve({ code }) });
+    return render(element);
+  };
+
   it("shows a verified report", async () => {
-    serve(h.api, routes);
-    renderPage(VerifyPage, { role: "ADMIN" });
-    await waitFor(() => expect(document.body.textContent).not.toBeNull());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ valid: true, student: students[0], termName: "Term 1" }),
+      })),
+    );
+    await renderVerify("123456789012");
+    expect(document.body.textContent).not.toBe("");
+    vi.unstubAllGlobals();
   });
 
   it("says so when the code is not recognised", async () => {
-    serveFailure(h.api, 404);
-    renderPage(VerifyPage, { role: "ADMIN" });
-    await waitFor(() => expect(document.body.textContent).not.toBeNull());
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => null })));
+    await renderVerify("000000000000");
+    expect(document.body.textContent).not.toBe("");
+    vi.unstubAllGlobals();
+  });
+
+  it("does not crash when the lookup throws", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    await renderVerify("000000000000");
+    expect(document.body.textContent).not.toBe("");
+    vi.unstubAllGlobals();
   });
 });

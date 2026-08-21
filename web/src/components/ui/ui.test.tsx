@@ -271,7 +271,12 @@ describe("ExportDropdown", () => {
 
 describe("TooltipGuide", () => {
   it("renders its trigger", () => {
-    render(<TooltipGuide storageKey="guide-1" steps={[{ title: "Start", body: "Here" }]} />);
+    render(
+      <TooltipGuide
+        id="guide-1"
+        steps={[{ target: "body", title: "Start", content: "Here is the roster." }]}
+      />,
+    );
     expect(document.body.textContent).not.toBeNull();
   });
 });
