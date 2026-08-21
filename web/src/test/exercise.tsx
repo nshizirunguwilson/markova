@@ -58,6 +58,25 @@ function selects() {
 export async function chooseCascadingFilters(maxDepth = 4) {
   let chosen = 0;
 
+  // Wait for the first query to land before looking for anything to choose.
+  // A select renders immediately with only its placeholder, so running straight
+  // away finds no options, gives up, and leaves the whole page behind its
+  // filter bar untouched.
+  try {
+    await waitFor(
+      () => {
+        const ready = selects().some((el) =>
+          Array.from(el.options).some((o) => o.value),
+        );
+        expect(ready).toBe(true);
+      },
+      { timeout: 3000 },
+    );
+  } catch {
+    // A page with no filters at all, which is fine: there is nothing to choose.
+    return 0;
+  }
+
   for (let depth = 0; depth < maxDepth; depth += 1) {
     const next = selects().find(
       (el) => !el.value && Array.from(el.options).some((o) => o.value),
