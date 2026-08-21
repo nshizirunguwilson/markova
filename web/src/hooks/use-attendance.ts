@@ -32,10 +32,14 @@ export function useQrScan() {
     mutationFn: async (data: any) => (await api.post("/attendance/qr-scan", data)).data,
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["class-attendance"] });
-      if (data.duplicate) {
-        toast.info(`${data.student.name} already scanned`);
+      // Read defensively: a scan that reached the server has been recorded,
+      // and the toast naming the student must not be able to report it as a
+      // failure just because the response was shaped differently.
+      const name = data?.student?.name ?? "Student";
+      if (data?.duplicate) {
+        toast.info(`${name} already scanned`);
       } else {
-        toast.success(`${data.student.name} — ${data.record.status}`);
+        toast.success(`${name}: ${data?.record?.status ?? "recorded"}`);
       }
     },
     onError: (e: any) => toast.error(e.response?.data?.message || "Scan failed"),
