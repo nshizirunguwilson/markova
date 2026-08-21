@@ -77,7 +77,7 @@ export function DataExportTab() {
             </p>
           </div>
         </div>
-        <Button
+        <Button aria-label="Download"
           size="sm"
           onClick={handleExportEverything}
           isLoading={fullLoading}
@@ -104,7 +104,7 @@ export function DataExportTab() {
                 <p className="text-xs text-muted">{exp.description}</p>
               </div>
             </div>
-            <Button
+            <Button aria-label="Download"
               size="sm"
               variant="outline"
               onClick={() => handleExport(exp.key)}

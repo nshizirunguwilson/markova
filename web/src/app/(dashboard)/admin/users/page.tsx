@@ -379,7 +379,7 @@ export default function UsersPage() {
               </select>
             </div>
             <div className="flex gap-2">
-              <Button
+              <Button aria-label="Previous page"
                 variant="outline"
                 size="sm"
                 disabled={meta.page <= 1}
@@ -392,7 +392,7 @@ export default function UsersPage() {
               <span className="flex items-center px-3 text-sm text-muted">
                 Page {meta.page} of {meta.totalPages}
               </span>
-              <Button
+              <Button aria-label="Next page"
                 variant="outline"
                 size="sm"
                 disabled={meta.page >= meta.totalPages}

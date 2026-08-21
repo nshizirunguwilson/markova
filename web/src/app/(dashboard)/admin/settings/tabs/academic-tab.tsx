@@ -70,7 +70,7 @@ export function AcademicTab() {
             <input type="checkbox" {...yearForm.register("isCurrent")} className="h-4 w-4 rounded border-input accent-primary" />
             Make current
           </label>
-          <Button type="submit" size="sm" isLoading={createYear.isPending}><Plus className="h-4 w-4" /></Button>
+          <Button aria-label="Add" type="submit" size="sm" isLoading={createYear.isPending}><Plus className="h-4 w-4" /></Button>
         </form>
         <p className="mt-2 text-xs text-muted">
           Leave &quot;Make current&quot; off to prepare a future year — the whole school switches to the current year.
@@ -91,7 +91,7 @@ export function AcademicTab() {
                 {t.isCurrent && <Badge variant="success">Current</Badge>}
                 {t.isClosed && <Badge variant="danger">Closed</Badge>}
               </div>
-              <Button size="sm" variant="ghost" onClick={() => toggleTerm(t.id, t.isClosed)}>
+              <Button aria-label="Unlock" size="sm" variant="ghost" onClick={() => toggleTerm(t.id, t.isClosed)}>
                 {t.isClosed ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               </Button>
             </div>
@@ -102,7 +102,7 @@ export function AcademicTab() {
             <Input id="tm-name" label="Name" placeholder="Term 1" {...termForm.register("name")} />
             <Input id="tm-start" label="Start" type="date" {...termForm.register("startDate")} />
             <Input id="tm-end" label="End" type="date" {...termForm.register("endDate")} />
-            <Button type="submit" size="sm" isLoading={createTerm.isPending}><Plus className="h-4 w-4" /></Button>
+            <Button aria-label="Add" type="submit" size="sm" isLoading={createTerm.isPending}><Plus className="h-4 w-4" /></Button>
           </form>
         )}
       </Card>
@@ -115,7 +115,7 @@ export function AcademicTab() {
         </div>
         <form onSubmit={atForm.handleSubmit((d) => createAT.mutate(d, { onSuccess: () => atForm.reset() }))} className="flex items-end gap-3 max-w-sm">
           <Input id="at-name" label="Name" placeholder="e.g. Quiz" {...atForm.register("name")} />
-          <Button type="submit" size="sm" isLoading={createAT.isPending}><Plus className="h-4 w-4" /></Button>
+          <Button aria-label="Add" type="submit" size="sm" isLoading={createAT.isPending}><Plus className="h-4 w-4" /></Button>
         </form>
       </Card>
     </div>

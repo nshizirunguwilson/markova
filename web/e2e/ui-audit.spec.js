@@ -23,8 +23,8 @@ const API = process.env.API || 'http://localhost:3000/api';
 const PASS = 'Password123!';
 const ACCOUNTS = {
   ADMIN: { email: 'wilsonshizirungu@gmail.com', password: PASS },
-  STUDENT: { email: 'student1@markova.academy', password: PASS },
-  TEACHER: { email: 'aline.uwase@markova.academy', password: PASS },
+  STUDENT: { email: 'student1@markova.edu', password: PASS },
+  TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
 };
 

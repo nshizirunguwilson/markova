@@ -135,10 +135,10 @@ export default function TeacherHomeworkPage() {
                     <TableCell>{hw._count.submissions}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setViewingId(hw.id)}>
+                        <Button aria-label="View" size="sm" variant="ghost" onClick={() => setViewingId(hw.id)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => { setConfirmAction(() => () => deleteHomework.mutate(hw.id)); }}>
+                        <Button aria-label="Delete" size="sm" variant="ghost" onClick={() => { setConfirmAction(() => () => deleteHomework.mutate(hw.id)); }}>
                           <Trash2 className="h-4 w-4 text-danger" />
                         </Button>
                       </div>

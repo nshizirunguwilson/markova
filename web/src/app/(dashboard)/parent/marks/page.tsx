@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { classDisplayName } from "@/lib/utils";
-import { Card, CardTitle, Badge, Spinner } from "@/components/ui";
+import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";

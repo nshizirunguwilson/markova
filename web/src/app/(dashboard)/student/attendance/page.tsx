@@ -101,10 +101,10 @@ export default function StudentAttendancePage() {
                 <Calendar className="mr-2 inline h-5 w-5" /> {monthName}
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={goToPrevMonth}>
+                <Button aria-label="Previous page" variant="outline" size="sm" onClick={goToPrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={goToNextMonth}>
+                <Button aria-label="Next page" variant="outline" size="sm" onClick={goToNextMonth}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -128,11 +128,11 @@ export default function StudentAttendancePage() {
                       !cell
                         ? ""
                         : cell.status === "PRESENT"
-                          ? "bg-success/10 text-success"
+                          ? "bg-success-wash text-success"
                           : cell.status === "LATE"
-                            ? "bg-warning/10 text-warning"
+                            ? "bg-warning-wash text-warning"
                             : cell.status === "ABSENT"
-                              ? "bg-danger/10 text-danger"
+                              ? "bg-danger-wash text-danger"
                               : "bg-surface text-muted"
                     }`}
                   >

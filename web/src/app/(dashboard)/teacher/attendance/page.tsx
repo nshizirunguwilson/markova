@@ -112,7 +112,7 @@ export default function TeacherAttendancePage() {
         actions={
           <>
             <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowScanner(!showScanner)}>
+          <Button aria-label="Scan QR code" variant="outline" onClick={() => setShowScanner(!showScanner)}>
             <QrCode className="mr-1 h-4 w-4" /> {showScanner ? "Hide Scanner" : "QR Scanner"}
           </Button>
           <Button onClick={handleSave} isLoading={bulkAttendance.isPending}>

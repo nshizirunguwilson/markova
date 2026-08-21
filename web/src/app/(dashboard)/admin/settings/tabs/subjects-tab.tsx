@@ -89,7 +89,7 @@ export function SubjectsTab() {
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${s.name}"?`); setConfirmAction(() => () => deleteSubject(s.id)); }}>
+                    <Button aria-label="Delete" size="sm" variant="ghost" onClick={() => { setConfirmMessage(`Are you sure you want to delete "${s.name}"?`); setConfirmAction(() => () => deleteSubject(s.id)); }}>
                       <Trash2 className="h-4 w-4 text-danger" />
                     </Button>
                   </TableCell>
