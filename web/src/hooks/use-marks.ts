@@ -3,6 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload, PayloadWithId } from "./types";
+import { errorMessage } from "@/lib/errors";
 
 // ─── Marks CRUD ──────────────────────────────────────────────────────────────
 
@@ -18,37 +20,37 @@ export function useMarks(params?: Record<string, string>) {
 export function useCreateMark() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/marks", data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to save mark"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to save mark")),
   });
 }
 
 export function useUpdateMark() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/${id}`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/marks/${id}`, data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update mark"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to update mark")),
   });
 }
 
 export function useBatchMarks() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/batch", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/batch", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
       toast.success(`${data.count} marks saved`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Batch save failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Batch save failed")),
   });
 }
 
@@ -86,36 +88,36 @@ export function useStudentTermResult(studentId?: string, termId?: string) {
 export function useCalculateTermResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/term-results/calculate", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/term-results/calculate", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success(`Calculated results for ${data.count} students`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Calculation failed")),
   });
 }
 
 export function usePublishTermResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/term-results/publish", data)).data,
+    mutationFn: async (data: Payload) => (await api.post("/marks/term-results/publish", data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Results published");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Publish failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Publish failed")),
   });
 }
 
 export function useUpdateTermResultComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: any) => (await api.put(`/marks/term-results/${id}/comment`, data)).data,
+    mutationFn: async ({ id, ...data }: PayloadWithId) => (await api.put(`/marks/term-results/${id}/comment`, data)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Comment saved");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -142,12 +144,12 @@ export function useStudentYearResult(studentId?: string, academicYearId?: string
 export function useCalculateYearResults() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/marks/year-results/calculate", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/marks/year-results/calculate", data)).data,
+    onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["year-results"] });
       toast.success(`Calculated year results for ${data.count} students`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Calculation failed")),
   });
 }
 

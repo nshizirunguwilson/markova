@@ -37,7 +37,7 @@ export default function StudentDisciplinePage() {
               <div className="flex-1">
                 <p className="text-sm text-muted">Discipline Points</p>
                 <p className="text-3xl font-bold text-foreground">
-                  {data.student.currentPoints} / {data.student.startingPoints}
+                  {data.student?.currentPoints ?? 0} / {data.student?.startingPoints ?? 0}
                 </p>
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
@@ -46,12 +46,12 @@ export default function StudentDisciplinePage() {
                       data.student.percentage >= 50 ? "bg-warning" :
                       "bg-danger"
                     }`}
-                    style={{ width: `${data.student.percentage}%` }}
+                    style={{ width: `${data.student?.percentage ?? 0}%` }}
                   />
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-primary">{data.student.percentage}%</p>
+                <p className="text-2xl font-bold text-primary">{data.student?.percentage ?? 0}%</p>
                 <p className="text-xs text-muted">{data.totalIncidents} incident{data.totalIncidents !== 1 ? "s" : ""}</p>
               </div>
             </div>

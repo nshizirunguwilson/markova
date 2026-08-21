@@ -287,12 +287,12 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         <div className="flex flex-wrap items-center gap-4">
           <Avatar
             src={s.photoUrl}
-            fallback={s.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
+            fallback={(s.name ?? "").split(" ").filter(Boolean).map((w: string) => w[0]).slice(0, 2).join("")}
             size="lg"
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold text-foreground">{s.name}</h1>
+              <h1 className="text-xl font-bold text-foreground">{s.name ?? "Student"}</h1>
               <Badge variant="info">{s.class}</Badge>
               {s.trade && <Badge variant="default">{s.trade.name}</Badge>}
               {s.status === "ACTIVE" && (

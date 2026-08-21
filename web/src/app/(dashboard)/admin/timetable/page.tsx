@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -175,11 +176,15 @@ export default function AdminTimetablePage() {
         { classSectionId: sectionId, ...payload },
         { onSuccess: () => setModal(null) }
       );
-    } else {
+    } else if (modal.entryId) {
       updateTt.mutate(
         { id: modal.entryId, ...payload },
         { onSuccess: () => setModal(null) }
       );
+    } else {
+      // Edit mode with no entry id would PUT to /timetable/undefined. The
+      // delete handler already guards for this; this one did not.
+      toast.error("That timetable entry could not be identified.");
     }
   };
 
@@ -204,7 +209,7 @@ export default function AdminTimetablePage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
-            <select
+            <select aria-label="Class level"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
@@ -217,7 +222,7 @@ export default function AdminTimetablePage() {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Section</label>
-            <select
+            <select aria-label="Class section"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
@@ -290,7 +295,7 @@ export default function AdminTimetablePage() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Subject</label>
-              <select
+              <select aria-label="Subject"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.subjectId}
                 onChange={(e) => setModal({ ...modal, subjectId: e.target.value })}
@@ -303,7 +308,7 @@ export default function AdminTimetablePage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Teacher</label>
-              <select
+              <select aria-label="Teacher"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.teacherId}
                 onChange={(e) => setModal({ ...modal, teacherId: e.target.value })}
@@ -319,7 +324,7 @@ export default function AdminTimetablePage() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="mb-1 block text-sm font-medium">Day</label>
-                <select
+                <select aria-label="Day of week"
                   className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.dayOfWeek}
                   onChange={(e) => setModal({ ...modal, dayOfWeek: Number(e.target.value) })}

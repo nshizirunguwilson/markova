@@ -8,6 +8,7 @@ import { Plus, Layers, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { errorMessage } from "@/lib/errors";
 
 export function ClassesTab() {
   const { data: levels } = useClassLevels();
@@ -20,7 +21,13 @@ export function ClassesTab() {
   const [sectionInputs, setSectionInputs] = useState<Record<string, string>>({});
   const [tradeInputs, setTradeInputs] = useState<Record<string, string>>({});
 
-  const { register, handleSubmit, reset, watch } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
     defaultValues: { name: "", order: 1, stage: "O_LEVEL" },
   });
   const stage = watch("stage");
@@ -45,8 +52,8 @@ export function ClassesTab() {
       await api.delete(`/academic/class-levels/${id}`);
       qc.invalidateQueries({ queryKey: ["class-levels"] });
       toast.success("Class level deleted");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed — may have linked data");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed — may have linked data"));
     }
   };
 
@@ -56,8 +63,8 @@ export function ClassesTab() {
       qc.invalidateQueries({ queryKey: ["class-levels"] });
       qc.invalidateQueries({ queryKey: ["sections"] });
       toast.success("Section deleted");
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || "Failed — may have students");
+    } catch (e: unknown) {
+      toast.error(errorMessage(e, "Failed — may have students"));
     }
   };
 
@@ -83,7 +90,7 @@ export function ClassesTab() {
                 <Badge variant="success">
                   {[s.trade?.code, s.name].filter(Boolean).join(" ")} ({s._count?.students || 0})
                 </Badge>
-                <button onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
+                <button aria-label="Delete" onClick={() => { setConfirmMessage(`Are you sure you want to delete section "${s.name}"?`); setConfirmAction(() => () => deleteSection(s.id)); }} className="text-danger hover:text-danger">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
@@ -127,7 +134,18 @@ export function ClassesTab() {
               <option value="A_LEVEL">A-Level (TVET)</option>
             </select>
           </div>
-          <Input id="cl-name" label="Name" placeholder={stage === "A_LEVEL" ? "e.g. Level 6" : "e.g. Senior 3"} {...register("name")} />
+          <Input
+            id="cl-name"
+            label="Name"
+            placeholder={stage === "A_LEVEL" ? "e.g. Level 6" : "e.g. Senior 3"}
+            error={errors.name?.message}
+            {...register("name", {
+              // The section input beside this one already refused an empty
+              // name. This form did not, and posted a level called "".
+              required: "A class level needs a name",
+              setValueAs: (v: string) => v.trim(),
+            })}
+          />
           <Input id="cl-order" label="Order" type="number" {...register("order")} />
           <Button type="submit" isLoading={createLevel.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
         </form>

@@ -45,7 +45,7 @@ export default function ParentAnalyticsPage() {
           </p>
         </div>
         {children.length > 1 && (
-          <select
+          <select aria-label="Child"
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={selectedChild}
             onChange={(e) => setSelectedChild(e.target.value)}

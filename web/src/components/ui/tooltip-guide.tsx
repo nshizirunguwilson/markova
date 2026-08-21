@@ -140,7 +140,7 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
                 <ChevronLeft className="h-3 w-3 mr-0.5" /> Back
               </button>
             )}
-            <button
+            <button aria-label="Next"
               onClick={next}
               className="flex items-center text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-light font-medium"
             >

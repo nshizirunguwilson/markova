@@ -125,15 +125,15 @@ export default function MessagesPage() {
   const getConvName = (conv: any) => {
     if (conv.name) return conv.name;
     if (conv.type === "ONE_ON_ONE") {
-      const other = conv.participants?.find((p: any) => p.user.id !== user?.id);
-      return other ? `${other.user.firstName} ${other.user.lastName}` : "Chat";
+      const other = conv.participants?.find((p: any) => p?.user?.id !== user?.id);
+      return other?.user ? `${other.user.firstName ?? ""} ${other.user.lastName ?? ""}`.trim() : "Chat";
     }
     return `Group (${conv.participants?.length || 0})`;
   };
 
   const getOtherUser = (conv: any) => {
     if (conv.type === "ONE_ON_ONE") {
-      return conv.participants?.find((p: any) => p.user.id !== user?.id)?.user;
+      return conv.participants?.find((p: any) => p?.user?.id !== user?.id)?.user;
     }
     return null;
   };
@@ -227,7 +227,7 @@ export default function MessagesPage() {
                   </div>
                   {conv.lastMessage && (
                     <p className="mt-0.5 ml-10 text-xs text-muted truncate">
-                      {conv.lastMessage.sender.firstName}: {conv.lastMessage.content}
+                      {conv.lastMessage.sender?.firstName ?? "Someone"}: {conv.lastMessage.content}
                     </p>
                   )}
                 </button>
@@ -250,7 +250,7 @@ export default function MessagesPage() {
             {/* Header with online status */}
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center gap-3">
-                <button
+                <button aria-label="Go back"
                   onClick={() => setSelectedConv(null)}
                   className="md:hidden flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/10"
                 >
@@ -313,7 +313,7 @@ export default function MessagesPage() {
                     }`}>
                       {!isMe && (
                         <p className="text-xs font-medium mb-0.5 opacity-70">
-                          {msg.sender.firstName} {msg.sender.lastName}
+                          {msg.sender?.firstName ?? ""} {msg.sender?.lastName ?? ""}
                         </p>
                       )}
                       <p className="text-sm">{msg.content}</p>

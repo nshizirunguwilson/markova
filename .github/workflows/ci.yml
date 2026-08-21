@@ -84,8 +84,97 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
-      - run: npx vitest run
+      # Coverage is enforced, not just reported. The thresholds live in
+      # vitest.config.ts and are meant to ratchet upward, never down.
+      - run: npx vitest run --coverage
       - run: npm run build
+
+  # Drives the real browser against the real API. This is the gate that catches
+  # what unit tests cannot: a route guard that stopped guarding, a form that
+  # stopped saving, an accessible name that went missing. It also catches the
+  # audit script itself going stale, which is how it silently stopped running
+  # for months while still looking green.
+  web-e2e:
+    name: Web (browser audit + accessibility)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: markova
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: markova_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210fedcba9876543210
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      CORS_ORIGINS: http://localhost:3001
+      WEB: http://localhost:3001
+      API: http://localhost:3000/api
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install and seed the API
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+          npx prisma db seed
+
+      - name: Start the API
+        working-directory: backend
+        run: |
+          npm run build
+          node dist/src/main.js &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:3000/api/health
+
+      - name: Build and start the dashboard
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+          npx next start -p 3001 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/login && break
+            sleep 2
+          done
+          curl -sf http://localhost:3001/login
+
+      - name: Browser audit
+        run: node web/e2e/ui-audit.spec.js
+
+      - name: Accessibility audit
+        run: node web/e2e/a11y-audit.spec.js
 
   design-system:
     name: Design system (token drift + contrast)

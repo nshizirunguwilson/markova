@@ -125,14 +125,14 @@ export default function TeacherHomeworkPage() {
                 return (
                   <TableRow key={hw.id}>
                     <TableCell className="font-medium">{hw.title}</TableCell>
-                    <TableCell>{hw.subject.name}</TableCell>
+                    <TableCell>{hw.subject?.name ?? "—"}</TableCell>
                     <TableCell>{classDisplayName(hw.classSection)}</TableCell>
                     <TableCell>
                       <Badge variant={isPastDue ? "danger" : "default"}>
                         {new Date(hw.dueDate).toLocaleDateString()}
                       </Badge>
                     </TableCell>
-                    <TableCell>{hw._count.submissions}</TableCell>
+                    <TableCell>{hw._count?.submissions ?? 0}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button aria-label="View" size="sm" variant="ghost" onClick={() => setViewingId(hw.id)}>

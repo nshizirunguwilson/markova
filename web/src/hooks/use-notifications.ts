@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export interface Notification {
   id: string;
@@ -37,8 +38,8 @@ export function useMarkRead() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }
@@ -52,8 +53,8 @@ export function useMarkAllRead() {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notifications-unread"] });
     },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }

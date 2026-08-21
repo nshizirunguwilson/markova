@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { Payload } from "./types";
 
 export interface UserFilters {
   page?: number;
@@ -47,7 +48,7 @@ export function useUser(id: string | null) {
 export function useCreateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Payload) => {
       const res = await api.post("/users", data);
       return res.data;
     },

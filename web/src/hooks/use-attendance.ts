@@ -3,6 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { BulkSaveResponse, Payload, ScanResponse } from "./types";
+import { errorMessage } from "@/lib/errors";
 
 export function useClassAttendance(classSectionId?: string, date?: string) {
   return useQuery({
@@ -16,29 +18,33 @@ export function useClassAttendance(classSectionId?: string, date?: string) {
 export function useBulkAttendance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/attendance/bulk", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/attendance/bulk", data)).data,
+    onSuccess: (data: BulkSaveResponse) => {
       qc.invalidateQueries({ queryKey: ["class-attendance"] });
       qc.invalidateQueries({ queryKey: ["attendance-dashboard"] });
       toast.success(`${data.count} records saved`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
 export function useQrScan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => (await api.post("/attendance/qr-scan", data)).data,
-    onSuccess: (data: any) => {
+    mutationFn: async (data: Payload) => (await api.post("/attendance/qr-scan", data)).data,
+    onSuccess: (data: ScanResponse) => {
       qc.invalidateQueries({ queryKey: ["class-attendance"] });
-      if (data.duplicate) {
-        toast.info(`${data.student.name} already scanned`);
+      // Read defensively: a scan that reached the server has been recorded,
+      // and the toast naming the student must not be able to report it as a
+      // failure just because the response was shaped differently.
+      const name = data?.student?.name ?? "Student";
+      if (data?.duplicate) {
+        toast.info(`${name} already scanned`);
       } else {
-        toast.success(`${data.student.name} — ${data.record.status}`);
+        toast.success(`${name}: ${data?.record?.status ?? "recorded"}`);
       }
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Scan failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Scan failed")),
   });
 }
 

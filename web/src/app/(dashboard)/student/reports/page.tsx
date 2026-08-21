@@ -89,11 +89,11 @@ export default function StudentReportsPage() {
       <h1 className="text-xl md:text-2xl font-bold text-primary">My Report Cards</h1>
 
       <div className="flex gap-4">
-        <select className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
+        <select aria-label="Academic year" className="border rounded-lg px-3 py-2 text-sm" value={yearId} onChange={(e) => { setYearId(e.target.value); setTermId(""); }}>
           <option value="">Select Year</option>
           {years?.map((y: any) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
-        <select className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
+        <select aria-label="Term" className="border rounded-lg px-3 py-2 text-sm" value={termId} onChange={(e) => setTermId(e.target.value)}>
           <option value="">Select Term</option>
           {terms?.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>

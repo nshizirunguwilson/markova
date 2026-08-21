@@ -88,7 +88,7 @@ export default function ParentMarksPage() {
               Viewing marks for: <strong className="ml-1">{children[0].name}</strong>
             </span>
           ) : children.length > 1 ? (
-            <select
+            <select aria-label="Child"
               value={selectedChild}
               onChange={(e) => setSelectedChild(e.target.value)}
               className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -100,7 +100,7 @@ export default function ParentMarksPage() {
               ))}
             </select>
           ) : null}
-          <select
+          <select aria-label="Term"
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
