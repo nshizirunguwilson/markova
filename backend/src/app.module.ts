@@ -1,3 +1,6 @@
+import { RedisService } from './redis/redis.service';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+import { validateEnv } from './config/env.validation';
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -28,15 +31,17 @@ import { AuditLogInterceptor } from './common/interceptors';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    // Counters live in Redis so they survive a restart and are shared by every
+    // instance. See RedisThrottlerStorage for why the default is not enough.
+    ThrottlerModule.forRootAsync({
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ name: 'default', ttl: 60000, limit: 100 }],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     RedisModule,
     PrismaModule,
     CommonModule,
