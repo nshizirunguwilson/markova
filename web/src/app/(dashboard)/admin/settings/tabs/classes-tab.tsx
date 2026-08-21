@@ -20,7 +20,13 @@ export function ClassesTab() {
   const [sectionInputs, setSectionInputs] = useState<Record<string, string>>({});
   const [tradeInputs, setTradeInputs] = useState<Record<string, string>>({});
 
-  const { register, handleSubmit, reset, watch } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
     defaultValues: { name: "", order: 1, stage: "O_LEVEL" },
   });
   const stage = watch("stage");
@@ -127,7 +133,18 @@ export function ClassesTab() {
               <option value="A_LEVEL">A-Level (TVET)</option>
             </select>
           </div>
-          <Input id="cl-name" label="Name" placeholder={stage === "A_LEVEL" ? "e.g. Level 6" : "e.g. Senior 3"} {...register("name")} />
+          <Input
+            id="cl-name"
+            label="Name"
+            placeholder={stage === "A_LEVEL" ? "e.g. Level 6" : "e.g. Senior 3"}
+            error={errors.name?.message}
+            {...register("name", {
+              // The section input beside this one already refused an empty
+              // name. This form did not, and posted a level called "".
+              required: "A class level needs a name",
+              setValueAs: (v: string) => v.trim(),
+            })}
+          />
           <Input id="cl-order" label="Order" type="number" {...register("order")} />
           <Button type="submit" isLoading={createLevel.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
         </form>
