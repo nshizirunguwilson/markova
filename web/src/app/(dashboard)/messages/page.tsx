@@ -126,7 +126,7 @@ export default function MessagesPage() {
     if (conv.name) return conv.name;
     if (conv.type === "ONE_ON_ONE") {
       const other = conv.participants?.find((p: any) => p.user.id !== user?.id);
-      return other ? `${other.user.firstName} ${other.user.lastName}` : "Chat";
+      return other?.user ? `${other.user.firstName ?? ""} ${other.user.lastName ?? ""}`.trim() : "Chat";
     }
     return `Group (${conv.participants?.length || 0})`;
   };

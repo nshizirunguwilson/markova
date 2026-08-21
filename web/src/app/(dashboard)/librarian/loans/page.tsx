@@ -80,11 +80,11 @@ export default function LibrarianLoansPage() {
                 return (
                   <TableRow key={loan.id}>
                     <TableCell>
-                      <p className="font-medium">{loan.book.title}</p>
-                      <p className="text-xs text-muted">{loan.book.author}</p>
+                      <p className="font-medium">{loan.book?.title ?? "Unknown book"}</p>
+                      <p className="text-xs text-muted">{loan.book?.author ?? ""}</p>
                     </TableCell>
                     <TableCell>
-                      {loan.borrower.firstName} {loan.borrower.lastName}
+                      {loan.borrower?.firstName ?? ""} {loan.borrower?.lastName ?? ""}
                     </TableCell>
                     <TableCell className="text-sm">
                       {new Date(loan.checkedOutAt).toLocaleDateString()}

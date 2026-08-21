@@ -80,10 +80,10 @@ export default function StudentLibraryPage() {
                         >
                           <div>
                             <p className="font-medium text-foreground">
-                              {loan.book.title}
+                              {loan.book?.title ?? "Unknown book"}
                             </p>
                             <p className="text-xs text-muted">
-                              {loan.book.author}
+                              {loan.book?.author ?? ""}
                             </p>
                           </div>
                           <div className="text-right">
@@ -133,7 +133,7 @@ export default function StudentLibraryPage() {
                         {history.map((loan: any) => (
                           <TableRow key={loan.id}>
                             <TableCell className="font-medium">
-                              {loan.book.title}
+                              {loan.book?.title ?? "Unknown book"}
                             </TableCell>
                             <TableCell className="text-sm">
                               {new Date(loan.checkedOutAt).toLocaleDateString()}
