@@ -29,10 +29,10 @@ export default defineConfig({
       // so an accidental deletion of tests fails the build, and they are meant
       // to be raised as coverage climbs, never lowered to make a build pass.
       thresholds: {
-        statements: 66,
-        branches: 53,
-        functions: 63,
-        lines: 68,
+        statements: 73,
+        branches: 60,
+        functions: 70,
+        lines: 75,
       },
     },
   },
