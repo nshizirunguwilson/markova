@@ -180,3 +180,131 @@ export const populatedRoutes: Record<string, unknown> = {
   "/reports/id-card": { student: students[0], qr: "data:image/png;base64,AAA" },
   "/reports/id-cards/registry": { data: [{ id: "card-1", student: students[0], status: "ISSUED", issuedAt: "2026-08-01" }], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
 };
+
+/**
+ * The same endpoints, answered with the awkward cases.
+ *
+ * `populatedRoutes` is a school where everything is fine: marks published,
+ * books returned, nobody absent. Every page has a second half that only renders
+ * when something is wrong, and that half is the half a head teacher actually
+ * looks at. This drives it: overdue books, unpublished results, absent
+ * students, homework past its due date, more rows than fit on a page.
+ */
+const overdueLoan = {
+  ...loan,
+  id: "loan-2",
+  dueDate: "2026-07-01",
+  returnedAt: null,
+  isOverdue: true,
+  daysOverdue: 51,
+};
+
+const returnedLoan = {
+  ...loan,
+  id: "loan-3",
+  returnedAt: "2026-08-10",
+  isOverdue: false,
+};
+
+const unpublishedResult = {
+  ...termResult,
+  id: "tr-2",
+  isPublished: false,
+  average: 41.2,
+  grade: "F",
+  decision: "REPEAT",
+  position: 28,
+  comment: "",
+};
+
+const overdueHomework = {
+  ...homework,
+  id: "hw-2",
+  title: "Overdue essay",
+  dueDate: "2026-07-15",
+  _count: { submissions: 0 },
+};
+
+export const edgeRoutes: Record<string, unknown> = {
+  ...populatedRoutes,
+
+  // A bigger roll than one page holds, so pagination renders.
+  "/users": {
+    data: Array.from({ length: 20 }, (_, i) => ({
+      id: `u-${i}`,
+      firstName: ["Divine", "Keza", "Aline", "Mugisha", "Uwera"][i % 5],
+      lastName: ["Niyonkuru", "Mutesi", "Uwase", "Habimana", "Ingabire"][i % 5],
+      email: `person${i}@markova.edu`,
+      phone: `+2507880000${String(i).padStart(2, "0")}`,
+      role: ["STUDENT", "TEACHER", "PARENT", "LIBRARIAN"][i % 4],
+      isActive: i % 7 !== 0,
+      photoUrl: null,
+    })),
+    meta: { total: 84, page: 2, limit: 20, totalPages: 5 },
+  },
+
+  "/library/loans/active": [overdueLoan, returnedLoan, loan],
+  "/library/loans/overdue": [overdueLoan],
+  "/library/loans/my": [overdueLoan],
+  "/library/books": [
+    { ...book, availableCopies: 0 },
+    { ...book, id: "book-2", title: "Imigani", availableCopies: 5, category: null },
+  ],
+
+  "/marks/term-results/class": [unpublishedResult, termResult],
+  "/marks/term-results/student": { result: unpublishedResult, marks: [] },
+  "/marks/completion": {
+    total: 32,
+    entered: 11,
+    percentage: 34,
+    missing: students.map((s) => ({ student: s, subject })),
+  },
+
+  "/attendance/class": [
+    { ...attendanceRecord, status: "ABSENT" },
+    { ...attendanceRecord, id: "att-2", status: "LATE", student: students[1] },
+  ],
+  "/attendance/student-summary": {
+    present: 20,
+    absent: 18,
+    late: 6,
+    excused: 2,
+    rate: 43.5,
+    records: [{ ...attendanceRecord, status: "ABSENT" }],
+  },
+  "/attendance/dashboard": {
+    date: "2026-08-21",
+    overall: { totalStudents: 320, present: 180, late: 40, absent: 100, rate: 68 },
+    sections: [
+      { sectionId: "section-1", className: "Senior 1 A", total: 32, present: 12, late: 4, absent: 16, rate: 50 },
+    ],
+  },
+
+  "/discipline/incidents": [
+    { ...incident, severity: "MAJOR", points: 25, actionTaken: "SUSPENSION" },
+    incident,
+  ],
+  "/discipline/appeals/pending": [
+    { id: "ap-1", incident, reason: "It was not me", status: "PENDING", createdAt: "2026-08-20T12:00:00Z" },
+  ],
+  "/discipline/student": [{ ...incident, severity: "MAJOR", points: 25 }],
+
+  "/homework": [overdueHomework, homework],
+  "/homework/student": [{ ...overdueHomework, submission: null }],
+
+  "/messaging/conversations": [
+    { ...conversation, unreadCount: 12, lastMessage: { content: "Muraho", createdAt: "2026-08-21T09:00:00Z", sender: undefined } },
+  ],
+  "/notifications": [notification, { ...notification, id: "note-2", isRead: true, type: "ATTENDANCE" }],
+
+  "/help/tickets": [ticket, { ...ticket, id: "tkt-2", status: "CLOSED" }],
+  "/help/faqs": [faq, { ...faq, id: "faq-2", isPublished: false }],
+
+  "/analytics/admin/dashboard": {
+    students: 0,
+    teachers: 0,
+    classes: 0,
+    attendanceRate: 0,
+    averageScore: 0,
+  },
+};

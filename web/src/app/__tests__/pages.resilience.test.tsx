@@ -43,7 +43,7 @@ vi.mock("@/components/ui/echart", () => ({
 
 import { renderPage, serve, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
-import { populatedRoutes } from "@/test/fixtures";
+import { edgeRoutes, populatedRoutes } from "@/test/fixtures";
 import type { User } from "@/stores/auth-store";
 
 import AdminAnalytics from "@/app/(dashboard)/admin/analytics/page";
@@ -209,5 +209,35 @@ describe("every dashboard page survives being used", () => {
 
     expect(rejections).toEqual([]);
     expect(document.body.textContent).not.toBeNull();
+  }, 30000);
+});
+
+/**
+ * The same pages against a school where things are going wrong.
+ *
+ * Overdue books, unpublished results, absent students, homework past its due
+ * date, more rows than one page holds. Every page has a branch that only draws
+ * when something is off, and that is the branch a head teacher actually looks
+ * at. The happy path above never reaches it.
+ */
+describe("every dashboard page handles a school with problems", () => {
+  it.each(pages)("$name draws the awkward cases", async ({ role, Page }) => {
+    serve(h.api, edgeRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(
+      () => expect((document.body.textContent ?? "").length).toBeGreaterThan(40),
+      { timeout: 5000 },
+    );
+  });
+});
+
+describe("every dashboard page survives being used on bad data", () => {
+  it.each(pages)("$name handles its controls with problems present", async ({ role, Page }) => {
+    serve(h.api, edgeRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const { rejections } = await exercisePage();
+    expect(rejections).toEqual([]);
   }, 30000);
 });
