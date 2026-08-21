@@ -81,6 +81,18 @@ export function serve(
   }
 }
 
+/**
+ * Answers every url with the same payload.
+ *
+ * Useful for the baseline pass over a page: an empty list drives it into its
+ * empty state, which is the branch most likely to be the one nobody tried.
+ */
+export function serveAll(api: PageMocks["api"], data: unknown = []) {
+  for (const method of ["get", "post", "put", "patch", "delete"] as const) {
+    api[method].mockResolvedValue({ data });
+  }
+}
+
 /** Makes every request fail, for testing what a page shows when the API is down. */
 export function serveFailure(api: PageMocks["api"], status = 500) {
   const error = Object.assign(new Error("Request failed"), {
