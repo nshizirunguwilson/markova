@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 // ─── Academic Years ─────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export function useCreateAcademicYear() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/years", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["academic-years"] }); toast.success("Academic year created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -39,7 +40,7 @@ export function useCreateTerm() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/terms", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -48,7 +49,7 @@ export function useCloseTerm() {
   return useMutation({
     mutationFn: async (id: string) => (await api.post(`/academic/terms/${id}/close`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term closed"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to close term"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to close term")),
   });
 }
 
@@ -57,7 +58,7 @@ export function useReopenTerm() {
   return useMutation({
     mutationFn: async (id: string) => (await api.post(`/academic/terms/${id}/reopen`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["terms"] }); toast.success("Term reopened"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to reopen term"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to reopen term")),
   });
 }
 
@@ -73,7 +74,7 @@ export function usePromoteStudents() {
       passThreshold?: number;
     }) => (await api.post("/academic/promote", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); toast.success("Students promoted successfully"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Promotion failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Promotion failed")),
   });
 }
 
@@ -85,7 +86,7 @@ export function usePromotionPreview() {
       passThreshold?: number;
       disciplineThreshold?: number;
     }) => (await api.post("/academic/promote/preview", data)).data,
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to load students"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to load students")),
   });
 }
 
@@ -98,7 +99,7 @@ export function useCommitPromotion() {
       decisions: { studentId: string; decision: "PROMOTE" | "RETAIN" }[];
     }) => (await api.post("/academic/promote/commit", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to commit"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to commit")),
   });
 }
 
@@ -116,7 +117,7 @@ export function useCreateClassLevel() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/class-levels", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Class level created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -125,7 +126,7 @@ export function useUpdateClassLevel() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/class-levels/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Class level updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -134,7 +135,7 @@ export function useDeleteClassLevel() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/class-levels/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Class level deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -152,7 +153,7 @@ export function useCreateTrade() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/trades", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -161,7 +162,7 @@ export function useUpdateTrade() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/trades/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -170,7 +171,7 @@ export function useDeleteTrade() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/trades/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["trades"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Trade deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -191,7 +192,7 @@ export function useCreateSection() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/sections", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Section created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -200,7 +201,7 @@ export function useUpdateSection() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/sections/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Section updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -209,7 +210,7 @@ export function useDeleteSection() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/sections/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sections"] }); qc.invalidateQueries({ queryKey: ["class-levels"] }); toast.success("Section deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -227,7 +228,7 @@ export function useCreateSubject() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/subjects", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subjects"] }); toast.success("Subject created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -236,7 +237,7 @@ export function useUpdateSubject() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/subjects/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subjects"] }); toast.success("Subject updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -245,7 +246,7 @@ export function useDeleteSubject() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/subjects/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subjects"] }); toast.success("Subject deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -263,7 +264,7 @@ export function useCreateAssessmentType() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/assessment-types", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assessment-types"] }); toast.success("Assessment type created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -287,7 +288,7 @@ export function useCreateAssignment() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/assignments", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assignments"] }); toast.success("Assignment created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -296,7 +297,7 @@ export function useBulkAssignments() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/assignments/bulk", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assignments"] }); toast.success("Assignments created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -305,7 +306,7 @@ export function useDeleteAssignment() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/assignments/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["assignments"] }); toast.success("Assignment deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -329,7 +330,7 @@ export function useCreateTimetable() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/academic/timetable", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Lesson added"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to add lesson"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to add lesson")),
   });
 }
 
@@ -338,7 +339,7 @@ export function useUpdateTimetable() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/academic/timetable/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update lesson"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to update lesson")),
   });
 }
 
@@ -347,7 +348,7 @@ export function useDeleteTimetable() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/academic/timetable/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["timetable"] }); toast.success("Lesson removed"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to remove lesson"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to remove lesson")),
   });
 }
 
@@ -366,7 +367,7 @@ export function useBulkUpsertConfig() {
     mutationFn: async (configs: { key: string; value: string }[]) =>
       (await api.post("/school-config/bulk", { configs })).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["school-config"] }); toast.success("Settings saved"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -376,8 +377,8 @@ export function useUpdateOnboarding() {
     mutationFn: async (data: { currentStep: string; completed?: string }) =>
       (await api.put("/school-config/onboarding", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["school-config"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }

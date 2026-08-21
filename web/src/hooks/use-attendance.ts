@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export function useClassAttendance(classSectionId?: string, date?: string) {
   return useQuery({
@@ -22,7 +23,7 @@ export function useBulkAttendance() {
       qc.invalidateQueries({ queryKey: ["attendance-dashboard"] });
       toast.success(`${data.count} records saved`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -42,7 +43,7 @@ export function useQrScan() {
         toast.success(`${name}: ${data?.record?.status ?? "recorded"}`);
       }
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Scan failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Scan failed")),
   });
 }
 

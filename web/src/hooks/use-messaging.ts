@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export function useContacts(search?: string) {
   return useQuery({
@@ -36,7 +37,7 @@ export function useCreateConversation() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/messaging/conversations", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -48,7 +49,7 @@ export function useSendMessage() {
       qc.invalidateQueries({ queryKey: ["messages", vars.conversationId] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -57,8 +58,8 @@ export function useMarkRead() {
   return useMutation({
     mutationFn: async (conversationId: string) => (await api.post("/messaging/read", { conversationId })).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["conversations"] }); },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }

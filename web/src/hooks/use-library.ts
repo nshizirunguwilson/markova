@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export function useBooks(params?: Record<string, string>) {
   const search = params ? new URLSearchParams(params).toString() : "";
@@ -25,7 +26,7 @@ export function useCreateBook() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/library/books", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success("Book added"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -34,7 +35,7 @@ export function useUpdateBook() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/library/books/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success("Book updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -43,7 +44,7 @@ export function useDeleteBook() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/library/books/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success("Book deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -61,7 +62,7 @@ export function useCheckout() {
       const who = data?.borrower?.firstName ?? "borrower";
       toast.success(`Checked out "${title}" to ${who}`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Checkout failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Checkout failed")),
   });
 }
 
@@ -76,7 +77,7 @@ export function useReturn() {
       const who = data?.borrower?.firstName ?? "borrower";
       toast.success(`"${title}" returned by ${who}`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Return failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Return failed")),
   });
 }
 
@@ -106,7 +107,7 @@ export function useBulkImportBooks() {
   return useMutation({
     mutationFn: async (data: { books: any[] }) => (await api.post("/library/books/bulk", data)).data,
     onSuccess: (data: any) => { qc.invalidateQueries({ queryKey: ["books"] }); toast.success(`${data.count} books imported`); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Import failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Import failed")),
   });
 }
 

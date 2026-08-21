@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  performance: vi.fn(() => <div data-testid="performance" />),
+  performance: vi.fn<(props: { studentId: string }) => void>(),
 }));
 
 vi.mock("@/components/student-performance", () => ({

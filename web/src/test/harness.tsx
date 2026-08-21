@@ -12,7 +12,7 @@
 import { render, type RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
-import { vi } from "vitest";
+import { vi, type Mock } from "vitest";
 
 import { useAuthStore, type User } from "@/stores/auth-store";
 
@@ -80,12 +80,14 @@ function resolve(routes: Record<string, Handler>, url: string) {
   return key === undefined ? undefined : routes[key];
 }
 
+type ApiCall = (url: string, body?: unknown) => Promise<{ data: unknown; status: number }>;
+
 export interface MockApi {
-  get: ReturnType<typeof vi.fn>;
-  post: ReturnType<typeof vi.fn>;
-  patch: ReturnType<typeof vi.fn>;
-  put: ReturnType<typeof vi.fn>;
-  delete: ReturnType<typeof vi.fn>;
+  get: Mock<ApiCall>;
+  post: Mock<ApiCall>;
+  patch: Mock<ApiCall>;
+  put: Mock<ApiCall>;
+  delete: Mock<ApiCall>;
 }
 
 /**

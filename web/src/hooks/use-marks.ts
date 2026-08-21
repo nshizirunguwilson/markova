@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 // ─── Marks CRUD ──────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ export function useCreateMark() {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to save mark"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to save mark")),
   });
 }
 
@@ -35,7 +36,7 @@ export function useUpdateMark() {
       qc.invalidateQueries({ queryKey: ["marks"] });
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed to update mark"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed to update mark")),
   });
 }
 
@@ -48,7 +49,7 @@ export function useBatchMarks() {
       qc.invalidateQueries({ queryKey: ["marks-completion"] });
       toast.success(`${data.count} marks saved`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Batch save failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Batch save failed")),
   });
 }
 
@@ -91,7 +92,7 @@ export function useCalculateTermResults() {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success(`Calculated results for ${data.count} students`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Calculation failed")),
   });
 }
 
@@ -103,7 +104,7 @@ export function usePublishTermResults() {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Results published");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Publish failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Publish failed")),
   });
 }
 
@@ -115,7 +116,7 @@ export function useUpdateTermResultComment() {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success("Comment saved");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -147,7 +148,7 @@ export function useCalculateYearResults() {
       qc.invalidateQueries({ queryKey: ["year-results"] });
       toast.success(`Calculated year results for ${data.count} students`);
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Calculation failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Calculation failed")),
   });
 }
 

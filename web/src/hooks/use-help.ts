@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 // ── FAQ ─────────────────────────────────────────────────────────────────────────
 
@@ -26,8 +27,8 @@ export function useCreateFaq() {
     mutationFn: async (data: { title: string; content: string; category?: string; displayOrder?: number; isPublished?: boolean }) =>
       (await api.post("/help/faqs", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["help", "faqs"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }
@@ -38,8 +39,8 @@ export function useUpdateFaq() {
     mutationFn: async ({ id, ...data }: { id: string; title?: string; content?: string; category?: string; displayOrder?: number; isPublished?: boolean }) =>
       (await api.patch(`/help/faqs/${id}`, data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["help", "faqs"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }
@@ -49,8 +50,8 @@ export function useDeleteFaq() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/help/faqs/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["help", "faqs"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }
@@ -77,8 +78,8 @@ export function useCreateTicket() {
     mutationFn: async (data: { title: string; description: string; screenshotUrl?: string; category?: string }) =>
       (await api.post("/help/tickets", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["help", "tickets"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }
@@ -89,8 +90,8 @@ export function useUpdateTicketStatus() {
     mutationFn: async ({ id, status }: { id: string; status: string }) =>
       (await api.patch(`/help/tickets/${id}/status`, { status })).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["help", "tickets"] }),
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.message || 'Something went wrong');
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Something went wrong"));
     },
   });
 }

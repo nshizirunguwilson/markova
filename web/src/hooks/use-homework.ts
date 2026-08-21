@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export function useHomeworks(params?: Record<string, string>) {
   const search = params ? new URLSearchParams(params).toString() : "";
@@ -25,7 +26,7 @@ export function useCreateHomework() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/homework", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework created"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -34,7 +35,7 @@ export function useUpdateHomework() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/homework/${id}`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework updated"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -43,7 +44,7 @@ export function useDeleteHomework() {
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/homework/${id}`)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homeworks"] }); toast.success("Homework deleted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -52,7 +53,7 @@ export function useSubmitHomework() {
   return useMutation({
     mutationFn: async (data: any) => (await api.post("/homework/submit", data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["student-homework"] }); toast.success("Submitted"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -61,7 +62,7 @@ export function useGradeSubmission() {
   return useMutation({
     mutationFn: async ({ id, ...data }: any) => (await api.put(`/homework/submissions/${id}/grade`, data)).data,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["homework"] }); toast.success("Graded"); },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 

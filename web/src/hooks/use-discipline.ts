@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 export function useIncidents(params?: Record<string, string>) {
   const search = params ? new URLSearchParams(params).toString() : "";
@@ -29,7 +30,7 @@ export function useCreateIncident() {
       qc.invalidateQueries({ queryKey: ["discipline-dashboard"] });
       toast.success("Incident recorded");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -41,7 +42,7 @@ export function useDeleteIncident() {
       qc.invalidateQueries({ queryKey: ["incidents"] });
       toast.success("Incident deleted, points restored");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -63,7 +64,7 @@ export function useCreateAppeal() {
       qc.invalidateQueries({ queryKey: ["pending-appeals"] });
       toast.success("Appeal submitted");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -83,7 +84,7 @@ export function useReviewAppeal() {
       qc.invalidateQueries({ queryKey: ["incidents"] });
       toast.success("Appeal reviewed");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
@@ -96,7 +97,7 @@ export function useAcknowledgeIncident() {
       qc.invalidateQueries({ queryKey: ["student-discipline"] });
       toast.success("Incident acknowledged");
     },
-    onError: (e: any) => toast.error(e.response?.data?.message || "Failed"),
+    onError: (e: unknown) => toast.error(errorMessage(e, "Failed")),
   });
 }
 
