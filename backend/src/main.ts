@@ -15,6 +15,22 @@ async function bootstrap() {
   // Express 5 / path-to-regexp v8 requires named wildcards (e.g. `*path`)
   // instead of the legacy `(.*)` form; this keeps /uploads served outside the
   // global `api` prefix without the LegacyRouteConverter boot warning.
+  // Rate limiting keys on `req.ip`, and Express derives that from this setting.
+  // Left unset behind a reverse proxy, every request appears to come from the
+  // proxy, so the whole school shares one bucket: the five-per-minute login
+  // limit becomes five logins per minute for everybody, which fails to slow an
+  // attacker and locks out real users at the same time.
+  //
+  // Set TRUST_PROXY to the number of proxies in front of this app (Render,
+  // Railway, Fly and a single nginx are all `1`; nginx behind Cloudflare is
+  // `2`). Named subnets such as `loopback` also work. It stays off by default
+  // because trusting a hop that is not there lets a client forge
+  // X-Forwarded-For and sidestep rate limiting entirely.
+  const trustProxy = process.env.TRUST_PROXY?.trim();
+  if (trustProxy) {
+    app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+  }
+
   app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });
   app.useStaticAssets(
     join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
