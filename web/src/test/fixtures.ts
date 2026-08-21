@@ -38,8 +38,14 @@ export const teachers = [
   { id: "teacher-1", userId: "u-3", employeeId: "EMP-001", qualification: "BSc Education", user: user("u-3", "Aline", "Uwase", "TEACHER") },
 ];
 
+/**
+ * The API's paginated envelope is `{ data, meta }`, from PaginatedResponse in
+ * backend/src/common/dto/pagination.dto.ts. Naming the array anything else here
+ * makes list pages render an empty table in tests while passing, which is worse
+ * than no fixture at all.
+ */
 export const paginatedUsers = {
-  users: [...students.map((s) => s.user), ...teachers.map((t) => t.user)],
+  data: [...students.map((s) => s.user), ...teachers.map((t) => t.user)],
   meta: { total: 3, page: 1, limit: 20, totalPages: 1 },
 };
 
@@ -156,5 +162,5 @@ export const populatedRoutes: Record<string, unknown> = {
   "/reports/term": { student: students[0], result: termResult, marks },
   "/reports/year": { student: students[0], result: termResult },
   "/reports/id-card": { student: students[0], qr: "data:image/png;base64,AAA" },
-  "/reports/id-cards/registry": { cards: [{ id: "card-1", student: students[0], status: "ISSUED", issuedAt: "2026-08-01" }], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
+  "/reports/id-cards/registry": { data: [{ id: "card-1", student: students[0], status: "ISSUED", issuedAt: "2026-08-01" }], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
 };
