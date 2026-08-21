@@ -234,6 +234,64 @@ export async function submitEveryForm() {
 }
 
 /**
+ * Stubs the browser affordances jsdom does not implement, for the length of one
+ * exercise pass.
+ *
+ * Export and print handlers reach straight for `URL.createObjectURL`, an anchor
+ * click, or `window.open`. Without these they throw, and a whole class of
+ * handler stays untested because the pass gives up before reaching it.
+ */
+function stubDownloads() {
+  const realUrl = globalThis.URL;
+  const realOpen = globalThis.open;
+  const created: string[] = [];
+
+  Object.defineProperty(globalThis, "URL", {
+    configurable: true,
+    writable: true,
+    value: Object.assign(Object.create(realUrl), {
+      createObjectURL: (blob: unknown) => {
+        created.push(String(blob));
+        return "blob:test";
+      },
+      revokeObjectURL: () => {},
+    }),
+  });
+
+  Object.defineProperty(globalThis, "open", {
+    configurable: true,
+    writable: true,
+    value: () => ({
+      document: { write: () => {}, close: () => {} },
+      print: () => {},
+      focus: () => {},
+      close: () => {},
+    }),
+  });
+
+  // An anchor click would otherwise ask jsdom to navigate.
+  const realClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function noop() {};
+
+  return {
+    created,
+    restore() {
+      Object.defineProperty(globalThis, "URL", {
+        configurable: true,
+        writable: true,
+        value: realUrl,
+      });
+      Object.defineProperty(globalThis, "open", {
+        configurable: true,
+        writable: true,
+        value: realOpen,
+      });
+      HTMLAnchorElement.prototype.click = realClick;
+    },
+  };
+}
+
+/**
  * Runs the whole battery and asserts the page came through it.
  *
  * Unhandled rejections are captured rather than left to surface as a warning,
@@ -244,6 +302,7 @@ export async function exercisePage(options: ExerciseOptions = {}) {
   const rejections: unknown[] = [];
   const onRejection = (reason: unknown) => rejections.push(reason);
   process.on("unhandledRejection", onRejection);
+  const downloads = stubDownloads();
 
   try {
     // Filters first: most pages render nothing worth clicking until their
@@ -255,10 +314,11 @@ export async function exercisePage(options: ExerciseOptions = {}) {
     await submitEveryForm();
     await waitFor(() => expect(document.body).toBeTruthy());
   } finally {
+    downloads.restore();
     process.off("unhandledRejection", onRejection);
   }
 
-  return { rejections };
+  return { rejections, downloads: downloads.created };
 }
 
 export { act, fireEvent, screen, waitFor, vi };
