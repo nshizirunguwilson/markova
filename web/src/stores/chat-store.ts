@@ -34,7 +34,15 @@ function playNotificationSound() {
     );
   }
   notificationAudio.volume = 0.3;
-  notificationAudio.play().catch(() => {});
+  // play() returns a promise in current browsers but returned undefined in
+  // older ones, and does the same under jsdom. Calling .catch on that throws,
+  // inside the socket handler, which would take the incoming message with it.
+  // A beep is never worth losing a message over.
+  try {
+    void notificationAudio.play()?.catch(() => {});
+  } catch {
+    /* audio is a nicety; a browser that refuses it changes nothing that matters */
+  }
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
