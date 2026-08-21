@@ -439,17 +439,27 @@ describe('Auth rate limiting (e2e)', () => {
     await app.close();
   });
 
+  // Sent one at a time on purpose. Firing all twelve through Promise.all made
+  // supertest bind the same server concurrently for every request, which failed
+  // with ECONNRESET rather than with anything to do with rate limiting. The
+  // limit is a count per window, so sequential requests test it exactly as well
+  // and actually tell you which request was the one that got refused.
   it('should throttle login after too many requests', async () => {
-    const requests: Promise<any>[] = [];
+    const statusCodes: number[] = [];
     for (let i = 0; i < 12; i++) {
-      requests.push(
-        request(app.getHttpServer())
-          .post('/api/auth/login')
-          .send({ email: 'nonexistent@test.com', password: 'Password123!' }),
-      );
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'nonexistent@test.com', password: 'Password123!' });
+      statusCodes.push(response.status);
     }
-    const responses = await Promise.all(requests);
-    const statusCodes = responses.map((r) => r.status);
+
     expect(statusCodes).toContain(429);
+    // Everything before the first refusal should have been answered normally,
+    // and everything after it should stay refused for the rest of the window.
+    const firstRefusal = statusCodes.indexOf(429);
+    expect(statusCodes.slice(0, firstRefusal)).not.toContain(429);
+    expect(statusCodes.slice(firstRefusal)).toEqual(
+      statusCodes.slice(firstRefusal).map(() => 429),
+    );
   });
 });
