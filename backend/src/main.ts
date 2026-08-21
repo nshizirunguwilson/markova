@@ -69,14 +69,29 @@ async function bootstrap() {
 
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const config = new DocumentBuilder()
-    .setTitle('Markova API')
-    .setDescription('School Management System API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger documents every route, its parameters and its roles. That is a map
+  // of the whole attack surface, so it is off in production unless somebody
+  // deliberately turns it on with SWAGGER_ENABLED=true.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const swaggerEnabled = process.env.SWAGGER_ENABLED
+    ? process.env.SWAGGER_ENABLED === 'true'
+    : !isProduction;
+
+  if (swaggerEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('Markova API')
+      .setDescription('School Management System API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
+
+  // Lets Nest run onModuleDestroy across the app on SIGTERM, so Prisma closes
+  // its pool and BullMQ stops pulling jobs it is about to abandon. Without it a
+  // redeploy drops connections and half-processed jobs on the floor.
+  app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ?? 3000);
 }
