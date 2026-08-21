@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { TOKEN_KEYS } from '@/constants/config';
 
-// expo-secure-store doesn't work on web — fall back to localStorage
+// expo-secure-store does not work on web, so fall back to localStorage
 const storage = {
   getItem: async (key: string): Promise<string | null> => {
     if (Platform.OS === 'web') {

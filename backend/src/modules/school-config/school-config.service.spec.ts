@@ -66,6 +66,10 @@ describe('SchoolConfigService', () => {
         schoolMotto: '',
         primaryColor: '#1B4F72',
         logoUrl: '',
+        // Where the browser dashboard lives. Empty unless WEB_URL is set, which
+        // it is not under test. The mobile app reads it to tell a student where
+        // to go, since it does not serve them.
+        webUrl: '',
       });
     });
 
@@ -81,6 +85,7 @@ describe('SchoolConfigService', () => {
         schoolMotto: '',
         primaryColor: '#7D3C98',
         logoUrl: '/uploads/branding/crest.png',
+        webUrl: '',
       });
     });
   });

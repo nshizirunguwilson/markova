@@ -128,7 +128,7 @@ export async function processQueue(apiInstance: AxiosInstance): Promise<number> 
       } else if (item.retryCount < 3) {
         remaining.push({ ...item, retryCount: item.retryCount + 1 });
       }
-      // Otherwise discard — permanent failure
+      // Otherwise discard, since it is a permanent failure
     }
   }
 

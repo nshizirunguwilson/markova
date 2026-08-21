@@ -1,120 +1,172 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import {
-  Home,
+  House,
+  Users,
+  GraduationCap,
+  ClipboardCheck,
   MessageSquare,
   Bell,
-  User,
-  Users,
   BookOpen,
-  ClipboardList,
-  Settings,
+  ArrowLeftRight,
+  Backpack,
+  Ellipsis,
+  type LucideIcon,
 } from 'lucide-react-native';
+
 import { useAuthStore } from '@/stores/auth-store';
-import { useBrandStore } from '@/stores/brand-store';
 import { useChatStore } from '@/stores/chat-store';
 import { useNotifications } from '@/hooks/useApi';
-import { colors, fontSize, fontFamily } from '@/constants/theme';
-import type { UserRole } from '@/constants/config';
+import { useTheme } from '@/design';
+import { type as typeScale, touch } from '@/design/tokens';
 
-type TabConfig = {
+/**
+ * Four tabs and More, per role.
+ *
+ * Five is where a tab bar stops being scannable and starts being a menu, and
+ * four of the roles here need more than five destinations. So each role gets
+ * the four places it actually goes during a week, and everything used monthly
+ * lives behind More.
+ *
+ * The test for a tab: used at least weekly by that role, and a place rather
+ * than an action. Marks entry is the single most used screen a teacher has and
+ * it is still not a tab, because it is something you do to a class you picked,
+ * not somewhere you go.
+ */
+
+type Slot = {
   name: string;
   title: string;
-  icon: typeof Home;
+  icon: LucideIcon;
   badge?: 'messages' | 'notifications';
 };
 
-const ROLE_TABS: Record<UserRole, TabConfig[]> = {
+// Every tab file that exists. Each role shows a subset and the rest are given
+// href: null, which keeps the route reachable by push while hiding the button.
+const ALL: string[] = [
+  'index',
+  'people',
+  'academics',
+  'classes',
+  'attendance',
+  'children',
+  'alerts',
+  'books',
+  'circulate',
+  'messages',
+  'more',
+];
+
+const home: Slot = { name: 'index', title: 'Home', icon: House };
+const messages: Slot = { name: 'messages', title: 'Messages', icon: MessageSquare, badge: 'messages' };
+const more: Slot = { name: 'more', title: 'More', icon: Ellipsis };
+
+const ROLE_TABS: Record<string, Slot[]> = {
   ADMIN: [
-    { name: 'index', title: 'Dashboard', icon: Home },
-    { name: 'users', title: 'Users', icon: Users },
-    { name: 'messages', title: 'Messages', icon: MessageSquare, badge: 'messages' },
-    { name: 'settings', title: 'Settings', icon: Settings },
+    home,
+    { name: 'people', title: 'People', icon: Users },
+    { name: 'academics', title: 'Academics', icon: GraduationCap },
+    messages,
+    more,
   ],
   TEACHER: [
-    { name: 'index', title: 'Dashboard', icon: Home },
-    { name: 'attendance', title: 'Attendance', icon: ClipboardList },
-    { name: 'messages', title: 'Messages', icon: MessageSquare, badge: 'messages' },
-    { name: 'profile', title: 'Profile', icon: User },
+    home,
+    { name: 'classes', title: 'Classes', icon: Backpack },
+    { name: 'attendance', title: 'Register', icon: ClipboardCheck },
+    messages,
+    more,
   ],
   PARENT: [
-    { name: 'index', title: 'Dashboard', icon: Home },
-    { name: 'messages', title: 'Messages', icon: MessageSquare, badge: 'messages' },
-    { name: 'notifications', title: 'Alerts', icon: Bell, badge: 'notifications' },
-    { name: 'profile', title: 'Profile', icon: User },
+    home,
+    { name: 'children', title: 'Children', icon: GraduationCap },
+    messages,
+    { name: 'alerts', title: 'Alerts', icon: Bell, badge: 'notifications' },
+    more,
   ],
   LIBRARIAN: [
-    { name: 'index', title: 'Dashboard', icon: Home },
-    { name: 'library', title: 'Library', icon: BookOpen },
-    { name: 'messages', title: 'Messages', icon: MessageSquare, badge: 'messages' },
-    { name: 'profile', title: 'Profile', icon: User },
+    home,
+    { name: 'books', title: 'Books', icon: BookOpen },
+    { name: 'circulate', title: 'Desk', icon: ArrowLeftRight },
+    messages,
+    more,
   ],
 };
 
-const ALL_TAB_NAMES = ['index', 'users', 'attendance', 'messages', 'notifications', 'library', 'settings', 'profile'];
-
 export default function TabsLayout() {
-  const user = useAuthStore((s) => s.user);
+  const t = useTheme();
+  const role = useAuthStore((s) => s.user?.role) ?? 'PARENT';
   const chatUnread = useChatStore((s) => s.unreadCount);
-  const primaryColor = useBrandStore((s) => s.primaryColor);
-  const { data: notifications } = useNotifications();
-  const notifUnread = notifications?.filter((n) => !n.isRead).length ?? 0;
-
-  // Connect chat on app load
   const connect = useChatStore((s) => s.connect);
+
+  const { data: notifications } = useNotifications();
+  const alertUnread = notifications?.filter((n) => !n.isRead).length ?? 0;
+
   useEffect(() => {
     connect();
-  }, []);
+  }, [connect]);
 
-  const role = user?.role ?? 'PARENT';
   const tabs = ROLE_TABS[role] ?? ROLE_TABS.PARENT;
-  const visibleNames = new Set(tabs.map((t) => t.name));
+  const visible = new Set(tabs.map((s) => s.name));
 
-  const getBadge = (badge?: 'messages' | 'notifications') => {
-    if (badge === 'messages' && chatUnread > 0) return chatUnread > 99 ? '99+' : String(chatUnread);
-    if (badge === 'notifications' && notifUnread > 0) return notifUnread > 99 ? '99+' : String(notifUnread);
-    return undefined;
+  const badgeFor = (kind?: Slot['badge']) => {
+    const count = kind === 'messages' ? chatUnread : kind === 'notifications' ? alertUnread : 0;
+    if (!count) return undefined;
+    return count > 99 ? '99+' : String(count);
   };
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: primaryColor,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: t.brand.text,
+        tabBarInactiveTintColor: t.fg.tertiary,
         tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
+          backgroundColor: t.bg.page,
+          // A hairline, not a shadow. The tab bar sits on the page rather
+          // than floating above it.
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
+          borderTopColor: t.line.hairline,
+          elevation: 0,
+          height: touch.comfortable + 30,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
-          fontSize: fontSize.xs,
-          fontFamily: fontFamily.medium,
+          fontFamily: typeScale.caption.fontFamily,
+          fontSize: 11,
+          letterSpacing: 0.1,
+          textTransform: 'none',
         },
+        tabBarItemStyle: { paddingVertical: 2 },
       }}
     >
-      {ALL_TAB_NAMES.map((name) => {
-        const tab = tabs.find((t) => t.name === name);
-        const isVisible = visibleNames.has(name);
-        const badge = tab ? getBadge(tab.badge) : undefined;
+      {ALL.map((name) => {
+        const slot = tabs.find((s) => s.name === name);
+        const badge = slot ? badgeFor(slot.badge) : undefined;
 
         return (
           <Tabs.Screen
             key={name}
             name={name}
             options={{
-              title: tab?.title ?? name,
-              href: isVisible ? undefined : null,
+              title: slot?.title ?? name,
+              href: visible.has(name) ? undefined : null,
               tabBarBadge: badge,
-              tabBarBadgeStyle: badge ? badgeStyle : undefined,
-              tabBarIcon: tab
-                ? ({ color, size }) => {
-                    const Icon = tab.icon;
-                    return <Icon size={size} color={color} />;
+              tabBarBadgeStyle: {
+                backgroundColor: t.status.critical.solid,
+                color: '#FFFFFF',
+                fontFamily: typeScale.caption.fontFamily,
+                fontSize: 10,
+                lineHeight: 14,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+              },
+              tabBarIcon: slot
+                ? ({ color, focused }) => {
+                    const Icon = slot.icon;
+                    // Weight carries the active state as well as colour, so
+                    // the bar still reads for anyone who cannot see the tint.
+                    return <Icon size={23} color={color} strokeWidth={focused ? 2.3 : 1.8} />;
                   }
                 : undefined,
             }}
@@ -124,14 +176,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-
-const badgeStyle = {
-  backgroundColor: colors.danger,
-  color: colors.white,
-  fontSize: 10,
-  fontFamily: fontFamily.bold,
-  minWidth: 18,
-  height: 18,
-  lineHeight: 14,
-  borderRadius: 9,
-};

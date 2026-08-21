@@ -1,112 +1,166 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
-import { useRouter, Link } from 'expo-router';
-import { AtSign, Lock } from 'lucide-react-native';
+import { KeyboardAvoidingView, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { toast } from 'sonner-native';
-import { getErrorMessage } from '@/hooks/useQueryError';
-import { useAuthStore, isValidIdentifier } from '@/stores/auth-store';
-import { Button, Input } from '@/components/ui';
-import { AuthShell } from '@/components/AuthShell';
-import { colors, fontSize, spacing, fontFamily } from '@/constants/theme';
 
-export default function LoginScreen() {
+import api from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
+import { useTheme } from '@/design';
+import { radius, space } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
+import { Screen, Text, Field, Button } from '@/ui';
+
+/**
+ * The first thing anyone sees, and the only screen that has to work before the
+ * app knows anything about who is looking at it.
+ *
+ * It wears the school. Name, motto and logo come from the public branding
+ * endpoint, and the primary button is already in the school's own colour
+ * before a single credential has been typed. A parent in Kigali should open
+ * this and see their child's school, not a generic product.
+ *
+ * There is no illustration and no marketing copy. Someone opening this is
+ * trying to get in.
+ */
+
+type Branding = { schoolName: string; schoolMotto: string; logoUrl: string };
+
+export default function Login() {
+  const t = useTheme();
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const reduced = useReducedMotion();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
 
+  const { data: branding } = useQuery({
+    queryKey: ['branding'],
+    queryFn: async () => (await api.get<Branding>('/school-config/public')).data,
+    staleTime: 1000 * 60 * 60,
+  });
+
   const validate = () => {
-    const newErrors: typeof errors = {};
-    if (!identifier.trim()) newErrors.identifier = 'Email or phone is required';
-    else if (!isValidIdentifier(identifier))
-      newErrors.identifier = 'Enter a valid email address or phone number';
-    if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const next: typeof errors = {};
+    const value = identifier.trim();
+
+    // Staff and parents sign in with either an email or a phone number, and
+    // parents overwhelmingly use the phone. Demanding an email here, as the
+    // previous version did, locked out the largest group of users.
+    if (!value) next.identifier = 'Enter your email or phone number';
+    else if (!/^\S+@\S+\.\S+$/.test(value) && !/^\+?\d[\d\s]{7,}$/.test(value))
+      next.identifier = 'That does not look like an email or a phone number';
+
+    if (!password) next.password = 'Enter your password';
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleLogin = async () => {
+  const submit = async () => {
     if (!validate()) return;
-
-    setLoading(true);
+    setBusy(true);
     try {
-      const result = await login(identifier.trim(), password);
-      if (result.needsOtp) {
-        router.push({
-          pathname: '/(auth)/verify-otp',
-          params: { identifier: identifier.trim() },
-        });
-      } else {
-        router.replace('/(app)/(tabs)');
-      }
-    } catch (error) {
-      // Distinguishes an unreachable API from a rejected password. Reporting a
-      // connection failure as "check your credentials" sends people hunting for
-      // a problem that is not theirs.
-      toast.error(getErrorMessage(error, 'Login failed. Please check your credentials.'));
+      const value = identifier.trim();
+      const normalised = value.includes('@') ? value.toLowerCase() : value.replace(/\s/g, '');
+      const result = await login(normalised, password);
+
+      if (result.blocked) router.replace('/blocked');
+      else if (result.needsOtp)
+        router.push({ pathname: '/(auth)/verify-otp', params: { identifier: normalised } });
+      else router.replace('/(app)/(tabs)');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // The API distinguishes wrong credentials from a disabled account, and
+      // so should the screen. "Login failed" for both tells nobody anything.
+      const message =
+        status === 401
+          ? 'That email or password is not right.'
+          : status === 403
+            ? 'This account has been turned off. Ask your school administrator.'
+            : (error?.response?.data?.message ??
+              'Could not reach the school right now. Check your connection.');
+      toast.error(message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
   return (
-    <AuthShell>
-        <View>
-          <Input
-            label="Email or Phone"
-            placeholder="Email or phone number"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
+        <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.screen))} style={{ gap: space.md }}>
+          {branding?.logoUrl ? (
+            <Image
+              source={{ uri: branding.logoUrl }}
+              style={{ width: 56, height: 56, borderRadius: radius.md }}
+              contentFit="contain"
+              transition={200}
+              accessibilityLabel={branding.schoolName}
+            />
+          ) : null}
+
+          <View style={{ gap: space.xs, paddingTop: space.sm }}>
+            <Text variant="title1">{branding?.schoolName ?? 'Markova'}</Text>
+            {branding?.schoolMotto ? (
+              <Text variant="callout" tone="secondary">
+                {branding.schoolMotto}
+              </Text>
+            ) : null}
+          </View>
+        </Animated.View>
+
+        <View style={{ gap: space.lg }}>
+          <Field
+            label="Email or phone"
             value={identifier}
             onChangeText={setIdentifier}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="username"
             error={errors.identifier}
-            leftIcon={<AtSign size={20} color={colors.muted} />}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="username"
+            keyboardType="email-address"
+            textContentType="username"
+            returnKeyType="next"
+            placeholder="you@school.edu or +250…"
           />
 
-          <Input
+          <Field
             label="Password"
-            placeholder="Enter your password"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="password"
             error={errors.password}
-            leftIcon={<Lock size={20} color={colors.muted} />}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={submit}
           />
 
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            loading={loading}
-            fullWidth
-            size="lg"
-          />
+          <Button label="Sign in" kind="primary" block loading={busy} onPress={submit} />
 
-          <Link href="/(auth)/forgot-password" style={styles.forgotLink}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </Link>
+          <View style={{ alignItems: 'center' }}>
+            <Button
+              label="I forgot my password"
+              kind="quiet"
+              onPress={() => router.push('/(auth)/forgot-password')}
+            />
+          </View>
         </View>
-    </AuthShell>
+
+        <Text variant="footnote" tone="tertiary" align="center">
+          Students sign in on the {branding?.schoolName ?? 'school'} website.
+        </Text>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  forgotLink: {
-    alignSelf: 'center',
-    marginTop: spacing.lg,
-  },
-  forgotText: {
-    fontSize: fontSize.sm,
-    color: colors.primary,
-    fontFamily: fontFamily.medium,
-  },
-});

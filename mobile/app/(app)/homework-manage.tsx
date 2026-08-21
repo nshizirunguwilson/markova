@@ -1,331 +1,231 @@
-import { useState, useCallback } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, TextInput, RefreshControl, Modal, Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  Plus, BookOpen, Calendar, Users, ChevronDown, X, CheckCircle, Clock,
-} from 'lucide-react-native';
+import { useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { Stack } from 'expo-router';
 import { toast } from 'sonner-native';
+
 import { useAuthStore } from '@/stores/auth-store';
 import {
-  useTeacherAssignments, useHomeworkList, useCurrentTerm, useCreateHomework, useGradeSubmission,
+  useTeacherAssignments, useHomeworkList, useCreateHomework,
+  useGradeSubmission, useCurrentTerm,
 } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { Button, Input } from '@/components/ui';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
-import type { Homework } from '@/types';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import {
+  Screen, Section, Row, RowGroup, Text, Field, Button, Badge, Segmented,
+  Empty, LoadingRows, Avatar, Meter,
+} from '@/ui';
 
-export default function HomeworkManageScreen() {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
+/**
+ * Setting homework, then marking it.
+ *
+ * Two jobs that happen weeks apart, so they are two tabs rather than one long
+ * screen. Setting is a short form. Marking is a list of who handed in, with the
+ * mark typed straight into the row, because opening a detail screen per student
+ * to type one number is thirty extra taps.
+ *
+ * Late submissions are flagged but not punished automatically here. The
+ * deduction is school policy and lives on the assignment, so the screen shows
+ * what it will cost rather than silently applying it.
+ */
+export default function HomeworkManage() {
+  const [tab, setTab] = useState<'set' | 'mark'>('set');
 
-  const { data: currentTerm } = useCurrentTerm();
-  const { data: assignments } = useTeacherAssignments(user?.teacherId);
-  const { data: homework, isLoading, error, refetch } = useHomeworkList({ termId: currentTerm?.id });
-  const createHomework = useCreateHomework();
+  return (
+    <>
+      <Stack.Screen options={{ title: 'Homework' }} />
+      <Screen contentContainerStyle={{ gap: space.xl }}>
+        <Segmented
+          value={tab}
+          onChange={(v) => setTab(v as never)}
+          options={[
+            { value: 'set', label: 'Set new' },
+            { value: 'mark', label: 'Mark' },
+          ]}
+        />
+        {tab === 'set' ? <SetHomework /> : <MarkHomework onSwitchToSet={() => setTab('set')} />}
+      </Screen>
+    </>
+  );
+}
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
-  const [selectedDetail, setSelectedDetail] = useState<Homework | null>(null);
+function SetHomework() {
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
+  const { data: assignments } = useTeacherAssignments(teacherId);
+  const { data: term } = useCurrentTerm();
+  const create = useCreateHomework();
 
-  // Create form state
+  const pairs = useMemo(() => {
+    const out: { value: string; label: string; classId: string; subjectId: string }[] = [];
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      const subject: any = (a as any).subject;
+      if (!section || !subject) continue;
+      const value = `${section.id}:${subject.id}`;
+      if (!out.some((p) => p.value === value)) {
+        out.push({ value, label: `${section.name} ${subject.name}`, classId: section.id, subjectId: subject.id });
+      }
+    }
+    return out;
+  }, [assignments]);
+
+  const [pair, setPair] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [maxMarks, setMaxMarks] = useState('');
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [dueDays, setDueDays] = useState('7');
+  const [maxMarks, setMaxMarks] = useState('20');
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  const chosen = pairs.find((p) => p.value === (pair || pairs[0]?.value));
 
-  const handleCreate = () => {
-    if (!title.trim()) { toast.error('Title is required'); return; }
-    if (title.trim().length < 3) { toast.error('Title must be at least 3 characters'); return; }
-    if (!dueDate.trim()) { toast.error('Due date is required (YYYY-MM-DD)'); return; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate.trim())) { toast.error('Due date must be in YYYY-MM-DD format'); return; }
-    const parsedDate = new Date(dueDate.trim());
-    if (isNaN(parsedDate.getTime())) { toast.error('Invalid date'); return; }
-    if (parsedDate < new Date(new Date().toISOString().split('T')[0])) { toast.error('Due date cannot be in the past'); return; }
-    if (maxMarks && (isNaN(Number(maxMarks)) || Number(maxMarks) <= 0 || Number(maxMarks) > 1000)) { toast.error('Max marks must be between 1 and 1000'); return; }
-    if (!selectedAssignment) { toast.error('Select a class and subject'); return; }
-    if (!currentTerm) { toast.error('No current term found'); return; }
+  const submit = () => {
+    if (!chosen) return;
+    if (title.trim().length < 3) {
+      toast.error('Give it a title the class will recognise');
+      return;
+    }
+    const due = new Date();
+    due.setDate(due.getDate() + Math.max(1, Number(dueDays) || 7));
 
-    createHomework.mutate(
+    create.mutate(
       {
-        subjectId: selectedAssignment.subjectId,
-        classSectionId: selectedAssignment.classSectionId,
-        termId: currentTerm.id,
+        classSectionId: chosen.classId,
+        subjectId: chosen.subjectId,
+        termId: term?.id,
         title: title.trim(),
         description: description.trim() || undefined,
-        dueDate,
-        maxMarks: maxMarks ? Number(maxMarks) : undefined,
-      },
+        dueDate: due.toISOString(),
+        maxMarks: Number(maxMarks) || undefined,
+      } as never,
       {
         onSuccess: () => {
-          toast.success('Homework created');
-          setShowCreate(false);
-          resetForm();
-          refetch();
+          toast.success('Set. The class can see it now.');
+          setTitle('');
+          setDescription('');
         },
-        onError: (err: any) => {
-          toast.error(err?.response?.data?.message ?? 'Failed to create homework');
-        },
-      }
+        onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Could not set that'),
+      },
     );
   };
 
-  const resetForm = () => {
-    setTitle(''); setDescription(''); setDueDate(''); setMaxMarks(''); setSelectedAssignment(null);
-  };
-
-  const now = new Date();
+  if (!pairs.length) return <Empty title="No classes" body="You need a subject and a class assigned first." />;
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title="Homework"
-        onBack={() => router.back()}
-        rightAction={
-          <Pressable onPress={() => setShowCreate(true)} style={styles.addBtn}>
-            <Plus size={22} color={colors.white} />
-          </Pressable>
-        }
-      />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : homework && homework.length > 0 ? (
-          homework.map((hw) => {
-            const isOverdue = new Date(hw.dueDate) < now;
-            const submissionCount = hw.submissions?.length ?? 0;
-            return (
-              <Pressable key={hw.id} style={styles.hwCard} onPress={() => setSelectedDetail(hw)}>
-                <View style={styles.hwHeader}>
-                  <View style={styles.subjectBadge}>
-                    <BookOpen size={14} color={colors.primary} />
-                    <Text style={styles.subjectText}>{hw.subject?.name}</Text>
-                  </View>
-                  {isOverdue ? (
-                    <Clock size={16} color={colors.danger} />
-                  ) : (
-                    <CheckCircle size={16} color={colors.success} />
-                  )}
-                </View>
-                <Text style={styles.hwTitle}>{hw.title}</Text>
-                <View style={styles.hwMeta}>
-                  <Calendar size={14} color={colors.muted} />
-                  <Text style={styles.hwDate}>
-                    Due: {new Date(hw.dueDate).toLocaleDateString()}
-                  </Text>
-                  <Users size={14} color={colors.muted} />
-                  <Text style={styles.hwDate}>{submissionCount} submissions</Text>
-                </View>
-              </Pressable>
-            );
-          })
-        ) : (
-          <View style={styles.emptyCard}>
-            <BookOpen size={32} color={colors.muted} />
-            <Text style={styles.noData}>No homework created yet.</Text>
+    <View style={{ gap: space.xl }}>
+      <Segmented value={pair || pairs[0].value} onChange={setPair} options={pairs} />
+
+      <View style={{ gap: space.lg }}>
+        <Field label="Title" value={title} onChangeText={setTitle} required placeholder="Chapter 4 exercises" />
+        <Field
+          label="What to do"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          minHeight={110}
+        />
+        <View style={{ flexDirection: 'row', gap: space.md }}>
+          <View style={{ flex: 1 }}>
+            <Field label="Due in days" value={dueDays} onChangeText={setDueDays} keyboardType="number-pad" />
           </View>
-        )}
-      </ScrollView>
-
-      {/* Create Modal */}
-      <Modal visible={showCreate} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Homework</Text>
-              <Pressable onPress={() => { setShowCreate(false); resetForm(); }}>
-                <X size={24} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Assignment picker */}
-              <Text style={styles.label}>Class & Subject</Text>
-              <View style={styles.chipRow}>
-                {assignments?.map((a) => (
-                  <Pressable
-                    key={a.id}
-                    style={[styles.chip, selectedAssignment?.id === a.id && styles.chipActive]}
-                    onPress={() => setSelectedAssignment(a)}
-                  >
-                    <Text style={[styles.chipText, selectedAssignment?.id === a.id && styles.chipTextActive]}>
-                      {a.subject?.name} - {a.classSection?.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Input label="Title" value={title} onChangeText={setTitle} placeholder="Homework title" />
-              <Input
-                label="Description (optional)"
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Instructions..."
-                multiline
-                numberOfLines={3}
-                style={{ height: 80, textAlignVertical: 'top' }}
-              />
-              <Input
-                label="Due Date (YYYY-MM-DD)"
-                value={dueDate}
-                onChangeText={setDueDate}
-                placeholder="2026-04-01"
-                keyboardType="numbers-and-punctuation"
-              />
-              <Input
-                label="Max Marks (optional)"
-                value={maxMarks}
-                onChangeText={(t) => setMaxMarks(t.replace(/[^0-9]/g, ''))}
-                placeholder="100"
-                keyboardType="number-pad"
-              />
-              <Button
-                title="Create Homework"
-                onPress={handleCreate}
-                loading={createHomework.isPending}
-                fullWidth
-                size="lg"
-              />
-            </ScrollView>
+          <View style={{ flex: 1 }}>
+            <Field label="Out of" value={maxMarks} onChangeText={setMaxMarks} keyboardType="number-pad" />
           </View>
         </View>
-      </Modal>
-
-      {/* Detail Modal */}
-      <Modal visible={!!selectedDetail} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedDetail?.title}</Text>
-              <Pressable onPress={() => setSelectedDetail(null)}>
-                <X size={24} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedDetail?.description && (
-                <Text style={styles.detailDesc}>{selectedDetail.description}</Text>
-              )}
-              <Text style={styles.detailMeta}>
-                Subject: {selectedDetail?.subject?.name}{'\n'}
-                Due: {selectedDetail?.dueDate ? new Date(selectedDetail.dueDate).toLocaleDateString() : '--'}{'\n'}
-                Max Marks: {selectedDetail?.maxMarks ?? 'N/A'}
-              </Text>
-
-              <Text style={styles.sectionTitle}>
-                Submissions ({selectedDetail?.submissions?.length ?? 0})
-              </Text>
-              {selectedDetail?.submissions?.map((sub) => (
-                <SubmissionRow key={sub.id} submission={sub} maxMarks={selectedDetail.maxMarks} onGraded={() => { setSelectedDetail(null); refetch(); }} />
-              ))}
-              {(!selectedDetail?.submissions || selectedDetail.submissions.length === 0) && (
-                <Text style={styles.noData}>No submissions yet.</Text>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-}
-
-function SubmissionRow({ submission, maxMarks, onGraded }: { submission: any; maxMarks?: number; onGraded: () => void }) {
-  const [marks, setMarks] = useState(submission.marks?.toString() ?? '');
-  const grade = useGradeSubmission();
-
-  const handleGrade = () => {
-    if (!marks.trim()) return;
-    grade.mutate(
-      { submissionId: submission.id, marks: Number(marks) },
-      { onSuccess: () => { toast.success('Graded'); onGraded(); } }
-    );
-  };
-
-  return (
-    <View style={styles.subRow}>
-      <View style={styles.subInfo}>
-        <Text style={styles.subName}>
-          {submission.student?.user?.firstName} {submission.student?.user?.lastName}
-        </Text>
-        <Text style={styles.subDate}>
-          {new Date(submission.submittedAt).toLocaleDateString()}
-        </Text>
+        <Button label="Set the homework" kind="primary" block loading={create.isPending} onPress={submit} />
       </View>
-      <TextInput
-        style={styles.gradeInput}
-        value={marks}
-        onChangeText={(t) => setMarks(t.replace(/[^0-9]/g, ''))}
-        placeholder="--"
-        keyboardType="number-pad"
-        maxLength={3}
-      />
-      <Pressable onPress={handleGrade} style={styles.gradeBtn}>
-        <CheckCircle size={20} color={colors.success} />
-      </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  hwCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  hwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  subjectText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
-  hwTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.sm },
-  hwMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hwDate: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
-  emptyCard: { alignItems: 'center', padding: spacing['3xl'] },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', marginTop: spacing.md, fontFamily: fontFamily.regular },
+function MarkHomework({ onSwitchToSet }: { onSwitchToSet: () => void }) {
+  const { data: term } = useCurrentTerm();
+  const { data, isPending } = useHomeworkList({ termId: term?.id });
+  const grade = useGradeSubmission();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [marks, setMarks] = useState<Record<string, string>>({});
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: colors.white, borderTopLeftRadius: radius['2xl'], borderTopRightRadius: radius['2xl'], padding: spacing['2xl'], maxHeight: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl },
-  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
-  label: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground, marginBottom: spacing.sm },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
-  chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.xs, color: colors.foreground, fontFamily: fontFamily.regular },
-  chipTextActive: { color: colors.white },
+  if (isPending) return <LoadingRows count={5} />;
+  if (!data?.length)
+    return (
+      <Empty
+        title="Nothing set yet"
+        body="Homework you set appears here once a class has something to hand in."
+        action={{ label: 'Set some homework', onPress: onSwitchToSet }}
+      />
+    );
 
-  // Detail
-  detailDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md, fontFamily: fontFamily.regular },
-  detailMeta: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 22, marginBottom: spacing.xl, fontFamily: fontFamily.regular },
-  sectionTitle: { fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.md },
+  return (
+    <View style={{ gap: space.xxl }}>
+      {(data as any[]).map((hw) => {
+        const submissions: any[] = hw.submissions ?? [];
+        const marked = submissions.filter((s) => s.marks != null).length;
+        const open = openId === hw.id;
 
-  // Submission
-  subRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceMuted },
-  subInfo: { flex: 1 },
-  subName: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
-  subDate: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
-  gradeInput: {
-    width: 50, height: 36, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    textAlign: 'center', fontSize: fontSize.sm, fontFamily: fontFamily.bold,
-  },
-  gradeBtn: { marginLeft: spacing.sm, padding: spacing.xs },
-});
+        return (
+          <View key={hw.id} style={{ gap: space.md }}>
+            <Row
+              title={hw.title}
+              subtitle={`${hw.classSection?.name ?? ''}   ·   due ${new Date(hw.dueDate).toLocaleDateString()}`}
+              value={<Badge label={`${marked}/${submissions.length}`} tone={marked === submissions.length && submissions.length > 0 ? 'positive' : 'neutral'} numeric />}
+              inset={false}
+              onPress={() => setOpenId(open ? null : hw.id)}
+              last
+            />
+
+            {submissions.length ? (
+              <Meter
+                value={marked}
+                max={submissions.length}
+                label={`${marked} of ${submissions.length} marked`}
+                showValue={false}
+                tone={marked === submissions.length ? 'positive' : 'brand'}
+              />
+            ) : (
+              <Text variant="footnote" tone="tertiary">Nobody has handed this in yet.</Text>
+            )}
+
+            {open && submissions.length ? (
+              <Section title="Handed in">
+                <RowGroup>
+                  {submissions.map((sub, i) => {
+                    const name = `${sub.student?.user?.firstName ?? ''} ${
+                      sub.student?.user?.lastName ?? ''
+                    }`.trim();
+                    const key = sub.id;
+                    return (
+                      <Row
+                        key={key}
+                        title={name || 'Student'}
+                        subtitle={sub.isLate ? 'Handed in late' : 'On time'}
+                        lead={<Avatar name={name || 'Student'} size="sm" />}
+                        value={
+                          <View style={{ width: 92 }}>
+                            <Field
+                              label=""
+                              value={marks[key] ?? (sub.marks != null ? String(sub.marks) : '')}
+                              onChangeText={(v) => setMarks((prev) => ({ ...prev, [key]: v.replace(/[^\d.]/g, '') }))}
+                              keyboardType="numeric"
+                              placeholder={hw.maxMarks ? `/${hw.maxMarks}` : '-'}
+                              onBlur={() => {
+                                const raw = marks[key];
+                                if (raw == null || raw === '') return;
+                                grade.mutate(
+                                  { submissionId: key, marks: Number(raw) } as never,
+                                  { onError: () => toast.error(`Could not save ${name}`) },
+                                );
+                              }}
+                            />
+                          </View>
+                        }
+                        chevron={false}
+                        last={i === submissions.length - 1}
+                      />
+                    );
+                  })}
+                </RowGroup>
+              </Section>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}

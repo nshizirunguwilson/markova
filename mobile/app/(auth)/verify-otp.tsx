@@ -1,214 +1,177 @@
-import { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Pressable, TextInput, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { toast } from 'sonner-native';
-import { getErrorMessage } from '@/hooks/useQueryError';
+
 import { useAuthStore } from '@/stores/auth-store';
-import { Button } from '@/components/ui';
-import { AuthShell } from '@/components/AuthShell';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { useTheme } from '@/design';
+import { curve, radius, space, type as typeScale } from '@/design/tokens';
+import { duration, useReducedMotion, withReducedMotion } from '@/design/motion';
+import { Screen, Text, Button } from '@/ui';
 
-const OTP_LENGTH = 6;
+const LENGTH = 6;
+// The API enforces a 30 second cooldown on resend. Showing 60, as the previous
+// version did, made people wait twice as long as they had to.
+const RESEND_AFTER = 30;
 
-export default function VerifyOtpScreen() {
+/**
+ * The six digits.
+ *
+ * Separate boxes rather than one field, because a code arriving by email is
+ * read in pairs and typed with pauses, and separate boxes let a person see
+ * where they are without counting. They are set at title size because this is
+ * typed by someone glancing between two apps.
+ *
+ * It submits itself on the sixth digit. Asking somebody to press a button
+ * after typing the last character of a code they just read is asking them to
+ * confirm something they already confirmed.
+ */
+export default function VerifyOtp() {
+  const t = useTheme();
   const router = useRouter();
-  const { identifier } = useLocalSearchParams<{ identifier: string }>();
+  const { identifier } = useLocalSearchParams<{ identifier?: string }>();
+
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
+  const reduced = useReducedMotion();
 
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [loading, setLoading] = useState(false);
-  const [countdown, setCountdown] = useState(60);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
-
-  useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
+  const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(''));
+  const [busy, setBusy] = useState(false);
+  const [left, setLeft] = useState(RESEND_AFTER);
+  const inputs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
-    return () => clearInterval(timer);
-  }, [countdown]);
+    if (left <= 0) return;
+    const id = setInterval(() => setLeft((v) => v - 1), 1000);
+    return () => clearInterval(id);
+  }, [left]);
 
-  const handleChange = (text: string, index: number) => {
-    if (text.length > 1) {
-      // Handle paste
-      const digits = text.replace(/\D/g, '').slice(0, OTP_LENGTH).split('');
-      const newOtp = [...otp];
-      digits.forEach((d, i) => {
-        if (index + i < OTP_LENGTH) newOtp[index + i] = d;
-      });
-      setOtp(newOtp);
-      const nextIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
-      inputRefs.current[nextIndex]?.focus();
-      return;
-    }
-
-    const newOtp = [...otp];
-    newOtp[index] = text.replace(/\D/g, '');
-    setOtp(newOtp);
-
-    if (text && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !otp[index] && index > 0) {
-      const newOtp = [...otp];
-      newOtp[index - 1] = '';
-      setOtp(newOtp);
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerify = async () => {
-    const code = otp.join('');
-    if (code.length !== OTP_LENGTH) {
-      toast.error('Please enter the full 6-digit code');
-      return;
-    }
-
-    setLoading(true);
+  const submit = async (code: string) => {
+    setBusy(true);
     try {
-      await verifyOtp(code);
-      router.replace('/(app)/(tabs)');
+      const result = await verifyOtp(code);
+      if (process.env.EXPO_OS === 'ios') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      if (result?.blocked) router.replace('/blocked');
+      else router.replace('/(app)/(tabs)');
     } catch (error: any) {
-      const message = getErrorMessage(error, 'Invalid OTP. Please try again.');
-      toast.error(message);
-      setOtp(Array(OTP_LENGTH).fill(''));
-      inputRefs.current[0]?.focus();
+      if (process.env.EXPO_OS === 'ios') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      setDigits(Array(LENGTH).fill(''));
+      inputs.current[0]?.focus();
+      toast.error(error?.response?.data?.message ?? 'That code is not right. Try again.');
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleResend = async () => {
-    if (countdown > 0) return;
+  const setAt = (index: number, raw: string) => {
+    const value = raw.replace(/\D/g, '');
+
+    // Pasting the whole code into any box fills the row, which is what happens
+    // when somebody copies it straight out of the email.
+    if (value.length > 1) {
+      const spread = value.slice(0, LENGTH).split('');
+      const next: string[] = Array(LENGTH).fill('');
+      spread.forEach((d, i) => {
+        next[i] = d;
+      });
+      setDigits(next);
+      if (spread.length === LENGTH) void submit(next.join(''));
+      else inputs.current[spread.length]?.focus();
+      return;
+    }
+
+    const next = [...digits];
+    next[index] = value;
+    setDigits(next);
+
+    if (value && index < LENGTH - 1) inputs.current[index + 1]?.focus();
+    if (next.every(Boolean)) void submit(next.join(''));
+  };
+
+  const onBackspace = (index: number, key: string) => {
+    if (key === 'Backspace' && !digits[index] && index > 0) inputs.current[index - 1]?.focus();
+  };
+
+  const resend = async () => {
     try {
       await resendOtp();
-      toast.info('A new code has been sent');
-      setCountdown(60);
-      setOtp(Array(OTP_LENGTH).fill(''));
-      inputRefs.current[0]?.focus();
-    } catch (error: any) {
-      toast.error(getErrorMessage(error, 'Could not resend code'));
+      setLeft(RESEND_AFTER);
+      toast.success('A new code is on its way');
+    } catch {
+      toast.error('Could not send another code just yet');
     }
   };
 
   return (
-    <AuthShell title="Verify your code">
-      <View>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to{'\n'}
-          <Text style={styles.email}>{identifier}</Text>
-        </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
+        <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))} style={{ gap: space.md }}>
+          <Text variant="title1">Check your email</Text>
+          <Text variant="body" tone="secondary" style={{ maxWidth: 400 }}>
+            We sent a six digit code{identifier ? ` to ${identifier}` : ''}. It expires in five
+            minutes.
+          </Text>
+        </Animated.View>
 
-        {/* OTP Inputs */}
-        <View style={styles.otpRow}>
-          {otp.map((digit, i) => (
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          {digits.map((digit, index) => (
             <TextInput
-              key={i}
-              ref={(ref) => { inputRefs.current[i] = ref; }}
-              style={[styles.otpInput, digit ? styles.otpInputFilled : undefined]}
+              key={index}
+              ref={(el) => {
+                inputs.current[index] = el;
+              }}
               value={digit}
-              onChangeText={(text) => handleChange(text, i)}
-              onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
+              onChangeText={(v) => setAt(index, v)}
+              onKeyPress={(e) => onBackspace(index, e.nativeEvent.key)}
               keyboardType="number-pad"
-              maxLength={i === 0 ? OTP_LENGTH : 1}
-              selectTextOnFocus
+              textContentType="oneTimeCode"
+              maxLength={LENGTH}
+              editable={!busy}
+              autoFocus={index === 0}
+              accessibilityLabel={`Digit ${index + 1} of ${LENGTH}`}
+              style={[
+                typeScale.title1,
+                {
+                  flex: 1,
+                  height: 64,
+                  textAlign: 'center',
+                  color: t.fg.primary,
+                  backgroundColor: t.bg.page,
+                  borderWidth: digit ? 2 : 1,
+                  borderColor: digit ? t.brand.solid : t.line.border,
+                  borderRadius: radius.md,
+                  ...curve,
+                },
+              ]}
             />
           ))}
         </View>
 
-        {/* Verify Button */}
-        <Button
-          title="Verify"
-          onPress={handleVerify}
-          loading={loading}
-          fullWidth
-          size="lg"
-        />
-
-        {/* Resend */}
-        <View style={styles.resendRow}>
-          <Text style={styles.resendText}>Didn't receive the code? </Text>
-          {countdown > 0 ? (
-            <Text style={styles.countdown}>Resend in {countdown}s</Text>
+        <View style={{ alignItems: 'flex-start', gap: space.md }}>
+          {left > 0 ? (
+            <Text variant="footnote" tone="tertiary" numeric>
+              You can ask for another code in {left}s
+            </Text>
           ) : (
-            <Pressable onPress={handleResend}>
-              <Text style={styles.resendLink}>Resend</Text>
-            </Pressable>
+            <Button label="Send another code" kind="quiet" onPress={resend} />
           )}
+
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <Text variant="footnote" tone="secondary">
+              Use a different account
+            </Text>
+          </Pressable>
         </View>
-      </View>
-    </AuthShell>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  subtitle: {
-    fontSize: fontSize.sm,
-    color: colors.muted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing['2xl'],
-    fontFamily: fontFamily.regular,
-  },
-  email: {
-    color: colors.foreground,
-    fontFamily: fontFamily.semibold,
-  },
-  otpRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing['3xl'],
-  },
-  otpInput: {
-    width: 48,
-    height: 56,
-    borderRadius: radius.xl,
-    backgroundColor: colors.background,
-    textAlign: 'center',
-    fontSize: fontSize.xl,
-    fontFamily: fontFamily.bold,
-    color: colors.foreground,
-    borderWidth: 2,
-    borderColor: colors.borderInput,
-  },
-  otpInputFilled: {
-    backgroundColor: colors.accentLight,
-    borderColor: colors.primary,
-  },
-  resendRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  resendText: {
-    fontSize: fontSize.sm,
-    color: colors.muted,
-    fontFamily: fontFamily.regular,
-  },
-  countdown: {
-    fontSize: fontSize.sm,
-    color: colors.foregroundMuted,
-    fontFamily: fontFamily.regular,
-  },
-  resendLink: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-    textDecorationLine: 'underline',
-  },
-});

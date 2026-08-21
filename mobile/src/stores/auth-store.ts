@@ -3,47 +3,15 @@ import api from '@/lib/api';
 import { setTokens, clearTokens, getAccessToken } from '@/lib/storage';
 import type { UserRole } from '@/constants/config';
 
-// The mobile app is for staff and parents. Students use the web portal.
-// (The API can return STUDENT even though the mobile UserRole type omits it.)
+// The mobile app is for staff and parents. Students use the web dashboard,
+// which has ten screens built for them that this app deliberately does not.
+// The API can still return STUDENT, so the block happens here rather than
+// being assumed away.
+//
+// A blocked sign in is not an error. The credentials were correct and the
+// person did nothing wrong, so instead of throwing a red toast the store
+// records who it was and the router shows them a screen that explains it.
 const MOBILE_BLOCKED_ROLES: string[] = ['STUDENT'];
-const MOBILE_BLOCK_MESSAGE =
-  'The mobile app is for staff and parents. Students, please use the web portal.';
-
-/**
- * The API accepts either `email` or `phone`, and a great many parents are
- * registered with a phone number and no email at all. Sending only `email`
- * locked every one of them out of the app built for them.
- */
-export function buildLoginPayload(identifier: string): {
-  email?: string;
-  phone?: string;
-} {
-  const value = identifier.trim();
-  return value.includes('@')
-    ? { email: value.toLowerCase() }
-    : { phone: normalisePhone(value) };
-}
-
-/** Strip spaces, dashes and brackets; keep a leading `+`. */
-export function normalisePhone(value: string): string {
-  const digits = value.replace(/[^\d+]/g, '');
-  return digits.startsWith('+') ? digits : digits.replace(/^00/, '+');
-}
-
-/** True when the value looks like an email or a usable phone number. */
-export function isValidIdentifier(value: string): boolean {
-  const v = value.trim();
-  if (v.includes('@')) return /\S+@\S+\.\S+/.test(v);
-  const digits = normalisePhone(v).replace(/\D/g, '');
-  return digits.length >= 9;
-}
-
-function buildBlockedError() {
-  // Shaped so the existing screens' `error.response.data.message` path shows it.
-  const err: any = new Error(MOBILE_BLOCK_MESSAGE);
-  err.response = { data: { message: MOBILE_BLOCK_MESSAGE } };
-  return err;
-}
 
 export interface User {
   id: string;
@@ -64,16 +32,21 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   needsOtp: boolean;
-  /** Whatever the user typed to sign in — an email address or a phone number. */
-  pendingIdentifier: string | null;
+  pendingEmail: string | null;
   pendingSessionId: string | null;
+  /** Set when a correct sign in belongs to a role the phone does not serve. */
+  blockedRole: string | null;
+  blockedName: string | null;
 
-  login: (identifier: string, password: string) => Promise<{ needsOtp: boolean }>;
-  verifyOtp: (otp: string) => Promise<void>;
+  /** Takes an email or a phone number. Works out which and sends the right field. */
+  login: (identifier: string, password: string) => Promise<{ needsOtp: boolean; blocked?: boolean }>;
+  verifyOtp: (otp: string) => Promise<{ blocked?: boolean }>;
+  clearBlock: () => Promise<void>;
   resendOtp: () => Promise<void>;
   loadProfile: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
+  captureBlockedRole: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -81,34 +54,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   needsOtp: false,
-  pendingIdentifier: null,
+  pendingEmail: null,
   pendingSessionId: null,
+  blockedRole: null,
+  blockedName: null,
 
   login: async (identifier, password) => {
-    const { data } = await api.post('/auth/login', {
-      ...buildLoginPayload(identifier),
-      password,
-    });
+    // The API takes email and phone as separate optional fields and runs a
+    // whitelisting validation pipe, so sending one combined "identifier" is a
+    // 400. Splitting it here rather than at the screen means every caller
+    // gets phone sign in, which parents use far more than email.
+    const credential = identifier.includes('@')
+      ? { email: identifier }
+      : { phone: identifier };
+    const { data } = await api.post('/auth/login', { ...credential, password });
 
     if (data.requiresOtp) {
-      // Backend OTP is session-based — keep the sessionId for verify/resend
-      set({
-        needsOtp: true,
-        pendingIdentifier: identifier,
-        pendingSessionId: data.sessionId,
-      });
+      // Backend OTP is session based, so keep the sessionId for verify and resend
+      set({ needsOtp: true, pendingEmail: identifier, pendingSessionId: data.sessionId });
       return { needsOtp: true };
     }
 
-    // Direct login (no OTP required — students). Verify the role is permitted
+    // Direct login, which means no OTP was required. Verify the role is permitted
     // on mobile before we keep the session.
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingIdentifier: null });
+    set({ needsOtp: false, pendingEmail: null });
     await get().loadProfile();
-    if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
-      await get().logout();
-      throw buildBlockedError();
-    }
+    if (await get().captureBlockedRole()) return { needsOtp: false, blocked: true };
     set({ isAuthenticated: true });
     return { needsOtp: false };
   },
@@ -117,13 +89,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const sessionId = get().pendingSessionId;
     const { data } = await api.post('/auth/verify-otp', { sessionId, otp });
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingIdentifier: null, pendingSessionId: null });
+    set({ needsOtp: false, pendingEmail: null, pendingSessionId: null });
     await get().loadProfile();
-    if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
-      await get().logout();
-      throw buildBlockedError();
-    }
+    if (await get().captureBlockedRole()) return { blocked: true };
     set({ isAuthenticated: true });
+    return {};
+  },
+
+  /**
+   * Remembers who was turned away before the tokens are thrown out, so the
+   * screen that follows can greet them by name rather than by error code.
+   */
+  captureBlockedRole: async () => {
+    const user = get().user;
+    if (!user || !MOBILE_BLOCKED_ROLES.includes(String(user.role))) return false;
+    const role = String(user.role);
+    const name = user.firstName ?? null;
+    await get().logout();
+    set({ blockedRole: role, blockedName: name });
+    return true;
+  },
+
+  clearBlock: async () => {
+    set({ blockedRole: null, blockedName: null });
   },
 
   resendOtp: async () => {
@@ -154,7 +142,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: false,
       isLoading: false,
       needsOtp: false,
-      pendingIdentifier: null,
+      pendingEmail: null,
       pendingSessionId: null,
     });
   },
@@ -167,10 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     try {
       await get().loadProfile();
-      if (MOBILE_BLOCKED_ROLES.includes(String(get().user?.role))) {
-        await get().logout();
-        return false;
-      }
+      if (await get().captureBlockedRole()) return false;
       return true;
     } catch {
       set({ isLoading: false, isAuthenticated: false });

@@ -41,6 +41,10 @@ export class SchoolConfigService {
       schoolMotto: map.school_motto || '',
       primaryColor: map.primary_color || '#1B4F72',
       logoUrl: map.logo_url || '',
+      // Where the browser dashboard lives. The mobile app does not serve
+      // students, so when one signs in on a phone it has to be able to tell
+      // them where to go instead. Not a secret: it is the address people type.
+      webUrl: process.env.WEB_URL || process.env.APP_URL || '',
     };
   }
 

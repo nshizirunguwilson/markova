@@ -35,7 +35,7 @@ const processQueue = (error: Error | null, token: string | null) => {
   failedQueue = [];
 };
 
-// Handle 401 responses — attempt token refresh
+// Handle 401 responses by attempting a token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {

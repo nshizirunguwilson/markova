@@ -5,10 +5,13 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web --port 8081"
+    "ios": "open -a Simulator && expo start --ios",
+    "web": "expo start --web --port 8081",
+    "typecheck": "tsc --noEmit",
+    "design:check": "tsx scripts/check-contrast.ts"
   },
   "dependencies": {
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/poppins": "^0.4.1",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/native": "^7.1.33",
@@ -16,11 +19,17 @@
     "@tanstack/react-query": "^5.94.5",
     "axios": "^1.13.6",
     "expo": "~55.0.29",
+    "expo-camera": "~55.0.21",
+    "expo-clipboard": "~55.0.15",
     "expo-constants": "~55.0.17",
     "expo-device": "~55.0.20",
+    "expo-document-picker": "~55.0.15",
     "expo-font": "~55.0.8",
+    "expo-haptics": "~55.0.16",
+    "expo-image": "~55.0.11",
     "expo-image-picker": "~55.0.23",
     "expo-linking": "~55.0.17",
+    "expo-modules-core": "^55.0.25",
     "expo-notifications": "~55.0.26",
     "expo-router": "~55.0.18",
     "expo-secure-store": "~55.0.17",
@@ -45,6 +54,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "tsx": "^4.23.1",
     "typescript": "~5.9.2"
   },
   "private": true

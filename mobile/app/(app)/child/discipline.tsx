@@ -1,243 +1,182 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Alert, Modal } from 'react-native';
-import { useState, useCallback } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AlertTriangle, CheckCircle, MapPin, Clock as ClockIcon, X, Send, FileText } from 'lucide-react-native';
+import { useState } from 'react';
+import { View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { toast } from 'sonner-native';
+
 import { useStudentDiscipline, useAcknowledgeIncident, useCreateAppeal } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { Button } from '@/components/ui';
-import { Input } from '@/components/ui/Input';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { useTheme } from '@/design';
+import { space } from '@/design/tokens';
+import {
+  Screen, Section, Text, Stat, StatRow, Meter, Badge, Button, Field,
+  Empty, LoadingRows, Fact, statusTone, humanise,
+} from '@/ui';
 
-export default function ChildDisciplineScreen() {
-  const router = useRouter();
-  const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
-  const [refreshing, setRefreshing] = useState(false);
-  const { data, isLoading, error, refetch } = useStudentDiscipline(studentId);
+/**
+ * A child's conduct record, and the parent's right to answer it.
+ *
+ * This is the most consequential screen a parent sees, so it is the one place
+ * in the app where an action is deliberately made harder rather than easier.
+ * Acknowledging is one tap, because that just says "I have seen this".
+ * Appealing opens a field and asks for a reason in the parent's own words,
+ * because an appeal that can be filed by accident is worth nothing to the
+ * student who needs one.
+ *
+ * Incidents are never collapsed or hidden behind a count. If the school
+ * recorded it, the parent reads it in full.
+ */
+export default function ChildDiscipline() {
+  const t = useTheme();
+  const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
+  const { data, isPending, refetch, isRefetching } = useStudentDiscipline(studentId);
   const acknowledge = useAcknowledgeIncident();
-  const createAppeal = useCreateAppeal();
-  const [appealModalVisible, setAppealModalVisible] = useState(false);
-  const [appealIncidentId, setAppealIncidentId] = useState('');
-  const [appealReason, setAppealReason] = useState('');
+  const appeal = useCreateAppeal();
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  const [appealing, setAppealing] = useState<string | null>(null);
+  const [statement, setStatement] = useState('');
 
-  const handleAcknowledge = (incidentId: string) => {
-    Alert.alert(
-      'Acknowledge Incident',
-      'Are you sure you want to acknowledge this incident?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Acknowledge',
-          onPress: () => acknowledge.mutate(incidentId, { onSuccess: () => refetch() }),
+  const d: any = data ?? {};
+  const incidents: any[] = d.incidents ?? [];
+  const points: number = d.disciplinePoints ?? d.points ?? 100;
+
+  const submitAppeal = (incidentId: string) => {
+    if (statement.trim().length < 20) {
+      toast.error('Say a little more so the school has something to consider');
+      return;
+    }
+    appeal.mutate(
+      { incidentId, statement: statement.trim() } as never,
+      {
+        onSuccess: () => {
+          toast.success('Appeal sent. The school will review it.');
+          setAppealing(null);
+          setStatement('');
         },
-      ]
+        onError: () => toast.error('Could not send that appeal'),
+      },
     );
   };
 
-  const actionColor = (action: string) => {
-    if (action.includes('VERBAL')) return colors.warning;
-    if (action.includes('WRITTEN')) return colors.warning;
-    if (action.includes('DETENTION')) return colors.danger;
-    if (action.includes('SUSPENSION')) return colors.danger;
-    return colors.danger;
-  };
-
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Discipline" subtitle={name} onBack={() => router.back()} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
-      >
-        {/* Summary */}
-        {data && (
-          <View style={styles.summaryCard}>
-            <AlertTriangle size={24} color={colors.danger} />
-            <View style={styles.summaryText}>
-              <Text style={styles.summaryTitle}>{data.incidents?.length ?? 0} Incident(s)</Text>
-              <Text style={styles.summarySubtitle}>
-                Total points deducted: {data.totalPoints ?? 0}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Incidents */}
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : data?.incidents && data.incidents.length > 0 ? (
-          data.incidents.map((incident) => (
-            <View key={incident.id} style={styles.incidentCard}>
-              <View style={styles.incidentHeader}>
-                <View style={[styles.actionBadge, { backgroundColor: actionColor(incident.actionTaken) + '20' }]}>
-                  <Text style={[styles.actionText, { color: actionColor(incident.actionTaken) }]}>
-                    {incident.actionTaken.replace(/_/g, ' ')}
-                  </Text>
-                </View>
-                <Text style={styles.pointsBadge}>-{incident.pointsDeducted} pts</Text>
-              </View>
-
-              <Text style={styles.incidentDesc}>{incident.description}</Text>
-
-              <View style={styles.incidentMeta}>
-                <View style={styles.metaItem}>
-                  <ClockIcon size={14} color={colors.muted} />
-                  <Text style={styles.metaText}>
-                    {new Date(incident.date).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                    {incident.time ? ` at ${incident.time}` : ''}
-                  </Text>
-                </View>
-                {incident.location && (
-                  <View style={styles.metaItem}>
-                    <MapPin size={14} color={colors.muted} />
-                    <Text style={styles.metaText}>{incident.location}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Acknowledge + Appeal buttons for parent */}
-              <View style={styles.incidentActions}>
-                {!incident.isAcknowledged ? (
-                  <Button
-                    title="Acknowledge"
-                    onPress={() => handleAcknowledge(incident.id)}
-                    variant="outline"
-                    size="sm"
-                    loading={acknowledge.isPending}
-                  />
-                ) : (
-                  <View style={styles.acknowledged}>
-                    <CheckCircle size={16} color={colors.success} />
-                    <Text style={styles.acknowledgedText}>Acknowledged</Text>
-                  </View>
-                )}
-                <Pressable
-                  style={styles.appealBtn}
-                  onPress={() => {
-                    setAppealIncidentId(incident.id);
-                    setAppealReason('');
-                    setAppealModalVisible(true);
-                  }}
-                >
-                  <FileText size={14} color={colors.primary} />
-                  <Text style={styles.appealBtnText}>Appeal</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))
+    <>
+      <Stack.Screen options={{ title: name ? `${name}, conduct` : 'Conduct' }} />
+      <Screen onRefresh={refetch} refreshing={isRefetching} contentContainerStyle={{ gap: space.xxl }}>
+        {isPending ? (
+          <LoadingRows count={4} />
         ) : (
-          <Text style={styles.noData}>No discipline incidents on record.</Text>
-        )}
-      </ScrollView>
-
-      {/* Appeal Modal */}
-      <Modal visible={appealModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Submit Appeal</Text>
-              <Pressable onPress={() => setAppealModalVisible(false)}>
-                <X size={24} color={colors.muted} />
-              </Pressable>
+          <>
+            <View style={{ gap: space.lg }}>
+              <StatRow>
+                <Stat
+                  value={points}
+                  label="Conduct points"
+                  detail="Everyone starts at 100"
+                  tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
+                />
+                <Stat value={incidents.length} label="On record" />
+              </StatRow>
+              <Meter
+                value={points}
+                label="Standing"
+                tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
+              />
             </View>
-            <Text style={styles.modalSubtitle}>
-              Explain why you believe this incident should be reviewed.
-            </Text>
-            <Input
-              label="Reason for Appeal"
-              placeholder="Describe your reason..."
-              value={appealReason}
-              onChangeText={setAppealReason}
-              multiline
-              numberOfLines={4}
-            />
-            <Button
-              title="Submit Appeal"
-              onPress={async () => {
-                if (!appealReason.trim()) {
-                  toast.error('Please provide a reason');
-                  return;
-                }
-                try {
-                  await createAppeal.mutateAsync({
-                    incidentId: appealIncidentId,
-                    reason: appealReason.trim(),
-                  });
-                  toast.success('Appeal submitted');
-                  setAppealModalVisible(false);
-                  refetch();
-                } catch (err: any) {
-                  toast.error(err?.response?.data?.message ?? 'Failed to submit appeal');
-                }
-              }}
-              loading={createAppeal.isPending}
-              fullWidth
-              icon={<Send size={18} color={colors.white} />}
-            />
-          </View>
-        </View>
-      </Modal>
-    </View>
+
+            {!incidents.length ? (
+              <Empty title="Nothing on record" body="No incidents have been recorded for this student." />
+            ) : (
+              <Section title="Incidents">
+                <View style={{ gap: space.xxl }}>
+                  {incidents.map((incident: any) => {
+                    const open = appealing === incident.id;
+                    const appealed = incident.appeals?.length > 0;
+                    const latest = incident.appeals?.[0];
+
+                    return (
+                      <View key={incident.id} style={{ gap: space.md }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
+                          <Text variant="title3" style={{ flex: 1 }}>
+                            {humanise(incident.actionTaken)}
+                          </Text>
+                          <Badge
+                            label={`-${incident.pointsDeducted}`}
+                            tone="critical"
+                            numeric
+                          />
+                        </View>
+
+                        <Text variant="body" tone="secondary" selectable>
+                          {incident.description}
+                        </Text>
+
+                        <View>
+                          <Fact
+                            label="When"
+                            value={new Date(incident.date).toLocaleDateString(undefined, {
+                              day: 'numeric', month: 'long', year: 'numeric',
+                            })}
+                          />
+                          {incident.location ? <Fact label="Where" value={incident.location} /> : null}
+                          <Fact
+                            label="Seen by you"
+                            value={incident.parentAcknowledged ? 'Yes' : 'Not yet'}
+                            last={!appealed}
+                          />
+                          {appealed ? (
+                            <Fact
+                              label="Appeal"
+                              value={<Badge label={humanise(latest.status)} tone={statusTone[latest.status] ?? 'neutral'} />}
+                              last
+                            />
+                          ) : null}
+                        </View>
+
+                        {open ? (
+                          <View style={{ gap: space.md }}>
+                            <Field
+                              label="Why should this be reconsidered?"
+                              hint="The school reads this in full. Say what happened from your side."
+                              value={statement}
+                              onChangeText={setStatement}
+                              multiline
+                              minHeight={120}
+                            />
+                            <View style={{ flexDirection: 'row', gap: space.md }}>
+                              <Button
+                                label="Send the appeal"
+                                kind="primary"
+                                loading={appeal.isPending}
+                                onPress={() => submitAppeal(incident.id)}
+                              />
+                              <Button label="Cancel" kind="quiet" onPress={() => setAppealing(null)} />
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={{ flexDirection: 'row', gap: space.md, flexWrap: 'wrap' }}>
+                            {!incident.parentAcknowledged ? (
+                              <Button
+                                label="I have seen this"
+                                kind="secondary"
+                                onPress={() =>
+                                  acknowledge.mutate(incident.id, {
+                                    onSuccess: () => toast.success('Marked as seen'),
+                                  })
+                                }
+                              />
+                            ) : null}
+                            {!appealed ? (
+                              <Button label="Appeal this" kind="quiet" onPress={() => setAppealing(incident.id)} />
+                            ) : null}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </Section>
+            )}
+          </>
+        )}
+      </Screen>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  summaryCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.dangerWash, borderRadius: radius['2xl'], padding: spacing.lg, marginBottom: spacing.xl,
-  },
-  summaryText: { flex: 1 },
-  summaryTitle: { fontSize: fontSize.base, fontFamily: fontFamily.bold, color: colors.danger },
-  summarySubtitle: { fontSize: fontSize.sm, color: colors.muted, marginTop: 2, fontFamily: fontFamily.regular },
-  incidentCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  incidentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  actionBadge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  actionText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold },
-  pointsBadge: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.danger },
-  incidentDesc: { fontSize: fontSize.sm, color: colors.foreground, lineHeight: 20, marginBottom: spacing.md, fontFamily: fontFamily.regular },
-  incidentMeta: { gap: spacing.xs, marginBottom: spacing.md },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  metaText: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
-  incidentActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  acknowledged: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  acknowledgedText: { fontSize: fontSize.sm, color: colors.success, fontFamily: fontFamily.medium },
-  appealBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.accentLight, borderRadius: radius.md,
-    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-  },
-  appealBtnText: { fontSize: fontSize.xs, color: colors.primary, fontFamily: fontFamily.semibold },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: spacing.xl, paddingBottom: spacing['3xl'],
-  },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm,
-  },
-  modalTitle: { fontSize: fontSize.xl, fontFamily: fontFamily.bold, color: colors.foreground },
-  modalSubtitle: { fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.lg, lineHeight: 20, fontFamily: fontFamily.regular },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
-});

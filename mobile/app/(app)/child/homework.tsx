@@ -1,108 +1,82 @@
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { BookOpen, Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react-native';
+import { useMemo } from 'react';
+import { Stack, useLocalSearchParams } from 'expo-router';
+
 import { useStudentHomework } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { ErrorScreen } from '@/components/ErrorScreen';
-import { getErrorType, getErrorMessage } from '@/hooks/useQueryError';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { space } from '@/design/tokens';
+import { Screen, Section, Row, RowGroup, Badge, Empty, LoadingRows, Text } from '@/ui';
 
-export default function ChildHomeworkScreen() {
-  const router = useRouter();
-  const { studentId, name } = useLocalSearchParams<{ studentId: string; name: string }>();
-  const [refreshing, setRefreshing] = useState(false);
-  const { data: homework, isLoading, error, refetch } = useStudentHomework(studentId);
+/**
+ * What has been set, and what was handed in.
+ *
+ * Split into what is still owed and what is finished, rather than one list
+ * sorted by date, because those are two different questions and only the first
+ * one is urgent. Overdue work is separated again from work that is merely due,
+ * so a parent can see at a glance whether they need to say something tonight.
+ */
+export default function ChildHomework() {
+  const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
+  const { data, isPending, refetch, isRefetching } = useStudentHomework(studentId);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+  const { overdue, due, done } = useMemo(() => {
+    const now = Date.now();
+    const items: any[] = (data as any[]) ?? [];
+    return {
+      overdue: items.filter((h) => !h.submission && new Date(h.dueDate).getTime() < now),
+      due: items.filter((h) => !h.submission && new Date(h.dueDate).getTime() >= now),
+      done: items.filter((h) => h.submission),
+    };
+  }, [data]);
 
-  const now = new Date();
+  const when = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
-  const getStatus = (hw: any) => {
-    const sub = hw.submissions?.[0];
-    if (sub?.marks != null) return { label: `Graded: ${sub.marks}/${hw.maxMarks ?? '?'}`, color: colors.success, icon: <CheckCircle size={16} color={colors.success} /> };
-    if (sub) return { label: 'Submitted', color: colors.primaryLight, icon: <CheckCircle size={16} color={colors.primaryLight} /> };
-    if (new Date(hw.dueDate) < now) return { label: 'Overdue', color: colors.danger, icon: <AlertCircle size={16} color={colors.danger} /> };
-    return { label: 'Pending', color: colors.warning, icon: <Clock size={16} color={colors.warning} /> };
-  };
+  const list = (items: any[], showMark = false) => (
+    <RowGroup>
+      {items.map((h, i) => (
+        <Row
+          key={h.id}
+          title={h.title}
+          subtitle={`${h.subject?.name ?? 'Subject'}   ·   due ${when(h.dueDate)}`}
+          value={
+            showMark && h.submission?.marks != null ? (
+              <Text variant="callout" tone="secondary" numeric>
+                {h.submission.marks}
+                {h.maxMarks ? ` / ${h.maxMarks}` : ''}
+              </Text>
+            ) : h.submission?.isLate ? (
+              <Badge label="Late" tone="caution" />
+            ) : showMark ? (
+              <Badge label="Handed in" tone="positive" />
+            ) : undefined
+          }
+          chevron={false}
+          last={i === items.length - 1}
+        />
+      ))}
+    </RowGroup>
+  );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Homework" subtitle={name} onBack={() => router.back()} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-        }
+    <>
+      <Stack.Screen options={{ title: name ? `${name}, homework` : 'Homework' }} />
+      <Screen
+        bleed
+        onRefresh={refetch}
+        refreshing={isRefetching}
+        contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
       >
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen type={getErrorType(error)} message={getErrorMessage(error)} onRetry={() => refetch()} />
-        ) : homework && homework.length > 0 ? (
-          homework.map((hw) => {
-            const status = getStatus(hw);
-            return (
-              <View key={hw.id} style={styles.hwCard}>
-                <View style={styles.hwHeader}>
-                  <View style={styles.subjectBadge}>
-                    <BookOpen size={14} color={colors.primary} />
-                    <Text style={styles.subjectText}>{hw.subject?.name ?? 'Subject'}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: status.color + '20' }]}>
-                    {status.icon}
-                    <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-                  </View>
-                </View>
-                <Text style={styles.hwTitle}>{hw.title}</Text>
-                {hw.description && (
-                  <Text style={styles.hwDesc} numberOfLines={2}>{hw.description}</Text>
-                )}
-                <View style={styles.hwFooter}>
-                  <Calendar size={14} color={colors.muted} />
-                  <Text style={styles.hwDue}>
-                    Due: {new Date(hw.dueDate).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </Text>
-                  {hw.maxMarks && (
-                    <Text style={styles.hwMarks}>Max: {hw.maxMarks}</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })
+        {isPending ? (
+          <LoadingRows count={6} />
+        ) : !data?.length ? (
+          <Empty title="Nothing set" body="No homework has been assigned to this class yet." />
         ) : (
-          <Text style={styles.noData}>No homework assignments found.</Text>
+          <>
+            {overdue.length ? <Section title="Overdue">{list(overdue)}</Section> : null}
+            {due.length ? <Section title="Still to do">{list(due)}</Section> : null}
+            {done.length ? <Section title="Handed in">{list(done, true)}</Section> : null}
+          </>
         )}
-      </ScrollView>
-    </View>
+      </Screen>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  hwCard: {
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
-  },
-  hwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  subjectBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accentLight, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  subjectText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.primary },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  statusText: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold },
-  hwTitle: { fontSize: fontSize.base, fontFamily: fontFamily.semibold, color: colors.foreground, marginBottom: spacing.xs },
-  hwDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18, marginBottom: spacing.sm, fontFamily: fontFamily.regular },
-  hwFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  hwDue: { fontSize: fontSize.xs, color: colors.muted, flex: 1, fontFamily: fontFamily.regular },
-  hwMarks: { fontSize: fontSize.xs, fontFamily: fontFamily.semibold, color: colors.foreground },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
-});

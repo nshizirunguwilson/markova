@@ -1,194 +1,130 @@
-import { useState, useMemo } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, Pressable,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import {
-  BarChart3, TrendingUp, TrendingDown, Users, AlertTriangle,
-} from 'lucide-react-native';
-import { useTeacherClassAnalytics } from '@/hooks/useApi';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { LoadingScreen } from '@/components/LoadingScreen';
-import { colors, fontSize, spacing, radius, fontFamily } from '@/constants/theme';
+import { useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { Stack } from 'expo-router';
 
-export default function ClassAnalyticsScreen() {
-  const router = useRouter();
-  const { classSectionId, className } = useLocalSearchParams<{ classSectionId: string; className: string }>();
-  const [refreshing, setRefreshing] = useState(false);
-  const { data: analytics, isLoading, refetch } = useTeacherClassAnalytics(classSectionId);
+import { useAuthStore } from '@/stores/auth-store';
+import { useTeacherAssignments, useTeacherClassAnalytics } from '@/hooks/useApi';
+import { space } from '@/design/tokens';
+import { Screen, Section, Row, RowGroup, Text, Stat, StatRow, Meter, Segmented, Empty, LoadingRows, Badge } from '@/ui';
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
+/**
+ * How a class is doing.
+ *
+ * The distribution matters more than the average here, because an average of
+ * 62 hides both a class where everybody sits at 62 and a class split between
+ * 85 and 40. Those need completely different responses from a teacher, so the
+ * grade spread leads and the average follows it.
+ *
+ * The students who need attention are named. A statistic a teacher cannot act
+ * on is a statistic that wastes their morning.
+ */
+export default function ClassAnalytics() {
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
+  const { data: assignments } = useTeacherAssignments(teacherId);
+
+  const classes = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      if (section) map.set(section.id, section.name);
+    }
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [assignments]);
+
+  const [classId, setClassId] = useState('');
+  const active = classId || classes[0]?.value;
+  const { data, isPending } = useTeacherClassAnalytics(active);
+
+  const d: any = data ?? {};
+  const spread: any[] = d.gradeDistribution ?? d.distribution ?? [];
+  const struggling: any[] = d.strugglingStudents ?? d.needsAttention ?? [];
+  const totalGraded = spread.reduce((sum, g) => sum + (g.count ?? 0), 0);
+
+  if (!classes.length)
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Class' }} />
+        <Screen>
+          <Empty title="No classes" body="Once you have a class assigned, its figures show up here." />
+        </Screen>
+      </>
+    );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader title="Class Analytics" subtitle={className ?? 'Class'} onBack={() => router.back()} />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
-      >
-        {isLoading ? (
-          <LoadingScreen />
-        ) : analytics ? (
+    <>
+      <Stack.Screen options={{ title: 'How the class is doing' }} />
+      <Screen contentContainerStyle={{ gap: space.xxl }}>
+        <Segmented value={active} onChange={setClassId} options={classes} />
+
+        {isPending ? (
+          <LoadingRows count={5} />
+        ) : (
           <>
-            {/* Overview stats */}
-            <View style={styles.statsGrid}>
-              <StatBox
-                label="Total Students"
-                value={analytics.totalStudents ?? '--'}
-                color={colors.primary}
-                icon={<Users size={18} color={colors.primary} />}
+            <StatRow>
+              <Stat value={d.studentCount ?? d.students ?? 0} label="Students" />
+              <Stat
+                value={d.classAverage != null ? `${Math.round(d.classAverage)}%` : '-'}
+                label="Class average"
+                tone={(d.classAverage ?? 0) >= 60 ? 'positive' : 'caution'}
               />
-              <StatBox
-                label="Class Average"
-                value={analytics.classAverage ? `${Math.round(analytics.classAverage)}%` : '--'}
-                color={analytics.classAverage >= 60 ? colors.success : colors.warning}
-                icon={<BarChart3 size={18} color={analytics.classAverage >= 60 ? colors.success : colors.warning} />}
+              <Stat
+                value={d.attendanceRate != null ? `${Math.round(d.attendanceRate)}%` : '-'}
+                label="Attendance"
               />
-            </View>
+            </StatRow>
 
-            {/* Subject performance */}
-            {analytics.subjectPerformance?.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Subject Performance</Text>
-                {analytics.subjectPerformance.map((sp: any, i: number) => {
-                  const avg = sp.average ?? sp.averageScore ?? 0;
-                  const barWidth = Math.min(Math.max(avg, 0), 100);
-                  return (
-                    <View key={i} style={styles.subjectRow}>
-                      <Text style={styles.subjectName} numberOfLines={1}>{sp.subject ?? sp.subjectName ?? 'Subject'}</Text>
-                      <View style={styles.barBg}>
-                        <View style={[styles.barFill, {
-                          width: `${barWidth}%`,
-                          backgroundColor: avg >= 70 ? colors.success : avg >= 50 ? colors.warning : colors.danger,
-                        }]} />
-                      </View>
-                      <Text style={[styles.subjectAvg, {
-                        color: avg >= 70 ? colors.success : avg >= 50 ? colors.warning : colors.danger,
-                      }]}>
-                        {Math.round(avg)}%
-                      </Text>
-                    </View>
-                  );
-                })}
-              </>
-            )}
-
-            {/* Underperforming students */}
-            {analytics.underperformingStudents?.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Needs Attention</Text>
-                <View style={styles.alertBox}>
-                  <AlertTriangle size={18} color={colors.warning} />
-                  <Text style={styles.alertText}>
-                    {analytics.underperformingStudents.length} student{analytics.underperformingStudents.length > 1 ? 's' : ''} below passing threshold
-                  </Text>
+            {spread.length ? (
+              <Section title="Where the class sits">
+                <View style={{ gap: space.lg }}>
+                  {spread.map((band: any) => (
+                    <Meter
+                      key={band.grade ?? band.letter ?? band.label}
+                      value={band.count ?? 0}
+                      max={totalGraded || 1}
+                      label={`${band.grade ?? band.letter ?? band.label}   ·   ${band.count ?? 0} student${
+                        (band.count ?? 0) === 1 ? '' : 's'
+                      }`}
+                      showValue={false}
+                      tone={
+                        ['A', 'B'].includes(band.grade ?? band.letter)
+                          ? 'positive'
+                          : ['F', 'S'].includes(band.grade ?? band.letter)
+                            ? 'critical'
+                            : 'brand'
+                      }
+                    />
+                  ))}
                 </View>
-                {analytics.underperformingStudents.map((s: any, i: number) => (
-                  <View key={i} style={styles.studentRow}>
-                    <View style={styles.studentAvatar}>
-                      <Text style={styles.studentAvatarText}>
-                        {(s.firstName ?? s.name ?? 'S')[0]}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.studentName}>
-                        {s.firstName ? `${s.firstName} ${s.lastName ?? ''}` : s.name ?? 'Student'}
-                      </Text>
-                      <Text style={styles.studentSub}>
-                        Average: {Math.round(s.average ?? s.averageScore ?? 0)}%
-                      </Text>
-                    </View>
-                    <TrendingDown size={16} color={colors.danger} />
-                  </View>
-                ))}
-              </>
-            )}
+              </Section>
+            ) : null}
 
-            {/* Top performers */}
-            {analytics.topStudents?.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Top Performers</Text>
-                {analytics.topStudents.slice(0, 5).map((s: any, i: number) => (
-                  <View key={i} style={styles.studentRow}>
-                    <View style={[styles.studentAvatar, { backgroundColor: colors.successWash }]}>
-                      <Text style={[styles.studentAvatarText, { color: colors.success }]}>#{i + 1}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.studentName}>
-                        {s.firstName ? `${s.firstName} ${s.lastName ?? ''}` : s.name ?? 'Student'}
-                      </Text>
-                      <Text style={styles.studentSub}>
-                        Average: {Math.round(s.average ?? s.averageScore ?? 0)}%
-                      </Text>
-                    </View>
-                    <TrendingUp size={16} color={colors.success} />
-                  </View>
-                ))}
-              </>
+            {struggling.length ? (
+              <Section title="Worth a word">
+                <RowGroup>
+                  {struggling.map((s: any, i: number) => (
+                    <Row
+                      key={s.studentId ?? s.id ?? i}
+                      title={s.studentName ?? s.name ?? 'Student'}
+                      subtitle={s.reason ?? 'Below the class average'}
+                      value={
+                        s.average != null ? (
+                          <Badge label={`${Math.round(s.average)}%`} tone="caution" numeric />
+                        ) : undefined
+                      }
+                      chevron={false}
+                      last={i === struggling.length - 1}
+                    />
+                  ))}
+                </RowGroup>
+              </Section>
+            ) : (
+              <Text variant="callout" tone="secondary">
+                Nobody is far enough behind to flag right now.
+              </Text>
             )}
           </>
-        ) : (
-          <Text style={styles.noData}>No analytics available for this class.</Text>
         )}
-      </ScrollView>
-    </View>
+      </Screen>
+    </>
   );
 }
-
-function StatBox({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: React.ReactNode }) {
-  return (
-    <View style={[styles.statBox, { borderLeftColor: color }]}>
-      {icon}
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  contentContainer: { padding: spacing.lg, paddingBottom: spacing['5xl'] },
-  statsGrid: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
-  statBox: {
-    flex: 1, backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, borderLeftWidth: 4,
-    shadowColor: colors.black, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
-    gap: spacing.xs,
-  },
-  statValue: { fontSize: fontSize['2xl'], fontFamily: fontFamily.bold, color: colors.foreground },
-  statLabel: { fontSize: fontSize.xs, color: colors.muted, fontFamily: fontFamily.regular },
-  sectionTitle: {
-    fontSize: fontSize.lg, fontFamily: fontFamily.semibold, color: colors.foreground,
-    marginBottom: spacing.md, marginTop: spacing.lg,
-  },
-  subjectRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.sm,
-  },
-  subjectName: { width: 80, fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
-  barBg: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.surfaceMuted },
-  barFill: { height: 8, borderRadius: 4 },
-  subjectAvg: { width: 40, fontSize: fontSize.sm, fontFamily: fontFamily.bold, textAlign: 'right' },
-  alertBox: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.warningWash, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.md,
-  },
-  alertText: { fontSize: fontSize.sm, color: colors.warning, fontFamily: fontFamily.medium, flex: 1 },
-  studentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.sm,
-  },
-  studentAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.dangerWash,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  studentAvatarText: { fontSize: fontSize.sm, fontFamily: fontFamily.bold, color: colors.danger },
-  studentName: { fontSize: fontSize.sm, fontFamily: fontFamily.medium, color: colors.foreground },
-  studentSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1, fontFamily: fontFamily.regular },
-  noData: { fontSize: fontSize.sm, color: colors.muted, textAlign: 'center', padding: spacing.xl, fontFamily: fontFamily.regular },
-});

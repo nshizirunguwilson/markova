@@ -6,8 +6,15 @@
  *   node scripts/sync-design-tokens.mjs --check   # fail if they are stale (CI)
  *
  * Outputs:
- *   web/src/app/tokens.css        — a Tailwind v4 @theme block
- *   mobile/src/constants/theme.ts — colors / radius / fontSize / fontWeight / spacing
+ *   web/src/app/tokens.css        - a Tailwind v4 @theme block
+ *   mobile/src/design/generated.ts - typeface names and the default brand colour
+ *
+ * Note the asymmetry. Web takes its whole palette and geometry from here. Mobile
+ * takes only the things that must not differ between the two clients: the
+ * typeface and the colour a school starts on. Its spacing and radius scales are
+ * deliberately its own (see mobile/src/design/tokens.ts) because a phone wants
+ * chunkier corners and tighter gutters than a dashboard, and forcing web's
+ * numbers onto it would restyle every screen in the app.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -74,86 +81,51 @@ ${chartCategorical.map((c, i) => `  --color-category-${i + 1}: ${c};`).join('\n'
 `;
 }
 
-// ── mobile: typed theme module ──────────────────────────────────────────────
+// ── mobile: generated design module ─────────────────────────────────────────
+
+/** expo-google-fonts exports one module per weight, named like `Poppins_500Medium`. */
+const WEIGHT_LABEL = { 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold' };
+
+const fontModule = (family, weight) =>
+  `${family.replace(/\s+/g, '')}_${weight}${WEIGHT_LABEL[weight]}`;
 
 function buildMobileTs() {
-  const colors = colorEntries
-    .map(([name, t]) => `  /** ${t.use} */\n  ${name}: '${t.value}',`)
-    .join('\n');
+  const sans = tokens.font.family;
+  const mono = tokens.font.mono;
 
-  const radii = radiusEntries
-    .map(([name, px]) => `  ${/^\d/.test(name) ? `'${name}'` : name}: ${px},`)
-    .join('\n');
+  // The sans weights the design system actually asks for. Bundling the rest
+  // would cost about a megabyte for weights nothing renders.
+  const sansWeights = [400, 500, 600];
+  const monoWeights = [400, 500];
 
-  const sizes = fontSizeEntries
-    .map(([name, px]) => `  ${/^\d/.test(name) ? `'${name}'` : name}: ${px},`)
-    .join('\n');
+  const entry = (family, weight) =>
+    `  ${WEIGHT_LABEL[weight].toLowerCase()}: '${fontModule(family, weight)}',`;
 
-  const spaces = spacingEntries
-    .map(([name, px]) => `  ${/^\d/.test(name) ? `'${name}'` : name}: ${px},`)
-    .join('\n');
-
-  const weights = weightEntries
-    .map(([name, v]) => `  ${name}: '${v}' as const,`)
-    .join('\n');
-
-  const families = tokens.font.weights
-    .map((w) => {
-      const key = { 400: 'regular', 500: 'medium', 600: 'semibold', 700: 'bold' }[w];
-      return `  ${key}: '${tokens.font.family}_${String(w).padStart(3, '0')}${
-        { 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold' }[w]
-      }',`;
-    })
-    .join('\n');
-
-  return `${BANNER()}
-export const colors = {
-${colors}
-} as const;
-
-export const radius = {
-${radii}
-} as const;
-
-export const fontSize = {
-${sizes}
-} as const;
-
-export const spacing = {
-${spaces}
-} as const;
-
-export const fontWeight = {
-${weights}
-};
-
-/**
- * expo-font family names. Use \`fontFamily: fontFamily.semibold\` instead of
- * \`fontWeight\` — React Native will not synthesise weights for a custom family.
- */
-export const fontFamily = {
-${families}
-} as const;
-
-/** Sequential brand ramp for single-measure charts. Fills only, not text. */
-export const chartSeries = [
-${chartSeries.map((c) => `  '${c}',`).join('\n')}
-] as const;
-
-/** Distinct hues for unordered categories; each clears 4.5:1 against white. */
-export const chartCategorical = [
-${chartCategorical.map((c) => `  '${c}',`).join('\n')}
-] as const;
-
-export type ThemeColor = keyof typeof colors;
-`;
+  return (
+    BANNER() +
+    `\n/** The families both clients load. Web via next/font, mobile via expo-font. */\n` +
+    `export const fontFamily = {\n` +
+    `  sans: '${sans}',\n` +
+    `  mono: '${mono}',\n` +
+    `} as const;\n` +
+    `\n/** Interface type. */\n` +
+    `export const sansFont = {\n` +
+    sansWeights.map((w) => entry(sans, w)).join('\n') +
+    `\n} as const;\n` +
+    `\n/** Machine codes only: student IDs, NFC tags, reference numbers. */\n` +
+    `export const monoFont = {\n` +
+    monoWeights.map((w) => entry(mono, w)).join('\n') +
+    `\n} as const;\n` +
+    `\n/** What a school is themed with until its own colour loads. */\n` +
+    `export const brandDefault = '${tokens.color.primary.value}';\n`
+  );
 }
 
 // ── write / check ───────────────────────────────────────────────────────────
 
 const outputs = [
   ['web/src/app/tokens.css', buildWebCss()],
-  ['mobile/src/constants/theme.ts', buildMobileTs()],
+  ['mobile/src/design/generated.ts', buildMobileTs()],
 ];
 
 const check = process.argv.includes('--check');
