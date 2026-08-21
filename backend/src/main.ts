@@ -17,9 +17,9 @@ async function bootstrap() {
   // global `api` prefix without the LegacyRouteConverter boot warning.
   // Rate limiting keys on `req.ip`, and Express derives that from this setting.
   // Left unset behind a reverse proxy, every request appears to come from the
-  // proxy, so the whole school shares one bucket: the five-per-minute login
-  // limit becomes five logins per minute for everybody, which fails to slow an
-  // attacker and locks out real users at the same time.
+  // proxy, so the whole school shares one bucket: the ten-per-minute login limit
+  // becomes ten logins per minute for everybody, which fails to slow an attacker
+  // and locks out real users at the same time.
   //
   // Set TRUST_PROXY to the number of proxies in front of this app (Render,
   // Railway, Fly and a single nginx are all `1`; nginx behind Cloudflare is

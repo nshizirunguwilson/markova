@@ -10,8 +10,9 @@ Worth stating first, because the fixes below are narrow and it would be easy to
 read them as a system in trouble. It is not.
 
 - **Per-route rate limits.** The auth routes do not rely on the global
-  100/minute. Login and OTP verification are 5/minute, resend and refresh are
-  10/minute, report verification is 20/minute.
+  100/minute. Login, OTP verification and token refresh are 10/minute, OTP
+  resend and password reset requests are 5/minute, and public report
+  verification is 20/minute.
 - **Per-account lockout.** Failed logins are counted in Redis against the
   identifier, with a `lockedUntil` window. Rate limiting alone is per IP, so
   this is the half that survives an attacker rotating addresses.
@@ -54,9 +55,9 @@ Two fixes, because one of them is a configuration rule and configuration drifts:
 
 `ThrottlerGuard.getTracker` returns `req.ip`, and Express derives that from
 `trust proxy`, which was never set. Behind any reverse proxy every request
-therefore shared one bucket, so the 5/minute login limit was 5 logins per minute
-for the entire school: useless against an attacker and an outage for everyone
-else.
+therefore shared one bucket, so the 10/minute login limit was 10 logins per
+minute for the entire school: useless against an attacker and an outage for
+everyone else.
 
 `TRUST_PROXY` now configures the hop count. It stays off by default, because
 trusting a hop that is not there lets a client forge `X-Forwarded-For` and skip
@@ -72,7 +73,9 @@ memory and logs once, because failing open drops rate limiting and failing
 closed drops the API.
 
 Verified against a real Redis: blocks on the 4th request of a limit of 3, expires
-its window, and counts 20 concurrent hits exactly once each.
+its window, and counts 20 concurrent hits exactly once each. Verified again
+against the running API, where `/api/auth/login` returns 429 once its 10/minute
+window is spent, and the counters appear in Redis under `throttle:default:*`.
 
 ### 4. Uploads chose their own file extension
 

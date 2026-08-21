@@ -17,7 +17,7 @@ type ThrottlerStorageRecord = Awaited<
  *
  * The default storage is a Map on the heap, which makes the counters per
  * instance and wipes them on every restart. Both matter for the limits that do
- * real work: the five-per-minute cap on login lasts exactly as long as the
+ * real work: the ten-per-minute cap on login lasts exactly as long as the
  * process, so a redeploy hands an attacker a fresh allowance, and a second
  * instance behind a load balancer doubles every limit in the app.
  *
