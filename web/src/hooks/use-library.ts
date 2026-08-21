@@ -54,7 +54,12 @@ export function useCheckout() {
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["books"] });
       qc.invalidateQueries({ queryKey: ["active-loans"] });
-      toast.success(`Checked out "${data.book.title}" to ${data.borrower.firstName}`);
+      // Reads defensively. The success toast is decoration, and it should not
+      // be able to turn a completed checkout into a reported failure just
+      // because the response was shaped slightly differently.
+      const title = data?.book?.title ?? "Book";
+      const who = data?.borrower?.firstName ?? "borrower";
+      toast.success(`Checked out "${title}" to ${who}`);
     },
     onError: (e: any) => toast.error(e.response?.data?.message || "Checkout failed"),
   });
@@ -67,7 +72,9 @@ export function useReturn() {
     onSuccess: (data: any) => {
       qc.invalidateQueries({ queryKey: ["books"] });
       qc.invalidateQueries({ queryKey: ["active-loans"] });
-      toast.success(`"${data.book.title}" returned by ${data.borrower.firstName}`);
+      const title = data?.book?.title ?? "Book";
+      const who = data?.borrower?.firstName ?? "borrower";
+      toast.success(`"${title}" returned by ${who}`);
     },
     onError: (e: any) => toast.error(e.response?.data?.message || "Return failed"),
   });
