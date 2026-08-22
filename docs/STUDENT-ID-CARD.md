@@ -62,8 +62,12 @@ Ordered by visual weight, most prominent first.
 | 4 | School contact | `school_email`, `school_phone`, `school_website` | |
 | 5 | Verification line | Generated | Short human-readable code beneath the QR, so someone without a phone can type it. |
 
-`school_website` **does not exist yet** in `SchoolConfig`. It has to be added
-before the back can carry it (see [Open items](#open-items)).
+`school_website` is `https://markova.edu`, editable under Settings → General.
+
+Note the distinction: the website printed on the card is the school's public
+address, while the QR points at wherever the application is actually hosted
+(`WEB_URL`). They are the same host only if the dashboard lives at
+markova.edu.
 
 ---
 
@@ -278,9 +282,8 @@ correcting a spelling or adding a name later never changes a student's ID.
 
 These have to be settled before the card can be produced in full:
 
-1. **`school_website` does not exist** in `SchoolConfig`. Needs adding, seeding
-   and a field in Settings before the back can carry it or the QR can point at
-   a verification URL rather than a bare code.
+1. **`WEB_URL` must be set to the public host** before cards are printed, or
+   every QR will point at `http://localhost:3001` and verify nowhere.
 2. **Level on the card** — reprint annually, or drop it and rely on validity.
    See the warning in section 2.
 3. **Card stock and printer** — decides whether bleed is honoured and whether

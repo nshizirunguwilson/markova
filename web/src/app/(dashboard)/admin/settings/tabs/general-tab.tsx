@@ -19,6 +19,7 @@ export function GeneralTab() {
       school_address: map.school_address || "",
       school_phone: map.school_phone || "",
       school_email: map.school_email || "",
+      school_website: map.school_website || "",
     },
   });
 
@@ -43,6 +44,12 @@ export function GeneralTab() {
           <Input id="school_phone" label="Phone" {...register("school_phone")} />
           <Input id="school_email" label="Email" {...register("school_email")} />
         </div>
+        <Input
+          id="school_website"
+          label="Website"
+          placeholder="https://markova.edu"
+          {...register("school_website")}
+        />
         <Button type="submit" isLoading={bulkUpsert.isPending}>
           <Save className="mr-2 h-4 w-4" /> Save Changes
         </Button>

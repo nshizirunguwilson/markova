@@ -690,6 +690,7 @@ async function main() {
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
     { key: 'school_phone', value: '+250788000000' },
     { key: 'school_email', value: 'info@markova.edu' },
+    { key: 'school_website', value: 'https://markova.edu' },
     { key: 'email_provider', value: 'smtp' },
   ];
   // logo_url must point at a real file: copy the bundled mark into uploads.
