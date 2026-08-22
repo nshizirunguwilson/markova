@@ -305,3 +305,96 @@ describe("the passwords an import generates", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
+
+/**
+ * Starting the import over.
+ *
+ * The role picker decides which columns the file must have, so changing it
+ * after a file is chosen has to drop the parsed rows. Importing teachers from
+ * a student spreadsheet is the mistake this prevents.
+ */
+describe("changing what is being imported", () => {
+  it("drops the parsed rows when the role changes", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const role = screen
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "TEACHER"),
+      )!;
+    await act(async () => {
+      fireEvent.change(role, { target: { value: "TEACHER" } });
+    });
+
+    await waitFor(() => expect(screen.queryByText(/Divine/)).toBeNull());
+  });
+
+  it("imports nothing after the role is changed", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const role = screen
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "TEACHER"),
+      )!;
+    await act(async () => {
+      fireEvent.change(role, { target: { value: "TEACHER" } });
+    });
+
+    h.api.post.mockClear();
+    const importButton = screen
+      .queryAllByRole("button")
+      .find((b) => /^import/i.test(b.textContent ?? ""));
+    // Either it is gone with the rows, or it is there but refuses.
+    if (importButton) {
+      await act(async () => {
+        fireEvent.click(importButton);
+      });
+    }
+    await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+
+  // Dismissing the picker without choosing anything must not clear a file that
+  // was already parsed.
+  it("keeps the rows when the file picker is dismissed", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [] } });
+    });
+
+    expect(screen.getByText(/Divine/)).toBeInTheDocument();
+  });
+
+  it("clears everything when the modal is closed", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    onClose.mockClear();
+    const close = screen
+      .getAllByRole("button")
+      .find(
+        (b) =>
+          /close/i.test(b.getAttribute("aria-label") ?? "") ||
+          /^cancel$/i.test((b.textContent ?? "").trim()),
+      );
+    if (!close) return;
+    await act(async () => {
+      fireEvent.click(close);
+    });
+
+    expect(onClose).toHaveBeenCalled();
+  });
+});

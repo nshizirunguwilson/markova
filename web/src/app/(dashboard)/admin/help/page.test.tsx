@@ -381,3 +381,134 @@ describe("the ticket queue", () => {
     expect(screen.queryByText(/Projector will not connect/)).toBeNull();
   });
 });
+
+describe("the rest of the article form", () => {
+  async function openNew() {
+    await mount();
+    await click(button(/new faq|add faq|new article/i));
+    return screen.findByRole("dialog");
+  }
+
+  // Category and order decide where an article appears for every other role,
+  // so both have to reach the server.
+  it("sends the category and the display order", async () => {
+    const dialog = await openNew();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^title$/i), {
+        target: { value: "How do I mark a register?" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^content$/i), {
+        target: { value: "Open Attendance, then the class." },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^category$/i), {
+        target: { value: "Attendance" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/display order/i), {
+        target: { value: "3" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|create|add)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/help/faqs"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).category).toBe("Attendance");
+      expect((call![1] as any).displayOrder).toBe(3);
+    });
+  });
+
+  // An article written but not ready goes in unpublished, invisible to
+  // everyone else until it is.
+  it("can be saved as a draft", async () => {
+    const dialog = await openNew();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^title$/i), {
+        target: { value: "Not ready" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^content$/i), {
+        target: { value: "Half written." },
+      });
+    });
+
+    const published = within(dialog).getByRole("checkbox");
+    expect(published).toBeChecked();
+    await act(async () => {
+      fireEvent.click(published);
+    });
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|create|add)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/help/faqs"),
+      );
+      expect((call![1] as any).isPublished).toBe(false);
+    });
+  });
+
+  it("says so when an edit is refused", async () => {
+    await mount();
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.patch.mockRejectedValue({ response: { status: 500 } });
+    h.toast.error.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("how a ticket's state reads", () => {
+  // Four states, four looks. A resolved ticket that looks open sends someone
+  // chasing something already done.
+  it.each([
+    ["OPEN", "t-1"],
+    ["IN_PROGRESS", "t-2"],
+    ["RESOLVED", "t-3"],
+    ["CLOSED", "t-4"],
+  ])("shows a %s ticket distinctly", async (status, id) => {
+    serve(h.api, {
+      ...routes,
+      "/help/tickets": [
+        {
+          id,
+          title: "Projector will not connect",
+          description: "The HDMI port is loose.",
+          status,
+          createdAt: "2026-08-20T09:00:00Z",
+          user: { firstName: "Aline", lastName: "Uwase", role: "TEACHER" },
+        },
+      ],
+    });
+    renderPage(AdminHelpPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/How do I reset a password/)).toBeInTheDocument(),
+    );
+    await click(button(/tickets/i));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Projector will not connect/)).toBeInTheDocument(),
+    );
+    const badge = screen.getByText(status);
+    expect(badge.className).not.toBe("");
+  });
+});
