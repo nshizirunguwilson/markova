@@ -1,14 +1,23 @@
 name: CI
 
 on:
+  # Only master. Branch pushes are already covered by pull_request, and listing
+  # both made every push to a branch with an open PR run the whole suite twice.
   push:
-    branches: [master, 'audit/**', 'feat/**', 'fix/**']
+    branches: [master]
   pull_request:
+  workflow_dispatch:
+
+# A new push supersedes the run already in flight for the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
     name: Backend (typecheck + lint + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -59,16 +68,24 @@ jobs:
       - run: npx prisma generate
       - run: npx tsc --noEmit -p tsconfig.json
       - run: npm run lint
-      - run: npx jest --silent
+
+      - name: Unit tests
+        timeout-minutes: 6
+        run: npx jest --silent
+
       - run: npx prisma migrate deploy
       # The auth e2e suite signs in as real seeded users, so the database has
       # to hold the demo data first.
       - run: npx prisma db seed
-      - run: npm run test:e2e -- --passWithNoTests
+
+      - name: E2E tests
+        timeout-minutes: 8
+        run: npm run test:e2e -- --passWithNoTests
 
   web:
     name: Web (typecheck + lint + tests + build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -97,6 +114,7 @@ jobs:
   web-e2e:
     name: Web (browser audit + accessibility)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -137,20 +155,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            web/package-lock.json
 
       - name: Install and seed the API
         working-directory: backend
+        timeout-minutes: 8
         run: |
           npm ci
           npx prisma generate
           npx prisma migrate deploy
           npx prisma db seed
 
+      # Server output goes to a file rather than the step's own stdout. A
+      # background process that keeps the step's pipe open can stop the runner
+      # from ever marking the step finished.
       - name: Start the API
         working-directory: backend
+        timeout-minutes: 6
         run: |
           npm run build
-          node dist/src/main.js &
+          node dist/src/main.js > /tmp/api.log 2>&1 &
           for i in $(seq 1 60); do
             curl -sf http://localhost:3000/api/health && break
             sleep 2
@@ -159,11 +186,12 @@ jobs:
 
       - name: Build and start the dashboard
         working-directory: web
+        timeout-minutes: 10
         run: |
           npm ci
           npx playwright install --with-deps chromium
           npm run build
-          npx next start -p 3001 &
+          npx next start -p 3001 > /tmp/web.log 2>&1 &
           for i in $(seq 1 60); do
             curl -sf http://localhost:3001/login && break
             sleep 2
@@ -171,14 +199,25 @@ jobs:
           curl -sf http://localhost:3001/login
 
       - name: Browser audit
+        timeout-minutes: 6
         run: node web/e2e/ui-audit.spec.js
 
       - name: Accessibility audit
+        timeout-minutes: 6
         run: node web/e2e/a11y-audit.spec.js
+
+      - name: Server logs
+        if: always()
+        run: |
+          echo "----- API -----"
+          cat /tmp/api.log || true
+          echo "----- Dashboard -----"
+          cat /tmp/web.log || true
 
   design-system:
     name: Design system (token drift + contrast)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -193,6 +232,7 @@ jobs:
   mobile:
     name: Mobile (typecheck)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: mobile

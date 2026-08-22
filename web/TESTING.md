@@ -56,6 +56,27 @@ List endpoints answer with `{ data, meta }`, from `PaginatedResponse` in
 anything else renders an empty table and passes, which is worse than having no
 fixture at all. That mistake is why `paginatedUsers` carries a comment.
 
+## The exercise pass
+
+`src/test/exercise.tsx` drives a page the way a person would: choose the
+filters, fill the fields, click every control, walk a wizard forward, open each
+dialog and work through it, submit every form. It asserts three things, and they
+are deliberately blunt: nothing threw, no promise was left unhandled, and the
+screen is not blank.
+
+Three details in it matter more than they look:
+
+- **Filters cascade.** The section select is disabled until a level is chosen,
+  the term until a year. Setting them in one pass leaves every dependent control
+  disabled, and the whole page behind the filter bar goes untested. It waits for
+  each dependent query before choosing the next.
+- **It waits for data before looking for options.** A select renders instantly
+  with only its placeholder. Running straight away finds nothing to choose and
+  gives up silently.
+- **It stubs downloads.** Export and print handlers reach for
+  `URL.createObjectURL` and `window.open`, neither of which jsdom has, and
+  without stubs the pass dies before reaching them.
+
 ## The resilience pass
 
 `src/app/__tests__/pages.resilience.test.tsx` renders every dashboard page four
@@ -67,6 +88,21 @@ It is deliberately shallow. It proves a page survives; a page's own test file
 proves it is correct. It has already caught pages that white-screened on a
 response one field thinner than expected, which is the failure mode that matters
 most here: a blank screen tells a teacher their marks are gone.
+
+## Writing a page test that does not flake
+
+Two rules, both learned the hard way here.
+
+**Use `fireEvent` for form fields, not `userEvent.type`.** react-hook-form
+settles its state asynchronously; typing key by key races the resolver, and a
+submit can land on a form that has not registered the typing. One test passed
+about two runs in three until it was changed to a synchronous
+`fireEvent.change` followed by `fireEvent.submit`.
+
+**Wait for the data, not for the frame.** `waitFor(() => body.textContent !==
+"")` resolves the instant a heading renders, long before any query lands. Wait
+for the thing you are about to interact with: a select with real options, a row
+with a name in it.
 
 ## Coverage
 
