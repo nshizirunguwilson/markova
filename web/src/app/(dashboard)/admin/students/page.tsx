@@ -228,10 +228,23 @@ export default function AdminStudentsPage() {
                     <TableCell>
                       <div className="text-sm">
                         {user.phone && <p>{user.phone}</p>}
-                        {user.student?.parentUser && (
-                          <p className="text-xs text-muted">
-                            Parent: {user.student.parentUser.firstName} {user.student.parentUser.lastName}
-                          </p>
+                        {/*
+                          Students rarely carry a phone of their own, so the
+                          number worth showing is a parent's. The relation is
+                          `parentStudents`; the old `parentUser` field never
+                          existed, which left this column blank for everyone.
+                        */}
+                        {user.student?.parentStudents?.[0]?.parent && (
+                          <>
+                            {!user.phone && user.student.parentStudents[0].parent.phone && (
+                              <p>{user.student.parentStudents[0].parent.phone}</p>
+                            )}
+                            <p className="text-xs text-muted">
+                              {user.student.parentStudents[0].relationship || "Parent"}:{" "}
+                              {user.student.parentStudents[0].parent.firstName}{" "}
+                              {user.student.parentStudents[0].parent.lastName}
+                            </p>
+                          </>
                         )}
                       </div>
                     </TableCell>

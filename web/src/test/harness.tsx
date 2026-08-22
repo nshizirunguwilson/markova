@@ -159,7 +159,6 @@ export const fixtures = {
   teacher: {
     id: "teacher-1",
     userId: "user-3",
-    employeeId: "EMP-001",
     user: {
       id: "user-3",
       firstName: "Aline",

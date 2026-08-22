@@ -69,7 +69,7 @@ export default function AdminTeachersPage() {
         { header: "Name", key: "_name" },
         { header: "Email", key: "email" },
         { header: "Phone", key: "phone" },
-        { header: "Employee ID", key: "teacher.employeeId" },
+        { header: "Staff ID", key: "code" },
         { header: "Employment Status", key: "teacher.employmentStatus" },
         { header: "Status", key: "_status" },
       ],
@@ -148,8 +148,13 @@ export default function AdminTeachersPage() {
                           />
                           <div>
                             <p className="font-medium">{user.firstName} {user.lastName}</p>
-                            {user.teacher?.employeeId && (
-                              <p className="text-xs text-muted">{user.teacher.employeeId}</p>
+                            {/*
+                              A teacher's staff number is `user.code` (TCH-…).
+                              There is no `employeeId` on the Teacher model, so
+                              this line was blank for every teacher.
+                            */}
+                            {user.code && (
+                              <p className="text-xs font-mono text-muted">{user.code}</p>
                             )}
                           </div>
                         </div>

@@ -175,11 +175,30 @@ export class UsersService {
               studentIdNumber: true,
               classSectionId: true,
               status: true,
+              // The students list has a Gender column and the export has a
+              // gender field. Without this both read "—" for every row.
+              gender: true,
               classSection: {
                 select: {
                   name: true,
                   classLevel: { select: { name: true } },
                   trade: { select: { code: true, name: true } },
+                },
+              },
+              // Who to call about this student. The list showed a Contact
+              // column that was always blank because students carry no phone
+              // of their own; the number that matters is a parent's.
+              parentStudents: {
+                take: 1,
+                select: {
+                  relationship: true,
+                  parent: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      phone: true,
+                    },
+                  },
                 },
               },
             },
