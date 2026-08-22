@@ -163,18 +163,13 @@ export async function clickEverything({ limit = 40 }: ExerciseOptions = {}) {
     });
     clicked += 1;
 
-    // A dialog would hide everything behind it from the next round.
+    // A dialog hides everything behind it, so it is worked through here rather
+    // than left for the next round. Its own controls are where the interesting
+    // handlers live: tabs inside a modal, a remove-row button, an "add another"
+    // that grows a list.
     const dialog = screen.queryByRole("dialog");
     if (dialog) {
-      await fillEverything();
-      const submit = dialog.querySelector<HTMLButtonElement>(
-        'button[type="submit"]',
-      );
-      if (submit && !submit.disabled) {
-        await act(async () => {
-          fireEvent.click(submit);
-        });
-      }
+      await workDialog(dialog);
       await act(async () => {
         fireEvent.keyDown(document.body, { key: "Escape", code: "Escape" });
       });
@@ -182,6 +177,39 @@ export async function clickEverything({ limit = 40 }: ExerciseOptions = {}) {
   }
 
   return clicked;
+}
+
+/**
+ * Fills a dialog, clicks the controls inside it, then submits it.
+ *
+ * Closing a modal after one submit leaves everything it contains untested, and
+ * modals are where this app keeps its editing: the add-book form, the link-a-
+ * child picker, the bulk confirmation.
+ */
+async function workDialog(dialog: HTMLElement) {
+  await fillEverything();
+
+  const inner = Array.from(
+    dialog.querySelectorAll<HTMLButtonElement>("button"),
+  ).filter((b) => !b.disabled && b.type !== "submit");
+
+  for (const button of inner.slice(0, 8)) {
+    // The dialog may have closed under us, in which case there is nothing left
+    // to click and continuing would fire events at a detached node.
+    if (!document.body.contains(button)) break;
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    // Refilling matters: a control that added a row left new empty fields.
+    await fillEverything();
+  }
+
+  const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
+  if (submit && !submit.disabled && document.body.contains(submit)) {
+    await act(async () => {
+      fireEvent.click(submit);
+    });
+  }
 }
 
 /**

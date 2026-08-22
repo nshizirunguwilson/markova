@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { copyText } from "@/lib/clipboard";
 
 // Real Rwandan mobiles: MTN 078/079, Airtel 072/073.
 const PHONE_RE = /^\+250(78|79|72|73)\d{7}$/;
@@ -290,8 +291,15 @@ export function AddUserWizard({
   };
 
   const copyPassword = async () => {
-    await navigator.clipboard.writeText(watch("password") || "");
-    toast.success("Password copied — share it safely");
+    // There is no clipboard on plain http, which is how this runs on a school
+    // LAN. Telling someone their password is copied when it is not would be
+    // worse than telling them to write it down.
+    const copied = await copyText(watch("password") || "");
+    if (copied) {
+      toast.success("Password copied, share it safely");
+    } else {
+      toast.error("Could not copy. Write the password down before continuing.");
+    }
   };
 
   const addChild = (u: any) => {
