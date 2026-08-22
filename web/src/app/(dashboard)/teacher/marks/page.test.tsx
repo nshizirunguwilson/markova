@@ -40,8 +40,16 @@ import { assignment, populatedRoutes, students, subject } from "@/test/fixtures"
 
 import TeacherMarksPage from "./page";
 
+const roster = students.map((st, i) => ({
+  id: st.id,
+  name: `${st.user.firstName} ${st.user.lastName}`,
+  studentIdNumber: st.studentIdNumber,
+  mark: i === 0 ? { score: 74 } : null,
+}));
+
 const routes = {
   ...populatedRoutes,
+  "/marks/completion": { total: 2, entered: 1, percentage: 50, students: roster },
   "/academic/assignments": [assignment],
   "/attendance/class-students": students,
   "/marks": [
@@ -59,6 +67,23 @@ beforeEach(() => {
   setOnline(true);
   serve(h.api, routes);
 });
+
+/**
+ * The roster only appears once class, subject, term and assessment are all
+ * chosen, and each one enables the next.
+ */
+async function pickClass() {
+  await waitFor(
+    () =>
+      expect(
+        Array.from(document.querySelectorAll("select")).some((s) =>
+          Array.from(s.options).some((o) => o.value),
+        ),
+      ).toBe(true),
+    { timeout: 4000 },
+  );
+  await chooseCascadingFilters(6);
+}
 
 /** The browser's own online flag, which the page listens to. */
 function setOnline(online: boolean) {
@@ -257,4 +282,130 @@ describe("entering marks while offline", () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(h.offline.clear).not.toHaveBeenCalled();
   }, 20000);
+});
+
+/**
+ * The roster and its auto-save.
+ *
+ * A teacher types a column of marks and expects them kept without pressing
+ * anything, because the one thing worse than a slow save is a lost afternoon.
+ * The timer is what makes that true, and it only runs on a real keystroke.
+ */
+describe("the roster", () => {
+  async function withRoster() {
+    await mount();
+    await pickClass();
+    await waitFor(() =>
+      expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+  }
+
+  it("lists every student in the class", async () => {
+    await withRoster();
+    expect(document.body.textContent).toContain("Divine");
+    expect(document.body.textContent).toContain("Keza");
+  }, 20000);
+
+  // A mark already recorded has to appear, or a teacher re-enters the lot.
+  it("shows the marks already on file", async () => {
+    await withRoster();
+    const filled = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    ).some((i) => i.value === "74");
+    expect(filled).toBe(true);
+  }, 20000);
+
+  it("keeps what is typed", async () => {
+    await withRoster();
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    expect(field.value).toBe("88");
+  }, 20000);
+});
+
+describe("saving without being asked", () => {
+  async function withRoster() {
+    await mount();
+    await pickClass();
+    await waitFor(() =>
+      expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+  }
+
+  it("saves a few seconds after the typing stops", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    h.api.post.mockClear();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    await waitFor(() =>
+      expect(h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
+    );
+    vi.useRealTimers();
+  }, 25000);
+
+  // Saving on every keystroke would post once per digit of every mark.
+  it("waits rather than saving mid-keystroke", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "8" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(h.api.post).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  }, 25000);
+
+  // The whole point of the queue. The page decides by the connection it knows
+  // about, not by waiting for a request to time out, so marks entered in a
+  // classroom with no signal go to disk immediately.
+  it("queues the marks instead of sending them while offline", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    setOnline(false);
+    await act(async () => {
+      fireEvent(window, new Event("offline"));
+    });
+
+    h.api.post.mockClear();
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "91" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    await waitFor(() => expect(h.offline.save).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+    expect(h.api.post).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  }, 25000);
+
 });
