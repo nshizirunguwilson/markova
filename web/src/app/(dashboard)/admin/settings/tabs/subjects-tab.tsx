@@ -30,7 +30,12 @@ export function SubjectsTab() {
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmMessage, setConfirmMessage] = useState("");
 
-  const { register, handleSubmit, reset } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
     defaultValues: { name: "", category: "", maxMarks: 100 },
   });
 
@@ -104,7 +109,18 @@ export function SubjectsTab() {
       <Card>
         <CardTitle>Add Subject</CardTitle>
         <form onSubmit={handleSubmit(onAdd)} className="mt-4 flex items-end gap-3 max-w-xl">
-          <Input id="s-name" label="Name" placeholder="e.g. Physics" {...register("name")} />
+          <Input
+            id="s-name"
+            label="Name"
+            placeholder="e.g. Physics"
+            error={errors.name?.message}
+            {...register("name", {
+              // Without this an empty submit created a subject called "",
+              // which then appears on every mark sheet as a blank column.
+              required: "A subject needs a name",
+              setValueAs: (v: string) => v.trim(),
+            })}
+          />
           <Input id="s-cat" label="Category" placeholder="Sciences" {...register("category")} />
           <Input id="s-max" label="Max" type="number" {...register("maxMarks")} />
           <Button type="submit" isLoading={createSubject.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
