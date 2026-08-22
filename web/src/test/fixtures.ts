@@ -105,7 +105,45 @@ export const loan = { id: "loan-1", bookId: "book-1", book, borrowerId: "u-1", b
 
 export const incident = { id: "inc-1", studentId: "student-1", student: students[0], category: "LATENESS", severity: "MINOR", points: 5, description: "Late to assembly", actionTaken: "WARNING", createdAt: "2026-08-20T07:30:00Z", reportedBy: user("u-3", "Aline", "Uwase", "TEACHER") };
 
-export const homework = { id: "hw-1", title: "Algebra sheet 3", description: "Questions 1 to 12", subjectId: "subject-1", subject, classSectionId: "section-1", classSection, dueDate: "2026-08-30", submissions: [] };
+/**
+ * One homework with its submissions, the way `/homework/:id` returns them
+ * (see findOne in backend/src/modules/homework/homework.service.ts): each one
+ * nests the student and their user, and `marks` is null until it is graded.
+ * An empty `submissions` here leaves the teacher's grading table untested.
+ */
+export const homework = {
+  id: "hw-1",
+  title: "Algebra sheet 3",
+  description: "Questions 1 to 12",
+  subjectId: "subject-1",
+  subject,
+  classSectionId: "section-1",
+  classSection,
+  dueDate: "2026-08-30",
+  maxMarks: 20,
+  lateDeductionPerDay: 2,
+  totalStudents: 2,
+  submissions: [
+    {
+      id: "sub-1",
+      homeworkId: "hw-1",
+      student: students[0],
+      submittedAt: "2026-08-29T14:00:00Z",
+      isLate: false,
+      marks: 17,
+      feedback: "Neat work",
+    },
+    {
+      id: "sub-2",
+      homeworkId: "hw-1",
+      student: students[1],
+      submittedAt: "2026-09-01T08:00:00Z",
+      isLate: true,
+      marks: null,
+      feedback: null,
+    },
+  ],
+};
 
 export const conversation = { id: "conv-1", type: "ONE_ON_ONE", participants: [{ user: user("u-1", "Divine", "Niyonkuru") }], lastMessage: { body: "Muraho", createdAt: "2026-08-21T09:00:00Z" }, unreadCount: 1 };
 export const message = { id: "msg-1", conversationId: "conv-1", senderId: "u-1", sender: user("u-1", "Divine", "Niyonkuru"), body: "Muraho neza", createdAt: "2026-08-21T09:00:00Z" };
