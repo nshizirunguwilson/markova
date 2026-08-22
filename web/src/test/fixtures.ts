@@ -278,7 +278,19 @@ export const populatedRoutes: Record<string, unknown> = {
       { name: "PARENT_MEETING", count: 1 },
     ],
   },
-  "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
+  // `popularBooks` with a `loanCount` each, from computeLibraryStats in
+  // backend/src/modules/analytics/analytics.service.ts. Without it the
+  // most-borrowed chart never renders.
+  "/analytics/admin/library": {
+    totalBooks: 120,
+    totalLoans: 340,
+    activeLoans: 14,
+    overdueLoans: 2,
+    popularBooks: [
+      { id: "book-1", title: "Things Fall Apart", author: "Chinua Achebe", loanCount: 22 },
+      { id: "book-2", title: "Mathematics for Rwanda Schools", author: "REB", loanCount: 17 },
+    ],
+  },
   // `byDate` is what the attendance chart plots, one entry per day.
   "/analytics/admin/attendance": {
     totalRecords: 640,
