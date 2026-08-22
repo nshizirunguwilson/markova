@@ -616,9 +616,18 @@ export class ReportsService implements OnModuleDestroy {
       cardId = this.generateCardId();
     }
 
+    // The verification code is what the printed QR carries. A fresh one every
+    // issue is what makes reissuing a lost card revoke the old one.
+    let cardCode = this.generateCardCode();
+    for (let i = 0; i < 5; i++) {
+      const clash = await this.prisma.student.findUnique({ where: { cardCode } });
+      if (!clash) break;
+      cardCode = this.generateCardCode();
+    }
+
     await this.prisma.student.update({
       where: { id: studentId },
-      data: { nfcCardId: cardId, cardIssuedAt: new Date() },
+      data: { nfcCardId: cardId, cardIssuedAt: new Date(), cardCode },
     });
     return this.idCardSummary(studentId);
   }
@@ -635,6 +644,67 @@ export class ReportsService implements OnModuleDestroy {
     return { issued: students.length };
   }
 
+  /**
+   * An unguessable card code, Crockford base32 so it can be read aloud.
+   *
+   * I, L, O and U are left out: they are the characters people confuse with
+   * 1, 0 and each other when reading a code off a card over the phone.
+   */
+  private generateCardCode(): string {
+    const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    const bytes = randomBytes(12);
+    let code = '';
+    for (let i = 0; i < 12; i++) {
+      code += alphabet[bytes[i] % alphabet.length];
+    }
+    return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}`;
+  }
+
+  /**
+   * What the public verification page shows for a scanned card.
+   *
+   * Deliberately narrow: enough for someone at a gate to tell whether the card
+   * is real and whether the face in front of them matches it. No contact
+   * details, no address, nothing that turns a found card into a way to reach
+   * a child.
+   */
+  async verifyCardByCode(code: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { cardCode: code },
+      select: {
+        studentIdNumber: true,
+        status: true,
+        cardIssuedAt: true,
+        user: { select: { firstName: true, lastName: true, photoUrl: true } },
+        classSection: { select: { classLevel: { select: { name: true } } } },
+      },
+    });
+
+    if (!student) {
+      return {
+        valid: false,
+        reason:
+          'This card is not valid. It may have been reissued, or it was never issued by this school.',
+      };
+    }
+
+    return {
+      valid: student.status === 'ACTIVE',
+      reason:
+        student.status === 'ACTIVE'
+          ? null
+          : `This student is no longer enrolled (${student.status.toLowerCase()}).`,
+      student: {
+        name: `${student.user.firstName} ${student.user.lastName}`,
+        studentIdNumber: student.studentIdNumber,
+        level: student.classSection?.classLevel?.name ?? null,
+        photoUrl: student.user.photoUrl,
+        status: student.status,
+      },
+      issuedAt: student.cardIssuedAt,
+    };
+  }
+
   /** Revoke a student's card. */
   async revokeIdCard(studentId: string) {
     const student = await this.prisma.student.findUnique({
@@ -643,7 +713,9 @@ export class ReportsService implements OnModuleDestroy {
     if (!student) throw new NotFoundException('Student not found');
     await this.prisma.student.update({
       where: { id: studentId },
-      data: { nfcCardId: null, cardIssuedAt: null },
+      // Clearing the code is the revocation: the old printed card still
+      // scans, and the verification page answers that it is not valid.
+      data: { nfcCardId: null, cardIssuedAt: null, cardCode: null },
     });
     return { success: true };
   }
@@ -667,11 +739,35 @@ export class ReportsService implements OnModuleDestroy {
       studentIdNumber: s.studentIdNumber,
       photoUrl: s.user.photoUrl,
       class: classDisplayName(s.classSection),
+      level: s.classSection?.classLevel?.name ?? null,
       classSectionId: s.classSectionId,
       cardId: s.nfcCardId,
       hasCard: !!s.nfcCardId,
       cardIssuedAt: s.cardIssuedAt,
+      cardCode: s.cardCode ?? null,
+      verifyUrl: s.cardCode ? `${this.webBaseUrl()}/verify/card/${s.cardCode}` : null,
     };
+  }
+
+  /**
+   * The card's QR, as a data URI ready to drop into the printed artwork.
+   *
+   * Pure black on white: tinting a QR, rounding its modules or covering the
+   * centre with a logo all cut the scan rate on the cheap handheld readers a
+   * school actually buys.
+   */
+  async cardQr(studentId: string): Promise<string | null> {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { cardCode: true, studentIdNumber: true },
+    });
+    if (!student?.cardCode) return null;
+    return QRCode.toDataURL(`${this.webBaseUrl()}/verify/card/${student.cardCode}`, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 360,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
   }
 
   // ── Full data export (ZIP of CSVs) ────────────────────────────────────────

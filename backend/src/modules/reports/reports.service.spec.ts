@@ -12,6 +12,7 @@ describe('ReportsService', () => {
 
   const mockPrisma: any = {
     schoolConfig: { findMany: jest.fn() },
+    student: { findUnique: jest.fn() },
   };
 
   beforeAll(() => {
@@ -154,5 +155,102 @@ describe('ReportsService', () => {
       expect(html).not.toContain('do not leak me');
       expect(html).not.toMatch(/data:text\/plain/);
     });
+  });
+});
+
+/**
+ * Checking a student ID card from its QR.
+ *
+ * The page is public, so it has to answer usefully to a stranger at a gate
+ * while giving away nothing that turns a found card into a way to reach a
+ * child. And a revoked card has to read as revoked.
+ */
+describe('card verification', () => {
+  let service: ReportsService;
+  const prisma: any = { student: { findUnique: jest.fn() } };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [ReportsService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = module.get<ReportsService>(ReportsService);
+  });
+
+  const enrolled = {
+    studentIdNumber: 'STD-2025-231419-167',
+    status: 'ACTIVE',
+    cardIssuedAt: new Date('2026-01-15T00:00:00Z'),
+    user: { firstName: 'Wilson', lastName: 'Nshizirungu', photoUrl: '/uploads/a.png' },
+    classSection: { classLevel: { name: 'Senior 1' } },
+  };
+
+  it('confirms a card the school issued', async () => {
+    prisma.student.findUnique.mockResolvedValue(enrolled);
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+
+    expect(result.valid).toBe(true);
+    expect(result.student.name).toBe('Wilson Nshizirungu');
+    expect(result.student.studentIdNumber).toBe('STD-2025-231419-167');
+    expect(result.student.level).toBe('Senior 1');
+  });
+
+  // The photo is the whole defence against a copied card: the checker compares
+  // the face in front of them with the school's own record.
+  it('returns the photo the school holds, not one on the card', async () => {
+    prisma.student.findUnique.mockResolvedValue(enrolled);
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+    expect(result.student.photoUrl).toBe('/uploads/a.png');
+  });
+
+  // Revoking clears the code, so a reissued card kills the printed one.
+  it('rejects a code that no longer belongs to anyone', async () => {
+    prisma.student.findUnique.mockResolvedValue(null);
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+
+    expect(result.valid).toBe(false);
+    expect(result.reason).toMatch(/reissued|never issued/i);
+    expect(result.student).toBeUndefined();
+  });
+
+  it('says a former student is no longer enrolled', async () => {
+    prisma.student.findUnique.mockResolvedValue({ ...enrolled, status: 'GRADUATED' });
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+
+    expect(result.valid).toBe(false);
+    expect(result.reason).toMatch(/no longer enrolled/i);
+    // Still names them, so the gate knows who is holding it.
+    expect(result.student.name).toBe('Wilson Nshizirungu');
+  });
+
+  it('treats a transferred student the same way', async () => {
+    prisma.student.findUnique.mockResolvedValue({ ...enrolled, status: 'TRANSFERRED' });
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+    expect(result.valid).toBe(false);
+  });
+
+  // A found card must not hand a stranger a way to contact the child.
+  it('gives away no contact details', async () => {
+    prisma.student.findUnique.mockResolvedValue(enrolled);
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+
+    const body = JSON.stringify(result).toLowerCase();
+    for (const leak of ['phone', 'email', 'address', 'guardian', 'dateofbirth', 'nationalid']) {
+      expect(body).not.toContain(leak);
+    }
+  });
+
+  it('survives a student whose class has been removed', async () => {
+    prisma.student.findUnique.mockResolvedValue({ ...enrolled, classSection: null });
+    const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
+    expect(result.student.level).toBeNull();
+  });
+
+  it('looks the card up by its code, not by the student', async () => {
+    prisma.student.findUnique.mockResolvedValue(enrolled);
+    await service.verifyCardByCode('TGSZ-D91T-KYF1');
+    expect(prisma.student.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { cardCode: 'TGSZ-D91T-KYF1' } }),
+    );
   });
 });

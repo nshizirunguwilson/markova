@@ -82,6 +82,26 @@ export function validateEnv(
     );
   }
 
+  // A student number carries an HMAC, so a school that runs without this
+  // secret is issuing numbers anyone can forge. Required in production; a
+  // development run falls back to the JWT secret so nothing has to be set up
+  // twice to see the app work.
+  const idSecret = get('STUDENT_ID_SECRET');
+  if (!idSecret) {
+    if (isProduction) {
+      problems.push(
+        'STUDENT_ID_SECRET is required in production. Student numbers are ' +
+          'signed with it, and without one they can be forged.',
+      );
+    }
+  } else if (PLACEHOLDER_SECRETS.has(idSecret.toLowerCase())) {
+    problems.push('STUDENT_ID_SECRET is still the example placeholder value.');
+  } else if (isProduction && idSecret.length < MIN_SECRET_LENGTH) {
+    problems.push(
+      `STUDENT_ID_SECRET must be at least ${MIN_SECRET_LENGTH} characters in production (got ${idSecret.length}).`,
+    );
+  }
+
   const port = get('PORT');
   if (port && !/^\d+$/.test(port)) {
     problems.push(`PORT must be a number (got "${port}").`);
