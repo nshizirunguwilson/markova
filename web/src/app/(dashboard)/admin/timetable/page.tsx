@@ -208,8 +208,8 @@ export default function AdminTimetablePage() {
       <Card padding="sm">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
-            <select aria-label="Class level"
+            <label htmlFor="f-class-level" className="mb-1 block text-xs font-medium text-muted">Class Level</label>
+            <select id="f-class-level" aria-label="Class level"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
@@ -221,8 +221,8 @@ export default function AdminTimetablePage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Section</label>
-            <select aria-label="Class section"
+            <label htmlFor="f-section" className="mb-1 block text-xs font-medium text-muted">Section</label>
+            <select id="f-section" aria-label="Class section"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
@@ -294,8 +294,8 @@ export default function AdminTimetablePage() {
         {modal && (
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Subject</label>
-              <select aria-label="Subject"
+              <label htmlFor="f-subject" className="mb-1 block text-sm font-medium">Subject</label>
+              <select id="f-subject" aria-label="Subject"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.subjectId}
                 onChange={(e) => setModal({ ...modal, subjectId: e.target.value })}
@@ -307,8 +307,8 @@ export default function AdminTimetablePage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Teacher</label>
-              <select aria-label="Teacher"
+              <label htmlFor="f-teacher" className="mb-1 block text-sm font-medium">Teacher</label>
+              <select id="f-teacher" aria-label="Teacher"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.teacherId}
                 onChange={(e) => setModal({ ...modal, teacherId: e.target.value })}
@@ -323,8 +323,8 @@ export default function AdminTimetablePage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="mb-1 block text-sm font-medium">Day</label>
-                <select aria-label="Day of week"
+                <label htmlFor="f-day" className="mb-1 block text-sm font-medium">Day</label>
+                <select id="f-day" aria-label="Day of week"
                   className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.dayOfWeek}
                   onChange={(e) => setModal({ ...modal, dayOfWeek: Number(e.target.value) })}
@@ -335,8 +335,8 @@ export default function AdminTimetablePage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Start</label>
-                <input
+                <label htmlFor="f-start" className="mb-1 block text-sm font-medium">Start</label>
+                <input id="f-start"
                   type="time"
                   className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.startTime}
@@ -344,8 +344,8 @@ export default function AdminTimetablePage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">End</label>
-                <input
+                <label htmlFor="f-end" className="mb-1 block text-sm font-medium">End</label>
+                <input id="f-end"
                   type="time"
                   className="w-full rounded-lg border border-input px-2 py-2 text-sm"
                   value={modal.endTime}
@@ -354,8 +354,8 @@ export default function AdminTimetablePage() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Room (optional)</label>
-              <input
+              <label htmlFor="f-room-optional" className="mb-1 block text-sm font-medium">Room (optional)</label>
+              <input id="f-room-optional"
                 type="text"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={modal.room}

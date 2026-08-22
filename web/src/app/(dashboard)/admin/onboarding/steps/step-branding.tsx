@@ -49,8 +49,8 @@ export function StepBranding() {
         {/* Color */}
         <form onSubmit={handleSubmit(onSaveColor)} className="flex items-end gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Primary Color</label>
-            <input type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-input"  aria-label="Primary Color"/>
+            <label htmlFor="f-primary-color" className="block text-sm font-medium text-foreground mb-1.5">Primary Color</label>
+            <input id="f-primary-color" type="color" {...register("primary_color")} className="h-10 w-20 cursor-pointer rounded border border-input"  aria-label="Primary Color"/>
           </div>
           <Button type="submit" size="sm" isLoading={bulkUpsert.isPending}>
             <Save className="mr-1 h-4 w-4" /> Save

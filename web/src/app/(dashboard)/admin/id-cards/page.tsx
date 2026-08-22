@@ -130,8 +130,8 @@ export default function AdminIdCardsPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Class Level</label>
-            <select aria-label="Class level"
+            <label htmlFor="f-class-level" className="mb-1 block text-xs font-medium text-muted">Class Level</label>
+            <select id="f-class-level" aria-label="Class level"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
               onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
@@ -143,8 +143,8 @@ export default function AdminIdCardsPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Section</label>
-            <select aria-label="Class section"
+            <label htmlFor="f-section" className="mb-1 block text-xs font-medium text-muted">Section</label>
+            <select id="f-section" aria-label="Class section"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
@@ -157,8 +157,8 @@ export default function AdminIdCardsPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Card status</label>
-            <select aria-label="Status"
+            <label htmlFor="f-card-status" className="mb-1 block text-xs font-medium text-muted">Card status</label>
+            <select id="f-card-status" aria-label="Status"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusFilter)}

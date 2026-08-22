@@ -224,8 +224,8 @@ export default function TeacherHomeworkPage() {
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Create Homework">
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Class & Subject</label>
-            <select
+            <label htmlFor="f-class-subject" className="mb-1 block text-sm font-medium text-foreground">Class & Subject</label>
+            <select id="f-class-subject"
               value={form.assignmentId}
               onChange={(e) => setForm({ ...form, assignmentId: e.target.value })}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -240,8 +240,8 @@ export default function TeacherHomeworkPage() {
           </div>
           <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
+            <label htmlFor="f-description" className="mb-1 block text-sm font-medium text-foreground">Description</label>
+            <textarea id="f-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none" />
           </div>
           <div className="grid grid-cols-3 gap-4">

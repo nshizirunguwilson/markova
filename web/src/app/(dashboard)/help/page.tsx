@@ -169,16 +169,16 @@ export default function HelpPage() {
         <div className="space-y-4">
           <Input label="Title" value={ticketForm.title} onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })} />
           <div>
-            <label className="text-sm font-medium">Description</label>
-            <textarea
+            <label htmlFor="f-description" className="text-sm font-medium">Description</label>
+            <textarea id="f-description"
               className="w-full border rounded-lg px-3 py-2 text-sm mt-1 min-h-[100px]"
               value={ticketForm.description}
               onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Category</label>
-            <select
+            <label htmlFor="f-category" className="text-sm font-medium">Category</label>
+            <select id="f-category"
               className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
               value={ticketForm.category}
               onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}

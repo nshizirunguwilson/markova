@@ -142,10 +142,10 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
       <div className="space-y-5">
         {/* Role selector */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
+          <label htmlFor="f-import-as" className="block text-sm font-medium text-foreground mb-1.5">
             Import as
           </label>
-          <select
+          <select id="f-import-as"
             value={role}
             onChange={(e) => {
               setRole(e.target.value);

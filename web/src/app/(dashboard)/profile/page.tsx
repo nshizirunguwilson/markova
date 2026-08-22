@@ -249,10 +249,10 @@ export default function ProfilePage() {
         {showPassword && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+              <label htmlFor="f-current-password" className="mb-1 block text-sm font-medium text-foreground-muted">
                 Current Password
               </label>
-              <input
+              <input id="f-current-password"
                 type="password"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.currentPassword}
@@ -266,10 +266,10 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+              <label htmlFor="f-new-password" className="mb-1 block text-sm font-medium text-foreground-muted">
                 New Password
               </label>
-              <input
+              <input id="f-new-password"
                 type="password"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.newPassword}
@@ -284,10 +284,10 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground-muted">
+              <label htmlFor="f-confirm-new-password" className="mb-1 block text-sm font-medium text-foreground-muted">
                 Confirm New Password
               </label>
-              <input
+              <input id="f-confirm-new-password"
                 type="password"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 value={passwordForm.confirmPassword}

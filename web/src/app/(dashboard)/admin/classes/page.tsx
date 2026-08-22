@@ -471,8 +471,8 @@ export default function AdminClassesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <input
+            <label htmlFor="f-name" className="mb-1 block text-sm font-medium">Name</label>
+            <input id="f-name"
               className={`w-full rounded-lg border ${levelErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerLevel("name")}
               placeholder="e.g. Senior 1 or Level 3"
@@ -480,8 +480,8 @@ export default function AdminClassesPage() {
             {levelErrors.name && <p className="mt-1 text-xs text-danger">{levelErrors.name.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Order</label>
-            <input
+            <label htmlFor="f-order" className="mb-1 block text-sm font-medium">Order</label>
+            <input id="f-order"
               type="number"
               className={`w-full rounded-lg border ${levelErrors.order ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerLevel("order", { valueAsNumber: true })}
@@ -491,8 +491,8 @@ export default function AdminClassesPage() {
           </div>
           {!editingLevelId && (
             <div>
-              <label className="mb-1 block text-sm font-medium">Stage</label>
-              <select
+              <label htmlFor="f-stage" className="mb-1 block text-sm font-medium">Stage</label>
+              <select id="f-stage"
                 className="w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...registerLevel("stage")}
               >
@@ -519,8 +519,8 @@ export default function AdminClassesPage() {
         <div className="space-y-4">
           {sectionModalStage === "A_LEVEL" && (
             <div>
-              <label className="mb-1 block text-sm font-medium">Trade</label>
-              <select
+              <label htmlFor="f-trade" className="mb-1 block text-sm font-medium">Trade</label>
+              <select id="f-trade"
                 className="w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...registerSection("tradeId")}
               >
@@ -534,8 +534,8 @@ export default function AdminClassesPage() {
             </div>
           )}
           <div>
-            <label className="mb-1 block text-sm font-medium">Stream</label>
-            <input
+            <label htmlFor="f-stream" className="mb-1 block text-sm font-medium">Stream</label>
+            <input id="f-stream"
               className={`w-full rounded-lg border ${sectionErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerSection("name")}
               placeholder="e.g. A"
@@ -555,8 +555,8 @@ export default function AdminClassesPage() {
       <Modal isOpen={showTradeModal} onClose={resetTradeForm} title="Add Trade">
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Code</label>
-            <input
+            <label htmlFor="f-code" className="mb-1 block text-sm font-medium">Code</label>
+            <input id="f-code"
               className={`w-full rounded-lg border ${tradeErrors.code ? "border-danger" : "border-border"} px-3 py-2 text-sm uppercase focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("code")}
               placeholder="e.g. SWD"
@@ -564,8 +564,8 @@ export default function AdminClassesPage() {
             {tradeErrors.code && <p className="mt-1 text-xs text-danger">{tradeErrors.code.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <input
+            <label htmlFor="f-name-2" className="mb-1 block text-sm font-medium">Name</label>
+            <input id="f-name-2"
               className={`w-full rounded-lg border ${tradeErrors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("name")}
               placeholder="e.g. Software Development"
@@ -573,8 +573,8 @@ export default function AdminClassesPage() {
             {tradeErrors.name && <p className="mt-1 text-xs text-danger">{tradeErrors.name.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Sector</label>
-            <input
+            <label htmlFor="f-sector" className="mb-1 block text-sm font-medium">Sector</label>
+            <input id="f-sector"
               className={`w-full rounded-lg border ${tradeErrors.sector ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...registerTrade("sector")}
               placeholder="e.g. ICT and Multimedia"

@@ -177,8 +177,8 @@ export default function ParentDisciplinePage() {
       <Modal isOpen={!!appealModal} onClose={() => setAppealModal(null)} title="Submit Appeal">
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Statement</label>
-            <textarea
+            <label htmlFor="f-statement" className="mb-1 block text-sm font-medium text-foreground">Statement</label>
+            <textarea id="f-statement"
               value={appealStatement}
               onChange={(e) => setAppealStatement(e.target.value)}
               rows={4}

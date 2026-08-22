@@ -148,8 +148,8 @@ export default function AdminPromotionPage() {
         <CardTitle>Deliberation setup</CardTitle>
         <div className="mt-4 space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Academic Year</label>
-            <select
+            <label htmlFor="f-academic-year" className="mb-1 block text-sm font-medium">Academic Year</label>
+            <select id="f-academic-year"
               className="w-full max-w-md rounded-lg border border-input px-3 py-2 text-sm"
               value={academicYearId}
               onChange={(e) => setAcademicYearId(e.target.value)}
@@ -242,10 +242,10 @@ export default function AdminPromotionPage() {
                aria-label="Pass mark (%) {defaultThreshold && ( default )}"/>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
+              <label htmlFor="f-min-discipline-points" className="mb-1 block text-sm font-medium">
                 Min discipline points
               </label>
-              <input
+              <input id="f-min-discipline-points"
                 type="number" min="0" max="100"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 placeholder="50"

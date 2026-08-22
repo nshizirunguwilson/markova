@@ -23,7 +23,7 @@ const user = (id: string, firstName: string, lastName: string, role = "STUDENT")
 
 export const academicYear = { id: "year-1", name: "2026-2027", isActive: true, startDate: "2026-09-01", endDate: "2027-07-15" };
 export const term = { id: "term-1", name: "Term 1", academicYearId: "year-1", isActive: true, isClosed: false, startDate: "2026-09-01", endDate: "2026-12-15" };
-export const classLevel = { id: "level-1", name: "Senior 1", stage: "OLEVEL", order: 1 };
+export const classLevel = { id: "level-1", name: "Senior 1", stage: "O_LEVEL", order: 1 };
 export const trade = { id: "trade-1", name: "Software Development", code: "SOD" };
 export const classSection = { id: "section-1", name: "A", capacity: 40, classLevelId: "level-1", classLevel, studentCount: 32 };
 export const subject = { id: "subject-1", name: "Mathematics", code: "MATH", credits: 4, category: "SCIENCE" };

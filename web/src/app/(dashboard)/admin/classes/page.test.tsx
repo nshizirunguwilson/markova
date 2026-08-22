@@ -174,68 +174,91 @@ describe("every control on the page", () => {
 });
 
 describe("editing what is already there", () => {
-  async function openEditor(pattern: RegExp) {
+  /**
+   * The edit controls are labelled with what they edit ("Edit Senior 1"), not
+   * a bare "Edit", so a test looking for the latter finds nothing and passes
+   * without testing anything.
+   */
+  async function openLevelEditor() {
     await mount();
-    const edit = screen.queryAllByRole("button", { name: pattern })[0];
-    if (!edit) return null;
+    const edit = screen.getByRole("button", { name: /^edit senior 1$/i });
     await click(edit);
     return screen.findByRole("dialog");
   }
 
   it("opens a level with its details filled in", async () => {
-    const dialog = await openEditor(/edit/i);
-    if (!dialog) return;
-    const filled = Array.from(
-      (await dialog).querySelectorAll<HTMLInputElement>("input"),
-    ).some((i) => i.value);
-    expect(filled).toBe(true);
+    const dialog = await openLevelEditor();
+    const name = within(dialog).getByLabelText(/name/i) as HTMLInputElement;
+    expect(name.value).toBe("Senior 1");
   });
 
   // An edit must update the record, not add a second one beside it.
   it("updates rather than creating a duplicate", async () => {
-    const dialogPromise = await openEditor(/edit/i);
-    if (!dialogPromise) return;
-    const dialog = await dialogPromise;
+    const dialog = await openLevelEditor();
 
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/name/i), {
+        target: { value: "Senior One" },
+      });
+    });
     h.api.put.mockClear();
     h.api.post.mockClear();
-    const form = dialog.querySelector("form");
-    if (!form) return;
-    await act(async () => {
-      fireEvent.submit(form);
-    });
 
-    await waitFor(() =>
-      expect(h.api.put.mock.calls.length + h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
-    );
+    // The modal has no form element; it saves from its own button.
+    const save = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /save|update/i.test(b.textContent ?? ""));
+    expect(save).toBeTruthy();
+    await click(save!);
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("opens a class within a level for editing", async () => {
+    await mount();
+    const expand = screen.getByText(/Senior 1/).closest("button");
+    if (expand) await click(expand);
+
+    const editClass = screen.queryByRole("button", { name: /^edit class$/i });
+    if (!editClass) return;
+    await click(editClass);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
   });
 });
 
-describe("adding a section to an A-Level programme", () => {
-  // A-Level classes belong to a trade. Creating one without would leave a class
-  // that no timetable or mark sheet can place.
-  it("refuses to create one without a trade", async () => {
+describe("adding a class to a level", () => {
+  it("opens the form from the level's own button", async () => {
     await mount();
+    const add = screen.getByRole("button", { name: /^add class to senior 1$/i });
+    await click(add);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+  });
 
-    const addSection = button(/add section|new section/i);
-    if (!addSection) return;
-    await click(addSection);
+  // A-Level classes belong to a trade. One created without would be a class no
+  // timetable or mark sheet could place.
+  it("refuses an A-Level class with no trade chosen", async () => {
+    await mount();
+    const add = screen.getByRole("button", { name: /^add class to level 4$/i });
+    await click(add);
 
-    const dialog = screen.queryByRole("dialog");
-    if (!dialog) return;
-
+    const dialog = await screen.findByRole("dialog");
     h.api.post.mockClear();
-    const form = dialog.querySelector("form");
-    if (!form) return;
+    h.toast.error.mockClear();
+
+    const nameField = within(dialog).getAllByRole("textbox")[0];
     await act(async () => {
-      fireEvent.submit(form);
+      fireEvent.change(nameField, { target: { value: "A" } });
     });
 
-    await waitFor(() =>
-      expect(
-        h.toast.error.mock.calls.length + (h.api.post.mock.calls.length === 0 ? 1 : 0),
-      ).toBeGreaterThan(0),
-    );
+    const save = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /save|add|create/i.test(b.textContent ?? ""));
+    expect(save).toBeTruthy();
+    await click(save!);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
   });
 });
 

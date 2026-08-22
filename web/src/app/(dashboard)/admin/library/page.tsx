@@ -512,8 +512,8 @@ export default function AdminLibraryPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">ISBN</label>
-              <input
+              <label htmlFor="f-isbn" className="mb-1 block text-sm font-medium">ISBN</label>
+              <input id="f-isbn"
                 className={`w-full rounded-lg border ${bookForm.formState.errors.isbn ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("isbn")}
                aria-label="ISBN"/>
@@ -522,8 +522,8 @@ export default function AdminLibraryPage() {
               )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Category</label>
-              <input
+              <label htmlFor="f-category" className="mb-1 block text-sm font-medium">Category</label>
+              <input id="f-category"
                 className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("category")}
                 placeholder="e.g. Fiction, Science, History"
@@ -535,8 +535,8 @@ export default function AdminLibraryPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Total Copies</label>
-              <input
+              <label htmlFor="f-total-copies" className="mb-1 block text-sm font-medium">Total Copies</label>
+              <input id="f-total-copies"
                 type="number"
                 className={`w-full rounded-lg border ${bookForm.formState.errors.quantity ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("quantity", { valueAsNumber: true })}
@@ -546,8 +546,8 @@ export default function AdminLibraryPage() {
               )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Shelf Location</label>
-              <input
+              <label htmlFor="f-shelf-location" className="mb-1 block text-sm font-medium">Shelf Location</label>
+              <input id="f-shelf-location"
                 className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...bookForm.register("shelfLocation")}
                 placeholder="e.g. A-3-12"
@@ -570,8 +570,8 @@ export default function AdminLibraryPage() {
       <Modal isOpen={showCheckoutModal} onClose={() => { setShowCheckoutModal(false); checkoutFormHook.reset(); }} title="Checkout Book">
         <form onSubmit={handleCheckout} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Book</label>
-            <select
+            <label htmlFor="f-book" className="mb-1 block text-sm font-medium">Book</label>
+            <select id="f-book"
               className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.bookIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("bookIdentifier")}
              aria-label="Book">
@@ -585,8 +585,8 @@ export default function AdminLibraryPage() {
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Borrower (Student)</label>
-            <select
+            <label htmlFor="f-borrower-student" className="mb-1 block text-sm font-medium">Borrower (Student)</label>
+            <select id="f-borrower-student"
               className={`w-full rounded-lg border ${checkoutFormHook.formState.errors.studentIdentifier ? "border-danger" : "border-border"} px-3 py-2 text-sm`}
               {...checkoutFormHook.register("studentIdentifier")}
              aria-label="Borrower (Student)">
