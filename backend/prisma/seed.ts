@@ -20,6 +20,7 @@ import * as bcrypt from 'bcryptjs';
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
+import { buildStudentId, studentIdSecret } from '../src/common/student-id';
 import {
   computeSubjectTotal,
   countsTowardAggregate,
@@ -351,6 +352,28 @@ function dealer(pool: string[]) {
     if (deck.length === 0) deck = shuffled(pool);
     return deck.pop()!;
   };
+}
+
+// ─── STUDENT NUMBERS ─────────────────────────────────────────────────────────
+// STD-<year>-<ABC>-<DEF>. ABC encodes three letters of the student's own name;
+// DEF is signed with the school secret, which is what makes the number both
+// unique and impossible to invent. See backend/src/common/student-id.ts and
+// docs/STUDENT-ID-CARD.md.
+const issuedStudentIds = new Set<string>();
+function studentNumber(first: string, last: string, year: number, key: string): string {
+  for (let nonce = 0; nonce < 50; nonce++) {
+    const id = buildStudentId(studentIdSecret(), {
+      fullName: `${first} ${last}`,
+      year,
+      studentKey: key,
+      nonce,
+    });
+    if (!issuedStudentIds.has(id)) {
+      issuedStudentIds.add(id);
+      return id;
+    }
+  }
+  throw new Error(`Could not issue a student number for ${first} ${last}`);
 }
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
@@ -1539,7 +1562,7 @@ async function main() {
       const student = await prisma.student.create({
         data: {
           userId: user.id,
-          studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+          studentIdNumber: studentNumber(first, last, joinYear, user.id),
           classSectionId: meta.section.id,
           dateOfBirth: dob,
           gender,
@@ -1790,7 +1813,7 @@ async function main() {
     const student = await prisma.student.create({
       data: {
         userId: user.id,
-        studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+        studentIdNumber: studentNumber(name.first, name.last, joinYear, user.id),
         classSectionId: last.section.id,
         dateOfBirth: dob,
         gender,
