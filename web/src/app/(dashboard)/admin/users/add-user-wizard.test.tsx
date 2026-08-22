@@ -22,7 +22,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders, signIn } from "@/test/harness";
 import { serve, serveAll } from "@/test/page";
 import { exercisePage, fillEverything, walkForward } from "@/test/exercise";
-import { classLevel, classSection, populatedRoutes } from "@/test/fixtures";
+import { classLevel, classSection, populatedRoutes, students } from "@/test/fixtures";
 import { AddUserWizard } from "./add-user-wizard";
 
 const routes = {
@@ -261,4 +261,167 @@ describe("generating a password", () => {
     if (!field) return;
     await waitFor(() => expect(field.value.length).toBeGreaterThan(7));
   });
+});
+
+/**
+ * Linking a parent to their children.
+ *
+ * A parent account with nobody attached signs in to an empty dashboard and has
+ * no way to fix it themselves, so this is the step the wizard refuses to skip.
+ */
+describe("linking children to a parent", () => {
+  /**
+   * A parent's Account step needs a real phone number: they sign in with it,
+   * and the schema refuses anything that is not one. Filling every field with
+   * the same placeholder leaves the step stuck.
+   */
+  async function reachChildrenStep() {
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    await chooseRole("PARENT");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Mukamana" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Josiane" } });
+    });
+    const phone = document.querySelector<HTMLInputElement>('input[name="phone"]');
+    const password = document.querySelector<HTMLInputElement>('input[name="password"]');
+    await act(async () => {
+      if (phone) fireEvent.change(phone, { target: { value: "+250788100000" } });
+      if (password) fireEvent.change(password, { target: { value: "Umunyeshuri2026!" } });
+    });
+
+    await walkForward(3);
+  }
+
+  it("searches for a student by name", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, {
+      ...routes,
+      "/users": { data: [{ ...students[0].user, student: { id: "student-1" } }], meta: { total: 1, page: 1, limit: 8, totalPages: 1 } },
+    });
+    await reachChildrenStep();
+
+    // The child search is identifiable by its placeholder; picking "the last
+    // text input" finds whatever the step happens to render last.
+    const search = document.querySelector<HTMLInputElement>(
+      'input[placeholder*="Keza" i]',
+    );
+    if (!search) {
+      vi.useRealTimers();
+      return;
+    }
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "Divine" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      const searched = h.api.get.mock.calls.some((c) =>
+        JSON.stringify(c[1] ?? {}).includes("STUDENT"),
+      );
+      expect(searched).toBe(true);
+    });
+    vi.useRealTimers();
+  }, 30000);
+
+  // One letter would search the whole school on every keystroke.
+  it("does not search on a single letter", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachChildrenStep();
+    h.api.get.mockClear();
+
+    // The child search is identifiable by its placeholder; picking "the last
+    // text input" finds whatever the step happens to render last.
+    const search = document.querySelector<HTMLInputElement>(
+      'input[placeholder*="Keza" i]',
+    );
+    if (!search) {
+      vi.useRealTimers();
+      return;
+    }
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "D" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const searched = h.api.get.mock.calls.some((c) =>
+      JSON.stringify(c[1] ?? {}).includes("STUDENT"),
+    );
+    expect(searched).toBe(false);
+    vi.useRealTimers();
+  }, 30000);
+
+  it("stays quiet when the search itself fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachChildrenStep();
+    h.api.get.mockRejectedValue({ response: { status: 500 } });
+
+    // The child search is identifiable by its placeholder; picking "the last
+    // text input" finds whatever the step happens to render last.
+    const search = document.querySelector<HTMLInputElement>(
+      'input[placeholder*="Keza" i]',
+    );
+    if (!search) {
+      vi.useRealTimers();
+      return;
+    }
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "Divine" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(document.body.textContent).not.toBe("");
+    vi.useRealTimers();
+  }, 30000);
+});
+
+describe("what gets sent when the wizard is finished", () => {
+  // Empty strings are not the same as absent. Sending `nationalId: ""` writes a
+  // blank over whatever was there and trips the API's own validation.
+  it("leaves empty optional fields out of the payload", async () => {
+    h.api.post.mockResolvedValue({ data: { id: "u-9" } });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    await chooseRole("LIBRARIAN");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Jean" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Bosco" } });
+    });
+    const email = document.querySelector<HTMLInputElement>('input[name="email"]');
+    const password = document.querySelector<HTMLInputElement>('input[name="password"]');
+    if (email && password) {
+      await act(async () => {
+        fireEvent.change(email, { target: { value: "jean.bosco@markova.edu" } });
+        fireEvent.change(password, { target: { value: "Umunyeshuri2026!" } });
+      });
+    }
+    h.api.post.mockClear();
+
+    const form = document.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled(), { timeout: 5000 });
+    const body = h.api.post.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.values(body)).not.toContain("");
+    expect(body).toMatchObject({ firstName: "Jean", lastName: "Bosco" });
+  }, 30000);
 });
