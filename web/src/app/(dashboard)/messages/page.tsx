@@ -13,6 +13,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { deliveryTick, formatLastSeen } from "@/lib/presence";
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -138,33 +139,19 @@ export default function MessagesPage() {
     return null;
   };
 
-  // Format last seen
-  const formatLastSeen = (date: string | null) => {
-    if (!date) return "offline";
-    const d = new Date(date);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-
-    if (diffMin < 1) return "last seen just now";
-    if (diffMin < 60) return `last seen ${diffMin}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `last seen ${diffHr}h ago`;
-    return `last seen ${d.toLocaleDateString()}`;
-  };
-
-  // Message status ticks
+  // Message status ticks. The wording and the tick rules live in
+  // @/lib/presence so they can be checked at each boundary on their own.
   const MessageTicks = ({ msg }: { msg: any }) => {
     if (msg.sender?.id !== user?.id) return null;
-    const status = msg.status || "SENT";
 
-    if (status === "READ") {
-      return <CheckCheck className="inline h-3.5 w-3.5 text-primary-light" />;
+    switch (deliveryTick(msg.status)) {
+      case "two-read":
+        return <CheckCheck className="inline h-3.5 w-3.5 text-primary-light" />;
+      case "two":
+        return <CheckCheck className="inline h-3.5 w-3.5 text-white/50" />;
+      default:
+        return <Check className="inline h-3.5 w-3.5 text-white/50" />;
     }
-    if (status === "DELIVERED") {
-      return <CheckCheck className="inline h-3.5 w-3.5 text-white/50" />;
-    }
-    return <Check className="inline h-3.5 w-3.5 text-white/50" />;
   };
 
   return (
