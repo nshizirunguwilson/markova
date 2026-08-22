@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => {
   const fn = () => vi.fn();
@@ -57,6 +57,14 @@ const routes = {
   ],
 };
 
+// A test that fails before its own useRealTimers() would leave the clock
+// frozen for everything after it, which reads as unrelated timeouts.
+afterEach(() => {
+  // A test that fails before its own useRealTimers() would otherwise leave the
+  // clock frozen for everything after it.
+  vi.useRealTimers();
+});
+
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
@@ -83,6 +91,33 @@ async function pickClass() {
     { timeout: 4000 },
   );
   await chooseCascadingFilters(6);
+}
+
+/**
+ * Chooses assignment, term and assessment type in order.
+ *
+ * Each list is fetched only once the one before it has been picked, so a
+ * single sweep over the selects catches the first and leaves the rest holding
+ * nothing but their placeholder.
+ */
+async function pickEveryFilter() {
+  for (let i = 0; i < 4; i += 1) {
+    const next = await waitFor(
+      () => {
+        const found = Array.from(document.querySelectorAll("select")).find(
+          (el) => !el.value && Array.from(el.options).some((o) => o.value),
+        );
+        expect(found).toBeTruthy();
+        return found!;
+      },
+      { timeout: 4000 },
+    ).catch(() => null);
+    if (!next) return;
+    const value = Array.from(next.options).find((o) => o.value)!.value;
+    await act(async () => {
+      fireEvent.change(next, { target: { value } });
+    });
+  }
 }
 
 /** The browser's own online flag, which the page listens to. */
@@ -326,6 +361,140 @@ describe("the roster", () => {
   }, 20000);
 });
 
+describe("moving down the roster", () => {
+  async function withRoster() {
+    await mount();
+    await pickEveryFilter();
+    await waitFor(
+      () =>
+        expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(1),
+      { timeout: 5000 },
+    );
+    return Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    );
+  }
+
+  it("moves to the next student on Enter", async () => {
+    const fields = await withRoster();
+    fields[0].focus();
+
+    await act(async () => {
+      fireEvent.keyDown(fields[0], { key: "Enter", code: "Enter" });
+    });
+
+    expect(document.activeElement).toBe(fields[1]);
+  }, 20000);
+
+  it("moves to the next student on Tab", async () => {
+    const fields = await withRoster();
+    fields[0].focus();
+
+    await act(async () => {
+      fireEvent.keyDown(fields[0], { key: "Tab", code: "Tab" });
+    });
+
+    expect(document.activeElement).toBe(fields[1]);
+  }, 20000);
+
+  // The last row has nowhere to go, and must not throw trying.
+  it("stays put on the last student", async () => {
+    const fields = await withRoster();
+    const last = fields[fields.length - 1];
+    last.focus();
+
+    await act(async () => {
+      fireEvent.keyDown(last, { key: "Enter", code: "Enter" });
+    });
+
+    expect(document.activeElement).toBe(last);
+  }, 20000);
+
+  it("leaves other keys alone", async () => {
+    const fields = await withRoster();
+    fields[0].focus();
+
+    await act(async () => {
+      fireEvent.keyDown(fields[0], { key: "a", code: "KeyA" });
+    });
+
+    expect(document.activeElement).toBe(fields[0]);
+  }, 20000);
+});
+
+describe("what a save refuses to send", () => {
+  async function withRoster() {
+    await mount();
+    await pickEveryFilter();
+    await waitFor(
+      () => expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+  }
+
+  function saveButton() {
+    return screen
+      .queryAllByRole("button")
+      .find((b) => /^save/i.test((b.textContent ?? "").trim()));
+  }
+
+  // Nothing typed is nothing to save. Sending an empty batch would stamp the
+  // whole class as entered.
+  it("sends nothing when no mark has been changed", async () => {
+    await withRoster();
+    h.api.post.mockClear();
+
+    const save = saveButton();
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/marks"),
+      );
+      expect(call).toBeUndefined();
+    });
+  }, 20000);
+
+  // A box cleared back to empty is not a mark of zero.
+  it("leaves a cleared box out of the batch", async () => {
+    await withRoster();
+    const fields = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    );
+    await act(async () => {
+      fireEvent.change(fields[0], { target: { value: "" } });
+    });
+
+    h.api.post.mockClear();
+    const save = saveButton();
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/marks"),
+      );
+      if (!call) return;
+      const entries = (call[1] as any).entries ?? [];
+      expect(entries.every((e: any) => e.score !== "")).toBe(true);
+    });
+  }, 20000);
+});
+
+/**
+ * Auto-save runs on fake timers, and must stay the last block in this file.
+ *
+ * Something it leaves behind stops a later render from ever loading the term
+ * and assessment lists, so any describe placed after it hangs waiting for a
+ * roster that never arrives. Restoring the timers and the system clock in
+ * afterEach does not clear it; the cause has not been pinned down, so the
+ * ordering is the guard.
+ */
 describe("saving without being asked", () => {
   async function withRoster() {
     await mount();
@@ -409,3 +578,11 @@ describe("saving without being asked", () => {
   }, 25000);
 
 });
+
+/**
+ * Entering marks with the keyboard.
+ *
+ * A teacher enters thirty marks in a column without touching the mouse, so
+ * Enter and Tab move down the roster. Anything that breaks that turns a two
+ * minute job into a ten minute one.
+ */
