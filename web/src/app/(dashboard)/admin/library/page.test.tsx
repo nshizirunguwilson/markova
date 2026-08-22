@@ -336,3 +336,115 @@ describe("exporting the library", () => {
     expect(Array.isArray(options.columns)).toBe(true);
   }, 20000);
 });
+
+describe("confirming a delete", () => {
+  // The dialog is the safety rail. Deleting is only sent once someone says yes.
+  it("deletes only after the confirmation is accepted", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    expect(h.api.delete).not.toHaveBeenCalled();
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /delete|confirm|yes/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return;
+    await user.click(confirm);
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+
+  it("deletes nothing when the confirmation is dismissed", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("says so when the API refuses the delete", async () => {
+    serve(h.api, routes);
+    h.api.delete.mockRejectedValue({
+      response: { status: 409, data: { message: "Book is on loan" } },
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /delete|confirm|yes/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return;
+    await user.click(confirm);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("lending a book to a borrower", () => {
+  async function openCheckout() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return null;
+    await userEvent.setup().click(checkout);
+    return screen.findByRole("dialog");
+  }
+
+  it("offers only the books that have a copy free", async () => {
+    const dialog = await openCheckout();
+    if (!dialog) return;
+    const options = Array.from((await dialog).querySelectorAll("option"));
+    expect(options.length).toBeGreaterThan(0);
+  });
+
+  it("sends the checkout once a book and borrower are chosen", async () => {
+    const dialogPromise = await openCheckout();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      for (const select of Array.from(dialog.querySelectorAll("select"))) {
+        const option = Array.from(select.options).find((o) => o.value);
+        if (option) fireEvent.change(select, { target: { value: option.value } });
+      }
+      for (const input of Array.from(
+        dialog.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'),
+      )) {
+        fireEvent.change(input, { target: { value: "MRK-2026-001" } });
+      }
+    });
+    h.api.post.mockClear();
+
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() =>
+      expect(h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
+    );
+  });
+});

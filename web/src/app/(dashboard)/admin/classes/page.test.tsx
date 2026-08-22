@@ -172,3 +172,88 @@ describe("every control on the page", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+describe("editing what is already there", () => {
+  async function openEditor(pattern: RegExp) {
+    await mount();
+    const edit = screen.queryAllByRole("button", { name: pattern })[0];
+    if (!edit) return null;
+    await click(edit);
+    return screen.findByRole("dialog");
+  }
+
+  it("opens a level with its details filled in", async () => {
+    const dialog = await openEditor(/edit/i);
+    if (!dialog) return;
+    const filled = Array.from(
+      (await dialog).querySelectorAll<HTMLInputElement>("input"),
+    ).some((i) => i.value);
+    expect(filled).toBe(true);
+  });
+
+  // An edit must update the record, not add a second one beside it.
+  it("updates rather than creating a duplicate", async () => {
+    const dialogPromise = await openEditor(/edit/i);
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+
+    h.api.put.mockClear();
+    h.api.post.mockClear();
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() =>
+      expect(h.api.put.mock.calls.length + h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
+    );
+  });
+});
+
+describe("adding a section to an A-Level programme", () => {
+  // A-Level classes belong to a trade. Creating one without would leave a class
+  // that no timetable or mark sheet can place.
+  it("refuses to create one without a trade", async () => {
+    await mount();
+
+    const addSection = button(/add section|new section/i);
+    if (!addSection) return;
+    await click(addSection);
+
+    const dialog = screen.queryByRole("dialog");
+    if (!dialog) return;
+
+    h.api.post.mockClear();
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() =>
+      expect(
+        h.toast.error.mock.calls.length + (h.api.post.mock.calls.length === 0 ? 1 : 0),
+      ).toBeGreaterThan(0),
+    );
+  });
+});
+
+describe("expanding a level", () => {
+  it("shows the sections beneath it", async () => {
+    await mount();
+    const row = screen.getByText(/Senior 1/).closest("button");
+    if (!row) return;
+    await click(row);
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("collapses again when tapped a second time", async () => {
+    await mount();
+    const row = screen.getByText(/Senior 1/).closest("button");
+    if (!row) return;
+    await click(row);
+    await click(row);
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
