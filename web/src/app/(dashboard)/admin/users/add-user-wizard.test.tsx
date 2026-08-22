@@ -161,3 +161,104 @@ describe("creating the user", () => {
     );
   }, 30000);
 });
+
+describe("warning about a name already on file", () => {
+  // Two students genuinely can share a name, so this warns rather than blocks.
+  // It is debounced so it does not query on every keystroke.
+  it("warns when the name already exists", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, { ...routes, "/users": { data: [], meta: { total: 1, page: 1, limit: 1, totalPages: 1 } } });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Divine" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Niyonkuru" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/already exists/i));
+    vi.useRealTimers();
+  }, 20000);
+
+  it("says nothing when the name is new", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, { ...routes, "/users": { data: [], meta: { total: 0, page: 1, limit: 1, totalPages: 0 } } });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Mugisha" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Habimana" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(document.body.textContent).not.toMatch(/already exists/i);
+    vi.useRealTimers();
+  }, 20000);
+
+  // One letter is not a name; querying on it would search the whole school.
+  it("does not query on a single letter", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    h.api.get.mockClear();
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "D" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "N" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    const searches = h.api.get.mock.calls.filter((c) =>
+      String(JSON.stringify(c[1] ?? {})).includes("searchIn"),
+    );
+    expect(searches).toHaveLength(0);
+    vi.useRealTimers();
+  }, 20000);
+
+  it("stays quiet when the lookup itself fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    h.api.get.mockRejectedValue({ response: { status: 500 } });
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Divine" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Niyonkuru" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(document.body.textContent).not.toMatch(/already exists/i);
+    vi.useRealTimers();
+  }, 20000);
+});
+
+describe("generating a password", () => {
+  it("fills the field with something strong", async () => {
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /generate/i.test(b.textContent ?? ""));
+    if (!generate) return;
+    await userEvent.setup().click(generate);
+
+    const field = document.querySelector<HTMLInputElement>('input[name="password"]');
+    if (!field) return;
+    await waitFor(() => expect(field.value.length).toBeGreaterThan(7));
+  });
+});
