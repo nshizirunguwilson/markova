@@ -355,9 +355,9 @@ function dealer(pool: string[]) {
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// firstname.kinyarwandaname@markova.edu for anyone who works here. Students
-// and parents live on their own subdomains, so a school address always tells
-// you which of the three you are looking at. Collisions get a number.
+// firstname.kinyarwandaname@markova.edu. The whole school shares one domain;
+// students and parents get a number after the name (see numberedEmail).
+// Collisions get a number here too.
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
   const base = `${first.trim().split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
@@ -369,24 +369,27 @@ function emailFor(first: string, last: string): string {
   return candidate;
 }
 
-/** firstname.lastnameN@student.markova.edu, past the demo accounts. */
+/**
+ * firstname.lastnameN@markova.edu for students and parents.
+ *
+ * The whole school shares one domain. The number keeps a common name unique
+ * across three years of intake without inventing a second domain to hide in.
+ */
 function studentEmail(first: string, last: string, i: number): string {
-  return onSubdomain(first, last, i + 1, 'student.markova.edu');
+  return numberedEmail(first, last, i + 1);
 }
 
-/** firstname.lastnameN@parent.markova.edu, for parents who have an address. */
 function parentEmail(first: string, last: string, i: number): string {
-  return onSubdomain(first, last, i, 'parent.markova.edu');
+  return numberedEmail(first, last, i);
 }
 
-function onSubdomain(first: string, last: string, n: number, domain: string): string {
+function numberedEmail(first: string, last: string, n: number): string {
   const token = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
-  let candidate = `${token}${n}@${domain}`;
-  // Three years of intake means two people can land on the same token and
-  // number, and the column is unique.
+  let candidate = `${token}${n}@markova.edu`;
+  // Two people can land on the same token and number, and the column is unique.
   while (usedEmails.has(candidate)) {
     n += 1;
-    candidate = `${token}${n}@${domain}`;
+    candidate = `${token}${n}@markova.edu`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -1536,7 +1539,7 @@ async function main() {
       const student = await prisma.student.create({
         data: {
           userId: user.id,
-          studentIdNumber: `MKV-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+          studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
           classSectionId: meta.section.id,
           dateOfBirth: dob,
           gender,
@@ -1787,7 +1790,7 @@ async function main() {
     const student = await prisma.student.create({
       data: {
         userId: user.id,
-        studentIdNumber: `MKV-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+        studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
         classSectionId: last.section.id,
         dateOfBirth: dob,
         gender,
