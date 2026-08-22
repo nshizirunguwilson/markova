@@ -24,7 +24,37 @@ const user = (id: string, firstName: string, lastName: string, role = "STUDENT")
 /** The model flag is `isCurrent`, not `isActive`. Pages read it to pick a default year. */
 export const academicYear = { id: "year-1", name: "2026-2027", isCurrent: true, startDate: "2026-09-01", endDate: "2027-07-15" };
 export const term = { id: "term-1", name: "Term 1", academicYearId: "year-1", isCurrent: true, isClosed: false, startDate: "2026-09-01", endDate: "2026-12-15" };
-export const classLevel = { id: "level-1", name: "Senior 1", stage: "O_LEVEL", order: 1 };
+/**
+ * `/academic/class-levels` returns each level with its sections nested, each
+ * one carrying its trade and an ACTIVE-only `_count.students` (see
+ * getClassLevels in backend/src/modules/academic/academic.service.ts). Without
+ * `sections` here, expanding a level in a test shows an empty card and the
+ * test passes having looked at nothing.
+ */
+export const classLevel = {
+  id: "level-1",
+  name: "Senior 1",
+  stage: "O_LEVEL",
+  order: 1,
+  sections: [
+    {
+      id: "section-1",
+      name: "A",
+      classLevelId: "level-1",
+      trade: null,
+      tradeId: null,
+      _count: { students: 32 },
+    },
+    {
+      id: "section-2",
+      name: "B",
+      classLevelId: "level-1",
+      trade: null,
+      tradeId: null,
+      _count: { students: 28 },
+    },
+  ],
+};
 export const trade = { id: "trade-1", name: "Software Development", code: "SOD" };
 export const classSection = { id: "section-1", name: "A", capacity: 40, classLevelId: "level-1", classLevel, studentCount: 32 };
 export const subject = { id: "subject-1", name: "Mathematics", code: "MATH", credits: 4, category: "SCIENCE" };
