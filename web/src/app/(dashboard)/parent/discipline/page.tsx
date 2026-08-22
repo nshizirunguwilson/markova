@@ -109,26 +109,26 @@ export default function ParentDisciplinePage() {
               <Shield className="h-10 w-10 text-primary" />
               <div className="flex-1">
                 <p className="text-sm text-muted">Discipline Points</p>
-                <p className="text-3xl font-bold">{data.student.currentPoints} / {data.student.startingPoints}</p>
+                <p className="text-3xl font-bold">{data.student?.currentPoints} / {data.student?.startingPoints}</p>
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
                     className={`h-3 rounded-full ${
-                      data.student.percentage >= 80 ? "bg-success" :
-                      data.student.percentage >= 50 ? "bg-warning" : "bg-danger"
+                      data.student?.percentage >= 80 ? "bg-success" :
+                      data.student?.percentage >= 50 ? "bg-warning" : "bg-danger"
                     }`}
-                    style={{ width: `${data.student.percentage}%` }}
+                    style={{ width: `${data.student?.percentage}%` }}
                   />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-primary">{data.student.percentage}%</p>
+              <p className="text-2xl font-bold text-primary">{data.student?.percentage}%</p>
             </div>
           </Card>
 
-          {data.incidents.length > 0 ? (
+          {(data.incidents?.length ?? 0) > 0 ? (
             <Card>
               <CardTitle><AlertTriangle className="mr-2 inline h-5 w-5" /> Incidents</CardTitle>
               <div className="mt-4 space-y-3">
-                {data.incidents.map((inc: any) => (
+                {(data.incidents ?? []).map((inc: any) => (
                   <div key={inc.id} className="rounded-lg border border-border/50 p-4">
                     <div className="flex items-start justify-between">
                       <div>

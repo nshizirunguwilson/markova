@@ -280,3 +280,92 @@ describe("TooltipGuide", () => {
     expect(document.body.textContent).not.toBeNull();
   });
 });
+
+/**
+ * The modal's focus trap.
+ *
+ * A dialog that lets Tab wander behind it is unusable with a keyboard: the
+ * focus ring disappears into the page underneath while the overlay still
+ * blocks the mouse. WCAG asks for the trap, and this is the one place in the
+ * app that implements it.
+ */
+describe("keyboard focus inside a modal", () => {
+  function OpenModal() {
+    return (
+      <Modal isOpen onClose={vi.fn()} title="Add book">
+        <button type="button">first</button>
+        <input aria-label="middle" />
+        <button type="button">last</button>
+      </Modal>
+    );
+  }
+
+  it("moves focus into the dialog when it opens", async () => {
+    render(<OpenModal />);
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  });
+
+  it("wraps from the last control back to the first", async () => {
+    render(<OpenModal />);
+    const user = userEvent.setup();
+    const last = screen.getByRole("button", { name: "last" });
+    last.focus();
+
+    await user.tab();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it("wraps backwards from the first control to the last", async () => {
+    render(<OpenModal />);
+    const user = userEvent.setup();
+    const first = screen.getByRole("button", { name: "first" });
+    first.focus();
+
+    await user.tab({ shift: true });
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it("keeps focus inside across several tabs", async () => {
+    render(<OpenModal />);
+    const user = userEvent.setup();
+    const dialog = screen.getByRole("dialog");
+    screen.getByRole("button", { name: "first" }).focus();
+
+    for (let i = 0; i < 6; i += 1) {
+      await user.tab();
+      expect(dialog.contains(document.activeElement)).toBe(true);
+    }
+  });
+
+  // A dialog with nothing focusable in it must not throw trying to trap.
+  it("does not throw when there is nothing to focus", async () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Empty">
+        <p>nothing here</p>
+      </Modal>,
+    );
+    const user = userEvent.setup();
+    await user.tab();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // Reopening has to re-arm the trap; a stale listener would leave the second
+  // dialog leaking focus.
+  it("re-arms when the dialog is closed and opened again", async () => {
+    const { rerender } = render(<OpenModal />);
+    rerender(
+      <Modal isOpen={false} onClose={vi.fn()} title="Add book">
+        <button type="button">first</button>
+      </Modal>,
+    );
+    rerender(<OpenModal />);
+
+    const user = userEvent.setup();
+    screen.getByRole("button", { name: "last" }).focus();
+    await user.tab();
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+  });
+});

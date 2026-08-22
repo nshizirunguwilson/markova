@@ -44,10 +44,18 @@ const children = students.map((s) => ({
   classSection: s.classSection,
 }));
 
+/**
+ * The parent's own record carries `parentStudents`, which every one of these
+ * pages walks to build the child picker.
+ */
+const parentStudents = students.map((s) => ({
+  student: { id: s.id, user: s.user, classSection: s.classSection },
+}));
+
 const routes = {
   ...populatedRoutes,
-  "/users/children": children,
-  "/auth/profile": { id: "user-1", role: "PARENT", children },
+  "/users/user-1": { id: "user-1", role: "PARENT", parentStudents },
+  "/auth/profile": { id: "user-1", role: "PARENT", parentStudents },
 };
 
 const views = [
@@ -64,7 +72,10 @@ beforeEach(() => {
 });
 
 async function mount(Page: (typeof views)[number]["Page"]) {
-  renderPage(Page, { role: "PARENT", user: { studentId: "student-1" } });
+  renderPage(Page, {
+    role: "PARENT",
+    user: { id: "user-1", studentId: "student-1" },
+  });
   await waitFor(() => expect(document.body.textContent).not.toBe(""));
 }
 
@@ -88,7 +99,10 @@ describe.each(views)("the parent's $name view", ({ Page }) => {
   });
 
   it("renders when the child is doing badly", async () => {
-    serve(h.api, { ...edgeRoutes, "/users/children": children });
+    serve(h.api, {
+      ...edgeRoutes,
+      "/users/user-1": { id: "user-1", role: "PARENT", parentStudents },
+    });
     await mount(Page);
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
   });
@@ -125,8 +139,11 @@ describe("a parent with no children linked", () => {
   // The account exists but points at nobody. It has to explain itself rather
   // than render an empty shell that looks broken.
   it.each(views)("$name explains itself", async ({ Page }) => {
-    serve(h.api, { ...routes, "/users/children": [] });
-    renderPage(Page, { role: "PARENT", user: { studentId: undefined } });
+    serve(h.api, {
+      ...routes,
+      "/users/user-1": { id: "user-1", role: "PARENT", parentStudents: [] },
+    });
+    renderPage(Page, { role: "PARENT", user: { id: "user-1" } });
     await waitFor(() => expect(document.body.textContent).not.toBeNull());
   });
 });
