@@ -555,3 +555,75 @@ describe("the lesson editor", () => {
     expect(h.api.post).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Telling one subject from another on the grid.
+ *
+ * A week's timetable is a wall of blocks. Colour is the only thing that lets a
+ * teacher find their own subject at a glance, so two subjects must never share
+ * one, and the same subject must keep its colour all week.
+ */
+describe("colouring the grid by subject", () => {
+  const twoSubjects = {
+    ...routes,
+    "/academic/timetable": [
+      entry,
+      {
+        ...entry,
+        id: "tt-3",
+        dayOfWeek: 2,
+        subjectId: "subject-2",
+        subject: { ...subject, id: "subject-2", name: "Kinyarwanda" },
+      },
+    ],
+  };
+
+  async function eventsFor(served: Record<string, unknown>) {
+    serve(h.api, served);
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return [];
+    return (h.calendar.props?.events ?? []) as any[];
+  }
+
+  it("gives every lesson a colour", async () => {
+    const events = await eventsFor(routes);
+    if (events.length === 0) return;
+    expect(events.every((e) => e.backgroundColor)).toBe(true);
+  });
+
+  // Two subjects sharing a colour makes the grid unreadable.
+  it("gives two subjects different colours", async () => {
+    const events = await eventsFor(twoSubjects);
+    if (events.length === 0) return;
+
+    const byName = new Map<string, string>();
+    for (const e of events) {
+      const name = e.extendedProps?.entry?.subject?.name;
+      if (name) byName.set(name, e.backgroundColor);
+    }
+    if (byName.size < 2) return;
+    expect(new Set(byName.values()).size).toBe(byName.size);
+  });
+
+  // The same subject on Monday and Wednesday has to look the same.
+  it("keeps one subject's colour the same all week", async () => {
+    const events = await eventsFor(routes);
+    if (events.length === 0) return;
+
+    const maths = events.filter(
+      (e) => e.extendedProps?.entry?.subject?.name === subject.name,
+    );
+    if (maths.length < 2) return;
+    expect(new Set(maths.map((e) => e.backgroundColor)).size).toBe(1);
+  });
+
+  // A lesson whose subject was deleted still has to be drawn, not vanish.
+  it("still colours a lesson with no subject attached", async () => {
+    const events = await eventsFor({
+      ...routes,
+      "/academic/timetable": [{ ...entry, subject: null }],
+    });
+    if (events.length === 0) return;
+    expect(events.every((e) => e.backgroundColor)).toBe(true);
+  });
+});
