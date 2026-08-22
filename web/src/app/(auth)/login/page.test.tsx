@@ -177,3 +177,145 @@ describe("a forced password change", () => {
     expect(h.router.push).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Resending the code.
+ *
+ * A code that never arrived is the commonest way an OTP login stalls, and the
+ * resend is rate limited by the server. The cooldown exists so someone does not
+ * tap it five times and lock themselves out of their own sign in.
+ */
+describe("resending the OTP", () => {
+  async function reachOtp() {
+    h.api.post.mockResolvedValue({ data: { requiresOtp: true, sessionId: "session-1" } });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("counts down before offering a resend", async () => {
+    await reachOtp();
+    const resend = screen.getByRole("button", { name: /resend/i });
+    expect(resend).toBeDisabled();
+    expect(resend.textContent).toMatch(/\d+s/);
+  });
+
+  it("asks the server for a new code once the wait is over", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { sessionId: "session-2", cooldownSeconds: 30 } });
+
+    const resend = screen.getByRole("button", { name: /resend/i });
+    await act(async () => {
+      resend.click();
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/auth/resend-otp", {
+        sessionId: "session-1",
+      }),
+    );
+    vi.useRealTimers();
+  }, 20000);
+
+  it("verifies against the new session after a resend", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockResolvedValue({ data: { sessionId: "session-2" } });
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: tokens });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/verification code/i), {
+        target: { value: "654321" },
+      });
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: /verify & continue/i }).click();
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/auth/verify-otp", {
+        sessionId: "session-2",
+        otp: "654321",
+      }),
+    );
+    vi.useRealTimers();
+  }, 20000);
+
+  it("says so when the resend is refused", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockRejectedValue({
+      response: { status: 429, data: { message: "Too many requests" } },
+    });
+    h.toast.error.mockClear();
+
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    vi.useRealTimers();
+  }, 20000);
+
+  // The code expires before the session does, and saying so is kinder than
+  // letting someone type a dead code and be told it is wrong.
+  it("says when the code has expired", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(301_000);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/expired/i));
+    vi.useRealTimers();
+  }, 20000);
+
+  it("reports a wrong code without losing the step", async () => {
+    await reachOtp();
+    h.api.post.mockRejectedValue({
+      response: { status: 400, data: { message: "Invalid OTP" } },
+    });
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/verification code/i), {
+        target: { value: "000000" },
+      });
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: /verify & continue/i }).click();
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
+  });
+});

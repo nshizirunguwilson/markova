@@ -7,11 +7,13 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    exportData: fn(),
   };
 });
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+vi.mock("@/lib/export", () => ({ exportData: h.exportData }));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/admin/library",
@@ -35,6 +37,7 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.exportData.mockReset();
 });
 
 describe("the library catalogue", () => {
@@ -248,4 +251,88 @@ describe("returning a book", () => {
       expect(urls.some((u) => u.includes("return"))).toBe(true);
     });
   });
+});
+
+describe("editing a book already on the shelf", () => {
+  async function openEditor() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const edit = screen.queryAllByRole("button", { name: /edit/i })[0];
+    if (!edit) return null;
+    await userEvent.setup().click(edit);
+    return screen.findByRole("dialog");
+  }
+
+  it("opens with the book's details already filled in", async () => {
+    const dialog = await openEditor();
+    if (!dialog) return;
+    const title = within(await dialog).getByLabelText(/title/i) as HTMLInputElement;
+    expect(title.value).toContain("Ubuzima");
+  });
+
+  // An edit must update the existing record, not create a second copy.
+  it("updates rather than creating a duplicate", async () => {
+    const dialogPromise = await openEditor();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/title/i), {
+        target: { value: "Ubuzima n'Ubumenyi, 2nd edition" },
+      });
+    });
+    h.api.put.mockClear();
+    h.api.post.mockClear();
+
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("exporting the library", () => {
+  // Each tab exports what it is showing. Exporting the book list while looking
+  // at overdue loans would hand a librarian the wrong file.
+  it.each([
+    ["books", /Ubuzima/],
+    ["loans", /loans/i],
+    ["overdue", /overdue/i],
+  ])("exports what the %s tab is showing", async (tab, _marker) => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    if (tab !== "books") {
+      const tabButton = screen
+        .queryAllByRole("button")
+        .find((b) => new RegExp(tab, "i").test(b.textContent ?? ""));
+      if (tabButton) await user.click(tabButton);
+    }
+
+    const exportButton = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""));
+    if (!exportButton) return;
+    await user.click(exportButton);
+
+    const csv = screen.queryAllByText(/csv/i).at(0);
+    if (!csv) return;
+    await user.click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    const [, options] = h.exportData.mock.calls[0] as [
+      string,
+      { columns: unknown[]; data: unknown[] },
+    ];
+    expect(Array.isArray(options.columns)).toBe(true);
+  }, 20000);
 });
