@@ -21,21 +21,54 @@ const user = (id: string, firstName: string, lastName: string, role = "STUDENT")
   isActive: true,
 });
 
-export const academicYear = { id: "year-1", name: "2026-2027", isActive: true, startDate: "2026-09-01", endDate: "2027-07-15" };
-export const term = { id: "term-1", name: "Term 1", academicYearId: "year-1", isActive: true, isClosed: false, startDate: "2026-09-01", endDate: "2026-12-15" };
-export const classLevel = { id: "level-1", name: "Senior 1", stage: "OLEVEL", order: 1 };
+/** The model flag is `isCurrent`, not `isActive`. Pages read it to pick a default year. */
+export const academicYear = { id: "year-1", name: "2026-2027", isCurrent: true, startDate: "2026-09-01", endDate: "2027-07-15" };
+export const term = { id: "term-1", name: "Term 1", academicYearId: "year-1", isCurrent: true, isClosed: false, startDate: "2026-09-01", endDate: "2026-12-15" };
+/**
+ * `/academic/class-levels` returns each level with its sections nested, each
+ * one carrying its trade and an ACTIVE-only `_count.students` (see
+ * getClassLevels in backend/src/modules/academic/academic.service.ts). Without
+ * `sections` here, expanding a level in a test shows an empty card and the
+ * test passes having looked at nothing.
+ */
+export const classLevel = {
+  id: "level-1",
+  name: "Senior 1",
+  stage: "O_LEVEL",
+  order: 1,
+  sections: [
+    {
+      id: "section-1",
+      name: "A",
+      classLevelId: "level-1",
+      trade: null,
+      tradeId: null,
+      _count: { students: 32 },
+    },
+    {
+      id: "section-2",
+      name: "B",
+      classLevelId: "level-1",
+      trade: null,
+      tradeId: null,
+      _count: { students: 28 },
+    },
+  ],
+};
 export const trade = { id: "trade-1", name: "Software Development", code: "SOD" };
 export const classSection = { id: "section-1", name: "A", capacity: 40, classLevelId: "level-1", classLevel, studentCount: 32 };
 export const subject = { id: "subject-1", name: "Mathematics", code: "MATH", credits: 4, category: "SCIENCE" };
 export const assessmentType = { id: "assess-1", name: "Quiz", weight: 20 };
 
 export const students = [
-  { id: "student-1", userId: "u-1", studentIdNumber: "MRK-2026-001", classSectionId: "section-1", classSection, disciplinePoints: 100, user: user("u-1", "Divine", "Niyonkuru") },
-  { id: "student-2", userId: "u-2", studentIdNumber: "MRK-2026-002", classSectionId: "section-1", classSection, disciplinePoints: 92, user: user("u-2", "Keza", "Mutesi") },
+  { id: "student-1", userId: "u-1", studentIdNumber: "STD-2026-001", classSectionId: "section-1", classSection, disciplinePoints: 100, user: user("u-1", "Divine", "Niyonkuru") },
+  { id: "student-2", userId: "u-2", studentIdNumber: "STD-2026-002", classSectionId: "section-1", classSection, disciplinePoints: 92, user: user("u-2", "Keza", "Mutesi") },
 ];
 
 export const teachers = [
-  { id: "teacher-1", userId: "u-3", employeeId: "EMP-001", qualification: "BSc Education", user: user("u-3", "Aline", "Uwase", "TEACHER") },
+  // Staff are identified by `user.code` (TCH-…). The Teacher model has no
+  // employeeId, and inventing one here hid a blank column on the teachers page.
+  { id: "teacher-1", userId: "u-3", qualification: "A0", user: { ...user("u-3", "Aline", "Uwase", "TEACHER"), code: "TCH-2026-001" } },
 ];
 
 /**
@@ -54,27 +87,77 @@ export const marks = [
   { id: "mark-2", studentId: "student-2", subjectId: "subject-1", subject, score: 67, maxScore: 100, assessmentType, student: students[1], termId: "term-1" },
 ];
 
+/**
+ * A term result the way the model actually names its columns: `totalMarks`,
+ * `letterGrade` and `rank` (see TermResult in schema.prisma). Calling them
+ * total/grade/position here left the Total Marks and Grade columns showing a
+ * dash on the marks page while the tests still passed.
+ */
 export const termResult = {
   id: "tr-1",
   studentId: "student-1",
   student: students[0],
+  classSectionId: "section-1",
   termId: "term-1",
-  total: 412,
+  totalMarks: 412,
   average: 82.4,
-  position: 3,
-  grade: "A",
-  decision: "PASS",
+  letterGrade: "A",
+  aggregate: 12,
+  aggregateMax: 24,
+  rank: 3,
+  teacherComment: "Strong term.",
+  headmasterComment: null,
   isPublished: true,
-  comment: "Strong term.",
   subjects: [{ subjectId: "subject-1", subject, score: 82, grade: "A" }],
 };
 
-export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-1-23", category: "SCIENCE", totalCopies: 5, availableCopies: 3 };
+// The Book model counts copies as `quantity` and `availableCount` (see
+// schema.prisma). Naming them totalCopies/availableCopies here left the two
+// count columns blank in tests while the pages still passed.
+export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-1-23", category: "SCIENCE", quantity: 5, availableCount: 3, barcode: "BK-0001", replacementCost: 12000 };
 export const loan = { id: "loan-1", bookId: "book-1", book, borrowerId: "u-1", borrower: user("u-1", "Divine", "Niyonkuru"), dueDate: "2026-09-30", returnedAt: null, isOverdue: false };
 
 export const incident = { id: "inc-1", studentId: "student-1", student: students[0], category: "LATENESS", severity: "MINOR", points: 5, description: "Late to assembly", actionTaken: "WARNING", createdAt: "2026-08-20T07:30:00Z", reportedBy: user("u-3", "Aline", "Uwase", "TEACHER") };
 
-export const homework = { id: "hw-1", title: "Algebra sheet 3", description: "Questions 1 to 12", subjectId: "subject-1", subject, classSectionId: "section-1", classSection, dueDate: "2026-08-30", submissions: [] };
+/**
+ * One homework with its submissions, the way `/homework/:id` returns them
+ * (see findOne in backend/src/modules/homework/homework.service.ts): each one
+ * nests the student and their user, and `marks` is null until it is graded.
+ * An empty `submissions` here leaves the teacher's grading table untested.
+ */
+export const homework = {
+  id: "hw-1",
+  title: "Algebra sheet 3",
+  description: "Questions 1 to 12",
+  subjectId: "subject-1",
+  subject,
+  classSectionId: "section-1",
+  classSection,
+  dueDate: "2026-08-30",
+  maxMarks: 20,
+  lateDeductionPerDay: 2,
+  totalStudents: 2,
+  submissions: [
+    {
+      id: "sub-1",
+      homeworkId: "hw-1",
+      student: students[0],
+      submittedAt: "2026-08-29T14:00:00Z",
+      isLate: false,
+      marks: 17,
+      feedback: "Neat work",
+    },
+    {
+      id: "sub-2",
+      homeworkId: "hw-1",
+      student: students[1],
+      submittedAt: "2026-09-01T08:00:00Z",
+      isLate: true,
+      marks: null,
+      feedback: null,
+    },
+  ],
+};
 
 export const conversation = { id: "conv-1", type: "ONE_ON_ONE", participants: [{ user: user("u-1", "Divine", "Niyonkuru") }], lastMessage: { body: "Muraho", createdAt: "2026-08-21T09:00:00Z" }, unreadCount: 1 };
 export const message = { id: "msg-1", conversationId: "conv-1", senderId: "u-1", sender: user("u-1", "Divine", "Niyonkuru"), body: "Muraho neza", createdAt: "2026-08-21T09:00:00Z" };
@@ -143,7 +226,22 @@ export const populatedRoutes: Record<string, unknown> = {
   "/library/loans/active": [loan],
   "/library/loans/overdue": [],
   "/library/loans/my": [loan],
-  "/library/analytics": { totalBooks: 120, activeLoans: 14, overdue: 2, popular: [book] },
+  // `popularBooks` with a `loanCount` each, from getAnalytics in
+  // backend/src/modules/library/library.service.ts.
+  "/library/analytics": {
+    totalBooks: 120,
+    totalCopies: 340,
+    availableCopies: 310,
+    activeLoans: 14,
+    overdueLoans: 2,
+    lostBooks: 1,
+    overdueRate: 14,
+    popularBooks: [
+      { title: "Things Fall Apart", author: "Chinua Achebe", loanCount: 22 },
+      { title: "Mathematics for Rwanda Schools", author: "REB", loanCount: 17 },
+    ],
+    categories: [{ category: "Fiction", count: 40, totalCopies: 120 }],
+  },
 
   "/homework/student": [homework],
   "/homework": [homework],
@@ -160,11 +258,40 @@ export const populatedRoutes: Record<string, unknown> = {
   "/help/tickets": [ticket],
 
   "/analytics/admin/dashboard": { students: 320, teachers: 24, classes: 12, attendanceRate: 94.6, averageScore: 71.2 },
-  "/analytics/admin/performance-trends": [{ termName: "Term 1", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 }],
-  "/analytics/admin/class-comparisons": [{ className: "Senior 1 A", averageScore: 73.1, studentCount: 32 }],
-  "/analytics/admin/discipline": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }] },
+  // A trend line needs at least two terms; one point draws nothing.
+  "/analytics/admin/performance-trends": [
+    { termName: "Term 1", yearName: "2026-2027", averageScore: 68.4, studentCount: 318 },
+    { termName: "Term 2", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 },
+    { termName: "Term 3", yearName: "2026-2027", averageScore: 74.9, studentCount: 316 },
+  ],
+  "/analytics/admin/class-comparisons": [
+    { className: "Senior 1 A", averageScore: 73.1, studentCount: 32 },
+    { className: "Senior 1 B", averageScore: 66.8, studentCount: 28 },
+  ],
+  // `byAction`, from getDisciplineStats in analytics.service.ts. A severity
+  // breakdown is not what this endpoint returns, and the chart built from it
+  // never renders.
+  "/analytics/admin/discipline": {
+    totalIncidents: 4,
+    byAction: [
+      { name: "WARNING", count: 3 },
+      { name: "PARENT_MEETING", count: 1 },
+    ],
+  },
   "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
-  "/analytics/admin/attendance": { rate: 94.6, byClass: [{ classSection, rate: 95 }] },
+  // `byDate` is what the attendance chart plots, one entry per day.
+  "/analytics/admin/attendance": {
+    totalRecords: 640,
+    present: 600,
+    absent: 24,
+    late: 16,
+    attendanceRate: 94,
+    byDate: [
+      { date: "2026-08-17", present: 118, late: 4, absent: 6 },
+      { date: "2026-08-18", present: 122, late: 2, absent: 4 },
+      { date: "2026-08-19", present: 120, late: 5, absent: 3 },
+    ],
+  },
   // Per level, with a letter->count map. See analytics.service.ts.
   "/analytics/admin/grade-distribution": [
     { level: "Senior 1", total: 32, counts: { A: 8, B: 12, C: 9, D: 2, F: 1 } },
@@ -247,8 +374,9 @@ export const edgeRoutes: Record<string, unknown> = {
   "/library/loans/overdue": [overdueLoan],
   "/library/loans/my": [overdueLoan],
   "/library/books": [
-    { ...book, availableCopies: 0 },
-    { ...book, id: "book-2", title: "Imigani", availableCopies: 5, category: null },
+    // Nothing left on the shelf, which is what the borrow button reads.
+    { ...book, availableCount: 0 },
+    { ...book, id: "book-2", title: "Imigani", availableCount: 5, category: null },
   ],
 
   "/marks/term-results/class": [unpublishedResult, termResult],

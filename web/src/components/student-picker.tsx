@@ -32,9 +32,9 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-foreground">{label}</label>
+      <label htmlFor="f-label" className="mb-1 block text-sm font-medium text-foreground">{label}</label>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <select
+        <select id="f-label"
           className={cls}
           value={level}
           onChange={(e) => {

@@ -22,10 +22,10 @@ export function NationalIdInput({
 }) {
   return (
     <div className="w-full">
-      <label className="mb-1.5 block text-sm font-medium text-foreground">
+      <label htmlFor="f-label-national-id" className="mb-1.5 block text-sm font-medium text-foreground">
         {label ?? "National ID"}
       </label>
-      <input
+      <input id="f-label-national-id"
         inputMode="numeric"
         autoComplete="off"
         placeholder="1 2008 8 0123456 0 12"

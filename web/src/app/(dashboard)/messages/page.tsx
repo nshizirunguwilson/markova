@@ -368,8 +368,8 @@ export default function MessagesPage() {
       <Modal isOpen={showNewModal} onClose={() => setShowNewModal(false)} title="New Conversation">
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Type</label>
-            <select
+            <label htmlFor="f-type" className="mb-1 block text-sm font-medium text-foreground">Type</label>
+            <select id="f-type"
               value={newConvType}
               onChange={(e) => {
                 setNewConvType(e.target.value);

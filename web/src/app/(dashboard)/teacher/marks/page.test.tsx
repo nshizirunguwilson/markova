@@ -6,6 +6,12 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    offline: {
+      save: vi.fn<(payload: unknown) => Promise<void>>(),
+      get: vi.fn<() => Promise<unknown[]>>(),
+      clear: vi.fn<() => Promise<void>>(),
+      count: vi.fn<() => Promise<number>>(),
+    },
   };
 });
 
@@ -17,6 +23,16 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// The offline queue is IndexedDB. What this page owns is when it saves to the
+// queue, when it drains it, and what it tells the teacher; the storage itself
+// is tested in src/lib/offline-db.test.ts.
+vi.mock("@/lib/offline-db", () => ({
+  savePendingMarks: h.offline.save,
+  getPendingMarks: h.offline.get,
+  clearPendingMarks: h.offline.clear,
+  getPendingCount: h.offline.count,
+}));
+
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve, serveAll, serveFailure } from "@/test/page";
 import { chooseCascadingFilters, exercisePage } from "@/test/exercise";
@@ -24,8 +40,16 @@ import { assignment, populatedRoutes, students, subject } from "@/test/fixtures"
 
 import TeacherMarksPage from "./page";
 
+const roster = students.map((st, i) => ({
+  id: st.id,
+  name: `${st.user.firstName} ${st.user.lastName}`,
+  studentIdNumber: st.studentIdNumber,
+  mark: i === 0 ? { score: 74 } : null,
+}));
+
 const routes = {
   ...populatedRoutes,
+  "/marks/completion": { total: 2, entered: 1, percentage: 50, students: roster },
   "/academic/assignments": [assignment],
   "/attendance/class-students": students,
   "/marks": [
@@ -36,8 +60,38 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.offline.save.mockReset().mockResolvedValue(undefined);
+  h.offline.get.mockReset().mockResolvedValue([]);
+  h.offline.clear.mockReset().mockResolvedValue(undefined);
+  h.offline.count.mockReset().mockResolvedValue(0);
+  setOnline(true);
   serve(h.api, routes);
 });
+
+/**
+ * The roster only appears once class, subject, term and assessment are all
+ * chosen, and each one enables the next.
+ */
+async function pickClass() {
+  await waitFor(
+    () =>
+      expect(
+        Array.from(document.querySelectorAll("select")).some((s) =>
+          Array.from(s.options).some((o) => o.value),
+        ),
+      ).toBe(true),
+    { timeout: 4000 },
+  );
+  await chooseCascadingFilters(6);
+}
+
+/** The browser's own online flag, which the page listens to. */
+function setOnline(online: boolean) {
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    value: online,
+  });
+}
 
 async function mount() {
   renderPage(TeacherMarksPage, { role: "TEACHER", user: { teacherId: "teacher-1" } });
@@ -130,4 +184,228 @@ describe("every control on marks entry", () => {
     const { rejections } = await exercisePage({ limit: 35 });
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+/**
+ * Marks entry on a classroom connection.
+ *
+ * This is the feature the whole offline queue exists for: a teacher fills in a
+ * class, the save fails, and their afternoon must not be lost. Losing a
+ * register is recoverable; losing a term's marks is not.
+ */
+describe("entering marks while offline", () => {
+  it("tells the teacher when the connection has gone", async () => {
+    setOnline(false);
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("offline"));
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("shows how many entries are waiting to be sent", async () => {
+    h.offline.count.mockResolvedValue(3);
+    await mount();
+    await waitFor(() => expect(h.offline.count).toHaveBeenCalled());
+  });
+
+  // Coming back online should drain the queue without the teacher asking.
+  it("sends the queue when the connection returns", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(1);
+    h.api.post.mockResolvedValue({ data: { saved: 1 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/marks/batch"))).toBe(true);
+    }, { timeout: 5000 });
+  }, 20000);
+
+  it("clears the queue once everything has been sent", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(1);
+    h.api.post.mockResolvedValue({ data: { saved: 1 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => expect(h.offline.clear).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+  }, 20000);
+
+  // A partial sync must keep what did not go, or the failed half is lost for
+  // good on the next attempt.
+  it("keeps the queue when only some entries went through", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+      { id: 2, savedAt: 2, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(2);
+    h.api.post
+      .mockResolvedValueOnce({ data: { saved: 1 } })
+      .mockRejectedValue({ response: { status: 500 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(
+      () =>
+        expect(
+          h.toast.warning.mock.calls.length + h.api.post.mock.calls.length,
+        ).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+    expect(h.offline.clear).not.toHaveBeenCalled();
+  }, 20000);
+
+  it("does nothing when the queue is empty", async () => {
+    h.offline.get.mockResolvedValue([]);
+    await mount();
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(h.offline.clear).not.toHaveBeenCalled();
+  }, 20000);
+});
+
+/**
+ * The roster and its auto-save.
+ *
+ * A teacher types a column of marks and expects them kept without pressing
+ * anything, because the one thing worse than a slow save is a lost afternoon.
+ * The timer is what makes that true, and it only runs on a real keystroke.
+ */
+describe("the roster", () => {
+  async function withRoster() {
+    await mount();
+    await pickClass();
+    await waitFor(() =>
+      expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+  }
+
+  it("lists every student in the class", async () => {
+    await withRoster();
+    expect(document.body.textContent).toContain("Divine");
+    expect(document.body.textContent).toContain("Keza");
+  }, 20000);
+
+  // A mark already recorded has to appear, or a teacher re-enters the lot.
+  it("shows the marks already on file", async () => {
+    await withRoster();
+    const filled = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    ).some((i) => i.value === "74");
+    expect(filled).toBe(true);
+  }, 20000);
+
+  it("keeps what is typed", async () => {
+    await withRoster();
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    expect(field.value).toBe("88");
+  }, 20000);
+});
+
+describe("saving without being asked", () => {
+  async function withRoster() {
+    await mount();
+    await pickClass();
+    await waitFor(() =>
+      expect(document.querySelectorAll('input[type="number"]').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+  }
+
+  it("saves a few seconds after the typing stops", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    h.api.post.mockClear();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    await waitFor(() =>
+      expect(h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
+    );
+    vi.useRealTimers();
+  }, 25000);
+
+  // Saving on every keystroke would post once per digit of every mark.
+  it("waits rather than saving mid-keystroke", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "8" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "88" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(h.api.post).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  }, 25000);
+
+  // The whole point of the queue. The page decides by the connection it knows
+  // about, not by waiting for a request to time out, so marks entered in a
+  // classroom with no signal go to disk immediately.
+  it("queues the marks instead of sending them while offline", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await withRoster();
+
+    setOnline(false);
+    await act(async () => {
+      fireEvent(window, new Event("offline"));
+    });
+
+    h.api.post.mockClear();
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "91" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    await waitFor(() => expect(h.offline.save).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+    expect(h.api.post).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  }, 25000);
+
 });

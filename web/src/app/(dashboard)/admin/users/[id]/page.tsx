@@ -280,8 +280,8 @@ export default function UserDetailPage() {
                   {!user.student && (
                     <>
                       <div>
-                        <label className="mb-1.5 block text-sm font-medium text-foreground">Gender</label>
-                        <select {...register("gender")} className={selectCls}>
+                        <label htmlFor="f-gender" className="mb-1.5 block text-sm font-medium text-foreground">Gender</label>
+                        <select id="f-gender" {...register("gender")} className={selectCls}>
                           <option value="">Select...</option>
                           <option value="MALE">Male</option>
                           <option value="FEMALE">Female</option>
@@ -402,8 +402,8 @@ export default function UserDetailPage() {
                     <Input id="cell" label="Cell" {...register("cell")} />
                     <Input id="village" label="Village" {...register("village")} />
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-foreground">Boarding</label>
-                      <select {...register("boarding")} className={selectCls}>
+                      <label htmlFor="f-boarding" className="mb-1.5 block text-sm font-medium text-foreground">Boarding</label>
+                      <select id="f-boarding" {...register("boarding")} className={selectCls}>
                         <option value="DAY">Day student</option>
                         <option value="BOARDER">Boarder</option>
                       </select>
@@ -411,8 +411,8 @@ export default function UserDetailPage() {
                     <Input id="fatherName" label="Father's Names" {...register("fatherName")} />
                     <Input id="motherName" label="Mother's Names" {...register("motherName")} />
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-foreground">Disability</label>
-                      <select {...register("disability")} className={selectCls}>
+                      <label htmlFor="f-disability" className="mb-1.5 block text-sm font-medium text-foreground">Disability</label>
+                      <select id="f-disability" {...register("disability")} className={selectCls}>
                         <option value="">None</option>
                         <option value="Visual impairment">Visual impairment</option>
                         <option value="Hearing impairment">Hearing impairment</option>
@@ -425,8 +425,8 @@ export default function UserDetailPage() {
                     <Input id="insuranceNumber" label="Insurance (Mutuelle) No" {...register("insuranceNumber")} />
                     <Input id="previousSchool" label="Previous School" {...register("previousSchool")} />
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-foreground">Blood Type</label>
-                      <select {...register("bloodType")} className={selectCls}>
+                      <label htmlFor="f-blood-type" className="mb-1.5 block text-sm font-medium text-foreground">Blood Type</label>
+                      <select id="f-blood-type" {...register("bloodType")} className={selectCls}>
                         <option value="">Unknown</option>
                         {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((b) => (
                           <option key={b} value={b}>{b}</option>
@@ -473,16 +473,16 @@ export default function UserDetailPage() {
                 {editing ? (
                   <>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-foreground">Employment</label>
-                      <select {...register("employmentStatus")} className={selectCls}>
+                      <label htmlFor="f-employment" className="mb-1.5 block text-sm font-medium text-foreground">Employment</label>
+                      <select id="f-employment" {...register("employmentStatus")} className={selectCls}>
                         <option value="FULL_TIME">Full Time</option>
                         <option value="PART_TIME">Part Time</option>
                         <option value="CONTRACT">Contract</option>
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-foreground">Qualification</label>
-                      <select {...register("qualification")} className={selectCls}>
+                      <label htmlFor="f-qualification" className="mb-1.5 block text-sm font-medium text-foreground">Qualification</label>
+                      <select id="f-qualification" {...register("qualification")} className={selectCls}>
                         <option value="">Select...</option>
                         <option value="A0">A0 — Bachelor&apos;s degree</option>
                         <option value="A1">A1 — Diploma</option>

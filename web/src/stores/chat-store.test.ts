@@ -210,6 +210,197 @@ describe("incoming messages", () => {
   });
 });
 
+/**
+ * Receipts against a thread that is already on screen.
+ *
+ * The ticks beside a sent message are read straight out of the query cache, so
+ * a receipt has to rewrite the message that is already there. Firing one at an
+ * empty cache exercises nothing: the store returns early and the mapping that
+ * does the work never runs.
+ */
+describe("receipts on an open thread", () => {
+  /** Puts a thread in the cache the way the messages page would have. */
+  function threadInCache() {
+    queryClient.setQueryData(
+      ["messages", "c-1"],
+      [
+        { id: "m-1", conversationId: "c-1", content: "Muraho", status: "SENT" },
+        { id: "m-2", conversationId: "c-1", content: "Amakuru", status: "SENT" },
+      ],
+    );
+  }
+
+  const cached = () => queryClient.getQueryData(["messages", "c-1"]) as any[];
+
+  it("moves one message to delivered", () => {
+    connect();
+    threadInCache();
+    socket.fire("messageDelivered", { messageId: "m-1", conversationId: "c-1" });
+
+    expect(cached()[0].status).toBe("DELIVERED");
+  });
+
+  // A receipt names one message. Marking the whole thread would show ticks
+  // against messages that never arrived.
+  it("leaves the other messages alone", () => {
+    connect();
+    threadInCache();
+    socket.fire("messageDelivered", { messageId: "m-1", conversationId: "c-1" });
+
+    expect(cached()[1].status).toBe("SENT");
+  });
+
+  it("marks every message a read receipt names", () => {
+    connect();
+    threadInCache();
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-1",
+      messageIds: ["m-1", "m-2"],
+    });
+
+    expect(cached().map((m) => m.status)).toEqual(["READ", "READ"]);
+  });
+
+  it("marks only the ones named", () => {
+    connect();
+    threadInCache();
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-1",
+      messageIds: ["m-2"],
+    });
+
+    expect(cached().map((m) => m.status)).toEqual(["SENT", "READ"]);
+  });
+
+  // The list shows a read count per thread, so it has to be refetched.
+  it("refreshes the conversation list on a read receipt", () => {
+    connect();
+    threadInCache();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-1",
+      messageIds: ["m-1"],
+    });
+
+    expect(invalidate).toHaveBeenCalled();
+  });
+
+  // A receipt for a thread nobody has open is normal and must not create one.
+  it("creates nothing for a thread that is not loaded", () => {
+    connect();
+    socket.fire("messageDelivered", { messageId: "m-9", conversationId: "c-9" });
+
+    expect(queryClient.getQueryData(["messages", "c-9"])).toBeUndefined();
+  });
+});
+
+describe("a message arriving in a thread already on screen", () => {
+  function threadInCache() {
+    queryClient.setQueryData(
+      ["messages", "c-1"],
+      [{ id: "m-1", conversationId: "c-1", content: "Muraho" }],
+    );
+  }
+
+  const cached = () => queryClient.getQueryData(["messages", "c-1"]) as any[];
+
+  // Newest first: the thread renders in reverse and a message appended to the
+  // end would show up above the older ones.
+  it("goes to the front of the thread", () => {
+    connect();
+    threadInCache();
+    socket.fire("newMessage", {
+      id: "m-2",
+      conversationId: "c-1",
+      content: "Amakuru",
+    });
+
+    expect(cached().map((m) => m.id)).toEqual(["m-2", "m-1"]);
+  });
+
+  // The sender has the message on screen already, from their own send. The
+  // socket echo must not double it.
+  it("is ignored when it is already there", () => {
+    connect();
+    threadInCache();
+    socket.fire("newMessage", { id: "m-1", conversationId: "c-1", content: "Muraho" });
+
+    expect(cached()).toHaveLength(1);
+  });
+
+  it("starts the thread when there was nothing cached", () => {
+    connect();
+    socket.fire("newMessage", { id: "m-5", conversationId: "c-5", content: "Muraho" });
+
+    expect(queryClient.getQueryData(["messages", "c-5"])).toHaveLength(1);
+  });
+});
+
+describe("sending while the connection is down", () => {
+  // The messages page falls back to the REST endpoint when this throws. It has
+  // to throw rather than resolve, or the message is silently dropped.
+  it("refuses to send with no socket at all", async () => {
+    await expect(
+      useChatStore.getState().sendMessage("c-1", "Muraho"),
+    ).rejects.toThrow(/not connected/i);
+  });
+
+  it("refuses to send when the socket is not connected", async () => {
+    connect();
+    // Connected was never fired, so the socket is open but not usable.
+    await expect(
+      useChatStore.getState().sendMessage("c-1", "Muraho"),
+    ).rejects.toThrow(/not connected/i);
+  });
+
+  it("sends once the connection is up", async () => {
+    connect();
+    socket.fire("connect");
+    await expect(
+      useChatStore.getState().sendMessage("c-1", "Muraho"),
+    ).resolves.toBeTruthy();
+    expect(socket.emitted.some((e) => e.event === "sendMessage")).toBe(true);
+  });
+
+  // The server acknowledges with an error rather than dropping the call, and
+  // that has to reach the caller so it can fall back.
+  it("rejects when the server refuses the message", async () => {
+    connect();
+    socket.fire("connect");
+    socket.emit = (event: string, payload: unknown, ack?: (r: unknown) => void) => {
+      socket.emitted.push({ event, payload });
+      ack?.({ error: "You are not in this conversation" });
+    };
+
+    await expect(
+      useChatStore.getState().sendMessage("c-1", "Muraho"),
+    ).rejects.toThrow(/not in this conversation/i);
+  });
+
+  // No acknowledgement at all is the dropped-connection case. Without the
+  // timeout the promise would hang and the message box would stay disabled.
+  it("gives up when the server never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      connect();
+      socket.fire("connect");
+      socket.emit = (event: string, payload: unknown) => {
+        socket.emitted.push({ event, payload });
+      };
+
+      const sending = useChatStore.getState().sendMessage("c-1", "Muraho");
+      const assertion = expect(sending).rejects.toThrow(/timeout/i);
+      await vi.advanceTimersByTimeAsync(10000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("disconnecting", () => {
   it("closes the socket and clears presence", () => {
     connect();

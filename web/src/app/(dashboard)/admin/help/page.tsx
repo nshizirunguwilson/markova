@@ -181,8 +181,8 @@ export default function AdminHelpPage() {
             <div className="space-y-4">
               <Input label="Title" value={faqForm.title} onChange={(e) => setFaqForm({ ...faqForm, title: e.target.value })} />
               <div>
-                <label className="text-sm font-medium">Content</label>
-                <textarea
+                <label htmlFor="f-content" className="text-sm font-medium">Content</label>
+                <textarea id="f-content"
                   className="w-full border rounded-lg px-3 py-2 text-sm mt-1 min-h-[120px]"
                   value={faqForm.content}
                   onChange={(e) => setFaqForm({ ...faqForm, content: e.target.value })}

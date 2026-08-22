@@ -49,7 +49,7 @@ const profile = (terms: unknown[]) => ({
     id: "student-1",
     name: "Divine Niyonkuru",
     photoUrl: null,
-    studentIdNumber: "MRK-2026-001",
+    studentIdNumber: "STD-2026-001",
     class: "Senior 1 A",
     classSize: 32,
     status: "ACTIVE",
@@ -85,7 +85,7 @@ describe("StudentPerformance", () => {
         screen.getByRole("heading", { name: /Divine Niyonkuru/ }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText(/MRK-2026-001/)).toBeInTheDocument();
+    expect(screen.getByText(/STD-2026-001/)).toBeInTheDocument();
   });
 
   // A student in their very first term has one data point. A line chart of one
@@ -151,5 +151,47 @@ describe("StudentPerformance", () => {
     serveFailure(h.api);
     render();
     await waitFor(() => expect(document.body.textContent).not.toBeNull());
+  });
+});
+
+/**
+ * The tooltips on a student's own charts.
+ *
+ * ECharts calls these when a pointer touches a point, including gaps and
+ * points a series does not have. A tooltip that throws takes the chart down,
+ * and this is the page a parent opens to see how their child is doing.
+ */
+describe("its chart callbacks", () => {
+  it("none throws for a student with a full record", async () => {
+    const { findThrowingFormatters } = await import("@/test/formatters");
+    serve(h.api, {
+      "/analytics/student": profile([
+        term("2025-2026", "Term 1", 60, 60),
+        term("2025-2026", "Term 2", 65, 62),
+        term("2026-2027", "Term 1", 70, 66),
+      ]),
+    });
+    render();
+    await waitFor(() => expect(h.charts.length).toBeGreaterThan(0));
+    const failures = findThrowingFormatters(h.charts);
+    expect(failures).toEqual([]);
+  });
+
+  it("none throws for a student in their first term", async () => {
+    const { findThrowingFormatters } = await import("@/test/formatters");
+    serve(h.api, { "/analytics/student": profile([term("2026-2027", "Term 1", 82, 68)]) });
+    render();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /Divine/ })).toBeInTheDocument(),
+    );
+    expect(findThrowingFormatters(h.charts)).toEqual([]);
+  });
+
+  it("none throws for a student with no terms at all", async () => {
+    const { findThrowingFormatters } = await import("@/test/formatters");
+    serve(h.api, { "/analytics/student": profile([]) });
+    render();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(findThrowingFormatters(h.charts)).toEqual([]);
   });
 });

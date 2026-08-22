@@ -131,3 +131,261 @@ describe("Topbar sign out", () => {
     });
   });
 });
+
+/**
+ * Jumping to a page from the search box.
+ *
+ * The box searches the pages this role can reach, so it is also the fastest way
+ * to land somewhere the sidebar hides on a phone.
+ */
+describe("Topbar search", () => {
+  const box = () => screen.getByLabelText(/search pages/i) as HTMLInputElement;
+
+  async function type(text: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(box(), { target: { value: text } });
+    });
+  }
+
+  /**
+   * Types and waits for the results.
+   *
+   * The query is debounced, so a key pressed straight after typing sees an
+   * empty result list and does nothing.
+   */
+  async function typeAndWait(text: string, expected: RegExp) {
+    await type(text);
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button").some((b) => expected.test(b.textContent ?? "")),
+      ).toBe(true),
+    );
+  }
+
+  it("stays closed until something is typed", async () => {
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    expect(box().value).toBe("");
+  });
+
+  it("offers the pages that match", async () => {
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await type("mark");
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button").some((b) => /marks/i.test(b.textContent ?? "")),
+      ).toBe(true),
+    );
+  });
+
+  // Type and press Enter is the whole point; reaching for the mouse to pick
+  // the first result defeats it.
+  it("goes to the first match on Enter", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await typeAndWait("mark", /marks/i);
+
+    h.router.push.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalled());
+    expect(String(h.router.push.mock.calls[0][0])).toMatch(/marks/i);
+  });
+
+  it("goes nowhere on Enter when nothing matched", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await type("zzzzzzz");
+    // Long enough for the debounce to have produced results if any existed.
+    await new Promise((r) => setTimeout(r, 400));
+
+    h.router.push.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter", code: "Enter" });
+    });
+
+    expect(h.router.push).not.toHaveBeenCalled();
+  });
+
+  it("empties the box when cleared", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await typeAndWait("mark", /marks/i);
+
+    const clear = screen.getByRole("button", { name: /clear search/i });
+    await act(async () => {
+      fireEvent.click(clear);
+    });
+
+    expect(box().value).toBe("");
+  });
+
+  it("closes the results on Escape without leaving the page", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await typeAndWait("mark", /marks/i);
+
+    h.router.push.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Escape", code: "Escape" });
+    });
+
+    expect(h.router.push).not.toHaveBeenCalled();
+  });
+
+  it("reopens the results when the box is focused again", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount();
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await typeAndWait("mark", /marks/i);
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Escape", code: "Escape" });
+      fireEvent.focus(box());
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button").some((b) => /marks/i.test(b.textContent ?? "")),
+      ).toBe(true),
+    );
+  });
+
+  // A student has no admin pages, so the box must not offer them one.
+  it("only offers pages the role can reach", async () => {
+    mount("STUDENT");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await type("user");
+    await new Promise((r) => setTimeout(r, 400));
+
+    const hrefs = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent ?? "")
+      .join("|");
+    expect(hrefs).not.toMatch(/manage users/i);
+  });
+});
+
+/**
+ * Tapping a notification.
+ *
+ * The point of the notification is the thing it is about, so it has to land on
+ * the page that holds it rather than just dismissing itself.
+ */
+describe("Topbar notification routing", () => {
+  async function openNotifications() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const bell = screen
+      .getAllByRole("button")
+      .find((b) => /notification/i.test(b.getAttribute("aria-label") ?? ""));
+    expect(bell).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(bell!);
+    });
+    await waitFor(() => expect(screen.getByText(/Marks published/)).toBeInTheDocument());
+  }
+
+  async function tap(title: RegExp) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const row = screen.getByText(title).closest("button") ?? screen.getByText(title);
+    await act(async () => {
+      fireEvent.click(row);
+    });
+  }
+
+  it("takes a marks notification to the marks page", async () => {
+    await openNotifications();
+    h.router.push.mockClear();
+    await tap(/Marks published/);
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher/marks"));
+  });
+
+  it("takes an attendance notification to the attendance page", async () => {
+    await openNotifications();
+    h.router.push.mockClear();
+    await tap(/Absent today/);
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher/attendance"));
+  });
+
+  it("marks it read as well as opening it", async () => {
+    await openNotifications();
+    h.api.patch.mockClear();
+    h.api.post.mockClear();
+    h.api.put.mockClear();
+    await tap(/Marks published/);
+
+    await waitFor(() =>
+      expect(
+        h.api.patch.mock.calls.length +
+          h.api.post.mock.calls.length +
+          h.api.put.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  // Messages are not a role page: everyone shares one inbox.
+  it("takes a message notification to the shared inbox", async () => {
+    serve(h.api, {
+      "/notifications/unread": { count: 1 },
+      "/notifications": [
+        { id: "n-3", title: "New message", body: "From Jean", isRead: false, type: "MESSAGE" },
+      ],
+    });
+    await openNotificationsWithMessage();
+
+    h.router.push.mockClear();
+    await tap(/New message/);
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/messages"));
+  });
+
+  async function openNotificationsWithMessage() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const bell = screen
+      .getAllByRole("button")
+      .find((b) => /notification/i.test(b.getAttribute("aria-label") ?? ""));
+    await act(async () => {
+      fireEvent.click(bell!);
+    });
+    await waitFor(() => expect(screen.getByText(/New message/)).toBeInTheDocument());
+  }
+
+  // Not every notification has somewhere to go, and one that does not must
+  // still close cleanly rather than navigating to a made-up path.
+  it("stays put for a notification with no page behind it", async () => {
+    serve(h.api, {
+      "/notifications/unread": { count: 1 },
+      "/notifications": [
+        { id: "n-4", title: "School closed", body: "Friday", isRead: false, type: "GENERAL" },
+      ],
+    });
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const bell = screen
+      .getAllByRole("button")
+      .find((b) => /notification/i.test(b.getAttribute("aria-label") ?? ""));
+    await act(async () => {
+      fireEvent.click(bell!);
+    });
+    await waitFor(() => expect(screen.getByText(/School closed/)).toBeInTheDocument());
+
+    h.router.push.mockClear();
+    await tap(/School closed/);
+    expect(h.router.push).not.toHaveBeenCalled();
+  });
+});

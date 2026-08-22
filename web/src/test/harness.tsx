@@ -140,13 +140,13 @@ export function apiError(status = 500, message = "Something went wrong") {
 export const fixtures = {
   academicYear: { id: "year-1", name: "2026-2027", isActive: true },
   term: { id: "term-1", name: "Term 1", academicYearId: "year-1", isActive: true },
-  level: { id: "level-1", name: "Senior 1", stage: "OLEVEL" },
+  level: { id: "level-1", name: "Senior 1", stage: "O_LEVEL" },
   section: { id: "section-1", name: "Senior 1 A", levelId: "level-1", capacity: 40 },
   subject: { id: "subject-1", name: "Mathematics", code: "MATH", credits: 4 },
   student: {
     id: "student-1",
     userId: "user-2",
-    studentIdNumber: "MRK-2026-001",
+    studentIdNumber: "STD-2026-001",
     classSectionId: "section-1",
     user: {
       id: "user-2",
@@ -159,7 +159,6 @@ export const fixtures = {
   teacher: {
     id: "teacher-1",
     userId: "user-3",
-    employeeId: "EMP-001",
     user: {
       id: "user-3",
       firstName: "Aline",

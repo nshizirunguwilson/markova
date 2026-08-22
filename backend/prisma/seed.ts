@@ -355,14 +355,41 @@ function dealer(pool: string[]) {
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// initial.kinyarwandaname@markova.edu — collisions get a number, so the
-// address is short, memorable and still unique.
+// firstname.kinyarwandaname@markova.edu. The whole school shares one domain;
+// students and parents get a number after the name (see numberedEmail).
+// Collisions get a number here too.
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
-  const base = `${first.trim()[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  const base = `${first.trim().split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
   let candidate = `${base}@markova.edu`;
   for (let n = 2; usedEmails.has(candidate); n++) {
     candidate = `${base}${n}@markova.edu`;
+  }
+  usedEmails.add(candidate);
+  return candidate;
+}
+
+/**
+ * firstname.lastnameN@markova.edu for students and parents.
+ *
+ * The whole school shares one domain. The number keeps a common name unique
+ * across three years of intake without inventing a second domain to hide in.
+ */
+function studentEmail(first: string, last: string, i: number): string {
+  return numberedEmail(first, last, i + 1);
+}
+
+function parentEmail(first: string, last: string, i: number): string {
+  return numberedEmail(first, last, i);
+}
+
+function numberedEmail(first: string, last: string, n: number): string {
+  const token = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  let candidate = `${token}${n}@markova.edu`;
+  // Two people can land on the same token and number, and the column is unique.
+  while (usedEmails.has(candidate)) {
+    n += 1;
+    candidate = `${token}${n}@markova.edu`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -1498,7 +1525,8 @@ async function main() {
 
       const user = await prisma.user.create({
         data: {
-          email: i === 0 ? 'student1@markova.edu' : emailFor(first, last),
+          email:
+            i < 30 ? `student${i + 1}@markova.edu` : studentEmail(first, last, i),
           ...extras.user,
           passwordHash,
           role: Role.STUDENT,
@@ -1557,7 +1585,7 @@ async function main() {
         nationalId: makeNid(gender, pBirthYear),
         nationality: 'Rwandan',
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? emailFor(first, last) : null,
+        email: i >= 15 ? parentEmail(first, last, i) : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
@@ -1749,7 +1777,7 @@ async function main() {
     );
     const user = await prisma.user.create({
       data: {
-        email: emailFor(name.first, name.last),
+        email: studentEmail(name.first, name.last, i),
         ...extras.user,
         passwordHash,
         role: Role.STUDENT,

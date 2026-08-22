@@ -292,8 +292,8 @@ export default function AdminHomeworkPage() {
       <Modal isOpen={showModal} onClose={resetForm} title={editingId ? "Edit Homework" : "Create Homework"} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Title</label>
-            <input
+            <label htmlFor="f-title" className="mb-1 block text-sm font-medium">Title</label>
+            <input id="f-title"
               className={`w-full rounded-lg border ${errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("title")}
               placeholder="Homework title"
@@ -301,8 +301,8 @@ export default function AdminHomeworkPage() {
             {errors.title && <p className="mt-1 text-xs text-danger">{errors.title.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Description</label>
-            <textarea
+            <label htmlFor="f-description" className="mb-1 block text-sm font-medium">Description</label>
+            <textarea id="f-description"
               className={`w-full rounded-lg border ${errors.description ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               rows={3}
               {...register("description")}
@@ -311,8 +311,8 @@ export default function AdminHomeworkPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Subject</label>
-              <select
+              <label htmlFor="f-subject" className="mb-1 block text-sm font-medium">Subject</label>
+              <select id="f-subject"
                 className={`w-full rounded-lg border ${errors.subjectId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("subjectId")}
@@ -325,8 +325,8 @@ export default function AdminHomeworkPage() {
               {errors.subjectId && <p className="mt-1 text-xs text-danger">{errors.subjectId.message}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Teacher</label>
-              <select
+              <label htmlFor="f-teacher" className="mb-1 block text-sm font-medium">Teacher</label>
+              <select id="f-teacher"
                 className={`w-full rounded-lg border ${errors.teacherId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("teacherId")}
@@ -341,8 +341,8 @@ export default function AdminHomeworkPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Class Level</label>
-              <select
+              <label htmlFor="f-class-level" className="mb-1 block text-sm font-medium">Class Level</label>
+              <select id="f-class-level"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted"
                 value={modalLevelId}
                 disabled={!!editingId}
@@ -355,8 +355,8 @@ export default function AdminHomeworkPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Section</label>
-              <select
+              <label htmlFor="f-section" className="mb-1 block text-sm font-medium">Section</label>
+              <select id="f-section"
                 className={`w-full rounded-lg border ${errors.classSectionId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 value={watch("classSectionId") || ""}
@@ -372,8 +372,8 @@ export default function AdminHomeworkPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Term</label>
-              <select
+              <label htmlFor="f-term" className="mb-1 block text-sm font-medium">Term</label>
+              <select id="f-term"
                 className={`w-full rounded-lg border ${errors.termId ? "border-danger" : "border-border"} px-3 py-2 text-sm disabled:bg-muted/10 disabled:text-muted`}
                 disabled={!!editingId}
                 {...register("termId")}
@@ -386,8 +386,8 @@ export default function AdminHomeworkPage() {
               {errors.termId && <p className="mt-1 text-xs text-danger">{errors.termId.message}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Due Date</label>
-              <input
+              <label htmlFor="f-due-date" className="mb-1 block text-sm font-medium">Due Date</label>
+              <input id="f-due-date"
                 type="date"
                 className={`w-full rounded-lg border ${errors.dueDate ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("dueDate")}
@@ -395,8 +395,8 @@ export default function AdminHomeworkPage() {
               {errors.dueDate && <p className="mt-1 text-xs text-danger">{errors.dueDate.message}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Max Marks</label>
-              <input
+              <label htmlFor="f-max-marks" className="mb-1 block text-sm font-medium">Max Marks</label>
+              <input id="f-max-marks"
                 type="number"
                 className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
                 {...register("maxMarks", { valueAsNumber: true })}

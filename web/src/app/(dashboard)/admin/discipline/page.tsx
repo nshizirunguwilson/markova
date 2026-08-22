@@ -297,8 +297,8 @@ export default function AdminDisciplinePage() {
             placeholder="e.g. Classroom 3B"
           />
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-            <textarea
+            <label htmlFor="f-description" className="mb-1 block text-sm font-medium text-foreground">Description</label>
+            <textarea id="f-description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
@@ -314,8 +314,8 @@ export default function AdminDisciplinePage() {
               onChange={(e) => setForm({ ...form, pointsDeducted: Number(e.target.value) })}
             />
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Action Taken</label>
-              <select
+              <label htmlFor="f-action-taken" className="mb-1 block text-sm font-medium text-foreground">Action Taken</label>
+              <select id="f-action-taken"
                 value={form.actionTaken}
                 onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"

@@ -120,8 +120,23 @@ export async function fillEverything(): Promise<number> {
 
   for (const field of textFields()) {
     const type = field.getAttribute("type");
-    const value =
-      type === "number" ? "1" : type === "date" ? "2026-09-01" : "Ubwiza";
+    const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+
+    // A field filled with the wrong kind of value fails validation and the
+    // form never reaches its submit handler, which is the code worth reaching.
+    let value = "Ubwiza";
+    if (type === "number") value = "1";
+    else if (type === "date") value = "2026-09-01";
+    else if (type === "time") value = "08:00";
+    else if (type === "email" || name.includes("email")) value = "someone@markova.edu";
+    else if (name.includes("phone")) value = "+250788000001";
+    else if (name.includes("password")) value = "Umunyeshuri2026!";
+    else if (name.includes("nationalid") || name.includes("national-id")) value = "";
+    else if (name.includes("isbn")) value = "978-1-234-56789-0";
+    // A trade code, which is the only free-text "code" field on any form.
+    // Identifiers like STD-/TCH- are issued by the server, never typed.
+    else if (name.includes("code")) value = "SWD";
+
     await act(async () => {
       fireEvent.change(field, { target: { value } });
     });

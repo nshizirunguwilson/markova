@@ -52,6 +52,8 @@ export default function TeacherMarksPage() {
 
   const batchMarks = useBatchMarks();
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  /** Always the current handleSave, for the auto-save timer to call. */
+  const saveRef = useRef<() => void>(() => {});
 
   // Derive subject/class from selected assignment
   const assignment = assignments.find((a) => a.id === selectedAssignment);
@@ -159,14 +161,21 @@ export default function TeacherMarksPage() {
         return next;
       });
 
-      // Auto-save after 3 seconds of inactivity
+      // Auto-save after 3 seconds of inactivity.
+      //
+      // Calls through a ref rather than closing over handleSave directly. This
+      // callback is deliberately not rebuilt on every keystroke, so a captured
+      // handleSave would be whichever one existed when the class was chosen,
+      // still holding the connection state from that moment. A teacher who lost
+      // signal mid-entry got auto-saves that tried the network and failed,
+      // instead of marks going into the offline queue, which is the one case
+      // the queue exists for.
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
-        handleSave();
+        saveRef.current();
       }, 3000);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [subjectId, classSectionId, selectedTerm, selectedAT]
+    [],
   );
 
   const handleSave = useCallback(() => {
@@ -205,6 +214,10 @@ export default function TeacherMarksPage() {
     });
   }, [scores, subjectId, classSectionId, selectedTerm, selectedAT, isOnline, batchMarks]);
 
+  useEffect(() => {
+    saveRef.current = handleSave;
+  }, [handleSave]);
+
   const dirtyCount = scores.filter((s) => s.dirty).length;
   const gradedCount = scores.filter((s) => s.score !== "").length;
 
@@ -237,8 +250,8 @@ export default function TeacherMarksPage() {
       <Card>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Class & Subject</label>
-            <select
+            <label htmlFor="f-class-subject" className="mb-1 block text-sm font-medium text-foreground">Class & Subject</label>
+            <select id="f-class-subject"
               value={selectedAssignment}
               onChange={(e) => setSelectedAssignment(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -252,8 +265,8 @@ export default function TeacherMarksPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Term</label>
-            <select
+            <label htmlFor="f-term" className="mb-1 block text-sm font-medium text-foreground">Term</label>
+            <select id="f-term"
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -267,8 +280,8 @@ export default function TeacherMarksPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Assessment Type</label>
-            <select
+            <label htmlFor="f-assessment-type" className="mb-1 block text-sm font-medium text-foreground">Assessment Type</label>
+            <select id="f-assessment-type"
               value={selectedAT}
               onChange={(e) => setSelectedAT(e.target.value)}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"

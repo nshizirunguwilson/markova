@@ -82,7 +82,10 @@ export default function AdminReportsPage() {
   const generateDoc = useGenerateDocument();
 
   const [docStudentId, setDocStudentId] = useState("");
-  const [docType, setDocType] = useState("TRANSFER_LETTER");
+  // The wire values are lowercase, from DocumentType in
+  // backend/src/modules/reports/dto/index.ts. Sending the uppercase names was
+  // rejected by validation, so every document type failed.
+  const [docType, setDocType] = useState("transfer_letter");
 
   const handleGenerateClassReports = () => {
     if (!sectionId || !termId) return toast.error("Select class and term");
@@ -675,10 +678,10 @@ export default function AdminReportsPage() {
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
             >
-              <option value="TRANSFER_LETTER">Transfer Letter</option>
-              <option value="ENROLLMENT_CONFIRMATION">Enrollment Confirmation</option>
-              <option value="DISCIPLINE_REPORT">Discipline Report</option>
-              <option value="TRANSCRIPT">Transcript</option>
+              <option value="transfer_letter">Transfer Letter</option>
+              <option value="enrollment_confirmation">Enrollment Confirmation</option>
+              <option value="discipline_report">Discipline Report</option>
+              <option value="transcript">Transcript</option>
             </select>
 
             <Button

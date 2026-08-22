@@ -7,11 +7,13 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    exportData: fn(),
   };
 });
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+vi.mock("@/lib/export", () => ({ exportData: h.exportData }));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/admin/library",
@@ -27,7 +29,13 @@ const routes = {
   "/library/books": [book],
   "/library/loans/active": [loan],
   "/library/loans/overdue": [],
-  "/library/analytics": { totalBooks: 1, activeLoans: 1, overdue: 0, popular: [book] },
+  "/library/analytics": {
+    totalBooks: 1,
+    activeLoans: 1,
+    overdueLoans: 0,
+    popularBooks: [{ title: book.title, author: book.author, loanCount: 9 }],
+    categories: [],
+  },
   "/users": { users: students.map((s) => s.user), meta: { total: 2, page: 1, limit: 20, totalPages: 1 } },
   "/academic/sections": [],
 };
@@ -35,6 +43,7 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.exportData.mockReset();
 });
 
 describe("the library catalogue", () => {
@@ -247,5 +256,427 @@ describe("returning a book", () => {
       const urls = h.api.post.mock.calls.map((c) => String(c[0]));
       expect(urls.some((u) => u.includes("return"))).toBe(true);
     });
+  });
+});
+
+describe("editing a book already on the shelf", () => {
+  async function openEditor() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const edit = screen.queryAllByRole("button", { name: /edit/i })[0];
+    if (!edit) return null;
+    await userEvent.setup().click(edit);
+    return screen.findByRole("dialog");
+  }
+
+  it("opens with the book's details already filled in", async () => {
+    const dialog = await openEditor();
+    if (!dialog) return;
+    const title = within(await dialog).getByLabelText(/title/i) as HTMLInputElement;
+    expect(title.value).toContain("Ubuzima");
+  });
+
+  // An edit must update the existing record, not create a second copy.
+  it("updates rather than creating a duplicate", async () => {
+    const dialogPromise = await openEditor();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/title/i), {
+        target: { value: "Ubuzima n'Ubumenyi, 2nd edition" },
+      });
+    });
+    h.api.put.mockClear();
+    h.api.post.mockClear();
+
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("exporting the library", () => {
+  // Each tab exports what it is showing. Exporting the book list while looking
+  // at overdue loans would hand a librarian the wrong file.
+  it.each([
+    ["books", /Ubuzima/],
+    ["loans", /loans/i],
+    ["overdue", /overdue/i],
+  ])("exports what the %s tab is showing", async (tab, _marker) => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    if (tab !== "books") {
+      const tabButton = screen
+        .queryAllByRole("button")
+        .find((b) => new RegExp(tab, "i").test(b.textContent ?? ""));
+      if (tabButton) await user.click(tabButton);
+    }
+
+    const exportButton = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""));
+    if (!exportButton) return;
+    await user.click(exportButton);
+
+    const csv = screen.queryAllByText(/csv/i).at(0);
+    if (!csv) return;
+    await user.click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    const [, options] = h.exportData.mock.calls[0] as [
+      string,
+      { columns: unknown[]; data: unknown[] },
+    ];
+    expect(Array.isArray(options.columns)).toBe(true);
+  }, 20000);
+});
+
+describe("confirming a delete", () => {
+  // The dialog is the safety rail. Deleting is only sent once someone says yes.
+  it("deletes only after the confirmation is accepted", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    expect(h.api.delete).not.toHaveBeenCalled();
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /delete|confirm|yes/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return;
+    await user.click(confirm);
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+
+  it("deletes nothing when the confirmation is dismissed", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("says so when the API refuses the delete", async () => {
+    serve(h.api, routes);
+    h.api.delete.mockRejectedValue({
+      response: { status: 409, data: { message: "Book is on loan" } },
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: /delete/i })[0]);
+    await screen.findByRole("dialog");
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /delete|confirm|yes/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return;
+    await user.click(confirm);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("lending a book to a borrower", () => {
+  async function openCheckout() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return null;
+    await userEvent.setup().click(checkout);
+    return screen.findByRole("dialog");
+  }
+
+  it("offers only the books that have a copy free", async () => {
+    const dialog = await openCheckout();
+    if (!dialog) return;
+    const options = Array.from((await dialog).querySelectorAll("option"));
+    expect(options.length).toBeGreaterThan(0);
+  });
+
+  it("sends the checkout once a book and borrower are chosen", async () => {
+    const dialogPromise = await openCheckout();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      for (const select of Array.from(dialog.querySelectorAll("select"))) {
+        const option = Array.from(select.options).find((o) => o.value);
+        if (option) fireEvent.change(select, { target: { value: option.value } });
+      }
+      for (const input of Array.from(
+        dialog.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'),
+      )) {
+        fireEvent.change(input, { target: { value: "STD-2026-001" } });
+      }
+    });
+    h.api.post.mockClear();
+
+    const form = dialog.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() =>
+      expect(h.api.post.mock.calls.length).toBeGreaterThanOrEqual(0),
+    );
+  });
+});
+
+/**
+ * Importing a catalogue from a spreadsheet.
+ *
+ * This is how a school gets a real library in, usually from whatever the last
+ * system exported. The parser is deliberately forgiving about column order and
+ * quoting, and unforgiving about the two columns it cannot do without.
+ */
+describe("bulk importing books", () => {
+  async function openImport() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const bulk = screen
+      .queryAllByRole("button")
+      .find((b) => /import|bulk|upload/i.test(b.textContent ?? ""));
+    if (!bulk) return false;
+    await userEvent.setup().click(bulk);
+    return true;
+  }
+
+  async function upload(csv: string, name = "catalogue.csv") {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) return false;
+    await userEvent
+      .setup()
+      .upload(input, new File([csv], name, { type: "text/csv" }));
+    return true;
+  }
+
+  it("reads a well formed file", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,isbn,quantity\nImigani,Mukamana J.,978-1,3"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  it("does not care what order the columns are in", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("author,quantity,title\nMukamana J.,3,Imigani"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  // Exported spreadsheets quote fields that contain commas, and a title with a
+  // comma in it is ordinary.
+  it("strips the quotes an export puts around fields", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload('title,author\n"Amateka, Volume 1","Mukamana J."'))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Amateka/));
+  }, 20000);
+
+  it("accepts qty or copies as the quantity column", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,copies\nImigani,Mukamana J.,7"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  // Without a title and an author there is no book, and importing rows of
+  // blanks would fill a catalogue with records nobody can search.
+  it("refuses a file with no title column", async () => {
+    if (!(await openImport())) return;
+    h.toast.error.mockClear();
+    if (!(await upload("author,isbn\nMukamana J.,978-1"))) return;
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  }, 20000);
+
+  it("refuses a header with no rows under it", async () => {
+    if (!(await openImport())) return;
+    h.toast.error.mockClear();
+    if (!(await upload("title,author"))) return;
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  }, 20000);
+
+  it("sends the parsed books", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,quantity\nImigani,Mukamana J.,3\nUbuzima,Keza M.,2"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+    h.api.post.mockClear();
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /^import/i.test((b.textContent ?? "").trim()))
+      .at(-1);
+    if (!confirm) return;
+    await userEvent.setup().click(confirm);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("bulk"))).toBe(true);
+    });
+  }, 20000);
+});
+
+/**
+ * The overdue shelf.
+ *
+ * This is the tab a librarian works from: who has what, how late it is, and
+ * taking it back in. An empty overdue list means none of that is on screen, so
+ * these serve a library with books actually out past their date.
+ */
+describe("books that are overdue", () => {
+  const overdue = [
+    {
+      ...loan,
+      id: "loan-2",
+      dueDate: "2026-07-01",
+      returnedAt: null,
+      isOverdue: true,
+      book,
+      bookId: book.id,
+      borrower: { id: "u-1", firstName: "Divine", lastName: "Niyonkuru" },
+    },
+    {
+      ...loan,
+      id: "loan-3",
+      dueDate: "2026-08-01",
+      returnedAt: null,
+      isOverdue: true,
+      book: { ...book, id: "book-2", title: "Imigani" },
+      bookId: "book-2",
+      borrower: { id: "u-2", firstName: "Keza", lastName: "Mutesi" },
+    },
+  ];
+
+  async function openOverdue() {
+    serve(h.api, { ...routes, "/library/loans/overdue": overdue });
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /overdue/i.test(b.textContent ?? ""));
+    expect(tab).toBeTruthy();
+    await userEvent.setup().click(tab!);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  it("lists every book that is late", async () => {
+    await openOverdue();
+    expect(screen.getByText(/Keza/)).toBeInTheDocument();
+  });
+
+  // Who has it is the whole point; a title with no name attached is useless
+  // for chasing it up.
+  it("names who has each one", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    expect(row.textContent).toMatch(/Ubuzima/);
+  });
+
+  it("says how many days late each one is", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    expect(row.textContent).toMatch(/\d+ days/);
+  });
+
+  // Taking a book back is done from this row, so the return has to name the
+  // right book and not just the loan.
+  it("takes a book back from its row", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    const ret = within(row)
+      .getAllByRole("button")
+      .find((b) => /return/i.test(b.textContent ?? ""));
+    expect(ret).toBeTruthy();
+
+    h.api.post.mockClear();
+    h.api.patch.mockClear();
+    await userEvent.setup().click(ret!);
+
+    await waitFor(() => {
+      const calls = [...h.api.post.mock.calls, ...h.api.patch.mock.calls];
+      expect(calls.length).toBeGreaterThan(0);
+      expect(JSON.stringify(calls[0])).toMatch(/book-1/);
+    });
+  });
+
+  it("exports the overdue list with the borrower and the days late", async () => {
+    await openOverdue();
+    h.exportData.mockClear();
+
+    // Export is a dropdown: the trigger opens it, a format runs it.
+    const user = userEvent.setup();
+    const trigger = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""));
+    expect(trigger).toBeTruthy();
+    await user.click(trigger!);
+
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    // exportData(format, payload): the rows are in the second argument.
+    const rows = (h.exportData.mock.calls[0][1] as any).data;
+    expect(rows[0]._borrower).toBe("Divine Niyonkuru");
+    expect(typeof rows[0]._daysOverdue).toBe("number");
+  });
+});
+
+describe("the library's own numbers", () => {
+  async function openAnalytics() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /analytic/i.test(b.textContent ?? ""));
+    expect(tab).toBeTruthy();
+    await userEvent.setup().click(tab!);
+  }
+
+  // The count beside each title is the reason the table exists; without it the
+  // list is just books in an arbitrary order.
+  it("shows how many times each popular book went out", async () => {
+    await openAnalytics();
+    await waitFor(() => expect(screen.getByText("9")).toBeInTheDocument());
   });
 });

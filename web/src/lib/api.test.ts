@@ -86,3 +86,146 @@ describe("api request interceptor", () => {
     expect(config.headers.Authorization).toBeUndefined();
   });
 });
+
+/**
+ * The refresh path.
+ *
+ * The backend rotates refresh tokens and treats a second use of the same token
+ * as a replay attack, deactivating the whole session. That makes single-flight
+ * refresh a correctness requirement, not an optimisation: a dashboard fires
+ * several queries at once, and if a expiring token means five parallel refresh
+ * calls, four of them look like an attack and log the user out.
+ */
+describe("refreshing an expired session", () => {
+  const axiosPost = vi.fn();
+  const requestHandler = () => {
+    const handlers = (api.interceptors.request as never as {
+      handlers: Array<{ fulfilled: (c: unknown) => unknown }>;
+    }).handlers;
+    return handlers[0].fulfilled;
+  };
+
+  beforeEach(async () => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    axiosPost.mockReset();
+
+    const axios = (await import("axios")).default;
+    vi.spyOn(axios, "post").mockImplementation(axiosPost as never);
+  });
+
+  it("attaches the stored token to every outgoing request", () => {
+    localStorage.setItem("access_token", "the-token");
+    const config = requestHandler()({ headers: {} }) as {
+      headers: Record<string, string>;
+    };
+    expect(config.headers.Authorization).toBe("Bearer the-token");
+  });
+
+  it("sends no authorization header when signed out", () => {
+    const config = requestHandler()({ headers: {} }) as {
+      headers: Record<string, string>;
+    };
+    expect(config.headers.Authorization).toBeUndefined();
+  });
+
+  it("does not try to refresh when there is no refresh token", async () => {
+    await expect(responseErrorHandler()(failure("/users"))).rejects.toBeDefined();
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  it("stores both rotated tokens after a successful refresh", async () => {
+    localStorage.setItem("refresh_token", "old-refresh");
+    axiosPost.mockResolvedValue({
+      data: { accessToken: "new-access", refreshToken: "new-refresh" },
+    });
+
+    await responseErrorHandler()(failure("/users")).catch(() => undefined);
+
+    expect(localStorage.getItem("access_token")).toBe("new-access");
+    expect(localStorage.getItem("refresh_token")).toBe("new-refresh");
+  });
+
+  // The one that matters. Five queries hitting 401 together must produce one
+  // refresh, or the backend sees four replays and ends the session.
+  it("refreshes once for a burst of parallel failures", async () => {
+    localStorage.setItem("refresh_token", "old-refresh");
+    let resolveRefresh: (v: unknown) => void = () => {};
+    axiosPost.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+
+    const handler = responseErrorHandler();
+    const inflight = [
+      handler(failure("/users")),
+      handler(failure("/marks")),
+      handler(failure("/attendance")),
+    ].map((p) => p.catch(() => undefined));
+
+    resolveRefresh({
+      data: { accessToken: "new-access", refreshToken: "new-refresh" },
+    });
+    await Promise.all(inflight);
+
+    expect(axiosPost).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the session when the API rejects the refresh", async () => {
+    localStorage.setItem("access_token", "old-access");
+    localStorage.setItem("refresh_token", "spent-refresh");
+    const rejection = Object.assign(new Error("Unauthorized"), {
+      isAxiosError: true,
+      response: { status: 401, data: {} },
+    });
+    axiosPost.mockRejectedValue(rejection);
+
+    await responseErrorHandler()(failure("/users")).catch(() => undefined);
+
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("session has expired"),
+    );
+    expect(localStorage.getItem("access_token")).toBeNull();
+    expect(localStorage.getItem("refresh_token")).toBeNull();
+  });
+
+  // A dropped connection is not an expired session. Throwing the tokens away
+  // for a network blip would sign a teacher out every time the wifi wobbles.
+  it("keeps the tokens when the refresh never reached the server", async () => {
+    localStorage.setItem("access_token", "old-access");
+    localStorage.setItem("refresh_token", "still-good");
+    axiosPost.mockRejectedValue(
+      Object.assign(new Error("Network Error"), { isAxiosError: true }),
+    );
+
+    await responseErrorHandler()(failure("/users")).catch(() => undefined);
+
+    expect(localStorage.getItem("refresh_token")).toBe("still-good");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // Retrying forever would spin if the new token is refused too.
+  it("retries a failed request only once", async () => {
+    localStorage.setItem("refresh_token", "old-refresh");
+    axiosPost.mockResolvedValue({
+      data: { accessToken: "new-access", refreshToken: "new-refresh" },
+    });
+
+    const alreadyRetried = {
+      config: { url: "/users", headers: {}, _retry: true },
+      response: { status: 401 },
+    };
+    await expect(responseErrorHandler()(alreadyRetried)).rejects.toBeDefined();
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+
+  it("passes a non-401 straight through without refreshing", async () => {
+    localStorage.setItem("refresh_token", "old-refresh");
+    await expect(
+      responseErrorHandler()(failure("/users", 500)),
+    ).rejects.toBeDefined();
+    expect(axiosPost).not.toHaveBeenCalled();
+  });
+});

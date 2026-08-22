@@ -176,4 +176,266 @@ describe("a forced password change", () => {
     );
     expect(h.router.push).not.toHaveBeenCalled();
   });
+
+  /** Signs in as someone the server says must change their password. */
+  async function reachChangePassword() {
+    h.api.post.mockResolvedValue({
+      data: { ...tokens, user: { ...tokens.user, forcePasswordChange: true } },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/current password/i)).toBeInTheDocument(),
+    );
+  }
+
+  async function fillChange(current: string, next: string, confirm = next) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/current password/i), {
+        target: { value: current },
+      });
+      fireEvent.change(screen.getByLabelText(/^new password$/i), {
+        target: { value: next },
+      });
+      fireEvent.change(screen.getByLabelText(/confirm/i), {
+        target: { value: confirm },
+      });
+    });
+  }
+
+  async function submitChange() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const form = screen.getByLabelText(/current password/i).closest("form")!;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  }
+
+  // The tokens are already stored by then, so an interrupted change would
+  // leave a half signed-in session behind.
+  it("keeps the session it was given while the change is pending", async () => {
+    await reachChangePassword();
+    expect(localStorage.getItem("access_token")).toBe("access-token");
+  });
+
+  it("changes the password and goes on to the dashboard", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { success: true } });
+    await submitChange();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("change-password"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).newPassword).toBe("Umwarimu2026!");
+    });
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
+  });
+
+  // A typo in the confirmation would set a password the person does not know.
+  it("refuses a confirmation that does not match", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!", "Umwarimu2027!");
+
+    h.api.post.mockClear();
+    await submitChange();
+
+    await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("refuses a new password that is too weak", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "abc");
+
+    h.api.post.mockClear();
+    await submitChange();
+
+    await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+
+  // Getting the current password wrong is ordinary, and the person has to stay
+  // on this step to try again rather than be dropped back to sign in.
+  it("stays on the step when the server refuses the change", async () => {
+    await reachChangePassword();
+    await fillChange("Wrong123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 401, data: { message: "Current password is incorrect" } },
+    });
+    h.router.push.mockClear();
+    await submitChange();
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Current password is incorrect"),
+    );
+    expect(h.router.push).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
+  });
+
+  it("does not send the confirmation field to the server", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { success: true } });
+    await submitChange();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("change-password"),
+      );
+      expect(call).toBeTruthy();
+      expect(call![1]).not.toHaveProperty("confirmPassword");
+    });
+  });
+});
+
+/**
+ * Resending the code.
+ *
+ * A code that never arrived is the commonest way an OTP login stalls, and the
+ * resend is rate limited by the server. The cooldown exists so someone does not
+ * tap it five times and lock themselves out of their own sign in.
+ */
+describe("resending the OTP", () => {
+  async function reachOtp() {
+    h.api.post.mockResolvedValue({ data: { requiresOtp: true, sessionId: "session-1" } });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("counts down before offering a resend", async () => {
+    await reachOtp();
+    const resend = screen.getByRole("button", { name: /resend/i });
+    expect(resend).toBeDisabled();
+    expect(resend.textContent).toMatch(/\d+s/);
+  });
+
+  it("asks the server for a new code once the wait is over", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { sessionId: "session-2", cooldownSeconds: 30 } });
+
+    const resend = screen.getByRole("button", { name: /resend/i });
+    await act(async () => {
+      resend.click();
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/auth/resend-otp", {
+        sessionId: "session-1",
+      }),
+    );
+    vi.useRealTimers();
+  }, 20000);
+
+  it("verifies against the new session after a resend", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockResolvedValue({ data: { sessionId: "session-2" } });
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: tokens });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/verification code/i), {
+        target: { value: "654321" },
+      });
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: /verify & continue/i }).click();
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/auth/verify-otp", {
+        sessionId: "session-2",
+        otp: "654321",
+      }),
+    );
+    vi.useRealTimers();
+  }, 20000);
+
+  it("says so when the resend is refused", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    h.api.post.mockRejectedValue({
+      response: { status: 429, data: { message: "Too many requests" } },
+    });
+    h.toast.error.mockClear();
+
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    vi.useRealTimers();
+  }, 20000);
+
+  // The code expires before the session does, and saying so is kinder than
+  // letting someone type a dead code and be told it is wrong.
+  it("says when the code has expired", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtp();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(301_000);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/expired/i));
+    vi.useRealTimers();
+  }, 20000);
+
+  it("reports a wrong code without losing the step", async () => {
+    await reachOtp();
+    h.api.post.mockRejectedValue({
+      response: { status: 400, data: { message: "Invalid OTP" } },
+    });
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/verification code/i), {
+        target: { value: "000000" },
+      });
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: /verify & continue/i }).click();
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
+  });
 });

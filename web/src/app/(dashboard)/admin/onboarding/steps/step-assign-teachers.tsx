@@ -70,8 +70,8 @@ export function StepAssignTeachers() {
       {/* Assignment form */}
       <div className="flex items-end gap-3 max-w-2xl">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-foreground mb-1.5">Teacher</label>
-          <select
+          <label htmlFor="f-teacher" className="block text-sm font-medium text-foreground mb-1.5">Teacher</label>
+          <select id="f-teacher"
             value={teacherId}
             onChange={(e) => setTeacherId(e.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -85,8 +85,8 @@ export function StepAssignTeachers() {
           </select>
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium text-foreground mb-1.5">Subject</label>
-          <select
+          <label htmlFor="f-subject" className="block text-sm font-medium text-foreground mb-1.5">Subject</label>
+          <select id="f-subject"
             value={subjectId}
             onChange={(e) => setSubjectId(e.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
@@ -98,8 +98,8 @@ export function StepAssignTeachers() {
           </select>
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium text-foreground mb-1.5">Class</label>
-          <select
+          <label htmlFor="f-class" className="block text-sm font-medium text-foreground mb-1.5">Class</label>
+          <select id="f-class"
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
             className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"

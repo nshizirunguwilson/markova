@@ -168,8 +168,8 @@ export default function AdminSubjectsPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <input
+            <label htmlFor="f-name" className="mb-1 block text-sm font-medium">Name</label>
+            <input id="f-name"
               className={`w-full rounded-lg border ${errors.name ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("name")}
               placeholder="e.g. Mathematics"
@@ -177,8 +177,8 @@ export default function AdminSubjectsPage() {
             {errors.name && <p className="mt-1 text-xs text-danger">{errors.name.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Category</label>
-            <input
+            <label htmlFor="f-category" className="mb-1 block text-sm font-medium">Category</label>
+            <input id="f-category"
               className={`w-full rounded-lg border ${errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("category")}
               placeholder="e.g. Sciences, Languages, Humanities"
@@ -186,8 +186,8 @@ export default function AdminSubjectsPage() {
             {errors.category && <p className="mt-1 text-xs text-danger">{errors.category.message}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Max Marks</label>
-            <input
+            <label htmlFor="f-max-marks" className="mb-1 block text-sm font-medium">Max Marks</label>
+            <input id="f-max-marks"
               type="number"
               className={`w-full rounded-lg border ${errors.maxMarks ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("maxMarks", { valueAsNumber: true })}

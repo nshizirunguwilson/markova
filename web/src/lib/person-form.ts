@@ -83,10 +83,10 @@ export function generatePassword(): string {
   return chars.join("");
 }
 
-/** The school convention: initial.kinyarwandaname@markova.edu */
+/** The school convention: firstname.kinyarwandaname@markova.edu */
 export function suggestEmail(firstName: string, lastName: string): string {
   const first = firstName.trim().split(/\s+/)[0] || "";
   const last = lastName.trim().split(/\s+/)[0] || "";
   if (!first || !last) return "";
-  return `${first[0].toLowerCase()}.${last.toLowerCase()}@markova.edu`;
+  return `${first.toLowerCase()}.${last.toLowerCase()}@markova.edu`;
 }

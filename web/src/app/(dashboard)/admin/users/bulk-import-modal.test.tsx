@@ -170,3 +170,138 @@ describe("the template download", () => {
     vi.unstubAllGlobals();
   });
 });
+
+/**
+ * Handing over the generated passwords.
+ *
+ * A bulk import creates thirty accounts, each with its own password, and the
+ * server states them once. If the admin closes this screen without saving the
+ * list, nobody can sign in and every one of those accounts needs a reset. So
+ * the list has to be on screen, and it has to be downloadable.
+ */
+describe("the passwords an import generates", () => {
+  const credentials = [
+    { name: "Divine Niyonkuru", login: "student1@markova.edu", password: "Umunyeshuri1!" },
+    { name: "Keza Mutesi", login: "student2@markova.edu", password: "Umunyeshuri2!" },
+  ];
+
+  /** Uploads two rows and imports them, answering with `result`. */
+  async function importWith(result: unknown) {
+    h.api.post.mockResolvedValue({ data: result });
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}\n${ROW_TWO}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const importButton = screen
+      .getAllByRole("button")
+      .find((b) => /^import/i.test(b.textContent ?? ""));
+    await userEvent.setup().click(importButton!);
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+  }
+
+  it("shows each new account with the password it was given", async () => {
+    await importWith({ created: 2, failed: 0, credentials });
+
+    await waitFor(() =>
+      expect(screen.getByText("Umunyeshuri1!")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("student1@markova.edu")).toBeInTheDocument();
+    expect(screen.getByText("Keza Mutesi")).toBeInTheDocument();
+  });
+
+  // The upload is finished, so leaving the rows up would invite a second run
+  // that creates everyone twice.
+  it("clears the uploaded rows once the accounts exist", async () => {
+    await importWith({ created: 2, failed: 0, credentials });
+
+    await waitFor(() =>
+      expect(screen.getByText("Umunyeshuri1!")).toBeInTheDocument(),
+    );
+    const importButton = screen
+      .queryAllByRole("button")
+      .find((b) => /^import/i.test(b.textContent ?? ""));
+    expect(importButton).toBeUndefined();
+  });
+
+  it("stays open rather than closing over the passwords", async () => {
+    await importWith({ created: 2, failed: 0, credentials });
+
+    await waitFor(() =>
+      expect(screen.getByText("Umunyeshuri1!")).toBeInTheDocument(),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("writes the whole list to a csv, not just what is on screen", async () => {
+    const clicks: string[] = [];
+    const blobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((b: Blob) => {
+        blobs.push(b);
+        return "blob:creds";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") {
+        (el as HTMLAnchorElement).click = () => {
+          clicks.push((el as HTMLAnchorElement).download);
+        };
+      }
+      return el;
+    });
+
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      name: `Student ${i + 1}`,
+      login: `student${i + 1}@markova.edu`,
+      password: `Umunyeshuri${i + 1}!`,
+    }));
+    await importWith({ created: 30, failed: 0, credentials: many });
+
+    await waitFor(() =>
+      expect(screen.getByText("Umunyeshuri1!")).toBeInTheDocument(),
+    );
+
+    // Not just /download/: "Download CSV Template" is on screen too and comes
+    // first, and it fetches an empty template instead of the passwords.
+    const download = screen
+      .getAllByRole("button")
+      .find((b) => /download credentials/i.test(b.textContent ?? ""));
+    expect(download).toBeTruthy();
+    await userEvent.setup().click(download!);
+
+    expect(clicks[0]).toBe("student_credentials.csv");
+    const csv = await blobs[blobs.length - 1].text();
+    const lines = csv.trim().split("\n");
+    // A header plus every one of the thirty, even though only six are listed.
+    expect(lines).toHaveLength(31);
+    expect(lines[0]).toBe("name,login,password");
+    expect(lines[30]).toContain("Umunyeshuri30!");
+
+    vi.mocked(document.createElement).mockRestore();
+  });
+
+  // Rows the server refused have to be named, not summarised as a count.
+  it("lists what the server refused instead of the passwords", async () => {
+    await importWith({
+      created: 0,
+      failed: 2,
+      errors: ["Row 2: email already in use", "Row 3: missing last name"],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/email already in use/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/missing last name/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // Nothing to hand over means the job is done and the modal can go.
+  it("closes when there is nothing to hand back", async () => {
+    await importWith({ created: 2, failed: 0, credentials: [] });
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});

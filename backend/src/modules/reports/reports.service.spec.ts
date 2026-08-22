@@ -116,7 +116,7 @@ describe('ReportsService', () => {
         primaryColor: '#1B4F72',
         logoUrl: null,
       },
-      student: { name: 'Divine Niyonkuru', studentIdNumber: 'MKV-2026-0001' },
+      student: { name: 'Divine Niyonkuru', studentIdNumber: 'STD-2026-0001' },
       term: { name: 'Term 1', academicYear: '2026-2027' },
       subjects: [],
       classStats: {},

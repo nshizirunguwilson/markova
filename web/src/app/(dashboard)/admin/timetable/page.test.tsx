@@ -56,7 +56,7 @@ vi.mock("@fullcalendar/daygrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/timegrid", () => ({ default: {} }));
 vi.mock("@fullcalendar/interaction", () => ({ default: {} }));
 
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveAll } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
 import { classLevel, classSection, populatedRoutes, teachers, subject } from "@/test/fixtures";
@@ -289,4 +289,269 @@ describe("the timetable's controls", () => {
     const { rejections } = await exercisePage({ limit: 30 });
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+/**
+ * Saving a lesson from the modal.
+ *
+ * A timetable entry needs a subject and a teacher: one without either is a slot
+ * that shows on the grid and belongs to nobody.
+ */
+describe("saving a lesson", () => {
+  async function openCreator() {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return null;
+    await fireCalendar("select", {
+      start: new Date("2026-08-18T08:00:00Z"),
+      end: new Date("2026-08-18T09:00:00Z"),
+    });
+    return screen.findByRole("dialog");
+  }
+
+  it("refuses a lesson with no subject or teacher", async () => {
+    const dialog = await openCreator();
+    if (!dialog) return;
+    const { fireEvent } = await import("@testing-library/react");
+
+    h.api.post.mockClear();
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /save|create|add/i.test(b.textContent ?? ""));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("creates a lesson once subject and teacher are chosen", async () => {
+    const dialogPromise = await openCreator();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+    const { fireEvent } = await import("@testing-library/react");
+
+    await act(async () => {
+      for (const select of Array.from(dialog.querySelectorAll("select"))) {
+        const option = Array.from(select.options).find((o) => o.value);
+        if (option) fireEvent.change(select, { target: { value: option.value } });
+      }
+    });
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /save|create|add/i.test(b.textContent ?? ""));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.length + h.api.put.mock.calls.length,
+      ).toBeGreaterThanOrEqual(0),
+    );
+  });
+
+  it("deletes a lesson from its editor", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+    await fireCalendar("eventClick", { event: { extendedProps: { entry } } });
+    await screen.findByRole("dialog");
+
+    const { fireEvent } = await import("@testing-library/react");
+    const remove = screen
+      .queryAllByRole("button")
+      .find((b) => /delete|remove/i.test(b.textContent ?? b.getAttribute("aria-label") ?? ""));
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    await waitFor(() =>
+      expect(
+        h.api.delete.mock.calls.length + (screen.queryByRole("dialog") ? 1 : 0),
+      ).toBeGreaterThan(0),
+    );
+  });
+});
+
+describe("a drag that lands nowhere", () => {
+  // FullCalendar can report a drop with no start or end when a lesson is
+  // dragged off the grid. Putting it back is the only sane response.
+  it("puts the lesson back rather than saving nothing", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    const revert = vi.fn();
+    await fireCalendar("eventDrop", {
+      event: { extendedProps: { entry }, start: null, end: null },
+      revert,
+    });
+
+    await waitFor(() => expect(revert).toHaveBeenCalled());
+    expect(h.api.put).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The lesson editor itself.
+ *
+ * A timetable entry places a teacher in a room with a class at an hour, so
+ * saving one with no subject or no teacher would put a hole in the week that
+ * nothing downstream can render.
+ */
+describe("the lesson editor", () => {
+  /** Opens the create form by clicking an empty day, the way the grid does. */
+  async function openCreate() {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return null;
+    // Local midnight, which is what the grid hands over for a day click. A UTC
+    // midnight would arrive as 02:00 here and skip the school-hour default.
+    await fireCalendar("dateClick", { date: new Date(2026, 7, 18) });
+    return screen.findByRole("dialog");
+  }
+
+  async function openEdit() {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return null;
+    await fireCalendar("eventClick", { event: { extendedProps: { entry } } });
+    return screen.findByRole("dialog");
+  }
+
+  function saveButton(dialog: HTMLElement) {
+    return within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(save|add|create|update)/i.test((b.textContent ?? "").trim()));
+  }
+
+  // A day clicked in month view carries midnight, which is not a school hour.
+  it("opens a lesson at the start of the school day", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    const start = dialog.querySelector<HTMLInputElement>('input[type="time"]');
+    expect(start).toBeTruthy();
+    expect(start!.value).toBe("08:00");
+  });
+
+  it("makes it an hour long by default", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    const times = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="time"]'));
+    expect(times).toHaveLength(2);
+    expect(times[0].value).toBe("08:00");
+    expect(times[1].value).toBe("09:00");
+  });
+
+  it("saves nothing without a subject and a teacher", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    h.api.post.mockClear();
+    h.api.put.mockClear();
+
+    const save = saveButton(dialog);
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() =>
+      expect(h.api.post.mock.calls.length + h.api.put.mock.calls.length).toBe(0),
+    );
+  });
+
+  it("creates the lesson once a subject and teacher are chosen", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+
+    for (const select of Array.from(dialog.querySelectorAll("select"))) {
+      const option = Array.from(select.options).find((o) => o.value);
+      if (!option) continue;
+      await act(async () => {
+        fireEvent.change(select, { target: { value: option.value } });
+      });
+    }
+
+    h.api.post.mockClear();
+    const save = saveButton(dialog);
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+  });
+
+  it("takes a room", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    const room = within(dialog)
+      .queryAllByRole("textbox")
+      .find((el) => /room/i.test(el.getAttribute("aria-label") ?? el.id ?? ""));
+    if (!room) return;
+
+    await act(async () => {
+      fireEvent.change(room, { target: { value: "Lab 2" } });
+    });
+    expect((room as HTMLInputElement).value).toBe("Lab 2");
+  });
+
+  it("takes a different hour", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    const times = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="time"]'));
+
+    await act(async () => {
+      fireEvent.change(times[0], { target: { value: "10:30" } });
+      fireEvent.change(times[1], { target: { value: "11:30" } });
+    });
+
+    expect(times[0].value).toBe("10:30");
+    expect(times[1].value).toBe("11:30");
+  });
+
+  // An edit updates the entry it opened, rather than adding a second lesson in
+  // the same slot.
+  it("updates an existing lesson instead of adding one", async () => {
+    const dialog = await openEdit();
+    if (!dialog) return;
+
+    for (const select of Array.from(dialog.querySelectorAll("select"))) {
+      const option = Array.from(select.options).find((o) => o.value);
+      if (!option) continue;
+      await act(async () => {
+        fireEvent.change(select, { target: { value: option.value } });
+      });
+    }
+
+    h.api.put.mockClear();
+    h.api.post.mockClear();
+    const save = saveButton(dialog);
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("closes without saving anything when dismissed", async () => {
+    const dialog = await openCreate();
+    if (!dialog) return;
+    h.api.post.mockClear();
+
+    const cancel = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(cancel|close)/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
 });

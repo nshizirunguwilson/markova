@@ -123,15 +123,15 @@ export default function TeacherDisciplinePage() {
           </div>
           <Input label="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           <div>
-            <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
+            <label htmlFor="f-description" className="mb-1 block text-sm font-medium text-foreground">Description</label>
+            <textarea id="f-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Points" type="number" value={String(form.pointsDeducted)} onChange={(e) => setForm({ ...form, pointsDeducted: Number(e.target.value) })} />
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Action</label>
-              <select value={form.actionTaken} onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
+              <label htmlFor="f-action" className="mb-1 block text-sm font-medium text-foreground">Action</label>
+              <select id="f-action" value={form.actionTaken} onChange={(e) => setForm({ ...form, actionTaken: e.target.value })}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none" aria-label="Action">
                 {Object.entries(ACTION_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
               </select>
