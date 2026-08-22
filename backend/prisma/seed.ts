@@ -378,41 +378,24 @@ function studentNumber(first: string, last: string, year: number, key: string): 
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// firstname.kinyarwandaname@markova.edu. The whole school shares one domain;
-// students and parents get a number after the name (see numberedEmail).
-// Collisions get a number here too.
+/**
+ * initial.kinyarwandaname@markova.edu, for everyone in the school.
+ *
+ * One rule for staff, students and parents alike. A number is appended only
+ * when the address is genuinely taken, so the first Wilson Mugisha is
+ * `w.mugisha@` and the next one is `w.mugisha1@`. Numbering every address
+ * unconditionally is what produced things like `aaron.iradukunda959@`, which
+ * is not an address any school would issue.
+ */
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
-  const base = `${first.trim().split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  const given = first.trim().split(' ')[0].toLowerCase();
+  const family = last.trim().split(' ')[0].toLowerCase();
+  const base = `${given[0]}.${family}`;
+
   let candidate = `${base}@markova.edu`;
-  for (let n = 2; usedEmails.has(candidate); n++) {
+  for (let n = 1; usedEmails.has(candidate); n++) {
     candidate = `${base}${n}@markova.edu`;
-  }
-  usedEmails.add(candidate);
-  return candidate;
-}
-
-/**
- * firstname.lastnameN@markova.edu for students and parents.
- *
- * The whole school shares one domain. The number keeps a common name unique
- * across three years of intake without inventing a second domain to hide in.
- */
-function studentEmail(first: string, last: string, i: number): string {
-  return numberedEmail(first, last, i + 1);
-}
-
-function parentEmail(first: string, last: string, i: number): string {
-  return numberedEmail(first, last, i);
-}
-
-function numberedEmail(first: string, last: string, n: number): string {
-  const token = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
-  let candidate = `${token}${n}@markova.edu`;
-  // Two people can land on the same token and number, and the column is unique.
-  while (usedEmails.has(candidate)) {
-    n += 1;
-    candidate = `${token}${n}@markova.edu`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -1550,7 +1533,7 @@ async function main() {
       const user = await prisma.user.create({
         data: {
           email:
-            i < 30 ? `student${i + 1}@markova.edu` : studentEmail(first, last, i),
+            i < 30 ? `student${i + 1}@markova.edu` : emailFor(first, last),
           ...extras.user,
           passwordHash,
           role: Role.STUDENT,
@@ -1609,7 +1592,7 @@ async function main() {
         nationalId: makeNid(gender, pBirthYear),
         nationality: 'Rwandan',
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? parentEmail(first, last, i) : null,
+        email: i >= 15 ? emailFor(first, last) : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
@@ -1801,7 +1784,7 @@ async function main() {
     );
     const user = await prisma.user.create({
       data: {
-        email: studentEmail(name.first, name.last, i),
+        email: emailFor(name.first, name.last),
         ...extras.user,
         passwordHash,
         role: Role.STUDENT,

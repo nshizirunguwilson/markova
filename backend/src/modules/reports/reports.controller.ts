@@ -164,9 +164,27 @@ export class ReportsController {
 
   @Post('id-cards/revoke')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Revoke a student ID card' })
+  @ApiOperation({
+    summary: 'Revoke a student ID card permanently, forcing a reprint',
+  })
   revokeIdCard(@Body() dto: IssueIdCardDto) {
     return this.service.revokeIdCard(dto.studentId);
+  }
+
+  @Post('id-cards/suspend')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Suspend a card temporarily, keeping it usable once restored',
+  })
+  suspendIdCard(@Body() dto: IssueIdCardDto) {
+    return this.service.suspendIdCard(dto.studentId);
+  }
+
+  @Post('id-cards/restore')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Bring a suspended card back into use' })
+  restoreIdCard(@Body() dto: IssueIdCardDto) {
+    return this.service.restoreIdCard(dto.studentId);
   }
 
   // ── Full export ───────────────────────────────────────────────────────────

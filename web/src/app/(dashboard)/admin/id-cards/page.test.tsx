@@ -55,7 +55,16 @@ const routes = {
   ...populatedRoutes,
   "/academic/class-levels": [classLevel],
   "/academic/sections": [classSection],
-  "/reports/id-cards/registry": { items: [withCard, withoutCard] },
+  "/reports/id-cards/registry": {
+    items: [withCard, withoutCard],
+    total: 2,
+    issued: 1,
+    notIssued: 1,
+    suspended: 0,
+    meta: { total: 2, page: 1, limit: 25, totalPages: 1 },
+  },
+  "/reports/id-cards/suspend": { ok: true },
+  "/reports/id-cards/restore": { ok: true },
   "/reports/id-cards/issue": { ok: true },
   "/reports/id-cards/issue-bulk": { issued: 1 },
   "/reports/id-cards/revoke": { ok: true },
@@ -355,5 +364,186 @@ describe("printing the cards", () => {
       expect(sheet!.textContent).toMatch(/Divine Niyonkuru/);
       expect(sheet!.textContent).not.toMatch(/Keza Mutesi/);
     });
+  });
+});
+
+/**
+ * Suspending a card, as distinct from revoking it.
+ *
+ * A card mislaid for a few days is not a card that is gone. Suspending stops
+ * it verifying and can be undone; revoking destroys the code and forces a
+ * reprint. Confusing the two costs the school a card.
+ */
+describe("suspending a card", () => {
+  function actionFor(name: RegExp, action: RegExp) {
+    return within(rowFor(name))
+      .queryAllByRole("button")
+      .find((b) => action.test(b.textContent ?? ""));
+  }
+
+  it("offers Suspend only where there is a card", async () => {
+    await mount();
+    expect(actionFor(/Divine Niyonkuru/, /suspend/i)).toBeTruthy();
+    expect(actionFor(/Keza Mutesi/, /suspend/i)).toBeUndefined();
+  });
+
+  // Suspending is reversible, so unlike revoking it does not stop to ask.
+  it("suspends without asking, and does not revoke", async () => {
+    await mount();
+    h.api.post.mockClear();
+    await click(actionFor(/Divine Niyonkuru/, /suspend/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("id-cards/suspend"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).studentId).toBe("student-1");
+    });
+    const revoked = h.api.post.mock.calls.find(([url]: any[]) =>
+      String(url).includes("revoke"),
+    );
+    expect(revoked).toBeUndefined();
+  });
+
+  it("shows a suspended card as suspended, and offers to restore it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/id-cards/registry": {
+        items: [{ ...withCard, suspended: true }],
+        total: 1,
+        issued: 1,
+        notIssued: 0,
+        suspended: 1,
+        meta: { total: 1, page: 1, limit: 25, totalPages: 1 },
+      },
+    });
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument());
+
+    // Scoped to the row: the status filter also offers a "Suspended" option.
+    expect(rowFor(/Divine Niyonkuru/).textContent).toMatch(/suspended/i);
+    expect(actionFor(/Divine Niyonkuru/, /restore/i)).toBeTruthy();
+    expect(actionFor(/Divine Niyonkuru/, /suspend/i)).toBeUndefined();
+  });
+
+  it("restores a suspended card", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/id-cards/registry": {
+        items: [{ ...withCard, suspended: true }],
+        total: 1,
+        issued: 1,
+        notIssued: 0,
+        suspended: 1,
+        meta: { total: 1, page: 1, limit: 25, totalPages: 1 },
+      },
+    });
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument());
+
+    h.api.post.mockClear();
+    await click(actionFor(/Divine Niyonkuru/, /restore/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("id-cards/restore"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  // The warning has to say what revoking costs, and point at the alternative.
+  it("warns that revoking is permanent and names the alternative", async () => {
+    await mount();
+    await click(actionFor(/Divine Niyonkuru/, /revoke/i));
+
+    const asked = String((window.confirm as any).mock.calls[0][0]);
+    expect(asked).toMatch(/for good|permanent/i);
+    expect(asked).toMatch(/suspend/i);
+  });
+
+  it("filters the registry to suspended cards", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^status$/i), {
+        target: { value: "suspended" },
+      });
+    });
+
+    await waitFor(() => expect(lastRegistryQuery().status).toBe("suspended"));
+  });
+});
+
+describe("paging the registry", () => {
+  function paged(page: number, totalPages: number) {
+    return {
+      ...routes,
+      "/reports/id-cards/registry": {
+        items: [{ ...withCard, id: `student-${page}` }],
+        total: 60,
+        issued: 6,
+        notIssued: 54,
+        suspended: 0,
+        meta: { total: 60, page, limit: 25, totalPages },
+      },
+    };
+  }
+
+  it("shows nothing to page through on a short roll", async () => {
+    await mount();
+    expect(screen.queryByRole("button", { name: /next page/i })).toBeNull();
+  });
+
+  it("says which page it is on", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+  });
+
+  it("cannot go back from the first page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("asks for the next page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastRegistryQuery().page).toBe(2));
+  });
+
+  // The headline counts describe the whole roll, so they must not change as
+  // an admin pages through it.
+  it("keeps the totals about the whole roll", async () => {
+    serve(h.api, paged(2, 3));
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument());
+
+    expect(document.body.textContent).toMatch(/60/);
+    expect(document.body.textContent).toMatch(/6/);
+  });
+
+  // Narrowing the list while deep in it would land on a page that no longer
+  // exists.
+  it("goes back to the first page when a filter changes", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastRegistryQuery().page).toBe(2));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^status$/i), {
+        target: { value: "issued" },
+      });
+    });
+
+    await waitFor(() => expect(lastRegistryQuery().page).toBe(1));
   });
 });

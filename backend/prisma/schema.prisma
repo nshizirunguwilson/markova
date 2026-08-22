@@ -396,6 +396,10 @@ model Student {
   // Printed on the card as a QR. Unguessable, and cleared when a card is
   // revoked, so a lost card stops verifying the moment it is reissued.
   cardCode          String?       @unique @map("card_code")
+  // A card mislaid for a few days is suspended, not revoked: verification
+  // refuses it and the gate turns it away, but the same printed card comes
+  // back to life when it is found. Revoking destroys the code instead.
+  cardSuspendedAt   DateTime?     @map("card_suspended_at")
   status            StudentStatus @default(ACTIVE)
   disciplinePoints  Int           @default(100) @map("discipline_points")
   createdAt         DateTime      @default(now()) @map("created_at")

@@ -549,9 +549,19 @@ export class ReportsService implements OnModuleDestroy {
 
   // ── ID Card registry / issuance ──────────────────────────────────────────
 
+  /**
+   * The number stamped on the physical card, e.g. `4821 7390 5566`.
+   *
+   * Digits only, grouped in fours the way a bank card is, because it gets read
+   * aloud and typed in by people who are not looking at a keyboard. Letters
+   * invited O/0 and I/1 mistakes, and the MK prefix meant nothing to anyone
+   * holding the card.
+   */
   private generateCardId(): string {
-    // e.g. MK-3F9A2B7C1D — a printable, unique physical-card identifier
-    return 'MK-' + randomBytes(5).toString('hex').toUpperCase();
+    const digits = Array.from(randomBytes(12))
+      .map((b) => b % 10)
+      .join('');
+    return `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8, 12)}`;
   }
 
   /** Registry of students with their card status, filterable by section/search/status. */
@@ -559,12 +569,18 @@ export class ReportsService implements OnModuleDestroy {
     classSectionId?: string;
     search?: string;
     status?: string;
+    page?: number;
+    limit?: number;
   }) {
     const { classSectionId, search, status } = query;
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 25));
+
     const where: any = { status: 'ACTIVE' };
     if (classSectionId) where.classSectionId = classSectionId;
     if (status === 'issued') where.nfcCardId = { not: null };
     else if (status === 'not_issued') where.nfcCardId = null;
+    else if (status === 'suspended') where.cardSuspendedAt = { not: null };
     if (search?.trim()) {
       const s = search.trim();
       where.OR = [
@@ -575,24 +591,42 @@ export class ReportsService implements OnModuleDestroy {
       ];
     }
 
-    const students = await this.prisma.student.findMany({
-      where,
-      include: {
-        user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { include: { classLevel: true, trade: true } },
-      },
-      orderBy: [
-        { classSection: { classLevel: { order: 'asc' } } },
-        { user: { firstName: 'asc' } },
-      ],
-    });
+    // The counts describe the whole filtered roll, not the page being shown:
+    // "6 have a card" out of 773 is the number an admin acts on, and it must
+    // not change as they page through.
+    const [total, issued, suspended, students] = await Promise.all([
+      this.prisma.student.count({ where }),
+      this.prisma.student.count({ where: { ...where, nfcCardId: { not: null } } }),
+      this.prisma.student.count({
+        where: { ...where, cardSuspendedAt: { not: null } },
+      }),
+      this.prisma.student.findMany({
+        where,
+        include: {
+          user: { select: { firstName: true, lastName: true, photoUrl: true } },
+          classSection: { include: { classLevel: true, trade: true } },
+        },
+        orderBy: [
+          { classSection: { classLevel: { order: 'asc' } } },
+          { user: { firstName: 'asc' } },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
-    const items = students.map((s) => this.toCardSummary(s));
     return {
-      total: items.length,
-      issued: items.filter((i) => i.hasCard).length,
-      notIssued: items.filter((i) => !i.hasCard).length,
-      items,
+      total,
+      issued,
+      notIssued: total - issued,
+      suspended,
+      items: students.map((s) => this.toCardSummary(s)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
     };
   }
 
@@ -629,7 +663,13 @@ export class ReportsService implements OnModuleDestroy {
 
     await this.prisma.student.update({
       where: { id: studentId },
-      data: { nfcCardId: cardId, cardIssuedAt: new Date(), cardCode },
+      data: {
+        nfcCardId: cardId,
+        cardIssuedAt: new Date(),
+        cardCode,
+        // A newly issued card starts usable, whatever state the old one was in.
+        cardSuspendedAt: null,
+      },
     });
     return this.idCardSummary(studentId);
   }
@@ -677,6 +717,7 @@ export class ReportsService implements OnModuleDestroy {
         studentIdNumber: true,
         status: true,
         cardIssuedAt: true,
+        cardSuspendedAt: true,
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
         classSection: { select: { classLevel: { select: { name: true } } } },
       },
@@ -687,6 +728,25 @@ export class ReportsService implements OnModuleDestroy {
         valid: false,
         reason:
           'This card is not valid. It may have been reissued, or it was never issued by this school.',
+      };
+    }
+
+    // A suspended card is a real card its holder has temporarily lost the use
+    // of, which is a different answer from one that was never issued.
+    if (student.cardSuspendedAt) {
+      return {
+        valid: false,
+        reason:
+          'This card is suspended. It was reported lost or withheld, and is not valid until the school restores it.',
+        suspended: true,
+        student: {
+          name: `${student.user.firstName} ${student.user.lastName}`,
+          studentIdNumber: student.studentIdNumber,
+          level: student.classSection?.classLevel?.name ?? null,
+          photoUrl: student.user.photoUrl,
+          status: student.status,
+        },
+        issuedAt: student.cardIssuedAt,
       };
     }
 
@@ -707,6 +767,43 @@ export class ReportsService implements OnModuleDestroy {
     };
   }
 
+  /**
+   * Suspend a card without destroying it.
+   *
+   * For a card mislaid rather than lost: it stops verifying immediately, and
+   * the same printed card works again once it turns up. Revoking is the
+   * permanent version, and forces a reprint.
+   */
+  async suspendIdCard(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true, cardCode: true },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    if (!student.cardCode) {
+      throw new BadRequestException('This student has no card to suspend');
+    }
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: { cardSuspendedAt: new Date() },
+    });
+    return this.idCardSummary(studentId);
+  }
+
+  /** Bring a suspended card back, once it has been found. */
+  async restoreIdCard(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: { cardSuspendedAt: null },
+    });
+    return this.idCardSummary(studentId);
+  }
+
   /** Revoke a student's card. */
   async revokeIdCard(studentId: string) {
     const student = await this.prisma.student.findUnique({
@@ -717,7 +814,12 @@ export class ReportsService implements OnModuleDestroy {
       where: { id: studentId },
       // Clearing the code is the revocation: the old printed card still
       // scans, and the verification page answers that it is not valid.
-      data: { nfcCardId: null, cardIssuedAt: null, cardCode: null },
+      data: {
+        nfcCardId: null,
+        cardIssuedAt: null,
+        cardCode: null,
+        cardSuspendedAt: null,
+      },
     });
     return { success: true };
   }
@@ -747,6 +849,8 @@ export class ReportsService implements OnModuleDestroy {
       hasCard: !!s.nfcCardId,
       cardIssuedAt: s.cardIssuedAt,
       cardCode: s.cardCode ?? null,
+      suspended: !!s.cardSuspendedAt,
+      cardSuspendedAt: s.cardSuspendedAt ?? null,
       verifyUrl: s.cardCode
         ? `${this.webBaseUrl()}/verify/card/${s.cardCode}`
         : null,

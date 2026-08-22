@@ -54,7 +54,7 @@ describe("password generator", () => {
 describe("email suggestion", () => {
   it("builds the school convention from the first tokens", () => {
     expect(suggestEmail("Keza Ineza", "Uwase Mahoro")).toBe(
-      "keza.uwase@markova.edu",
+      "k.uwase@markova.edu",
     );
   });
   it("returns empty when a name is missing", () => {
