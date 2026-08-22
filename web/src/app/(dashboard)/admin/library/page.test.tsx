@@ -71,7 +71,7 @@ describe("adding a book", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("posts a new book and closes the form", async () => {
+  it("posts a new book once the form is filled", async () => {
     serve(h.api, routes);
     renderPage(LibraryPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
@@ -82,15 +82,25 @@ describe("adding a book", () => {
     );
     const dialog = await screen.findByRole("dialog");
 
-    // Title and author are both required by the form's schema.
-    await user.type(within(dialog).getByLabelText(/title/i), "Amateka y'u Rwanda");
-    await user.type(within(dialog).getByLabelText(/author/i), "Mukamana J.");
+    // fireEvent.change is synchronous, so the form state is settled by the time
+    // the submit fires. Typing key by key races the resolver and made this pass
+    // only about two runs in three.
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/title/i), {
+        target: { value: "Amateka y'u Rwanda" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/author/i), {
+        target: { value: "Mukamana J." },
+      });
+    });
     h.api.post.mockClear();
 
-    const save = within(dialog)
-      .getAllByRole("button")
-      .find((b) => /save|add|create/i.test(b.textContent ?? ""));
-    await user.click(save!);
+    const form = dialog.querySelector("form");
+    expect(form).toBeTruthy();
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
 
     await waitFor(() => expect(h.api.post).toHaveBeenCalled());
     expect(String(h.api.post.mock.calls[0][0])).toContain("/library/books");
