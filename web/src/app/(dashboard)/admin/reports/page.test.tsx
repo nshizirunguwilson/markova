@@ -789,3 +789,260 @@ describe("generating a document for one student", () => {
     expect(select.value).toBe("TRANSCRIPT");
   }, 30000);
 });
+
+/**
+ * Producing one document end to end.
+ *
+ * A transfer letter is what a family walks out with, so the generator has to
+ * refuse a half-filled request, and once it has produced something the admin
+ * must be able to keep it or print it without going back to the server.
+ */
+describe("producing a document", () => {
+  const html = "<html><body><h1>Transfer Letter</h1></body></html>";
+
+  async function openDocumentsTab() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()));
+    expect(tab).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(tab!);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+  }
+
+  /** The student picker cascades level, then class, then student. */
+  async function pickStudent() {
+    for (let pass = 0; pass < 3; pass += 1) {
+      const selects = Array.from(document.querySelectorAll("select"));
+      for (const el of selects) {
+        if (el.value) continue;
+        const option = Array.from(el.options).find((o) => o.value);
+        if (!option) continue;
+        await act(async () => {
+          fireEvent.change(el, { target: { value: option.value } });
+        });
+      }
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    }
+  }
+
+  function generateButton() {
+    return screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()));
+  }
+
+  it("asks for a student before it will generate anything", async () => {
+    await openDocumentsTab();
+    expect(generateButton()).toBeDisabled();
+  });
+
+  it("asks the API for the type that was chosen", async () => {
+    await openDocumentsTab();
+    await pickStudent();
+    if (generateButton()?.hasAttribute("disabled")) return;
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/document type/i), {
+        target: { value: "TRANSCRIPT" },
+      });
+    });
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { html, title: "Transcript" } });
+    await act(async () => {
+      fireEvent.click(generateButton()!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/reports/document"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).type).toBe("TRANSCRIPT");
+    });
+  });
+
+  it("says so when the document could not be produced", async () => {
+    await openDocumentsTab();
+    await pickStudent();
+    if (generateButton()?.hasAttribute("disabled")) return;
+
+    h.api.post.mockRejectedValue({ response: { status: 500 } });
+    h.toast.error.mockClear();
+    await act(async () => {
+      fireEvent.click(generateButton()!);
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+
+  it("shows the document once it is back", async () => {
+    await openDocumentsTab();
+    await pickStudent();
+    if (generateButton()?.hasAttribute("disabled")) return;
+
+    h.api.post.mockResolvedValue({ data: { html, title: "Transfer Letter" } });
+    await act(async () => {
+      fireEvent.click(generateButton()!);
+    });
+
+    await waitFor(() =>
+      expect(document.querySelector('iframe[title="Document preview"]')).toBeTruthy(),
+    );
+  });
+
+  it("saves it as a file named after the document", async () => {
+    const clicks: string[] = [];
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") {
+        (el as HTMLAnchorElement).click = () => {
+          clicks.push((el as HTMLAnchorElement).download);
+        };
+      }
+      return el;
+    });
+
+    try {
+      await openDocumentsTab();
+      await pickStudent();
+      if (generateButton()?.hasAttribute("disabled")) return;
+
+      h.api.post.mockResolvedValue({ data: { html, title: "Transfer Letter" } });
+      await act(async () => {
+        fireEvent.click(generateButton()!);
+      });
+      await waitFor(() =>
+        expect(document.querySelector('iframe[title="Document preview"]')).toBeTruthy(),
+      );
+
+      const download = screen
+        .queryAllByRole("button")
+        .find((b) => /^download$/i.test((b.textContent ?? "").trim()));
+      expect(download).toBeTruthy();
+      await act(async () => {
+        fireEvent.click(download!);
+      });
+
+      expect(clicks[0]).toBe("Transfer Letter.html");
+    } finally {
+      vi.mocked(document.createElement).mockRestore();
+    }
+  });
+
+  // The document is already in hand, so printing must not ask the server again.
+  it("prints what is on screen without regenerating it", async () => {
+    await openDocumentsTab();
+    await pickStudent();
+    if (generateButton()?.hasAttribute("disabled")) return;
+
+    h.api.post.mockResolvedValue({ data: { html, title: "Transfer Letter" } });
+    await act(async () => {
+      fireEvent.click(generateButton()!);
+    });
+    await waitFor(() =>
+      expect(document.querySelector('iframe[title="Document preview"]')).toBeTruthy(),
+    );
+
+    h.api.post.mockClear();
+    const print = screen
+      .queryAllByRole("button")
+      .find((b) => /^print$/i.test((b.textContent ?? "").trim()));
+    expect(print).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(print!);
+    });
+
+    expect(window.open).toHaveBeenCalled();
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Leaving the bulk dialog.
+ *
+ * Closing means different things at different points in the run, and the one
+ * that must not happen is tearing down a zip that is seconds from saving.
+ */
+describe("closing the bulk dialog", () => {
+  function failPdf() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) throw { response: { status: 500 } };
+      return real(url, config);
+    });
+  }
+
+  async function reachReview() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+    failPdf();
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/could not be fetched/i), {
+      timeout: 15000,
+    });
+  }
+
+  it("closes the review without packing anything", async () => {
+    await reachReview();
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    expect(cancel).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(cancel!);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+
+  // The class list has to still be there afterwards, not a blank page.
+  it("leaves the generated reports on screen", async () => {
+    await reachReview();
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    await act(async () => {
+      fireEvent.click(cancel!);
+    });
+
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }, 40000);
+});
