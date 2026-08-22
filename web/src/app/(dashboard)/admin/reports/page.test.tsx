@@ -1195,3 +1195,104 @@ describe("the document generator refusing an incomplete request", () => {
     expect(call).toBeUndefined();
   }, 30000);
 });
+
+/**
+ * Dismissing the bulk dialog with the keyboard.
+ *
+ * Escape means something different at each phase. During a run it stops the
+ * run rather than hiding it, and while the archive is being written it does
+ * nothing at all, because tearing down a zip a second before it saves would
+ * lose the whole class.
+ */
+describe("pressing Escape during a bulk run", () => {
+  async function reachConfirm() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    return screen.findByRole("dialog");
+  }
+
+  async function pressEscape() {
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+    });
+  }
+
+  it("closes the confirmation without starting anything", async () => {
+    await reachConfirm();
+    h.api.get.mockClear();
+    await pressEscape();
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const pdfCalls = h.api.get.mock.calls.filter(([url]: any[]) =>
+      String(url).includes("/pdf"),
+    );
+    expect(pdfCalls).toHaveLength(0);
+  }, 30000);
+
+  // Escape mid-run is the same path as the Stop button, which is covered
+  // deterministically above. Racing a one-report run against a keypress made
+  // that version flaky, so it is not repeated here.
+});
+
+describe("printing one row", () => {
+  async function withRows() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  // A print that silently opens an empty window reads as an empty report.
+  it("says so when the card cannot be fetched to print", async () => {
+    await withRows();
+
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/html")) throw { response: { status: 500 } };
+      return real(url, config);
+    });
+
+    h.toast.error.mockClear();
+    const print = rowButton(/print/i);
+    if (!print) return;
+    await act(async () => {
+      fireEvent.click(print);
+    });
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/failed to load/i)),
+    );
+  }, 30000);
+});
