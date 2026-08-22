@@ -81,8 +81,8 @@ export const message = { id: "msg-1", conversationId: "conv-1", senderId: "u-1",
 
 export const attendanceRecord = { id: "att-1", studentId: "student-1", student: students[0], status: "PRESENT", date: "2026-08-21" };
 
-export const faq = { id: "faq-1", question: "How do I reset my password?", answer: "Use the reset link on the sign in page.", category: "ACCOUNT", isPublished: true };
-export const ticket = { id: "tkt-1", subject: "Cannot see my marks", body: "Term 1 marks are missing", status: "OPEN", createdAt: "2026-08-20T10:00:00Z", user: user("u-1", "Divine", "Niyonkuru") };
+export const faq = { id: "faq-1", title: "How do I reset my password?", content: "Use the reset link on the sign in page.", category: "ACCOUNT", displayOrder: 1, isPublished: true };
+export const ticket = { id: "tkt-1", subject: "Cannot see my marks", message: "Term 1 marks are missing", status: "OPEN", priority: "NORMAL", createdAt: "2026-08-20T10:00:00Z", user: user("u-1", "Divine", "Niyonkuru") };
 
 export const notification = { id: "note-1", title: "New report card", body: "Term 1 is published", isRead: false, createdAt: "2026-08-21T08:00:00Z" };
 
@@ -298,7 +298,7 @@ export const edgeRoutes: Record<string, unknown> = {
   "/notifications": [notification, { ...notification, id: "note-2", isRead: true, type: "ATTENDANCE" }],
 
   "/help/tickets": [ticket, { ...ticket, id: "tkt-2", status: "CLOSED" }],
-  "/help/faqs": [faq, { ...faq, id: "faq-2", isPublished: false }],
+  "/help/faqs": [faq, { ...faq, id: "faq-2", title: "Where are marks?", isPublished: false }],
 
   "/analytics/admin/dashboard": {
     students: 0,

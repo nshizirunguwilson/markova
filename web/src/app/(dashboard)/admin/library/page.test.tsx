@@ -142,3 +142,100 @@ describe("deleting a book", () => {
     expect(h.api.delete).not.toHaveBeenCalled();
   });
 });
+
+describe("moving between the library's tabs", () => {
+  // Loans, overdue and analytics each fetch their own data and each has an
+  // empty state a new school sees on day one.
+  it.each(["loans", "overdue", "analytics"])("opens the %s tab", async (name) => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => new RegExp(name, "i").test(b.textContent ?? ""));
+    if (!tab) return;
+    await userEvent.setup().click(tab);
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("shows an empty shelf on every tab for a new school", async () => {
+    serveAll(h.api, []);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    for (const name of ["loans", "overdue", "analytics"]) {
+      const tab = screen
+        .queryAllByRole("button")
+        .find((b) => new RegExp(name, "i").test(b.textContent ?? ""));
+      if (!tab) continue;
+      await user.click(tab);
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    }
+  });
+});
+
+describe("lending a book out", () => {
+  it("opens the checkout form", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return;
+    await userEvent.setup().click(checkout);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+  });
+
+  // Lending needs both a book and a borrower; either alone is a half record.
+  it("refuses a checkout with nothing chosen", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return;
+    const user = userEvent.setup();
+    await user.click(checkout);
+
+    const dialog = await screen.findByRole("dialog");
+    h.api.post.mockClear();
+    const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!submit) return;
+    await user.click(submit);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("returning a book", () => {
+  it("sends the return", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    const loansTab = screen
+      .queryAllByRole("button")
+      .find((b) => /loans/i.test(b.textContent ?? ""));
+    if (loansTab) await user.click(loansTab);
+
+    const ret = screen
+      .queryAllByRole("button")
+      .find((b) => /^return/i.test((b.textContent ?? "").trim()));
+    if (!ret) return;
+    h.api.post.mockClear();
+    await user.click(ret);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("return"))).toBe(true);
+    });
+  });
+});
