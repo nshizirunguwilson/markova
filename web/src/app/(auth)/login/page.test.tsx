@@ -176,6 +176,126 @@ describe("a forced password change", () => {
     );
     expect(h.router.push).not.toHaveBeenCalled();
   });
+
+  /** Signs in as someone the server says must change their password. */
+  async function reachChangePassword() {
+    h.api.post.mockResolvedValue({
+      data: { ...tokens, user: { ...tokens.user, forcePasswordChange: true } },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/current password/i)).toBeInTheDocument(),
+    );
+  }
+
+  async function fillChange(current: string, next: string, confirm = next) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/current password/i), {
+        target: { value: current },
+      });
+      fireEvent.change(screen.getByLabelText(/^new password$/i), {
+        target: { value: next },
+      });
+      fireEvent.change(screen.getByLabelText(/confirm/i), {
+        target: { value: confirm },
+      });
+    });
+  }
+
+  async function submitChange() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const form = screen.getByLabelText(/current password/i).closest("form")!;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  }
+
+  // The tokens are already stored by then, so an interrupted change would
+  // leave a half signed-in session behind.
+  it("keeps the session it was given while the change is pending", async () => {
+    await reachChangePassword();
+    expect(localStorage.getItem("access_token")).toBe("access-token");
+  });
+
+  it("changes the password and goes on to the dashboard", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { success: true } });
+    await submitChange();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("change-password"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).newPassword).toBe("Umwarimu2026!");
+    });
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
+  });
+
+  // A typo in the confirmation would set a password the person does not know.
+  it("refuses a confirmation that does not match", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!", "Umwarimu2027!");
+
+    h.api.post.mockClear();
+    await submitChange();
+
+    await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("refuses a new password that is too weak", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "abc");
+
+    h.api.post.mockClear();
+    await submitChange();
+
+    await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+
+  // Getting the current password wrong is ordinary, and the person has to stay
+  // on this step to try again rather than be dropped back to sign in.
+  it("stays on the step when the server refuses the change", async () => {
+    await reachChangePassword();
+    await fillChange("Wrong123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 401, data: { message: "Current password is incorrect" } },
+    });
+    h.router.push.mockClear();
+    await submitChange();
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Current password is incorrect"),
+    );
+    expect(h.router.push).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/current password/i)).toBeInTheDocument();
+  });
+
+  it("does not send the confirmation field to the server", async () => {
+    await reachChangePassword();
+    await fillChange("Password123!", "Umwarimu2026!");
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: { success: true } });
+    await submitChange();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("change-password"),
+      );
+      expect(call).toBeTruthy();
+      expect(call![1]).not.toHaveProperty("confirmPassword");
+    });
+  });
 });
 
 /**
