@@ -29,10 +29,14 @@ export default defineConfig({
       // so an accidental deletion of tests fails the build, and they are meant
       // to be raised as coverage climbs, never lowered to make a build pass.
       thresholds: {
-        statements: 87,
-        branches: 73,
-        functions: 84,
-        lines: 88,
+        // Set just under the measured figures: the exercise suites click
+        // around pages in a way that shifts the total by a few statements
+        // between runs, so a threshold set exactly at the measurement would
+        // fail CI at random.
+        statements: 96,
+        branches: 85,
+        functions: 96,
+        lines: 97,
       },
     },
   },

@@ -155,3 +155,104 @@ describe("when a step points at something that is not there", () => {
     expect(document.body).toBeTruthy();
   });
 });
+
+/**
+ * Where the bubble lands.
+ *
+ * A guide that covers the thing it is pointing at teaches nothing, so each
+ * step says which side to sit on. jsdom lays nothing out, so the target's rect
+ * is stubbed; what is under test is the arithmetic that turns a rect and a
+ * side into a position, and the clamp that keeps the bubble on screen.
+ */
+describe("placing the bubble", () => {
+  /** Gives the target a real rectangle, which jsdom otherwise reports as zero. */
+  function targetAt(rect: Partial<DOMRect>) {
+    const el = document.querySelector("#roster")!;
+    el.getBoundingClientRect = () =>
+      ({
+        top: 200,
+        left: 300,
+        bottom: 240,
+        right: 460,
+        width: 160,
+        height: 40,
+        x: 300,
+        y: 200,
+        toJSON: () => ({}),
+        ...rect,
+      }) as DOMRect;
+  }
+
+  async function showAt(position: "top" | "bottom" | "left" | "right") {
+    render(
+      <TooltipGuide
+        id="placement"
+        steps={[{ target: "#roster", title: "Your classes", content: "Here.", position }]}
+      />,
+    );
+    await letItAppear();
+    await waitFor(() => expect(screen.getByText("Your classes")).toBeInTheDocument());
+    return screen.getByText("Your classes").closest("div[style]") as HTMLElement;
+  }
+
+  function boxOf(el: HTMLElement) {
+    return {
+      top: parseFloat(el.style.top || "0"),
+      left: parseFloat(el.style.left || "0"),
+    };
+  }
+
+  beforeEach(() => {
+    targetAt({});
+    window.innerWidth = 1280;
+  });
+
+  it("sits below the target by default", async () => {
+    const bubble = await showAt("bottom");
+    // 12px under the target's bottom edge.
+    expect(boxOf(bubble).top).toBe(252);
+  });
+
+  it("sits above the target when asked", async () => {
+    const bubble = await showAt("top");
+    expect(boxOf(bubble).top).toBe(80);
+  });
+
+  it("sits to the right of the target", async () => {
+    const bubble = await showAt("right");
+    expect(boxOf(bubble).left).toBe(472);
+  });
+
+  it("sits to the left of the target", async () => {
+    const bubble = await showAt("left");
+    // Clamped to the left edge rather than going off screen.
+    expect(boxOf(bubble).left).toBe(8);
+  });
+
+  // A target near the right edge would push the bubble off screen.
+  it("keeps the bubble on screen at the right edge", async () => {
+    targetAt({ left: 1240, right: 1270, width: 30 });
+    const bubble = await showAt("right");
+    expect(boxOf(bubble).left).toBeLessThanOrEqual(1280 - 320);
+  });
+
+  it("keeps the bubble on screen at the top edge", async () => {
+    targetAt({ top: 4, bottom: 20, height: 16 });
+    const bubble = await showAt("top");
+    expect(boxOf(bubble).top).toBeGreaterThanOrEqual(8);
+  });
+
+  // Positioning reads a rect that only exists after paint, so a target that is
+  // not in the document must not throw.
+  it("does not throw when the target is gone by the time it shows", async () => {
+    document.body.innerHTML = "";
+    render(
+      <TooltipGuide
+        id="placement-missing"
+        steps={[{ target: "#roster", title: "Gone", content: "Nothing." }]}
+      />,
+    );
+    await letItAppear();
+    expect(document.body).toBeTruthy();
+  });
+});

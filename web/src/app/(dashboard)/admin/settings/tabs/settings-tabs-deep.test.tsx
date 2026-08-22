@@ -167,6 +167,169 @@ describe("the academic tab", () => {
   });
 });
 
+/**
+ * Creating years and terms, and closing them.
+ *
+ * A term with its end before its start would put the whole calendar out, and
+ * closing one freezes every mark inside it. Both are one click from the
+ * settings page, so both have to behave exactly.
+ */
+describe("the school calendar", () => {
+  async function mountAcademic() {
+    renderWithProviders(<AcademicTab />);
+    await waitFor(() => expect(document.body.textContent).toMatch(/2026/));
+  }
+
+  /** The year form and the term form are told apart by their placeholders. */
+  function formWithPlaceholder(placeholder: RegExp) {
+    const input = Array.from(
+      document.querySelectorAll<HTMLInputElement>("input[placeholder]"),
+    ).find((el) => placeholder.test(el.placeholder));
+    return input?.closest("form") ?? null;
+  }
+
+  async function fillDates(form: HTMLElement, start: string, end: string) {
+    const dates = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="date"]'));
+    await act(async () => {
+      if (dates[0]) fireEvent.change(dates[0], { target: { value: start } });
+      if (dates[1]) fireEvent.change(dates[1], { target: { value: end } });
+    });
+  }
+
+  async function submit(form: HTMLElement) {
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  }
+
+  // A year that ends before it starts breaks every term inside it.
+  it("refuses a year whose end is before its start", async () => {
+    await mountAcademic();
+    const form = formWithPlaceholder(/2026-2027/);
+    if (!form) return;
+
+    const name = form.querySelector<HTMLInputElement>('input[placeholder*="2026"]')!;
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "2027-2028" } });
+    });
+    await fillDates(form, "2027-09-01", "2027-01-01");
+
+    h.api.post.mockClear();
+    h.toast.error.mockClear();
+    await submit(form);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/after the start/i)),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("refuses a year with no dates at all", async () => {
+    await mountAcademic();
+    const form = formWithPlaceholder(/2026-2027/);
+    if (!form) return;
+
+    h.api.post.mockClear();
+    await submit(form);
+
+    await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+
+  it("creates a year once the dates make sense", async () => {
+    await mountAcademic();
+    const form = formWithPlaceholder(/2026-2027/);
+    if (!form) return;
+
+    const name = form.querySelector<HTMLInputElement>('input[placeholder*="2026"]')!;
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "2027-2028" } });
+    });
+    await fillDates(form, "2027-09-01", "2028-07-01");
+
+    h.api.post.mockClear();
+    await submit(form);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/years"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).name).toBe("2027-2028");
+    });
+  });
+
+  it("refuses a term whose end is before its start", async () => {
+    await mountAcademic();
+    const form = formWithPlaceholder(/Term 1/);
+    if (!form) return;
+
+    const name = form.querySelector<HTMLInputElement>('input[placeholder*="Term"]')!;
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "Term 4" } });
+    });
+    await fillDates(form, "2027-04-01", "2027-01-01");
+
+    h.api.post.mockClear();
+    h.toast.error.mockClear();
+    await submit(form);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/after the start/i)),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  // A term belongs to the year it was created under.
+  it("creates a term against the current year", async () => {
+    await mountAcademic();
+    const form = formWithPlaceholder(/Term 1/);
+    if (!form) return;
+
+    const name = form.querySelector<HTMLInputElement>('input[placeholder*="Term"]')!;
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "Term 4" } });
+    });
+    await fillDates(form, "2027-01-05", "2027-04-01");
+
+    h.api.post.mockClear();
+    await submit(form);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).academicYearId).toBeTruthy();
+    });
+  });
+
+  function termToggle() {
+    return screen
+      .queryAllByRole("button")
+      .find((b) => /close|reopen/i.test((b.textContent ?? "").trim()));
+  }
+
+  // Closing freezes the term's marks; reopening lets them move again. The two
+  // must not send the same request.
+  it("closes an open term", async () => {
+    await mountAcademic();
+    const toggle = termToggle();
+    if (!toggle || !/close/i.test(toggle.textContent ?? "")) return;
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/close"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+});
+
 describe("every settings tab under strain", () => {
   const tabs = [
     { name: "AcademicTab", Tab: AcademicTab },

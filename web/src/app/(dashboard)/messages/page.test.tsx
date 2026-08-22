@@ -673,3 +673,91 @@ describe("sending without a live socket", () => {
     await waitFor(() => expect(document.body.textContent).toMatch(/connect/i));
   });
 });
+
+/**
+ * The last few edges of the inbox.
+ *
+ * On a phone the thread fills the screen, so there has to be a way back to the
+ * list. And typing stops being reported after a while, or the other side sees
+ * "typing…" forever from someone who walked away.
+ */
+describe("the edges of the inbox", () => {
+  async function openThread() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+  }
+
+  // On a phone the list is hidden while a thread is open.
+  it("goes back to the conversation list", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openThread();
+
+    const back = screen.getByRole("button", { name: /go back/i });
+    await act(async () => {
+      fireEvent.click(back);
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText(/type a message/i)).toBeNull(),
+    );
+    expect(screen.getByText(/Aline/)).toBeInTheDocument();
+  });
+
+  // Someone who starts typing and walks away must not show as typing forever.
+  it("stops reporting typing after a pause", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { act } = await import("@testing-library/react");
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      serve(h.api, routes);
+      renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+      await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+      await user.click(screen.getByText(/Aline/));
+
+      const box = await screen.findByPlaceholderText(/type a message/i);
+      await user.type(box, "Mu");
+
+      h.chat.stopTyping.mockClear();
+      await act(async () => {
+        vi.advanceTimersByTime(6000);
+      });
+
+      await waitFor(() => expect(h.chat.stopTyping).toHaveBeenCalled());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Creating a conversation with nobody chosen would leave an empty thread in
+  // everyone's list.
+  it("creates nothing when the picker is empty", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const start = screen
+      .queryAllByRole("button")
+      .find(
+        (b) =>
+          /^add$/i.test(b.getAttribute("aria-label") ?? "") ||
+          /new/i.test(b.textContent ?? ""),
+      );
+    await userEvent.setup().click(start!);
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.post.mockClear();
+    const create = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      /^create$/i.test((b.textContent ?? "").trim()),
+    )!;
+    await act(async () => {
+      fireEvent.click(create);
+    });
+
+    await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+});

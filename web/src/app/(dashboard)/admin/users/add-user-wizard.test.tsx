@@ -1202,3 +1202,110 @@ describe("the photo and the suggested email", () => {
     await waitFor(() => expect(email.value).toBe("aline.uwase@markova.edu"));
   }, 30000);
 });
+
+/**
+ * How each role signs in, enforced at the point of creation.
+ *
+ * Staff sign in with an email; parents sign in with a phone. An account
+ * created without the one its role needs cannot be used at all, and the person
+ * only finds out when they try to log in. So the wizard refuses it here.
+ */
+describe("the login each role needs", () => {
+  async function fillAccountFor(role: string, over: Record<string, string> = {}) {
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    await chooseRole(role);
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      for (const field of Array.from(
+        document.querySelectorAll<HTMLInputElement>('input:not([type="file"])'),
+      )) {
+        if (field.disabled || field.readOnly) continue;
+        const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+        let value = "Mukamana";
+        if (name.includes("email")) value = over.email ?? "someone@markova.edu";
+        else if (name.includes("phone")) value = over.phone ?? "+250788100000";
+        else if (name.includes("password")) value = "Umukozi2026!";
+        else if (name.includes("nationalid")) value = over.nationalId ?? "";
+        fireEvent.change(field, { target: { value } });
+      }
+    });
+  }
+
+  /**
+   * Moves past the account step. A librarian's account is the only step there
+   * is, so there is no Continue button and the form is submitted instead.
+   */
+  async function advance() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const next = screen
+      .queryAllByRole("button")
+      .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+    if (next) {
+      await act(async () => {
+        fireEvent.click(next);
+      });
+      return;
+    }
+    const form = document.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  }
+
+  // A parent signs in by phone; the first fifteen in the school have no email
+  // at all, so the phone is the only thing that identifies them.
+  it("refuses a parent with no phone number", async () => {
+    await fillAccountFor("PARENT", { phone: "" });
+    await advance();
+
+    await waitFor(() =>
+      expect(screen.getByText(/parents log in by phone/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("lets a parent through once a phone number is given", async () => {
+    await fillAccountFor("PARENT");
+    await advance();
+
+    await waitFor(() => expect(screen.queryByText(/parents log in by phone/i)).toBeNull());
+  });
+
+  it.each(["TEACHER", "LIBRARIAN"])("refuses a %s with no email", async (role) => {
+    await fillAccountFor(role, { email: "" });
+    await advance();
+
+    await waitFor(() =>
+      expect(screen.getByText(/staff log in with email/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("lets staff through once an email is given", async () => {
+    await fillAccountFor("TEACHER");
+    await advance();
+
+    await waitFor(() => expect(screen.queryByText(/staff log in with email/i)).toBeNull());
+  });
+
+  // A national ID is optional, but one that is filled in has to be a real one:
+  // it is copied onto official records.
+  it("refuses a national ID that is not valid", async () => {
+    await fillAccountFor("TEACHER", { nationalId: "1234" });
+    await advance();
+
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/national id|16 digits/i),
+    );
+  });
+
+  // The field always shows a "16 digits" hint, so the proof is that the wizard
+  // moved on rather than that the words are absent.
+  it("accepts an account with no national ID at all", async () => {
+    await fillAccountFor("TEACHER", { nationalId: "" });
+    await advance();
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/employment/i));
+  });
+});

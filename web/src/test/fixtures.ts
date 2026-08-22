@@ -278,7 +278,19 @@ export const populatedRoutes: Record<string, unknown> = {
       { name: "PARENT_MEETING", count: 1 },
     ],
   },
-  "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
+  // `popularBooks` with a `loanCount` each, from computeLibraryStats in
+  // backend/src/modules/analytics/analytics.service.ts. Without it the
+  // most-borrowed chart never renders.
+  "/analytics/admin/library": {
+    totalBooks: 120,
+    totalLoans: 340,
+    activeLoans: 14,
+    overdueLoans: 2,
+    popularBooks: [
+      { id: "book-1", title: "Things Fall Apart", author: "Chinua Achebe", loanCount: 22 },
+      { id: "book-2", title: "Mathematics for Rwanda Schools", author: "REB", loanCount: 17 },
+    ],
+  },
   // `byDate` is what the attendance chart plots, one entry per day.
   "/analytics/admin/attendance": {
     totalRecords: 640,
@@ -298,7 +310,46 @@ export const populatedRoutes: Record<string, unknown> = {
     { level: "Senior 2", total: 30, counts: { A: 6, B: 11, C: 10, D: 3 } },
   ],
   "/analytics/admin/enrollment": [{ level: "Senior 1", male: 60, female: 60, total: 120 }],
-  "/analytics/student": { subjects: [{ subject, average: 82 }], trend: [{ term: "Term 1", average: 82 }] },
+  /**
+   * `/analytics/student/:id/profile`, from getStudentProfileAnalytics in
+   * backend/src/modules/analytics/analytics.service.ts: a list of terms, each
+   * carrying its own subjects with a `total` and a `grade`. The heatmap on the
+   * performance chart is built from exactly that, and a flat `subjects` array
+   * left it blank while the tests still passed.
+   */
+  "/analytics/student": {
+    student: { name: "Divine Niyonkuru" },
+    terms: [
+      {
+        termId: "term-1",
+        termName: "Term 1",
+        yearName: "2026-2027",
+        className: "Senior 1 A",
+        average: 74.2,
+        letterGrade: "B",
+        rank: 6,
+        classSize: 32,
+        subjects: [
+          { name: "Mathematics", scope: "GENERAL", total: 82, grade: "A", points: 1 },
+          { name: "Kinyarwanda", scope: "GENERAL", total: 61, grade: "C", points: 3 },
+        ],
+      },
+      {
+        termId: "term-2",
+        termName: "Term 2",
+        yearName: "2026-2027",
+        className: "Senior 1 A",
+        average: 77.8,
+        letterGrade: "B",
+        rank: 4,
+        classSize: 32,
+        subjects: [
+          { name: "Mathematics", scope: "GENERAL", total: 88, grade: "A", points: 1 },
+          { name: "Kinyarwanda", scope: "GENERAL", total: 67, grade: "B", points: 2 },
+        ],
+      },
+    ],
+  },
   "/analytics/teacher/class": { average: 73.1, distribution: [{ grade: "A", count: 10 }], students: students },
   "/analytics/parent/child": { trend: [{ term: "Term 1", average: 82 }] },
 

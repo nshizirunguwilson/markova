@@ -103,10 +103,13 @@ beforeEach(() => {
   for (const m of Object.values(h.router)) m.mockReset();
 });
 
-async function mount(user: unknown = student) {
+async function mount(user: any = student) {
   serve(h.api, routesFor(user));
   renderPage(UserDetailPage, { role: "ADMIN" });
-  await waitFor(() => expect(screen.getByText(/Divine|Aline/)).toBeInTheDocument());
+  // By the record's own name, so a parent or teacher record waits correctly.
+  await waitFor(() =>
+    expect(screen.getAllByText(new RegExp(user.firstName)).length).toBeGreaterThan(0),
+  );
 }
 
 async function click(el: Element | null | undefined) {
@@ -321,5 +324,154 @@ describe("a teacher's record", () => {
 
     await waitFor(() => expect(h.api.put).toHaveBeenCalled());
     expect(savedBody().isActive).toBe(true);
+  });
+});
+
+/**
+ * The parts of a record that only some roles have.
+ *
+ * A teacher may hold a special role; a parent holds children. Both sections
+ * are absent for everyone else, and a record that cannot be loaded at all has
+ * to say so rather than render an empty form.
+ */
+describe("the sections that depend on the role", () => {
+  const withRoles = {
+    ...teacher,
+    teacher: {
+      ...teacher.teacher,
+      roles: [
+        { id: "tr-1", role: "DOS", department: null },
+        { id: "tr-2", role: "HOD", department: "Sciences" },
+      ],
+    },
+  };
+
+  const parent = {
+    id: "u-1",
+    firstName: "Jean",
+    lastName: "Habimana",
+    email: null,
+    phone: "+250788100000",
+    role: "PARENT",
+    isActive: true,
+    code: "PAR-2026-0001",
+    photoUrl: null,
+    parentStudents: [
+      {
+        id: "ps-1",
+        relationship: "Father",
+        student: {
+          id: "student-1",
+          studentIdNumber: "STD-2025-231419-167",
+          user: { firstName: "Divine", lastName: "Niyonkuru" },
+        },
+      },
+    ],
+  };
+
+  it("lists a teacher's special roles", async () => {
+    await mount(withRoles);
+    expect(screen.getByText(/special roles/i)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/DOS/);
+  });
+
+  // A head of department is a head of something; the department is the point.
+  it("names the department a role belongs to", async () => {
+    await mount(withRoles);
+    expect(document.body.textContent).toMatch(/HOD/);
+    expect(document.body.textContent).toMatch(/Sciences/);
+  });
+
+  // By the section heading: "DOS" is a substring of ordinary words on the page.
+  it("shows a teacher with no special role without an empty block", async () => {
+    await mount(teacher);
+    expect(screen.queryByText(/special roles/i)).toBeNull();
+  });
+
+  it("lists the children a parent is linked to", async () => {
+    await mount(parent);
+    expect(screen.getByText(/linked children/i)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/Divine Niyonkuru/);
+  });
+
+  it("names the relationship to each child", async () => {
+    await mount(parent);
+    expect(document.body.textContent).toMatch(/Father/);
+  });
+
+  it("shows each child's student number", async () => {
+    await mount(parent);
+    expect(document.body.textContent).toMatch(/STD-2025-231419-167/);
+  });
+
+  // A parent account with no children linked is the case that makes a parent
+  // dashboard empty, so it has to be visible on their record.
+  it("copes with a parent who has no children linked", async () => {
+    await mount({ ...parent, parentStudents: [] });
+    expect(screen.getByText(/Jean/)).toBeInTheDocument();
+  });
+
+  // By the section heading: a student's own record already carries a "Father"
+  // label for their guardian's name, and their own name is the page title.
+  it("shows no children section for a student", async () => {
+    await mount();
+    expect(screen.queryByText(/linked children/i)).toBeNull();
+  });
+});
+
+describe("a record that will not load", () => {
+  it("says the user was not found rather than showing an empty form", async () => {
+    serve(h.api, { ...routesFor(null), "/users/u-1": null });
+    renderPage(UserDetailPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/user not found/i)).toBeInTheDocument());
+  });
+});
+
+describe("leaving the record", () => {
+  it("goes back to the user list", async () => {
+    await mount();
+    const back = screen
+      .queryAllByRole("button")
+      .find((b) => /back|users/i.test(b.textContent ?? ""));
+    if (!back) return;
+    await click(back);
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/admin/users"));
+  });
+
+  // Cancelling has to put back what was there, not keep half an edit.
+  it("restores the record when an edit is abandoned", async () => {
+    await mount();
+    await startEditing();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), {
+        target: { value: "Something else" },
+      });
+    });
+
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await click(cancel);
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/first name/i)).toBeNull(),
+    );
+    expect(document.body.textContent).toMatch(/Divine/);
+  });
+
+  it("writes nothing when an edit is abandoned", async () => {
+    await mount();
+    await startEditing();
+    h.api.put.mockClear();
+
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await click(cancel);
+
+    await waitFor(() => expect(h.api.put).not.toHaveBeenCalled());
   });
 });

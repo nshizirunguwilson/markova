@@ -17,4 +17,14 @@ export class VerifyController {
   verify(@Param('code') code: string) {
     return this.service.verifyReportByCode(code);
   }
+
+  // Also public, for the same reason: anyone holding a student card at a gate
+  // needs to be able to check it without an account. The answer carries the
+  // school's own photo, which is what catches a card copied for someone else.
+  @Get('card/:code')
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @ApiOperation({ summary: 'Check a student ID card by the code in its QR' })
+  verifyCard(@Param('code') code: string) {
+    return this.service.verifyCardByCode(code);
+  }
 }

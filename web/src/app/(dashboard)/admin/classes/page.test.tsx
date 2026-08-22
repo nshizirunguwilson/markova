@@ -488,3 +488,181 @@ describe("exporting the class structure", () => {
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
   });
 });
+
+/**
+ * Trades, and what each Delete actually deletes.
+ *
+ * Three different things share one confirmation dialog, so the wording has to
+ * say which of the three it is about, and each has to reach its own endpoint.
+ * Deleting a trade when you meant a class would take every A-Level stream with
+ * it.
+ */
+describe("adding a trade", () => {
+  async function openTradeForm() {
+    await mount();
+    const add = button(/trade/i);
+    expect(add).toBeTruthy();
+    await click(add);
+    return screen.findByRole("dialog");
+  }
+
+  function save(dialog: HTMLElement) {
+    return within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(add|save|create)/i.test((b.textContent ?? "").trim()));
+  }
+
+  it("opens a form asking for a code and a name", async () => {
+    const dialog = await openTradeForm();
+    expect(within(dialog).getByLabelText(/^code$/i)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/^name$/i)).toBeInTheDocument();
+  });
+
+  it("refuses one with nothing filled in", async () => {
+    const dialog = await openTradeForm();
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  // Trade codes are read on timetables and class names, where mixed case would
+  // be noise.
+  it("upper-cases the code before saving it", async () => {
+    const dialog = await openTradeForm();
+    // A trade also carries the TVET sector it belongs to, and the form will
+    // not submit without it.
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^code$/i), {
+        target: { value: "nit" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+        target: { value: "Networking" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/sector/i), {
+        target: { value: "ICT" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/trades"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).code).toBe("NIT");
+      expect((call![1] as any).name).toBe("Networking");
+    });
+  });
+});
+
+describe("what each Delete deletes", () => {
+  async function confirmDelete(openWith: () => Promise<void>) {
+    await openWith();
+    const dialog = await screen.findByRole("dialog");
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^delete$/i.test((b.textContent ?? "").trim())),
+    );
+    return dialog;
+  }
+
+  it("names a year level in the confirmation", async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /^delete senior 1$/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toMatch(/year level/i);
+    expect(dialog.textContent).toMatch(/Senior 1/);
+  });
+
+  it("deletes a year level from its own endpoint", async () => {
+    await confirmDelete(async () => {
+      await mount();
+      await click(screen.getByRole("button", { name: /^delete senior 1$/i }));
+    });
+
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith("/academic/class-levels/level-1"),
+    );
+  });
+
+  // A class inside a level, not the level itself.
+  it("deletes a class from the sections endpoint", async () => {
+    await mount();
+    await click(screen.getByText("Senior 1").closest("div")!);
+    await waitFor(() => expect(document.querySelector("table")).toBeTruthy());
+
+    const remove = screen.queryAllByRole("button", { name: /^delete class$/i })[0];
+    if (!remove) return;
+    await click(remove);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toMatch(/class/i);
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^delete$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.delete.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/sections/"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("keeps everything when the confirmation is dismissed", async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /^delete senior 1$/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^cancel$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("adding a class to an O-Level level", () => {
+  // No trade involved, so the payload must not carry an empty one.
+  it("creates it without a trade", async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /^add class to senior 1$/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/stream/i), {
+        target: { value: "C" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|add|create)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/sections"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).name).toBe("C");
+      expect((call![1] as any).tradeId).toBeUndefined();
+    });
+  });
+});

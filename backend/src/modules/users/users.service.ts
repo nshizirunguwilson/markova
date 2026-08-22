@@ -5,8 +5,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
@@ -391,7 +392,12 @@ export class UsersService {
       });
 
       if (dto.role === Role.STUDENT) {
-        const studentIdNumber = await this.generateStudentId(tx);
+        const studentIdNumber = await this.generateStudentId(
+          tx,
+          `${created.firstName} ${created.lastName}`,
+          created.id,
+          dto.enrollmentDate ? new Date(dto.enrollmentDate) : undefined,
+        );
         await tx.student.create({
           data: {
             userId: created.id,
@@ -711,7 +717,11 @@ export class UsersService {
               `Row ${i + 1}: classSectionId required for students`,
             );
           }
-          const studentIdNumber = await this.generateStudentId(tx);
+          const studentIdNumber = await this.generateStudentId(
+            tx,
+            `${user.firstName} ${user.lastName}`,
+            user.id,
+          );
           await tx.student.create({
             data: {
               userId: user.id,
@@ -838,26 +848,39 @@ export class UsersService {
     }
   }
 
+  /**
+   * Issues a student number, retrying until it lands on a free one.
+   *
+   * The check digits are three, so a year and name code hold 1000 numbers. The
+   * largest group of students sharing a name code in a real roll is 7, but the
+   * retry is what makes that a fact about this school rather than a promise.
+   */
   private async generateStudentId(
     client: PrismaService | Prisma.TransactionClient = this.prisma,
+    fullName?: string,
+    userId?: string,
+    enrolledAt?: Date,
   ): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `STD-${year}-`;
+    const secret = studentIdSecret();
+    const year = (enrolledAt ?? new Date()).getFullYear();
+    const studentKey = userId ?? randomUUID();
 
-    const lastStudent = await client.student.findFirst({
-      where: { studentIdNumber: { startsWith: prefix } },
-      orderBy: { studentIdNumber: 'desc' },
-    });
-
-    let sequence = 1;
-    if (lastStudent) {
-      const lastNum = parseInt(
-        lastStudent.studentIdNumber.split('-').pop() || '0',
-      );
-      sequence = lastNum + 1;
+    for (let nonce = 0; nonce < 50; nonce += 1) {
+      const candidate = buildStudentId(secret, {
+        fullName: fullName ?? 'Unnamed Student',
+        year,
+        studentKey,
+        nonce,
+      });
+      const taken = await client.student.findUnique({
+        where: { studentIdNumber: candidate },
+        select: { id: true },
+      });
+      if (!taken) return candidate;
     }
-
-    return `${prefix}${String(sequence).padStart(4, '0')}`;
+    throw new ConflictException(
+      'Could not issue a student number; too many share this name and year',
+    );
   }
 
   // Role-based registration code for everyone who is not a student:
