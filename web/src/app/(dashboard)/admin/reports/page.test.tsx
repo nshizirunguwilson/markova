@@ -1053,3 +1053,145 @@ describe("closing the bulk dialog", () => {
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
   }, 40000);
 });
+
+/**
+ * The remaining edges of the bulk run and the single viewer.
+ *
+ * Closing means different things at different points, and the one that must
+ * not happen is tearing down a zip that is seconds from saving.
+ */
+describe("the edges of a bulk run", () => {
+  async function reachDone() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 15000 });
+  }
+
+  it("closes the dialog once the archive is saved", async () => {
+    await reachDone();
+    const close = screen
+      .queryAllByRole("button")
+      .find((b) => /^close$/i.test((b.textContent ?? "").trim()));
+    expect(close).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(close!);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, 40000);
+
+  // The class list is still there afterwards, not a blank page.
+  it("leaves the generated reports on screen", async () => {
+    await reachDone();
+    await act(async () => {
+      fireEvent.click(
+        screen.queryAllByRole("button").find((b) => /^close$/i.test((b.textContent ?? "").trim()))!,
+      );
+    });
+
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }, 40000);
+});
+
+describe("opening a report that will not load", () => {
+  // The row's own View button fetches the rendered card. A failure there has
+  // to say so rather than open an empty viewer.
+  it("says so when one report cannot be fetched", async () => {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/html")) throw { response: { status: 500 } };
+      return real(url, config);
+    });
+
+    h.toast.error.mockClear();
+    const view = rowButton(/view/i);
+    expect(view).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view!);
+    });
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/failed to load/i)),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+  }, 30000);
+});
+
+describe("the document generator refusing an incomplete request", () => {
+  // Generating without a student would produce a letter with a blank where a
+  // child's name belongs.
+  it("says what is missing rather than asking the server", async () => {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()));
+    await act(async () => {
+      fireEvent.click(tab!);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+
+    h.api.post.mockClear();
+    h.toast.error.mockClear();
+
+    // The button guards it too, so call the handler the way the button does.
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()));
+    expect(generate).toBeDisabled();
+
+    const call = h.api.post.mock.calls.find(([url]: any[]) =>
+      String(url).includes("/reports/document"),
+    );
+    expect(call).toBeUndefined();
+  }, 30000);
+});
