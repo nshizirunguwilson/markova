@@ -68,7 +68,7 @@ export const students = [
 export const teachers = [
   // Staff are identified by `user.code` (TCH-…). The Teacher model has no
   // employeeId, and inventing one here hid a blank column on the teachers page.
-  { id: "teacher-1", userId: "u-3", qualification: "BSc Education", user: { ...user("u-3", "Aline", "Uwase", "TEACHER"), code: "TCH-2026-001" } },
+  { id: "teacher-1", userId: "u-3", qualification: "A0", user: { ...user("u-3", "Aline", "Uwase", "TEACHER"), code: "TCH-2026-001" } },
 ];
 
 /**
