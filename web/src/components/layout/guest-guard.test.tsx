@@ -85,6 +85,34 @@ describe("GuestGuard with a live session", () => {
     await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith(path));
   });
 
+  // Already resolved in this tab and mid forced-change: the store already
+  // holds the user, so the guard must not ask the API again, and must not
+  // redirect away from the step that handles it.
+  it("leaves a resolved user who must change their password on the page", async () => {
+    signIn("ADMIN", { forcePasswordChange: true });
+    localStorage.setItem("access_token", "good");
+    h.api.get.mockClear();
+
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+
+    expect(h.router.replace).not.toHaveBeenCalled();
+    expect(h.api.get).not.toHaveBeenCalled();
+  });
+
+  // A token in storage is not proof of a live session, so a rejected profile
+  // call has to clear it rather than leave a half-signed-in tab.
+  it("clears a dead token and shows the form", async () => {
+    localStorage.setItem("access_token", "revoked");
+    h.api.get.mockRejectedValue({ response: { status: 401 } });
+
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(screen.getByText(/the sign in form/i)).toBeInTheDocument());
+
+    expect(localStorage.getItem("access_token")).toBeNull();
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
   // Someone mid forced-change has a live token but must not be waved through:
   // the step that handles it lives on the login page.
   it("leaves a user who must change their password on the page", async () => {
