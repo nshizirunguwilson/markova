@@ -87,18 +87,27 @@ export const marks = [
   { id: "mark-2", studentId: "student-2", subjectId: "subject-1", subject, score: 67, maxScore: 100, assessmentType, student: students[1], termId: "term-1" },
 ];
 
+/**
+ * A term result the way the model actually names its columns: `totalMarks`,
+ * `letterGrade` and `rank` (see TermResult in schema.prisma). Calling them
+ * total/grade/position here left the Total Marks and Grade columns showing a
+ * dash on the marks page while the tests still passed.
+ */
 export const termResult = {
   id: "tr-1",
   studentId: "student-1",
   student: students[0],
+  classSectionId: "section-1",
   termId: "term-1",
-  total: 412,
+  totalMarks: 412,
   average: 82.4,
-  position: 3,
-  grade: "A",
-  decision: "PASS",
+  letterGrade: "A",
+  aggregate: 12,
+  aggregateMax: 24,
+  rank: 3,
+  teacherComment: "Strong term.",
+  headmasterComment: null,
   isPublished: true,
-  comment: "Strong term.",
   subjects: [{ subjectId: "subject-1", subject, score: 82, grade: "A" }],
 };
 
