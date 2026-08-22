@@ -16,10 +16,26 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/hooks/use-socket", () => ({ useSocketConnection: () => undefined }));
-vi.mock("./sidebar", () => ({ Sidebar: () => <nav>sidebar</nav> }));
-vi.mock("./topbar", () => ({ Topbar: () => <header>topbar</header> }));
+// The stub reports the props the shell hands it, so the sidebar toggle can be
+// exercised without pulling in the real navigation tree.
+vi.mock("./sidebar", () => ({
+  Sidebar: (props: { isOpen?: boolean; onClose?: () => void }) => (
+    <nav data-open={props.isOpen ? "yes" : "no"}>
+      sidebar
+      <button onClick={() => props.onClose?.()}>close sidebar</button>
+    </nav>
+  ),
+}));
+vi.mock("./topbar", () => ({
+  Topbar: (props: { onToggleSidebar?: () => void }) => (
+    <header>
+      topbar
+      <button onClick={() => props.onToggleSidebar?.()}>toggle sidebar</button>
+    </header>
+  ),
+}));
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { DashboardShell } from "./dashboard-shell";
 import { makeQueryClient, signIn, signOut } from "@/test/harness";
@@ -115,5 +131,90 @@ describe("DashboardShell role guarding", () => {
     localStorage.setItem("access_token", "good");
     render(wrap(<DashboardShell allowedRoles={["ADMIN"]}><Child /></DashboardShell>));
     await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/student"));
+  });
+});
+
+/**
+ * The sidebar on a phone.
+ *
+ * On a narrow screen the navigation is a drawer: the topbar opens it and
+ * choosing something has to close it again, or the page a teacher just tapped
+ * is hidden behind the menu they tapped it from.
+ */
+describe("DashboardShell sidebar", () => {
+  async function shell() {
+    signIn("ADMIN");
+    localStorage.setItem("access_token", "good");
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() => expect(screen.getByText(/the dashboard/i)).toBeInTheDocument());
+  }
+
+  it("starts closed", async () => {
+    await shell();
+    expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("no");
+  });
+
+  it("opens from the topbar", async () => {
+    await shell();
+    await act(async () => {
+      fireEvent.click(screen.getByText("toggle sidebar"));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("yes"),
+    );
+  });
+
+  it("closes again from the same control", async () => {
+    await shell();
+    await act(async () => {
+      fireEvent.click(screen.getByText("toggle sidebar"));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("yes"),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("toggle sidebar"));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("no"),
+    );
+  });
+
+  // Choosing a destination has to dismiss the drawer covering it.
+  it("closes when the sidebar asks to be closed", async () => {
+    await shell();
+    await act(async () => {
+      fireEvent.click(screen.getByText("toggle sidebar"));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("yes"),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("close sidebar"));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("navigation").getAttribute("data-open")).toBe("no"),
+    );
+  });
+
+  // Nothing of the app may render while the profile is still being fetched:
+  // the role is not known yet, so a guarded page could flash.
+  it("shows only a spinner while the profile loads", async () => {
+    localStorage.setItem("access_token", "good");
+    let settle: (v: unknown) => void = () => {};
+    h.api.get.mockImplementation(
+      () => new Promise((resolve) => { settle = resolve; }),
+    );
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+    // The spinner carries no text, so the check is that the app is not there.
+    expect(screen.queryByText(/the dashboard/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar")).not.toBeInTheDocument();
+
+    settle({ data: { id: "u-1", role: "ADMIN", firstName: "Aline" } });
+    await waitFor(() => expect(screen.getByText(/the dashboard/i)).toBeInTheDocument());
   });
 });
