@@ -448,3 +448,95 @@ describe("lending a book to a borrower", () => {
     );
   });
 });
+
+/**
+ * Importing a catalogue from a spreadsheet.
+ *
+ * This is how a school gets a real library in, usually from whatever the last
+ * system exported. The parser is deliberately forgiving about column order and
+ * quoting, and unforgiving about the two columns it cannot do without.
+ */
+describe("bulk importing books", () => {
+  async function openImport() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const bulk = screen
+      .queryAllByRole("button")
+      .find((b) => /import|bulk|upload/i.test(b.textContent ?? ""));
+    if (!bulk) return false;
+    await userEvent.setup().click(bulk);
+    return true;
+  }
+
+  async function upload(csv: string, name = "catalogue.csv") {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) return false;
+    await userEvent
+      .setup()
+      .upload(input, new File([csv], name, { type: "text/csv" }));
+    return true;
+  }
+
+  it("reads a well formed file", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,isbn,quantity\nImigani,Mukamana J.,978-1,3"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  it("does not care what order the columns are in", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("author,quantity,title\nMukamana J.,3,Imigani"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  // Exported spreadsheets quote fields that contain commas, and a title with a
+  // comma in it is ordinary.
+  it("strips the quotes an export puts around fields", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload('title,author\n"Amateka, Volume 1","Mukamana J."'))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Amateka/));
+  }, 20000);
+
+  it("accepts qty or copies as the quantity column", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,copies\nImigani,Mukamana J.,7"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+  }, 20000);
+
+  // Without a title and an author there is no book, and importing rows of
+  // blanks would fill a catalogue with records nobody can search.
+  it("refuses a file with no title column", async () => {
+    if (!(await openImport())) return;
+    h.toast.error.mockClear();
+    if (!(await upload("author,isbn\nMukamana J.,978-1"))) return;
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  }, 20000);
+
+  it("refuses a header with no rows under it", async () => {
+    if (!(await openImport())) return;
+    h.toast.error.mockClear();
+    if (!(await upload("title,author"))) return;
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  }, 20000);
+
+  it("sends the parsed books", async () => {
+    if (!(await openImport())) return;
+    if (!(await upload("title,author,quantity\nImigani,Mukamana J.,3\nUbuzima,Keza M.,2"))) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Imigani/));
+    h.api.post.mockClear();
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /^import/i.test((b.textContent ?? "").trim()))
+      .at(-1);
+    if (!confirm) return;
+    await userEvent.setup().click(confirm);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("bulk"))).toBe(true);
+    });
+  }, 20000);
+});

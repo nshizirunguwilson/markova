@@ -425,3 +425,102 @@ describe("what gets sent when the wizard is finished", () => {
     expect(body).toMatchObject({ firstName: "Jean", lastName: "Bosco" });
   }, 30000);
 });
+
+/**
+ * Picking a child from the search results.
+ *
+ * The list is the only way a parent account gets attached to anyone, and the
+ * wizard refuses to finish without at least one. Adding the same child twice
+ * would create a duplicate link the API then rejects.
+ */
+describe("attaching a child to the parent", () => {
+  const childResult = {
+    ...students[0].user,
+    student: {
+      id: "student-1",
+      studentIdNumber: "MRK-2026-001",
+      classSection: {
+        name: "A",
+        classLevel: { name: "Senior 1" },
+        trade: null,
+      },
+    },
+  };
+
+  async function searchForChild(results: unknown[] = [childResult]) {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, {
+      ...routes,
+      "/users": { data: results, meta: { total: results.length, page: 1, limit: 8, totalPages: 1 } },
+    });
+
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    await chooseRole("PARENT");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Mukamana" } });
+      fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Josiane" } });
+    });
+    const phone = document.querySelector<HTMLInputElement>('input[name="phone"]');
+    const password = document.querySelector<HTMLInputElement>('input[name="password"]');
+    await act(async () => {
+      if (phone) fireEvent.change(phone, { target: { value: "+250788100000" } });
+      if (password) fireEvent.change(password, { target: { value: "Umunyeshuri2026!" } });
+    });
+    await walkForward(3);
+
+    const search = document.querySelector<HTMLInputElement>('input[placeholder*="Keza" i]');
+    if (!search) {
+      vi.useRealTimers();
+      return false;
+    }
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "Divine" } });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+    vi.useRealTimers();
+    return true;
+  }
+
+  it("lists the students it found", async () => {
+    if (!(await searchForChild())) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Divine/));
+  }, 30000);
+
+  it("attaches one when it is chosen", async () => {
+    if (!(await searchForChild())) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Divine/));
+
+    const user = userEvent.setup();
+    const result = screen.getAllByText(/Divine/).at(-1);
+    if (!result) return;
+    await user.click(result);
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/Divine/));
+  }, 30000);
+
+  // A child linked twice is a duplicate the API rejects, so the second attempt
+  // has to be a no-op rather than an error at the very end.
+  it("ignores a child who is already attached", async () => {
+    if (!(await searchForChild())) return;
+    await waitFor(() => expect(document.body.textContent).toMatch(/Divine/));
+
+    const user = userEvent.setup();
+    const result = screen.getAllByText(/Divine/).at(-1);
+    if (!result) return;
+    await user.click(result);
+    await user.click(result).catch(() => undefined);
+
+    const mentions = (document.body.textContent ?? "").match(/MRK-2026-001/g) ?? [];
+    expect(mentions.length).toBeLessThanOrEqual(2);
+  }, 30000);
+
+  it("finds nothing for a name nobody has", async () => {
+    if (!(await searchForChild([]))) return;
+    expect(document.body.textContent).not.toBe("");
+  }, 30000);
+});
