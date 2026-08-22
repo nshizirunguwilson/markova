@@ -68,3 +68,16 @@ if (typeof window !== "undefined" && !window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+/**
+ * jsdom ships no ResizeObserver, and anything that measures itself to redraw
+ * (charts, virtualised tables) constructs one on mount. A no-op is enough:
+ * nothing in jsdom ever changes size.
+ */
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}

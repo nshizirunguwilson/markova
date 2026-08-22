@@ -72,9 +72,13 @@ export default function AdminPromotionPage() {
       },
       {
         onSuccess: (data) => {
-          setStudents(data.students);
+          // Read defensively. This runs inside onSuccess, so a response
+          // without the list would throw here and turn a preview that the
+          // server answered perfectly well into a page that died.
+          const rows = Array.isArray(data?.students) ? data.students : [];
+          setStudents(rows);
           const init: Record<string, Decision> = {};
-          for (const s of data.students) init[s.studentId] = s.recommendation;
+          for (const s of rows) init[s.studentId] = s.recommendation;
           setDecisions(init);
         },
       }

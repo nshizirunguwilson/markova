@@ -81,8 +81,8 @@ export const message = { id: "msg-1", conversationId: "conv-1", senderId: "u-1",
 
 export const attendanceRecord = { id: "att-1", studentId: "student-1", student: students[0], status: "PRESENT", date: "2026-08-21" };
 
-export const faq = { id: "faq-1", question: "How do I reset my password?", answer: "Use the reset link on the sign in page.", category: "ACCOUNT", isPublished: true };
-export const ticket = { id: "tkt-1", subject: "Cannot see my marks", body: "Term 1 marks are missing", status: "OPEN", createdAt: "2026-08-20T10:00:00Z", user: user("u-1", "Divine", "Niyonkuru") };
+export const faq = { id: "faq-1", title: "How do I reset my password?", content: "Use the reset link on the sign in page.", category: "ACCOUNT", displayOrder: 1, isPublished: true };
+export const ticket = { id: "tkt-1", subject: "Cannot see my marks", message: "Term 1 marks are missing", status: "OPEN", priority: "NORMAL", createdAt: "2026-08-20T10:00:00Z", user: user("u-1", "Divine", "Niyonkuru") };
 
 export const notification = { id: "note-1", title: "New report card", body: "Term 1 is published", isRead: false, createdAt: "2026-08-21T08:00:00Z" };
 
@@ -119,13 +119,25 @@ export const populatedRoutes: Record<string, unknown> = {
   "/attendance/class": [attendanceRecord],
   "/attendance/class-students": students,
   "/attendance/student-summary": { present: 58, absent: 2, late: 1, excused: 0, rate: 95.1, records: [attendanceRecord] },
-  "/attendance/dashboard": { present: 300, absent: 12, late: 5, rate: 94.6, byClass: [{ classSection, present: 30, absent: 2 }] },
+  "/attendance/dashboard": {
+    date: "2026-08-21",
+    overall: { totalStudents: 320, present: 300, late: 8, absent: 12, rate: 96 },
+    sections: [
+      { sectionId: "section-1", className: "Senior 1 A", total: 32, present: 30, late: 1, absent: 1, rate: 97 },
+    ],
+  },
   "/attendance/chronic": [{ student: students[1], absences: 7 }],
 
   "/discipline/incidents": [incident],
   "/discipline/student": [incident],
   "/discipline/appeals/pending": [],
-  "/discipline/dashboard": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }], recent: [incident] },
+  "/discipline/dashboard": {
+    totalIncidents: 4,
+    totalPointsDeducted: 20,
+    pendingAppeals: 0,
+    byAction: { WARNING: 3, SUSPENSION: 1 },
+    topOffenders: [{ student: students[1], count: 2, points: 10 }],
+  },
 
   "/library/books": [book],
   "/library/loans/active": [loan],
@@ -148,13 +160,17 @@ export const populatedRoutes: Record<string, unknown> = {
   "/help/tickets": [ticket],
 
   "/analytics/admin/dashboard": { students: 320, teachers: 24, classes: 12, attendanceRate: 94.6, averageScore: 71.2 },
-  "/analytics/admin/performance-trends": [{ term: "Term 1", average: 71.2 }],
-  "/analytics/admin/class-comparisons": [{ classSection, average: 73.1 }],
+  "/analytics/admin/performance-trends": [{ termName: "Term 1", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 }],
+  "/analytics/admin/class-comparisons": [{ className: "Senior 1 A", averageScore: 73.1, studentCount: 32 }],
   "/analytics/admin/discipline": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }] },
   "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
   "/analytics/admin/attendance": { rate: 94.6, byClass: [{ classSection, rate: 95 }] },
-  "/analytics/admin/grade-distribution": [{ grade: "A", count: 40 }],
-  "/analytics/admin/enrollment": [{ level: "Senior 1", count: 120 }],
+  // Per level, with a letter->count map. See analytics.service.ts.
+  "/analytics/admin/grade-distribution": [
+    { level: "Senior 1", total: 32, counts: { A: 8, B: 12, C: 9, D: 2, F: 1 } },
+    { level: "Senior 2", total: 30, counts: { A: 6, B: 11, C: 10, D: 3 } },
+  ],
+  "/analytics/admin/enrollment": [{ level: "Senior 1", male: 60, female: 60, total: 120 }],
   "/analytics/student": { subjects: [{ subject, average: 82 }], trend: [{ term: "Term 1", average: 82 }] },
   "/analytics/teacher/class": { average: 73.1, distribution: [{ grade: "A", count: 10 }], students: students },
   "/analytics/parent/child": { trend: [{ term: "Term 1", average: 82 }] },
@@ -163,4 +179,132 @@ export const populatedRoutes: Record<string, unknown> = {
   "/reports/year": { student: students[0], result: termResult },
   "/reports/id-card": { student: students[0], qr: "data:image/png;base64,AAA" },
   "/reports/id-cards/registry": { data: [{ id: "card-1", student: students[0], status: "ISSUED", issuedAt: "2026-08-01" }], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
+};
+
+/**
+ * The same endpoints, answered with the awkward cases.
+ *
+ * `populatedRoutes` is a school where everything is fine: marks published,
+ * books returned, nobody absent. Every page has a second half that only renders
+ * when something is wrong, and that half is the half a head teacher actually
+ * looks at. This drives it: overdue books, unpublished results, absent
+ * students, homework past its due date, more rows than fit on a page.
+ */
+const overdueLoan = {
+  ...loan,
+  id: "loan-2",
+  dueDate: "2026-07-01",
+  returnedAt: null,
+  isOverdue: true,
+  daysOverdue: 51,
+};
+
+const returnedLoan = {
+  ...loan,
+  id: "loan-3",
+  returnedAt: "2026-08-10",
+  isOverdue: false,
+};
+
+const unpublishedResult = {
+  ...termResult,
+  id: "tr-2",
+  isPublished: false,
+  average: 41.2,
+  grade: "F",
+  decision: "REPEAT",
+  position: 28,
+  comment: "",
+};
+
+const overdueHomework = {
+  ...homework,
+  id: "hw-2",
+  title: "Overdue essay",
+  dueDate: "2026-07-15",
+  _count: { submissions: 0 },
+};
+
+export const edgeRoutes: Record<string, unknown> = {
+  ...populatedRoutes,
+
+  // A bigger roll than one page holds, so pagination renders.
+  "/users": {
+    data: Array.from({ length: 20 }, (_, i) => ({
+      id: `u-${i}`,
+      firstName: ["Divine", "Keza", "Aline", "Mugisha", "Uwera"][i % 5],
+      lastName: ["Niyonkuru", "Mutesi", "Uwase", "Habimana", "Ingabire"][i % 5],
+      email: `person${i}@markova.edu`,
+      phone: `+2507880000${String(i).padStart(2, "0")}`,
+      role: ["STUDENT", "TEACHER", "PARENT", "LIBRARIAN"][i % 4],
+      isActive: i % 7 !== 0,
+      photoUrl: null,
+    })),
+    meta: { total: 84, page: 2, limit: 20, totalPages: 5 },
+  },
+
+  "/library/loans/active": [overdueLoan, returnedLoan, loan],
+  "/library/loans/overdue": [overdueLoan],
+  "/library/loans/my": [overdueLoan],
+  "/library/books": [
+    { ...book, availableCopies: 0 },
+    { ...book, id: "book-2", title: "Imigani", availableCopies: 5, category: null },
+  ],
+
+  "/marks/term-results/class": [unpublishedResult, termResult],
+  "/marks/term-results/student": { result: unpublishedResult, marks: [] },
+  "/marks/completion": {
+    total: 32,
+    entered: 11,
+    percentage: 34,
+    missing: students.map((s) => ({ student: s, subject })),
+  },
+
+  "/attendance/class": [
+    { ...attendanceRecord, status: "ABSENT" },
+    { ...attendanceRecord, id: "att-2", status: "LATE", student: students[1] },
+  ],
+  "/attendance/student-summary": {
+    present: 20,
+    absent: 18,
+    late: 6,
+    excused: 2,
+    rate: 43.5,
+    records: [{ ...attendanceRecord, status: "ABSENT" }],
+  },
+  "/attendance/dashboard": {
+    date: "2026-08-21",
+    overall: { totalStudents: 320, present: 180, late: 40, absent: 100, rate: 68 },
+    sections: [
+      { sectionId: "section-1", className: "Senior 1 A", total: 32, present: 12, late: 4, absent: 16, rate: 50 },
+    ],
+  },
+
+  "/discipline/incidents": [
+    { ...incident, severity: "MAJOR", points: 25, actionTaken: "SUSPENSION" },
+    incident,
+  ],
+  "/discipline/appeals/pending": [
+    { id: "ap-1", incident, reason: "It was not me", status: "PENDING", createdAt: "2026-08-20T12:00:00Z" },
+  ],
+  "/discipline/student": [{ ...incident, severity: "MAJOR", points: 25 }],
+
+  "/homework": [overdueHomework, homework],
+  "/homework/student": [{ ...overdueHomework, submission: null }],
+
+  "/messaging/conversations": [
+    { ...conversation, unreadCount: 12, lastMessage: { content: "Muraho", createdAt: "2026-08-21T09:00:00Z", sender: undefined } },
+  ],
+  "/notifications": [notification, { ...notification, id: "note-2", isRead: true, type: "ATTENDANCE" }],
+
+  "/help/tickets": [ticket, { ...ticket, id: "tkt-2", status: "CLOSED" }],
+  "/help/faqs": [faq, { ...faq, id: "faq-2", title: "Where are marks?", isPublished: false }],
+
+  "/analytics/admin/dashboard": {
+    students: 0,
+    teachers: 0,
+    classes: 0,
+    attendanceRate: 0,
+    averageScore: 0,
+  },
 };

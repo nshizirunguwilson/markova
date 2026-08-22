@@ -136,7 +136,7 @@ export default function AdminDisciplinePage() {
                   <TableRow key={inc.id}>
                     <TableCell className="text-sm">{new Date(inc.date).toLocaleDateString()}</TableCell>
                     <TableCell className="font-medium">
-                      {inc.student.user.firstName} {inc.student.user.lastName}
+                      {inc.student?.user?.firstName ?? "Unknown"} {inc.student?.user?.lastName ?? ""}
                     </TableCell>
                     <TableCell className="text-sm text-muted">
                       {classDisplayName(inc.student.classSection)}
@@ -179,7 +179,7 @@ export default function AdminDisciplinePage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-medium text-foreground">
-                      {a.incident.student.user.firstName} {a.incident.student.user.lastName}
+                      {a.incident?.student?.user?.firstName ?? "Unknown"} {a.incident?.student?.user?.lastName ?? ""}
                       <span className="ml-2 text-xs text-muted">
                         {classDisplayName(a.incident.student.classSection)}
                       </span>
@@ -190,7 +190,7 @@ export default function AdminDisciplinePage() {
                       <span className="font-medium">Appeal:</span> {a.statement}
                     </p>
                     <p className="mt-1 text-xs text-muted">
-                      By {a.submittedBy.firstName} {a.submittedBy.lastName} on{" "}
+                      By {a.submittedBy?.firstName ?? "someone"} {a.submittedBy?.lastName ?? ""} on{" "}
                       {new Date(a.createdAt).toLocaleDateString()}
                     </p>
                   </div>

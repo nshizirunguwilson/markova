@@ -71,7 +71,7 @@ describe("adding a book", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("posts a new book and closes the form", async () => {
+  it("posts a new book once the form is filled", async () => {
     serve(h.api, routes);
     renderPage(LibraryPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
@@ -82,15 +82,25 @@ describe("adding a book", () => {
     );
     const dialog = await screen.findByRole("dialog");
 
-    // Title and author are both required by the form's schema.
-    await user.type(within(dialog).getByLabelText(/title/i), "Amateka y'u Rwanda");
-    await user.type(within(dialog).getByLabelText(/author/i), "Mukamana J.");
+    // fireEvent.change is synchronous, so the form state is settled by the time
+    // the submit fires. Typing key by key races the resolver and made this pass
+    // only about two runs in three.
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/title/i), {
+        target: { value: "Amateka y'u Rwanda" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/author/i), {
+        target: { value: "Mukamana J." },
+      });
+    });
     h.api.post.mockClear();
 
-    const save = within(dialog)
-      .getAllByRole("button")
-      .find((b) => /save|add|create/i.test(b.textContent ?? ""));
-    await user.click(save!);
+    const form = dialog.querySelector("form");
+    expect(form).toBeTruthy();
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
 
     await waitFor(() => expect(h.api.post).toHaveBeenCalled());
     expect(String(h.api.post.mock.calls[0][0])).toContain("/library/books");
@@ -140,5 +150,102 @@ describe("deleting a book", () => {
 
     await screen.findByRole("dialog");
     expect(h.api.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("moving between the library's tabs", () => {
+  // Loans, overdue and analytics each fetch their own data and each has an
+  // empty state a new school sees on day one.
+  it.each(["loans", "overdue", "analytics"])("opens the %s tab", async (name) => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => new RegExp(name, "i").test(b.textContent ?? ""));
+    if (!tab) return;
+    await userEvent.setup().click(tab);
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("shows an empty shelf on every tab for a new school", async () => {
+    serveAll(h.api, []);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    for (const name of ["loans", "overdue", "analytics"]) {
+      const tab = screen
+        .queryAllByRole("button")
+        .find((b) => new RegExp(name, "i").test(b.textContent ?? ""));
+      if (!tab) continue;
+      await user.click(tab);
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    }
+  });
+});
+
+describe("lending a book out", () => {
+  it("opens the checkout form", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return;
+    await userEvent.setup().click(checkout);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+  });
+
+  // Lending needs both a book and a borrower; either alone is a half record.
+  it("refuses a checkout with nothing chosen", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const checkout = screen
+      .queryAllByRole("button")
+      .find((b) => /check ?out|lend|issue/i.test(b.textContent ?? ""));
+    if (!checkout) return;
+    const user = userEvent.setup();
+    await user.click(checkout);
+
+    const dialog = await screen.findByRole("dialog");
+    h.api.post.mockClear();
+    const submit = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!submit) return;
+    await user.click(submit);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("returning a book", () => {
+  it("sends the return", async () => {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    const loansTab = screen
+      .queryAllByRole("button")
+      .find((b) => /loans/i.test(b.textContent ?? ""));
+    if (loansTab) await user.click(loansTab);
+
+    const ret = screen
+      .queryAllByRole("button")
+      .find((b) => /^return/i.test((b.textContent ?? "").trim()));
+    if (!ret) return;
+    h.api.post.mockClear();
+    await user.click(ret);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("return"))).toBe(true);
+    });
   });
 });

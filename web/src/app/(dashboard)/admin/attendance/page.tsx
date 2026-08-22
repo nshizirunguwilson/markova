@@ -95,23 +95,23 @@ export default function AdminAttendancePage() {
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                 <Card>
                   <p className="text-xs text-muted">Total Students</p>
-                  <p className="text-2xl font-bold text-foreground">{dashboard.overall.totalStudents}</p>
+                  <p className="text-2xl font-bold text-foreground">{dashboard.overall?.totalStudents ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Present</p>
-                  <p className="text-2xl font-bold text-success">{dashboard.overall.present}</p>
+                  <p className="text-2xl font-bold text-success">{dashboard.overall?.present ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Late</p>
-                  <p className="text-2xl font-bold text-warning">{dashboard.overall.late}</p>
+                  <p className="text-2xl font-bold text-warning">{dashboard.overall?.late ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Absent</p>
-                  <p className="text-2xl font-bold text-danger">{dashboard.overall.absent}</p>
+                  <p className="text-2xl font-bold text-danger">{dashboard.overall?.absent ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Attendance Rate</p>
-                  <p className="text-2xl font-bold text-primary">{dashboard.overall.rate}%</p>
+                  <p className="text-2xl font-bold text-primary">{dashboard.overall?.rate ?? 0}%</p>
                 </Card>
               </div>
 
@@ -134,7 +134,7 @@ export default function AdminAttendancePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {dashboard.sections.map((s: any) => (
+                      {(dashboard.sections ?? []).map((s: any) => (
                         <TableRow key={s.sectionId}>
                           <TableCell className="font-medium">{s.className}</TableCell>
                           <TableCell>{s.total}</TableCell>
@@ -165,7 +165,7 @@ export default function AdminAttendancePage() {
                 <CardTitle>Attendance by Class</CardTitle>
                 <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance table, scrolls horizontally">
                   <div className="flex items-end gap-3 h-40 min-w-max">
-                  {dashboard.sections.map((s: any) => (
+                  {(dashboard.sections ?? []).map((s: any) => (
                     <div key={s.sectionId} className="flex h-full w-12 shrink-0 flex-col items-center">
                       <span className="mb-1 text-xs font-bold">{s.rate}%</span>
                       <div className="flex w-full flex-1 items-end">

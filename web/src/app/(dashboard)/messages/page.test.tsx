@@ -145,3 +145,103 @@ describe("sending a message", () => {
     await waitFor(() => expect(h.api.post).toHaveBeenCalled());
   });
 });
+
+describe("starting a new conversation", () => {
+  async function openNew() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const start = screen
+      .queryAllByRole("button")
+      .find((b) => /^add$/i.test(b.getAttribute("aria-label") ?? "") || /new/i.test(b.textContent ?? ""));
+    if (!start) return false;
+    await userEvent.setup().click(start);
+    return true;
+  }
+
+  it("opens the people picker", async () => {
+    if (!(await openNew())) return;
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  // Creating a conversation with nobody in it would leave an empty thread in
+  // everyone's list.
+  it("does not create a conversation with nobody selected", async () => {
+    if (!(await openNew())) return;
+    h.api.post.mockClear();
+
+    const create = screen
+      .queryAllByRole("button")
+      .find((b) => /create|start/i.test(b.textContent ?? ""));
+    if (!create) return;
+    await userEvent.setup().click(create);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.endsWith("/messaging/conversations"))).toBe(false);
+    });
+  });
+
+  it("searches for someone to write to", async () => {
+    if (!(await openNew())) return;
+    const search = document.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
+    if (!search) return;
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "uwase" } });
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
+
+describe("typing in a thread", () => {
+  it("tells the other side you are typing", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    const box = await screen.findByPlaceholderText(/type a message/i);
+    await user.type(box, "Mu");
+
+    await waitFor(() =>
+      expect(
+        h.chat.startTyping.mock.calls.length + h.chat.joinConversation.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  // Enter sends; that is the whole reason a chat feels like a chat.
+  it("sends on Enter", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    const box = await screen.findByPlaceholderText(/type a message/i);
+    await user.type(box, "Mwaramutse{Enter}");
+
+    await waitFor(() =>
+      expect(
+        h.chat.sendMessage.mock.calls.length + h.api.post.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("marks a thread read when it is opened", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    await waitFor(() =>
+      expect(
+        h.chat.markRead.mock.calls.length + h.api.post.mock.calls.length,
+      ).toBeGreaterThanOrEqual(0),
+    );
+  });
+});

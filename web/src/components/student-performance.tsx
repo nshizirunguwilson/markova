@@ -122,7 +122,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       },
       yAxis: {
         type: "category",
-        data: rows.map((s: any) => s.name),
+        data: rows.map((s: any) => s?.name),
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
@@ -132,7 +132,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         ...tooltipStyle,
         formatter: (p: any) => {
           const s = rows[p.dataIndex];
-          return `<b>${s.name}</b><br/>${s.total}% · Grade ${s.grade} (${s.points} points)`;
+          return `<b>${s?.name}</b><br/>${s?.total}% · Grade ${s?.grade} (${s?.points} points)`;
         },
       },
       series: [
@@ -140,9 +140,9 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
           type: "bar",
           barWidth: 11,
           data: rows.map((s: any) => ({
-            value: s.total,
+            value: s?.total,
             itemStyle: {
-              color: (s.total ?? 0) >= 50 ? viz.navy : viz.attendance.absent,
+              color: (s?.total ?? 0) >= 50 ? viz.navy : viz.attendance.absent,
               borderRadius: 6,
             },
           })),
@@ -153,7 +153,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             fontSize: 11,
             formatter: (p: any) => {
               const s = rows[p.dataIndex];
-              return `${s.total}%  ${s.grade}`;
+              return `${s?.total}%  ${s?.grade}`;
             },
           },
           markLine: {
@@ -173,19 +173,19 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     if (terms.length < 2) return null;
     // Order subjects by their latest total so the strongest sit on top.
     const order = new Map<string, number>();
-    latest?.subjects?.forEach((s: any, i: number) => order.set(s.name, i));
+    latest?.subjects?.forEach((s: any, i: number) => order.set(s?.name, i));
     const subjects = ([
-      ...new Set(terms.flatMap((t: any) => t.subjects.map((s: any) => s.name))),
+      ...new Set(terms.flatMap((t: any) => t.subjects.map((s: any) => s?.name))),
     ] as string[]).sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99));
 
     const cells: [number, number, number][] = [];
     const gradeAt = new Map<string, string>();
     terms.forEach((t: any, x: number) => {
       for (const s of t.subjects) {
-        const y = subjects.indexOf(s.name);
-        if (y === -1 || s.total == null) continue;
-        cells.push([x, y, s.total]);
-        gradeAt.set(`${x}|${y}`, s.grade);
+        const y = subjects.indexOf(s?.name);
+        if (y === -1 || s?.total == null) continue;
+        cells.push([x, y, s?.total]);
+        gradeAt.set(`${x}|${y}`, s?.grade);
       }
     });
 
@@ -261,7 +261,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     {
       label: "Position",
       value: latest?.rank ? `${latest.rank}` : "–",
-      sub: `of ${latest?.classSize ?? s.classSize}`,
+      sub: `of ${latest?.classSize ?? s?.classSize ?? "–"}`,
     },
     {
       label: "Aggregate",
@@ -275,7 +275,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     },
     {
       label: "Conduct",
-      value: s.disciplinePoints,
+      value: s?.disciplinePoints ?? "–",
       sub: "/ 100 points",
     },
   ];
@@ -286,24 +286,24 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       <Card className="p-6">
         <div className="flex flex-wrap items-center gap-4">
           <Avatar
-            src={s.photoUrl}
-            fallback={(s.name ?? "").split(" ").filter(Boolean).map((w: string) => w[0]).slice(0, 2).join("")}
+            src={s?.photoUrl}
+            fallback={(s?.name ?? "").split(" ").filter(Boolean).map((w: string) => w[0]).slice(0, 2).join("")}
             size="lg"
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold text-foreground">{s.name ?? "Student"}</h1>
-              <Badge variant="info">{s.class}</Badge>
-              {s.trade && <Badge variant="default">{s.trade.name}</Badge>}
-              {s.status === "ACTIVE" && (
+              <h1 className="text-xl font-bold text-foreground">{s?.name ?? "Student"}</h1>
+              <Badge variant="info">{s?.class}</Badge>
+              {s?.trade && <Badge variant="default">{s?.trade.name}</Badge>}
+              {s?.status === "ACTIVE" && (
                 <span className="flex items-center gap-1 text-xs font-medium text-primary">
                   <ShieldCheck className="h-3.5 w-3.5" /> Active
                 </span>
               )}
             </div>
             <p className="mt-0.5 text-sm text-muted">
-              {s.studentIdNumber}
-              {s.email ? ` · ${s.email}` : ""}
+              {s?.studentIdNumber}
+              {s?.email ? ` · ${s?.email}` : ""}
             </p>
           </div>
         </div>
@@ -340,7 +340,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
               <Card className="p-6">
                 <CardTitle>Term by term</CardTitle>
                 <p className="mt-0.5 text-sm text-muted">
-                  {s.name.split(" ")[0]}&apos;s average against the class, across the year.
+                  {s?.name.split(" ")[0]}&apos;s average against the class, across the year.
                 </p>
                 <EChart option={trajectoryOption} height={280} />
               </Card>

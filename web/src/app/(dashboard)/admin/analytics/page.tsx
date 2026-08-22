@@ -143,7 +143,7 @@ export default function AdminAnalyticsPage() {
     let maxPct = 0;
     gradeDist.forEach((g: any, y: number) => {
       GRADES.forEach((letter, x) => {
-        const count = g.counts[letter] ?? 0;
+        const count = g.counts?.[letter] ?? 0;
         const pct = g.total ? (count / g.total) * 100 : 0;
         maxPct = Math.max(maxPct, pct);
         cells.push([x, y, Math.round(pct * 10) / 10]);
