@@ -102,7 +102,10 @@ export const termResult = {
   subjects: [{ subjectId: "subject-1", subject, score: 82, grade: "A" }],
 };
 
-export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-1-23", category: "SCIENCE", totalCopies: 5, availableCopies: 3 };
+// The Book model counts copies as `quantity` and `availableCount` (see
+// schema.prisma). Naming them totalCopies/availableCopies here left the two
+// count columns blank in tests while the pages still passed.
+export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-1-23", category: "SCIENCE", quantity: 5, availableCount: 3, barcode: "BK-0001", replacementCost: 12000 };
 export const loan = { id: "loan-1", bookId: "book-1", book, borrowerId: "u-1", borrower: user("u-1", "Divine", "Niyonkuru"), dueDate: "2026-09-30", returnedAt: null, isOverdue: false };
 
 export const incident = { id: "inc-1", studentId: "student-1", student: students[0], category: "LATENESS", severity: "MINOR", points: 5, description: "Late to assembly", actionTaken: "WARNING", createdAt: "2026-08-20T07:30:00Z", reportedBy: user("u-3", "Aline", "Uwase", "TEACHER") };
@@ -362,8 +365,9 @@ export const edgeRoutes: Record<string, unknown> = {
   "/library/loans/overdue": [overdueLoan],
   "/library/loans/my": [overdueLoan],
   "/library/books": [
-    { ...book, availableCopies: 0 },
-    { ...book, id: "book-2", title: "Imigani", availableCopies: 5, category: null },
+    // Nothing left on the shelf, which is what the borrow button reads.
+    { ...book, availableCount: 0 },
+    { ...book, id: "book-2", title: "Imigani", availableCount: 5, category: null },
   ],
 
   "/marks/term-results/class": [unpublishedResult, termResult],

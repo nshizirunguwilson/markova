@@ -37,7 +37,7 @@ const routes = {
   ...populatedRoutes,
   "/library/books": [
     book,
-    { ...book, id: "book-2", title: "Imigani", category: "LITERATURE", availableCopies: 0 },
+    { ...book, id: "book-2", title: "Imigani", category: "LITERATURE", availableCount: 0 },
   ],
   "/library/loans/active": [loan],
   "/library/loans/overdue": [{ ...loan, id: "loan-2", isOverdue: true, daysOverdue: 12 }],
