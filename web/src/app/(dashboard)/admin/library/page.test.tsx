@@ -36,7 +36,12 @@ const routes = {
     popularBooks: [{ title: book.title, author: book.author, loanCount: 9 }],
     categories: [],
   },
-  "/users": { users: students.map((s) => s.user), meta: { total: 2, page: 1, limit: 20, totalPages: 1 } },
+  // PaginatedResponse puts the rows under `data`. Naming it `users` left the
+  // checkout modal's borrower list empty in every test.
+  "/users": {
+    data: students.map((s) => ({ ...s.user, student: { studentIdNumber: s.studentIdNumber } })),
+    meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+  },
   "/academic/sections": [],
 };
 
@@ -869,5 +874,154 @@ describe("importing books from a CSV", () => {
 
     await waitFor(() => expect(screen.queryByText(/Inganzo/)).toBeNull());
     expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Lending a book from the admin side.
+ *
+ * Same desk transaction as the librarian's, but the borrower is picked from a
+ * list rather than scanned, so the value sent has to be the student's number
+ * and not their user id.
+ */
+describe("the checkout desk", () => {
+  async function openCheckout() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const open = screen
+      .queryAllByRole("button")
+      .find((b) => /^checkout$/i.test((b.textContent ?? "").trim()));
+    expect(open).toBeTruthy();
+    await userEvent.setup().click(open!);
+    return screen.findByRole("dialog");
+  }
+
+  it("lists the students who could borrow", async () => {
+    const dialog = await openCheckout();
+    await waitFor(() => expect(dialog.textContent).toMatch(/Divine/));
+  });
+
+  // The API takes an identifier a human recognises, so the option's value has
+  // to be the student number rather than the user's uuid.
+  it("identifies a borrower by their student number", async () => {
+    const dialog = await openCheckout();
+    await waitFor(() => expect(dialog.textContent).toMatch(/Divine/));
+
+    const picker = within(dialog)
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => /STD-/.test(o.value)),
+      );
+    expect(picker).toBeTruthy();
+  });
+
+  it("lends the chosen book to the chosen student", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const dialog = await openCheckout();
+    await waitFor(() => expect(dialog.textContent).toMatch(/Divine/));
+
+    for (const select of within(dialog).getAllByRole("combobox")) {
+      const option = Array.from((select as HTMLSelectElement).options).find((o) => o.value);
+      if (!option) continue;
+      await act(async () => {
+        fireEvent.change(select, { target: { value: option.value } });
+      });
+    }
+    for (const box of within(dialog).queryAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "BK-0001" } });
+      });
+    }
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.submit(dialog.querySelector("form")!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/library/checkout"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("closes without lending anything when dismissed", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const dialog = await openCheckout();
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(
+        within(dialog)
+          .getAllByRole("button")
+          .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()))!,
+      );
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  // The desk serves one borrower after another, so nothing may carry over.
+  it("clears itself for the next borrower", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const dialog = await openCheckout();
+    for (const box of within(dialog).queryAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "BK-0001" } });
+      });
+    }
+
+    await act(async () => {
+      fireEvent.click(
+        within(dialog)
+          .getAllByRole("button")
+          .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()))!,
+      );
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await userEvent.setup().click(
+      screen.queryAllByRole("button").find((b) => /^checkout$/i.test((b.textContent ?? "").trim()))!,
+    );
+    const again = await screen.findByRole("dialog");
+    for (const box of within(again).queryAllByRole("textbox")) {
+      expect((box as HTMLInputElement).value).toBe("");
+    }
+  });
+});
+
+describe("deleting a book from the catalogue", () => {
+  async function askToDelete() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const remove = screen.queryAllByRole("button", { name: /delete/i })[0];
+    if (!remove) return null;
+    await userEvent.setup().click(remove);
+    return screen.findByRole("dialog");
+  }
+
+  it("keeps the book when the ask is dismissed", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const dialog = await askToDelete();
+    if (!dialog) return;
+
+    h.api.delete.mockClear();
+    const cancel = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.delete).not.toHaveBeenCalled();
+    expect(screen.getByText(/Ubuzima/)).toBeInTheDocument();
   });
 });
