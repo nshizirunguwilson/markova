@@ -566,7 +566,10 @@ describe("stopping a bulk pack part way", () => {
     const real = h.api.get.getMockImplementation()!;
     h.api.get.mockImplementation(async (url: string, config?: unknown) => {
       if (String(url).includes("/pdf")) {
-        await new Promise((r) => setTimeout(r, 60));
+        // Long enough that the run cannot finish before Stop is clicked. At
+        // 60ms a fast machine packed both reports first and the test failed
+        // intermittently.
+        await new Promise((r) => setTimeout(r, 400));
         return { data: new Blob(["pdf"]), status: 200 };
       }
       return real(url, config);
