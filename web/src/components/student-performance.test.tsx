@@ -49,7 +49,7 @@ const profile = (terms: unknown[]) => ({
     id: "student-1",
     name: "Divine Niyonkuru",
     photoUrl: null,
-    studentIdNumber: "MRK-2026-001",
+    studentIdNumber: "STD-2026-001",
     class: "Senior 1 A",
     classSize: 32,
     status: "ACTIVE",
@@ -85,7 +85,7 @@ describe("StudentPerformance", () => {
         screen.getByRole("heading", { name: /Divine Niyonkuru/ }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText(/MRK-2026-001/)).toBeInTheDocument();
+    expect(screen.getByText(/STD-2026-001/)).toBeInTheDocument();
   });
 
   // A student in their very first term has one data point. A line chart of one

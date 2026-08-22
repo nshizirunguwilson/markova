@@ -438,7 +438,7 @@ describe("attaching a child to the parent", () => {
     ...students[0].user,
     student: {
       id: "student-1",
-      studentIdNumber: "MRK-2026-001",
+      studentIdNumber: "STD-2026-001",
       classSection: {
         name: "A",
         classLevel: { name: "Senior 1" },
@@ -515,7 +515,7 @@ describe("attaching a child to the parent", () => {
     await user.click(result);
     await user.click(result).catch(() => undefined);
 
-    const mentions = (document.body.textContent ?? "").match(/MRK-2026-001/g) ?? [];
+    const mentions = (document.body.textContent ?? "").match(/STD-2026-001/g) ?? [];
     expect(mentions.length).toBeLessThanOrEqual(2);
   }, 30000);
 
@@ -666,7 +666,7 @@ describe("linking a parent to their children", () => {
     lastName: "Mutesi",
     student: {
       id: "student-2",
-      studentIdNumber: "MRK-2026-002",
+      studentIdNumber: "STD-2026-002",
       classSection: { name: "A", classLevel: { name: "Senior 1" } },
     },
   };
@@ -676,7 +676,7 @@ describe("linking a parent to their children", () => {
     lastName: "Niyonkuru",
     student: {
       id: "student-1",
-      studentIdNumber: "MRK-2026-001",
+      studentIdNumber: "STD-2026-001",
       classSection: { name: "B", classLevel: { name: "Senior 2" } },
     },
   };
@@ -785,7 +785,7 @@ describe("linking a parent to their children", () => {
 
     await waitFor(() => expect(screen.getByText("Keza Mutesi")).toBeInTheDocument());
     // Two children can share a name; the code and class are what tell them apart.
-    expect(screen.getByText(/MRK-2026-002/)).toBeInTheDocument();
+    expect(screen.getByText(/STD-2026-002/)).toBeInTheDocument();
     expect(screen.getByText(/Senior 1/)).toBeInTheDocument();
   }, 30000);
 

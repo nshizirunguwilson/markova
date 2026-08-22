@@ -146,7 +146,7 @@ export const fixtures = {
   student: {
     id: "student-1",
     userId: "user-2",
-    studentIdNumber: "MRK-2026-001",
+    studentIdNumber: "STD-2026-001",
     classSectionId: "section-1",
     user: {
       id: "user-2",

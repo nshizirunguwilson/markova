@@ -61,8 +61,8 @@ export const subject = { id: "subject-1", name: "Mathematics", code: "MATH", cre
 export const assessmentType = { id: "assess-1", name: "Quiz", weight: 20 };
 
 export const students = [
-  { id: "student-1", userId: "u-1", studentIdNumber: "MRK-2026-001", classSectionId: "section-1", classSection, disciplinePoints: 100, user: user("u-1", "Divine", "Niyonkuru") },
-  { id: "student-2", userId: "u-2", studentIdNumber: "MRK-2026-002", classSectionId: "section-1", classSection, disciplinePoints: 92, user: user("u-2", "Keza", "Mutesi") },
+  { id: "student-1", userId: "u-1", studentIdNumber: "STD-2026-001", classSectionId: "section-1", classSection, disciplinePoints: 100, user: user("u-1", "Divine", "Niyonkuru") },
+  { id: "student-2", userId: "u-2", studentIdNumber: "STD-2026-002", classSectionId: "section-1", classSection, disciplinePoints: 92, user: user("u-2", "Keza", "Mutesi") },
 ];
 
 export const teachers = [

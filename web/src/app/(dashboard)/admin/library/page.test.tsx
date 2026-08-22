@@ -438,7 +438,7 @@ describe("lending a book to a borrower", () => {
       for (const input of Array.from(
         dialog.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'),
       )) {
-        fireEvent.change(input, { target: { value: "MRK-2026-001" } });
+        fireEvent.change(input, { target: { value: "STD-2026-001" } });
       }
     });
     h.api.post.mockClear();

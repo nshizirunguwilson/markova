@@ -133,7 +133,9 @@ export async function fillEverything(): Promise<number> {
     else if (name.includes("password")) value = "Umunyeshuri2026!";
     else if (name.includes("nationalid") || name.includes("national-id")) value = "";
     else if (name.includes("isbn")) value = "978-1-234-56789-0";
-    else if (name.includes("code")) value = "MRK";
+    // A trade code, which is the only free-text "code" field on any form.
+    // Identifiers like STD-/TCH- are issued by the server, never typed.
+    else if (name.includes("code")) value = "SWD";
 
     await act(async () => {
       fireEvent.change(field, { target: { value } });

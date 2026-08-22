@@ -47,7 +47,7 @@ const fullUser = {
   nationalId: "1201080012345678",
   student: {
     id: "student-1",
-    studentIdNumber: "MRK-2026-001",
+    studentIdNumber: "STD-2026-001",
     status: "ACTIVE",
     classSectionId: "section-1",
     boarding: "DAY",
