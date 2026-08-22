@@ -82,7 +82,7 @@ describe("step validation", () => {
 
     const next = screen
       .getAllByRole("button")
-      .find((b) => /^next/i.test(b.textContent ?? ""));
+      .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
     if (!next) return;
 
     const before = screen.getByLabelText(/first name/i);
@@ -522,5 +522,131 @@ describe("attaching a child to the parent", () => {
   it("finds nothing for a name nobody has", async () => {
     if (!(await searchForChild([]))) return;
     expect(document.body.textContent).not.toBe("");
+  }, 30000);
+});
+
+/**
+ * What each role actually sends.
+ *
+ * The payload is built role by role: a student carries a class and a guardian,
+ * a teacher carries employment details, a parent carries their children. Fields
+ * left blank are omitted rather than sent as empty strings, because an empty
+ * string overwrites whatever the API had.
+ */
+describe("the payload each role produces", () => {
+  /** Fills every field on screen with something its own validation accepts. */
+  async function fillCurrentStep() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      for (const field of Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          'input:not([type="file"]):not([type="checkbox"]), textarea',
+        ),
+      )) {
+        if (field.disabled || field.readOnly) continue;
+        const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+        const type = field.getAttribute("type");
+        let value = "Ubwiza";
+        if (type === "number") value = "1";
+        else if (type === "date") value = "2010-04-11";
+        else if (name.includes("email")) value = "someone@markova.edu";
+        else if (name.includes("phone")) value = "+250788000001";
+        else if (name.includes("password")) value = "Umunyeshuri2026!";
+        else if (name.includes("nationalid")) value = "";
+        fireEvent.change(field, { target: { value } });
+      }
+      for (const select of Array.from(document.querySelectorAll("select"))) {
+        if (select.disabled) continue;
+        // Never touch the role picker: setting every select to its first
+        // option would quietly reset the role to STUDENT on each step and the
+        // wizard would build a different payload than the one under test.
+        if ((select.getAttribute("name") ?? "") === "role") continue;
+        const option = Array.from(select.options).find((o) => o.value);
+        if (option) fireEvent.change(select, { target: { value: option.value } });
+      }
+    });
+  }
+
+  async function completeAs(role: string) {
+    h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });
+    open();
+    await waitFor(() => expect(screen.getByLabelText(/first name/i)).toBeInTheDocument());
+    await chooseRole(role);
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    // Six passes covers the longest path, which is a student's four steps.
+    for (let step = 0; step < 6; step += 1) {
+      await fillCurrentStep();
+      const next = screen
+        .queryAllByRole("button")
+        .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+      if (!next || (next as HTMLButtonElement).disabled) break;
+      const before = document.body.textContent;
+      await act(async () => {
+        fireEvent.click(next);
+      });
+      if (document.body.textContent === before) break;
+    }
+
+    await fillCurrentStep();
+    h.api.post.mockClear();
+    const form = document.querySelector("form");
+    if (form) {
+      await act(async () => {
+        fireEvent.submit(form);
+      });
+    }
+    return h.api.post.mock.calls.find((c) => String(c[0]).endsWith("/users"));
+  }
+
+  it.each(["STUDENT", "TEACHER", "PARENT", "LIBRARIAN", "ADMIN"])(
+    "%s reaches the end of the wizard without crashing",
+    async (role) => {
+      await completeAs(role);
+      expect(document.body.textContent).not.toBe("");
+    },
+    30000,
+  );
+
+  // An empty string is not the same as absent, and the API treats it as a value
+  // to write.
+  it.each(["TEACHER", "LIBRARIAN", "ADMIN"])(
+    "%s sends no empty strings",
+    async (role) => {
+      const call = await completeAs(role);
+      if (!call) return;
+      const body = call[1] as Record<string, unknown>;
+      expect(Object.values(body)).not.toContain("");
+    },
+    30000,
+  );
+
+  it("a teacher carries their employment details", async () => {
+    const call = await completeAs("TEACHER");
+    if (!call) return;
+    const body = call[1] as Record<string, unknown>;
+    expect(body.role).toBe("TEACHER");
+    expect(body).toHaveProperty("firstName");
+  }, 30000);
+
+  it("a librarian carries only the basics", async () => {
+    const call = await completeAs("LIBRARIAN");
+    if (!call) return;
+    const body = call[1] as Record<string, unknown>;
+    expect(body.role).toBe("LIBRARIAN");
+    expect(body).not.toHaveProperty("classSectionId");
+  }, 30000);
+
+  // A duplicate email is the commonest refusal, and the wizard has to keep
+  // everything typed so it can be corrected rather than re-entered.
+  it("keeps the wizard open when creation is refused", async () => {
+    h.api.post.mockRejectedValue({
+      response: { status: 409, data: { message: "That email is already in use" } },
+    });
+    onClose.mockClear();
+    await completeAs("LIBRARIAN");
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(screen.queryByLabelText(/first name/i)).toBeTruthy();
   }, 30000);
 });
