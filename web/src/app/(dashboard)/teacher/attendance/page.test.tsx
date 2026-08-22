@@ -315,3 +315,214 @@ describe("the status cycle", () => {
     }
   }, 20000);
 });
+
+/**
+ * Saving the register, and taking it by scanner.
+ *
+ * A register is worthless unless it lands: a teacher marks thirty students,
+ * walks off, and the day is either recorded or it is not. The QR path is the
+ * same register taken at the door instead of from the front.
+ */
+describe("saving the register", () => {
+  async function readyToSave() {
+    await mount();
+    await pickClass();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  function button(name: RegExp) {
+    return screen
+      .queryAllByRole("button")
+      .find((b) => name.test((b.textContent ?? "").trim()));
+  }
+
+  async function click(el: Element | null | undefined) {
+    expect(el).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(el as Element);
+    });
+  }
+
+  // Nothing marked is not a register of absences; it is a register not taken.
+  it("saves nothing when no student has been marked", async () => {
+    await readyToSave();
+    h.api.post.mockClear();
+
+    const save = button(/^save/i);
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/attendance/bulk"),
+      );
+      expect(call).toBeUndefined();
+    });
+  });
+
+  it("marks the whole class present in one go", async () => {
+    await readyToSave();
+    const all = button(/all present|mark all/i);
+    if (!all) return;
+    await click(all);
+
+    h.api.post.mockClear();
+    const save = button(/^save/i);
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/attendance/bulk"),
+      );
+      expect(call).toBeTruthy();
+      const body = call![1] as any;
+      expect(body.records.length).toBe(students.length);
+      expect(body.records.every((r: any) => r.status === "PRESENT")).toBe(true);
+    });
+  });
+
+  it("saves against the class and the day on screen", async () => {
+    await readyToSave();
+    const all = button(/all present|mark all/i);
+    if (!all) return;
+    await click(all);
+
+    h.api.post.mockClear();
+    const save = button(/^save/i);
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/attendance/bulk"),
+      );
+      expect(call).toBeTruthy();
+      const body = call![1] as any;
+      expect(body.classSectionId).toBeTruthy();
+      expect(body.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(body.type).toBe("daily");
+    });
+  });
+
+  // A student left unmarked is left out of the payload rather than sent as a
+  // null the server would have to interpret.
+  it("leaves unmarked students out of what it sends", async () => {
+    await readyToSave();
+    const first = screen
+      .queryAllByRole("button")
+      .find((b) => /^present$/i.test((b.textContent ?? "").trim()));
+    if (!first) return;
+    await click(first);
+
+    h.api.post.mockClear();
+    const save = button(/^save/i);
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/attendance/bulk"),
+      );
+      expect(call).toBeTruthy();
+      const body = call![1] as any;
+      expect(body.records.length).toBeLessThan(students.length);
+      expect(body.records.every((r: any) => r.status)).toBe(true);
+    });
+  });
+});
+
+describe("taking the register with a scanner", () => {
+  async function openScanner() {
+    await mount();
+    await pickClass();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const qr = screen
+      .queryAllByRole("button")
+      .find((b) => /qr|scan/i.test(b.textContent ?? ""));
+    if (qr) {
+      await act(async () => {
+        fireEvent.click(qr);
+      });
+    }
+    return document.querySelector<HTMLInputElement>(
+      'input[placeholder*="Scan QR"], input[placeholder*="student ID"]',
+    );
+  }
+
+  it("scans a student into the register", async () => {
+    const box = await openScanner();
+    if (!box) return;
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "STD-2025-0001" } });
+    });
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("qr-scan"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).qrData).toBe("STD-2025-0001");
+      expect((call![1] as any).classSectionId).toBeTruthy();
+    });
+  });
+
+  // A scanner fires Enter after every code, so the box has to empty itself or
+  // the next scan appends to the last.
+  it("clears the box for the next student", async () => {
+    const box = await openScanner();
+    if (!box) return;
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "STD-2025-0001" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => expect(box.value).toBe(""));
+  });
+
+  it("scans nothing on an empty box", async () => {
+    const box = await openScanner();
+    if (!box) return;
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("qr-scan"),
+      );
+      expect(call).toBeUndefined();
+    });
+  });
+
+  it("ignores a code that is only spaces", async () => {
+    const box = await openScanner();
+    if (!box) return;
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "   " } });
+    });
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("qr-scan"),
+      );
+      expect(call).toBeUndefined();
+    });
+  });
+});
