@@ -181,7 +181,11 @@ describe('card verification', () => {
     studentIdNumber: 'STD-2025-231419-167',
     status: 'ACTIVE',
     cardIssuedAt: new Date('2026-01-15T00:00:00Z'),
-    user: { firstName: 'Wilson', lastName: 'Nshizirungu', photoUrl: '/uploads/a.png' },
+    user: {
+      firstName: 'Wilson',
+      lastName: 'Nshizirungu',
+      photoUrl: '/uploads/a.png',
+    },
     classSection: { classLevel: { name: 'Senior 1' } },
   };
 
@@ -214,7 +218,10 @@ describe('card verification', () => {
   });
 
   it('says a former student is no longer enrolled', async () => {
-    prisma.student.findUnique.mockResolvedValue({ ...enrolled, status: 'GRADUATED' });
+    prisma.student.findUnique.mockResolvedValue({
+      ...enrolled,
+      status: 'GRADUATED',
+    });
     const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
 
     expect(result.valid).toBe(false);
@@ -224,7 +231,10 @@ describe('card verification', () => {
   });
 
   it('treats a transferred student the same way', async () => {
-    prisma.student.findUnique.mockResolvedValue({ ...enrolled, status: 'TRANSFERRED' });
+    prisma.student.findUnique.mockResolvedValue({
+      ...enrolled,
+      status: 'TRANSFERRED',
+    });
     const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
     expect(result.valid).toBe(false);
   });
@@ -235,13 +245,23 @@ describe('card verification', () => {
     const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
 
     const body = JSON.stringify(result).toLowerCase();
-    for (const leak of ['phone', 'email', 'address', 'guardian', 'dateofbirth', 'nationalid']) {
+    for (const leak of [
+      'phone',
+      'email',
+      'address',
+      'guardian',
+      'dateofbirth',
+      'nationalid',
+    ]) {
       expect(body).not.toContain(leak);
     }
   });
 
   it('survives a student whose class has been removed', async () => {
-    prisma.student.findUnique.mockResolvedValue({ ...enrolled, classSection: null });
+    prisma.student.findUnique.mockResolvedValue({
+      ...enrolled,
+      classSection: null,
+    });
     const result: any = await service.verifyCardByCode('TGSZ-D91T-KYF1');
     expect(result.student.level).toBeNull();
   });

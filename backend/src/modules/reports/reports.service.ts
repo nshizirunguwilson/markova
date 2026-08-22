@@ -620,7 +620,9 @@ export class ReportsService implements OnModuleDestroy {
     // issue is what makes reissuing a lost card revoke the old one.
     let cardCode = this.generateCardCode();
     for (let i = 0; i < 5; i++) {
-      const clash = await this.prisma.student.findUnique({ where: { cardCode } });
+      const clash = await this.prisma.student.findUnique({
+        where: { cardCode },
+      });
       if (!clash) break;
       cardCode = this.generateCardCode();
     }
@@ -745,7 +747,9 @@ export class ReportsService implements OnModuleDestroy {
       hasCard: !!s.nfcCardId,
       cardIssuedAt: s.cardIssuedAt,
       cardCode: s.cardCode ?? null,
-      verifyUrl: s.cardCode ? `${this.webBaseUrl()}/verify/card/${s.cardCode}` : null,
+      verifyUrl: s.cardCode
+        ? `${this.webBaseUrl()}/verify/card/${s.cardCode}`
+        : null,
     };
   }
 
@@ -762,12 +766,15 @@ export class ReportsService implements OnModuleDestroy {
       select: { cardCode: true, studentIdNumber: true },
     });
     if (!student?.cardCode) return null;
-    return QRCode.toDataURL(`${this.webBaseUrl()}/verify/card/${student.cardCode}`, {
-      errorCorrectionLevel: 'M',
-      margin: 1,
-      width: 360,
-      color: { dark: '#000000', light: '#ffffff' },
-    });
+    return QRCode.toDataURL(
+      `${this.webBaseUrl()}/verify/card/${student.cardCode}`,
+      {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 360,
+        color: { dark: '#000000', light: '#ffffff' },
+      },
+    );
   }
 
   // ── Full data export (ZIP of CSVs) ────────────────────────────────────────

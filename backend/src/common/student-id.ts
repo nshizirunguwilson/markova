@@ -46,7 +46,8 @@ export function nameCode(fullName: string): string {
   const last = parts[parts.length - 1];
 
   const a = position(first[0]);
-  const b = parts.length > 1 ? position(last[0]) : position(first[1] ?? first[0]);
+  const b =
+    parts.length > 1 ? position(last[0]) : position(first[1] ?? first[0]);
 
   let c: number;
   if (parts.length >= 3) {

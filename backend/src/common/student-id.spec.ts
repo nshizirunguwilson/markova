@@ -129,14 +129,22 @@ describe('building a student number', () => {
 
   it('refuses to issue one without a secret', () => {
     expect(() =>
-      buildStudentId('', { fullName: 'Wilson Nshizirungu', year: 2025, studentKey: 'u-1' }),
+      buildStudentId('', {
+        fullName: 'Wilson Nshizirungu',
+        year: 2025,
+        studentKey: 'u-1',
+      }),
     ).toThrow(/STUDENT_ID_SECRET/);
   });
 
   // The number a child carries must not change because an admin fixed a typo
   // in a middle name years later.
   it('is stable for the same student and year', () => {
-    const parts = { fullName: 'Wilson Nshizirungu', year: 2025, studentKey: 'u-1' };
+    const parts = {
+      fullName: 'Wilson Nshizirungu',
+      year: 2025,
+      studentKey: 'u-1',
+    };
     expect(buildStudentId(SECRET, parts)).toBe(buildStudentId(SECRET, parts));
   });
 
@@ -240,11 +248,15 @@ describe('checking a number that arrives from outside', () => {
   });
 
   it('rejects an altered year', () => {
-    expect(verifyStudentId(SECRET, id.replace('2025', '2024'), 'u-1')).toBe(false);
+    expect(verifyStudentId(SECRET, id.replace('2025', '2024'), 'u-1')).toBe(
+      false,
+    );
   });
 
   it('rejects an altered name code', () => {
-    expect(verifyStudentId(SECRET, id.replace('231419', '231420'), 'u-1')).toBe(false);
+    expect(verifyStudentId(SECRET, id.replace('231419', '231420'), 'u-1')).toBe(
+      false,
+    );
   });
 
   it('rejects a number belonging to another student', () => {
