@@ -766,9 +766,16 @@ describe("generating a document for one student", () => {
   it("offers the papers a school actually issues", async () => {
     await openDocumentsTab();
     const select = screen.getByLabelText(/document type/i) as HTMLSelectElement;
+    // These are the wire values the API validates against (DocumentType in
+    // backend/src/modules/reports/dto/index.ts). Uppercase names are rejected,
+    // which made every document type fail.
     const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toContain("TRANSFER_LETTER");
-    expect(values).toContain("TRANSCRIPT");
+    expect(values).toEqual([
+      "transfer_letter",
+      "enrollment_confirmation",
+      "discipline_report",
+      "transcript",
+    ]);
   }, 30000);
 
   it("keeps Generate refused until a student is chosen", async () => {
@@ -784,9 +791,9 @@ describe("generating a document for one student", () => {
     await openDocumentsTab();
     const select = screen.getByLabelText(/document type/i) as HTMLSelectElement;
     await act(async () => {
-      fireEvent.change(select, { target: { value: "TRANSCRIPT" } });
+      fireEvent.change(select, { target: { value: "transcript" } });
     });
-    expect(select.value).toBe("TRANSCRIPT");
+    expect(select.value).toBe("transcript");
   }, 30000);
 });
 
@@ -849,7 +856,7 @@ describe("producing a document", () => {
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText(/document type/i), {
-        target: { value: "TRANSCRIPT" },
+        target: { value: "transcript" },
       });
     });
 
@@ -864,7 +871,7 @@ describe("producing a document", () => {
         String(url).includes("/reports/document"),
       );
       expect(call).toBeTruthy();
-      expect((call![1] as any).type).toBe("TRANSCRIPT");
+      expect((call![1] as any).type).toBe("transcript");
     });
   });
 
