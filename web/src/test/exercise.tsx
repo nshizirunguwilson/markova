@@ -58,6 +58,11 @@ function selects() {
 export async function chooseCascadingFilters(maxDepth = 4) {
   let chosen = 0;
 
+  // A page with no select on it at all has no filter bar to wait for. Waiting
+  // anyway burns the full timeout on pages whose only selects live inside a
+  // modal, which is enough to tip the caller over its own limit.
+  if (selects().length === 0) return 0;
+
   // Wait for the first query to land before looking for anything to choose.
   // A select renders immediately with only its placeholder, so running straight
   // away finds no options, gives up, and leaves the whole page behind its

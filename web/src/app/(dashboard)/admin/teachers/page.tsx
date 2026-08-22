@@ -40,8 +40,8 @@ export default function AdminTeachersPage() {
   const teachers = data?.data || [];
   const meta = data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 };
 
-  const getTeacherAssignments = (teacherId: string) => {
-    if (!assignments) return [];
+  const getTeacherAssignments = (teacherId?: string) => {
+    if (!assignments || !teacherId) return [];
     return assignments.filter((a: any) => a.teacherId === teacherId);
   };
 
@@ -136,7 +136,10 @@ export default function AdminTeachersPage() {
                 </TableRow>
               ) : (
                 teachers.map((user: any) => {
-                  const teacherAssignments = getTeacherAssignments(user.id);
+                  // An assignment's teacherId is the Teacher record's id, not
+                  // the User's. Passing user.id compared two different id
+                  // spaces, so every teacher read "No assignments".
+                  const teacherAssignments = getTeacherAssignments(user.teacher?.id);
                   return (
                     <TableRow key={user.id}>
                       <TableCell>
