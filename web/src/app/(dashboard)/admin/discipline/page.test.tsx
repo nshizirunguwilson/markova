@@ -328,6 +328,94 @@ describe("recording an incident", () => {
     });
   });
 
+  // Points and action travel together: a suspension worth 5 points would make
+  // the register useless for spotting a pattern.
+  it("carries the points and action that were chosen", async () => {
+    const dialog = await openForm();
+
+    const action = within(dialog)
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "SUSPENSION"),
+      )!;
+    await act(async () => {
+      fireEvent.change(action, { target: { value: "SUSPENSION" } });
+    });
+
+    const points = within(dialog).getAllByRole("spinbutton")[0];
+    await act(async () => {
+      fireEvent.change(points, { target: { value: "20" } });
+    });
+
+    for (const box of within(dialog).getAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Fighting in the corridor" } });
+      });
+    }
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(record|save|add|create)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/incidents"),
+      );
+      expect(call).toBeTruthy();
+      const body = call![1] as any;
+      expect(body.actionTaken).toBe("SUSPENSION");
+      expect(body.pointsDeducted).toBe(20);
+    });
+  });
+
+  // A number field that arrives as a string makes the running total a string
+  // concatenation on the server.
+  it("sends the points as a number", async () => {
+    const dialog = await openForm();
+    const points = within(dialog).getAllByRole("spinbutton")[0];
+    await act(async () => {
+      fireEvent.change(points, { target: { value: "15" } });
+    });
+    for (const box of within(dialog).getAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Rudeness to staff" } });
+      });
+    }
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(record|save|add|create)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/incidents"),
+      );
+      expect(typeof (call![1] as any).pointsDeducted).toBe("number");
+    });
+  });
+
+  it("defaults the date to today", async () => {
+    const dialog = await openForm();
+    const date = dialog.querySelector<HTMLInputElement>('input[type="date"]');
+    expect(date).toBeTruthy();
+    expect(date!.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("takes a different date", async () => {
+    const dialog = await openForm();
+    const date = dialog.querySelector<HTMLInputElement>('input[type="date"]')!;
+    await act(async () => {
+      fireEvent.change(date, { target: { value: "2026-08-14" } });
+    });
+    expect(date.value).toBe("2026-08-14");
+  });
+
   it("closes without recording anything when dismissed", async () => {
     const dialog = await openForm();
     h.api.post.mockClear();
