@@ -191,11 +191,40 @@ export const populatedRoutes: Record<string, unknown> = {
   "/help/tickets": [ticket],
 
   "/analytics/admin/dashboard": { students: 320, teachers: 24, classes: 12, attendanceRate: 94.6, averageScore: 71.2 },
-  "/analytics/admin/performance-trends": [{ termName: "Term 1", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 }],
-  "/analytics/admin/class-comparisons": [{ className: "Senior 1 A", averageScore: 73.1, studentCount: 32 }],
-  "/analytics/admin/discipline": { total: 4, bySeverity: [{ severity: "MINOR", count: 3 }] },
+  // A trend line needs at least two terms; one point draws nothing.
+  "/analytics/admin/performance-trends": [
+    { termName: "Term 1", yearName: "2026-2027", averageScore: 68.4, studentCount: 318 },
+    { termName: "Term 2", yearName: "2026-2027", averageScore: 71.2, studentCount: 320 },
+    { termName: "Term 3", yearName: "2026-2027", averageScore: 74.9, studentCount: 316 },
+  ],
+  "/analytics/admin/class-comparisons": [
+    { className: "Senior 1 A", averageScore: 73.1, studentCount: 32 },
+    { className: "Senior 1 B", averageScore: 66.8, studentCount: 28 },
+  ],
+  // `byAction`, from getDisciplineStats in analytics.service.ts. A severity
+  // breakdown is not what this endpoint returns, and the chart built from it
+  // never renders.
+  "/analytics/admin/discipline": {
+    totalIncidents: 4,
+    byAction: [
+      { name: "WARNING", count: 3 },
+      { name: "PARENT_MEETING", count: 1 },
+    ],
+  },
   "/analytics/admin/library": { totalBooks: 120, activeLoans: 14 },
-  "/analytics/admin/attendance": { rate: 94.6, byClass: [{ classSection, rate: 95 }] },
+  // `byDate` is what the attendance chart plots, one entry per day.
+  "/analytics/admin/attendance": {
+    totalRecords: 640,
+    present: 600,
+    absent: 24,
+    late: 16,
+    attendanceRate: 94,
+    byDate: [
+      { date: "2026-08-17", present: 118, late: 4, absent: 6 },
+      { date: "2026-08-18", present: 122, late: 2, absent: 4 },
+      { date: "2026-08-19", present: 120, late: 5, absent: 3 },
+    ],
+  },
   // Per level, with a letter->count map. See analytics.service.ts.
   "/analytics/admin/grade-distribution": [
     { level: "Senior 1", total: 32, counts: { A: 8, B: 12, C: 9, D: 2, F: 1 } },

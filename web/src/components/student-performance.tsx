@@ -134,8 +134,9 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       tooltip: {
         ...tooltipStyle,
         formatter: (p: any) => {
-          const s = rows[p.dataIndex];
-          return `<b>${s?.name}</b><br/>${s?.total}% · Grade ${s?.grade} (${s?.points} points)`;
+          const s = rows[p?.dataIndex ?? -1];
+          if (!s) return "";
+          return `<b>${s.name}</b><br/>${s.total}% · Grade ${s.grade} (${s.points} points)`;
         },
       },
       series: [
@@ -155,8 +156,8 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             color: viz.muted,
             fontSize: 11,
             formatter: (p: any) => {
-              const s = rows[p.dataIndex];
-              return `${s?.total}%  ${s?.grade}`;
+              const s = rows[p?.dataIndex ?? -1];
+              return s ? `${s.total}%  ${s.grade}` : "";
             },
           },
           markLine: {

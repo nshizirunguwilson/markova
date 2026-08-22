@@ -346,9 +346,12 @@ export default function AdminAnalyticsPage() {
         ...tooltipStyle,
         trigger: "axis",
         formatter: (params: any) => {
+          // An axis tooltip fires on the gaps between points too, where the
+          // series list is empty and there is no term to name.
           const p = Array.isArray(params) ? params[0] : params;
-          const t = pts[p.dataIndex];
-          return `<b>${t.termName}</b><br/>Average ${t.averageScore.toFixed(1)}%<br/>${t.studentCount} graded students`;
+          const t = pts[p?.dataIndex ?? -1];
+          if (!t) return "";
+          return `<b>${t.termName}</b><br/>Average ${(t.averageScore ?? 0).toFixed(1)}%<br/>${t.studentCount ?? 0} graded students`;
         },
       },
       series: [
@@ -416,8 +419,11 @@ export default function AdminAnalyticsPage() {
       },
       tooltip: {
         ...tooltipStyle,
-        formatter: (p: any) =>
-          `<b>${rows[p.dataIndex].title}</b><br/>${rows[p.dataIndex].author ?? ""}<br/>${p.value} loans`,
+        formatter: (p: any) => {
+          const row = rows[p?.dataIndex ?? -1];
+          if (!row) return "";
+          return `<b>${row.title}</b><br/>${row.author ?? ""}<br/>${p?.value ?? 0} loans`;
+        },
       },
       series: [
         {
