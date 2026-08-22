@@ -680,3 +680,194 @@ describe("the library's own numbers", () => {
     await waitFor(() => expect(screen.getByText("9")).toBeInTheDocument());
   });
 });
+
+/**
+ * Bringing a whole shelf in from a spreadsheet.
+ *
+ * A school hands over a CSV from whatever it kept before. The parser's job is
+ * to accept the columns it needs in any order, ignore rows it cannot use, and
+ * refuse the file outright rather than importing half a catalogue silently.
+ */
+describe("importing books from a CSV", () => {
+  async function openImport() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const open = screen
+      .queryAllByRole("button")
+      .find((b) => /bulk import/i.test(b.textContent ?? ""));
+    expect(open).toBeTruthy();
+    await userEvent.setup().click(open!);
+    return screen.findByRole("dialog");
+  }
+
+  /** Hands the modal a CSV the way a file picker would. */
+  async function upload(csv: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).toBeTruthy();
+    const file = new File([csv], "books.csv", { type: "text/csv" });
+    await act(async () => {
+      fireEvent.change(input!, { target: { files: [file] } });
+    });
+    // FileReader resolves on a later tick than the change event.
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  const HEADER = "title,author,isbn,quantity";
+  const ROW = "Inganzo,Kagabo P.,978-9-99,4";
+
+  it("opens on the upload step", async () => {
+    const dialog = await openImport();
+    expect(dialog.textContent).toMatch(/import/i);
+    expect(document.querySelector('input[type="file"]')).toBeTruthy();
+  });
+
+  it("shows what it parsed before importing anything", async () => {
+    await openImport();
+    h.api.post.mockClear();
+    await upload(`${HEADER}\n${ROW}`);
+
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  // Column order is whatever the old system produced.
+  it("finds the columns wherever they are", async () => {
+    await openImport();
+    await upload(`author,quantity,title\nKagabo P.,7,Inganzo`);
+
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+  });
+
+  it("accepts qty or copies as the count", async () => {
+    await openImport();
+    await upload(`title,author,copies\nInganzo,Kagabo P.,9`);
+
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+  });
+
+  // Without a title and an author there is no book, so the file is refused
+  // rather than imported as blanks.
+  it("refuses a file with no title or author column", async () => {
+    await openImport();
+    h.toast.error.mockClear();
+    await upload(`isbn,quantity\n978-9-99,4`);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/title.*author/i)),
+    );
+  });
+
+  it("refuses a file with only a header", async () => {
+    await openImport();
+    h.toast.error.mockClear();
+    await upload(HEADER);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/header row/i)),
+    );
+  });
+
+  // A row missing a title is skipped, not imported as an untitled book.
+  it("skips rows it cannot use and keeps the rest", async () => {
+    await openImport();
+    await upload(`${HEADER}\n,Kagabo P.,978-0-00,1\n${ROW}`);
+
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.post.mockClear();
+    const confirm = screen
+      .queryAllByRole("button")
+      .find((b) => /confirm import/i.test(b.textContent ?? ""));
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/library/books/bulk"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).books).toHaveLength(1);
+    });
+  });
+
+  it("says so when every row is unusable", async () => {
+    await openImport();
+    h.toast.error.mockClear();
+    await upload(`${HEADER}\n,,978-0-00,1\n,,978-0-01,2`);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/no valid book rows/i)),
+    );
+  });
+
+  it("imports what it parsed, with the counts as numbers", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openImport();
+    await upload(`${HEADER}\n${ROW}`);
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+
+    h.api.post.mockClear();
+    const confirm = screen
+      .queryAllByRole("button")
+      .find((b) => /confirm import/i.test(b.textContent ?? ""));
+    expect(confirm).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/library/books/bulk"),
+      );
+      expect(call).toBeTruthy();
+      const book = (call![1] as any).books[0];
+      expect(book.title).toBe("Inganzo");
+      expect(book.author).toBe("Kagabo P.");
+      expect(book.quantity).toBe(4);
+    });
+  });
+
+  // A book with no count given is one copy, not zero.
+  it("defaults a missing count to one copy", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openImport();
+    await upload(`title,author\nInganzo,Kagabo P.`);
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(
+        screen.queryAllByRole("button").find((b) => /confirm import/i.test(b.textContent ?? ""))!,
+      );
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/library/books/bulk"),
+      );
+      expect((call![1] as any).books[0].quantity).toBe(1);
+    });
+  });
+
+  it("goes back to the upload step when the preview is cancelled", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openImport();
+    await upload(`${HEADER}\n${ROW}`);
+    await waitFor(() => expect(screen.getByText(/Inganzo/)).toBeInTheDocument());
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(
+        screen.queryAllByRole("button").find((b) => /^cancel$/i.test((b.textContent ?? "").trim()))!,
+      );
+    });
+
+    await waitFor(() => expect(screen.queryByText(/Inganzo/)).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
