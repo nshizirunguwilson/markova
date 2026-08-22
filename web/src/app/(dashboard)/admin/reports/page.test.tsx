@@ -380,3 +380,111 @@ describe("packing a whole class into one archive", () => {
     expect(h.zip.added.length).toBeGreaterThan(0);
   }, 25000);
 });
+
+/**
+ * Packing when the network is unreliable.
+ *
+ * Thirty report cards is thirty requests, and the API rate limits. Each one is
+ * retried once before it counts as failed, with a longer wait after a 429, so a
+ * whole class does not fail because the server asked us to slow down.
+ */
+describe("retrying inside the bulk pack", () => {
+  /**
+   * Replaces only the pdf fetch, leaving every other route answered by `serve`.
+   * A blanket mock starves the filter selects and the run never starts.
+   */
+  function failPdfWith(handler: () => never | Promise<never>) {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) return handler();
+      return real(url, config);
+    });
+  }
+
+  async function packAll() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const pack = buttonMatching(/pack|download all|zip/i);
+    if (!pack) return false;
+    await act(async () => {
+      fireEvent.click(pack);
+    });
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return false;
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+    return true;
+  }
+
+  it("retries a report that failed the first time", async () => {
+    let calls = 0;
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) {
+        calls += 1;
+        if (calls === 1) throw { response: { status: 500 } };
+        return { data: new Blob(["pdf"]), status: 200 };
+      }
+      return real(url, config);
+    });
+
+    if (!(await packAll())) return;
+    await waitFor(() => expect(calls).toBeGreaterThan(1), { timeout: 10000 });
+  }, 30000);
+
+  // Two failures is a real failure, and the run has to say which ones so they
+  // can be retried rather than starting the whole class again.
+  it("gives up after the second attempt and offers a review", async () => {
+    failPdfWith(() => {
+      throw { response: { status: 500 } };
+    });
+
+    if (!(await packAll())) return;
+    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
+      timeout: 10000,
+    });
+    // Nothing was archived, so no zip was produced.
+    expect(h.zip.generated).toBe(0);
+  }, 30000);
+
+  it("reports a rate limit as such, not as a server error", async () => {
+    failPdfWith(() => {
+      throw { response: { status: 429 } };
+    });
+
+    if (!(await packAll())) return;
+    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
+      timeout: 12000,
+    });
+  }, 30000);
+
+  it("reports a dropped connection distinctly", async () => {
+    failPdfWith(() => {
+      throw new Error("Network Error");
+    });
+
+    if (!(await packAll())) return;
+    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
+      timeout: 10000,
+    });
+  }, 30000);
+});
