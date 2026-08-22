@@ -54,6 +54,14 @@ const conversation = {
   unreadCount: 1,
 };
 
+const second = {
+  id: "u-4",
+  firstName: "Jean",
+  lastName: "Habimana",
+  role: "PARENT",
+  photoUrl: null,
+};
+
 const routes = {
   "/messaging/conversations/conv-1/messages": [
     {
@@ -66,7 +74,10 @@ const routes = {
     },
   ],
   "/messaging/conversations": [conversation],
-  "/messaging/contacts": [other],
+  // The contacts endpoint answers `{ data }`, from getContacts in
+  // backend/src/modules/messaging/messaging.service.ts. A bare array here
+  // leaves the people picker empty while the tests still pass.
+  "/messaging/contacts": { data: [other, second] },
   "/messaging/unread": { count: 1 },
 };
 
@@ -154,45 +165,267 @@ describe("starting a new conversation", () => {
 
     const start = screen
       .queryAllByRole("button")
-      .find((b) => /^add$/i.test(b.getAttribute("aria-label") ?? "") || /new/i.test(b.textContent ?? ""));
-    if (!start) return false;
-    await userEvent.setup().click(start);
-    return true;
+      .find(
+        (b) =>
+          /^add$/i.test(b.getAttribute("aria-label") ?? "") ||
+          /new/i.test(b.textContent ?? ""),
+      );
+    expect(start).toBeTruthy();
+    await userEvent.setup().click(start!);
+    return screen.findByRole("dialog");
+  }
+
+  /** The picker only lists anyone once something has been searched for. */
+  async function search(text: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    // By its own label: a group conversation also shows a "Group Name" field,
+    // which sits above this one and would take the text instead.
+    const box = screen.getByLabelText(/search users by name/i) as HTMLInputElement;
+    expect(box).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(box, { target: { value: text } });
+    });
+    // The search is debounced by 300ms before the request goes out.
+    await new Promise((r) => setTimeout(r, 400));
+  }
+
+  async function pick(name: RegExp) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const dialog = screen.getByRole("dialog");
+    const row = await waitFor(() => {
+      const found = Array.from(dialog.querySelectorAll("button")).find((b) =>
+        name.test(b.textContent ?? ""),
+      );
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await act(async () => {
+      fireEvent.click(row);
+    });
   }
 
   it("opens the people picker", async () => {
-    if (!(await openNew())) return;
-    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    const dialog = await openNew();
+    expect(dialog.textContent).toMatch(/conversation/i);
   });
 
   // Creating a conversation with nobody in it would leave an empty thread in
   // everyone's list.
-  it("does not create a conversation with nobody selected", async () => {
-    if (!(await openNew())) return;
-    h.api.post.mockClear();
+  it("keeps Create refused until somebody is chosen", async () => {
+    const dialog = await openNew();
+    const create = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      /^create$/i.test((b.textContent ?? "").trim()),
+    );
+    expect(create).toBeTruthy();
+    expect(create).toBeDisabled();
+  });
 
-    const create = screen
+  it("lists the people found by a search", async () => {
+    await openNew();
+    await search("uwase");
+    await waitFor(() =>
+      expect(screen.getByRole("dialog").textContent).toMatch(/Aline Uwase/),
+    );
+  });
+
+  // Writing to yourself is not a conversation.
+  it("leaves the signed-in admin out of the results", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/contacts": {
+        data: [other, { ...other, id: "user-1", firstName: "Me", lastName: "Myself" }],
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const start = screen
       .queryAllByRole("button")
-      .find((b) => /create|start/i.test(b.textContent ?? ""));
-    if (!create) return;
-    await userEvent.setup().click(create);
+      .find(
+        (b) =>
+          /^add$/i.test(b.getAttribute("aria-label") ?? "") ||
+          /new/i.test(b.textContent ?? ""),
+      );
+    await userEvent.setup().click(start!);
+    await search("a");
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog").textContent).toMatch(/Aline/),
+    );
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/Myself/);
+  });
+
+  it("shows who has been chosen so far", async () => {
+    await openNew();
+    await search("uwase");
+    await pick(/Aline Uwase/);
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog").textContent).toMatch(/Aline Uwase/),
+    );
+  });
+
+  it("drops someone chosen by mistake", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+    await search("uwase");
+    await pick(/Aline Uwase/);
+
+    const dialog = screen.getByRole("dialog");
+    const chipRemove = await waitFor(() => {
+      const found = Array.from(dialog.querySelectorAll("button")).find(
+        (b) => (b.textContent ?? "").trim() === "\u00d7",
+      );
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await act(async () => {
+      fireEvent.click(chipRemove);
+    });
+
+    const create = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      /^create$/i.test((b.textContent ?? "").trim()),
+    );
+    await waitFor(() => expect(create).toBeDisabled());
+  });
+
+  it("creates the conversation with the people chosen", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+    await search("uwase");
+    await pick(/Aline Uwase/);
+
+    h.api.post.mockResolvedValue({ data: { id: "conv-9", type: "ONE_ON_ONE" } });
+    h.api.post.mockClear();
+    const create = Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
+      (b) => /^create$/i.test((b.textContent ?? "").trim()),
+    );
+    await act(async () => {
+      fireEvent.click(create!);
+    });
 
     await waitFor(() => {
-      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
-      expect(urls.some((u) => u.endsWith("/messaging/conversations"))).toBe(false);
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).endsWith("/messaging/conversations"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).participantUserIds).toEqual(["u-3"]);
     });
   });
 
-  it("searches for someone to write to", async () => {
-    if (!(await openNew())) return;
-    const search = document.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
-    if (!search) return;
+  // The new thread has to open, otherwise the admin creates it and then has to
+  // hunt for it in the list.
+  it("opens the new thread and joins it", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+    await search("uwase");
+    await pick(/Aline Uwase/);
 
-    const { fireEvent, act } = await import("@testing-library/react");
+    // After openNew, which re-serves every route and would replace this.
+    h.api.post.mockResolvedValue({ data: { id: "conv-9", type: "ONE_ON_ONE" } });
+    h.chat.joinConversation.mockClear();
+    const create = Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
+      (b) => /^create$/i.test((b.textContent ?? "").trim()),
+    );
     await act(async () => {
-      fireEvent.change(search, { target: { value: "uwase" } });
+      fireEvent.click(create!);
     });
-    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    await waitFor(() => expect(h.chat.joinConversation).toHaveBeenCalledWith("conv-9"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  // A one to one thread holds exactly two people, so choosing a second person
+  // replaces the first rather than quietly making a group.
+  it("keeps a one to one thread to one other person", async () => {
+    await openNew();
+    await search("a");
+    await pick(/Aline Uwase/);
+    await search("a");
+    await pick(/Jean Habimana/);
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.post.mockResolvedValue({ data: { id: "conv-9" } });
+    h.api.post.mockClear();
+    const create = Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
+      (b) => /^create$/i.test((b.textContent ?? "").trim()),
+    );
+    await act(async () => {
+      fireEvent.click(create!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).endsWith("/messaging/conversations"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).participantUserIds).toHaveLength(1);
+    });
+  });
+
+  it("takes several people once it is a group", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+
+    const type = screen.getByRole("dialog").querySelector("select");
+    expect(type).toBeTruthy();
+    const group = Array.from(type!.options).find((o) => o.value && o.value !== "ONE_ON_ONE");
+    expect(group).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(type!, { target: { value: group!.value } });
+    });
+
+    await search("a");
+    await pick(/Aline Uwase/);
+    await search("a");
+    await pick(/Jean Habimana/);
+
+    h.api.post.mockResolvedValue({ data: { id: "conv-9" } });
+    h.api.post.mockClear();
+    const create = Array.from(
+      screen.getByRole("dialog").querySelectorAll("button"),
+    ).find((b) => /^create$/i.test((b.textContent ?? "").trim()));
+    await act(async () => {
+      fireEvent.click(create!);
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).endsWith("/messaging/conversations"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).participantUserIds).toHaveLength(2);
+    });
+  });
+
+  it("asks for a name once it is a group", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+    const dialog = screen.getByRole("dialog");
+    const type = dialog.querySelector("select")!;
+    const group = Array.from(type.options).find((o) => o.value && o.value !== "ONE_ON_ONE");
+    if (!group) return;
+    await act(async () => {
+      fireEvent.change(type, { target: { value: group.value } });
+    });
+
+    await waitFor(() => expect(dialog.textContent).toMatch(/group name/i));
+  });
+
+  it("closes without creating anything when dismissed", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await openNew();
+    h.api.post.mockClear();
+
+    const cancel = Array.from(screen.getByRole("dialog").querySelectorAll("button")).find(
+      (b) => /^cancel$/i.test((b.textContent ?? "").trim()),
+    );
+    expect(cancel).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(cancel!);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
   });
 });
 
