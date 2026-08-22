@@ -355,14 +355,38 @@ function dealer(pool: string[]) {
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// initial.kinyarwandaname@markova.edu — collisions get a number, so the
-// address is short, memorable and still unique.
+// firstname.kinyarwandaname@markova.edu for anyone who works here. Students
+// and parents live on their own subdomains, so a school address always tells
+// you which of the three you are looking at. Collisions get a number.
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
-  const base = `${first.trim()[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  const base = `${first.trim().split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
   let candidate = `${base}@markova.edu`;
   for (let n = 2; usedEmails.has(candidate); n++) {
     candidate = `${base}${n}@markova.edu`;
+  }
+  usedEmails.add(candidate);
+  return candidate;
+}
+
+/** firstname.lastnameN@student.markova.edu, past the demo accounts. */
+function studentEmail(first: string, last: string, i: number): string {
+  return onSubdomain(first, last, i + 1, 'student.markova.edu');
+}
+
+/** firstname.lastnameN@parent.markova.edu, for parents who have an address. */
+function parentEmail(first: string, last: string, i: number): string {
+  return onSubdomain(first, last, i, 'parent.markova.edu');
+}
+
+function onSubdomain(first: string, last: string, n: number, domain: string): string {
+  const token = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  let candidate = `${token}${n}@${domain}`;
+  // Three years of intake means two people can land on the same token and
+  // number, and the column is unique.
+  while (usedEmails.has(candidate)) {
+    n += 1;
+    candidate = `${token}${n}@${domain}`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -1498,7 +1522,8 @@ async function main() {
 
       const user = await prisma.user.create({
         data: {
-          email: i === 0 ? 'student1@markova.edu' : emailFor(first, last),
+          email:
+            i < 30 ? `student${i + 1}@markova.edu` : studentEmail(first, last, i),
           ...extras.user,
           passwordHash,
           role: Role.STUDENT,
@@ -1511,7 +1536,7 @@ async function main() {
       const student = await prisma.student.create({
         data: {
           userId: user.id,
-          studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+          studentIdNumber: `MKV-${joinYear}-${String(i + 1).padStart(4, '0')}`,
           classSectionId: meta.section.id,
           dateOfBirth: dob,
           gender,
@@ -1557,7 +1582,7 @@ async function main() {
         nationalId: makeNid(gender, pBirthYear),
         nationality: 'Rwandan',
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? emailFor(first, last) : null,
+        email: i >= 15 ? parentEmail(first, last, i) : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
@@ -1749,7 +1774,7 @@ async function main() {
     );
     const user = await prisma.user.create({
       data: {
-        email: emailFor(name.first, name.last),
+        email: studentEmail(name.first, name.last, i),
         ...extras.user,
         passwordHash,
         role: Role.STUDENT,
@@ -1762,7 +1787,7 @@ async function main() {
     const student = await prisma.student.create({
       data: {
         userId: user.id,
-        studentIdNumber: `STD-${joinYear}-${String(i + 1).padStart(4, '0')}`,
+        studentIdNumber: `MKV-${joinYear}-${String(i + 1).padStart(4, '0')}`,
         classSectionId: last.section.id,
         dateOfBirth: dob,
         gender,

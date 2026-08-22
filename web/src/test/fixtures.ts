@@ -212,7 +212,22 @@ export const populatedRoutes: Record<string, unknown> = {
   "/library/loans/active": [loan],
   "/library/loans/overdue": [],
   "/library/loans/my": [loan],
-  "/library/analytics": { totalBooks: 120, activeLoans: 14, overdue: 2, popular: [book] },
+  // `popularBooks` with a `loanCount` each, from getAnalytics in
+  // backend/src/modules/library/library.service.ts.
+  "/library/analytics": {
+    totalBooks: 120,
+    totalCopies: 340,
+    availableCopies: 310,
+    activeLoans: 14,
+    overdueLoans: 2,
+    lostBooks: 1,
+    overdueRate: 14,
+    popularBooks: [
+      { title: "Things Fall Apart", author: "Chinua Achebe", loanCount: 22 },
+      { title: "Mathematics for Rwanda Schools", author: "REB", loanCount: 17 },
+    ],
+    categories: [{ category: "Fiction", count: 40, totalCopies: 120 }],
+  },
 
   "/homework/student": [homework],
   "/homework": [homework],

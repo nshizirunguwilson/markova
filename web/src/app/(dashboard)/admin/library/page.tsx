@@ -473,7 +473,7 @@ export default function AdminLibraryPage() {
                       <TableRow key={i}>
                         <TableCell className="font-medium">{b.title}</TableCell>
                         <TableCell>{b.author}</TableCell>
-                        <TableCell><Badge variant="info">{b.checkoutCount}</Badge></TableCell>
+                        <TableCell><Badge variant="info">{b.loanCount ?? 0}</Badge></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -29,7 +29,13 @@ const routes = {
   "/library/books": [book],
   "/library/loans/active": [loan],
   "/library/loans/overdue": [],
-  "/library/analytics": { totalBooks: 1, activeLoans: 1, overdue: 0, popular: [book] },
+  "/library/analytics": {
+    totalBooks: 1,
+    activeLoans: 1,
+    overdueLoans: 0,
+    popularBooks: [{ title: book.title, author: book.author, loanCount: 9 }],
+    categories: [],
+  },
   "/users": { users: students.map((s) => s.user), meta: { total: 2, page: 1, limit: 20, totalPages: 1 } },
   "/academic/sections": [],
 };
@@ -539,4 +545,138 @@ describe("bulk importing books", () => {
       expect(urls.some((u) => u.includes("bulk"))).toBe(true);
     });
   }, 20000);
+});
+
+/**
+ * The overdue shelf.
+ *
+ * This is the tab a librarian works from: who has what, how late it is, and
+ * taking it back in. An empty overdue list means none of that is on screen, so
+ * these serve a library with books actually out past their date.
+ */
+describe("books that are overdue", () => {
+  const overdue = [
+    {
+      ...loan,
+      id: "loan-2",
+      dueDate: "2026-07-01",
+      returnedAt: null,
+      isOverdue: true,
+      book,
+      bookId: book.id,
+      borrower: { id: "u-1", firstName: "Divine", lastName: "Niyonkuru" },
+    },
+    {
+      ...loan,
+      id: "loan-3",
+      dueDate: "2026-08-01",
+      returnedAt: null,
+      isOverdue: true,
+      book: { ...book, id: "book-2", title: "Imigani" },
+      bookId: "book-2",
+      borrower: { id: "u-2", firstName: "Keza", lastName: "Mutesi" },
+    },
+  ];
+
+  async function openOverdue() {
+    serve(h.api, { ...routes, "/library/loans/overdue": overdue });
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /overdue/i.test(b.textContent ?? ""));
+    expect(tab).toBeTruthy();
+    await userEvent.setup().click(tab!);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  it("lists every book that is late", async () => {
+    await openOverdue();
+    expect(screen.getByText(/Keza/)).toBeInTheDocument();
+  });
+
+  // Who has it is the whole point; a title with no name attached is useless
+  // for chasing it up.
+  it("names who has each one", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    expect(row.textContent).toMatch(/Ubuzima/);
+  });
+
+  it("says how many days late each one is", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    expect(row.textContent).toMatch(/\d+ days/);
+  });
+
+  // Taking a book back is done from this row, so the return has to name the
+  // right book and not just the loan.
+  it("takes a book back from its row", async () => {
+    await openOverdue();
+    const row = screen.getByText(/Divine/).closest("tr")!;
+    const ret = within(row)
+      .getAllByRole("button")
+      .find((b) => /return/i.test(b.textContent ?? ""));
+    expect(ret).toBeTruthy();
+
+    h.api.post.mockClear();
+    h.api.patch.mockClear();
+    await userEvent.setup().click(ret!);
+
+    await waitFor(() => {
+      const calls = [...h.api.post.mock.calls, ...h.api.patch.mock.calls];
+      expect(calls.length).toBeGreaterThan(0);
+      expect(JSON.stringify(calls[0])).toMatch(/book-1/);
+    });
+  });
+
+  it("exports the overdue list with the borrower and the days late", async () => {
+    await openOverdue();
+    h.exportData.mockClear();
+
+    // Export is a dropdown: the trigger opens it, a format runs it.
+    const user = userEvent.setup();
+    const trigger = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""));
+    expect(trigger).toBeTruthy();
+    await user.click(trigger!);
+
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    // exportData(format, payload): the rows are in the second argument.
+    const rows = (h.exportData.mock.calls[0][1] as any).data;
+    expect(rows[0]._borrower).toBe("Divine Niyonkuru");
+    expect(typeof rows[0]._daysOverdue).toBe("number");
+  });
+});
+
+describe("the library's own numbers", () => {
+  async function openAnalytics() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /analytic/i.test(b.textContent ?? ""));
+    expect(tab).toBeTruthy();
+    await userEvent.setup().click(tab!);
+  }
+
+  // The count beside each title is the reason the table exists; without it the
+  // list is just books in an arbitrary order.
+  it("shows how many times each popular book went out", async () => {
+    await openAnalytics();
+    await waitFor(() => expect(screen.getByText("9")).toBeInTheDocument());
+  });
 });
