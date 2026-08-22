@@ -87,11 +87,14 @@ export default function AdminAnalyticsPage() {
           const name = Array.isArray(params) ? params[0]?.name : params?.name;
           const r: any = byName.get(name);
           if (!r) return "";
-          return [
-            `<b>${r.className}</b> · ${r.studentCount} students`,
-            `Average <b>${r.averageScore.toFixed(1)}%</b>`,
-            `Range ${r.lowest.toFixed(0)}% – ${r.highest.toFixed(0)}%`,
-          ].join("<br/>");
+            // A class with marks but no spread yet comes back without lowest and
+            // highest, and toFixed on undefined throws inside the tooltip.
+            const num = (v: unknown, dp: number) => (Number(v) || 0).toFixed(dp);
+            return [
+              `<b>${r.className ?? ""}</b> · ${r.studentCount ?? 0} students`,
+              `Average <b>${num(r.averageScore, 1)}%</b>`,
+              `Range ${num(r.lowest, 0)}% – ${num(r.highest, 0)}%`,
+            ].join("<br/>");
         },
       },
       series: [
@@ -149,8 +152,10 @@ export default function AdminAnalyticsPage() {
         cells.push([x, y, Math.round(pct * 10) / 10]);
       });
     });
+    // The optional chain has to continue past `counts`: a level with no results
+    // for any grade comes back without the map, not with an empty one.
     const countFor = (x: number, y: number) =>
-      gradeDist[y]?.counts[GRADES[x]] ?? 0;
+      gradeDist[y]?.counts?.[GRADES[x]] ?? 0;
 
     return {
       grid: { left: 74, right: 16, top: 10, bottom: 66 },
@@ -183,8 +188,12 @@ export default function AdminAnalyticsPage() {
       tooltip: {
         ...tooltipStyle,
         formatter: (p: any) => {
-          const [x, y, pct] = p.data;
-          return `<b>${levels[y]}</b> · Grade ${GRADES[x]}<br/>${countFor(x, y)} students (${pct}%)`;
+          // ECharts calls this for anything the pointer touches, including gaps
+          // between cells where there is no data to destructure. A tooltip that
+          // throws takes its chart down with it.
+          const [x, y, pct] = Array.isArray(p?.data) ? p.data : [];
+          if (x === undefined || y === undefined) return "";
+          return `<b>${levels[y] ?? ""}</b> · Grade ${GRADES[x] ?? ""}<br/>${countFor(x, y)} students (${pct ?? 0}%)`;
         },
       },
       series: [
@@ -197,7 +206,9 @@ export default function AdminAnalyticsPage() {
             fontSize: 10,
             color: viz.ink,
             formatter: (p: any) => {
-              const c = countFor(p.data[0], p.data[1]);
+              const cell = Array.isArray(p?.data) ? p.data : [];
+                if (cell[0] === undefined || cell[1] === undefined) return "";
+                const c = countFor(cell[0], cell[1]);
               return c > 0 ? String(c) : "";
             },
           },
@@ -249,7 +260,7 @@ export default function AdminAnalyticsPage() {
             position: "left",
             color: viz.muted,
             fontSize: 11,
-            formatter: (p: any) => String(Math.abs(p.value as number)),
+            formatter: (p: any) => String(Math.abs(Number(p?.value) || 0)),
           },
           data: enrollment.map((e: any) => -e.male),
         },
@@ -352,7 +363,7 @@ export default function AdminAnalyticsPage() {
             position: "top",
             color: viz.muted,
             fontSize: 11,
-            formatter: (p: any) => `${Number(p.value).toFixed(1)}%`,
+            formatter: (p: any) => `${(Number(p?.value) || 0).toFixed(1)}%`,
           },
           areaStyle: { color: "rgba(42,120,214,0.08)" },
         },
