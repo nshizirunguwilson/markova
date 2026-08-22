@@ -389,3 +389,133 @@ describe("Topbar notification routing", () => {
     expect(h.router.push).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * How long ago a notification arrived.
+ *
+ * A timestamp on a notification is only useful as a rough distance: "2h ago"
+ * tells a teacher whether to act now, an ISO string tells them nothing. Each
+ * band has to hand over at the right point, or a notification from last week
+ * reads as one from this morning.
+ */
+describe("Topbar notification age", () => {
+  function ago(ms: number) {
+    return new Date(Date.now() - ms).toISOString();
+  }
+
+  const SECOND = 1000;
+  const MINUTE = 60 * SECOND;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+
+  async function openWith(createdAt: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    serve(h.api, {
+      "/notifications/unread": { count: 1 },
+      "/notifications": [
+        { id: "n-1", title: "Marks published", body: "Term 1", isRead: false, type: "MARKS", createdAt },
+      ],
+    });
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const bell = screen
+      .getAllByRole("button")
+      .find((b) => /notification/i.test(b.getAttribute("aria-label") ?? ""));
+    await act(async () => {
+      fireEvent.click(bell!);
+    });
+    await waitFor(() => expect(screen.getByText(/Marks published/)).toBeInTheDocument());
+  }
+
+  it("says just now for something seconds old", async () => {
+    await openWith(ago(30 * SECOND));
+    expect(screen.getByText(/just now/i)).toBeInTheDocument();
+  });
+
+  it("counts in minutes under an hour", async () => {
+    await openWith(ago(20 * MINUTE));
+    expect(screen.getByText("20m ago")).toBeInTheDocument();
+  });
+
+  it("counts in hours under a day", async () => {
+    await openWith(ago(5 * HOUR));
+    expect(screen.getByText("5h ago")).toBeInTheDocument();
+  });
+
+  it("counts in days under a week", async () => {
+    await openWith(ago(3 * DAY));
+    expect(screen.getByText("3d ago")).toBeInTheDocument();
+  });
+
+  // Past a week the distance stops being useful and the date is clearer.
+  it("gives the date once it is more than a week old", async () => {
+    await openWith(ago(10 * DAY));
+    expect(screen.queryByText(/ago/)).toBeNull();
+    expect(document.body.textContent).toMatch(/\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}/);
+  });
+
+  // The boundaries are where an off-by-one shows up.
+  it("hands over from seconds to minutes at a minute", async () => {
+    await openWith(ago(MINUTE + SECOND));
+    expect(screen.getByText("1m ago")).toBeInTheDocument();
+  });
+
+  it("hands over from minutes to hours at an hour", async () => {
+    await openWith(ago(HOUR + MINUTE));
+    expect(screen.getByText("1h ago")).toBeInTheDocument();
+  });
+
+  it("hands over from hours to days at a day", async () => {
+    await openWith(ago(DAY + HOUR));
+    expect(screen.getByText("1d ago")).toBeInTheDocument();
+  });
+});
+
+describe("Topbar account menu", () => {
+  it("goes to the profile page for the signed-in role", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Aline/));
+    });
+    const profile = screen
+      .getAllByRole("button")
+      .find((b) => /profile/i.test(b.textContent ?? ""));
+    if (!profile) return;
+    await act(async () => {
+      fireEvent.click(profile);
+    });
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher/profile"));
+  });
+
+  // Backing out of signing out must leave the session alone.
+  it("stays signed in when the confirmation is dismissed", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    localStorage.setItem("access_token", "a");
+    mount("ADMIN");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Aline/));
+    });
+    const signOut = await screen.findByText(/sign out/i);
+    await act(async () => {
+      fireEvent.click(signOut);
+    });
+
+    const cancel = screen
+      .getAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    expect(h.router.push).not.toHaveBeenCalledWith("/login");
+    expect(localStorage.getItem("access_token")).toBe("a");
+  });
+});
