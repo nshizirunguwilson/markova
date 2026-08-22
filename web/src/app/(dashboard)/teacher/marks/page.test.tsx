@@ -7,10 +7,10 @@ const h = vi.hoisted(() => {
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
     offline: {
-      save: fn(),
-      get: fn(async () => []),
-      clear: fn(),
-      count: fn(async () => 0),
+      save: vi.fn<(payload: unknown) => Promise<void>>(),
+      get: vi.fn<() => Promise<unknown[]>>(),
+      clear: vi.fn<() => Promise<void>>(),
+      count: vi.fn<() => Promise<number>>(),
     },
   };
 });
