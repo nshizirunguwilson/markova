@@ -6,6 +6,12 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    offline: {
+      save: fn(),
+      get: fn(async () => []),
+      clear: fn(),
+      count: fn(async () => 0),
+    },
   };
 });
 
@@ -15,6 +21,16 @@ vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/teacher/marks",
   useSearchParams: () => new URLSearchParams(),
+}));
+
+// The offline queue is IndexedDB. What this page owns is when it saves to the
+// queue, when it drains it, and what it tells the teacher; the storage itself
+// is tested in src/lib/offline-db.test.ts.
+vi.mock("@/lib/offline-db", () => ({
+  savePendingMarks: h.offline.save,
+  getPendingMarks: h.offline.get,
+  clearPendingMarks: h.offline.clear,
+  getPendingCount: h.offline.count,
 }));
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -36,8 +52,21 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.offline.save.mockReset().mockResolvedValue(undefined);
+  h.offline.get.mockReset().mockResolvedValue([]);
+  h.offline.clear.mockReset().mockResolvedValue(undefined);
+  h.offline.count.mockReset().mockResolvedValue(0);
+  setOnline(true);
   serve(h.api, routes);
 });
+
+/** The browser's own online flag, which the page listens to. */
+function setOnline(online: boolean) {
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    value: online,
+  });
+}
 
 async function mount() {
   renderPage(TeacherMarksPage, { role: "TEACHER", user: { teacherId: "teacher-1" } });
@@ -130,4 +159,102 @@ describe("every control on marks entry", () => {
     const { rejections } = await exercisePage({ limit: 35 });
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+/**
+ * Marks entry on a classroom connection.
+ *
+ * This is the feature the whole offline queue exists for: a teacher fills in a
+ * class, the save fails, and their afternoon must not be lost. Losing a
+ * register is recoverable; losing a term's marks is not.
+ */
+describe("entering marks while offline", () => {
+  it("tells the teacher when the connection has gone", async () => {
+    setOnline(false);
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("offline"));
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("shows how many entries are waiting to be sent", async () => {
+    h.offline.count.mockResolvedValue(3);
+    await mount();
+    await waitFor(() => expect(h.offline.count).toHaveBeenCalled());
+  });
+
+  // Coming back online should drain the queue without the teacher asking.
+  it("sends the queue when the connection returns", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(1);
+    h.api.post.mockResolvedValue({ data: { saved: 1 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/marks/batch"))).toBe(true);
+    }, { timeout: 5000 });
+  }, 20000);
+
+  it("clears the queue once everything has been sent", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(1);
+    h.api.post.mockResolvedValue({ data: { saved: 1 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => expect(h.offline.clear).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+  }, 20000);
+
+  // A partial sync must keep what did not go, or the failed half is lost for
+  // good on the next attempt.
+  it("keeps the queue when only some entries went through", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+      { id: 2, savedAt: 2, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(2);
+    h.api.post
+      .mockResolvedValueOnce({ data: { saved: 1 } })
+      .mockRejectedValue({ response: { status: 500 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(
+      () =>
+        expect(
+          h.toast.warning.mock.calls.length + h.api.post.mock.calls.length,
+        ).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+    expect(h.offline.clear).not.toHaveBeenCalled();
+  }, 20000);
+
+  it("does nothing when the queue is empty", async () => {
+    h.offline.get.mockResolvedValue([]);
+    await mount();
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(h.offline.clear).not.toHaveBeenCalled();
+  }, 20000);
 });
