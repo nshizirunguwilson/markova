@@ -478,3 +478,198 @@ describe("typing in a thread", () => {
     );
   });
 });
+
+/**
+ * A group thread.
+ *
+ * A one to one thread is named after the other person. A group has no such
+ * shortcut, so it either carries a name or has to say how many people are in
+ * it, otherwise every group in the list looks the same.
+ */
+describe("group threads", () => {
+  const group = {
+    id: "conv-2",
+    type: "GROUP",
+    name: null,
+    participants: [{ user: other }, { user: second }, { user: { id: "user-1" } }],
+    lastMessage: { content: "Muraho mwese", createdAt: "2026-08-21T09:00:00Z" },
+    unreadCount: 0,
+  };
+
+  function serveGroup(conv: Record<string, unknown>) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [{ ...group, ...conv }],
+      "/messaging/conversations/conv-2/messages": [],
+    });
+  }
+
+  it("says how many people are in an unnamed group", async () => {
+    serveGroup({});
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Group \(3\)/)).toBeInTheDocument());
+  });
+
+  it("uses the group's own name when it has one", async () => {
+    serveGroup({ name: "Senior 1 teachers" });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText(/Senior 1 teachers/)).toBeInTheDocument(),
+    );
+  });
+
+  it("counts nobody rather than crashing when a group has no participants", async () => {
+    serveGroup({ participants: undefined });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Group \(0\)/)).toBeInTheDocument());
+  });
+
+  // How many of the group are around right now, not counting yourself.
+  it("shows how many others are online once the group is open", async () => {
+    serveGroup({});
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Group \(3\)/)).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByText(/Group \(3\)/));
+    await waitFor(() => expect(document.body.textContent).toMatch(/online/i));
+  });
+});
+
+/**
+ * The ticks beside a message you sent.
+ *
+ * They are the only feedback that a message left the phone, and they appear on
+ * your own messages only. Someone else's message with ticks would read as if
+ * you had sent it.
+ */
+describe("delivery ticks", () => {
+  function serveMine(status: string | null) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-9",
+          conversationId: "conv-1",
+          senderId: "user-1",
+          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+          content: "Mwaramutse",
+          status,
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+  }
+
+  async function openThread() {
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+    await waitFor(() => expect(screen.getByText(/Mwaramutse/)).toBeInTheDocument());
+  }
+
+  /** The tick element rendered inside the message bubble. */
+  function ticks() {
+    const bubble = screen.getByText(/Mwaramutse/).closest("div")!;
+    return bubble.querySelectorAll("svg.lucide-check, svg.lucide-check-check");
+  }
+
+  it("shows one tick on a message that has only been sent", async () => {
+    serveMine("SENT");
+    await openThread();
+    const marks = ticks();
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks[0].classList.contains("lucide-check")).toBe(true);
+  });
+
+  it("shows two ticks once it has been delivered", async () => {
+    serveMine("DELIVERED");
+    await openThread();
+    const marks = ticks();
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks[0].classList.contains("lucide-check-check")).toBe(true);
+  });
+
+  it("marks a read message differently from a delivered one", async () => {
+    serveMine("READ");
+    await openThread();
+    const marks = ticks();
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks[0].getAttribute("class")).toMatch(/primary-light/);
+  });
+
+  it("falls back to one tick when there is no status at all", async () => {
+    serveMine(null);
+    await openThread();
+    expect(ticks().length).toBeGreaterThan(0);
+  });
+
+  // Someone else's message carries no ticks; they are yours, about yours.
+  it("puts no ticks on the other side's messages", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+    await waitFor(() => expect(screen.getByText(/Muraho neza/)).toBeInTheDocument());
+
+    const bubble = screen.getByText(/Muraho neza/).closest("div")!;
+    expect(bubble.querySelectorAll("svg.lucide-check, svg.lucide-check-check")).toHaveLength(0);
+  });
+});
+
+/**
+ * Sending when the socket is not there.
+ *
+ * A classroom connection drops constantly. The message still has to go, over
+ * plain HTTP, rather than vanishing with the socket.
+ */
+describe("sending without a live socket", () => {
+  async function typeAndSend() {
+    const user = userEvent.setup();
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await user.click(screen.getByText(/Aline/));
+
+    const box = await screen.findByPlaceholderText(/type a message/i);
+    await user.type(box, "Mwaramutse{Enter}");
+  }
+
+  it("sends over HTTP when the socket is down", async () => {
+    serve(h.api, routes);
+    h.chat.connected = false;
+    h.api.post.mockClear();
+    await typeAndSend();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messages"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).content).toBe("Mwaramutse");
+    });
+  });
+
+  // The socket said it was up and then refused the message. Falling through to
+  // HTTP is the difference between a delivered message and a lost one.
+  it("falls back to HTTP when the socket refuses the message", async () => {
+    serve(h.api, routes);
+    h.chat.connected = true;
+    h.chat.sendMessage.mockRejectedValue(new Error("Not connected"));
+    h.api.post.mockClear();
+    await typeAndSend();
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messages"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("says the connection is down while it is", async () => {
+    serve(h.api, routes);
+    h.chat.connected = false;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/connect/i));
+  });
+});
