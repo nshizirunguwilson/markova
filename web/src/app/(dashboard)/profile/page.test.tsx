@@ -313,3 +313,220 @@ describe("every control on the profile", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * The paths that only run when something succeeds or fails outright.
+ *
+ * The success path has to leave nothing behind: a password left sitting in a
+ * field is a password on screen for whoever walks past next.
+ */
+describe("after a profile change lands", () => {
+  async function openEdit() {
+    await mount();
+    const edit = screen
+      .queryAllByRole("button")
+      .find((b) => /^edit/i.test((b.textContent ?? "").trim()));
+    if (!edit) return false;
+    await act(async () => {
+      fireEvent.click(edit);
+    });
+    return true;
+  }
+
+  async function save() {
+    const btn = screen
+      .queryAllByRole("button")
+      .find((b) => /^save/i.test((b.textContent ?? "").trim()));
+    if (!btn) return false;
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    return true;
+  }
+
+  it("takes a new surname", async () => {
+    if (!(await openEdit())) return;
+    const last = screen.queryByLabelText(/last name/i);
+    if (!last) return;
+    await act(async () => {
+      fireEvent.change(last, { target: { value: "Nshizirungu" } });
+    });
+    expect((last as HTMLInputElement).value).toBe("Nshizirungu");
+  });
+
+  it("takes a new phone number", async () => {
+    if (!(await openEdit())) return;
+    const phone = document.querySelector<HTMLInputElement>('input[placeholder^="+250"]');
+    if (!phone) return;
+    await act(async () => {
+      fireEvent.change(phone, { target: { value: "+250788000099" } });
+    });
+    expect(phone.value).toBe("+250788000099");
+  });
+
+  it("sends the changed details", async () => {
+    if (!(await openEdit())) return;
+    const last = screen.queryByLabelText(/last name/i);
+    if (last) {
+      await act(async () => {
+        fireEvent.change(last, { target: { value: "Nshizirungu" } });
+      });
+    }
+
+    h.api.patch.mockClear();
+    if (!(await save())) return;
+
+    await waitFor(() => {
+      const call = h.api.patch.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/auth/profile"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).lastName).toBe("Nshizirungu");
+    });
+  });
+
+  it("closes the editor once it is saved", async () => {
+    if (!(await openEdit())) return;
+    h.api.patch.mockResolvedValue({ data: { firstName: "Wilson", lastName: "Nshizirungu" } });
+    if (!(await save())) return;
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+  });
+
+  // The server's own reason is more useful than a generic failure.
+  it("passes on the server's reason for refusing", async () => {
+    if (!(await openEdit())) return;
+    h.api.patch.mockRejectedValue({
+      response: { status: 409, data: { message: "That phone number is already in use" } },
+    });
+    h.toast.error.mockClear();
+    if (!(await save())) return;
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("That phone number is already in use"),
+    );
+  });
+
+  it("still says something when the failure carries no reason", async () => {
+    if (!(await openEdit())) return;
+    h.api.patch.mockRejectedValue({ response: { status: 500, data: {} } });
+    h.toast.error.mockClear();
+    if (!(await save())) return;
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/failed/i)),
+    );
+  });
+});
+
+describe("after a password change lands", () => {
+  async function openPasswordForm() {
+    await mount();
+    const change = screen
+      .queryAllByRole("button")
+      .find((b) => /change password/i.test(b.textContent ?? ""));
+    if (!change) return null;
+    await act(async () => {
+      fireEvent.click(change);
+    });
+    return Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+    );
+  }
+
+  async function fillAll(fields: HTMLInputElement[], next = "Umwarimu2026!") {
+    await act(async () => {
+      if (fields[0]) fireEvent.change(fields[0], { target: { value: "Password123!" } });
+      if (fields[1]) fireEvent.change(fields[1], { target: { value: next } });
+      if (fields[2]) fireEvent.change(fields[2], { target: { value: next } });
+    });
+  }
+
+  async function submit() {
+    const save = screen
+      .queryAllByRole("button")
+      .filter((b) => /change password|update password|save/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!save) return false;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+    return true;
+  }
+
+  it("sends the current and the new password, and nothing else", async () => {
+    const fields = await openPasswordForm();
+    if (!fields) return;
+    await fillAll(fields);
+
+    h.api.post.mockClear();
+    if (!(await submit())) return;
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("change-password"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).newPassword).toBe("Umwarimu2026!");
+      expect(call![1]).not.toHaveProperty("confirmPassword");
+    });
+  });
+
+  // Nothing may be left in the fields afterwards.
+  it("empties the fields once the password is changed", async () => {
+    const fields = await openPasswordForm();
+    if (!fields) return;
+    await fillAll(fields);
+    h.api.post.mockResolvedValue({ data: { ok: true } });
+    if (!(await submit())) return;
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+    const left = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+    ).filter((f) => f.value !== "");
+    expect(left).toHaveLength(0);
+  });
+
+  it("passes on the server's reason for refusing", async () => {
+    const fields = await openPasswordForm();
+    if (!fields) return;
+    await fillAll(fields);
+    h.api.post.mockRejectedValue({
+      response: { status: 401, data: { message: "Current password is incorrect" } },
+    });
+    h.toast.error.mockClear();
+    if (!(await submit())) return;
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Current password is incorrect"),
+    );
+  });
+
+  // Backing out has to clear the fields too, not just hide them.
+  it("clears what was typed when the change is abandoned", async () => {
+    const fields = await openPasswordForm();
+    if (!fields) return;
+    await fillAll(fields);
+
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    const again = screen
+      .queryAllByRole("button")
+      .find((b) => /change password/i.test(b.textContent ?? ""));
+    if (!again) return;
+    await act(async () => {
+      fireEvent.click(again);
+    });
+
+    const left = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+    ).filter((f) => f.value !== "");
+    expect(left).toHaveLength(0);
+  });
+});
