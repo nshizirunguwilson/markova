@@ -401,6 +401,20 @@ describe("retrying inside the bulk pack", () => {
     });
   }
 
+  /**
+   * One student instead of two.
+   *
+   * Every failure is retried once, and a rate limit waits out three seconds
+   * before that retry. Two students means two of those waits before the run
+   * reaches the review screen these tests are about.
+   */
+  function onlyOneStudent() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+  }
+
   async function packAll() {
     renderPage(ReportsPage, { role: "ADMIN" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
@@ -419,23 +433,29 @@ describe("retrying inside the bulk pack", () => {
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
 
     const pack = buttonMatching(/pack|download all|zip/i);
-    if (!pack) return false;
+    expect(pack).toBeTruthy();
     await act(async () => {
-      fireEvent.click(pack);
+      fireEvent.click(pack!);
     });
 
     const confirm = screen
       .queryAllByRole("button")
       .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
       .at(-1);
-    if (!confirm) return false;
+    expect(confirm).toBeTruthy();
     await act(async () => {
-      fireEvent.click(confirm);
+      fireEvent.click(confirm!);
     });
-    return true;
   }
 
-  it("retries a report that failed the first time", async () => {
+  /** The review screen is the run's own report of what did not come back. */
+  function reviewText() {
+    return document.body.textContent ?? "";
+  }
+
+  // A single dropped request on a school connection is ordinary. Failing the
+  // whole class over it would mean starting two hundred fetches again.
+  it("retries a report that failed the first time and keeps it", async () => {
     let calls = 0;
     const real = h.api.get.getMockImplementation()!;
     h.api.get.mockImplementation(async (url: string, config?: unknown) => {
@@ -447,44 +467,325 @@ describe("retrying inside the bulk pack", () => {
       return real(url, config);
     });
 
-    if (!(await packAll())) return;
-    await waitFor(() => expect(calls).toBeGreaterThan(1), { timeout: 10000 });
+    await packAll();
+    // The retry succeeded, so the run finishes by packing rather than by
+    // asking for a review.
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 15000 });
+    expect(calls).toBeGreaterThan(1);
   }, 30000);
 
   // Two failures is a real failure, and the run has to say which ones so they
   // can be retried rather than starting the whole class again.
   it("gives up after the second attempt and offers a review", async () => {
+    onlyOneStudent();
     failPdfWith(() => {
       throw { response: { status: 500 } };
     });
 
-    if (!(await packAll())) return;
-    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
-      timeout: 10000,
+    await packAll();
+    await waitFor(() => expect(reviewText()).toMatch(/could not be fetched/i), {
+      timeout: 15000,
     });
     // Nothing was archived, so no zip was produced.
     expect(h.zip.generated).toBe(0);
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   }, 30000);
 
+  // "Rate limited" tells an admin to wait; "Server error" sends them to whoever
+  // runs the server. Naming it wrong costs somebody an afternoon.
   it("reports a rate limit as such, not as a server error", async () => {
+    onlyOneStudent();
     failPdfWith(() => {
       throw { response: { status: 429 } };
     });
 
-    if (!(await packAll())) return;
-    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
-      timeout: 12000,
+    await packAll();
+    await waitFor(() => expect(reviewText()).toMatch(/rate limited/i), {
+      timeout: 20000,
+    });
+    expect(reviewText()).not.toMatch(/server error/i);
+  }, 40000);
+
+  it("reports a server error with the status it got", async () => {
+    onlyOneStudent();
+    failPdfWith(() => {
+      throw { response: { status: 503 } };
+    });
+
+    await packAll();
+    await waitFor(() => expect(reviewText()).toMatch(/server error 503/i), {
+      timeout: 15000,
     });
   }, 30000);
 
+  // No response at all is the classroom case: the connection dropped. It is not
+  // a server error, and saying so would point the admin at the wrong problem.
   it("reports a dropped connection distinctly", async () => {
+    onlyOneStudent();
     failPdfWith(() => {
       throw new Error("Network Error");
     });
 
-    if (!(await packAll())) return;
-    await waitFor(() => expect(document.body.textContent).not.toBe(""), {
-      timeout: 10000,
+    await packAll();
+    await waitFor(() => expect(reviewText()).toMatch(/network error/i), {
+      timeout: 15000,
     });
+    expect(reviewText()).not.toMatch(/server error/i);
+  }, 30000);
+
+  // Retrying must ask again only for what failed, not re-fetch the whole class.
+  it("retries only the reports that failed", async () => {
+    onlyOneStudent();
+    let fail = true;
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) {
+        if (fail) throw { response: { status: 500 } };
+        return { data: new Blob(["pdf"]), status: 200 };
+      }
+      return real(url, config);
+    });
+
+    await packAll();
+    await waitFor(() => expect(reviewText()).toMatch(/could not be fetched/i), {
+      timeout: 15000,
+    });
+
+    fail = false;
+    const retry = screen.getByRole("button", { name: /retry/i });
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 15000 });
+  }, 40000);
+});
+
+describe("stopping a bulk pack part way", () => {
+  async function startSlowPack() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) {
+        await new Promise((r) => setTimeout(r, 60));
+        return { data: new Blob(["pdf"]), status: 200 };
+      }
+      return real(url, config);
+    });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+  }
+
+  // The confirm step exists so a click on "Download all" does not immediately
+  // start two hundred requests.
+  it("starts nothing until the run is confirmed", async () => {
+    await startSlowPack();
+    const pdfCalls = h.api.get.mock.calls.filter(([url]: any[]) =>
+      String(url).includes("/pdf"),
+    );
+    expect(pdfCalls).toHaveLength(0);
+  }, 30000);
+
+  it("closes without starting when the confirm is dismissed", async () => {
+    await startSlowPack();
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    expect(cancel).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(cancel!);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, 30000);
+
+  // Stopping has to leave the admin with a clear statement that nothing was
+  // downloaded, rather than a half archive they might think is complete.
+  it("says nothing was downloaded when stopped", async () => {
+    await startSlowPack();
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    const stop = await waitFor(() => {
+      const b = screen
+        .queryAllByRole("button")
+        .find((x) => /^stop$/i.test((x.textContent ?? "").trim()));
+      expect(b).toBeTruthy();
+      return b!;
+    });
+    await act(async () => {
+      fireEvent.click(stop);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/nothing was downloaded/i), {
+      timeout: 15000,
+    });
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+});
+
+/**
+ * The single report viewer.
+ *
+ * An admin opens one card to check it before sending the class home with them.
+ * Downloading and printing from inside that view are the two things they do
+ * next, and both work off the card already on screen rather than fetching again.
+ */
+describe("the opened report card", () => {
+  async function openOne() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const view = rowButton(/view/i);
+    expect(view).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(view!);
+    });
+    return screen.findByRole("dialog");
+  }
+
+  /** A button inside the viewer, not one of the row's own controls. */
+  function dialogButton(dialog: HTMLElement, pattern: RegExp) {
+    return Array.from(dialog.querySelectorAll("button")).find(
+      (b) =>
+        pattern.test((b.textContent ?? "").trim()) ||
+        pattern.test(b.getAttribute("aria-label") ?? ""),
+    );
+  }
+
+  it("names the student whose card is open", async () => {
+    const dialog = await openOne();
+    expect(dialog.textContent).toMatch(/Divine/);
+  }, 30000);
+
+  it("downloads the pdf of the card being viewed", async () => {
+    const dialog = await openOne();
+    const download = dialogButton(dialog, /download/i);
+    expect(download).toBeTruthy();
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.click(download!);
+    });
+
+    await waitFor(() => {
+      const pdf = h.api.get.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/pdf"),
+      );
+      expect(pdf).toBeTruthy();
+      expect(pdf![0]).toContain("student-1");
+    });
+  }, 30000);
+
+  // The html is already in hand, so printing must not go back to the server.
+  it("prints the card without fetching it again", async () => {
+    const dialog = await openOne();
+    const print = dialogButton(dialog, /print/i);
+    expect(print).toBeTruthy();
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.click(print!);
+    });
+
+    expect(window.open).toHaveBeenCalled();
+    const refetched = h.api.get.mock.calls.some(([url]: any[]) =>
+      String(url).includes("/html"),
+    );
+    expect(refetched).toBe(false);
+  }, 30000);
+
+  it("closes and leaves the class list behind it", async () => {
+    const dialog = await openOne();
+    const close = dialogButton(dialog, /close/i);
+    expect(close).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(close!);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText(/Divine/)).toBeInTheDocument();
+  }, 30000);
+});
+
+/**
+ * Transfer letters and the rest.
+ *
+ * These are the papers a family actually leaves with, so the generator has to
+ * refuse a half-filled request rather than produce a document with a blank
+ * where the student should be.
+ */
+describe("generating a document for one student", () => {
+  async function openDocumentsTab() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()));
+    expect(tab).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(tab!);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("offers the papers a school actually issues", async () => {
+    await openDocumentsTab();
+    const select = screen.getByLabelText(/document type/i) as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toContain("TRANSFER_LETTER");
+    expect(values).toContain("TRANSCRIPT");
+  }, 30000);
+
+  it("keeps Generate refused until a student is chosen", async () => {
+    await openDocumentsTab();
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()));
+    expect(generate).toBeTruthy();
+    expect(generate).toBeDisabled();
+  }, 30000);
+
+  it("changes the type it will ask for", async () => {
+    await openDocumentsTab();
+    const select = screen.getByLabelText(/document type/i) as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "TRANSCRIPT" } });
+    });
+    expect(select.value).toBe("TRANSCRIPT");
   }, 30000);
 });
