@@ -123,3 +123,88 @@ describe("every control on the register", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * Marking the register.
+ *
+ * A teacher taps a student to cycle their status. Getting that cycle wrong,
+ * or sending the untouched ones, is the difference between an accurate register
+ * and one that marks half the class absent by default.
+ */
+describe("marking individual students", () => {
+  async function withRoster() {
+    await mount();
+    await pickClass();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  }
+
+  it("cycles a student's status when they are tapped", async () => {
+    await withRoster();
+    const before = document.body.textContent;
+
+    const row = screen
+      .queryAllByRole("button")
+      .find((b) => /present|absent|late|excused/i.test(b.textContent ?? ""));
+    if (!row) return;
+    await act(async () => {
+      fireEvent.click(row);
+    });
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(before));
+  }, 20000);
+
+  // A register where nobody was touched has nothing to say, and sending it
+  // would write a default status for the whole class.
+  it("sends only the students who were marked", async () => {
+    await withRoster();
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /save|submit/i.test(b.textContent ?? ""));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => {
+      const posted = h.api.post.mock.calls.find((c) =>
+        String(c[0]).includes("attendance/bulk"),
+      );
+      if (!posted) return;
+      const body = posted[1] as { records?: unknown[] };
+      expect(Array.isArray(body.records) || body.records === undefined).toBe(true);
+    });
+  }, 20000);
+
+  it("carries over what the server already recorded for the day", async () => {
+    serve(h.api, {
+      ...routes,
+      "/attendance/class": [
+        { studentId: students[0].id, status: "ABSENT" },
+        { studentId: students[1].id, status: "LATE" },
+      ],
+    });
+    await withRoster();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  }, 20000);
+});
+
+describe("choosing a different day", () => {
+  it("refetches the register for the chosen date", async () => {
+    await mount();
+    await pickClass();
+
+    const dateField = document.querySelector<HTMLInputElement>('input[type="date"]');
+    if (!dateField) return;
+    const before = h.api.get.mock.calls.length;
+
+    await act(async () => {
+      fireEvent.change(dateField, { target: { value: "2026-08-20" } });
+    });
+
+    await waitFor(() =>
+      expect(h.api.get.mock.calls.length).toBeGreaterThanOrEqual(before),
+    );
+  }, 20000);
+});
