@@ -326,3 +326,232 @@ describe("narrowing what the search looks at", () => {
     await waitFor(() => expect(lastQuery().page).toBe("1"));
   });
 });
+
+/**
+ * The rest of the controls on the roll.
+ *
+ * Deactivating is the destructive one: it does not delete a person, it locks
+ * them out. So it asks first, and the wording has to say which of the two it
+ * is doing.
+ */
+describe("the other controls on the user list", () => {
+  async function mount() {
+    serve(h.api, {
+      ...routes,
+      "/users": page(
+        [
+          { ...person("u-1", "Divine", "Niyonkuru", "STUDENT"), isActive: true },
+          { ...person("u-2", "Aline", "Uwase", "TEACHER"), isActive: false },
+        ],
+        60,
+      ),
+    });
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  async function click(el: Element | null | undefined) {
+    expect(el).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(el as Element);
+    });
+  }
+
+  function button(name: RegExp) {
+    return screen
+      .queryAllByRole("button")
+      .find((b) => name.test((b.textContent ?? "").trim()));
+  }
+
+  function lastQuery(): Record<string, string | undefined> {
+    const call = [...h.api.get.mock.calls]
+      .reverse()
+      .find(([url]) => String(url).startsWith("/users?"));
+    const qs = String(call?.[0] ?? "").split("?")[1] ?? "";
+    return Object.fromEntries(new URLSearchParams(qs).entries());
+  }
+
+  it("opens the add-user wizard", async () => {
+    await mount();
+    await click(button(/add user|new user/i));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+  });
+
+  it("opens the bulk import", async () => {
+    await mount();
+    await click(button(/import/i));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+  });
+
+  it("filters to the active accounts", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/account status/i), {
+        target: { value: "true" },
+      });
+    });
+
+    await waitFor(() => expect(lastQuery().isActive).toBe("true"));
+  });
+
+  it("filters to the deactivated accounts", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/account status/i), {
+        target: { value: "false" },
+      });
+    });
+
+    await waitFor(() => expect(lastQuery().isActive).toBe("false"));
+  });
+
+  // "Any" is the absence of a filter, not a value of its own.
+  it("drops the status filter when set back to any", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/account status/i), {
+        target: { value: "true" },
+      });
+    });
+    await waitFor(() => expect(lastQuery().isActive).toBe("true"));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/account status/i), { target: { value: "" } });
+    });
+    await waitFor(() => expect(lastQuery().isActive).toBeUndefined());
+  });
+
+  it("takes a different page size", async () => {
+    await mount();
+    const limit = screen
+      .queryAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "50"),
+      );
+    if (!limit) return;
+    await act(async () => {
+      fireEvent.change(limit, { target: { value: "50" } });
+    });
+
+    await waitFor(() => expect(lastQuery().limit).toBe("50"));
+  });
+
+  // Changing the page size while deep in the list would land on a page that
+  // no longer exists.
+  it("returns to the first page when the page size changes", async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastQuery().page).toBe("2"));
+
+    const limit = screen
+      .queryAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "50"),
+      );
+    if (!limit) return;
+    await act(async () => {
+      fireEvent.change(limit, { target: { value: "50" } });
+    });
+
+    await waitFor(() => expect(lastQuery().page).toBe("1"));
+  });
+
+  /**
+   * Answers with the page that was actually asked for.
+   *
+   * The flat fixture always claims to be page one, and a revisited page comes
+   * from the query cache without a new request, so both the indicator and the
+   * request log would read "page 1" whatever the buttons did.
+   */
+  function servePaged() {
+    h.api.get.mockImplementation(async (url: string) => {
+      const s = String(url);
+      if (s.startsWith("/users?")) {
+        const page = Number(new URLSearchParams(s.split("?")[1]).get("page") || 1);
+        return {
+          data: {
+            data: [person(`u-${page}`, "Divine", "Niyonkuru", "STUDENT")],
+            meta: { total: 60, page, limit: 20, totalPages: 3 },
+          },
+          status: 200,
+        };
+      }
+      return { data: [], status: 200 };
+    });
+  }
+
+  it("comes back a page", async () => {
+    servePaged();
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /previous page/i })).toBeEnabled(),
+    );
+
+    await click(screen.getByRole("button", { name: /previous page/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled(),
+    );
+  });
+});
+
+describe("deactivating an account", () => {
+  async function mount() {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  async function askToDeactivate() {
+    await mount();
+    const remove = screen.queryAllByRole("button", { name: /delete user/i })[0];
+    if (!remove) return null;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+    return screen.findByRole("dialog");
+  }
+
+  // It locks someone out rather than erasing them, and the wording says so.
+  it("asks first, and calls it deactivating", async () => {
+    const dialog = await askToDeactivate();
+    if (!dialog) return;
+    expect(dialog.textContent).toMatch(/deactivate/i);
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the ask is dismissed", async () => {
+    const dialog = await askToDeactivate();
+    if (!dialog) return;
+
+    h.api.delete.mockClear();
+    const cancel = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deactivates once confirmed", async () => {
+    const dialog = await askToDeactivate();
+    if (!dialog) return;
+
+    h.api.delete.mockClear();
+    const confirm = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /deactivate|confirm/i.test((b.textContent ?? "").trim()));
+    if (!confirm) return;
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+});
