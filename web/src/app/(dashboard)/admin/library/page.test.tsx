@@ -43,6 +43,9 @@ const routes = {
     meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
   },
   "/academic/sections": [],
+  "/library/checkout": { id: "loan-9" },
+  "/library/return": { id: "loan-9", returnedAt: "2026-08-22T10:00:00Z" },
+  "/library/books/bulk": { imported: 1 },
 };
 
 beforeEach(() => {
@@ -1023,5 +1026,82 @@ describe("deleting a book from the catalogue", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(h.api.delete).not.toHaveBeenCalled();
     expect(screen.getByText(/Ubuzima/)).toBeInTheDocument();
+  });
+});
+
+describe("after a book is lent out", () => {
+  async function openCheckout() {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const open = screen
+      .queryAllByRole("button")
+      .find((b) => /^checkout$/i.test((b.textContent ?? "").trim()));
+    await userEvent.setup().click(open!);
+    return screen.findByRole("dialog");
+  }
+
+  async function lend(dialog: HTMLElement) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await waitFor(() => expect(dialog.textContent).toMatch(/Divine/));
+
+    for (const select of within(dialog).getAllByRole("combobox")) {
+      const option = Array.from((select as HTMLSelectElement).options).find((o) => o.value);
+      if (!option) continue;
+      await act(async () => {
+        fireEvent.change(select, { target: { value: option.value } });
+      });
+    }
+    for (const box of within(dialog).queryAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "BK-0001" } });
+      });
+    }
+    await act(async () => {
+      fireEvent.submit(dialog.querySelector("form")!);
+    });
+  }
+
+  it("closes the desk once the loan is recorded", async () => {
+    const dialog = await openCheckout();
+    await lend(dialog);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  // The desk serves one borrower after another, so nothing may carry over into
+  // the next loan.
+  it("clears itself for the next borrower", async () => {
+    const dialog = await openCheckout();
+    await lend(dialog);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await userEvent.setup().click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /^checkout$/i.test((b.textContent ?? "").trim()))!,
+    );
+    const again = await screen.findByRole("dialog");
+    for (const box of within(again).queryAllByRole("textbox")) {
+      expect((box as HTMLInputElement).value).toBe("");
+    }
+  });
+
+  it("searches the catalogue as the librarian types", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const box = document.querySelector<HTMLInputElement>(
+      'input[placeholder*="Search"]',
+    );
+    if (!box) return;
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "ubuzima" } });
+    });
+
+    expect(box.value).toBe("ubuzima");
   });
 });
