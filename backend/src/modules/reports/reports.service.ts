@@ -1158,6 +1158,7 @@ export class ReportsService implements OnModuleDestroy {
     for (const c of configs) map[c.key] = c.value;
     return {
       name: escapeHtml(map['school_name']),
+      website: escapeHtml(map['school_website'] || ''),
       motto: escapeHtml(map['school_motto'] || map['motto']),
       address: escapeHtml(map['school_address'] || ''),
       phone: escapeHtml(map['school_phone'] || ''),
@@ -1602,23 +1603,139 @@ export class ReportsService implements OnModuleDestroy {
     </body></html>`;
   }
 
+  /**
+   * One A4 sheet, shared by every document the school issues.
+   *
+   * The report card was already a full-bleed 210x297mm page with the school's
+   * own crest, stamp and signature; the letters were Arial on a 40px margin
+   * and looked like a different school had written them. This is the same
+   * sheet, so a transfer letter and a report card sit in the same folder
+   * without one of them looking improvised.
+   */
+  private renderDocumentShell(
+    school: any,
+    opts: {
+      title: string;
+      subtitle?: string;
+      reference?: string;
+      body: string;
+      signOff?: boolean;
+    },
+  ): string {
+    const navy = school.primaryColor || '#1B4F72';
+    const logo = logoDataUri(school.logoUrl);
+    const stamp = logoDataUri(school.stampUrl);
+    const signature = logoDataUri(school.signatureUrl);
+    const today = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const crest = logo
+      ? `<img class="crest-img" src="${logo}" alt="" />`
+      : `<div class="crest">${escapeHtml((school.name || 'S').slice(0, 2).toUpperCase())}</div>`;
+
+    const contact = [school.address, school.phone, school.email, school.website]
+      .filter(Boolean)
+      .join(' &nbsp;•&nbsp; ');
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      @page{ size:A4; margin:0; }
+      body{
+        font-family:Poppins,'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
+        color:#1c2733; background:#fff; width:210mm;
+      }
+      .sheet{ width:210mm; min-height:296.5mm; padding:14mm 16mm 12mm; display:flex; flex-direction:column; }
+      .sheet *{ line-height:1.45; }
+      .off{ display:flex; align-items:center; gap:14px; padding-bottom:10px; border-bottom:3px double ${navy}; }
+      .crest{ width:52px; height:52px; border-radius:50%; flex:0 0 52px; background:${navy}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; }
+      .crest-img{ width:52px; height:52px; object-fit:contain; flex:0 0 52px; }
+      .off-lines{ flex:1; }
+      .off-lines .school{ font-size:18px; font-weight:700; color:${navy}; }
+      .off-lines .motto{ font-size:11px; color:#5b6b7b; font-style:italic; }
+      .off-lines .addr{ font-size:10.5px; color:#5b6b7b; margin-top:2px; }
+      .doc-no{ text-align:right; font-size:10.5px; color:#5b6b7b; }
+      .doc-no b{ display:block; color:#1c2733; font-size:11.5px; }
+      .title-band{ margin:14px 0 16px; background:#eef4f9; border:1px solid rgba(21,37,54,.09); text-align:center; padding:8px 12px; border-radius:4px; }
+      .title-band .t{ font-size:15px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:${navy}; }
+      .title-band .s{ font-size:11px; color:#5b6b7b; margin-top:2px; }
+      .content{ flex:1; font-size:12.5px; }
+      .content p{ margin-bottom:11px; text-align:justify; }
+      table.doc{ border-collapse:collapse; width:100%; font-size:11.5px; margin:10px 0; }
+      table.doc th{ background:#eef4f9; color:${navy}; text-align:left; padding:6px 8px; border:1px solid rgba(21,37,54,.12); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; }
+      table.doc td{ padding:6px 8px; border:1px solid rgba(21,37,54,.12); }
+      table.doc tr:nth-child(even) td{ background:#fafcfd; }
+      .signoff{ margin-top:auto; padding-top:18px; display:flex; justify-content:space-between; align-items:flex-end; }
+      .sig-block{ text-align:center; font-size:11px; color:#5b6b7b; }
+      .sig-img{ height:42px; object-fit:contain; display:block; margin:0 auto 2px; }
+      .sig-line{ border-top:1px solid #1c2733; width:170px; padding-top:3px; margin-top:20px; }
+      .stamp-img{ height:82px; object-fit:contain; opacity:.9; }
+      .foot{ margin-top:14px; padding-top:8px; border-top:1px solid rgba(21,37,54,.12); font-size:9.5px; color:#5b6b7b; text-align:center; }
+    </style></head><body>
+      <div class="sheet">
+        <div class="off">
+          ${crest}
+          <div class="off-lines">
+            <div class="school">${school.name}</div>
+            ${school.motto ? `<div class="motto">${school.motto}</div>` : ''}
+            ${contact ? `<div class="addr">${contact}</div>` : ''}
+          </div>
+          <div class="doc-no">
+            ${opts.reference ? `<b>${escapeHtml(opts.reference)}</b>` : ''}
+            ${today}
+          </div>
+        </div>
+
+        <div class="title-band">
+          <div class="t">${escapeHtml(opts.title)}</div>
+          ${opts.subtitle ? `<div class="s">${escapeHtml(opts.subtitle)}</div>` : ''}
+        </div>
+
+        <div class="content">${opts.body}</div>
+
+        ${
+          opts.signOff === false
+            ? ''
+            : `<div class="signoff">
+                 <div class="sig-block">
+                   ${signature ? `<img class="sig-img" src="${signature}" alt="" />` : ''}
+                   <div class="sig-line">Head Teacher</div>
+                 </div>
+                 ${stamp ? `<img class="stamp-img" src="${stamp}" alt="" />` : ''}
+                 <div class="sig-block">
+                   <div class="sig-line">Date: ${today}</div>
+                 </div>
+               </div>`
+        }
+
+        <div class="foot">
+          Issued by ${school.name}${school.website ? ` &nbsp;•&nbsp; ${school.website}` : ''}
+        </div>
+      </div>
+    </body></html>`;
+  }
+
   private renderLetterHtml(
     school: any,
     student: any,
     title: string,
     body: string,
   ): string {
-    return `<!DOCTYPE html><html><head><style>
-      body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-      .header { text-align: center; margin-bottom: 30px; }
-      .header h1 { color: ${school.primaryColor}; }
-      .content { margin: 30px 0; line-height: 1.8; }
-      .footer { margin-top: 60px; }
-    </style></head><body>
-      <div class="header"><h1>${school.name}</h1><p>${school.motto}</p><h2>${escapeHtml(title)}</h2></div>
-      <div class="content"><p>${body}</p></div>
-      <div class="footer"><p>Authorized Signature: _______________</p><p>Date: ${new Date().toLocaleDateString()}</p></div>
-    </body></html>`;
+    const details = `
+      <table class="doc">
+        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
+            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
+        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
+            <th>Status</th><td>${escapeHtml(String(student.status ?? '').toLowerCase())}</td></tr>
+      </table>`;
+    return this.renderDocumentShell(school, {
+      title,
+      subtitle: `${student.user.firstName} ${student.user.lastName}`,
+      reference: student.studentIdNumber,
+      body: `${details}<p>${body}</p>`,
+    });
   }
 
   private renderDisciplineReportHtml(
@@ -1626,23 +1743,33 @@ export class ReportsService implements OnModuleDestroy {
     student: any,
     incidents: any[],
   ): string {
-    const rows = incidents
-      .map(
-        (i) =>
-          `<tr><td>${new Date(i.date).toLocaleDateString()}</td><td>${escapeHtml(i.description)}</td><td>${i.pointsDeducted}</td><td>${escapeHtml(i.actionTaken)}</td></tr>`,
-      )
-      .join('');
-    return `<!DOCTYPE html><html><head><style>
-      body { font-family: Arial, sans-serif; margin: 40px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ddd; padding: 8px; }
-      th { background: ${school.primaryColor}; color: white; }
-    </style></head><body>
-      <h1 style="color:${school.primaryColor}">${school.name}</h1>
-      <h2>Discipline Report — ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</h2>
-      <p>ID: ${escapeHtml(student.studentIdNumber)} | Class: ${escapeHtml(classDisplayName(student.classSection))} | Points: ${student.disciplinePoints}</p>
-      <table><thead><tr><th>Date</th><th>Description</th><th>Points</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>
-    </body></html>`;
+    const rows = incidents.length
+      ? incidents
+          .map(
+            (i) =>
+              `<tr><td>${new Date(i.date).toLocaleDateString('en-GB')}</td><td>${escapeHtml(i.description)}</td><td>-${i.pointsDeducted}</td><td>${escapeHtml(i.actionTaken)}</td></tr>`,
+          )
+          .join('')
+      : `<tr><td colspan="4" style="text-align:center;color:#5b6b7b">No incidents recorded.</td></tr>`;
+
+    const body = `
+      <table class="doc">
+        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
+            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
+        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
+            <th>Conduct points</th><td>${student.disciplinePoints}</td></tr>
+      </table>
+      <table class="doc">
+        <thead><tr><th>Date</th><th>Incident</th><th>Points</th><th>Action taken</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    return this.renderDocumentShell(school, {
+      title: 'Discipline Report',
+      subtitle: `${student.user.firstName} ${student.user.lastName}`,
+      reference: student.studentIdNumber,
+      body,
+    });
   }
 
   private renderTranscriptHtml(
@@ -1650,22 +1777,32 @@ export class ReportsService implements OnModuleDestroy {
     student: any,
     termResults: any[],
   ): string {
-    const rows = termResults
-      .map(
-        (tr) =>
-          `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td>${tr.average?.toFixed(1) || '—'}%</td><td>${escapeHtml(tr.letterGrade) || '—'}</td><td>${tr.rank || '—'}</td></tr>`,
-      )
-      .join('');
-    return `<!DOCTYPE html><html><head><style>
-      body { font-family: Arial, sans-serif; margin: 40px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ddd; padding: 8px; }
-      th { background: ${school.primaryColor}; color: white; }
-    </style></head><body>
-      <h1 style="color:${school.primaryColor}">${school.name}</h1>
-      <h2>Academic Transcript</h2>
-      <p>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} | ID: ${escapeHtml(student.studentIdNumber)}</p>
-      <table><thead><tr><th>Year</th><th>Term</th><th>Average</th><th>Grade</th><th>Rank</th></tr></thead><tbody>${rows}</tbody></table>
-    </body></html>`;
+    const rows = termResults.length
+      ? termResults
+          .map(
+            (tr) =>
+              `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td>${tr.average?.toFixed(1) ?? '—'}%</td><td>${escapeHtml(tr.letterGrade ?? '') || '—'}</td><td>${tr.rank ?? '—'}</td></tr>`,
+          )
+          .join('')
+      : `<tr><td colspan="5" style="text-align:center;color:#5b6b7b">No published results yet.</td></tr>`;
+
+    const body = `
+      <table class="doc">
+        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
+            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
+        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
+            <th>Terms recorded</th><td>${termResults.length}</td></tr>
+      </table>
+      <table class="doc">
+        <thead><tr><th>Year</th><th>Term</th><th>Average</th><th>Grade</th><th>Position</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    return this.renderDocumentShell(school, {
+      title: 'Academic Transcript',
+      subtitle: `${student.user.firstName} ${student.user.lastName}`,
+      reference: student.studentIdNumber,
+      body,
+    });
   }
 }
