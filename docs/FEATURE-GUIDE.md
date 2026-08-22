@@ -258,14 +258,14 @@ Should display: total students, total teachers, total parents, total classes, pe
 2. Fill the form: email or phone, first/last name, role, gender, password.
 3. Save.
 
-**Expected:** 201 response; user appears in the list. For students, a `MKV-YYYY-NNNN` student ID is auto-assigned.
+**Expected:** 201 response; user appears in the list. For students, a `STD-YYYY-NNNN` student ID is auto-assigned.
 
 **Bulk import students**
 1. Visit `/admin/students`.
 2. Click **Import CSV**.
 3. Download the template, fill rows, upload.
 
-**Expected:** all rows created with unique student IDs (`MKV-2026-0001`, `0002`, ...). Errors per row are reported.
+**Expected:** all rows created with unique student IDs (`STD-2026-0001`, `0002`, ...). Errors per row are reported.
 
 **Edit a user**
 1. Click a row → **Edit**.
@@ -375,7 +375,7 @@ Admin can list and delete. Teachers create homework — see §4.
 
 **Checkout**
 1. Click **Checkout**.
-2. Enter book identifier (book UUID or barcode) + student identifier (`MKV-…` number or user UUID).
+2. Enter book identifier (book UUID or barcode) + student identifier (`STD-…` number or user UUID).
 3. Save.
 
 **Expected:** 201. The book's `availableCount` decreases by one. A loan row appears under **Active loans**.

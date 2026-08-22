@@ -32,7 +32,8 @@ const me = {
   phone: "+250788000001",
   role: "TEACHER",
   photoUrl: null,
-  teacher: { id: "teacher-1", employeeId: "EMP-001", qualification: "BSc Education" },
+  code: "TCH-2026-001",
+  teacher: { id: "teacher-1", qualification: "BSc Education" },
 };
 
 const routes = { ...populatedRoutes, "/auth/profile": me, "/users/user-1": me };

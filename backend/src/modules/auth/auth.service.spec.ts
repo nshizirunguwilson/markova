@@ -469,7 +469,7 @@ describe('AuthService', () => {
           {
             student: {
               id: 's1',
-              studentIdNumber: 'MKV-2026-0001',
+              studentIdNumber: 'STD-2026-0001',
               user: { firstName: 'Divine', lastName: 'Niyonkuru' },
               classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
             },
