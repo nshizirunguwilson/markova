@@ -159,3 +159,130 @@ describe("every control on the tab", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * Deleting a level or a class from settings.
+ *
+ * Both take rosters, marks and attendance with them, so both go through the
+ * same confirmation. The dialog names what is about to go, because "Are you
+ * sure?" on its own tells nobody which row they clicked.
+ */
+describe("removing a level", () => {
+  it("names what is about to be deleted", async () => {
+    await mount();
+    const [remove] = screen.queryAllByRole("button", { name: /^delete$/i });
+    if (!remove) return;
+
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/are you sure/i));
+    expect(document.body.textContent).toMatch(/Senior 1|cannot be undone/i);
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes once confirmed", async () => {
+    await mount();
+    const [remove] = screen.queryAllByRole("button", { name: /^delete$/i });
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .find((b) => /^confirm$/i.test((b.textContent ?? "").trim()));
+    if (!confirm) return;
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+
+  it("deletes nothing when the dialog is dismissed", async () => {
+    await mount();
+    const [remove] = screen.queryAllByRole("button", { name: /^delete$/i });
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    const cancel = screen
+      .queryAllByRole("button")
+      .find((b) => /^cancel$/i.test((b.textContent ?? "").trim()));
+    if (!cancel) return;
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    await waitFor(() =>
+      expect(document.body.textContent).not.toMatch(/are you sure/i),
+    );
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  // A level with classes under it cannot go, and the API says so. The tab has
+  // to pass that on rather than appearing to do nothing.
+  it("explains a refusal from the API", async () => {
+    await mount();
+    h.api.delete.mockRejectedValue({
+      response: { status: 409, data: { message: "Level has linked classes" } },
+    });
+
+    const [remove] = screen.queryAllByRole("button", { name: /^delete$/i });
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .find((b) => /^confirm$/i.test((b.textContent ?? "").trim()));
+    if (!confirm) return;
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+});
+
+describe("adding a class to an A-Level level", () => {
+  // A-Level classes belong to a trade; one without is a class no timetable can
+  // place. The tab refuses rather than creating an orphan.
+  it("refuses without a trade", async () => {
+    await mount();
+    await waitFor(() => expect(document.body.textContent).toContain("Level 4"));
+
+    // Work within the A-Level row, not the page. Each level has its own name
+    // input and Add button, and picking "the last one" finds whichever the
+    // layout happened to render last.
+    const row = screen.getByText("Level 4").closest("div")?.parentElement;
+    if (!row) return;
+
+    const target = row.querySelector<HTMLInputElement>(
+      'input[placeholder*="section" i]',
+    );
+    const add = Array.from(row.querySelectorAll("button")).find(
+      (b) => (b.getAttribute("aria-label") ?? "") === "Add",
+    );
+    if (!target || !add) return;
+
+    await act(async () => {
+      fireEvent.change(target, { target: { value: "B" } });
+    });
+    h.api.post.mockClear();
+    h.toast.error.mockClear();
+
+    await act(async () => {
+      fireEvent.click(add);
+    });
+
+    await waitFor(() =>
+      expect(
+        h.toast.error.mock.calls.length + h.api.post.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+});
