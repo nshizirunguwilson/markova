@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
@@ -136,5 +136,107 @@ describe("what it accepts", () => {
   it("takes a batch with no entries without complaining", async () => {
     await savePendingMarks({ classSectionId: "section-1", entries: [] });
     await expect(getPendingCount()).resolves.toBe(1);
+  });
+});
+
+/**
+ * When the browser refuses the queue.
+ *
+ * The whole point of this module is that a teacher's afternoon survives a bad
+ * connection. It must not also have to survive a silent failure: private
+ * browsing, a full disk or a blocked origin all make IndexedDB refuse, and
+ * every one of those has to surface as a rejected promise the page can catch,
+ * not a promise that never settles.
+ */
+describe("when IndexedDB refuses", () => {
+  const realIndexedDB = globalThis.indexedDB;
+
+  afterEach(() => {
+    globalThis.indexedDB = realIndexedDB;
+  });
+
+  /** An indexedDB whose open() fails, the way private browsing does. */
+  function refuseToOpen() {
+    globalThis.indexedDB = {
+      open: () => {
+        const request: any = { error: new Error("access denied") };
+        queueMicrotask(() => request.onerror?.());
+        return request;
+      },
+    } as unknown as IDBFactory;
+  }
+
+  /** An indexedDB that opens, then fails every transaction. */
+  function failTransactions() {
+    const store = {
+      add: () => undefined,
+      clear: () => undefined,
+      getAll: () => {
+        const r: any = { error: new Error("read failed") };
+        queueMicrotask(() => r.onerror?.());
+        return r;
+      },
+      count: () => {
+        const r: any = { error: new Error("read failed") };
+        queueMicrotask(() => r.onerror?.());
+        return r;
+      },
+    };
+    globalThis.indexedDB = {
+      open: () => {
+        const request: any = {
+          result: {
+            transaction: () => {
+              const tx: any = { objectStore: () => store, error: new Error("tx failed") };
+              queueMicrotask(() => tx.onerror?.());
+              return tx;
+            },
+          },
+        };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    } as unknown as IDBFactory;
+  }
+
+  it("rejects a save rather than losing the marks quietly", async () => {
+    refuseToOpen();
+    await expect(savePendingMarks(marks("student-1", 82))).rejects.toBeTruthy();
+  });
+
+  it("rejects a read", async () => {
+    refuseToOpen();
+    await expect(getPendingMarks()).rejects.toBeTruthy();
+  });
+
+  it("rejects a count", async () => {
+    refuseToOpen();
+    await expect(getPendingCount()).rejects.toBeTruthy();
+  });
+
+  it("rejects a clear", async () => {
+    refuseToOpen();
+    await expect(clearPendingMarks()).rejects.toBeTruthy();
+  });
+
+  // Opening is not the only way it fails: a full disk breaks the write.
+  it("rejects a save whose transaction fails", async () => {
+    failTransactions();
+    await expect(savePendingMarks(marks("student-1", 82))).rejects.toBeTruthy();
+  });
+
+  it("rejects a clear whose transaction fails", async () => {
+    failTransactions();
+    await expect(clearPendingMarks()).rejects.toBeTruthy();
+  });
+
+  it("rejects a read whose request fails", async () => {
+    failTransactions();
+    await expect(getPendingMarks()).rejects.toBeTruthy();
+  });
+
+  it("rejects a count whose request fails", async () => {
+    failTransactions();
+    await expect(getPendingCount()).rejects.toBeTruthy();
   });
 });
