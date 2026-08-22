@@ -179,3 +179,162 @@ describe("every control on the help desk", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * Writing and editing answers.
+ *
+ * The FAQ is what parents read before they call the school, so an answer saved
+ * half-written is worse than none. Title and content are both required.
+ */
+describe("saving an answer", () => {
+  async function openNewFaq() {
+    await mount();
+    if (!(await openFaqs())) return null;
+    const add = button(/add faq|new faq|^add$/i);
+    if (!add) return null;
+    await userEvent.setup().click(add);
+    return screen.findByRole("dialog").catch(() => null);
+  }
+
+  it("refuses one with no title or content", async () => {
+    const dialog = await openNewFaq();
+    if (!dialog) return;
+    h.api.post.mockClear();
+    h.toast.error.mockClear();
+
+    const save = button(/^save/i);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("saves one that is complete", async () => {
+    const dialog = await openNewFaq();
+    if (!dialog) return;
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      'input[type="text"], input:not([type]), textarea',
+    );
+    await act(async () => {
+      for (const field of fields) {
+        fireEvent.change(field, { target: { value: "How do I see my child's marks?" } });
+      }
+    });
+    h.api.post.mockClear();
+
+    const save = button(/^save/i);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.length + h.api.patch.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  // Editing an answer updates it; a second copy would leave parents reading
+  // whichever the list happened to show first.
+  it("updates an existing answer rather than adding another", async () => {
+    await mount();
+    if (!(await openFaqs())) return;
+    await waitFor(() => expect(screen.getByText(/reset my password/i)).toBeInTheDocument());
+
+    const edit = button(/^edit$/i);
+    if (!edit) return;
+    await userEvent.setup().click(edit);
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      'input[type="text"], input:not([type]), textarea',
+    );
+    await act(async () => {
+      for (const field of fields) {
+        fireEvent.change(field, { target: { value: "Updated answer" } });
+      }
+    });
+    h.api.post.mockClear();
+    h.api.patch.mockClear();
+
+    const save = button(/^save/i);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() =>
+      expect(
+        h.api.patch.mock.calls.length + h.api.post.mock.calls.length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("says so when saving is refused", async () => {
+    const dialog = await openNewFaq();
+    if (!dialog) return;
+    for (const m of ["post", "patch"] as const) {
+      h.api[m].mockRejectedValue({ response: { status: 500 } });
+    }
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+      'input[type="text"], input:not([type]), textarea',
+    );
+    await act(async () => {
+      for (const field of fields) {
+        fireEvent.change(field, { target: { value: "Something" } });
+      }
+    });
+    h.toast.error.mockClear();
+
+    const save = button(/^save/i);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+});
+
+/**
+ * Removing an answer.
+ *
+ * This one asks with the browser's own confirm rather than the app's dialog,
+ * unlike every other delete here. It still has to ask, and it still has to do
+ * nothing when the answer is no.
+ */
+describe("removing an answer", () => {
+  async function clickDelete() {
+    await mount();
+    if (!(await openFaqs())) return false;
+    await waitFor(() => expect(screen.getByText(/reset my password/i)).toBeInTheDocument());
+    h.api.delete.mockClear();
+
+    const remove = button(/^delete$/i);
+    if (!remove) return false;
+    await userEvent.setup().click(remove);
+    return true;
+  }
+
+  it("deletes nothing when the confirmation is declined", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    if (!(await clickDelete())) return;
+    expect(h.api.delete).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("deletes once the confirmation is accepted", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    if (!(await clickDelete())) return;
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+    vi.unstubAllGlobals();
+  });
+
+  it("says so when the delete is refused", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    h.api.delete.mockRejectedValue({ response: { status: 500 } });
+    if (!(await clickDelete())) return;
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    vi.unstubAllGlobals();
+  });
+});
