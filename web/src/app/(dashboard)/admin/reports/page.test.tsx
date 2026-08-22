@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    zip: { added: [] as string[], generated: 0 },
   };
 });
 
@@ -17,6 +18,24 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/reports",
   useSearchParams: () => new URLSearchParams(),
 }));
+
+// JSZip builds a real archive in memory. The packing flow is what this owns:
+// which files went in, whether a failure was retried, whether cancelling
+// stopped it. The bytes are JSZip's business.
+vi.mock("jszip", () => {
+  class FakeZip {
+    files: Record<string, unknown> = {};
+    file(name: string, data: unknown) {
+      this.files[name] = data;
+      h.zip.added.push(name);
+    }
+    async generateAsync() {
+      h.zip.generated += 1;
+      return new Blob(["zip"]);
+    }
+  }
+  return { default: FakeZip };
+});
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve } from "@/test/page";
@@ -58,6 +77,8 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.zip.added = [];
+  h.zip.generated = 0;
   serve(h.api, routes);
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn(() => "blob:x"),
@@ -91,6 +112,22 @@ function buttonMatching(pattern: RegExp) {
   return screen
     .queryAllByRole("button")
     .find((b) => pattern.test(b.textContent ?? "") || pattern.test(b.getAttribute("aria-label") ?? ""));
+}
+
+/**
+ * A control inside the results table, not the page-level toolbar.
+ *
+ * "Download all report cards" sits above the table and matches /download/ too,
+ * so a page-wide search finds the bulk packer instead of one student's row.
+ */
+function rowButton(pattern: RegExp) {
+  const table = document.querySelector("table");
+  if (!table) return undefined;
+  return Array.from(table.querySelectorAll("button")).find(
+    (b) =>
+      pattern.test((b.textContent ?? "").trim()) ||
+      pattern.test(b.getAttribute("aria-label") ?? ""),
+  );
 }
 
 describe("the report cards page", () => {
@@ -154,7 +191,7 @@ describe("after generating a class's reports", () => {
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
     h.api.get.mockClear();
 
-    const view = buttonMatching(/view/i);
+    const view = rowButton(/view/i) ?? buttonMatching(/view/i);
     if (!view) return;
     await act(async () => {
       fireEvent.click(view);
@@ -174,7 +211,7 @@ describe("after generating a class's reports", () => {
     h.api.get.mockRejectedValue({ response: { status: 500 } });
     h.toast.error.mockClear();
 
-    const view = buttonMatching(/view/i);
+    const view = rowButton(/view/i) ?? buttonMatching(/view/i);
     if (!view) return;
     await act(async () => {
       fireEvent.click(view);
@@ -189,7 +226,7 @@ describe("after generating a class's reports", () => {
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
     h.api.get.mockClear();
 
-    const print = buttonMatching(/print/i);
+    const print = rowButton(/print/i) ?? buttonMatching(/print/i);
     if (!print) return;
     await act(async () => {
       fireEvent.click(print);
@@ -234,4 +271,112 @@ describe("the document generator", () => {
     const { rejections } = await exercisePage({ limit: 30 });
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+describe("downloading one report card", () => {
+  async function withRows() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  it("fetches the pdf and hands it to the browser", async () => {
+    await withRows();
+    h.api.get.mockClear();
+
+    const download = rowButton(/download/i);
+    if (!download) return;
+    await act(async () => {
+      fireEvent.click(download);
+    });
+
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/pdf"))).toBe(true);
+    });
+  }, 20000);
+
+  // A failed download has to say so. The row otherwise sits on a spinner and
+  // the person assumes the file is coming.
+  it("says so when the pdf cannot be fetched", async () => {
+    await withRows();
+    h.api.get.mockRejectedValue({ response: { status: 500 } });
+    h.toast.error.mockClear();
+
+    const download = rowButton(/download/i);
+    if (!download) return;
+    await act(async () => {
+      fireEvent.click(download);
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  }, 20000);
+});
+
+describe("packing a whole class into one archive", () => {
+  async function withRows() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  async function openPack() {
+    await withRows();
+    const pack = buttonMatching(/pack|download all|zip/i);
+    if (!pack) return false;
+    await act(async () => {
+      fireEvent.click(pack);
+    });
+    return true;
+  }
+
+  // Fetching thirty report cards is a lot of data on a school connection, so
+  // it asks first and says how much.
+  it("asks before starting", async () => {
+    if (!(await openPack())) return;
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(h.zip.generated).toBe(0);
+  }, 20000);
+
+  it("adds one file per report and builds the archive", async () => {
+    if (!(await openPack())) return;
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!confirm) return;
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    await waitFor(() => expect(h.zip.generated).toBeGreaterThan(0), {
+      timeout: 8000,
+    });
+    expect(h.zip.added.length).toBeGreaterThan(0);
+  }, 25000);
 });
