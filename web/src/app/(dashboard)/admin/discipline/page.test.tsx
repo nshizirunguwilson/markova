@@ -1,0 +1,359 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const h = vi.hoisted(() => {
+  const fn = () => vi.fn();
+  return {
+    api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
+    router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
+    toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+  };
+});
+
+vi.mock("@/lib/api", () => ({ default: h.api }));
+vi.mock("sonner", () => ({ toast: h.toast }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => h.router,
+  usePathname: () => "/admin/discipline",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderPage, serve, serveFailure } from "@/test/page";
+import { classSection, populatedRoutes, students } from "@/test/fixtures";
+
+import DisciplinePage from "./page";
+
+/**
+ * The discipline register.
+ *
+ * Every row here costs a student points and reaches a parent, and an appeal is
+ * the family's only way to answer back. So the two things that matter are that
+ * a record is never deleted on a single tap, and that an appeal decision says
+ * which way it went.
+ */
+
+const incident = (over: Record<string, unknown> = {}) => ({
+  id: "inc-1",
+  date: "2026-08-18T10:00:00Z",
+  description: "Late to assembly three times this week",
+  pointsDeducted: 5,
+  actionTaken: "VERBAL_WARNING",
+  parentAcknowledged: false,
+  student: { ...students[0], classSection },
+  ...over,
+});
+
+const appeal = {
+  id: "ap-1",
+  statement: "He was helping carry chairs for the assembly.",
+  createdAt: "2026-08-19T08:00:00Z",
+  submittedBy: { firstName: "Jean", lastName: "Habimana" },
+  incident: {
+    description: "Late to assembly three times this week",
+    pointsDeducted: 5,
+    student: { ...students[0], classSection },
+  },
+};
+
+const routes = {
+  ...populatedRoutes,
+  "/discipline/incidents": [
+    incident(),
+    incident({
+      id: "inc-2",
+      description: "Fighting in the corridor",
+      pointsDeducted: 20,
+      actionTaken: "SUSPENSION",
+      parentAcknowledged: true,
+      student: { ...students[1], classSection },
+    }),
+  ],
+  "/discipline/appeals/pending": [appeal],
+  "/discipline/dashboard": {
+    totalIncidents: 2,
+    byAction: [{ name: "VERBAL_WARNING", count: 1 }],
+  },
+};
+
+beforeEach(() => {
+  for (const m of Object.values(h.api)) m.mockReset();
+  for (const m of Object.values(h.toast)) m.mockReset();
+  serve(h.api, routes);
+});
+
+async function mount() {
+  renderPage(DisciplinePage, { role: "ADMIN" });
+  await waitFor(() => expect(screen.getByText(/Late to assembly/)).toBeInTheDocument());
+}
+
+async function click(el: Element | null | undefined) {
+  expect(el).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(el as Element);
+  });
+}
+
+function tab(name: RegExp) {
+  return screen.queryAllByRole("button").find((b) => name.test((b.textContent ?? "").trim()));
+}
+
+describe("the incidents this term", () => {
+  it("lists them", async () => {
+    await mount();
+    expect(screen.getByText(/Fighting in the corridor/)).toBeInTheDocument();
+  });
+
+  it("names the student and their class", async () => {
+    await mount();
+    const row = screen.getByText(/Late to assembly/).closest("tr")!;
+    expect(row.textContent).toMatch(/Divine/);
+    expect(row.textContent).toMatch(/Senior 1/);
+  });
+
+  // The points are a deduction, so the sign matters.
+  it("shows the points as a deduction", async () => {
+    await mount();
+    const row = screen.getByText(/Late to assembly/).closest("tr")!;
+    expect(row.textContent).toMatch(/-5/);
+  });
+
+  // The raw enum is not something to put in front of a head teacher.
+  it("writes the action in words, not as an enum", async () => {
+    await mount();
+    expect(screen.getByText("Verbal Warning")).toBeInTheDocument();
+    expect(screen.getByText("Suspension")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw action if it is one we do not know", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/incidents": [incident({ actionTaken: "COMMUNITY_SERVICE" })],
+    });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText("COMMUNITY_SERVICE")).toBeInTheDocument());
+  });
+
+  // Whether the parent has seen it is the whole point of recording it.
+  it("says whether the parent has acknowledged it", async () => {
+    await mount();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Ack")).toBeInTheDocument();
+  });
+
+  it("says so when the term has no incidents", async () => {
+    serve(h.api, { ...routes, "/discipline/incidents": [] });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/no incidents recorded/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("does not go blank when the register fails to load", async () => {
+    serveFailure(h.api);
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  // The register opens on this term. The first fetch goes out before the terms
+  // have loaded, so it is the latest one that carries the filter.
+  it("asks only for the current term", async () => {
+    await mount();
+    await waitFor(() => {
+      const call = [...h.api.get.mock.calls]
+        .reverse()
+        .find(([url]) => String(url).includes("/discipline/incidents"));
+      expect(String(call![0])).toMatch(/termId=term-1/);
+    });
+  });
+});
+
+describe("deleting an incident", () => {
+  // A record deleted by accident takes the points and the parent's copy with
+  // it, so it goes through a confirmation.
+  it("asks first", async () => {
+    await mount();
+    h.api.delete.mockClear();
+    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes nothing when the ask is dismissed", async () => {
+    await mount();
+    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^cancel$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes that incident once confirmed", async () => {
+    await mount();
+    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^confirm$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith("/discipline/incidents/inc-1"),
+    );
+  });
+});
+
+describe("appeals waiting on a decision", () => {
+  async function openAppeals() {
+    await mount();
+    await click(tab(/appeals/i));
+    await waitFor(() => expect(screen.getByText(/helping carry chairs/i)).toBeInTheDocument());
+  }
+
+  // An appeal is meaningless without the incident it answers.
+  it("shows the appeal beside the incident it is about", async () => {
+    await openAppeals();
+    expect(screen.getByText(/Incident:/)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/Late to assembly/);
+  });
+
+  it("names who submitted it", async () => {
+    await openAppeals();
+    expect(document.body.textContent).toMatch(/Jean Habimana/);
+  });
+
+  it("counts the waiting appeals on the tab", async () => {
+    await mount();
+    const appealsTab = tab(/appeals/i)!;
+    expect(appealsTab.textContent).toMatch(/1/);
+  });
+
+  it("approves one", async () => {
+    await openAppeals();
+    h.api.put.mockClear();
+    await click(
+      screen.queryAllByRole("button").find((b) => /^approve$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.put.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/appeals/ap-1/review"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).status).toBe("APPROVED");
+    });
+  });
+
+  // Approve and reject must not both send the same thing.
+  it("rejects one", async () => {
+    await openAppeals();
+    h.api.put.mockClear();
+    await click(
+      screen.queryAllByRole("button").find((b) => /^reject$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.put.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/appeals/ap-1/review"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).status).toBe("REJECTED");
+    });
+  });
+
+  it("says so when nothing is waiting", async () => {
+    serve(h.api, { ...routes, "/discipline/appeals/pending": [] });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Late to assembly/)).toBeInTheDocument());
+    await click(tab(/appeals/i));
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(screen.queryByText(/helping carry chairs/i)).toBeNull();
+  });
+});
+
+describe("recording an incident", () => {
+  async function openForm() {
+    await mount();
+    await click(tab(/record incident/i));
+    return screen.findByRole("dialog");
+  }
+
+  it("opens a form", async () => {
+    const dialog = await openForm();
+    expect(dialog.textContent).toMatch(/description/i);
+  });
+
+  it("defaults the action to the lightest one", async () => {
+    const dialog = await openForm();
+    const action = within(dialog)
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "SUSPENSION"),
+      ) as HTMLSelectElement;
+    expect(action.value).toBe("VERBAL_WARNING");
+  });
+
+  it("records it against the current term", async () => {
+    const dialog = await openForm();
+    for (const box of within(dialog).getAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Shouting in the corridor" } });
+      });
+    }
+
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(record|save|add|create)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/incidents"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).termId).toBe("term-1");
+    });
+  });
+
+  it("closes without recording anything when dismissed", async () => {
+    const dialog = await openForm();
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^cancel$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("the term's discipline picture", () => {
+  it("opens", async () => {
+    await mount();
+    await click(tab(/dashboard/i));
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("survives a term with no breakdown to show", async () => {
+    serve(h.api, { ...routes, "/discipline/dashboard": { totalIncidents: 0, byAction: [] } });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Late to assembly/)).toBeInTheDocument());
+    await click(tab(/dashboard/i));
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
