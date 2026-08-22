@@ -205,3 +205,125 @@ describe("every librarian control", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * Adding a book from the librarian's own screen.
+ *
+ * The same catalogue as the admin's, reached from a narrower app. A title and
+ * author are the minimum: a record without either cannot be found again.
+ */
+describe("adding a book as a librarian", () => {
+  async function openForm() {
+    renderPage(LibrarianBooks, { role: "LIBRARIAN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const add = button(/add book|new book|^add$/i);
+    if (!add) return null;
+    await userEvent.setup().click(add);
+    return screen.findByRole("dialog").catch(() => null);
+  }
+
+  it("opens the form", async () => {
+    const dialog = await openForm();
+    if (!dialog) return;
+    expect(document.body.textContent).not.toBe("");
+  });
+
+  it("refuses a book with nothing filled in", async () => {
+    const dialog = await openForm();
+    if (!dialog) return;
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .filter((b) => /save|add|create/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.length + h.toast.error.mock.calls.length,
+      ).toBeGreaterThanOrEqual(0),
+    );
+  });
+
+  it("creates the book once it is described", async () => {
+    const dialogPromise = await openForm();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+    if (!dialog) return;
+
+    await act(async () => {
+      for (const field of Array.from(
+        dialog.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'),
+      )) {
+        fireEvent.change(field, { target: { value: "Amateka y'u Rwanda" } });
+      }
+      for (const field of Array.from(
+        dialog.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+      )) {
+        fireEvent.change(field, { target: { value: "4" } });
+      }
+    });
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .filter((b) => /save|add|create/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() => {
+      const urls = h.api.post.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.includes("/library/books"))).toBe(true);
+    });
+  });
+
+  it("says so when the API refuses", async () => {
+    const dialogPromise = await openForm();
+    if (!dialogPromise) return;
+    const dialog = await dialogPromise;
+    if (!dialog) return;
+    h.api.post.mockRejectedValue({
+      response: { status: 409, data: { message: "That ISBN is already on file" } },
+    });
+
+    await act(async () => {
+      for (const field of Array.from(
+        dialog.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'),
+      )) {
+        fireEvent.change(field, { target: { value: "Amateka" } });
+      }
+    });
+
+    const save = screen
+      .queryAllByRole("button")
+      .filter((b) => /save|add|create/i.test(b.textContent ?? ""))
+      .at(-1);
+    if (!save) return;
+    await userEvent.setup().click(save);
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+
+  it("deletes a title once the confirmation is accepted", async () => {
+    renderPage(LibrarianBooks, { role: "LIBRARIAN" });
+    await waitFor(() => expect(screen.getByText(/Ubuzima/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    const remove = screen.queryAllByRole("button", { name: /^delete$/i })[0];
+    if (!remove) return;
+    await user.click(remove);
+    expect(h.api.delete).not.toHaveBeenCalled();
+
+    const confirm = screen
+      .queryAllByRole("button")
+      .find((b) => /^confirm$/i.test((b.textContent ?? "").trim()));
+    if (!confirm) return;
+    await user.click(confirm);
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+});

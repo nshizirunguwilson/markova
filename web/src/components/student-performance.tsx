@@ -59,8 +59,11 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         trigger: "axis",
         formatter: (params: any) => {
           const list = Array.isArray(params) ? params : [params];
-          const t = terms[list[0].dataIndex];
-          const head = `<b>${t.termName}</b> · ${t.yearName ?? ""}${t.className ? `<br/>${t.className}` : ""}`;
+            // ECharts calls this for anything under the pointer, including an empty
+            // axis position. A tooltip must never be able to take its chart down.
+            const t = terms[list[0]?.dataIndex ?? -1];
+            if (!t) return "";
+            const head = `<b>${t.termName ?? ""}</b> · ${t.yearName ?? ""}${t.className ? `<br/>${t.className}` : ""}`;
           const rows = list
             .map(
               (p: any) =>
@@ -83,7 +86,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             position: "top",
             color: viz.muted,
             fontSize: 11,
-            formatter: (p: any) => `${Number(p.value).toFixed(1)}%`,
+            formatter: (p: any) => `${(Number(p?.value) || 0).toFixed(1)}%`,
           },
         },
         {
@@ -220,8 +223,11 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       tooltip: {
         ...tooltipStyle,
         formatter: (p: any) => {
-          const [x, y, v] = p.data.value ?? p.data;
-          return `<b>${subjects[y]}</b> · ${terms[x].termName} ${terms[x].yearName ?? ""}<br/>${v}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "–"}`;
+            // A heatmap cell the pointer grazes between rows arrives with no data.
+            const cell = p?.data?.value ?? p?.data;
+            const [x, y, v] = Array.isArray(cell) ? cell : [];
+            if (x === undefined || y === undefined || !terms[x]) return "";
+            return `<b>${subjects[y] ?? ""}</b> · ${terms[x].termName ?? ""} ${terms[x].yearName ?? ""}<br/>${v ?? 0}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "–"}`;
         },
       },
       series: [
@@ -236,7 +242,14 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
           label: {
             show: true,
             fontSize: 10,
-            formatter: (p: any) => `${p.data.value[2]}`,
+            formatter: (p: any) => {
+              // The cell label. Same story as the tooltip above: a position
+              // with no cell under it arrives with no data to read.
+              const cell = p?.data?.value ?? p?.data;
+              return Array.isArray(cell) && cell[2] !== undefined
+                ? String(cell[2])
+                : "";
+            },
           },
           emphasis: { itemStyle: { shadowBlur: 6, shadowColor: "rgb(16 24 40 / 0.25)" } },
         },
