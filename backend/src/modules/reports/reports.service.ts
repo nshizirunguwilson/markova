@@ -6,8 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { randomBytes, randomInt } from 'crypto';
-import { existsSync, readFileSync } from 'fs';
-import { join, extname } from 'path';
+import { existsSync } from 'fs';
 import { SubjectScope } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -37,6 +36,8 @@ import {
  * fallbacks below only cover the common local-development installs, on Linux
  * as well as macOS.
  */
+import { escapeHtml, logoDataUri, sanitizeColor } from '../../common/html';
+
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   const candidates =
@@ -51,49 +52,6 @@ function resolveChromePath(): string {
           '/usr/bin/google-chrome',
         ];
   return candidates.find((p) => existsSync(p)) ?? candidates[0];
-}
-
-function logoDataUri(logoUrl?: string | null): string | null {
-  const uploadDir = join(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
-  const candidates: string[] = [];
-
-  if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
-    const relative = logoUrl.replace(/^\/?uploads\//, '');
-    candidates.push(join(uploadDir, relative));
-  }
-  candidates.push(join(process.cwd(), 'assets', 'logo-horizontal.png'));
-
-  for (const file of candidates) {
-    try {
-      if (!existsSync(file)) continue;
-      const ext = extname(file).toLowerCase();
-      const mime =
-        ext === '.jpg' || ext === '.jpeg'
-          ? 'image/jpeg'
-          : ext === '.svg'
-            ? 'image/svg+xml'
-            : 'image/png';
-      return `data:${mime};base64,${readFileSync(file).toString('base64')}`;
-    } catch {
-      // Unreadable file — fall through to the next candidate.
-    }
-  }
-  return null;
-}
-
-function escapeHtml(str: string | null | undefined): string {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function sanitizeColor(color: string | null | undefined): string {
-  if (!color) return '#1B4F72';
-  return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(color) ? color : '#1B4F72';
 }
 
 @Injectable()
@@ -596,7 +554,9 @@ export class ReportsService implements OnModuleDestroy {
     // not change as they page through.
     const [total, issued, suspended, students] = await Promise.all([
       this.prisma.student.count({ where }),
-      this.prisma.student.count({ where: { ...where, nfcCardId: { not: null } } }),
+      this.prisma.student.count({
+        where: { ...where, nfcCardId: { not: null } },
+      }),
       this.prisma.student.count({
         where: { ...where, cardSuspendedAt: { not: null } },
       }),
