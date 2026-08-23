@@ -14,6 +14,7 @@ import { MarksModule } from './modules/marks/marks.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
 import { LibraryModule } from './modules/library/library.module';
+import { PocketMoneyModule } from './modules/pocket-money/pocket-money.module';
 import { HomeworkModule } from './modules/homework/homework.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -53,6 +54,7 @@ import { AuditLogInterceptor } from './common/interceptors';
     AttendanceModule,
     DisciplineModule,
     LibraryModule,
+    PocketMoneyModule,
     HomeworkModule,
     MessagingModule,
     NotificationsModule,
