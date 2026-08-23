@@ -16,13 +16,35 @@ interface DashboardShellProps {
 
 // Dashboard routes are grouped by role under their own path prefix. Anything
 // not listed (e.g. the shared /messages and /help) is open to every role.
-const ROLE_BY_PREFIX: Record<string, string> = {
-  admin: "ADMIN",
-  teacher: "TEACHER",
-  student: "STUDENT",
-  parent: "PARENT",
-  librarian: "LIBRARIAN",
+const ROLES_BY_PREFIX: Record<string, string[]> = {
+  admin: ["ADMIN"],
+  teacher: ["TEACHER"],
+  student: ["STUDENT"],
+  parent: ["PARENT"],
+  librarian: ["LIBRARIAN"],
 };
+
+/**
+ * Pages under /admin that the boarding staff also need.
+ *
+ * A patron, matron or nurse is not an administrator, and must not reach the
+ * rest of /admin. But pocket money and the clinic are their job, and putting
+ * them under a second prefix would mean two copies of the same page.
+ */
+const SHARED_ADMIN_PAGES: Record<string, string[]> = {
+  "pocket-money": ["PATRON", "MATRON"],
+  health: ["PATRON", "MATRON", "NURSE"],
+  activities: ["PATRON", "MATRON"],
+};
+
+/** Which roles may see this path, or undefined when it is open to all. */
+function rolesForPath(pathname: string): string[] | undefined {
+  const [, prefix, page] = pathname.split("/");
+  const base = ROLES_BY_PREFIX[prefix ?? ""];
+  if (!base) return undefined;
+  const shared = prefix === "admin" ? SHARED_ADMIN_PAGES[page ?? ""] : undefined;
+  return shared ? [...base, ...shared] : base;
+}
 
 export function DashboardShell({
   children,
@@ -34,11 +56,11 @@ export function DashboardShell({
     useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // The role a route belongs to, derived from its first path segment.
-  const requiredRole = ROLE_BY_PREFIX[pathname.split("/")[1] || ""];
+  // Which roles this route belongs to, derived from its path.
+  const routeRoles = rolesForPath(pathname);
   const roleMismatch =
     !!user &&
-    ((!!requiredRole && user.role !== requiredRole) ||
+    ((!!routeRoles && !routeRoles.includes(user.role)) ||
       (!!allowedRoles && !allowedRoles.includes(user.role)));
 
   // A signed-in user landing on another role's page is sent to their own
@@ -46,7 +68,15 @@ export function DashboardShell({
   // but a student should never even reach /admin/* by typing the URL.
   useEffect(() => {
     if (roleMismatch && user) {
-      router.replace(`/${user.role.toLowerCase()}`);
+      // The boarding staff have no dashboard of their own; their work lives on
+      // the welfare pages, so /patron would be a 404.
+      const home =
+        user.role === "PATRON" || user.role === "MATRON"
+          ? "/admin/pocket-money"
+          : user.role === "NURSE"
+            ? "/admin/health"
+            : `/${user.role.toLowerCase()}`;
+      router.replace(home);
     }
   }, [roleMismatch, user, router]);
 

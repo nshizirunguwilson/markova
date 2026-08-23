@@ -146,12 +146,17 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
     }
   };
 
-  const roleBadgeVariant = {
-    ADMIN: "info" as const,
-    TEACHER: "success" as const,
-    STUDENT: "default" as const,
-    PARENT: "warning" as const,
-    LIBRARIAN: "info" as const,
+  const roleBadgeVariant: Record<string, "info" | "success" | "default" | "warning"> = {
+    ADMIN: "info",
+    TEACHER: "success",
+    STUDENT: "default",
+    PARENT: "warning",
+    LIBRARIAN: "info",
+    // The boarding staff: welfare rather than academic, so they read as their
+    // own group rather than borrowing a teacher's colour.
+    PATRON: "warning",
+    MATRON: "warning",
+    NURSE: "success",
   };
 
   return (

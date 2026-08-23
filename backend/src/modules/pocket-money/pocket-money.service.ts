@@ -433,7 +433,10 @@ export class PocketMoneyService {
 
     return {
       items,
-      totalHeld: items.reduce((sum, i) => sum + i.balance, 0),
+      // Across the whole filtered roll, not this page. "The school is holding
+      // 38,000 RWF" would be a lie if it only counted the three students
+      // currently on screen.
+      totalHeld: await this.totalHeld(where),
       meta: {
         total,
         page,
@@ -441,6 +444,36 @@ export class PocketMoneyService {
         totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     };
+  }
+
+  /**
+   * What the school is holding across a whole filtered roll.
+   *
+   * Summed in the database rather than by walking every account, because the
+   * office asks this on every page of a list of hundreds.
+   */
+  private async totalHeld(studentWhere: any): Promise<number> {
+    const accounts = await this.prisma.pocketMoneyAccount.findMany({
+      where: { student: studentWhere },
+      select: { id: true },
+    });
+    if (accounts.length === 0) return 0;
+
+    const entries = await this.prisma.pocketMoneyTransaction.findMany({
+      where: { accountId: { in: accounts.map((a) => a.id) } },
+      select: { id: true, kind: true, amount: true, reversesId: true },
+    });
+
+    const reversed = new Set(
+      entries.map((e) => e.reversesId).filter((id): id is string => !!id),
+    );
+    return entries.reduce(
+      (sum, e) =>
+        e.reversesId || reversed.has(e.id)
+          ? sum
+          : sum + this.signOf(e.kind, e.amount),
+      0,
+    );
   }
 
   /**

@@ -18,6 +18,9 @@ import {
   Backpack,
   CreditCard,
   ArrowUpCircle,
+  Wallet,
+  HeartPulse,
+  CalendarDays,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -64,7 +67,10 @@ const adminNav: NavSection[] = [
       { label: "Attendance", href: "/admin/attendance", icon: Calendar },
       { label: "Discipline", href: "/admin/discipline", icon: AlertTriangle },
       { label: "Library", href: "/admin/library", icon: Library },
+      { label: "Pocket Money", href: "/admin/pocket-money", icon: Wallet },
+      { label: "Health", href: "/admin/health", icon: HeartPulse },
       { label: "Assessments", href: "/admin/homework", icon: ClipboardList },
+      { label: "Activities", href: "/admin/activities", icon: CalendarDays },
     ],
   },
   {
@@ -157,6 +163,7 @@ const parentNav: NavSection[] = [
       { label: "Attendance", href: "/parent/attendance", icon: Calendar },
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
+      { label: "Pocket Money", href: "/parent/pocket-money", icon: Wallet },
     ],
   },
   {
@@ -200,6 +207,50 @@ const librarianNav: NavSection[] = [
   },
 ];
 
+/**
+ * The boarding staff.
+ *
+ * Deliberately narrow: they handle money, welfare and health, and nothing
+ * academic. A matron has no business reading marks.
+ */
+const boardingNav: NavSection[] = [
+  {
+    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+  },
+  {
+    title: "Student welfare",
+    items: [
+      { label: "Pocket Money", href: "/admin/pocket-money", icon: Wallet },
+      { label: "Health", href: "/admin/health", icon: HeartPulse },
+      { label: "Activities", href: "/admin/activities", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [{ label: "Messages", href: "/messages", icon: MessageSquare }],
+  },
+  {
+    items: [{ label: "Help", href: "/help", icon: HelpCircle }],
+  },
+];
+
+const nurseNav: NavSection[] = [
+  {
+    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+  },
+  {
+    title: "Clinic",
+    items: [{ label: "Health", href: "/admin/health", icon: HeartPulse }],
+  },
+  {
+    title: "Communication",
+    items: [{ label: "Messages", href: "/messages", icon: MessageSquare }],
+  },
+  {
+    items: [{ label: "Help", href: "/help", icon: HelpCircle }],
+  },
+];
+
 export function getNavigation(role: Role): NavSection[] {
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,
@@ -207,6 +258,9 @@ export function getNavigation(role: Role): NavSection[] {
     STUDENT: studentNav,
     PARENT: parentNav,
     LIBRARIAN: librarianNav,
+    PATRON: boardingNav,
+    MATRON: boardingNav,
+    NURSE: nurseNav,
   };
   return navMap[role] || adminNav;
 }

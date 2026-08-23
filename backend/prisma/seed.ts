@@ -3027,6 +3027,74 @@ async function main() {
   });
   console.log(`  ✅ ${ticketRows.length} support tickets seeded`);
 
+  // ─── POCKET MONEY ───────────────────────────────────────────────────────────
+  // A boarding school holds cash for its students: a parent hands it over on
+  // visiting day and the student draws it down at the canteen. Seeded as a
+  // real ledger, so the balances are the sum of the entries rather than a
+  // number somebody typed.
+  // Roughly two thirds of a TSS roll board, which is who holds money here.
+  const boarders = students.filter((_, i) => i % 3 !== 2).slice(0, 240);
+  const pmAccounts: any[] = [];
+  for (const st of boarders) {
+    pmAccounts.push({
+      studentId: st.id,
+      // A parent who sends a term's money does not want it gone by Wednesday.
+      dailyLimit: sample([null, null, 1000, 2000, 2000, 5000]),
+      lowBalanceAlert: sample([null, 1000, 2000]),
+    });
+  }
+  await prisma.pocketMoneyAccount.createMany({ data: pmAccounts });
+  const createdAccounts = await prisma.pocketMoneyAccount.findMany({
+    select: { id: true, studentId: true },
+  });
+
+  const pmRows: any[] = [];
+  const counterStaff = [admin.id, ...teacherUsers.slice(0, 2).map((t) => t.id)];
+  for (const acct of createdAccounts) {
+    // Visiting day money, once or twice a term.
+    let running = 0;
+    const deposits = 1 + rand(2);
+    for (let d = 0; d < deposits; d++) {
+      const amount = sample([5000, 10000, 10000, 15000, 20000]);
+      running += amount;
+      pmRows.push({
+        accountId: acct.id,
+        kind: 'DEPOSIT',
+        amount,
+        note: sample([
+          'Visiting day, handed in by mother',
+          'Visiting day, handed in by father',
+          'Sent through the bursar',
+        ]),
+        recordedByUserId: sample(counterStaff),
+        createdAt: minDate(addDays(today, -(20 + rand(50))), today),
+      });
+    }
+    // Then the canteen, a little at a time.
+    const trips = rand(9);
+    for (let w = 0; w < trips; w++) {
+      const amount = sample([200, 300, 500, 500, 800, 1000, 1500]);
+      if (amount > running) break;
+      running -= amount;
+      pmRows.push({
+        accountId: acct.id,
+        kind: 'WITHDRAWAL',
+        amount,
+        note: sample(['Canteen', 'Soap and toothpaste', 'Bread', 'Airtime', 'Exercise books']),
+        recordedByUserId: sample(counterStaff),
+        createdAt: minDate(addDays(today, -rand(18)), today),
+      });
+    }
+  }
+  for (let i = 0; i < pmRows.length; i += 5000) {
+    await prisma.pocketMoneyTransaction.createMany({
+      data: pmRows.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${createdAccounts.length} pocket money accounts + ${pmRows.length} entries seeded`,
+  );
+
   // ─── FAQ ────────────────────────────────────────────────────────────────────
   await prisma.faqArticle.createMany({
     data: [
