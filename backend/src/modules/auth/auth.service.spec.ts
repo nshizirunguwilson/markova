@@ -63,7 +63,9 @@ const mockJwt = {
 
 const mockNotifications = {
   sendEmailToAddress: jest.fn().mockResolvedValue(undefined),
-  sendSmsToNumber: jest.fn().mockResolvedValue(undefined),
+  // The real method is sendSMSToPhone. The old name here meant a parent's
+  // reset SMS was never asserted, and the branch that sends it never run.
+  sendSMSToPhone: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockConfig = {
@@ -99,6 +101,8 @@ describe('AuthService', () => {
     mockPrisma.userSession.create.mockResolvedValue({});
     mockPrisma.userSession.update.mockResolvedValue({});
     mockPrisma.userSession.updateMany.mockResolvedValue({ count: 1 });
+    mockNotifications.sendEmailToAddress.mockResolvedValue(undefined);
+    mockNotifications.sendSMSToPhone.mockResolvedValue(undefined);
     mockConfig.get.mockImplementation((key: string) => {
       const map: Record<string, string> = {
         JWT_SECRET: 'test-jwt-secret',
@@ -516,6 +520,570 @@ describe('AuthService', () => {
     it('throws when the user no longer exists', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.getProfile('gone')).rejects.toThrow();
+    });
+  });
+
+  /**
+   * Sending the code again. Without a cooldown this endpoint is a free SMS
+   * bill and a way to flood somebody's phone.
+   */
+  describe('resending a code', () => {
+    it('refuses a session nobody started', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      await expect(service.resendOtp({ sessionId: 's-1' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('refuses a second request inside the cooldown', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
+      // The NX set fails when the cooldown key is already there.
+      mockRedis.set.mockResolvedValue(null);
+      await expect(service.resendOtp({ sessionId: 's-1' })).rejects.toThrow(
+        /wait a moment/i,
+      );
+    });
+
+    it('refuses when the account has since gone', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
+      mockRedis.set.mockResolvedValue('OK');
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.resendOtp({ sessionId: 's-1' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    // The same session id is reused, so the code the person is waiting on is
+    // replaced rather than a second session being opened alongside it.
+    it('replaces the code on the same session', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
+      mockRedis.set.mockResolvedValue('OK');
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+
+      const result = await service.resendOtp({ sessionId: 's-1' });
+      expect(result.sessionId).toBe('s-1');
+      const otpWrite = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('otp:'),
+      );
+      expect(otpWrite![0]).toBe('otp:s-1');
+    });
+
+    it('sends the code to the address on the account', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
+      mockRedis.set.mockResolvedValue('OK');
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+
+      await service.resendOtp({ sessionId: 's-1' });
+      expect(mockNotifications.sendEmailToAddress).toHaveBeenCalledWith(
+        'wilsonshizirungu@gmail.com',
+        'Test',
+        expect.stringContaining('Verification Code'),
+        expect.any(String),
+      );
+    });
+  });
+
+  /**
+   * The code itself. Six digits, expiring in five minutes, and never returned
+   * to the caller outside development.
+   */
+  describe('the one-time code', () => {
+    it('is six digits', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result: any = await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+      expect(result.devOtp).toMatch(/^\d{6}$/);
+    });
+
+    it('is different each time', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const codes = new Set<string>();
+      for (let i = 0; i < 25; i++) {
+        const result: any = await service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: TEST_PASSWORD,
+        });
+        codes.add(result.devOtp);
+      }
+      // Six digits and 25 draws: a repeat would be a sign the source is not
+      // random rather than bad luck.
+      expect(codes.size).toBeGreaterThan(20);
+    });
+
+    /**
+     * `devOtp` exists so the demo and the browser tests can sign in. In
+     * production it would hand the second factor to anybody who can reach the
+     * login endpoint.
+     */
+    it('is never returned to the caller in production', async () => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'NODE_ENV' ? 'production' : 'x',
+      );
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+
+      const result: any = await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+      expect(result).not.toHaveProperty('devOtp');
+      expect(result.requiresOtp).toBe(true);
+    });
+
+    it('is stored with an expiry rather than for ever', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+      const write = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('otp:'),
+      );
+      expect(write![2]).toBe('EX');
+      expect(write![3]).toBe(300);
+    });
+  });
+
+  /**
+   * Password reset. The reply is deliberately identical whether or not the
+   * account exists, because a different answer is a way to discover who has
+   * an account at the school.
+   */
+  describe('asking for a password reset', () => {
+    it('refuses a request naming neither an email nor a phone', async () => {
+      await expect(service.requestPasswordReset({} as never)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('answers the same for an account that does not exist', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      const result = await service.requestPasswordReset({
+        email: 'nobody@markova.edu',
+      });
+      expect(result.message).toMatch(/if the account exists/i);
+      expect(result).not.toHaveProperty('devToken');
+    });
+
+    it('answers the same for one that does', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result = await service.requestPasswordReset({
+        email: 'wilsonshizirungu@gmail.com',
+      });
+      expect(result.message).toMatch(/if the account exists/i);
+    });
+
+    it('emails a link that carries the token', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result: any = await service.requestPasswordReset({
+        email: 'wilsonshizirungu@gmail.com',
+      });
+      const html = mockNotifications.sendEmailToAddress.mock.calls[0][3];
+      expect(html).toContain(`/reset-password?token=${result.devToken}`);
+    });
+
+    /**
+     * Most parents here have a phone and no email at all. Without this branch
+     * their token only ever reached the server log, so they could never
+     * recover an account.
+     */
+    it('texts the link to somebody who has no email', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ email: null, phone: '+250788100000' }),
+      );
+      await service.requestPasswordReset({ phone: '+250788100000' });
+      expect(mockNotifications.sendSMSToPhone).toHaveBeenCalledWith(
+        '+250788100000',
+        expect.stringContaining('/reset-password?token='),
+      );
+      expect(mockNotifications.sendEmailToAddress).not.toHaveBeenCalled();
+    });
+
+    it('stores the token with an expiry', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      await service.requestPasswordReset({
+        email: 'wilsonshizirungu@gmail.com',
+      });
+      const write = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('reset:'),
+      );
+      expect(write![2]).toBe('EX');
+      expect(write![3]).toBe(3600);
+    });
+
+    it('never returns the token in production', async () => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'NODE_ENV' ? 'production' : 'x',
+      );
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result = await service.requestPasswordReset({
+        email: 'wilsonshizirungu@gmail.com',
+      });
+      expect(result).not.toHaveProperty('devToken');
+    });
+  });
+
+  describe('completing a password reset', () => {
+    it('refuses a token nobody issued', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      await expect(
+        service.resetPassword({ token: 'nope', newPassword: 'NewPass123!' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses one that has expired, and removes it', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
+      await expect(
+        service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' }),
+      ).rejects.toThrow(/expired/i);
+      expect(mockRedis.del).toHaveBeenCalledWith('reset:t-1');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('stores the new password hashed, never in the clear', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      );
+      mockPrisma.user.update.mockResolvedValue({});
+      await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
+      const data = mockPrisma.user.update.mock.calls[0][0].data;
+      expect(data.passwordHash).not.toBe('NewPass123!');
+      expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
+    });
+
+    // Whoever set the password chose it, so they are not made to choose again.
+    it('clears the forced password change', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      );
+      mockPrisma.user.update.mockResolvedValue({});
+      await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
+      expect(
+        mockPrisma.user.update.mock.calls[0][0].data.forcePasswordChange,
+      ).toBe(false);
+    });
+
+    /**
+     * A reset is what somebody does when they think their account is
+     * compromised. Leaving the intruder's session alive would defeat it.
+     */
+    it('signs every existing session out', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      );
+      mockPrisma.user.update.mockResolvedValue({});
+      await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
+      expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+        data: { isActive: false },
+      });
+    });
+
+    // A token that still worked after use would let anybody who saw the link
+    // reset the password again.
+    it('burns the token', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      );
+      mockPrisma.user.update.mockResolvedValue({});
+      await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
+      expect(mockRedis.del).toHaveBeenCalledWith('reset:t-1');
+    });
+  });
+
+  describe('signing out', () => {
+    it('ends only the session the token belongs to', async () => {
+      await service.logout('user-1', 'the-refresh-token');
+      expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', token: 'the-refresh-token', isActive: true },
+        data: { isActive: false },
+      });
+    });
+
+    // Signing out of every device is what somebody does after losing a phone.
+    it('ends every session when no token is given', async () => {
+      await service.logout('user-1');
+      expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', isActive: true },
+        data: { isActive: false },
+      });
+    });
+
+    it('lists only the sessions still live', async () => {
+      mockPrisma.userSession.findMany.mockResolvedValue([]);
+      await service.getSessions('user-1');
+      expect(mockPrisma.userSession.findMany.mock.calls[0][0].where).toEqual({
+        userId: 'user-1',
+        isActive: true,
+      });
+    });
+
+    // The refresh token itself is the session's key. Listing it would hand a
+    // stolen laptop's browser storage the keys to every other device.
+    it('never lists the token itself', async () => {
+      mockPrisma.userSession.findMany.mockResolvedValue([]);
+      await service.getSessions('user-1');
+      const select = mockPrisma.userSession.findMany.mock.calls[0][0].select;
+      expect(select).not.toHaveProperty('token');
+    });
+  });
+
+  describe('changing your own details', () => {
+    beforeEach(() => {
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+    });
+
+    it('changes only what was sent', async () => {
+      await service.updateProfile('user-1', { firstName: 'Wilson' });
+      expect(mockPrisma.user.update.mock.calls[0][0].data).toEqual({
+        firstName: 'Wilson',
+      });
+    });
+
+    /**
+     * A phone number is a login identifier here. Two accounts sharing one
+     * would make it ambiguous which of them a sign-in belongs to.
+     */
+    it('refuses a phone number another account already uses', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'somebody-else' });
+      await expect(
+        service.updateProfile('user-1', { phone: '+250788000001' }),
+      ).rejects.toThrow(/already in use/i);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('lets a person keep their own number', async () => {
+      await service.updateProfile('user-1', { phone: '+250788000001' });
+      expect(mockPrisma.user.findFirst.mock.calls[0][0].where.id).toEqual({
+        not: 'user-1',
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+
+    it('does not go looking for a clash when the phone is untouched', async () => {
+      await service.updateProfile('user-1', { lastName: 'Nshizirungu' });
+      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Three sessions at once. Beyond that the oldest is ended, so a school
+   * account cannot quietly be shared across a staffroom.
+   */
+  describe('how many devices at once', () => {
+    it('keeps at most three sessions', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.userSession.findMany.mockResolvedValue([
+        { id: 's-1' },
+        { id: 's-2' },
+        { id: 's-3' },
+      ]);
+
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['s-1'] } },
+        data: { isActive: false },
+      });
+    });
+
+    it('ends the oldest first', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.userSession.findMany.mockResolvedValue([]);
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(mockPrisma.userSession.findMany.mock.calls[0][0].orderBy).toEqual({
+        createdAt: 'asc',
+      });
+    });
+
+    it('ends nothing when there is room', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.userSession.findMany.mockResolvedValue([{ id: 's-1' }]);
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(mockPrisma.userSession.updateMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The two tokens were once indistinguishable once decoded, so a refresh
+     * token could be presented wherever an access token was expected and buy
+     * seven days of access instead of fifteen minutes.
+     */
+    it('labels the two tokens differently', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      const [access, refresh] = mockJwt.sign.mock.calls;
+      expect(access[0].typ).not.toBe(refresh[0].typ);
+      expect(access[1].expiresIn).toBe('15m');
+      expect(refresh[1].expiresIn).toBe('7d');
+    });
+
+    it('signs the refresh token with its own secret', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      const refresh = mockJwt.sign.mock.calls[1];
+      expect(refresh[1].secret).toBe('test-refresh-secret');
+    });
+
+    it('gives each token its own id', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      const [access, refresh] = mockJwt.sign.mock.calls;
+      expect(access[0].jti).toBeTruthy();
+      expect(access[0].jti).not.toBe(refresh[0].jti);
+    });
+
+    it('never answers with the password hash', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'student1@markova.edu',
+        role: 'STUDENT',
+      });
+      const result: any = await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(JSON.stringify(result.user)).not.toContain('$2');
+    });
+  });
+
+  /**
+   * An access token presented where a refresh token belongs is refused by
+   * its label as well as by its secret.
+   */
+  describe('a token presented in the wrong place', () => {
+    it('refuses an access token at the refresh endpoint', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN', typ: 'access' });
+      await expect(
+        service.refreshToken({ refreshToken: 'an-access-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.userSession.findFirst).not.toHaveBeenCalled();
+    });
+
+    // Tokens minted before the claim existed carry no `typ` at all, and must
+    // keep working until they expire.
+    it('still accepts an older token that carries no label', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN' });
+      mockPrisma.userSession.findFirst.mockResolvedValue({
+        id: 'sess-1',
+        ipAddress: '41.74.160.1',
+        deviceInfo: 'iPhone',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      mockRedis.set.mockResolvedValue('OK');
+
+      await expect(
+        service.refreshToken({ refreshToken: 'an-old-token' }),
+      ).resolves.toHaveProperty('accessToken');
+    });
+
+    it('refuses a refresh from an account since deactivated', async () => {
+      mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN' });
+      mockPrisma.userSession.findFirst.mockResolvedValue({ id: 'sess-1' });
+      mockPrisma.user.findUnique.mockResolvedValue(
+        makeUser({ isActive: false }),
+      );
+      await expect(
+        service.refreshToken({ refreshToken: 'a-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('the account lockout', () => {
+    it('locks after five wrong passwords', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({ count: 4, lockedUntil: null }),
+      );
+
+      await expect(
+        service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: 'wrong',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      const write = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('failed:'),
+      );
+      expect(JSON.parse(write![1]).lockedUntil).toBeTruthy();
+    });
+
+    it('does not lock on the fourth', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({ count: 3, lockedUntil: null }),
+      );
+      await expect(
+        service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: 'wrong',
+        }),
+      ).rejects.toThrow();
+      const write = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('failed:'),
+      );
+      expect(JSON.parse(write![1]).lockedUntil).toBeNull();
+    });
+
+    // A successful sign-in clears the count, or a person who mistypes twice a
+    // day would eventually be locked out for no reason.
+    it('clears the count on a successful sign-in', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(mockRedis.del).toHaveBeenCalledWith('failed:user-1');
+    });
+
+    it('refuses an account whose password was never set', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ passwordHash: null }),
+      );
+      await expect(
+        service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: TEST_PASSWORD,
+        }),
+      ).rejects.toThrow(/password not set/i);
     });
   });
 });
