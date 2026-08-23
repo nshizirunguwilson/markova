@@ -166,6 +166,7 @@ const parentNav: NavSection[] = [
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
       { label: "Pocket Money", href: "/parent/pocket-money", icon: Wallet },
       { label: "Activities", href: "/parent/activities", icon: CalendarDays },
+      { label: "Health", href: "/parent/health", icon: HeartPulse },
     ],
   },
   {
