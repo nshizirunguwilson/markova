@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Badge,
   Button,
@@ -100,9 +100,12 @@ export default function HealthPage() {
       : { severity: severity || undefined, page, limit: 20 },
   );
 
-  useEffect(() => {
+  // Page one on every change of filter or tab, set where the change happens.
+  // Landing on page three of a smaller result is an empty table.
+  const narrow = (change: () => void) => {
+    change();
     setPage(1);
-  }, [severity, tab]);
+  };
 
   const visits: ClinicVisit[] = data?.data ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 1 };
@@ -175,14 +178,14 @@ export default function HealthPage() {
             <Button
               size="sm"
               variant={tab === "sick-bay" ? "primary" : "outline"}
-              onClick={() => setTab("sick-bay")}
+              onClick={() => narrow(() => setTab("sick-bay"))}
             >
               In the sick bay
             </Button>
             <Button
               size="sm"
               variant={tab === "book" ? "primary" : "outline"}
-              onClick={() => setTab("book")}
+              onClick={() => narrow(() => setTab("book"))}
             >
               The clinic book
             </Button>
@@ -192,7 +195,7 @@ export default function HealthPage() {
             <select
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={severity}
-              onChange={(e) => setSeverity(e.target.value)}
+              onChange={(e) => narrow(() => setSeverity(e.target.value))}
               aria-label="Any severity"
             >
               <option value="">Any severity</option>
@@ -321,12 +324,21 @@ export default function HealthPage() {
         )}
       </Card>
 
-      <NewVisitModal isOpen={showNew} onClose={() => setShowNew(false)} />
+      {/* Each of these is keyed on what it is showing, so it mounts with the
+          right values instead of rendering the last student's and then being
+          corrected by an effect. */}
+      <NewVisitModal
+        key={showNew ? "visit-open" : "visit-closed"}
+        isOpen={showNew}
+        onClose={() => setShowNew(false)}
+      />
       <VisitDetail
+        key={openId ?? "no-visit"}
         visit={visits.find((v) => v.id === openId) ?? null}
         onClose={() => setOpenId(null)}
       />
       <EmergencyCardModal
+        key={cardFor ?? "no-card"}
         studentId={cardFor}
         onClose={() => setCardFor(null)}
       />
@@ -433,21 +445,6 @@ function NewVisitModal({
     temperature: "",
     referredTo: "",
   });
-
-  useEffect(() => {
-    if (isOpen) {
-      setStudentId("");
-      setForm({
-        complaint: "",
-        findings: "",
-        treatment: "",
-        severity: "MINOR",
-        outcome: "RETURNED_TO_CLASS",
-        temperature: "",
-        referredTo: "",
-      });
-    }
-  }, [isOpen]);
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -588,13 +585,8 @@ function VisitDetail({
 
   const [medicine, setMedicine] = useState("");
   const [dose, setDose] = useState("");
-  const [findings, setFindings] = useState("");
-
-  useEffect(() => {
-    setMedicine("");
-    setDose("");
-    setFindings(visit?.findings ?? "");
-  }, [visit?.id, visit?.findings]);
+  // Mounted per visit, so the findings start as what is on record for this one.
+  const [findings, setFindings] = useState(visit?.findings ?? "");
 
   if (!visit) return null;
 
@@ -744,30 +736,38 @@ function EmergencyCardModal({
 }) {
   const { data } = useEmergencyCard(studentId ?? undefined);
   const save = useSaveHealthRecord();
-  const [form, setForm] = useState<Record<string, string>>({});
+  /** Only what the nurse has typed. Everything else is read off the record. */
+  const [edits, setEdits] = useState<Record<string, string>>({});
 
   const record = data?.student?.healthRecord;
-
-  useEffect(() => {
-    setForm({
-      chronicConditions: record?.chronicConditions ?? "",
-      regularMedication: record?.regularMedication ?? "",
-      allergyNotes: record?.allergyNotes ?? "",
-      emergencyPlan: record?.emergencyPlan ?? "",
-      emergencyContactName: record?.emergencyContactName ?? "",
-      emergencyContactPhone: record?.emergencyContactPhone ?? "",
-      emergencyRelationship: record?.emergencyRelationship ?? "",
-      insuranceProvider: record?.insuranceProvider ?? "",
-      insuranceNumber: record?.insuranceNumber ?? "",
-      preferredClinic: record?.preferredClinic ?? "",
-    });
-  }, [studentId, record]);
 
   if (!studentId) return null;
 
   const student = data?.student;
   const set = (key: string, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
+    setEdits((f) => ({ ...f, [key]: value }));
+
+  /**
+   * What a box shows: the edit if there is one, otherwise what is on record.
+   *
+   * Holding only the edits means the card fills itself in as soon as it
+   * arrives, with no copy of it to keep in step. Copying it into state on
+   * arrival is how a form ends up showing the last student's details.
+   */
+  const value = (key: string) => edits[key] ?? (record?.[key] as string) ?? "";
+
+  const form: Record<string, string> = {
+    chronicConditions: value("chronicConditions"),
+    regularMedication: value("regularMedication"),
+    allergyNotes: value("allergyNotes"),
+    emergencyPlan: value("emergencyPlan"),
+    emergencyContactName: value("emergencyContactName"),
+    emergencyContactPhone: value("emergencyContactPhone"),
+    emergencyRelationship: value("emergencyRelationship"),
+    insuranceProvider: value("insuranceProvider"),
+    insuranceNumber: value("insuranceNumber"),
+    preferredClinic: value("preferredClinic"),
+  };
 
   return (
     <Modal isOpen={!!studentId} onClose={onClose} title="Emergency card" size="lg">

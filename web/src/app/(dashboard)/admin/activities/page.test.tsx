@@ -658,4 +658,186 @@ describe("calling something off", () => {
     await openDetail();
     expect(button(/call it off/i)).toBeUndefined();
   });
+
+  it("closes the detail without changing anything", async () => {
+    await openDetail();
+    expect(h.api.put).not.toHaveBeenCalled();
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The remaining controls on the create form. Each one is a decision about who
+ * gets told and who gets counted, so a control that silently keeps its default
+ * is a decision nobody made.
+ */
+describe("the rest of the create form", () => {
+  async function openNew() {
+    await mount();
+    await click(button(/new activity/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Title"), {
+        target: { value: "Kigali museum visit" },
+      });
+      fireEvent.change(screen.getByLabelText("Starts"), {
+        target: { value: "2026-10-01T08:00" },
+      });
+    });
+  }
+
+  it("carries an end time when one is given", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Ends"), {
+        target: { value: "2026-10-01T15:00" },
+      });
+    });
+    await click(button(/add to calendar/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/activities",
+      );
+      expect((call?.[1] as any).endsAt).toMatch(/T.*Z$/);
+    });
+  });
+
+  it("carries a capacity when one is given", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/places/i), {
+        target: { value: "45" },
+      });
+    });
+    await click(button(/add to calendar/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/activities",
+      );
+      expect((call?.[1] as any).capacity).toBe(45);
+    });
+  });
+
+  it("carries the kind that was chosen", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Kind"), {
+        target: { value: "VISITING_DAY" },
+      });
+    });
+    await click(button(/add to calendar/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/activities",
+      );
+      expect((call?.[1] as any).kind).toBe("VISITING_DAY");
+    });
+  });
+
+  it("unticks a year level that was ticked by mistake", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/who is it for/i), {
+        target: { value: "LEVELS" },
+      });
+    });
+    const box = () =>
+      screen.getByText(classLevel.name).closest("label")!.querySelector("input")!;
+    await act(async () => {
+      fireEvent.click(box());
+    });
+    await act(async () => {
+      fireEvent.click(box());
+    });
+    await click(button(/add to calendar/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/activities",
+      );
+      expect((call?.[1] as any).classLevelIds).toEqual([]);
+    });
+  });
+
+  it("leaves the description out when none was typed", async () => {
+    await openNew();
+    await click(button(/add to calendar/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/activities",
+      );
+      expect((call?.[1] as any).description).toBeUndefined();
+      expect((call?.[1] as any).location).toBeUndefined();
+    });
+  });
+
+  it("closes without sending anything", async () => {
+    await openNew();
+    await click(button(/^cancel$/i));
+    expect(
+      h.api.post.mock.calls.filter((c: any[]) => String(c[0]) === "/activities"),
+    ).toHaveLength(0);
+  });
+
+  it("names the classes an activity is aimed at", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities": {
+        data: [
+          {
+            ...club,
+            audience: "CLASSES",
+            sections: [{ classSection: { id: "section-1", name: "Senior 1 A" } }],
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 25, totalPages: 1 },
+      },
+    });
+    renderPage(ActivitiesPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText("Senior 1 A")).toBeInTheDocument(),
+    );
+  });
+
+  it("says 'Levels' when the levels came back empty", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities": {
+        data: [{ ...trip, classLevels: [] }],
+        meta: { total: 1, page: 1, limit: 25, totalPages: 1 },
+      },
+    });
+    renderPage(ActivitiesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText("Levels")).toBeInTheDocument());
+  });
+
+  it("goes back a page as well as forward", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities": {
+        data: [trip, club],
+        meta: { total: 60, page: 2, limit: 25, totalPages: 3 },
+      },
+    });
+    renderPage(ActivitiesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/page 2 of 3/i)).toBeInTheDocument());
+    await click(screen.getByLabelText("Previous page"));
+    await waitFor(() => {
+      const calls = h.api.get.mock.calls.filter((call: any[]) =>
+        String(call[0]).includes("/activities"),
+      );
+      expect(calls.at(-1)?.[1]?.params?.page).toBe(1);
+    });
+  });
+
+  it("closes the detail and the create form again", async () => {
+    await openDetail();
+    await click(screen.getByLabelText("Close dialog"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument(),
+    );
+    await click(button(/new activity/i));
+    await click(screen.getByLabelText("Close dialog"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Title")).not.toBeInTheDocument(),
+    );
+  });
 });

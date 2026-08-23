@@ -632,4 +632,200 @@ describe("the emergency card", () => {
     const modal = screen.getByText("Emergency card").closest("div")!.parentElement!;
     expect(within(modal).getByText(/recent visits/i)).toBeInTheDocument();
   });
+
+  // Every box on the card is one a nurse fills in at three in the morning, so
+  // each one has to carry what was typed rather than quietly drop it.
+  it("carries every field on the card", async () => {
+    await openCard();
+
+    const fields: [RegExp, string, string][] = [
+      [/long-term conditions/i, 'chronicConditions', 'Asthma and hay fever'],
+      [/medication taken regularly/i, 'regularMedication', 'Blue inhaler'],
+      [/allergy notes/i, 'allergyNotes', 'Penicillin and peanuts'],
+      [/what to do in an emergency/i, 'emergencyPlan', 'Inhaler in her locker'],
+      [/who to ring/i, 'emergencyContactName', 'Jeanne Uwimana'],
+      [/their phone/i, 'emergencyContactPhone', '+250788111222'],
+      [/relationship/i, 'emergencyRelationship', 'Aunt'],
+      [/health centre we use/i, 'preferredClinic', 'Kimironko Health Centre'],
+      [/^insurance$/i, 'insuranceProvider', 'RSSB'],
+      [/insurance number/i, 'insuranceNumber', 'MUT-9911'],
+    ];
+
+    for (const [label, , value] of fields) {
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      });
+    }
+
+    await click(button(/save the card/i));
+
+    await waitFor(() => {
+      const call = h.api.put.mock.calls.find((c: any[]) =>
+        String(c[0]).includes('/clinic/student/'),
+      );
+      expect(call?.[1]).toMatchObject(
+        Object.fromEntries(fields.map(([, key, value]) => [key, value])),
+      );
+    });
+  });
+});
+
+/**
+ * The rest of the new-visit form. Each control is a decision a nurse makes
+ * about a child, and a control that silently keeps its default is worse than
+ * one that is not there.
+ */
+describe("the whole visit form", () => {
+  async function openNewWithStudent() {
+    await mount();
+    await click(button(/new visit/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Student"), {
+        target: { value: "Divine" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByRole("button")
+          .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+      ).toBeTruthy(),
+    );
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Stomach ache" },
+      });
+    });
+  }
+
+  it("carries the findings, the treatment and the severity", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what you found/i), {
+        target: { value: "Tender, no fever" },
+      });
+      fireEvent.change(screen.getByLabelText(/what you did/i), {
+        target: { value: "Rest and plain food" },
+      });
+      fireEvent.change(screen.getByLabelText(/how bad/i), {
+        target: { value: "MODERATE" },
+      });
+    });
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1]).toMatchObject({
+        findings: "Tender, no fever",
+        treatment: "Rest and plain food",
+        severity: "MODERATE",
+      });
+    });
+  });
+
+  it("leaves the optional fields out rather than sending empty strings", async () => {
+    await openNewWithStudent();
+    await click(button(/record the visit/i));
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect((call?.[1] as any).findings).toBeUndefined();
+      expect((call?.[1] as any).temperature).toBeUndefined();
+      expect((call?.[1] as any).referredTo).toBeUndefined();
+    });
+  });
+
+  it("finds nobody when the name matches nobody", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 1 } },
+    });
+    await mount();
+    await click(button(/new visit/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Student"), {
+        target: { value: "Nobody" },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/nobody by that name/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("closes without sending anything", async () => {
+    await openNewWithStudent();
+    await click(button(/^cancel$/i));
+    expect(
+      h.api.post.mock.calls.filter(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("goes back to the sick bay from the book", async () => {
+    await mount();
+    await click(button(/the clinic book/i));
+    await click(button(/in the sick bay/i));
+    await waitFor(() => {
+      const call = h.api.get.mock.calls.at(-1);
+      expect(call?.[1]?.params?.inSickBay).toBe("true");
+    });
+  });
+
+  it("pages through the book in both directions", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [resting, referred],
+        meta: { total: 60, page: 2, limit: 20, totalPages: 3 },
+      },
+    });
+    renderPage(HealthPage, { role: "NURSE" });
+    await waitFor(() =>
+      expect(screen.getByText("Fever since last night")).toBeInTheDocument(),
+    );
+    await click(button(/the clinic book/i));
+    await waitFor(() =>
+      expect(screen.getByText(/page 2 of 3/i)).toBeInTheDocument(),
+    );
+
+    await click(screen.getByLabelText("Next page"));
+    await waitFor(() =>
+      expect(h.api.get.mock.calls.at(-1)?.[1]?.params?.page).toBe(2),
+    );
+    await click(screen.getByLabelText("Previous page"));
+    await waitFor(() =>
+      expect(h.api.get.mock.calls.at(-1)?.[1]?.params?.page).toBe(1),
+    );
+  });
+
+  it("closes a visit and a card again without changing anything", async () => {
+    await openVisit();
+    await click(screen.getByLabelText("Close dialog"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Medicine")).not.toBeInTheDocument(),
+    );
+
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "Divine Niyonkuru"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Emergency card")).toBeInTheDocument(),
+    );
+    await click(screen.getByLabelText("Close dialog"));
+    await waitFor(() =>
+      expect(screen.queryByText("Emergency card")).not.toBeInTheDocument(),
+    );
+    expect(h.api.put).not.toHaveBeenCalled();
+  });
 });

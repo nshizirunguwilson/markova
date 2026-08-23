@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Button,
@@ -90,9 +90,12 @@ export default function ActivitiesPage() {
     limit: 25,
   });
 
-  useEffect(() => {
+  // Page one on every filter change, set where the filter changes rather than
+  // in an effect. Landing on page three of a smaller result is an empty table.
+  const narrow = (change: () => void) => {
+    change();
     setPage(1);
-  }, [kind, showPast]);
+  };
 
   const items: Activity[] = data?.data ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 25, totalPages: 1 };
@@ -114,7 +117,7 @@ export default function ActivitiesPage() {
           <select
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={kind}
-            onChange={(e) => setKind(e.target.value)}
+            onChange={(e) => narrow(() => setKind(e.target.value))}
             aria-label="All kinds"
           >
             <option value="">All kinds</option>
@@ -127,7 +130,7 @@ export default function ActivitiesPage() {
             <input
               type="checkbox"
               checked={showPast}
-              onChange={(e) => setShowPast(e.target.checked)}
+              onChange={(e) => narrow(() => setShowPast(e.target.checked))}
             />
             Include what has already happened
           </label>
@@ -235,8 +238,15 @@ export default function ActivitiesPage() {
         )}
       </Card>
 
-      <NewActivityModal isOpen={showNew} onClose={() => setShowNew(false)} />
-      <ActivityDetail id={openId} onClose={() => setOpenId(null)} />
+      {/* Keyed on each opening so the form starts empty, rather than being
+          wiped by an effect after it has already rendered with the last
+          activity's text still in it. */}
+      <NewActivityModal
+        key={showNew ? "new-open" : "new-closed"}
+        isOpen={showNew}
+        onClose={() => setShowNew(false)}
+      />
+      <ActivityDetail key={openId ?? "none"} id={openId} onClose={() => setOpenId(null)} />
     </div>
   );
 }
@@ -264,11 +274,6 @@ function NewActivityModal({
     capacity: "",
     classLevelIds: [] as string[],
   });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setForm((f) => ({ ...f, title: "", description: "", startsAt: "", endsAt: "" }));
-  }, [isOpen]);
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));

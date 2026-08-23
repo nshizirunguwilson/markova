@@ -3,7 +3,12 @@ import { View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { toast } from 'sonner-native';
 
-import { useStudentDiscipline, useAcknowledgeIncident, useCreateAppeal } from '@/hooks/useApi';
+import {
+  useStudentDiscipline,
+  useAcknowledgeIncident,
+  useCreateAppeal,
+  useStanding,
+} from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
 import {
@@ -28,6 +33,7 @@ export default function ChildDiscipline() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
   const { data, isPending, refetch, isRefetching } = useStudentDiscipline(studentId);
+  const { data: standing } = useStanding(studentId);
   const acknowledge = useAcknowledgeIncident();
   const appeal = useCreateAppeal();
 
@@ -73,6 +79,13 @@ export default function ChildDiscipline() {
                   tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
                 />
                 <Stat value={incidents.length} label="On record" />
+                {standing ? (
+                  <Stat
+                    value={standing.meritCount}
+                    label="Recognised for"
+                    tone={standing.meritCount > 0 ? 'positive' : 'primary'}
+                  />
+                ) : null}
               </StatRow>
               <Meter
                 value={points}
@@ -80,6 +93,48 @@ export default function ChildDiscipline() {
                 tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
               />
             </View>
+
+            {/* The number that makes the way back a fact rather than a
+                feeling. A record showing only what was lost gives a student
+                nothing to aim at. */}
+            {standing && standing.pointsToCleanSheet > 0 ? (
+              <Text variant="footnote" tone="secondary">
+                {standing.pointsToCleanSheet} points from a clean sheet. Points
+                come back when the school recognises something they have done.
+              </Text>
+            ) : standing ? (
+              <Text variant="footnote" tone="secondary">
+                Their conduct record is clean. Nothing is held against them.
+              </Text>
+            ) : null}
+
+            {/* Above the incidents on purpose: a record that opens with what
+                went wrong teaches a child that being unnoticed is the best
+                they can manage. */}
+            {(standing?.merits?.length ?? 0) > 0 ? (
+              <Section title="Recognised for">
+                <View style={{ gap: space.lg }}>
+                  {standing!.merits.map((m) => (
+                    <View key={m.id} style={{ gap: 4 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: space.sm,
+                        }}
+                      >
+                        <Text variant="body">{m.description}</Text>
+                        <Badge label={`+${m.points}`} tone="positive" numeric />
+                      </View>
+                      <Text variant="caption" tone="tertiary">
+                        {new Date(m.date).toLocaleDateString('en-GB')}   ·   by{' '}
+                        {m.awardedBy.firstName} {m.awardedBy.lastName}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Section>
+            ) : null}
 
             {!incidents.length ? (
               <Empty title="Nothing on record" body="No incidents have been recorded for this student." />

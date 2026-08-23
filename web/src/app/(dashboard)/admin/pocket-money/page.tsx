@@ -82,13 +82,20 @@ export default function PocketMoneyPage() {
   const lookup = useLookupAccount();
 
   useEffect(() => {
-    const id = setTimeout(() => setSearch(searchInput.trim()), 350);
+    const id = setTimeout(() => {
+      setSearch(searchInput.trim());
+      // Back to page one with the new search, for the same reason as below.
+      setPage(1);
+    }, 350);
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  useEffect(() => {
+  // Page one whenever the roll narrows, set where it narrows. Landing on page
+  // three of a shorter list is an empty table.
+  const narrow = (change: () => void) => {
+    change();
     setPage(1);
-  }, [sectionId, search]);
+  };
 
   const items: any[] = data?.items ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 25, totalPages: 1 };
@@ -167,8 +174,10 @@ export default function PocketMoneyPage() {
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={levelId}
             onChange={(e) => {
-              setLevelId(e.target.value);
-              setSectionId("");
+              narrow(() => {
+                setLevelId(e.target.value);
+                setSectionId("");
+              });
             }}
             aria-label="Class level"
           >
@@ -180,7 +189,7 @@ export default function PocketMoneyPage() {
           <select
             className="rounded-lg border border-input px-3 py-2 text-sm"
             value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
+            onChange={(e) => narrow(() => setSectionId(e.target.value))}
             disabled={!levelId}
             aria-label="Class section"
           >
@@ -285,7 +294,10 @@ export default function PocketMoneyPage() {
         )}
       </Card>
 
+      {/* Keyed on the student, so the amount and note boxes start empty for
+          each one rather than being cleared after the fact. */}
       <CounterModal
+        key={openStudentId ?? "nobody"}
         studentId={openStudentId}
         onClose={() => setOpenStudentId(null)}
       />
@@ -317,19 +329,20 @@ function CounterModal({
 
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [dailyLimit, setDailyLimit] = useState("");
-
-  useEffect(() => {
-    setAmount("");
-    setNote("");
-    setDailyLimit(
-      account?.dailyLimit === null || account?.dailyLimit === undefined
-        ? ""
-        : String(account.dailyLimit),
-    );
-  }, [studentId, account?.dailyLimit]);
+  /**
+   * Null until somebody types. Until then the box shows the cap on record, so
+   * the account filling itself in as it loads needs no copy kept in step.
+   */
+  const [limitEdit, setLimitEdit] = useState<string | null>(null);
 
   if (!studentId) return null;
+
+  const dailyLimit =
+    limitEdit ??
+    (account?.dailyLimit === null || account?.dailyLimit === undefined
+      ? ""
+      : String(account.dailyLimit));
+  const setDailyLimit = (v: string) => setLimitEdit(v);
 
   const value = Number(amount);
   const canMove = Number.isFinite(value) && value > 0;

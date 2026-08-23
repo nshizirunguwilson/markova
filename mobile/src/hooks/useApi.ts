@@ -1120,10 +1120,16 @@ export function usePocketMoneyStatement(studentId?: string) {
   });
 }
 
-/** A scan resolves the card to the student holding it. */
+/**
+ * A scan resolves the card to the student holding it.
+ *
+ * The field is `identifier`, matching LookupDto. The API validates with
+ * `forbidNonWhitelisted`, so any other name is a 400 on every single scan.
+ */
 export function useLookupAccount() {
   return useMutation<PocketMoneyAccount, unknown, string>({
-    mutationFn: (code: string) => api.post('/pocket-money/lookup', { code }).then((r) => r.data),
+    mutationFn: (identifier: string) =>
+      api.post('/pocket-money/lookup', { identifier }).then((r) => r.data),
   });
 }
 

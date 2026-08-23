@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, Button, Card, CardTitle, Input } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
@@ -92,11 +92,6 @@ export default function AnnouncementsPage() {
 
   const { data: preview, isFetching } = usePreviewAudience(spec);
 
-  useEffect(() => {
-    setLevelIds([]);
-    setSectionIds([]);
-  }, [audience]);
-
   const ready = !!spec && !!title.trim() && !!message.trim();
 
   const submit = () => {
@@ -140,9 +135,15 @@ export default function AnnouncementsPage() {
                 id="b-audience"
                 className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                 value={audience}
-                onChange={(e) =>
-                  setAudience(e.target.value as BroadcastAudience)
-                }
+                onChange={(e) => {
+                  // Clearing here rather than in an effect: a level chosen for
+                  // "parents of Senior 1" means nothing once the audience is
+                  // "every teacher", and carrying it over would count the
+                  // wrong people.
+                  setAudience(e.target.value as BroadcastAudience);
+                  setLevelIds([]);
+                  setSectionIds([]);
+                }}
                 aria-label="Audience"
               >
                 {AUDIENCES.map((a) => (

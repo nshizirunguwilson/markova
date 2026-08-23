@@ -557,4 +557,22 @@ describe("finding a student in the list", () => {
     await mount();
     expect(screen.getByLabelText(/class section/i)).toBeDisabled();
   });
+
+  // A card reader types the code and then sends Enter. A scan that only works
+  // from the button would mean the reader is useless at the counter.
+  it("scans on the Enter key, the way a card reader sends one", async () => {
+    await mount();
+    const box = screen.getByLabelText(/scan a card/i);
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "MK-12345" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/pocket-money/lookup", {
+        identifier: "MK-12345",
+      }),
+    );
+  });
 });

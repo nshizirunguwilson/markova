@@ -6,7 +6,7 @@ import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import {
   useIncidents, useCreateIncident, useCurrentTerm, usePendingAppeals,
-  useReviewAppeal, useTeacherAssignments, useClassStudents,
+  useReviewAppeal, useTeacherAssignments, useClassStudents, useAwardMerit,
 } from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
@@ -35,30 +35,196 @@ const ACTIONS = [
   { value: 'EXPULSION', label: 'Expulsion', points: 50 },
 ];
 
+/**
+ * What a merit can be given for.
+ *
+ * The same list the web uses, worded for the things a Rwandan secondary school
+ * already praises at assembly.
+ */
+const MERITS = [
+  { value: 'HELPING_OTHERS', label: 'Helping others', points: 5 },
+  { value: 'ACADEMIC_EFFORT', label: 'Real effort', points: 8 },
+  { value: 'LEADERSHIP', label: 'Leadership', points: 10 },
+  { value: 'SPORT', label: 'Sport', points: 5 },
+  { value: 'ARTS', label: 'Arts', points: 8 },
+  { value: 'SERVICE', label: 'Service', points: 8 },
+  { value: 'HONESTY', label: 'Honesty', points: 10 },
+  { value: 'IMPROVEMENT', label: 'Turning it around', points: 12 },
+];
+
 export default function DisciplineLog() {
   const role = useAuthStore((s) => s.user?.role);
-  const [tab, setTab] = useState<'record' | 'log' | 'appeals'>('record');
+  const [tab, setTab] = useState<'record' | 'merit' | 'log' | 'appeals'>('record');
 
+  // Recognising a student sits beside recording an incident, deliberately. A
+  // conduct system with only deductions teaches a student that the best
+  // possible outcome is to be unnoticed, and a merit form filed on a separate
+  // screen is a merit form nobody opens.
   const tabs =
     role === 'ADMIN'
       ? [
-          { value: 'record', label: 'Record' },
+          { value: 'record', label: 'Incident' },
+          { value: 'merit', label: 'Recognise' },
           { value: 'log', label: 'Recent' },
           { value: 'appeals', label: 'Appeals' },
         ]
       : [
-          { value: 'record', label: 'Record' },
+          { value: 'record', label: 'Incident' },
+          { value: 'merit', label: 'Recognise' },
           { value: 'log', label: 'Recent' },
         ];
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Discipline' }} />
+      <Stack.Screen options={{ title: 'Behaviour' }} />
       <Screen contentContainerStyle={{ gap: space.xl }}>
         <Segmented value={tab} onChange={(v) => setTab(v as never)} options={tabs as never} />
-        {tab === 'record' ? <Record /> : tab === 'log' ? <Log /> : <Appeals />}
+        {tab === 'record' ? (
+          <Record />
+        ) : tab === 'merit' ? (
+          <Merit />
+        ) : tab === 'log' ? (
+          <Log />
+        ) : (
+          <Appeals />
+        )}
       </Screen>
     </>
+  );
+}
+
+/**
+ * Recognising a student.
+ *
+ * The points restore a conduct score up to a clean sheet and never past it, so
+ * a merit is a way back rather than a currency to bank against future trouble.
+ * The recognition itself stands either way.
+ */
+function Merit() {
+  const teacherId = useAuthStore((s) => s.user?.teacherId);
+  const { data: term } = useCurrentTerm();
+  const { data: assignments } = useTeacherAssignments(teacherId);
+  const award = useAwardMerit();
+
+  const classes = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of assignments ?? []) {
+      const section: any = (a as any).classSection;
+      if (section) map.set(section.id, section.name);
+    }
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [assignments]);
+
+  const [classId, setClassId] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [category, setCategory] = useState(MERITS[0].value);
+  const [description, setDescription] = useState('');
+
+  const { data: students } = useClassStudents(classId || classes[0]?.value);
+  const chosen = MERITS.find((m) => m.value === category)!;
+
+  const submit = () => {
+    if (!studentId) {
+      toast.error('Pick the student first');
+      return;
+    }
+    if (description.trim().length < 10) {
+      toast.error('Say what they did. It goes on their record and home to their family.');
+      return;
+    }
+    award.mutate(
+      {
+        studentId,
+        termId: term?.id,
+        category,
+        description: description.trim(),
+        points: chosen.points,
+        date: new Date().toISOString().slice(0, 10),
+      },
+      {
+        onSuccess: (res: any) => {
+          toast.success(
+            res?.pointsRestored > 0
+              ? `Recorded. ${res.pointsRestored} points restored.`
+              : 'Recorded. Their conduct score was already clean.',
+          );
+          setStudentId('');
+          setDescription('');
+        },
+        onError: (e: any) =>
+          toast.error(e?.response?.data?.message ?? 'Could not record that'),
+      },
+    );
+  };
+
+  if (!classes.length)
+    return (
+      <Empty
+        title="No classes"
+        body="You need a class assigned before you can recognise anybody."
+      />
+    );
+
+  return (
+    <View style={{ gap: space.xl }}>
+      <Segmented value={classId || classes[0].value} onChange={setClassId} options={classes} />
+
+      <Section title="Who">
+        <RowGroup>
+          {((students as any[]) ?? []).map((s, i, arr) => {
+            const name = `${s.firstName ?? s.user?.firstName ?? ''} ${
+              s.lastName ?? s.user?.lastName ?? ''
+            }`.trim();
+            return (
+              <Row
+                key={s.id}
+                title={name}
+                lead={<Avatar name={name} size="sm" />}
+                value={studentId === s.id ? <Badge label="Selected" tone="brand" /> : undefined}
+                chevron={false}
+                onPress={() => setStudentId(s.id)}
+                last={i === arr.length - 1}
+              />
+            );
+          })}
+        </RowGroup>
+      </Section>
+
+      <Section title="What for">
+        <View style={{ gap: space.md }}>
+          <Segmented
+            value={category}
+            onChange={setCategory}
+            options={MERITS.map((m) => ({ value: m.value, label: m.label }))}
+          />
+          <Text variant="footnote" tone="tertiary" numeric>
+            Worth {chosen.points} points, restoring their score up to a clean
+            sheet and never past it.
+          </Text>
+        </View>
+      </Section>
+
+      <Section title="What they did">
+        <View style={{ gap: space.lg }}>
+          <Field
+            label="Description"
+            hint="Their family reads this word for word, so make it worth reading."
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            minHeight={100}
+            required
+          />
+          <Button
+            label="Recognise them"
+            kind="primary"
+            block
+            loading={award.isPending}
+            onPress={submit}
+          />
+        </View>
+      </Section>
+    </View>
   );
 }
 

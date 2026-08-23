@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Button,
@@ -16,8 +16,7 @@ import {
   TableRow,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
-import { useAuthStore } from "@/stores/auth-store";
-import api from "@/lib/api";
+import { useMyChildren } from "@/hooks/use-children";
 import {
   usePocketMoneyAccount,
   usePocketMoneyStatement,
@@ -51,25 +50,13 @@ interface Child {
  * term's money lasts a term, and a warning before it runs out.
  */
 export default function ParentPocketMoneyPage() {
-  const { user } = useAuthStore();
-  const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  const { data: kids } = useMyChildren();
+  const children: Child[] = (kids ?? []).map((c) => ({ id: c.id, name: c.name }));
 
-  useEffect(() => {
-    if (!user?.id) return;
-    api
-      .get(`/users/${user.id}`)
-      .then((res) => {
-        const links = res.data?.parentStudents || [];
-        const kids: Child[] = links.map((ps: any) => ({
-          id: ps.student.id,
-          name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
-        }));
-        setChildren(kids);
-        if (kids.length > 0) setSelectedChild(kids[0].id);
-      })
-      .catch(() => {});
-  }, [user?.id]);
+  /** Null until the parent picks. Most have one child, so the first will do. */
+  const [picked, setPicked] = useState<string | null>(null);
+  const selectedChild = picked ?? children[0]?.id ?? "";
+  const setSelectedChild = (id: string) => setPicked(id);
 
   const { data: account, isLoading } = usePocketMoneyAccount(
     selectedChild || undefined,
@@ -81,15 +68,21 @@ export default function ParentPocketMoneyPage() {
   );
   const limits = useUpdateMoneyLimits();
 
-  const [dailyLimit, setDailyLimit] = useState("");
-  const [lowAlert, setLowAlert] = useState("");
+  /**
+   * Null until a parent types. Until then each box shows what is on the
+   * account, so it fills itself in as the account loads with no copy of it to
+   * keep in step.
+   */
+  const [limitEdit, setLimitEdit] = useState<string | null>(null);
+  const [alertEdit, setAlertEdit] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDailyLimit(account?.dailyLimit == null ? "" : String(account.dailyLimit));
-    setLowAlert(
-      account?.lowBalanceAlert == null ? "" : String(account.lowBalanceAlert),
-    );
-  }, [selectedChild, account?.dailyLimit, account?.lowBalanceAlert]);
+  const dailyLimit =
+    limitEdit ?? (account?.dailyLimit == null ? "" : String(account.dailyLimit));
+  const lowAlert =
+    alertEdit ??
+    (account?.lowBalanceAlert == null ? "" : String(account.lowBalanceAlert));
+  const setDailyLimit = (v: string) => setLimitEdit(v);
+  const setLowAlert = (v: string) => setAlertEdit(v);
 
   const entries: PocketMoneyEntry[] = statement?.data ?? [];
 

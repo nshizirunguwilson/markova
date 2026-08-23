@@ -366,4 +366,81 @@ describe("attaching a file", () => {
       ),
     );
   });
+
+  it("narrows to classes once a level is chosen for them", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Audience"), {
+        target: { value: "PARENTS_OF_CLASSES" },
+      });
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Level"), {
+        target: { value: classLevel.id },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText(classSection.name)).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(
+        screen.getByText(classSection.name).closest("label")!.querySelector("input")!,
+      );
+    });
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find((c: any[]) =>
+        String(c[0]).includes("/broadcast/preview"),
+      );
+      expect(call?.[1]).toEqual({
+        audience: "PARENTS_OF_CLASSES",
+        classSectionIds: [classSection.id],
+      });
+    });
+  });
+
+  it("unticks a class chosen by mistake", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Audience"), {
+        target: { value: "STUDENTS_OF_CLASSES" },
+      });
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Level"), {
+        target: { value: classLevel.id },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText(classSection.name)).toBeInTheDocument(),
+    );
+    const box = () =>
+      screen.getByText(classSection.name).closest("label")!.querySelector("input")!;
+    await act(async () => {
+      fireEvent.click(box());
+    });
+    await act(async () => {
+      fireEvent.click(box());
+    });
+    expect(screen.getByText(/finish choosing the audience/i)).toBeInTheDocument();
+  });
+
+  // An audience with no year level attached needs no count and no chooser.
+  it.each([
+    ["ALL_TEACHERS"],
+    ["ALL_STAFF"],
+    ["ALL_STUDENTS"],
+  ])("counts a whole-role audience straight away: %s", async (audience) => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Audience"), {
+        target: { value: audience },
+      });
+    });
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find((c: any[]) =>
+        String(c[0]).includes("/broadcast/preview"),
+      );
+      expect(call?.[1]).toEqual({ audience });
+    });
+  });
 });

@@ -663,4 +663,42 @@ describe("the watch list", () => {
       ).toBeInTheDocument(),
     );
   });
+
+  // Every box on the merit form is part of what the school is saying about a
+  // student, so each has to carry what was typed.
+  it("carries the points and the date that were set", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what they did/i), {
+        target: { value: "Handed in a wallet she found" },
+      });
+      fireEvent.change(screen.getByLabelText(/^points$/i), {
+        target: { value: "10" },
+      });
+      fireEvent.change(screen.getByLabelText(/^date$/i), {
+        target: { value: "2026-08-20" },
+      });
+      fireEvent.change(screen.getByLabelText(/what for/i), {
+        target: { value: "HONESTY" },
+      });
+    });
+
+    expect(screen.getByLabelText(/^points$/i)).toHaveValue(10);
+    expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-08-20");
+    expect(screen.getByLabelText(/what for/i)).toHaveValue("HONESTY");
+  });
+
+  it("closes without recording anything", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    await click(
+      screen.queryAllByRole("button").find((b) => /^Cancel$/.test(b.textContent ?? "")),
+    );
+    expect(
+      h.api.post.mock.calls.filter((c: any[]) =>
+        String(c[0]).includes("/discipline/merits"),
+      ),
+    ).toHaveLength(0);
+  });
 });
