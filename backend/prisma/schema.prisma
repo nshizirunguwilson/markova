@@ -166,18 +166,18 @@ model User {
   // Relations
   sessions                UserSession[]
   auditLogs               AuditLog[]
-  pocketMoneyEntries      PocketMoneyTransaction[]  @relation("PocketMoneyRecordedBy")
-  activitiesCreated       Activity[]                @relation("ActivityCreatedBy")
-  activityConsents        ActivityParticipant[]     @relation("ActivityConsentBy")
+  pocketMoneyEntries      PocketMoneyTransaction[]   @relation("PocketMoneyRecordedBy")
+  activitiesCreated       Activity[]                 @relation("ActivityCreatedBy")
+  activityConsents        ActivityParticipant[]      @relation("ActivityConsentBy")
   student                 Student?
   teacher                 Teacher?
   parentStudents          ParentStudent[]
-  markedAttendances       Attendance[]              @relation("MarkedByUser")
-  recordedIncidents       DisciplineIncident[]      @relation("RecordedByUser")
-  submittedAppeals        DisciplineAppeal[]        @relation("SubmittedByUser")
-  reviewedAppeals         DisciplineAppeal[]        @relation("ReviewedByUser")
+  markedAttendances       Attendance[]               @relation("MarkedByUser")
+  recordedIncidents       DisciplineIncident[]       @relation("RecordedByUser")
+  submittedAppeals        DisciplineAppeal[]         @relation("SubmittedByUser")
+  reviewedAppeals         DisciplineAppeal[]         @relation("ReviewedByUser")
   bookLoans               BookLoan[]
-  gradedSubmissions       HomeworkSubmission[]      @relation("GradedByUser")
+  gradedSubmissions       HomeworkSubmission[]       @relation("GradedByUser")
   createdConversations    Conversation[]
   conversationMemberships ConversationParticipant[]
   sentMessages            Message[]
@@ -185,6 +185,9 @@ model User {
   notifications           Notification[]
   pushTokens              PushToken[]
   supportTickets          SupportTicket[]
+  clinicVisitsSeen        ClinicVisit[]              @relation("ClinicSeenBy")
+  medicationsGiven        MedicationAdministration[] @relation("MedicationGivenBy")
+  healthRecordsUpdated    StudentHealthRecord[]      @relation("HealthRecordUpdatedBy")
 
   @@index([role])
   @@index([isActive])
@@ -431,6 +434,9 @@ model Student {
   attendances         Attendance[]
   disciplineIncidents DisciplineIncident[]
   homeworkSubmissions HomeworkSubmission[]
+  clinicVisits        ClinicVisit[]
+  medications         MedicationAdministration[]
+  healthRecord        StudentHealthRecord?
 
   @@index([classSectionId])
   @@index([status])
@@ -1124,4 +1130,136 @@ model ActivityParticipant {
   @@unique([activityId, studentId])
   @@index([studentId])
   @@map("activity_participants")
+}
+
+// ─── HEALTH ───────────────────────────────────────────────────────────────────
+// A boarding school is responsible for a child's body as well as their marks.
+// The sick bay currently runs on an exercise book, which means nobody can
+// answer "how many times has she been in this term" or "did she get her second
+// dose", and a parent finds out their child was ill when they collect them.
+
+enum ClinicVisitOutcome {
+  /// Seen, treated, sent back to class or the dormitory.
+  RETURNED_TO_CLASS
+  /// Kept in the sick bay to rest.
+  RESTING_IN_SICK_BAY
+  /// Sent to a health centre or hospital.
+  REFERRED_OUT
+  /// Collected by a parent.
+  SENT_HOME
+}
+
+enum ClinicSeverity {
+  MINOR
+  MODERATE
+  SERIOUS
+}
+
+/// One visit to the sick bay.
+///
+/// Nothing here is ever deleted. A health record that can be tidied away is
+/// worth nothing the day somebody has to account for what happened.
+model ClinicVisit {
+  id        String @id @default(uuid())
+  studentId String @map("student_id")
+
+  /// What the student said was wrong, in their words.
+  complaint String
+  /// What the nurse found.
+  findings  String?
+  treatment String?
+  severity  ClinicSeverity     @default(MINOR)
+  outcome   ClinicVisitOutcome @default(RETURNED_TO_CLASS)
+
+  temperature Float?
+  /// Where they were sent, when the outcome is REFERRED_OUT.
+  referredTo  String? @map("referred_to")
+
+  seenByUserId String    @map("seen_by_user_id")
+  visitedAt    DateTime  @default(now()) @map("visited_at")
+  /// Set when a student kept in the sick bay is discharged.
+  dischargedAt DateTime? @map("discharged_at")
+
+  /// Whether the family has been told. A parent should never learn from their
+  /// child that the school kept them in the sick bay overnight.
+  parentNotifiedAt DateTime? @map("parent_notified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student     Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  seenBy      User                       @relation("ClinicSeenBy", fields: [seenByUserId], references: [id])
+  medications MedicationAdministration[]
+
+  @@index([studentId])
+  @@index([visitedAt])
+  @@map("clinic_visits")
+}
+
+/// Every dose given, with who gave it and when.
+///
+/// This is the row that answers "has she already had her paracetamol today",
+/// which is the question a double dose comes from.
+model MedicationAdministration {
+  id        String  @id @default(uuid())
+  studentId String  @map("student_id")
+  /// The visit it came out of, when there was one. Regular medication for a
+  /// long-term condition has no visit behind it.
+  visitId   String? @map("visit_id")
+
+  medicine String
+  dose     String
+  reason   String?
+
+  givenByUserId String   @map("given_by_user_id")
+  givenAt       DateTime @default(now()) @map("given_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  visit   ClinicVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  givenBy User         @relation("MedicationGivenBy", fields: [givenByUserId], references: [id])
+
+  @@index([studentId])
+  @@index([givenAt])
+  @@map("medication_administrations")
+}
+
+/// The one page somebody needs at three in the morning.
+///
+/// Separate from Student because it is read under different rules: the nurse,
+/// the boarding staff and the office see it, teachers never do.
+model StudentHealthRecord {
+  id        String @id @default(uuid())
+  studentId String @unique @map("student_id")
+
+  /// Long-term conditions in plain words: asthma, epilepsy, sickle cell.
+  chronicConditions String? @map("chronic_conditions")
+  /// Medication taken regularly, and when.
+  regularMedication String? @map("regular_medication")
+  /// Anything the school must never give them.
+  allergyNotes      String? @map("allergy_notes")
+  /// Free text: what a fit looks like for this child, where the inhaler is.
+  emergencyPlan     String? @map("emergency_plan")
+
+  /// Who to ring first, which is not always the parent on the account.
+  emergencyContactName  String? @map("emergency_contact_name")
+  emergencyContactPhone String? @map("emergency_contact_phone")
+  emergencyRelationship String? @map("emergency_relationship")
+
+  /// Mutuelle de Sante or other cover, needed at the health centre gate.
+  insuranceProvider String? @map("insurance_provider")
+  insuranceNumber   String? @map("insurance_number")
+
+  /// The health centre the school refers to for this child.
+  preferredClinic String? @map("preferred_clinic")
+
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("HealthRecordUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@map("student_health_records")
 }
