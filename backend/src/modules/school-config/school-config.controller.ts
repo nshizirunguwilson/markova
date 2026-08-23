@@ -32,22 +32,19 @@ import {
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import {
-  isAllowedImageMime,
-  safeImageExtension,
+  fileFilterFor,
+  filenameFor,
+  removeStoredFile,
   validateUploadedImage,
 } from '../../common/file-validation';
 
+const BRANDING_REFUSAL = 'Only image files are allowed';
+
 const brandingStorage = diskStorage({
   destination: './uploads/branding',
-  filename: (_req, file, cb) => {
-    // Extension comes from the accepted mime type, never from the uploaded
-    // filename. See safeImageExtension for what that prevented.
-    const ext = safeImageExtension(file.mimetype);
-    if (!ext) {
-      return cb(new Error('Only image files are allowed'), '');
-    }
-    cb(null, `${uuidv4()}${ext}`);
-  },
+  // The extension comes from the accepted mime type, never from the name the
+  // file arrived with.
+  filename: filenameFor('image', uuidv4, BRANDING_REFUSAL),
 });
 
 @ApiTags('School Config')
@@ -57,16 +54,11 @@ const brandingStorage = diskStorage({
 export class SchoolConfigController {
   constructor(private readonly configService: SchoolConfigService) {}
 
+  /** Removes the file a branding key no longer points at. */
   private deleteOldFile(fileUrl: string | null | undefined) {
-    if (!fileUrl) return;
-    try {
-      const filePath = join(process.cwd(), fileUrl);
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-      }
-    } catch {
-      // Ignore cleanup errors — the old file may already be gone
-    }
+    removeStoredFile(fileUrl, { existsSync, unlinkSync }, (p) =>
+      join(process.cwd(), p),
+    );
   }
 
   @Get()
@@ -124,14 +116,7 @@ export class SchoolConfigController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
-      fileFilter: (_req, file, cb) => {
-        // An exact list, not a suffix match. The old regex also admitted
-        // anything ending in the right word, such as `application/png`.
-        if (!isAllowedImageMime(file.mimetype)) {
-          return cb(new Error('Only image files are allowed'), false);
-        }
-        cb(null, true);
-      },
+      fileFilter: fileFilterFor('image', BRANDING_REFUSAL),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
@@ -155,14 +140,7 @@ export class SchoolConfigController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
-      fileFilter: (_req, file, cb) => {
-        // An exact list, not a suffix match. The old regex also admitted
-        // anything ending in the right word, such as `application/png`.
-        if (!isAllowedImageMime(file.mimetype)) {
-          return cb(new Error('Only image files are allowed'), false);
-        }
-        cb(null, true);
-      },
+      fileFilter: fileFilterFor('image', BRANDING_REFUSAL),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
@@ -186,14 +164,7 @@ export class SchoolConfigController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: brandingStorage,
-      fileFilter: (_req, file, cb) => {
-        // An exact list, not a suffix match. The old regex also admitted
-        // anything ending in the right word, such as `application/png`.
-        if (!isAllowedImageMime(file.mimetype)) {
-          return cb(new Error('Only image files are allowed'), false);
-        }
-        cb(null, true);
-      },
+      fileFilter: fileFilterFor('image', BRANDING_REFUSAL),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )

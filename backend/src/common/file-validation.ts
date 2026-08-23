@@ -106,3 +106,92 @@ export function isAllowedAttachmentMime(mimetype: string): boolean {
 export function safeAttachmentExtension(mimetype: string): string | null {
   return ATTACHMENT_EXTENSION_BY_MIME[mimetype.toLowerCase()] ?? null;
 }
+
+/**
+ * The name an upload is stored under.
+ *
+ * A uuid plus an extension derived from the mime type, never from the name the
+ * file arrived with. Written once and shared, because the same six lines were
+ * pasted into three controllers and a single one of them drifting is all it
+ * would take to serve an uploaded `.html` back from the API's own origin.
+ *
+ * `kind` decides which allow-list applies: an avatar is an image, a message
+ * attachment may also be a document.
+ */
+export function storedFilename(
+  mimetype: string,
+  kind: 'image' | 'attachment',
+  newId: () => string,
+): string | null {
+  const ext =
+    kind === 'image'
+      ? safeImageExtension(mimetype)
+      : safeAttachmentExtension(mimetype);
+  return ext ? `${newId()}${ext}` : null;
+}
+
+/**
+ * The multer `filename` callback for a given kind of upload.
+ *
+ * Refuses rather than guessing when the type is not one we accept, so a
+ * rejected file never reaches disk under a name of its own choosing.
+ */
+export function filenameFor(
+  kind: 'image' | 'attachment',
+  newId: () => string,
+  refusal: string,
+) {
+  return (
+    _req: unknown,
+    file: { mimetype: string },
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
+    const name = storedFilename(file.mimetype, kind, newId);
+    if (!name) return cb(new Error(refusal), '');
+    cb(null, name);
+  };
+}
+
+/**
+ * The multer `fileFilter` for a given kind of upload.
+ *
+ * An exact list, not a suffix match: `application/png` is not an image and
+ * `x-application/pdf` is not a PDF.
+ */
+export function fileFilterFor(kind: 'image' | 'attachment', refusal: string) {
+  return (
+    _req: unknown,
+    file: { mimetype: string },
+    cb: (error: Error | null, accept: boolean) => void,
+  ) => {
+    const allowed =
+      kind === 'image'
+        ? isAllowedImageMime(file.mimetype)
+        : isAllowedAttachmentMime(file.mimetype);
+    if (!allowed) return cb(new Error(refusal), false);
+    cb(null, true);
+  };
+}
+
+/**
+ * Removes a file the record no longer points at.
+ *
+ * Best effort on purpose: a logo that was replaced should not sit on disk
+ * forever, but a missing or unreadable old file must never stop the new one
+ * being saved.
+ */
+export function removeStoredFile(
+  fileUrl: string | null | undefined,
+  fs: { existsSync: (p: string) => boolean; unlinkSync: (p: string) => void },
+  resolve: (p: string) => string,
+): boolean {
+  if (!fileUrl) return false;
+  try {
+    const path = resolve(fileUrl);
+    if (!fs.existsSync(path)) return false;
+    fs.unlinkSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -31,10 +31,7 @@ import {
   RenameConversationDto,
   SendMessageDto,
 } from './dto';
-import {
-  isAllowedAttachmentMime,
-  safeAttachmentExtension,
-} from '../../common/file-validation';
+import { fileFilterFor, filenameFor } from '../../common/file-validation';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -46,13 +43,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
  * filename. Express serves /uploads by extension, so a file allowed to name
  * itself comes back with whatever content type that implies.
  */
+const ATTACHMENT_REFUSAL = 'That kind of file cannot be sent';
+
 const attachmentStorage = diskStorage({
   destination: './uploads/attachments',
-  filename: (_req, file, cb) => {
-    const ext = safeAttachmentExtension(file.mimetype);
-    if (!ext) return cb(new Error('That kind of file cannot be sent'), '');
-    cb(null, `${uuidv4()}${ext}`);
-  },
+  // The extension comes from the accepted mime type, never from the uploaded
+  // filename. Express serves /uploads by extension, so a file allowed to name
+  // itself comes back with whatever content type that implies.
+  filename: filenameFor('attachment', uuidv4, ATTACHMENT_REFUSAL),
 });
 
 @ApiTags('Messaging')
@@ -208,14 +206,7 @@ export class MessagingController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: attachmentStorage,
-      fileFilter: (_req, file, cb) => {
-        // An exact list, not a suffix match. `application/png` is not an image
-        // and `x-application/pdf` is not a PDF.
-        if (!isAllowedAttachmentMime(file.mimetype)) {
-          return cb(new Error('That kind of file cannot be sent'), false);
-        }
-        cb(null, true);
-      },
+      fileFilter: fileFilterFor('attachment', ATTACHMENT_REFUSAL),
       limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )

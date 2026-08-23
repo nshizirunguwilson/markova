@@ -1,8 +1,12 @@
 import {
+  fileFilterFor,
+  filenameFor,
   isAllowedAttachmentMime,
   isAllowedImageMime,
+  removeStoredFile,
   safeAttachmentExtension,
   safeImageExtension,
+  storedFilename,
   validateImageMagicBytes,
 } from './file-validation';
 
@@ -125,6 +129,132 @@ describe('file validation', () => {
     it('matches regardless of case', () => {
       expect(isAllowedAttachmentMime('APPLICATION/PDF')).toBe(true);
       expect(safeAttachmentExtension('Application/Pdf')).toBe('.pdf');
+    });
+  });
+
+  /**
+   * The name an upload lands on disk under.
+   *
+   * Written once and shared by the avatar, branding and attachment routes,
+   * because the same six lines were pasted into three controllers and one of
+   * them drifting is all it would take to serve an uploaded page back from the
+   * API's own origin.
+   */
+  describe('the stored filename', () => {
+    const id = () => 'a1b2c3';
+
+    it('is a uuid with the extension the type implies', () => {
+      expect(storedFilename('image/png', 'image', id)).toBe('a1b2c3.png');
+      expect(storedFilename('application/pdf', 'attachment', id)).toBe(
+        'a1b2c3.pdf',
+      );
+    });
+
+    it('refuses a type the kind does not accept', () => {
+      expect(storedFilename('image/svg+xml', 'image', id)).toBeNull();
+      expect(storedFilename('text/html', 'attachment', id)).toBeNull();
+    });
+
+    // An avatar is an image. A PDF is a perfectly good attachment and a
+    // perfectly bad profile photo.
+    it('holds an avatar to images even though attachments allow more', () => {
+      expect(storedFilename('application/pdf', 'image', id)).toBeNull();
+      expect(storedFilename('application/pdf', 'attachment', id)).toBe(
+        'a1b2c3.pdf',
+      );
+    });
+
+    it('never takes the extension from the name the file arrived with', () => {
+      // The caller does not even pass the original name, which is the point.
+      expect(storedFilename('image/gif', 'image', id)).toBe('a1b2c3.gif');
+    });
+  });
+
+  describe('the multer filename callback', () => {
+    const id = () => 'a1b2c3';
+
+    it('hands back the safe name', () => {
+      const cb = jest.fn();
+      filenameFor('image', id, 'no')(null, { mimetype: 'image/png' }, cb);
+      expect(cb).toHaveBeenCalledWith(null, 'a1b2c3.png');
+    });
+
+    // A refused file must never reach disk under a name of its own choosing.
+    it('refuses with an error and no name at all', () => {
+      const cb = jest.fn();
+      filenameFor('image', id, 'Only image files are allowed')(
+        null,
+        { mimetype: 'text/html' },
+        cb,
+      );
+      expect(cb).toHaveBeenCalledWith(expect.any(Error), '');
+      expect(cb.mock.calls[0][0].message).toBe('Only image files are allowed');
+    });
+  });
+
+  describe('the multer file filter', () => {
+    it('accepts what the kind allows', () => {
+      const cb = jest.fn();
+      fileFilterFor('attachment', 'no')(null, { mimetype: 'application/pdf' }, cb);
+      expect(cb).toHaveBeenCalledWith(null, true);
+    });
+
+    it('refuses what it does not, by the message given', () => {
+      const cb = jest.fn();
+      fileFilterFor('attachment', 'That kind of file cannot be sent')(
+        null,
+        { mimetype: 'image/svg+xml' },
+        cb,
+      );
+      expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
+      expect(cb.mock.calls[0][0].message).toBe(
+        'That kind of file cannot be sent',
+      );
+    });
+
+    it('is not fooled by a type that merely ends in an allowed word', () => {
+      const cb = jest.fn();
+      fileFilterFor('image', 'no')(null, { mimetype: 'application/png' }, cb);
+      expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
+    });
+  });
+
+  /**
+   * Best effort on purpose: a replaced logo should not sit on disk forever,
+   * but a missing old file must never stop the new one being saved.
+   */
+  describe('removing a file the record no longer points at', () => {
+    const resolve = (p: string) => `/root${p}`;
+
+    it('removes the file when it is there', () => {
+      const fs = { existsSync: () => true, unlinkSync: jest.fn() };
+      expect(removeStoredFile('/uploads/a.png', fs, resolve)).toBe(true);
+      expect(fs.unlinkSync).toHaveBeenCalledWith('/root/uploads/a.png');
+    });
+
+    it('does nothing when there was never a file', () => {
+      const fs = { existsSync: () => true, unlinkSync: jest.fn() };
+      expect(removeStoredFile(null, fs, resolve)).toBe(false);
+      expect(removeStoredFile(undefined, fs, resolve)).toBe(false);
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the file has already gone', () => {
+      const fs = { existsSync: () => false, unlinkSync: jest.fn() };
+      expect(removeStoredFile('/uploads/a.png', fs, resolve)).toBe(false);
+      expect(fs.unlinkSync).not.toHaveBeenCalled();
+    });
+
+    // A read-only volume or a permissions problem is untidy. Failing the
+    // upload over it would be worse.
+    it('swallows a failure rather than failing the upload', () => {
+      const fs = {
+        existsSync: () => true,
+        unlinkSync: () => {
+          throw new Error('EACCES');
+        },
+      };
+      expect(removeStoredFile('/uploads/a.png', fs, resolve)).toBe(false);
     });
   });
 });
