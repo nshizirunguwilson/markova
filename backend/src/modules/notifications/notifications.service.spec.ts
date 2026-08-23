@@ -1,160 +1,520 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationsService } from './notifications.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NotificationType } from './dto';
-import * as nodemailer from 'nodemailer';
+import { NotificationsService } from './notifications.service';
+import { createMockPrisma } from '../../__test__/prisma-mock';
 
-// Mock nodemailer so no real SMTP/Brevo connection is made. The mock transport
-// records every sendMail call so we can assert the recipient and template used.
-jest.mock('nodemailer');
+const sendMail = jest.fn();
+const createTransport = jest.fn(() => ({ sendMail }));
+jest.mock('nodemailer', () => ({
+  createTransport: (...args: unknown[]) => createTransport(...(args as [])),
+}));
 
-describe('NotificationsService (email triggering)', () => {
+const twilioCreate = jest.fn();
+jest.mock('twilio', () => ({
+  Twilio: jest.fn().mockImplementation(() => ({
+    messages: { create: (...args: unknown[]) => twilioCreate(...args) },
+  })),
+}));
+
+/**
+ * Reaching people.
+ *
+ * The in-app row is the record that a person was told; the SMS, email or push
+ * is the attempt to reach them. That distinction is the whole design: an
+ * unreachable phone must never lose the record, and a school with no SMS
+ * account configured must still be able to run.
+ */
+describe('NotificationsService', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
   let service: NotificationsService;
-  const sendMail = jest.fn().mockResolvedValue({ messageId: 'mock' });
+  let env: Record<string, string | undefined>;
 
-  const mockPrisma = {
-    notification: {
-      create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
-      createMany: jest.fn().mockResolvedValue({ count: 0 }),
-    },
-    user: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-    },
-    pushToken: { findMany: jest.fn().mockResolvedValue([]) },
+  const build = (overrides: Record<string, string | undefined> = {}) => {
+    env = { ...overrides };
+    const config = {
+      get: (key: string) => env[key],
+    } as unknown as ConfigService;
+    prisma = createMockPrisma();
+    service = new NotificationsService(prisma, config);
+    prisma.notification.create.mockResolvedValue({ id: 'n-1' });
+    prisma.notification.createMany.mockResolvedValue({ count: 0 });
+    prisma.notification.update.mockResolvedValue({});
+    prisma.notification.updateMany.mockResolvedValue({ count: 0 });
+    prisma.pushToken.findMany.mockResolvedValue([]);
+    prisma.pushToken.upsert.mockResolvedValue({});
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.findMany.mockResolvedValue([]);
+    jest.spyOn((service as any).logger, 'log').mockImplementation();
+    jest.spyOn((service as any).logger, 'error').mockImplementation();
+    return service;
   };
 
-  const SMTP = {
-    SMTP_HOST: 'smtp-relay.brevo.com',
-    SMTP_PORT: '587',
-    SMTP_USER: 'user',
-    SMTP_PASS: 'pass',
-    SMTP_FROM: 'noreply@markova.test',
-    SMTP_FROM_NAME: 'Markova School',
-  };
-  const mockConfig = {
-    get: jest.fn((k: string) => (SMTP as Record<string, string>)[k]),
-  };
-
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
-    (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        NotificationsService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: ConfigService, useValue: mockConfig },
-      ],
-    }).compile();
-
-    service = module.get<NotificationsService>(NotificationsService);
-    // onModuleInit wires up the SMTP transport from config
-    service.onModuleInit();
+    sendMail.mockResolvedValue({});
+    twilioCreate.mockResolvedValue({});
+    build();
   });
 
-  it('builds an SMTP transport from Brevo config on init', () => {
-    expect(nodemailer.createTransport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        host: 'smtp-relay.brevo.com',
-        port: 587,
-        auth: { user: 'user', pass: 'pass' },
-      }),
-    );
+  /**
+   * A school without an SMTP host or a Twilio account still has to work. The
+   * in-app list is the fallback, and it always exists.
+   */
+  describe('starting up', () => {
+    it('runs with no email account configured', () => {
+      build();
+      service.onModuleInit();
+      expect(createTransport).not.toHaveBeenCalled();
+    });
+
+    it('configures email when a host is given', () => {
+      build({ SMTP_HOST: 'smtp.brevo.com', SMTP_PORT: '2525' });
+      service.onModuleInit();
+      expect(createTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ host: 'smtp.brevo.com', port: 2525 }),
+      );
+    });
+
+    it('falls back to the standard port when none is given', () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      expect(createTransport.mock.calls[0][0]).toMatchObject({ port: 587 });
+    });
+
+    it('runs with no SMS account configured', () => {
+      build();
+      service.onModuleInit();
+      expect(() => service.onModuleInit()).not.toThrow();
+    });
+
+    it('configures SMS when both credentials are given', () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      expect((service as any).twilioSenderId).toBe('Markova');
+    });
+
+    it('uses the sender name the school chose', () => {
+      build({
+        TWILIO_SID: 'AC1',
+        TWILIO_TOKEN: 'tok',
+        TWILIO_SENDER_ID: 'MarkovaTSS',
+      });
+      service.onModuleInit();
+      expect((service as any).twilioSenderId).toBe('MarkovaTSS');
+    });
+
+    it('does not configure SMS on half the credentials', () => {
+      build({ TWILIO_SID: 'AC1' });
+      service.onModuleInit();
+      expect((service as any).twilioClient).toBeNull();
+    });
   });
 
-  it('sendEmailToAddress sends to the right recipient with subject + branded template', async () => {
-    await service.sendEmailToAddress(
-      'parent@example.com',
-      'Mary',
-      'Your Markova Verification Code',
-      '<p>123456</p>',
-    );
+  /**
+   * The record first, the attempt second. A gateway that is down must never
+   * mean the school has no evidence it told somebody.
+   */
+  describe('sending one notification', () => {
+    it('writes the in-app record whatever happens next', async () => {
+      const result = await service.send({
+        userId: 'user-1',
+        title: 'Report card published',
+        message: 'Term 3 is ready',
+        type: 'EMAIL',
+      } as never);
+      expect(prisma.notification.create).toHaveBeenCalled();
+      expect(result).toMatchObject({ id: 'n-1' });
+    });
 
-    expect(sendMail).toHaveBeenCalledTimes(1);
-    const arg = sendMail.mock.calls[0][0];
-    expect(arg.to).toBe('parent@example.com');
-    expect(arg.subject).toBe('Your Markova Verification Code');
-    expect(arg.from).toContain('Markova School');
-    expect(arg.html).toContain('Dear Mary'); // template personalisation
-    expect(arg.html).toContain('123456'); // body injected
+    it('keeps the record when the gateway refuses', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'a@markova.edu',
+        firstName: 'Aline',
+      });
+      sendMail.mockRejectedValue(new Error('Connection refused'));
+
+      await expect(
+        service.send({
+          userId: 'user-1',
+          title: 'X',
+          message: 'Y',
+          type: 'EMAIL',
+        } as never),
+      ).resolves.toMatchObject({ id: 'n-1' });
+    });
+
+    it('says so in the log rather than silently', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      const error = jest.spyOn((service as any).logger, 'error');
+      prisma.user.findUnique.mockResolvedValue({ email: 'a@markova.edu' });
+      sendMail.mockRejectedValue(new Error('boom'));
+
+      await service.send({
+        userId: 'user-1',
+        title: 'X',
+        message: 'Y',
+        type: 'EMAIL',
+      } as never);
+      expect(error).toHaveBeenCalledWith(
+        'Failed to send EMAIL notification',
+        expect.any(String),
+      );
+    });
+
+    it('sends nothing to a person with no phone on record', async () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({ phone: null });
+      await service.send({
+        userId: 'user-1',
+        title: 'X',
+        message: 'Y',
+        type: 'SMS',
+      } as never);
+      expect(twilioCreate).not.toHaveBeenCalled();
+    });
+
+    it('sends an SMS to a person who has a phone', async () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+      await service.send({
+        userId: 'user-1',
+        title: 'X',
+        message: 'Buses leave at midday',
+        type: 'SMS',
+      } as never);
+      expect(twilioCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '+250788100000',
+          body: 'Buses leave at midday',
+        }),
+      );
+    });
+
+    // A school running without an SMS account should see what would have been
+    // sent, not a crash.
+    it('logs what it would have sent when SMS is not configured', async () => {
+      const log = jest.spyOn((service as any).logger, 'log');
+      await service.sendSMSToPhone('+250788100000', 'Hello');
+      expect(log.mock.calls[0][0]).toContain('Twilio not configured');
+      expect(twilioCreate).not.toHaveBeenCalled();
+    });
+
+    it('keeps going when the SMS gateway fails', async () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
+      await expect(
+        service.sendSMSToPhone('+250788100000', 'Hello'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('sends nothing to a person with no email on record', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({ email: null });
+      await service.send({
+        userId: 'user-1',
+        title: 'X',
+        message: 'Y',
+        type: 'EMAIL',
+      } as never);
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('addresses the email to the person by name', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com', SMTP_FROM_NAME: 'Markova TSS' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'c@markova.edu',
+        firstName: 'Claudine',
+      });
+      await service.send({
+        userId: 'user-1',
+        title: 'Report card published',
+        message: 'Term 3 is ready',
+        type: 'EMAIL',
+      } as never);
+      const mail = sendMail.mock.calls[0][0];
+      expect(mail.to).toBe('c@markova.edu');
+      expect(mail.subject).toBe('Report card published');
+      expect(mail.html).toContain('Dear Claudine');
+      expect(mail.from).toContain('Markova TSS');
+    });
+
+    it('addresses somebody whose name is missing without leaving a gap', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'x@markova.edu',
+        firstName: null,
+      });
+      await service.send({
+        userId: 'user-1',
+        title: 'X',
+        message: 'Y',
+        type: 'EMAIL',
+      } as never);
+      expect(sendMail.mock.calls[0][0].html).toContain('Dear User');
+    });
+
+    it('says so and sends nothing when SMTP is not configured', async () => {
+      const log = jest.spyOn((service as any).logger, 'log');
+      await service.sendEmailToAddress('a@x.rw', 'A', 'Subject', 'Body');
+      expect(log.mock.calls[0][0]).toContain('SMTP not configured');
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('keeps going when a direct email fails', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      sendMail.mockRejectedValue(new Error('bounced'));
+      await expect(
+        service.sendEmailToAddress('a@x.rw', 'A', 'S', 'B'),
+      ).resolves.toBeUndefined();
+    });
   });
 
-  it('send(EMAIL) stores the in-app row AND dispatches an email to that user', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      email: 'teacher@example.com',
-      firstName: 'Aline',
+  /**
+   * Sending to four hundred families. The in-app rows go in one write rather
+   * than four hundred, and one bad address must not stop the other 399.
+   */
+  describe('sending to many at once', () => {
+    it('writes every in-app record in one go', async () => {
+      await service.sendBulk({
+        userIds: ['u-1', 'u-2', 'u-3'],
+        title: 'X',
+        message: 'Y',
+        type: 'PUSH',
+      } as never);
+      expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
+      expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(3);
     });
 
-    await service.send({
-      userId: 'user-1',
-      title: 'Student Absence Alert',
-      message: 'Jane was marked absent',
-      type: NotificationType.EMAIL,
+    it('reports how many it addressed', async () => {
+      const result = await service.sendBulk({
+        userIds: ['u-1', 'u-2'],
+        title: 'X',
+        message: 'Y',
+        type: 'PUSH',
+      } as never);
+      expect(result).toEqual({ count: 2 });
     });
 
-    // DB row always created
-    expect(mockPrisma.notification.create).toHaveBeenCalled();
-    // Email dispatched to the resolved address
-    expect(sendMail).toHaveBeenCalledTimes(1);
-    expect(sendMail.mock.calls[0][0].to).toBe('teacher@example.com');
-    expect(sendMail.mock.calls[0][0].subject).toBe('Student Absence Alert');
+    it('reads every address in one query rather than one each', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.sendBulk({
+        userIds: ['u-1', 'u-2'],
+        title: 'X',
+        message: 'Y',
+        type: 'EMAIL',
+      } as never);
+      expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the people who have no email at all', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', email: 'a@x.rw', firstName: 'A' },
+        { id: 'u-2', email: null, firstName: 'B' },
+      ]);
+      await service.sendBulk({
+        userIds: ['u-1', 'u-2'],
+        title: 'X',
+        message: 'Y',
+        type: 'EMAIL',
+      } as never);
+      expect(sendMail).toHaveBeenCalledTimes(1);
+    });
+
+    // One bad address in four hundred must not throw the rest away.
+    it('keeps sending after one address fails', async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com' });
+      service.onModuleInit();
+      const error = jest.spyOn((service as any).logger, 'error');
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u-1', email: 'a@x.rw', firstName: 'A' },
+        { id: 'u-2', email: 'b@x.rw', firstName: 'B' },
+      ]);
+      sendMail.mockRejectedValueOnce(new Error('bounced')).mockResolvedValue({});
+
+      await expect(
+        service.sendBulk({
+          userIds: ['u-1', 'u-2'],
+          title: 'X',
+          message: 'Y',
+          type: 'EMAIL',
+        } as never),
+      ).resolves.toEqual({ count: 2 });
+      expect(error.mock.calls[0][0]).toContain('1/2');
+    });
+
+    it('keeps sending after one SMS fails', async () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({ phone: '+250788' });
+      await expect(
+        service.sendBulk({
+          userIds: ['u-1', 'u-2'],
+          title: 'X',
+          message: 'Y',
+          type: 'SMS',
+        } as never),
+      ).resolves.toEqual({ count: 2 });
+    });
   });
 
-  it('does NOT email when the target user has no email address', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      email: null,
-      firstName: 'NoEmail',
+  describe('the in-app list', () => {
+    it('reads a person’s own alerts, newest first', async () => {
+      prisma.notification.findMany.mockResolvedValue([]);
+      await service.getUserNotifications('user-1');
+      expect(prisma.notification.findMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
     });
 
-    await service.send({
-      userId: 'user-2',
-      title: 'x',
-      message: 'y',
-      type: NotificationType.EMAIL,
+    it('counts only what is unread', async () => {
+      prisma.notification.count.mockResolvedValue(4);
+      const result = await service.getUnreadCount('user-1');
+      expect(result).toEqual({ unreadCount: 4 });
+      expect(prisma.notification.count.mock.calls[0][0].where).toEqual({
+        userId: 'user-1',
+        isRead: false,
+      });
     });
 
-    expect(mockPrisma.notification.create).toHaveBeenCalled();
-    expect(sendMail).not.toHaveBeenCalled();
+    /**
+     * Marking one read is scoped to its owner. Without that, anybody holding
+     * an id could clear somebody else's alerts.
+     */
+    it('refuses to mark somebody else’s alert read', async () => {
+      prisma.notification.findFirst.mockResolvedValue(null);
+      await expect(service.markAsRead('n-9', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.notification.update).not.toHaveBeenCalled();
+    });
+
+    it('marks one of their own read', async () => {
+      prisma.notification.findFirst.mockResolvedValue({ id: 'n-1' });
+      await service.markAsRead('n-1', 'user-1');
+      expect(prisma.notification.update.mock.calls[0][0].data).toEqual({
+        isRead: true,
+      });
+    });
+
+    it('marks only their own unread ones read', async () => {
+      await service.markAllAsRead('user-1');
+      expect(prisma.notification.updateMany.mock.calls[0][0].where).toEqual({
+        userId: 'user-1',
+        isRead: false,
+      });
+    });
   });
 
-  it('swallows SMTP failures so the triggering operation never fails (Brevo down)', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      email: 'p@example.com',
-      firstName: 'P',
-    });
-    sendMail.mockRejectedValueOnce?.(new Error('ECONNREFUSED'));
-    sendMail.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-
-    // send() must resolve even though the email dispatch throws
-    await expect(
-      service.send({
-        userId: 'user-3',
-        title: 'x',
-        message: 'y',
-        type: NotificationType.EMAIL,
-      }),
-    ).resolves.toBeDefined();
-    expect(mockPrisma.notification.create).toHaveBeenCalled();
-  });
-
-  it('sendBulk(EMAIL) batches the in-app rows and emails each user with an address', async () => {
-    mockPrisma.user.findMany.mockResolvedValue([
-      { id: 'u1', email: 'a@example.com', firstName: 'A' },
-      { id: 'u2', email: 'b@example.com', firstName: 'B' },
-      { id: 'u3', email: null, firstName: 'C' }, // skipped — no email
-    ]);
-
-    const result = await service.sendBulk({
-      userIds: ['u1', 'u2', 'u3'],
-      title: 'Term reports published',
-      message: 'Your report card is ready',
-      type: NotificationType.EMAIL,
+  /**
+   * Push tokens. A phone re-registers on every app start, and an uninstalled
+   * app leaves a token that would otherwise be retried for ever.
+   */
+  describe('push', () => {
+    it('re-registers the same token without failing', async () => {
+      await service.registerPushToken('user-1', 'ExpoToken[abc]', 'ios');
+      const call = prisma.pushToken.upsert.mock.calls[0][0];
+      expect(call.where).toEqual({ token: 'ExpoToken[abc]' });
+      expect(call.update.userId).toBe('user-1');
     });
 
-    expect(mockPrisma.notification.createMany).toHaveBeenCalled();
-    expect(sendMail).toHaveBeenCalledTimes(2); // only u1 + u2
-    expect(result).toEqual({ count: 3 });
+    it('sends nothing to a person with no device registered', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch' as never);
+      await service.sendPushNotification('user-1', 'X', 'Y');
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
+    it('sends to every device a person has', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: 'ExpoToken[a]' },
+        { token: 'ExpoToken[b]' },
+      ]);
+      const fetchSpy = jest
+        .spyOn(global, 'fetch' as never)
+        .mockResolvedValue({ json: async () => ({ data: [] }) } as never);
+
+      await service.sendPushNotification('user-1', 'Title', 'Body');
+      const body = JSON.parse((fetchSpy.mock.calls[0][1] as any).body);
+      expect(body).toHaveLength(2);
+      expect(body[0]).toMatchObject({ to: 'ExpoToken[a]', title: 'Title' });
+      fetchSpy.mockRestore();
+    });
+
+    /**
+     * An uninstalled app answers DeviceNotRegistered for ever. Dropping the
+     * token is what stops the school paying to push into nothing.
+     */
+    it('drops a token whose app was uninstalled', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([
+        { token: 'ExpoToken[gone]' },
+        { token: 'ExpoToken[live]' },
+      ]);
+      const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+        json: async () => ({
+          data: [
+            { details: { error: 'DeviceNotRegistered' } },
+            { status: 'ok' },
+          ],
+        }),
+      } as never);
+
+      await service.sendPushNotification('user-1', 'X', 'Y');
+      expect(prisma.pushToken.deleteMany).toHaveBeenCalledWith({
+        where: { token: { in: ['ExpoToken[gone]'] } },
+      });
+      fetchSpy.mockRestore();
+    });
+
+    it('drops nothing when every device answered', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+      const fetchSpy = jest
+        .spyOn(global, 'fetch' as never)
+        .mockResolvedValue({ json: async () => ({ data: [{ status: 'ok' }] }) } as never);
+
+      await service.sendPushNotification('user-1', 'X', 'Y');
+      expect(prisma.pushToken.deleteMany).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
+    it('keeps going when the push service cannot be reached', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+      const fetchSpy = jest
+        .spyOn(global, 'fetch' as never)
+        .mockRejectedValue(new Error('network down') as never);
+
+      await expect(
+        service.sendPushNotification('user-1', 'X', 'Y'),
+      ).resolves.toBeUndefined();
+      fetchSpy.mockRestore();
+    });
+
+    it('copes with a reply that is not the shape it expected', async () => {
+      prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+      const fetchSpy = jest
+        .spyOn(global, 'fetch' as never)
+        .mockResolvedValue({ json: async () => ({ errors: ['bad request'] }) } as never);
+
+      await expect(
+        service.sendPushNotification('user-1', 'X', 'Y'),
+      ).resolves.toBeDefined();
+      expect(prisma.pushToken.deleteMany).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
   });
 });
