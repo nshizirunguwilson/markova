@@ -1,5 +1,6 @@
 import {
   PrismaClient,
+  AssessmentKind,
   Role,
   SpecialRole,
   EmploymentStatus,
@@ -2672,28 +2673,34 @@ async function main() {
     {
       t: (s: any) => `${s.name}: past paper practice`,
       d: 'Attempt the paper under exam conditions; we mark together on the due day.',
+      k: AssessmentKind.TEST,
     },
     {
       t: (s: any) => `${s.name} research assignment`,
       d: 'One page, handwritten. Cite at least two sources from the library.',
+      k: AssessmentKind.ASSIGNMENT,
     },
     {
       t: (s: any) => `${s.name}: revision worksheet`,
       d: 'Complete the worksheet and bring questions on the hard items.',
+      k: AssessmentKind.HOMEWORK,
     },
   ];
   const HW_TRADE = [
     {
       t: (s: any) => `${s.name}: practical report`,
       d: 'Write up the last lab session: objective, steps, result, what went wrong.',
+      k: AssessmentKind.PRACTICAL,
     },
     {
       t: (s: any) => `${s.name}: project milestone`,
       d: 'Bring your project to the next checkpoint and be ready to demo it.',
+      k: AssessmentKind.PROJECT,
     },
     {
       t: (s: any) => `${s.name}: task write-up`,
       d: 'Document the assigned task following the workshop template.',
+      k: AssessmentKind.ASSIGNMENT,
     },
   ];
   const studentsBySection = new Map<string, any[]>();
@@ -2741,6 +2748,7 @@ async function main() {
             subjectId: subject.id,
             classSectionId: meta.section.id,
             termId: term.id,
+            kind: (tpl as any).k ?? AssessmentKind.HOMEWORK,
             title: tpl.t(subject),
             description: tpl.d,
             dueDate: dueAt,

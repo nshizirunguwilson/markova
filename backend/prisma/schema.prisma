@@ -709,12 +709,26 @@ model BookLoan {
 
 // ─── HOMEWORK ───────────────────────────────────────────────────────────────────
 
+/// What a teacher sets for a class: homework, an assignment, a quiz, a test or
+/// a project. One model, because they differ only in what they are called and
+/// how much they are worth, and a school that keeps them apart ends up unable
+/// to answer "how much work has Senior 1 been set this week".
+enum AssessmentKind {
+  HOMEWORK
+  ASSIGNMENT
+  QUIZ
+  TEST
+  PROJECT
+  PRACTICAL
+}
+
 model Homework {
   id                  String   @id @default(uuid())
   teacherId           String   @map("teacher_id")
   subjectId           String   @map("subject_id")
   classSectionId      String   @map("class_section_id")
   termId              String   @map("term_id")
+  kind                AssessmentKind @default(HOMEWORK)
   title               String
   description         String?
   dueDate             DateTime @map("due_date")
