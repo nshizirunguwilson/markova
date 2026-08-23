@@ -11,6 +11,9 @@ const modelMethods = [
   'count',
   'createMany',
   'updateMany',
+  'deleteMany',
+  'groupBy',
+  'aggregate',
 ] as const;
 
 // All Prisma model names (camelCase) derived from schema.prisma
@@ -49,6 +52,19 @@ const modelNames = [
   'notification',
   'supportTicket',
   'faqArticle',
+  'trade',
+  'examSchedule',
+  'pushToken',
+  'pocketMoneyAccount',
+  'pocketMoneyTransaction',
+  'activity',
+  'activityClassLevel',
+  'activitySection',
+  'activityParticipant',
+  'clinicVisit',
+  'medicationAdministration',
+  'studentHealthRecord',
+  'meritAward',
 ] as const;
 
 type MockPrisma = {
@@ -57,6 +73,9 @@ type MockPrisma = {
   };
 } & {
   $transaction: jest.Mock;
+  $queryRaw: jest.Mock;
+  $queryRawUnsafe: jest.Mock;
+  $executeRaw: jest.Mock;
 };
 
 export function createMockPrisma(): MockPrisma & PrismaService {
@@ -78,6 +97,11 @@ export function createMockPrisma(): MockPrisma & PrismaService {
     // Support array-of-promises style
     return Promise.all(cb as Promise<unknown>[]);
   });
+
+  // Raw SQL, for the handful of aggregate reads that drop to it.
+  mock.$queryRaw = jest.fn();
+  mock.$queryRawUnsafe = jest.fn();
+  mock.$executeRaw = jest.fn();
 
   return mock as unknown as MockPrisma & PrismaService;
 }
