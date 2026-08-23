@@ -1,209 +1,508 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LibraryService } from './library.service';
-import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { createMockPrisma } from '../../__test__/prisma-mock';
 
+/**
+ * The library desk.
+ *
+ * The available count is the number a librarian trusts when a student asks
+ * whether a book is in. It is derived from nothing: it is stored, and it moves
+ * only alongside the loan that moved it. Every test here is about it staying
+ * true.
+ */
 describe('LibraryService', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let notifications: { send: jest.Mock };
   let service: LibraryService;
 
-  const mockPrisma: any = {
-    book: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    bookLoan: {
-      create: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      count: jest.fn(),
-      findMany: jest.fn(),
-    },
-    schoolConfig: { findUnique: jest.fn() },
-    student: { findFirst: jest.fn() },
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    notifications = { send: jest.fn().mockResolvedValue({}) };
+    service = new LibraryService(
+      prisma,
+      notifications as unknown as NotificationsService,
+    );
+    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.bookLoan.create.mockResolvedValue({ id: 'loan-1' });
+    prisma.book.update.mockResolvedValue({});
+  });
+
+  const book = (over: Record<string, unknown> = {}) => ({
+    id: 'book-1',
+    title: 'Things Fall Apart',
+    barcode: 'BK-001',
+    quantity: 5,
+    availableCount: 3,
+    replacementCost: 8000,
+    ...over,
+  });
+
+  const student = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-001',
+    user: { id: 'user-1', firstName: 'Divine', lastName: 'Niyonkuru' },
   };
-  mockPrisma.$transaction = jest.fn((ops: any) =>
-    Array.isArray(ops) ? Promise.all(ops) : ops(mockPrisma),
-  );
 
-  const mockNotifications = { send: jest.fn() };
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        LibraryService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: NotificationsService, useValue: mockNotifications },
-      ],
-    }).compile();
-    service = module.get<LibraryService>(LibraryService);
-  });
-
-  describe('createBook()', () => {
-    it('sets availableCount equal to quantity on creation', async () => {
-      mockPrisma.book.create.mockResolvedValue({ id: 'b1' });
-      await service.createBook({
-        title: 'Algebra',
-        author: 'X',
+  describe('the catalogue', () => {
+    it('sets a new title fully available', async () => {
+      prisma.book.create.mockResolvedValue({});
+      await service.createBook({ title: 'X', quantity: 5 } as never);
+      expect(prisma.book.create.mock.calls[0][0].data).toMatchObject({
         quantity: 5,
+        availableCount: 5,
       });
-      expect(mockPrisma.book.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ quantity: 5, availableCount: 5 }),
-        }),
-      );
-    });
-  });
-
-  describe('deleteBook()', () => {
-    it('refuses to delete a book with active loans', async () => {
-      mockPrisma.book.findUnique.mockResolvedValue({
-        id: 'b1',
-        loans: [{ id: 'loan-1' }],
-      });
-      await expect(service.deleteBook('b1')).rejects.toThrow(
-        BadRequestException,
-      );
     });
 
-    it('throws NotFoundException for a missing book', async () => {
-      mockPrisma.book.findUnique.mockResolvedValue(null);
-      await expect(service.deleteBook('missing')).rejects.toThrow(
+    /**
+     * Copies on loan are already out of the building. Changing the total has
+     * to keep them counted, or the shelf number goes wrong the moment
+     * somebody buys a replacement copy.
+     */
+    it('keeps the copies that are out when the total changes', async () => {
+      prisma.book.findUnique.mockResolvedValue(
+        book({ quantity: 5, availableCount: 3 }),
+      );
+      await service.updateBook('book-1', { quantity: 8 } as never);
+      // Two are out, so eight in stock means six on the shelf.
+      expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(6);
+    });
+
+    it('never lets the shelf count go negative', async () => {
+      prisma.book.findUnique.mockResolvedValue(
+        book({ quantity: 5, availableCount: 0 }),
+      );
+      await service.updateBook('book-1', { quantity: 2 } as never);
+      expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(0);
+    });
+
+    it('leaves the shelf count alone when only the title changed', async () => {
+      prisma.book.findUnique.mockResolvedValue(book());
+      await service.updateBook('book-1', { title: 'Corrected' } as never);
+      expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(3);
+    });
+
+    it('refuses to change a title that does not exist', async () => {
+      prisma.book.findUnique.mockResolvedValue(null);
+      await expect(service.updateBook('nope', {})).rejects.toThrow(
         NotFoundException,
       );
     });
-  });
 
-  describe('checkout()', () => {
-    const dto = { bookIdentifier: 'BC-1', studentIdentifier: 'STU001' };
-
-    const arrange = (over: Record<string, any> = {}) => {
-      mockPrisma.book.findFirst.mockResolvedValue({
-        id: 'b1',
-        availableCount: over.available ?? 3,
-        replacementCost: 10,
-      });
-      mockPrisma.student.findFirst.mockResolvedValue({
-        id: 's1',
-        user: { id: 'u1', firstName: 'Jane', lastName: 'Doe' },
-      });
-      mockPrisma.schoolConfig.findUnique.mockImplementation(({ where }: any) =>
-        Promise.resolve(
-          where.key === 'borrowing_limit' ? { value: '3' } : { value: '14' },
-        ),
-      );
-      mockPrisma.bookLoan.create.mockResolvedValue({ id: 'loan-1' });
-      mockPrisma.book.update.mockResolvedValue({});
-      // Deterministic regardless of call order: the overdue check is the only
-      // count() whose where-clause carries a dueDate filter.
-      mockPrisma.bookLoan.count.mockImplementation(({ where }: any) =>
-        Promise.resolve(
-          where?.dueDate ? (over.overdue ?? 0) : (over.activeLoans ?? 0),
-        ),
-      );
-    };
-
-    it('creates a loan and decrements availability (happy path)', async () => {
-      arrange();
-
-      const result = await service.checkout(dto);
-
-      expect(result).toMatchObject({ id: 'loan-1' });
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-    });
-
-    it('rejects checkout when no copies are available', async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({
-        id: 'b1',
-        availableCount: 0,
-      });
-      await expect(service.checkout(dto as any)).rejects.toThrow(
+    // A book somebody is holding cannot be struck off the catalogue, or the
+    // loan points at nothing when they bring it back.
+    it('refuses to remove a title that is out on loan', async () => {
+      prisma.book.findUnique.mockResolvedValue({ ...book(), loans: [{ id: 'l-1' }] });
+      await expect(service.deleteBook('book-1')).rejects.toThrow(
         BadRequestException,
       );
+      expect(prisma.book.delete).not.toHaveBeenCalled();
     });
 
-    it('enforces the borrowing limit', async () => {
-      arrange({ activeLoans: 3 });
-      await expect(service.checkout(dto as any)).rejects.toThrow(
-        /Borrowing limit/,
+    it('removes one that is all on the shelf', async () => {
+      prisma.book.findUnique.mockResolvedValue({ ...book(), loans: [] });
+      prisma.book.delete.mockResolvedValue({});
+      await expect(service.deleteBook('book-1')).resolves.toBeDefined();
+    });
+
+    it('imports a shelf at a time', async () => {
+      prisma.book.create.mockResolvedValue({});
+      const result = await service.bulkImport({
+        books: [{ title: 'A', quantity: 2 }, { title: 'B', quantity: 1 }],
+      } as never);
+      expect(result.count).toBe(2);
+    });
+
+    it('searches the title, the author and the ISBN', async () => {
+      prisma.book.findMany.mockResolvedValue([]);
+      prisma.book.count.mockResolvedValue(0);
+      await service.findAll({ search: 'Achebe' } as never);
+      const or = JSON.stringify(prisma.book.findMany.mock.calls[0][0].where.OR);
+      expect(or).toContain('title');
+      expect(or).toContain('author');
+      expect(or).toContain('isbn');
+    });
+
+    it('shows only what is on the shelf when asked', async () => {
+      prisma.book.findMany.mockResolvedValue([]);
+      prisma.book.count.mockResolvedValue(0);
+      await service.findAll({ available: true } as never);
+      expect(prisma.book.findMany.mock.calls[0][0].where.availableCount).toEqual(
+        { gt: 0 },
       );
     });
 
-    it('blocks checkout when the borrower has overdue books', async () => {
-      arrange({ overdue: 1 });
-      await expect(service.checkout(dto as any)).rejects.toThrow(/overdue/);
-    });
-
-    it('throws NotFoundException when the student is unknown', async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({
-        id: 'b1',
-        availableCount: 2,
-      });
-      mockPrisma.student.findFirst.mockResolvedValue(null);
-      await expect(service.checkout(dto as any)).rejects.toThrow(
-        NotFoundException,
-      );
+    it('refuses one title that does not exist', async () => {
+      prisma.book.findUnique.mockResolvedValue(null);
+      prisma.book.findFirst.mockResolvedValue(null);
+      await expect(service.findById('nope')).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('returnBook()', () => {
-    it('marks the loan RETURNED and increments availability', async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({ id: 'b1' });
-      mockPrisma.bookLoan.findFirst.mockResolvedValue({
-        id: 'loan-1',
-        bookId: 'b1',
-      });
-      mockPrisma.bookLoan.update.mockResolvedValue({ id: 'loan-1' });
-      mockPrisma.book.update.mockResolvedValue({});
-
-      const result = await service.returnBook({
-        bookIdentifier: 'BC-1',
-      });
-
-      expect(result).toMatchObject({ id: 'loan-1' });
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+  /**
+   * Lending. The count and the loan move together or the shelf number lies.
+   */
+  describe('lending a book out', () => {
+    beforeEach(() => {
+      prisma.book.findFirst.mockResolvedValue(book());
+      prisma.student.findFirst.mockResolvedValue(student);
     });
 
-    it('throws when there is no active loan for the book', async () => {
-      mockPrisma.book.findFirst.mockResolvedValue({ id: 'b1' });
-      mockPrisma.bookLoan.findFirst.mockResolvedValue(null);
+    it('refuses a book nobody has', async () => {
+      prisma.book.findFirst.mockResolvedValue(null);
+      prisma.book.findUnique.mockResolvedValue(null);
       await expect(
-        service.returnBook({ bookIdentifier: 'BC-1' } as any),
+        service.checkout({
+          bookIdentifier: 'nope',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('refuses a book with nothing on the shelf', async () => {
+      prisma.book.findFirst.mockResolvedValue(book({ availableCount: 0 }));
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
+      ).rejects.toThrow(/no copies available/i);
+    });
+
+    it('refuses a student nobody has', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'nope',
+        } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('takes one off the shelf as the loan is written', async () => {
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+      } as never);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.book.update.mock.calls[0][0].data).toEqual({
+        availableCount: { decrement: 1 },
+      });
+    });
+
+    it('refuses a student already at their limit', async () => {
+      prisma.bookLoan.count.mockResolvedValue(3);
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
+      ).rejects.toThrow(/borrowing limit reached \(3 books\)/i);
+    });
+
+    it('uses the limit the school set', async () => {
+      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '5' });
+      prisma.bookLoan.count.mockResolvedValue(5);
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
+      ).rejects.toThrow(/\(5 books\)/);
+    });
+
+    // Lending to somebody already holding an overdue book is how a library
+    // loses its stock one student at a time.
+    it('refuses a student holding something overdue', async () => {
+      prisma.bookLoan.count
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(1);
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
+      ).rejects.toThrow(/has overdue books/i);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('sets a due date the school’s number of days out', async () => {
+      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '7' });
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+      } as never);
+      const due: Date = prisma.bookLoan.create.mock.calls[0][0].data.dueDate;
+      const days = Math.round((due.getTime() - Date.now()) / 86400000);
+      expect(days).toBe(7);
+    });
+
+    it('records what the copy is worth, in case it never comes back', async () => {
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+      } as never);
+      expect(
+        prisma.bookLoan.create.mock.calls[0][0].data.replacementCost,
+      ).toBe(8000);
+    });
+
+    // A barcode is what a scanner sends. An id is what the web sends.
+    it('finds a book by its barcode', async () => {
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+      } as never);
+      expect(prisma.book.findFirst.mock.calls[0][0].where.barcode).toBe('BK-001');
+    });
+
+    it('falls back to the id when no barcode matched', async () => {
+      prisma.book.findFirst.mockResolvedValue(null);
+      prisma.book.findUnique.mockResolvedValue(book());
+      await service.checkout({
+        bookIdentifier: 'book-1',
+        studentIdentifier: 'STD-2026-001',
+      } as never);
+      expect(prisma.book.findUnique).toHaveBeenCalled();
+    });
+
+    // A scanner can send anything. A malformed id must be "not found", not a
+    // 500 at the desk with a queue behind it.
+    it('says not found rather than failing on a nonsense identifier', async () => {
+      prisma.book.findFirst.mockResolvedValue(null);
+      prisma.book.findUnique.mockRejectedValue(new Error('Invalid UUID'));
+      await expect(
+        service.checkout({
+          bookIdentifier: '!!!',
+          studentIdentifier: 'STD-2026-001',
+        } as never),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('sendDueReminders()', () => {
-    it('emails each borrower whose book is due soon', async () => {
-      mockPrisma.bookLoan.findMany.mockResolvedValue([
+  describe('taking a book back', () => {
+    beforeEach(() => {
+      prisma.book.findFirst.mockResolvedValue(book());
+      prisma.bookLoan.update.mockResolvedValue({ id: 'loan-1' });
+    });
+
+    it('refuses a book nobody has', async () => {
+      prisma.book.findFirst.mockResolvedValue(null);
+      prisma.book.findUnique.mockResolvedValue(null);
+      await expect(
+        service.returnBook({ bookIdentifier: 'nope' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('refuses a book that is not out', async () => {
+      prisma.bookLoan.findFirst.mockResolvedValue(null);
+      await expect(
+        service.returnBook({ bookIdentifier: 'BK-001' } as never),
+      ).rejects.toThrow(/no active loan/i);
+    });
+
+    it('puts one back on the shelf as the loan is closed', async () => {
+      prisma.bookLoan.findFirst.mockResolvedValue({ id: 'loan-1' });
+      await service.returnBook({ bookIdentifier: 'BK-001' } as never);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.book.update.mock.calls[0][0].data).toEqual({
+        availableCount: { increment: 1 },
+      });
+      expect(prisma.bookLoan.update.mock.calls[0][0].data).toMatchObject({
+        status: 'RETURNED',
+      });
+    });
+
+    /**
+     * Several copies of one title can be out at once. Closing the oldest loan
+     * first is what keeps the overdue list honest.
+     */
+    it('closes the oldest loan of that title first', async () => {
+      prisma.bookLoan.findFirst.mockResolvedValue({ id: 'loan-1' });
+      await service.returnBook({ bookIdentifier: 'BK-001' } as never);
+      expect(prisma.bookLoan.findFirst.mock.calls[0][0].orderBy).toEqual({
+        checkedOutAt: 'asc',
+      });
+    });
+  });
+
+  describe('a book reported lost', () => {
+    it('refuses a loan nobody has', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue(null);
+      await expect(service.reportLost('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses a loan that was already closed', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue({
+        id: 'loan-1',
+        status: 'RETURNED',
+        book: book(),
+      });
+      await expect(service.reportLost('loan-1')).rejects.toThrow(
+        /not active/i,
+      );
+    });
+
+    /**
+     * A lost copy does not go back on the shelf. Incrementing the count would
+     * mean lending a book that is gone.
+     */
+    it('does not put the copy back on the shelf', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue({
+        id: 'loan-1',
+        status: 'ACTIVE',
+        book: book(),
+      });
+      prisma.bookLoan.update.mockResolvedValue({});
+      await service.reportLost('loan-1');
+      expect(prisma.book.update).not.toHaveBeenCalled();
+      expect(prisma.bookLoan.update.mock.calls[0][0].data.status).toBe('LOST');
+    });
+
+    it('records what the school is owed for it', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue({
+        id: 'loan-1',
+        status: 'ACTIVE',
+        book: book({ replacementCost: 12000 }),
+      });
+      prisma.bookLoan.update.mockResolvedValue({});
+      await service.reportLost('loan-1');
+      expect(
+        prisma.bookLoan.update.mock.calls[0][0].data.replacementCost,
+      ).toBe(12000);
+    });
+  });
+
+  /**
+   * There is no OVERDUE status. A loan stays ACTIVE past its due date, so
+   * overdue is a date comparison and never a status check.
+   */
+  describe('what is out and what is late', () => {
+    beforeEach(() => prisma.bookLoan.findMany.mockResolvedValue([]));
+
+    it('reads overdue as still out and past its date', async () => {
+      await service.getOverdueLoans();
+      const where = prisma.bookLoan.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe('ACTIVE');
+      expect(where.dueDate.lt).toBeInstanceOf(Date);
+    });
+
+    it('reads the soonest due first', async () => {
+      await service.getActiveLoans();
+      expect(prisma.bookLoan.findMany.mock.calls[0][0].orderBy).toEqual({
+        dueDate: 'asc',
+      });
+    });
+
+    it('reads one person’s loans newest first', async () => {
+      await service.getUserLoans('user-1');
+      expect(prisma.bookLoan.findMany.mock.calls[0][0].orderBy).toEqual({
+        checkedOutAt: 'desc',
+      });
+    });
+
+    // A reminder about a book already overdue is not a reminder. The window
+    // is from now to two days out.
+    it('reminds about books due within two days, not ones already late', async () => {
+      await service.getDueReminders();
+      const due = prisma.bookLoan.findMany.mock.calls[0][0].where.dueDate;
+      const days = Math.round((due.lte.getTime() - due.gte.getTime()) / 86400000);
+      expect(days).toBe(2);
+    });
+
+    it('writes to every borrower with something due', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
         {
           id: 'loan-1',
-          borrowerUserId: 'u1',
-          dueDate: new Date(),
-          book: { title: 'Algebra' },
-          borrower: { firstName: 'Jane', lastName: 'Doe', email: 'j@x.com' },
-        },
-        {
-          id: 'loan-2',
-          borrowerUserId: 'u2',
-          dueDate: new Date(),
-          book: { title: 'Biology' },
-          borrower: { firstName: 'John', lastName: 'Roe', email: 'jr@x.com' },
+          borrowerUserId: 'user-1',
+          dueDate: new Date('2026-08-25'),
+          book: { title: 'Things Fall Apart' },
         },
       ]);
-
       const result = await service.sendDueReminders();
+      expect(result.sent).toBe(1);
+      expect(notifications.send.mock.calls[0][0].message).toContain(
+        'Things Fall Apart',
+      );
+    });
 
-      expect(result.sent).toBe(2);
-      expect(mockNotifications.send).toHaveBeenCalledTimes(2);
-      expect(mockNotifications.send.mock.calls[0][0]).toMatchObject({
-        userId: 'u1',
-        type: 'EMAIL',
+    it('sends nothing when nothing is due', async () => {
+      const result = await service.sendDueReminders();
+      expect(result.sent).toBe(0);
+      expect(notifications.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('how the library is used', () => {
+    beforeEach(() => {
+      prisma.book.count.mockResolvedValue(56);
+      prisma.book.aggregate.mockResolvedValue({
+        _sum: { quantity: 200, availableCount: 170 },
       });
+      prisma.bookLoan.count.mockResolvedValue(0);
+      prisma.bookLoan.groupBy.mockResolvedValue([]);
+      prisma.book.groupBy.mockResolvedValue([]);
+    });
+
+    it('reports the overdue share of what is out', async () => {
+      prisma.bookLoan.count
+        .mockResolvedValueOnce(24)
+        .mockResolvedValueOnce(6)
+        .mockResolvedValueOnce(2);
+      const stats = await service.getAnalytics();
+      expect(stats).toMatchObject({
+        activeLoans: 24,
+        overdueLoans: 6,
+        lostBooks: 2,
+        overdueRate: 25,
+      });
+    });
+
+    it('reports zero rather than dividing by nothing on loan', async () => {
+      const stats = await service.getAnalytics();
+      expect(stats.overdueRate).toBe(0);
+    });
+
+    it('names the most borrowed titles', async () => {
+      prisma.bookLoan.groupBy.mockResolvedValue([
+        { bookId: 'book-1', _count: 9 },
+      ]);
+      prisma.book.findUnique.mockResolvedValue({
+        title: 'Things Fall Apart',
+        author: 'Achebe',
+      });
+      const stats = await service.getAnalytics();
+      expect(stats.popularBooks[0]).toEqual({
+        title: 'Things Fall Apart',
+        author: 'Achebe',
+        loanCount: 9,
+      });
+    });
+
+    // A shelf with no category set is still a shelf, and dropping it would
+    // make the totals disagree with the catalogue.
+    it('calls an unset category "Uncategorized" rather than hiding it', async () => {
+      prisma.book.groupBy.mockResolvedValue([
+        { category: null, _count: 4, _sum: { quantity: 12 } },
+      ]);
+      const stats = await service.getAnalytics();
+      expect(stats.categories[0]).toEqual({
+        category: 'Uncategorized',
+        count: 4,
+        totalCopies: 12,
+      });
+    });
+
+    it('reports zero copies rather than nothing when a sum is empty', async () => {
+      prisma.book.aggregate.mockResolvedValue({
+        _sum: { quantity: null, availableCount: null },
+      });
+      const stats = await service.getAnalytics();
+      expect(stats.totalCopies).toBe(0);
+      expect(stats.availableCopies).toBe(0);
     });
   });
 });
