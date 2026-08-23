@@ -3,6 +3,7 @@ import { AttendanceController } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -40,6 +41,7 @@ describe('AttendanceController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service, ownership);
     run = await controllerHarness(AttendanceController, [
       { token: AttendanceService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },

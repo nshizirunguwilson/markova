@@ -1,6 +1,7 @@
 import { HelpController } from './help.controller';
 import { HelpService } from './help.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -31,6 +32,7 @@ describe('HelpController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service);
     run = await controllerHarness(HelpController, [
       { token: HelpService, name: 'service', mock: service },
     ]);

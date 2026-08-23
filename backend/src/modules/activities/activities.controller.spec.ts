@@ -1,6 +1,7 @@
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -38,6 +39,7 @@ describe('ActivitiesController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service);
     run = await controllerHarness(ActivitiesController, [
       { token: ActivitiesService, name: 'service', mock: service },
     ]);

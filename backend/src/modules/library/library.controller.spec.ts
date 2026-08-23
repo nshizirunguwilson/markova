@@ -1,6 +1,7 @@
 import { LibraryController } from './library.controller';
 import { LibraryService } from './library.service';
 import {
+  clearMocks,
   controllerHarness,
   mockService,
   student,
@@ -35,6 +36,7 @@ describe('LibraryController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service);
     run = await controllerHarness(LibraryController, [
       { token: LibraryService, name: 'service', mock: service },
     ]);

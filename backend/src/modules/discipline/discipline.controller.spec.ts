@@ -3,6 +3,7 @@ import { DisciplineService } from './discipline.service';
 import { MeritsService } from './merits.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -39,6 +40,7 @@ describe('DisciplineController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service, merits, ownership);
     service.getIncidentById.mockResolvedValue({
       id: 'inc-1',
       studentId: 'student-1',

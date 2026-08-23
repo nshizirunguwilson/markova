@@ -19,6 +19,19 @@ import type { Type } from '@nestjs/common';
 
 export type ServiceMocks = Record<string, Record<string, jest.Mock>>;
 
+/**
+ * Clears the call record on every double built by `mockService`.
+ *
+ * The doubles are made once per spec file and shared, so a test that builds
+ * the controller directly rather than going through the runner would
+ * otherwise see the previous test's calls.
+ */
+export function clearMocks(...mocks: Record<string, jest.Mock>[]) {
+  for (const mock of mocks) {
+    for (const fn of Object.values(mock)) fn.mockClear();
+  }
+}
+
 /** A service double whose every method is a spy resolving to `result`. */
 export function mockService(
   methods: string[],
@@ -42,13 +55,39 @@ export interface RouteCase {
   withArgs?: unknown[];
 }
 
+export interface Provided {
+  token: any;
+  name: string;
+  mock: Record<string, jest.Mock>;
+}
+
+/**
+ * The controller itself, wired to the doubles given.
+ *
+ * For the handful of routes that compute a reply rather than delegating, and
+ * so have no service call to assert.
+ */
+export async function buildController<T>(
+  Controller: Type<T>,
+  providers: Provided[],
+): Promise<T> {
+  const module = await Test.createTestingModule({
+    controllers: [Controller],
+    providers: providers.map((p) => ({ provide: p.token, useValue: p.mock })),
+  })
+    .overrideGuard(require('@nestjs/passport').AuthGuard('jwt'))
+    .useValue({ canActivate: () => true })
+    .compile();
+  return module.get(Controller);
+}
+
 /**
  * Builds the controller with the doubles given, and returns a runner that
  * checks one route at a time.
  */
 export async function controllerHarness<T>(
   Controller: Type<T>,
-  providers: { token: any; name: string; mock: Record<string, jest.Mock> }[],
+  providers: Provided[],
 ) {
   const module = await Test.createTestingModule({
     controllers: [Controller],

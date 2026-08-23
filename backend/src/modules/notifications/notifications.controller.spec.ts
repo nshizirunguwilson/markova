@@ -1,6 +1,7 @@
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -29,6 +30,7 @@ describe('NotificationsController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service);
     run = await controllerHarness(NotificationsController, [
       { token: NotificationsService, name: 'service', mock: service },
     ]);

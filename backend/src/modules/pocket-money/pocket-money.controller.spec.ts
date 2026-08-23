@@ -1,6 +1,7 @@
 import { PocketMoneyController } from './pocket-money.controller';
 import { PocketMoneyService } from './pocket-money.service';
 import {
+  clearMocks,
   admin,
   controllerHarness,
   mockService,
@@ -32,6 +33,7 @@ describe('PocketMoneyController', () => {
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
+    clearMocks(service);
     run = await controllerHarness(PocketMoneyController, [
       { token: PocketMoneyService, name: 'service', mock: service },
     ]);
