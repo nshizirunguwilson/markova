@@ -3338,6 +3338,31 @@ async function main() {
     }
   }
 
+  // Three students lying in the sick bay right now. Without these the demo's
+  // first screen is always empty, and a nurse looking at it would reasonably
+  // conclude the feature does not work.
+  for (const st of clinicPool.slice(4, 7)) {
+    const c = COMPLAINTS.find((x) => x.severity === ClinicSeverity.MODERATE)!;
+    visitRows.push({
+      studentId: st.id,
+      complaint: c.complaint,
+      findings: c.findings,
+      treatment: c.treatment,
+      severity: c.severity,
+      outcome: ClinicVisitOutcome.RESTING_IN_SICK_BAY,
+      temperature: Number((37.8 + Math.random()).toFixed(1)),
+      referredTo: null,
+      seenByUserId: sample(clinicalStaff),
+      visitedAt: addDays(today, 0),
+      // Still in there, so not discharged.
+      dischargedAt: null,
+      parentNotifiedAt: null,
+      updatedAt: today,
+      medicine: c.medicine,
+      dose: c.dose,
+    });
+  }
+
   for (const row of visitRows) {
     const { medicine, dose, ...visitData } = row;
     const visit = await prisma.clinicVisit.create({ data: visitData });
@@ -3430,21 +3455,30 @@ async function main() {
     { category: MeritCategory.IMPROVEMENT, description: 'Went from constant lateness to first in the classroom every day', points: 12 },
   ];
 
+  // Dated across the same school days the incidents use, and deliberately
+  // fewer than them. Both matter: comparing a term of praise against a month
+  // of trouble would make the ratio meaningless, and a seed showing more
+  // praise than trouble would hide the very thing the ratio exists to show.
+  const meritDays = schoolDaysByTerm.get(currentTerm.id) ?? [];
   const meritRows: any[] = [];
-  const merited = shuffled(students).slice(0, 90);
-  for (const st of merited) {
-    for (let m = 0; m < 1 + rand(3); m++) {
-      const merit = sample(MERITS);
-      meritRows.push({
-        studentId: st.id,
-        termId: currentTerm.id,
-        awardedByUserId: sample(activityStaff),
-        category: merit.category,
-        description: merit.description,
-        points: merit.points,
-        date: addDays(today, -rand(60)),
-      });
-    }
+  const merited = shuffled(students).slice(0, 25);
+  const award = (st: any) => {
+    const merit = sample(MERITS);
+    meritRows.push({
+      studentId: st.id,
+      termId: currentTerm.id,
+      awardedByUserId: sample(activityStaff),
+      category: merit.category,
+      description: merit.description,
+      points: merit.points,
+      date: meritDays.length ? sample(meritDays) : addDays(today, -rand(30)),
+    });
+  };
+  for (const st of merited) award(st);
+  // A few students turn up again and again, so "most recognised" is a real
+  // list rather than six names that each happen to have one.
+  for (const st of merited.slice(0, 6)) {
+    for (let m = 0; m < 1 + rand(2); m++) award(st);
   }
   await prisma.meritAward.createMany({ data: meritRows });
 
