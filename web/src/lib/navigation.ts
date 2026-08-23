@@ -109,6 +109,7 @@ const teacherNav: NavSection[] = [
     items: [
       { label: "Attendance", href: "/teacher/attendance", icon: Calendar },
       { label: "Discipline", href: "/teacher/discipline", icon: AlertTriangle },
+      { label: "Activities", href: "/teacher/activities", icon: CalendarDays },
     ],
   },
   {
