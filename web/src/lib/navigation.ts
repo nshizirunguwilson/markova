@@ -21,6 +21,7 @@ import {
   Wallet,
   HeartPulse,
   CalendarDays,
+  Megaphone,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -77,6 +78,7 @@ const adminNav: NavSection[] = [
     title: "Communication",
     items: [
       { label: "Messages", href: "/admin/messages", icon: MessageSquare },
+      { label: "Announcements", href: "/admin/announcements", icon: Megaphone },
     ],
   },
   {
@@ -113,6 +115,7 @@ const teacherNav: NavSection[] = [
     title: "Communication",
     items: [
       { label: "Messages", href: "/teacher/messages", icon: MessageSquare },
+      { label: "Announcements", href: "/teacher/announcements", icon: Megaphone },
     ],
   },
   {

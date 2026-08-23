@@ -835,6 +835,9 @@ model Message {
   contentType    MessageContentType @default(TEXT) @map("content_type")
   status         MessageStatus      @default(SENT)
   fileUrl        String?            @map("file_url")
+  /// The name the sender's file had, kept apart from the uuid it is stored
+  /// under. A recipient offered "a1b2c3.pdf" does not know what it is.
+  fileName       String?            @map("file_name")
   createdAt      DateTime           @default(now()) @map("created_at")
 
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)

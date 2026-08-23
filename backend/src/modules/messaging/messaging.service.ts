@@ -1,6 +1,18 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateConversationDto, SendMessageDto } from './dto';
+import {
+  BroadcastAudience,
+  BroadcastDto,
+  CreateConversationDto,
+  PreviewAudienceDto,
+  SendMessageDto,
+} from './dto';
 
 @Injectable()
 export class MessagingService {
@@ -153,6 +165,22 @@ export class MessagingService {
   async sendMessage(dto: SendMessageDto, senderUserId: string) {
     await this.ensureParticipant(dto.conversationId, senderUserId);
 
+    // An announcement is not a thread. If four hundred parents could reply
+    // into it, the first reply would reach all four hundred, and the feature
+    // would be switched off within a week.
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: dto.conversationId },
+      select: { type: true, createdByUserId: true },
+    });
+    if (
+      conversation?.type === 'BROADCAST' &&
+      conversation.createdByUserId !== senderUserId
+    ) {
+      throw new ForbiddenException(
+        'This is an announcement. Message the school directly to reply.',
+      );
+    }
+
     return this.prisma.message.create({
       data: {
         conversationId: dto.conversationId,
@@ -161,6 +189,7 @@ export class MessagingService {
         contentType: (dto.contentType as any) || 'TEXT',
         status: 'SENT',
         fileUrl: dto.fileUrl,
+        fileName: dto.fileName,
       },
       include: {
         sender: {
@@ -318,5 +347,283 @@ export class MessagingService {
     });
     if (!participant)
       throw new ForbiddenException('Not a participant of this conversation');
+  }
+
+  // ─── BROADCAST ────────────────────────────────────────────────────────────
+  //
+  // "Everyone in Senior 1's family needs to know by Friday" is the single most
+  // common thing a school has to say, and the only tool for it today is a
+  // photocopied letter handed to a child.
+
+  /**
+   * The user ids an audience resolves to.
+   *
+   * Parent audiences resolve through the students, because a parent belongs to
+   * a class only by way of their child, and a parent with two children in
+   * different years must appear once rather than twice.
+   */
+  private async resolveAudience(dto: PreviewAudienceDto): Promise<string[]> {
+    const { audience, classLevelIds, classSectionIds } = dto;
+
+    const needsLevels =
+      audience === BroadcastAudience.PARENTS_OF_LEVELS ||
+      audience === BroadcastAudience.STUDENTS_OF_LEVELS;
+    const needsClasses =
+      audience === BroadcastAudience.PARENTS_OF_CLASSES ||
+      audience === BroadcastAudience.STUDENTS_OF_CLASSES;
+
+    if (needsLevels && !classLevelIds?.length) {
+      throw new BadRequestException('Choose at least one year level');
+    }
+    if (needsClasses && !classSectionIds?.length) {
+      throw new BadRequestException('Choose at least one class');
+    }
+
+    const roleAudiences: Partial<Record<BroadcastAudience, Role[]>> = {
+      [BroadcastAudience.ALL_PARENTS]: [Role.PARENT],
+      [BroadcastAudience.ALL_TEACHERS]: [Role.TEACHER],
+      [BroadcastAudience.ALL_STUDENTS]: [Role.STUDENT],
+      [BroadcastAudience.ALL_STAFF]: [
+        Role.TEACHER,
+        Role.LIBRARIAN,
+        Role.PATRON,
+        Role.MATRON,
+        Role.NURSE,
+        Role.ADMIN,
+      ],
+    };
+
+    const roles = roleAudiences[audience];
+    if (roles) {
+      const users = await this.prisma.user.findMany({
+        // An inactive account cannot read it, and counting them makes the
+        // number the sender sees a lie.
+        where: { role: { in: roles }, isActive: true },
+        select: { id: true },
+      });
+      return users.map((u) => u.id);
+    }
+
+    // Only students who are actually on the roll today. A graduate's parents
+    // do not need the Senior 1 trip letter.
+    const studentWhere: any = {
+      status: 'ACTIVE',
+      ...(needsLevels
+        ? { classSection: { classLevelId: { in: classLevelIds } } }
+        : { classSectionId: { in: classSectionIds } }),
+    };
+
+    if (
+      audience === BroadcastAudience.STUDENTS_OF_LEVELS ||
+      audience === BroadcastAudience.STUDENTS_OF_CLASSES
+    ) {
+      const students = await this.prisma.student.findMany({
+        where: { ...studentWhere, user: { isActive: true } },
+        select: { userId: true },
+      });
+      return [...new Set(students.map((s) => s.userId))];
+    }
+
+    const links = await this.prisma.parentStudent.findMany({
+      where: { student: studentWhere, parent: { isActive: true } },
+      select: { parentUserId: true },
+    });
+    // A parent with two children in the same year is one recipient.
+    return [...new Set(links.map((l) => l.parentUserId))];
+  }
+
+  /**
+   * How many people an announcement would reach, before sending it.
+   *
+   * Nobody should find out they addressed four hundred families by doing it.
+   */
+  async previewAudience(dto: PreviewAudienceDto) {
+    const userIds = await this.resolveAudience(dto);
+    return { count: userIds.length };
+  }
+
+  async broadcast(dto: BroadcastDto, senderUserId: string) {
+    const recipientIds = (await this.resolveAudience(dto)).filter(
+      (id) => id !== senderUserId,
+    );
+
+    if (recipientIds.length === 0) {
+      throw new BadRequestException(
+        'Nobody matches that audience, so there is nobody to tell',
+      );
+    }
+
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        type: 'BROADCAST',
+        name: dto.title,
+        createdByUserId: senderUserId,
+        participants: {
+          create: [
+            { userId: senderUserId, isAdmin: true },
+            ...recipientIds.map((userId) => ({ userId, isAdmin: false })),
+          ],
+        },
+        messages: {
+          create: {
+            senderUserId,
+            content: dto.message,
+            contentType: dto.fileUrl ? 'FILE' : 'TEXT',
+            fileUrl: dto.fileUrl,
+            fileName: dto.fileName,
+            status: 'SENT',
+          },
+        },
+      },
+      include: {
+        messages: {
+          include: {
+            sender: {
+              select: { id: true, firstName: true, lastName: true, photoUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // The bell as well as the letter. A conversation nobody opens is a
+    // conversation nobody read.
+    await this.prisma.notification.createMany({
+      data: recipientIds.map((userId) => ({
+        userId,
+        type: 'PUSH' as const,
+        title: dto.title,
+        message: dto.message.slice(0, 300),
+      })),
+    });
+
+    return {
+      conversation,
+      recipients: recipientIds.length,
+      recipientIds,
+    };
+  }
+
+  // ─── GROUP MEMBERSHIP ─────────────────────────────────────────────────────
+
+  /**
+   * Adding people to a group.
+   *
+   * Only an admin of the group, because a group anybody can add to is a group
+   * that leaks: a parent added to the staff room sees everything said in it.
+   */
+  async addParticipants(
+    conversationId: string,
+    userIds: string[],
+    byUserId: string,
+  ) {
+    await this.ensureGroupAdmin(conversationId, byUserId);
+
+    const existing = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId },
+      select: { userId: true },
+    });
+    const already = new Set(existing.map((p) => p.userId));
+    const toAdd = [...new Set(userIds)].filter((id) => !already.has(id));
+
+    if (toAdd.length === 0) return { added: 0 };
+
+    await this.prisma.conversationParticipant.createMany({
+      data: toAdd.map((userId) => ({ conversationId, userId })),
+      skipDuplicates: true,
+    });
+    return { added: toAdd.length };
+  }
+
+  /**
+   * Removing somebody.
+   *
+   * The messages they already sent stay. A group's history is a record of what
+   * was said, and rewriting it when a person leaves makes it useless.
+   */
+  async removeParticipant(
+    conversationId: string,
+    userId: string,
+    byUserId: string,
+  ) {
+    // Leaving is always allowed; removing somebody else is not.
+    if (userId !== byUserId) {
+      await this.ensureGroupAdmin(conversationId, byUserId);
+    } else {
+      await this.ensureParticipant(conversationId, userId);
+    }
+
+    const admins = await this.prisma.conversationParticipant.count({
+      where: { conversationId, isAdmin: true },
+    });
+    const leaving = await this.prisma.conversationParticipant.findFirst({
+      where: { conversationId, userId },
+      select: { isAdmin: true },
+    });
+    if (leaving?.isAdmin && admins <= 1) {
+      throw new BadRequestException(
+        'Make somebody else an admin first, or the group is left with nobody to manage it',
+      );
+    }
+
+    await this.prisma.conversationParticipant.deleteMany({
+      where: { conversationId, userId },
+    });
+    return { removed: true };
+  }
+
+  async renameConversation(
+    conversationId: string,
+    name: string,
+    byUserId: string,
+  ) {
+    await this.ensureGroupAdmin(conversationId, byUserId);
+    return this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { name },
+    });
+  }
+
+  async getParticipants(conversationId: string, userId: string) {
+    await this.ensureParticipant(conversationId, userId);
+    return this.prisma.conversationParticipant.findMany({
+      where: { conversationId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            photoUrl: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+  }
+
+  private async ensureGroupAdmin(conversationId: string, userId: string) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { type: true },
+    });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    if (conversation.type === 'ONE_ON_ONE') {
+      throw new BadRequestException(
+        'A one to one conversation has no membership to manage',
+      );
+    }
+
+    const participant = await this.prisma.conversationParticipant.findFirst({
+      where: { conversationId, userId },
+      select: { isAdmin: true },
+    });
+    if (!participant) {
+      throw new ForbiddenException('Not a participant of this conversation');
+    }
+    if (!participant.isAdmin) {
+      throw new ForbiddenException('Only a group admin can do that');
+    }
   }
 }

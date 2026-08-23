@@ -1,5 +1,7 @@
 import {
+  isAllowedAttachmentMime,
   isAllowedImageMime,
+  safeAttachmentExtension,
   safeImageExtension,
   validateImageMagicBytes,
 } from './file-validation';
@@ -76,6 +78,53 @@ describe('file validation', () => {
       // Whatever the file is called, the stored name comes from the mime type.
       expect(safeImageExtension('image/gif')).toBe('.gif');
       expect(safeImageExtension('text/html')).toBeNull();
+    });
+  });
+
+  /**
+   * Message attachments are wider than avatars: a teacher sending a marking
+   * scheme needs a PDF. The list stays an exact allow-list for the same reason
+   * the image one is, because Express serves /uploads by extension.
+   */
+  describe('message attachments', () => {
+    it.each([
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'audio/mpeg',
+    ])('accepts %s', (mime) => {
+      expect(isAllowedAttachmentMime(mime)).toBe(true);
+      expect(safeAttachmentExtension(mime)).toMatch(/^\./);
+    });
+
+    it('still accepts the image types avatars use', () => {
+      expect(isAllowedAttachmentMime('image/png')).toBe(true);
+      expect(safeAttachmentExtension('image/png')).toBe('.png');
+    });
+
+    // An SVG runs script the moment somebody opens it from the same origin,
+    // which is exactly what an attachment invites a person to do.
+    it('refuses SVG', () => {
+      expect(isAllowedAttachmentMime('image/svg+xml')).toBe(false);
+      expect(safeAttachmentExtension('image/svg+xml')).toBeNull();
+    });
+
+    it.each(['text/html', 'application/x-sh', 'application/x-msdownload'])(
+      'refuses %s',
+      (mime) => {
+        expect(isAllowedAttachmentMime(mime)).toBe(false);
+      },
+    );
+
+    it('is not fooled by a suffix that merely ends in an allowed word', () => {
+      expect(isAllowedAttachmentMime('application/png')).toBe(false);
+      expect(isAllowedAttachmentMime('x-application/pdf')).toBe(false);
+    });
+
+    it('matches regardless of case', () => {
+      expect(isAllowedAttachmentMime('APPLICATION/PDF')).toBe(true);
+      expect(safeAttachmentExtension('Application/Pdf')).toBe('.pdf');
     });
   });
 });

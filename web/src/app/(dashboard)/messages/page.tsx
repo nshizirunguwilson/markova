@@ -8,10 +8,15 @@ import {
   useCreateConversation,
   useSendMessage,
   useContacts,
+  useAddParticipants,
+  useParticipants,
+  useRemoveParticipant,
+  useRenameConversation,
+  useUploadAttachment,
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff } from "lucide-react";
+import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff, Paperclip, Users, X, Download } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryTick, formatLastSeen } from "@/lib/presence";
 
@@ -32,6 +37,19 @@ export default function MessagesPage() {
   const [userSearch, setUserSearch] = useState("");
   const debouncedUserSearch = useDebounce(userSearch, 300);
   const { data: usersData } = useContacts(debouncedUserSearch);
+  const [showMembers, setShowMembers] = useState(false);
+  const [pendingFile, setPendingFile] = useState<{
+    fileUrl: string;
+    fileName: string;
+  } | null>(null);
+  const uploadAttachment = useUploadAttachment();
+  const addParticipants = useAddParticipants();
+  const removeParticipant = useRemoveParticipant();
+  const renameConversation = useRenameConversation();
+  const { data: participants } = useParticipants(
+    showMembers && selectedConv ? selectedConv : undefined,
+  );
+  const [renameTo, setRenameTo] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,15 +98,21 @@ export default function MessagesPage() {
   );
 
   const handleSend = async () => {
-    if (!messageText.trim() || !selectedConv) return;
-    const text = messageText;
+    // A file on its own is a message. Requiring words alongside it means
+    // people type "." to get past the check.
+    if ((!messageText.trim() && !pendingFile) || !selectedConv) return;
+    const text = messageText || pendingFile?.fileName || "";
+    const file = pendingFile;
     setMessageText("");
+    setPendingFile(null);
 
     // Stop typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     chatStore.stopTyping(selectedConv);
 
-    if (chatStore.connected) {
+    // The socket carries text only, so anything with a file goes over REST
+    // where the attachment fields exist.
+    if (chatStore.connected && !file) {
       try {
         await chatStore.sendMessage(selectedConv, text);
       } catch {
@@ -96,7 +120,15 @@ export default function MessagesPage() {
         sendMessageRest.mutate({ conversationId: selectedConv, content: text });
       }
     } else {
-      sendMessageRest.mutate({ conversationId: selectedConv, content: text });
+      sendMessageRest.mutate({
+        conversationId: selectedConv,
+        content: text,
+        ...(file && {
+          contentType: "FILE",
+          fileUrl: file.fileUrl,
+          fileName: file.fileName,
+        }),
+      });
     }
   };
 
@@ -285,7 +317,22 @@ export default function MessagesPage() {
                     );
                   })()}
                 </div>
-                <Badge className="ml-auto">{selectedConversation.type.replace("_", " ")}</Badge>
+                <div className="ml-auto flex items-center gap-2">
+                  {selectedConversation.type !== "ONE_ON_ONE" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label="Members"
+                      onClick={() => {
+                        setRenameTo(selectedConversation.name ?? "");
+                        setShowMembers(true);
+                      }}
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Badge>{selectedConversation.type.replace("_", " ")}</Badge>
+                </div>
               </div>
             </div>
 
@@ -304,6 +351,22 @@ export default function MessagesPage() {
                         </p>
                       )}
                       <p className="text-sm">{msg.content}</p>
+                      {msg.fileUrl && (
+                        <a
+                          href={msg.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${
+                            isMe ? "bg-white/15" : "bg-surface"
+                          }`}
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {msg.fileName ?? "Attachment"}
+                          </span>
+                          <Download className="ml-auto h-3.5 w-3.5 shrink-0" />
+                        </a>
+                      )}
                       <div className={`flex items-center justify-end gap-1 mt-1 ${isMe ? "text-white/60" : "text-muted"}`}>
                         <span className="text-xs">
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -334,7 +397,54 @@ export default function MessagesPage() {
 
             {/* Input */}
             <div className="border-t border-border p-3">
+              {/* An announcement is not a thread. Showing a box that will be
+                  refused is worse than showing no box at all. */}
+              {selectedConversation.type === "BROADCAST" &&
+              selectedConversation.createdBy?.id !== user?.id ? (
+                <p className="py-2 text-center text-sm text-muted">
+                  This is an announcement from the school. Message the school
+                  directly if you need to reply.
+                </p>
+              ) : (
+              <>
+              {pendingFile && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <Paperclip className="h-4 w-4 text-muted" />
+                  <span className="truncate">{pendingFile.fileName}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove the file"
+                    className="ml-auto text-muted hover:text-danger"
+                    onClick={() => setPendingFile(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <div className="flex gap-2">
+                <label
+                  htmlFor="m-attach"
+                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border hover:bg-muted/10"
+                >
+                  <Paperclip className="h-4 w-4 text-muted" />
+                  <span className="sr-only">Attach a file</span>
+                  <input
+                    id="m-attach"
+                    type="file"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const chosen = e.target.files?.[0];
+                      if (!chosen) return;
+                      uploadAttachment.mutate(chosen, {
+                        onSuccess: (res) =>
+                          setPendingFile({
+                            fileUrl: res.fileUrl,
+                            fileName: res.fileName,
+                          }),
+                      });
+                    }}
+                  />
+                </label>
                 <input
                   type="text"
                   value={messageText}
@@ -347,6 +457,8 @@ export default function MessagesPage() {
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
+              </>
+              )}
             </div>
           </>
         ) : (
@@ -458,6 +570,117 @@ export default function MessagesPage() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowNewModal(false)}>Cancel</Button>
             <Button onClick={handleNewConversation} isLoading={createConv.isPending} disabled={selectedUserIds.length === 0}>Create</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/*
+        Who is in a group, and who may change it.
+
+        A group anybody can add to is a group that leaks: a parent added to the
+        staff room sees everything already said in it. So adding and removing
+        are the group admin's, and the API is the one that enforces it.
+      */}
+      <Modal
+        isOpen={showMembers}
+        onClose={() => setShowMembers(false)}
+        title="Members"
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <Input
+              id="g-name"
+              label="Group name"
+              className="sm:w-72"
+              value={renameTo}
+              onChange={(e) => setRenameTo(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              disabled={!renameTo.trim() || !selectedConv}
+              isLoading={renameConversation.isPending}
+              onClick={() =>
+                renameConversation.mutate({
+                  conversationId: selectedConv!,
+                  name: renameTo.trim(),
+                })
+              }
+            >
+              Rename
+            </Button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
+            {(participants ?? []).length === 0 ? (
+              <p className="p-4 text-sm text-muted">Nobody to show.</p>
+            ) : (
+              (participants ?? []).map((p: any) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 border-b border-border px-3 py-2 last:border-0"
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+                    {p.user.firstName?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-foreground">
+                      {p.user.firstName} {p.user.lastName}
+                    </span>
+                    <span className="ml-2 text-xs text-muted">{p.user.role}</span>
+                  </div>
+                  {p.isAdmin && <Badge className="ml-1">Admin</Badge>}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto"
+                    aria-label={
+                      p.user.id === user?.id
+                        ? "Leave the group"
+                        : `Remove ${p.user.firstName}`
+                    }
+                    onClick={() =>
+                      removeParticipant.mutate({
+                        conversationId: selectedConv!,
+                        userId: p.user.id,
+                      })
+                    }
+                  >
+                    {p.user.id === user?.id ? "Leave" : "Remove"}
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div>
+            <Input
+              id="g-add"
+              label="Add somebody"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Type a name"
+            />
+            {userSearch && (usersData?.data ?? []).length > 0 && (
+              <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-border">
+                {(usersData?.data ?? []).map((u: any) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/10"
+                    onClick={() => {
+                      addParticipants.mutate({
+                        conversationId: selectedConv!,
+                        userIds: [u.id],
+                      });
+                      setUserSearch("");
+                    }}
+                  >
+                    {u.firstName} {u.lastName}
+                    <span className="ml-2 text-xs text-muted">{u.role}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Modal>
