@@ -19,7 +19,7 @@ describe('PocketMoneyService', () => {
 
   const prisma: any = {
     student: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-    pocketMoneyAccount: { upsert: jest.fn(), update: jest.fn() },
+    pocketMoneyAccount: { upsert: jest.fn(), update: jest.fn(), findMany: jest.fn() },
     pocketMoneyTransaction: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -502,6 +502,278 @@ describe('PocketMoneyService', () => {
       await service.updateLimits('student-1', { dailyLimit: null });
       expect(prisma.pocketMoneyAccount.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ dailyLimit: null }) }),
+      );
+    });
+  });
+
+  /**
+   * Giving a balance back to the family, which happens when a student leaves.
+   */
+  describe('returning money to the family', () => {
+    beforeEach(() => {
+      prisma.student.findUnique.mockResolvedValue({
+        id: 'student-1',
+        studentIdNumber: 'STD-2026-001',
+        user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+        classSection: { classLevel: { name: 'Senior 1' } },
+      });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue(ACCOUNT);
+      prisma.pocketMoneyTransaction.create.mockResolvedValue({});
+    });
+
+    it('refuses a refund of nothing', async () => {
+      await expect(
+        service.refund('student-1', 0, undefined, 'admin-1'),
+      ).rejects.toThrow(/more than zero/i);
+    });
+
+    it('refuses a refund of a negative amount', async () => {
+      await expect(
+        service.refund('student-1', -500, undefined, 'admin-1'),
+      ).rejects.toThrow(/more than zero/i);
+    });
+
+    // Handing back more than the school holds would take it from somebody
+    // else's child.
+    it('refuses more than the school is holding, and says how much that is', async () => {
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', kind: 'DEPOSIT', amount: 2000, createdAt: new Date(), reversesId: null },
+      ]);
+      await expect(
+        service.refund('student-1', 5000, undefined, 'admin-1'),
+      ).rejects.toThrow(/Only 2000 RWF is held/);
+      expect(prisma.pocketMoneyTransaction.create).not.toHaveBeenCalled();
+    });
+
+    it('records the whole balance going back', async () => {
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', kind: 'DEPOSIT', amount: 5000, createdAt: new Date(), reversesId: null },
+      ]);
+      await service.refund('student-1', 5000, 'Left the school', 'admin-1');
+      expect(prisma.pocketMoneyTransaction.create.mock.calls[0][0].data).toMatchObject(
+        { kind: 'REFUND', amount: 5000, note: 'Left the school' },
+      );
+    });
+  });
+
+  /**
+   * The counter's roll of every account. The number at the top has to be the
+   * whole filtered roll: "the school is holding 38,000 RWF" would be a lie if
+   * it counted only the three students on screen.
+   */
+  describe('the roll of accounts', () => {
+    beforeEach(() => {
+      prisma.student.count.mockResolvedValue(0);
+      prisma.student.findMany.mockResolvedValue([]);
+      prisma.pocketMoneyAccount.findMany.mockResolvedValue([]);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([]);
+    });
+
+    it('shows only students still on the roll', async () => {
+      await service.overview({});
+      expect(prisma.student.count.mock.calls[0][0].where).toMatchObject({
+        status: 'ACTIVE',
+      });
+    });
+
+    it('narrows to one class', async () => {
+      await service.overview({ classSectionId: 'section-1' });
+      expect(prisma.student.count.mock.calls[0][0].where.classSectionId).toBe(
+        'section-1',
+      );
+    });
+
+    it('searches the number and the name', async () => {
+      await service.overview({ search: 'Divine' });
+      const or = JSON.stringify(prisma.student.count.mock.calls[0][0].where.OR);
+      expect(or).toContain('studentIdNumber');
+      expect(or).toContain('firstName');
+    });
+
+    it('ignores a search of nothing but spaces', async () => {
+      await service.overview({ search: '   ' });
+      expect(prisma.student.count.mock.calls[0][0].where).not.toHaveProperty('OR');
+    });
+
+    it('refuses a page size big enough to pull the whole school', async () => {
+      await service.overview({ limit: 5000 });
+      expect(prisma.student.findMany.mock.calls[0][0].take).toBe(100);
+    });
+
+    it('treats nonsense paging as the first page', async () => {
+      await service.overview({ page: -2, limit: 0 });
+      expect(prisma.student.findMany.mock.calls[0][0].skip).toBe(0);
+      expect(prisma.student.findMany.mock.calls[0][0].take).toBe(25);
+    });
+
+    it('always reports at least one page', async () => {
+      const result = await service.overview({});
+      expect(result.meta.totalPages).toBe(1);
+    });
+
+    it('shows a student who has never been given money as holding nothing', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-1',
+          user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+          classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+          pocketMoney: null,
+        },
+      ]);
+      const result = await service.overview({});
+      expect(result.items[0]).toMatchObject({
+        balance: 0,
+        hasAccount: false,
+        dailyLimit: null,
+        isFrozen: false,
+      });
+    });
+
+    it('works each balance out from that account’s own entries', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-1',
+          user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+          classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+          pocketMoney: { id: 'acct-1', dailyLimit: 2000, isFrozen: false },
+        },
+      ]);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', accountId: 'acct-1', kind: 'DEPOSIT', amount: 10000, reversesId: null },
+        { id: 't-2', accountId: 'acct-1', kind: 'WITHDRAWAL', amount: 1500, reversesId: null },
+      ]);
+      const result = await service.overview({});
+      expect(result.items[0].balance).toBe(8500);
+    });
+
+    // A reversed entry and the reversal that undid it both drop out, or the
+    // correction would be counted twice.
+    it('leaves a corrected entry and its correction out of the balance', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-1',
+          user: { firstName: 'D', lastName: 'N' },
+          classSection: null,
+          pocketMoney: { id: 'acct-1', dailyLimit: null, isFrozen: false },
+        },
+      ]);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', accountId: 'acct-1', kind: 'DEPOSIT', amount: 10000, reversesId: null },
+        { id: 't-2', accountId: 'acct-1', kind: 'WITHDRAWAL', amount: 500, reversesId: null },
+        { id: 't-3', accountId: 'acct-1', kind: 'REVERSAL', amount: 500, reversesId: 't-2' },
+      ]);
+      const result = await service.overview({});
+      expect(result.items[0].balance).toBe(10000);
+    });
+
+    it('copes with a student whose class was never set', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-1',
+          user: { firstName: 'D', lastName: 'N' },
+          classSection: null,
+          pocketMoney: null,
+        },
+      ]);
+      const result = await service.overview({});
+      expect(result.items[0].class).toBeNull();
+    });
+
+    it('asks for no entries at all when nobody has an account', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-1',
+          user: { firstName: 'D', lastName: 'N' },
+          classSection: null,
+          pocketMoney: null,
+        },
+      ]);
+      await service.overview({});
+      // Only the total's own lookup, and it short-circuits on no accounts.
+      expect(prisma.pocketMoneyTransaction.findMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The total is across the whole filtered roll, and it is summed from the
+     * accounts rather than from the page.
+     */
+    it('totals the whole roll, not the page on screen', async () => {
+      prisma.student.count.mockResolvedValue(739);
+      prisma.pocketMoneyAccount.findMany.mockResolvedValue([
+        { id: 'acct-1' },
+        { id: 'acct-2' },
+      ]);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', kind: 'DEPOSIT', amount: 2000, reversesId: null },
+        { id: 't-2', kind: 'DEPOSIT', amount: 3000, reversesId: null },
+      ]);
+      const result = await service.overview({ limit: 3 });
+      expect(result.totalHeld).toBe(5000);
+      expect(result.meta.total).toBe(739);
+    });
+
+    it('totals nothing when no account exists at all', async () => {
+      const result = await service.overview({});
+      expect(result.totalHeld).toBe(0);
+    });
+
+    it('leaves corrections out of the total too', async () => {
+      prisma.pocketMoneyAccount.findMany.mockResolvedValue([{ id: 'acct-1' }]);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
+        { id: 't-1', kind: 'DEPOSIT', amount: 10000, reversesId: null },
+        { id: 't-2', kind: 'WITHDRAWAL', amount: 500, reversesId: null },
+        { id: 't-3', kind: 'REVERSAL', amount: 500, reversesId: 't-2' },
+      ]);
+      const result = await service.overview({});
+      expect(result.totalHeld).toBe(10000);
+    });
+  });
+
+  /**
+   * Resolving whoever is standing at the counter, from a card or a typed
+   * number. Handing money to the wrong child is the failure this prevents.
+   */
+  describe('finding who is at the counter', () => {
+    it('refuses an empty scan', async () => {
+      await expect(service.findByIdentifier('   ')).rejects.toThrow(
+        /nothing was scanned/i,
+      );
+    });
+
+    it('accepts the student number, the card code or the card itself', async () => {
+      prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
+      prisma.student.findUnique.mockResolvedValue({
+        id: 'student-1',
+        studentIdNumber: 'STD-2026-001',
+        user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+        classSection: { classLevel: { name: 'Senior 1' } },
+      });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue(ACCOUNT);
+      prisma.pocketMoneyTransaction.findMany.mockResolvedValue([]);
+
+      await service.findByIdentifier('STD-2026-001');
+      const or = prisma.student.findFirst.mock.calls[0][0].where.OR;
+      expect(JSON.stringify(or)).toContain('studentIdNumber');
+      expect(JSON.stringify(or)).toContain('cardCode');
+      expect(JSON.stringify(or)).toContain('nfcCardId');
+    });
+
+    it('says which code it could not find', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(service.findByIdentifier('ABCD-1234')).rejects.toThrow(
+        /No student found for "ABCD-1234"/,
+      );
+    });
+
+    it('ignores stray spaces around a typed number', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(service.findByIdentifier('  STD-1  ')).rejects.toThrow(
+        /"STD-1"/,
       );
     });
   });
