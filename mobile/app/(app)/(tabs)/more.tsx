@@ -16,6 +16,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Rocket,
+  PartyPopper,
   LogOut,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -52,6 +53,15 @@ const WORK: Item[] = [
   { label: 'Homework', icon: BookOpen, href: '/(app)/homework-manage', roles: ['TEACHER', 'ADMIN'] },
   { label: 'Discipline', icon: AlertTriangle, href: '/(app)/discipline-log', roles: ['TEACHER', 'ADMIN'] },
   { label: 'Class analytics', icon: BarChart3, href: '/(app)/class-analytics', roles: ['TEACHER'] },
+  // A club that never takes a register quietly stops existing, and paper
+  // registers reach the office some time next week if at all.
+  {
+    label: 'Activities',
+    hint: 'The calendar, consent slips and registers',
+    icon: PartyPopper,
+    href: '/(app)/activities',
+    roles: ['TEACHER', 'ADMIN', 'PATRON', 'MATRON'],
+  },
 ];
 
 const ADMIN: Item[] = [

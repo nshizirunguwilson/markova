@@ -1074,3 +1074,258 @@ export function useChangePassword() {
       api.post('/auth/change-password', body).then((r) => r.data),
   });
 }
+
+// ─── Pocket money ───────────────────────────────────────
+// A boarding school holds a child's cash. The counter is a phone in a
+// matron's hand, not a desk, which is why this belongs on mobile at all.
+
+export interface PocketMoneyAccount {
+  studentId: string;
+  student: { name: string; studentIdNumber: string; level: string; photoUrl: string | null };
+  balance: number;
+  spentToday: number;
+  dailyLimit: number | null;
+  remainingToday: number | null;
+  lowBalanceAlert: number | null;
+  isFrozen: boolean;
+  isLow: boolean;
+}
+
+export interface PocketMoneyEntry {
+  id: string;
+  kind: 'DEPOSIT' | 'WITHDRAWAL' | 'REFUND' | 'REVERSAL' | 'ADJUSTMENT';
+  amount: number;
+  signedAmount: number;
+  note: string | null;
+  createdAt: string;
+  recordedBy: string | null;
+  reversesId: string | null;
+  isReversed: boolean;
+}
+
+export function usePocketMoneyAccount(studentId?: string) {
+  return useQuery<PocketMoneyAccount>({
+    queryKey: ['pocket-money', studentId],
+    queryFn: () => api.get(`/pocket-money/student/${studentId}`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+export function usePocketMoneyStatement(studentId?: string) {
+  return useQuery<{ data: PocketMoneyEntry[]; meta: unknown }>({
+    queryKey: ['pocket-money-statement', studentId],
+    queryFn: () =>
+      api.get(`/pocket-money/student/${studentId}/statement`, { params: { limit: 50 } }).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+/** A scan resolves the card to the student holding it. */
+export function useLookupAccount() {
+  return useMutation<PocketMoneyAccount, unknown, string>({
+    mutationFn: (code: string) => api.post('/pocket-money/lookup', { code }).then((r) => r.data),
+  });
+}
+
+export function usePocketMoneyMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, ...body }: { kind: 'deposit' | 'withdraw' | 'refund'; studentId: string; amount: number; note?: string }) =>
+      api.post(`/pocket-money/${kind}`, body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pocket-money'] });
+      qc.invalidateQueries({ queryKey: ['pocket-money-statement'] });
+    },
+  });
+}
+
+// ─── Activities ─────────────────────────────────────────
+
+export interface Activity {
+  id: string;
+  kind: 'CLUB' | 'SPORT' | 'ASSEMBLY' | 'TRIP' | 'VISITING_DAY' | 'SCHOOL_EVENT';
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  requiresConsent: boolean;
+  tracksAttendance: boolean;
+  isCancelled: boolean;
+  cancelledReason: string | null;
+  myPlace?: { id: string; consent: 'PENDING' | 'GIVEN' | 'REFUSED'; attended: boolean | null } | null;
+}
+
+export function useUpcomingActivities(limit = 10) {
+  return useQuery<Activity[]>({
+    queryKey: ['activities-upcoming', limit],
+    queryFn: () => api.get('/activities/upcoming', { params: { limit } }).then((r) => r.data),
+  });
+}
+
+export function useStudentActivities(studentId?: string) {
+  return useQuery<Activity[]>({
+    queryKey: ['activities-student', studentId],
+    queryFn: () => api.get(`/activities/student/${studentId}`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+/**
+ * A parent answering a permission slip from their phone.
+ *
+ * This is the whole reason activities are on mobile: the slip in the schoolbag
+ * is why offices spend the evening before a trip on the telephone.
+ */
+export function useRecordConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ activityId, ...body }: { activityId: string; studentId: string; consent: 'GIVEN' | 'REFUSED'; note?: string }) =>
+      api.post(`/activities/${activityId}/consent`, body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activities-student'] });
+      qc.invalidateQueries({ queryKey: ['activities-upcoming'] });
+    },
+  });
+}
+
+// ─── The clinic ─────────────────────────────────────────
+
+export interface ClinicVisit {
+  id: string;
+  complaint: string;
+  findings: string | null;
+  treatment: string | null;
+  severity: 'MINOR' | 'MODERATE' | 'SERIOUS';
+  outcome: 'RETURNED_TO_CLASS' | 'RESTING_IN_SICK_BAY' | 'REFERRED_OUT' | 'SENT_HOME';
+  temperature: number | null;
+  referredTo: string | null;
+  visitedAt: string;
+  dischargedAt: string | null;
+  parentNotifiedAt: string | null;
+  student: {
+    id: string;
+    studentIdNumber: string;
+    bloodType: string | null;
+    allergies: string | null;
+    classSection?: { name: string; classLevel?: { name: string } };
+    user: { firstName: string; lastName: string; photoUrl: string | null };
+  };
+  seenBy: { firstName: string; lastName: string; role: string };
+  medications?: { id: string; medicine: string; dose: string; givenAt: string }[];
+}
+
+export function useClinicVisits(params: Record<string, string | number> = {}) {
+  return useQuery<{ data: ClinicVisit[]; meta: { total: number } }>({
+    queryKey: ['clinic-visits', params],
+    queryFn: () => api.get('/clinic/visits', { params }).then((r) => r.data),
+  });
+}
+
+export function useClinicSummary(days = 30) {
+  return useQuery<{
+    days: number;
+    visits: number;
+    inSickBay: number;
+    referred: number;
+    dosesGiven: number;
+    repeatVisitors: { id: string; user: { firstName: string; lastName: string }; visits: number }[];
+  }>({
+    queryKey: ['clinic-summary', days],
+    queryFn: () => api.get('/clinic/summary', { params: { days } }).then((r) => r.data),
+  });
+}
+
+/** The one page somebody needs at three in the morning. */
+export function useEmergencyCard(studentId?: string) {
+  return useQuery({
+    queryKey: ['emergency-card', studentId],
+    queryFn: () => api.get(`/clinic/student/${studentId}`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+export function useStudentVisits(studentId?: string) {
+  return useQuery<{ data: ClinicVisit[] }>({
+    queryKey: ['clinic-student-visits', studentId],
+    queryFn: () => api.get(`/clinic/student/${studentId}/visits`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
+
+export function useCreateVisit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.post('/clinic/visits', body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clinic-visits'] });
+      qc.invalidateQueries({ queryKey: ['clinic-summary'] });
+    },
+  });
+}
+
+export function useDischarge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/clinic/visits/${id}/discharge`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clinic-visits'] }),
+  });
+}
+
+export function useMarkParentNotified() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/clinic/visits/${id}/parent-notified`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clinic-visits'] }),
+  });
+}
+
+/**
+ * A dose given.
+ *
+ * The API refuses an unsafe repeat and says how long ago the last one was, so
+ * the message it sends back is worth showing whole.
+ */
+export function useGiveMedicine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: string; visitId?: string; medicine: string; dose: string; reason?: string }) =>
+      api.post('/clinic/medication', body).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clinic-visits'] }),
+  });
+}
+
+// ─── Merits ─────────────────────────────────────────────
+
+export function useAwardMerit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.post('/discipline/merits', body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['merits'] });
+      qc.invalidateQueries({ queryKey: ['standing'] });
+    },
+  });
+}
+
+export function useStanding(studentId?: string) {
+  return useQuery<{
+    points: number;
+    ceiling: number;
+    pointsToCleanSheet: number;
+    meritCount: number;
+    incidentCount: number;
+    merits: {
+      id: string;
+      category: string;
+      description: string;
+      points: number;
+      date: string;
+      awardedBy: { firstName: string; lastName: string };
+    }[];
+  }>({
+    queryKey: ['standing', studentId],
+    queryFn: () => api.get(`/discipline/standing/${studentId}`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+}
