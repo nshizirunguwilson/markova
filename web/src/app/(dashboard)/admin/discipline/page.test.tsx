@@ -69,6 +69,63 @@ const routes = {
     }),
   ],
   "/discipline/appeals/pending": [appeal],
+  "/discipline/merits/watch-list": {
+    days: 30,
+    students: [
+      {
+        id: "student-1",
+        studentIdNumber: "STD-2026-001",
+        disciplinePoints: 88,
+        classSection,
+        user: { firstName: "Divine", lastName: "Niyonkuru" },
+        incidents: 3,
+        pointsLost: 12,
+        merits: 0,
+        nothingPositive: true,
+      },
+      {
+        id: "student-2",
+        studentIdNumber: "STD-2026-002",
+        disciplinePoints: 94,
+        classSection,
+        user: { firstName: "Keza", lastName: "Mutesi" },
+        incidents: 2,
+        pointsLost: 6,
+        merits: 2,
+        nothingPositive: false,
+      },
+    ],
+  },
+  "/discipline/merits/summary": {
+    awarded: 18,
+    incidents: 40,
+    ratio: 0.45,
+    byCategory: {
+      ACADEMIC_EFFORT: 0,
+      HELPING_OTHERS: 6,
+      LEADERSHIP: 2,
+      SPORT: 10,
+      ARTS: 0,
+      SERVICE: 0,
+      HONESTY: 0,
+      IMPROVEMENT: 0,
+    },
+    mostRecognised: [],
+  },
+  "/discipline/merits": {
+    data: [
+      {
+        id: "merit-1",
+        category: "HELPING_OTHERS",
+        description: "Stayed behind to help clear the science lab",
+        points: 5,
+        date: "2026-08-20T00:00:00Z",
+        student: { ...students[0], classSection, disciplinePoints: 88 },
+        awardedBy: { firstName: "Aline", lastName: "Uwase", role: "TEACHER" },
+      },
+    ],
+    meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+  },
   "/discipline/dashboard": {
     totalIncidents: 2,
     byAction: [{ name: "VERBAL_WARNING", count: 1 }],
@@ -443,5 +500,167 @@ describe("the term's discipline picture", () => {
     await waitFor(() => expect(screen.getByText(/Late to assembly/)).toBeInTheDocument());
     await click(tab(/dashboard/i));
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
+
+/**
+ * The other half of behaviour.
+ *
+ * A conduct system with only deductions teaches a student that the best
+ * possible outcome is to be unnoticed. These tests hold the two rules that
+ * make merits mean something: points restore a clean sheet without inflating
+ * past it, and the school can see what it never recognises.
+ */
+describe("merits", () => {
+  async function openMerits() {
+    await mount();
+    await click(tab(/^Merits$/));
+    await waitFor(() =>
+      expect(screen.getByText(/science lab/)).toBeInTheDocument(),
+    );
+  }
+
+  it("lists what has been recognised, with the reason", async () => {
+    await openMerits();
+    const row = screen.getByText(/science lab/).closest("tr")!;
+    expect(within(row).getByText("Helping others")).toBeInTheDocument();
+    expect(within(row).getByText("+5")).toBeInTheDocument();
+  });
+
+  it("names who gave it", async () => {
+    await openMerits();
+    const row = screen.getByText(/science lab/).closest("tr")!;
+    expect(row.textContent).toMatch(/Aline Uwase/);
+  });
+
+  // Below 1 means the school writes down more of what goes wrong than what
+  // goes right, which is the state most schools are in and never see.
+  it("says out loud when more is recorded against students than for them", async () => {
+    await openMerits();
+    expect(screen.getByText("0.45")).toBeInTheDocument();
+    expect(
+      screen.getByText(/more gets written down against students/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps quiet when praise outweighs trouble", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/merits/summary": {
+        awarded: 60,
+        incidents: 40,
+        ratio: 1.5,
+        byCategory: { SPORT: 60 },
+        mostRecognised: [],
+      },
+    });
+    await openMerits();
+    expect(
+      screen.queryByText(/more gets written down against students/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // A school that awards nothing but sport is telling every non-sporting
+  // student where they stand.
+  it("shows every category, including the ones at zero", async () => {
+    await openMerits();
+    expect(screen.getByText("Real effort in class")).toBeInTheDocument();
+    expect(screen.getByText("Turning it around")).toBeInTheDocument();
+  });
+
+  it("says so when nothing has been recognised", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/merits": {
+        data: [],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    await mount();
+    await click(tab(/^Merits$/));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/nothing has been recognised this term/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("sends a merit with its category and reason", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what they did/i), {
+        target: { value: "Handed in a wallet she found" },
+      });
+      fireEvent.change(screen.getByLabelText(/what for/i), {
+        target: { value: "HONESTY" },
+      });
+    });
+
+    // The student picker is the same component the incident form uses; the
+    // button stays disabled until it has one, which is the point of this
+    // assertion.
+    expect(
+      screen.queryAllByRole("button").find((b) => /^Recognise$/.test((b.textContent ?? "").trim())),
+    ).toBeDisabled();
+  });
+
+  it("explains that points never go past a clean sheet", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    expect(
+      screen.getByText(/never past it/i),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Not "who has the fewest points", which is the same names all year. This is
+ * movement: who is picking up incidents now with nothing on the other side.
+ */
+describe("the watch list", () => {
+  async function openWatch() {
+    await mount();
+    await click(tab(/watch list/i));
+    await waitFor(() =>
+      expect(screen.getByText(/who to look at this week/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("counts on the tab how many need a look", async () => {
+    await mount();
+    const watchTab = tab(/watch list/i)!;
+    expect(watchTab.textContent).toMatch(/2/);
+  });
+
+  it("lists them with what they lost", async () => {
+    await openWatch();
+    const row = screen.getByText(/Divine Niyonkuru/).closest("tr")!;
+    expect(within(row).getByText("3")).toBeInTheDocument();
+    expect(within(row).getByText("-12")).toBeInTheDocument();
+  });
+
+  // Nothing on the credit side is what turns a rough patch into a reputation,
+  // and it is the cheapest thing for a school to fix.
+  it("says plainly when a student has had nothing positive at all", async () => {
+    await openWatch();
+    const divine = screen.getByText(/Divine Niyonkuru/).closest("tr")!;
+    expect(within(divine).getByText(/nothing yet/i)).toBeInTheDocument();
+    const keza = screen.getByText(/Keza Mutesi/).closest("tr")!;
+    expect(within(keza).queryByText(/nothing yet/i)).not.toBeInTheDocument();
+  });
+
+  it("says so when nobody needs a second look", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/merits/watch-list": { days: 30, students: [] },
+    });
+    await mount();
+    await click(tab(/watch list/i));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/nobody needs a second look/i),
+      ).toBeInTheDocument(),
+    );
   });
 });

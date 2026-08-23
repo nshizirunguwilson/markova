@@ -188,6 +188,7 @@ model User {
   clinicVisitsSeen        ClinicVisit[]              @relation("ClinicSeenBy")
   medicationsGiven        MedicationAdministration[] @relation("MedicationGivenBy")
   healthRecordsUpdated    StudentHealthRecord[]      @relation("HealthRecordUpdatedBy")
+  meritsAwarded           MeritAward[]               @relation("MeritAwardedBy")
 
   @@index([role])
   @@index([isActive])
@@ -263,6 +264,7 @@ model Term {
   homeworks           Homework[]
   examSchedules       ExamSchedule[]
   activities          Activity[]
+  merits              MeritAward[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -434,6 +436,7 @@ model Student {
   attendances         Attendance[]
   disciplineIncidents DisciplineIncident[]
   homeworkSubmissions HomeworkSubmission[]
+  merits              MeritAward[]
   clinicVisits        ClinicVisit[]
   medications         MedicationAdministration[]
   healthRecord        StudentHealthRecord?
@@ -1262,4 +1265,50 @@ model StudentHealthRecord {
   updatedBy User?   @relation("HealthRecordUpdatedBy", fields: [updatedByUserId], references: [id])
 
   @@map("student_health_records")
+}
+
+/// What a merit was earned for.
+///
+/// Named for the things a Rwandan secondary school already praises at
+/// assembly, so staff recognise the list rather than translating into it.
+enum MeritCategory {
+  /// Real effort in class, whatever the mark came out as.
+  ACADEMIC_EFFORT
+  HELPING_OTHERS
+  LEADERSHIP
+  SPORT
+  ARTS
+  /// Work for the school itself: the garden, the library, the dormitory.
+  SERVICE
+  HONESTY
+  /// Turning it around. The one that matters most to a student on a warning.
+  IMPROVEMENT
+}
+
+/// Points earned back, and recognition kept.
+///
+/// A conduct system with only deductions teaches a student that the best
+/// possible outcome is to be unnoticed. Merits give the school a way to say
+/// the opposite, and give a student on a warning a visible way back.
+model MeritAward {
+  id              String        @id @default(uuid())
+  studentId       String        @map("student_id")
+  termId          String        @map("term_id")
+  awardedByUserId String        @map("awarded_by_user_id")
+  category        MeritCategory
+  description     String
+  /// Added back to the conduct score, which is capped at a clean sheet. The
+  /// recognition itself is not capped: the award stands on the record whether
+  /// or not there were points left to restore.
+  points          Int
+  date            DateTime      @db.Date
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  awardedBy User    @relation("MeritAwardedBy", fields: [awardedByUserId], references: [id])
+
+  @@index([studentId])
+  @@index([termId])
+  @@map("merit_awards")
 }

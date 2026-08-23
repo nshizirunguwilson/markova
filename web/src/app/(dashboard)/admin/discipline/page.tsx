@@ -23,11 +23,18 @@ import {
   usePendingAppeals,
   useReviewAppeal,
   useDisciplineDashboard,
+  useMerits,
+  useAwardMerit,
+  useWatchList,
+  useMeritSummary,
+  type MeritCategory,
 } from "@/hooks/use-discipline";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
 import { StudentPicker } from "@/components/student-picker";
 import {
   AlertTriangle,
+  Award,
+  Eye,
   Plus,
   Trash2,
   Shield,
@@ -43,14 +50,34 @@ const ACTION_LABELS: Record<string, string> = {
   EXPULSION: "Expulsion",
 };
 
+/**
+ * What a merit can be given for.
+ *
+ * Named for the things a Rwandan secondary school already praises at assembly,
+ * so staff recognise the list rather than translating into it.
+ */
+const MERIT_LABELS: Record<MeritCategory, string> = {
+  ACADEMIC_EFFORT: "Real effort in class",
+  HELPING_OTHERS: "Helping others",
+  LEADERSHIP: "Leadership",
+  SPORT: "Sport",
+  ARTS: "Arts",
+  SERVICE: "Service to the school",
+  HONESTY: "Honesty",
+  IMPROVEMENT: "Turning it around",
+};
+
 export default function AdminDisciplinePage() {
   const { data: years } = useAcademicYears();
   const currentYear = years?.find((y: any) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
   const currentTerm = terms?.find((t: any) => t.isCurrent);
 
-  const [tab, setTab] = useState<"incidents" | "appeals" | "dashboard">("incidents");
+  const [tab, setTab] = useState<
+    "incidents" | "merits" | "watch" | "appeals" | "dashboard"
+  >("incidents");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMeritModal, setShowMeritModal] = useState(false);
 
   const { data: incidents, isLoading } = useIncidents(currentTerm ? { termId: currentTerm.id } : undefined);
   const { data: appeals } = usePendingAppeals();
@@ -58,6 +85,12 @@ export default function AdminDisciplinePage() {
   const createIncident = useCreateIncident();
   const deleteIncident = useDeleteIncident();
   const reviewAppeal = useReviewAppeal();
+  const { data: merits } = useMerits(
+    currentTerm ? { termId: currentTerm.id } : undefined,
+  );
+  const { data: watch } = useWatchList(30);
+  const { data: meritSummary } = useMeritSummary(currentTerm?.id);
+  const awardMerit = useAwardMerit();
 
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -71,6 +104,27 @@ export default function AdminDisciplinePage() {
     pointsDeducted: 5,
     actionTaken: "VERBAL_WARNING",
   });
+
+  const [meritForm, setMeritForm] = useState({
+    studentId: "",
+    category: "HELPING_OTHERS" as MeritCategory,
+    description: "",
+    points: 5,
+    date: toLocalDateString(new Date()),
+  });
+
+  const handleAwardMerit = () => {
+    if (!currentTerm) return;
+    awardMerit.mutate(
+      { ...meritForm, termId: currentTerm.id },
+      {
+        onSuccess: () => {
+          setShowMeritModal(false);
+          setMeritForm({ ...meritForm, description: "", studentId: "" });
+        },
+      },
+    );
+  };
 
   const handleCreate = () => {
     if (!currentTerm) return;
@@ -87,15 +141,27 @@ export default function AdminDisciplinePage() {
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Discipline</h1>
           <p className="text-sm text-muted">Manage incidents and appeals</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>
-          <Plus className="mr-1 h-4 w-4" /> Record Incident
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowMeritModal(true)}>
+            <Award className="mr-1 h-4 w-4" /> Recognise a student
+          </Button>
+          <Button onClick={() => setShowAddModal(true)}>
+            <Plus className="mr-1 h-4 w-4" /> Record Incident
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         {[
           { key: "incidents", label: "Incidents", icon: AlertTriangle },
+          { key: "merits", label: "Merits", icon: Award },
+          {
+            key: "watch",
+            label: "Watch list",
+            icon: Eye,
+            count: watch?.students?.length,
+          },
           { key: "appeals", label: "Appeals", icon: Gavel, count: appeals?.length },
           { key: "dashboard", label: "Dashboard", icon: Shield },
         ].map((t) => (
@@ -168,6 +234,179 @@ export default function AdminDisciplinePage() {
         ) : (
           <Card><p className="text-center text-muted py-8">No incidents recorded this term.</p></Card>
         )
+      )}
+
+      {/* Merits Tab */}
+      {tab === "merits" && (
+        <>
+          {meritSummary && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Card>
+                <p className="text-xs text-muted">Recognised this term</p>
+                <p className="text-2xl font-bold text-success">
+                  {meritSummary.awarded}
+                </p>
+              </Card>
+              <Card>
+                <p className="text-xs text-muted">Incidents this term</p>
+                <p className="text-2xl font-bold text-danger">
+                  {meritSummary.incidents}
+                </p>
+              </Card>
+              <Card>
+                <p className="text-xs text-muted">Praise per incident</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {meritSummary.ratio ?? "—"}
+                </p>
+                {/* Below 1 means the school writes down more of what goes
+                    wrong than what goes right. Most schools never see this. */}
+                {meritSummary.ratio !== null && meritSummary.ratio < 1 && (
+                  <p className="mt-1 text-xs text-warning">
+                    More gets written down against students than for them.
+                  </p>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {meritSummary?.byCategory && (
+            <Card>
+              <CardTitle>What the school recognises</CardTitle>
+              <div className="mt-3 space-y-2">
+                {Object.entries(MERIT_LABELS).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">{label}</span>
+                    <Badge
+                      variant={
+                        meritSummary.byCategory[key] === 0 ? "default" : "success"
+                      }
+                    >
+                      {meritSummary.byCategory[key] ?? 0}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {merits?.data?.length > 0 ? (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>For what</TableHead>
+                    <TableHead>Points</TableHead>
+                    <TableHead>Given by</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {merits.data.map((m: any) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-sm">
+                        {new Date(m.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {m.student?.user?.firstName} {m.student?.user?.lastName}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted">
+                        {classDisplayName(m.student.classSection)}
+                      </TableCell>
+                      <TableCell className="max-w-xs text-sm">
+                        {m.description}
+                        <div className="mt-1">
+                          <Badge variant="success">
+                            {MERIT_LABELS[m.category as MeritCategory] ?? m.category}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="success">+{m.points}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted">
+                        {m.awardedBy?.firstName} {m.awardedBy?.lastName}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          ) : (
+            <Card>
+              <p className="py-8 text-center text-muted">
+                Nothing has been recognised this term yet.
+              </p>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Watch List Tab */}
+      {tab === "watch" && (
+        <>
+          <Card>
+            <CardTitle>Who to look at this week</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              Not who has the fewest points, which is the same names all year.
+              These are students picking up incidents right now, and whether
+              anything at all has gone the other way.
+            </p>
+          </Card>
+
+          {watch?.students?.length > 0 ? (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Incidents</TableHead>
+                    <TableHead>Points lost</TableHead>
+                    <TableHead>Recognised</TableHead>
+                    <TableHead>Standing</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {watch.students.map((s: any) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-medium">
+                        {s.user.firstName} {s.user.lastName}
+                        <div className="font-mono text-xs text-muted">
+                          {s.studentIdNumber}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted">
+                        {classDisplayName(s.classSection)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="danger">{s.incidents}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">-{s.pointsLost}</TableCell>
+                      <TableCell>
+                        {s.nothingPositive ? (
+                          <Badge variant="warning">Nothing yet</Badge>
+                        ) : (
+                          <Badge variant="success">{s.merits}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {s.disciplinePoints}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          ) : (
+            <Card>
+              <p className="py-8 text-center text-muted">
+                Nobody needs a second look this month.
+              </p>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Appeals Tab */}
@@ -329,6 +568,94 @@ export default function AdminDisciplinePage() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button onClick={handleCreate} isLoading={createIncident.isPending}>Record</Button>
+          </div>
+        </div>
+      </Modal>
+      {/* Award Merit Modal */}
+      <Modal
+        isOpen={showMeritModal}
+        onClose={() => setShowMeritModal(false)}
+        title="Recognise a student"
+      >
+        <div className="space-y-4">
+          <StudentPicker
+            value={meritForm.studentId}
+            onChange={(studentId) => setMeritForm({ ...meritForm, studentId })}
+          />
+          <div>
+            <label
+              htmlFor="m-category"
+              className="mb-1 block text-sm font-medium text-foreground"
+            >
+              What for
+            </label>
+            <select
+              id="m-category"
+              value={meritForm.category}
+              onChange={(e) =>
+                setMeritForm({
+                  ...meritForm,
+                  category: e.target.value as MeritCategory,
+                })
+              }
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            >
+              {Object.entries(MERIT_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="m-description"
+              className="mb-1 block text-sm font-medium text-foreground"
+            >
+              What they did
+            </label>
+            <textarea
+              id="m-description"
+              value={meritForm.description}
+              onChange={(e) =>
+                setMeritForm({ ...meritForm, description: e.target.value })
+              }
+              rows={3}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              placeholder="e.g. Stayed behind to help clear the science lab"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Points"
+              type="number"
+              min="1"
+              max="20"
+              value={String(meritForm.points)}
+              onChange={(e) =>
+                setMeritForm({ ...meritForm, points: Number(e.target.value) })
+              }
+            />
+            <Input
+              label="Date"
+              type="date"
+              value={meritForm.date}
+              onChange={(e) => setMeritForm({ ...meritForm, date: e.target.value })}
+            />
+          </div>
+          <p className="text-xs text-muted">
+            Points restore a conduct score up to a clean sheet, never past it.
+            The recognition stands on the record either way.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowMeritModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAwardMerit}
+              disabled={!meritForm.studentId || !meritForm.description.trim()}
+              isLoading={awardMerit.isPending}
+            >
+              Recognise
+            </Button>
           </div>
         </div>
       </Modal>
