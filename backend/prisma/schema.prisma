@@ -138,44 +138,46 @@ model SchoolConfig {
 }
 
 model User {
-  id                  String   @id @default(uuid())
-  email               String?  @unique
-  phone               String?  @unique
+  id                  String    @id @default(uuid())
+  email               String?   @unique
+  phone               String?   @unique
   // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
   // Students carry theirs on Student.studentIdNumber (STD prefix).
-  code                String?  @unique
+  code                String?   @unique
   // NIDA 16-digit national identification number (stored without spaces).
-  nationalId          String?  @unique @map("national_id")
+  nationalId          String?   @unique @map("national_id")
   nationality         String?
   // For staff and parents. Students carry theirs on Student, which stays
   // the single source of truth for student demographics.
   gender              Gender?
   dateOfBirth         DateTime? @map("date_of_birth")
-  passwordHash        String?  @map("password_hash")
+  passwordHash        String?   @map("password_hash")
   role                Role
-  firstName           String   @map("first_name")
-  lastName            String   @map("last_name")
-  photoUrl            String?  @map("photo_url")
-  isActive            Boolean  @default(true) @map("is_active")
-  forcePasswordChange Boolean  @default(true) @map("force_password_change")
+  firstName           String    @map("first_name")
+  lastName            String    @map("last_name")
+  photoUrl            String?   @map("photo_url")
+  isActive            Boolean   @default(true) @map("is_active")
+  forcePasswordChange Boolean   @default(true) @map("force_password_change")
   lastLoginAt         DateTime? @map("last_login_at")
   lastSeenAt          DateTime? @map("last_seen_at")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   // Relations
   sessions                UserSession[]
   auditLogs               AuditLog[]
-  pocketMoneyEntries      PocketMoneyTransaction[] @relation("PocketMoneyRecordedBy")
+  pocketMoneyEntries      PocketMoneyTransaction[]   @relation("PocketMoneyRecordedBy")
+  activitiesCreated       Activity[]                 @relation("ActivityCreatedBy")
+  activityConsents        ActivityParticipant[]      @relation("ActivityConsentBy")
   student                 Student?
   teacher                 Teacher?
   parentStudents          ParentStudent[]
-  markedAttendances       Attendance[]         @relation("MarkedByUser")
-  recordedIncidents       DisciplineIncident[] @relation("RecordedByUser")
-  submittedAppeals        DisciplineAppeal[]   @relation("SubmittedByUser")
-  reviewedAppeals         DisciplineAppeal[]   @relation("ReviewedByUser")
+  markedAttendances       Attendance[]               @relation("MarkedByUser")
+  recordedIncidents       DisciplineIncident[]       @relation("RecordedByUser")
+  submittedAppeals        DisciplineAppeal[]         @relation("SubmittedByUser")
+  reviewedAppeals         DisciplineAppeal[]         @relation("ReviewedByUser")
   bookLoans               BookLoan[]
-  gradedSubmissions       HomeworkSubmission[]  @relation("GradedByUser")
+  gradedSubmissions       HomeworkSubmission[]       @relation("GradedByUser")
   createdConversations    Conversation[]
   conversationMemberships ConversationParticipant[]
   sentMessages            Message[]
@@ -183,6 +185,10 @@ model User {
   notifications           Notification[]
   pushTokens              PushToken[]
   supportTickets          SupportTicket[]
+  clinicVisitsSeen        ClinicVisit[]              @relation("ClinicSeenBy")
+  medicationsGiven        MedicationAdministration[] @relation("MedicationGivenBy")
+  healthRecordsUpdated    StudentHealthRecord[]      @relation("HealthRecordUpdatedBy")
+  meritsAwarded           MeritAward[]               @relation("MeritAwardedBy")
 
   @@index([role])
   @@index([isActive])
@@ -234,9 +240,10 @@ model AcademicYear {
   endDate   DateTime @map("end_date")
   isCurrent Boolean  @default(false) @map("is_current")
 
-  terms               Term[]
+  terms                 Term[]
   teacherSubjectClasses TeacherSubjectClass[]
-  yearResults          YearResult[]
+  yearResults           YearResult[]
+
   @@map("academic_years")
 }
 
@@ -256,6 +263,8 @@ model Term {
   disciplineIncidents DisciplineIncident[]
   homeworks           Homework[]
   examSchedules       ExamSchedule[]
+  activities          Activity[]
+  merits              MeritAward[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -268,8 +277,9 @@ model ClassLevel {
   order Int
   stage EducationStage @default(O_LEVEL)
 
-  sections ClassSection[]
-  subjects Subject[]
+  sections            ClassSection[]
+  subjects            Subject[]
+  activityClassLevels ActivityClassLevel[]
 
   @@map("class_levels")
 }
@@ -306,6 +316,7 @@ model ClassSection {
   attendances           Attendance[]
   homeworks             Homework[]
   examSchedules         ExamSchedule[]
+  activitySections      ActivitySection[]
 
   // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
   // null) are additionally guarded in AcademicService.
@@ -352,13 +363,13 @@ model AssessmentType {
 }
 
 model Timetable {
-  id             String @id @default(uuid())
-  classSectionId String @map("class_section_id")
-  subjectId      String @map("subject_id")
-  teacherId      String @map("teacher_id")
-  dayOfWeek      Int    @map("day_of_week") // 1=Monday, 7=Sunday
-  startTime      String @map("start_time")
-  endTime        String @map("end_time")
+  id             String  @id @default(uuid())
+  classSectionId String  @map("class_section_id")
+  subjectId      String  @map("subject_id")
+  teacherId      String  @map("teacher_id")
+  dayOfWeek      Int     @map("day_of_week") // 1=Monday, 7=Sunday
+  startTime      String  @map("start_time")
+  endTime        String  @map("end_time")
   room           String?
 
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
@@ -417,6 +428,7 @@ model Student {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   pocketMoney         PocketMoneyAccount?
+  activities          ActivityParticipant[]
   parentStudents      ParentStudent[]
   marks               Mark[]
   termResults         TermResult[]
@@ -424,6 +436,11 @@ model Student {
   attendances         Attendance[]
   disciplineIncidents DisciplineIncident[]
   homeworkSubmissions HomeworkSubmission[]
+  merits              MeritAward[]
+  clinicVisits        ClinicVisit[]
+  medications         MedicationAdministration[]
+  healthRecord        StudentHealthRecord?
+
   @@index([classSectionId])
   @@index([status])
   @@map("students")
@@ -450,7 +467,7 @@ model Teacher {
   id               String                @id @default(uuid())
   userId           String                @unique @map("user_id")
   employmentStatus EmploymentStatus      @default(FULL_TIME) @map("employment_status")
-  qualification    TeacherQualification? 
+  qualification    TeacherQualification?
   rssbNumber       String?               @map("rssb_number")
   hireDate         DateTime?             @map("hire_date")
   isActive         Boolean               @default(true) @map("is_active")
@@ -593,16 +610,16 @@ model YearResult {
 // ─── ATTENDANCE ─────────────────────────────────────────────────────────────────
 
 model Attendance {
-  id              String            @id @default(uuid())
-  studentId       String            @map("student_id")
-  classSectionId  String            @map("class_section_id")
-  date            DateTime          @db.Date
-  type            String            // "daily" or "subject"
-  subjectId       String?           @map("subject_id")
-  status          AttendanceStatus
-  reasonCategory  AbsenceReason?    @map("reason_category")
-  scannedAt       DateTime?         @map("scanned_at")
-  markedByUserId  String            @map("marked_by_user_id")
+  id             String           @id @default(uuid())
+  studentId      String           @map("student_id")
+  classSectionId String           @map("class_section_id")
+  date           DateTime         @db.Date
+  type           String // "daily" or "subject"
+  subjectId      String?          @map("subject_id")
+  status         AttendanceStatus
+  reasonCategory AbsenceReason?   @map("reason_category")
+  scannedAt      DateTime?        @map("scanned_at")
+  markedByUserId String           @map("marked_by_user_id")
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
@@ -658,15 +675,15 @@ model DisciplineIncident {
 }
 
 model DisciplineAppeal {
-  id               String       @id @default(uuid())
-  incidentId       String       @map("incident_id")
-  submittedByUserId String      @map("submitted_by_user_id")
-  statement        String
-  evidenceUrls     String[]     @map("evidence_urls")
-  status           AppealStatus @default(PENDING)
-  reviewedByUserId String?      @map("reviewed_by_user_id")
-  reviewNotes      String?      @map("review_notes")
-  createdAt        DateTime     @default(now()) @map("created_at")
+  id                String       @id @default(uuid())
+  incidentId        String       @map("incident_id")
+  submittedByUserId String       @map("submitted_by_user_id")
+  statement         String
+  evidenceUrls      String[]     @map("evidence_urls")
+  status            AppealStatus @default(PENDING)
+  reviewedByUserId  String?      @map("reviewed_by_user_id")
+  reviewNotes       String?      @map("review_notes")
+  createdAt         DateTime     @default(now()) @map("created_at")
 
   incident    DisciplineIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   submittedBy User               @relation("SubmittedByUser", fields: [submittedByUserId], references: [id])
@@ -733,18 +750,18 @@ enum AssessmentKind {
 }
 
 model Homework {
-  id                  String   @id @default(uuid())
-  teacherId           String   @map("teacher_id")
-  subjectId           String   @map("subject_id")
-  classSectionId      String   @map("class_section_id")
-  termId              String   @map("term_id")
+  id                  String         @id @default(uuid())
+  teacherId           String         @map("teacher_id")
+  subjectId           String         @map("subject_id")
+  classSectionId      String         @map("class_section_id")
+  termId              String         @map("term_id")
   kind                AssessmentKind @default(HOMEWORK)
   title               String
   description         String?
-  dueDate             DateTime @map("due_date")
-  maxMarks            Float?   @map("max_marks")
-  lateDeductionPerDay Float?   @default(0) @map("late_deduction_per_day")
-  createdAt           DateTime @default(now()) @map("created_at")
+  dueDate             DateTime       @map("due_date")
+  maxMarks            Float?         @map("max_marks")
+  lateDeductionPerDay Float?         @default(0) @map("late_deduction_per_day")
+  createdAt           DateTime       @default(now()) @map("created_at")
 
   teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -759,15 +776,15 @@ model Homework {
 }
 
 model HomeworkSubmission {
-  id            String    @id @default(uuid())
-  homeworkId    String    @map("homework_id")
-  studentId     String    @map("student_id")
-  fileUrl       String?   @map("file_url")
-  submittedAt   DateTime  @default(now()) @map("submitted_at")
-  isLate        Boolean   @default(false) @map("is_late")
-  marks         Float?
-  gradedAt      DateTime? @map("graded_at")
-  gradedByUserId String?  @map("graded_by_user_id")
+  id             String    @id @default(uuid())
+  homeworkId     String    @map("homework_id")
+  studentId      String    @map("student_id")
+  fileUrl        String?   @map("file_url")
+  submittedAt    DateTime  @default(now()) @map("submitted_at")
+  isLate         Boolean   @default(false) @map("is_late")
+  marks          Float?
+  gradedAt       DateTime? @map("graded_at")
+  gradedByUserId String?   @map("graded_by_user_id")
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -818,6 +835,9 @@ model Message {
   contentType    MessageContentType @default(TEXT) @map("content_type")
   status         MessageStatus      @default(SENT)
   fileUrl        String?            @map("file_url")
+  /// The name the sender's file had, kept apart from the uuid it is stored
+  /// under. A recipient offered "a1b2c3.pdf" does not know what it is.
+  fileName       String?            @map("file_name")
   createdAt      DateTime           @default(now()) @map("created_at")
 
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -840,7 +860,6 @@ model MessageRead {
   @@unique([messageId, userId])
   @@map("message_reads")
 }
-
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────────
 
@@ -866,7 +885,7 @@ model PushToken {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   token     String   @unique
-  platform  String   // 'ios', 'android'
+  platform  String // 'ios', 'android'
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -952,36 +971,36 @@ enum PocketMoneyKind {
 }
 
 model PocketMoneyAccount {
-  id        String   @id @default(uuid())
-  studentId String   @unique @map("student_id")
+  id              String   @id @default(uuid())
+  studentId       String   @unique @map("student_id")
   /// What the student may spend in one day. Set by the parent, because it is
   /// their money and a term's money has to last a term. Null means no cap.
-  dailyLimit Float?  @map("daily_limit")
+  dailyLimit      Float?   @map("daily_limit")
   /// Below this the parent is told. Null means never.
-  lowBalanceAlert Float? @map("low_balance_alert")
-  isFrozen  Boolean  @default(false) @map("is_frozen")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  lowBalanceAlert Float?   @map("low_balance_alert")
+  isFrozen        Boolean  @default(false) @map("is_frozen")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  student      Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   transactions PocketMoneyTransaction[]
 
   @@map("pocket_money_accounts")
 }
 
 model PocketMoneyTransaction {
-  id        String          @id @default(uuid())
-  accountId String          @map("account_id")
-  kind      PocketMoneyKind
+  id               String          @id @default(uuid())
+  accountId        String          @map("account_id")
+  kind             PocketMoneyKind
   /// Always positive. The kind decides the direction, so a reader never has to
   /// work out whether a negative deposit means a refund.
-  amount    Float
-  note      String?
+  amount           Float
+  note             String?
   /// Who was at the counter. Null only for entries the system makes itself.
-  recordedByUserId String? @map("recorded_by_user_id")
+  recordedByUserId String?         @map("recorded_by_user_id")
   /// The entry this one undoes, for a REVERSAL.
-  reversesId String? @unique @map("reverses_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  reversesId       String?         @unique @map("reverses_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
 
   account    PocketMoneyAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   recordedBy User?                   @relation("PocketMoneyRecordedBy", fields: [recordedByUserId], references: [id])
@@ -990,4 +1009,309 @@ model PocketMoneyTransaction {
 
   @@index([accountId, createdAt])
   @@map("pocket_money_transactions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTIVITIES AND EVENTS
+//
+// A head teacher's week is not lessons. It is visiting day, an inter-school
+// match, a club that meets on Wednesday, and a trip that needs a bus and
+// thirty signed permission slips. All of that lives in a paper diary today.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ActivityKind {
+  /// Meets regularly: debate, drama, scouts, choir.
+  CLUB
+  /// Football, athletics, an inter-school match.
+  SPORT
+  /// Whole-school gathering.
+  ASSEMBLY
+  /// Off the premises. Needs consent, and needs a list of exactly who went.
+  TRIP
+  /// The day of the month that matters most to a boarder.
+  VISITING_DAY
+  /// Exams, prize-giving, parents' evening.
+  SCHOOL_EVENT
+}
+
+enum ActivityAudience {
+  /// Everybody.
+  WHOLE_SCHOOL
+  /// Named year levels, e.g. all of Senior 1.
+  LEVELS
+  /// Named classes.
+  CLASSES
+}
+
+model Activity {
+  id               String           @id @default(uuid())
+  kind             ActivityKind
+  title            String
+  description      String?
+  location         String?
+  startsAt         DateTime         @map("starts_at")
+  endsAt           DateTime?        @map("ends_at")
+  audience         ActivityAudience @default(WHOLE_SCHOOL)
+  /// A trip off the premises needs recorded consent; an assembly does not.
+  requiresConsent  Boolean          @default(false) @map("requires_consent")
+  /// A club meeting takes a register; an assembly does not.
+  tracksAttendance Boolean          @default(false) @map("tracks_attendance")
+  /// Null means no cap.
+  capacity         Int?
+  isCancelled      Boolean          @default(false) @map("is_cancelled")
+  cancelledReason  String?          @map("cancelled_reason")
+
+  createdByUserId String   @map("created_by_user_id")
+  termId          String?  @map("term_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  createdBy    User                  @relation("ActivityCreatedBy", fields: [createdByUserId], references: [id])
+  term         Term?                 @relation(fields: [termId], references: [id])
+  classLevels  ActivityClassLevel[]
+  sections     ActivitySection[]
+  participants ActivityParticipant[]
+
+  @@index([startsAt])
+  @@map("activities")
+}
+
+/// Which year levels an activity concerns, when the audience is LEVELS.
+model ActivityClassLevel {
+  id           String @id @default(uuid())
+  activityId   String @map("activity_id")
+  classLevelId String @map("class_level_id")
+
+  activity   Activity   @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classLevel ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classLevelId])
+  @@map("activity_class_levels")
+}
+
+/// Which classes an activity concerns, when the audience is CLASSES.
+model ActivitySection {
+  id             String @id @default(uuid())
+  activityId     String @map("activity_id")
+  classSectionId String @map("class_section_id")
+
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classSectionId])
+  @@map("activity_sections")
+}
+
+enum ConsentState {
+  /// Nobody has answered yet.
+  PENDING
+  GIVEN
+  REFUSED
+}
+
+/// One student's place in one activity.
+///
+/// Consent and attendance live together because they answer the same question
+/// from two sides: may this child go, and did they.
+model ActivityParticipant {
+  id         String @id @default(uuid())
+  activityId String @map("activity_id")
+  studentId  String @map("student_id")
+
+  consent         ConsentState @default(PENDING)
+  consentByUserId String?      @map("consent_by_user_id")
+  consentAt       DateTime?    @map("consent_at")
+  consentNote     String?      @map("consent_note")
+
+  /// Null until the register is taken.
+  attended   Boolean?  @map("attended")
+  attendedAt DateTime? @map("attended_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  activity  Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  consentBy User?    @relation("ActivityConsentBy", fields: [consentByUserId], references: [id])
+
+  @@unique([activityId, studentId])
+  @@index([studentId])
+  @@map("activity_participants")
+}
+
+// ─── HEALTH ───────────────────────────────────────────────────────────────────
+// A boarding school is responsible for a child's body as well as their marks.
+// The sick bay currently runs on an exercise book, which means nobody can
+// answer "how many times has she been in this term" or "did she get her second
+// dose", and a parent finds out their child was ill when they collect them.
+
+enum ClinicVisitOutcome {
+  /// Seen, treated, sent back to class or the dormitory.
+  RETURNED_TO_CLASS
+  /// Kept in the sick bay to rest.
+  RESTING_IN_SICK_BAY
+  /// Sent to a health centre or hospital.
+  REFERRED_OUT
+  /// Collected by a parent.
+  SENT_HOME
+}
+
+enum ClinicSeverity {
+  MINOR
+  MODERATE
+  SERIOUS
+}
+
+/// One visit to the sick bay.
+///
+/// Nothing here is ever deleted. A health record that can be tidied away is
+/// worth nothing the day somebody has to account for what happened.
+model ClinicVisit {
+  id        String @id @default(uuid())
+  studentId String @map("student_id")
+
+  /// What the student said was wrong, in their words.
+  complaint String
+  /// What the nurse found.
+  findings  String?
+  treatment String?
+  severity  ClinicSeverity     @default(MINOR)
+  outcome   ClinicVisitOutcome @default(RETURNED_TO_CLASS)
+
+  temperature Float?
+  /// Where they were sent, when the outcome is REFERRED_OUT.
+  referredTo  String? @map("referred_to")
+
+  seenByUserId String    @map("seen_by_user_id")
+  visitedAt    DateTime  @default(now()) @map("visited_at")
+  /// Set when a student kept in the sick bay is discharged.
+  dischargedAt DateTime? @map("discharged_at")
+
+  /// Whether the family has been told. A parent should never learn from their
+  /// child that the school kept them in the sick bay overnight.
+  parentNotifiedAt DateTime? @map("parent_notified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student     Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  seenBy      User                       @relation("ClinicSeenBy", fields: [seenByUserId], references: [id])
+  medications MedicationAdministration[]
+
+  @@index([studentId])
+  @@index([visitedAt])
+  @@map("clinic_visits")
+}
+
+/// Every dose given, with who gave it and when.
+///
+/// This is the row that answers "has she already had her paracetamol today",
+/// which is the question a double dose comes from.
+model MedicationAdministration {
+  id        String  @id @default(uuid())
+  studentId String  @map("student_id")
+  /// The visit it came out of, when there was one. Regular medication for a
+  /// long-term condition has no visit behind it.
+  visitId   String? @map("visit_id")
+
+  medicine String
+  dose     String
+  reason   String?
+
+  givenByUserId String   @map("given_by_user_id")
+  givenAt       DateTime @default(now()) @map("given_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  visit   ClinicVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  givenBy User         @relation("MedicationGivenBy", fields: [givenByUserId], references: [id])
+
+  @@index([studentId])
+  @@index([givenAt])
+  @@map("medication_administrations")
+}
+
+/// The one page somebody needs at three in the morning.
+///
+/// Separate from Student because it is read under different rules: the nurse,
+/// the boarding staff and the office see it, teachers never do.
+model StudentHealthRecord {
+  id        String @id @default(uuid())
+  studentId String @unique @map("student_id")
+
+  /// Long-term conditions in plain words: asthma, epilepsy, sickle cell.
+  chronicConditions String? @map("chronic_conditions")
+  /// Medication taken regularly, and when.
+  regularMedication String? @map("regular_medication")
+  /// Anything the school must never give them.
+  allergyNotes      String? @map("allergy_notes")
+  /// Free text: what a fit looks like for this child, where the inhaler is.
+  emergencyPlan     String? @map("emergency_plan")
+
+  /// Who to ring first, which is not always the parent on the account.
+  emergencyContactName  String? @map("emergency_contact_name")
+  emergencyContactPhone String? @map("emergency_contact_phone")
+  emergencyRelationship String? @map("emergency_relationship")
+
+  /// Mutuelle de Sante or other cover, needed at the health centre gate.
+  insuranceProvider String? @map("insurance_provider")
+  insuranceNumber   String? @map("insurance_number")
+
+  /// The health centre the school refers to for this child.
+  preferredClinic String? @map("preferred_clinic")
+
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("HealthRecordUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@map("student_health_records")
+}
+
+/// What a merit was earned for.
+///
+/// Named for the things a Rwandan secondary school already praises at
+/// assembly, so staff recognise the list rather than translating into it.
+enum MeritCategory {
+  /// Real effort in class, whatever the mark came out as.
+  ACADEMIC_EFFORT
+  HELPING_OTHERS
+  LEADERSHIP
+  SPORT
+  ARTS
+  /// Work for the school itself: the garden, the library, the dormitory.
+  SERVICE
+  HONESTY
+  /// Turning it around. The one that matters most to a student on a warning.
+  IMPROVEMENT
+}
+
+/// Points earned back, and recognition kept.
+///
+/// A conduct system with only deductions teaches a student that the best
+/// possible outcome is to be unnoticed. Merits give the school a way to say
+/// the opposite, and give a student on a warning a visible way back.
+model MeritAward {
+  id              String        @id @default(uuid())
+  studentId       String        @map("student_id")
+  termId          String        @map("term_id")
+  awardedByUserId String        @map("awarded_by_user_id")
+  category        MeritCategory
+  description     String
+  /// Added back to the conduct score, which is capped at a clean sheet. The
+  /// recognition itself is not capped: the award stands on the record whether
+  /// or not there were points left to restore.
+  points          Int
+  date            DateTime      @db.Date
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  awardedBy User    @relation("MeritAwardedBy", fields: [awardedByUserId], references: [id])
+
+  @@index([studentId])
+  @@index([termId])
+  @@map("merit_awards")
 }

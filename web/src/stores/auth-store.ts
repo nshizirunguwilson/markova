@@ -1,10 +1,13 @@
 import { create } from "zustand";
+import type { Role } from "@/types";
 
 export interface User {
   id: string;
   email: string | null;
   phone: string | null;
-  role: "ADMIN" | "TEACHER" | "STUDENT" | "PARENT" | "LIBRARIAN";
+  // The one definition lives in @/types, so a new role never has to be
+  // added in two places again.
+  role: Role;
   firstName: string;
   lastName: string;
   photoUrl: string | null;

@@ -23,7 +23,16 @@ import api from "@/lib/api";
 // would burn the link for nothing.
 const ALWAYS_PUBLIC = ["/reset-password"];
 
+/**
+ * Where a role lands after signing in.
+ *
+ * The boarding staff have no dashboard of their own; their work lives on the
+ * pocket money and clinic pages under /admin, which the shell lets them
+ * through to. Sending them to /patron would be a 404.
+ */
 function dashboardFor(role: string): string {
+  if (role === "PATRON" || role === "MATRON") return "/admin/pocket-money";
+  if (role === "NURSE") return "/admin/health";
   return `/${role.toLowerCase()}`;
 }
 

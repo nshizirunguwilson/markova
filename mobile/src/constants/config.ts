@@ -10,5 +10,20 @@ export const TOKEN_KEYS = {
   refreshToken: 'refresh_token',
 } as const;
 
-export const ROLES = ['ADMIN', 'TEACHER', 'PARENT', 'LIBRARIAN'] as const;
+/**
+ * The roles that may sign in on a phone.
+ *
+ * Boarding staff belong here more than anyone: a matron holding a child's
+ * money in the dormitory or walking one to the sick bay is never at a desk.
+ * Students are still excluded, see MOBILE_BLOCKED_ROLES.
+ */
+export const ROLES = [
+  'ADMIN',
+  'TEACHER',
+  'PARENT',
+  'LIBRARIAN',
+  'PATRON',
+  'MATRON',
+  'NURSE',
+] as const;
 export type UserRole = (typeof ROLES)[number];

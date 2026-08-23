@@ -32,7 +32,7 @@ vi.mock("@/stores/chat-store", () => ({
     selector ? selector(h.chat) : h.chat,
 }));
 
-import { screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveAll } from "@/test/page";
 import MessagesPage from "./page";
 
@@ -759,5 +759,353 @@ describe("the edges of the inbox", () => {
     });
 
     await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
+  });
+});
+
+/**
+ * Attachments.
+ *
+ * A teacher sending a marking scheme is the reason this exists, and what
+ * matters is that the recipient is offered a name they recognise rather than
+ * the uuid the file is stored under.
+ */
+describe("attachments", () => {
+  const withAttachment = {
+    ...routes,
+    "/messaging/conversations/conv-1/messages": [
+      {
+        id: "m-2",
+        conversationId: "conv-1",
+        senderId: "u-3",
+        sender: other,
+        content: "Here is the marking scheme",
+        fileUrl: "/uploads/attachments/abc.pdf",
+        fileName: "Marking scheme.pdf",
+        createdAt: "2026-08-21T09:05:00Z",
+      },
+    ],
+    "/messaging/attachments": {
+      fileUrl: "/uploads/attachments/xyz.pdf",
+      fileName: "Trip letter.pdf",
+      size: 2048,
+    },
+  };
+
+  async function openThread(extra: Record<string, unknown> = {}) {
+    serve(h.api, { ...withAttachment, ...extra });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Aline/));
+    });
+  }
+
+  // A uuid tells a person nothing about what they are being asked to open.
+  it("offers the file under the name it was sent with", async () => {
+    await openThread();
+    await waitFor(() =>
+      expect(screen.getByText("Marking scheme.pdf")).toBeInTheDocument(),
+    );
+    const link = screen.getByText("Marking scheme.pdf").closest("a")!;
+    expect(link).toHaveAttribute("href", "/uploads/attachments/abc.pdf");
+  });
+
+  it("says 'Attachment' rather than nothing when the name was lost", async () => {
+    await openThread({
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-3",
+          conversationId: "conv-1",
+          sender: other,
+          content: "See this",
+          fileUrl: "/uploads/attachments/abc.pdf",
+          fileName: null,
+          createdAt: "2026-08-21T09:05:00Z",
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Attachment")).toBeInTheDocument(),
+    );
+  });
+
+  it("uploads a chosen file and shows it waiting to be sent", async () => {
+    await openThread();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/attach a file/i), {
+        target: {
+          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
+        },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
+    );
+  });
+
+  // The socket carries text only, so anything with a file has to go over REST
+  // where the attachment fields exist.
+  it("sends a file over REST even when the socket is up", async () => {
+    h.chat.connected = true;
+    await openThread();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/attach a file/i), {
+        target: {
+          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
+        },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Send message"));
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/messages",
+        expect.objectContaining({
+          fileUrl: "/uploads/attachments/xyz.pdf",
+          fileName: "Trip letter.pdf",
+          contentType: "FILE",
+        }),
+      ),
+    );
+    expect(h.chat.sendMessage).not.toHaveBeenCalled();
+  });
+
+  // Requiring words alongside a file means people type "." to get past it.
+  it("sends a file with no words typed", async () => {
+    await openThread();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/attach a file/i), {
+        target: {
+          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
+        },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Send message"));
+    });
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+  });
+
+  it("can be taken off before sending", async () => {
+    await openThread();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/attach a file/i), {
+        target: {
+          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
+        },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/remove the file/i));
+    });
+    expect(screen.queryByText("Trip letter.pdf")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * An announcement is not a thread. If four hundred parents could reply into
+ * it, the first reply would reach all four hundred.
+ */
+describe("announcements a person receives", () => {
+  const announcement = {
+    id: "conv-3",
+    type: "BROADCAST",
+    name: "School closes early on Friday",
+    createdBy: { id: "admin-1" },
+    participants: [{ user: other }, { user: { id: "user-1" } }],
+    lastMessage: {
+      content: "Buses leave at midday.",
+      createdAt: "2026-08-21T09:00:00Z",
+    },
+    unreadCount: 1,
+  };
+
+  async function openAnnouncement(as: string) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [announcement],
+      "/messaging/conversations/conv-3/messages": [],
+    });
+    renderPage(MessagesPage, { role: "PARENT", user: { id: as } });
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(/School closes early on Friday/).length,
+      ).toBeGreaterThan(0),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getAllByText(/School closes early on Friday/)[0]);
+    });
+  }
+
+  // Showing a box that will be refused is worse than showing no box at all.
+  it("offers a recipient no box to type in", async () => {
+    await openAnnouncement("user-1");
+    await waitFor(() =>
+      expect(
+        screen.getByText(/message the school directly/i),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText("Send message")).not.toBeInTheDocument();
+  });
+
+  it("lets the school follow up in its own announcement", async () => {
+    await openAnnouncement("admin-1");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Send message")).toBeInTheDocument(),
+    );
+  });
+});
+
+/**
+ * A group anybody can add to is a group that leaks: a parent added to the
+ * staff room sees everything already said in it.
+ */
+describe("managing a group", () => {
+  const group = {
+    id: "conv-2",
+    type: "GROUP",
+    name: "Senior 1 teachers",
+    participants: [{ user: other }, { user: { id: "user-1" } }],
+    lastMessage: { content: "Muraho mwese", createdAt: "2026-08-21T09:00:00Z" },
+    unreadCount: 0,
+  };
+
+  const members = [
+    { id: "p-1", isAdmin: true, user: { ...other, id: "u-3" } },
+    {
+      id: "p-2",
+      isAdmin: false,
+      user: { id: "user-1", firstName: "Me", lastName: "Myself", role: "ADMIN" },
+    },
+  ];
+
+  async function openMembers() {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [group],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": members,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText(/Senior 1 teachers/)).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Senior 1 teachers/));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Members"));
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Group name")).toBeInTheDocument(),
+    );
+  }
+
+  it("offers no membership button on a one to one thread", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Aline/));
+    });
+    expect(screen.queryByLabelText("Members")).not.toBeInTheDocument();
+  });
+
+  it("lists who is in it and marks the admin", async () => {
+    await openMembers();
+    const row = screen.getByText("Aline Uwase").closest("div")!.parentElement!;
+    expect(within(row).getByText("Admin")).toBeInTheDocument();
+  });
+
+  it("removes somebody", async () => {
+    await openMembers();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/remove aline/i));
+    });
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith(
+        "/messaging/conversations/conv-2/participants/u-3",
+      ),
+    );
+  });
+
+  // Leaving is a different act from being removed, and the word matters.
+  it("offers the signed-in person 'Leave' rather than 'Remove'", async () => {
+    await openMembers();
+    expect(screen.getByLabelText(/leave the group/i)).toBeInTheDocument();
+  });
+
+  it("adds somebody found by name", async () => {
+    await openMembers();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/add somebody/i), {
+        target: { value: "Jean" },
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Jean Habimana/)).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Jean Habimana/).closest("button")!);
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/conversations/conv-2/participants",
+        { userIds: ["u-4"] },
+      ),
+    );
+  });
+
+  it("renames the group", async () => {
+    await openMembers();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Group name"), {
+        target: { value: "Senior 1 class teachers" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.queryAllByRole("button").find((b) => /^Rename$/.test(b.textContent ?? ""))!,
+      );
+    });
+    await waitFor(() =>
+      expect(h.api.put).toHaveBeenCalledWith(
+        "/messaging/conversations/conv-2/name",
+        { name: "Senior 1 class teachers" },
+      ),
+    );
+  });
+
+  it("says why the API refused a removal", async () => {
+    await openMembers();
+    h.api.delete.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: {
+          message:
+            "Make somebody else an admin first, or the group is left with nobody to manage it",
+        },
+      },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/leave the group/i));
+    });
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "Make somebody else an admin first, or the group is left with nobody to manage it",
+      ),
+    );
   });
 });

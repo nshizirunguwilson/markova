@@ -10,6 +10,8 @@ import {
   BookOpen,
   ArrowLeftRight,
   Backpack,
+  HeartPulse,
+  Wallet,
   Ellipsis,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -53,6 +55,8 @@ const ALL: string[] = [
   'alerts',
   'books',
   'circulate',
+  'clinic',
+  'money',
   'messages',
   'more',
 ];
@@ -88,6 +92,32 @@ const ROLE_TABS: Record<string, Slot[]> = {
     { name: 'books', title: 'Books', icon: BookOpen },
     { name: 'circulate', title: 'Desk', icon: ArrowLeftRight },
     messages,
+    more,
+  ],
+  // Boarding staff live in the dormitory, not at a desk. Money and the sick
+  // bay are their week; nothing academic appears at all, because a matron has
+  // no business reading marks.
+  PATRON: [
+    home,
+    { name: 'money', title: 'Money', icon: Wallet },
+    { name: 'clinic', title: 'Clinic', icon: HeartPulse },
+    messages,
+    more,
+  ],
+  MATRON: [
+    home,
+    { name: 'money', title: 'Money', icon: Wallet },
+    { name: 'clinic', title: 'Clinic', icon: HeartPulse },
+    messages,
+    more,
+  ],
+  // A nurse holds no money. Putting the counter in front of her would be a
+  // tab she never presses.
+  NURSE: [
+    home,
+    { name: 'clinic', title: 'Clinic', icon: HeartPulse },
+    messages,
+    { name: 'alerts', title: 'Alerts', icon: Bell, badge: 'notifications' },
     more,
   ],
 };

@@ -16,6 +16,12 @@ import {
   NotificationType,
   EducationStage,
   SubjectScope,
+  ActivityKind,
+  ActivityAudience,
+  ConsentState,
+  ClinicSeverity,
+  ClinicVisitOutcome,
+  MeritCategory,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -3026,6 +3032,481 @@ async function main() {
     })),
   });
   console.log(`  ✅ ${ticketRows.length} support tickets seeded`);
+
+  // ─── POCKET MONEY ───────────────────────────────────────────────────────────
+  // A boarding school holds cash for its students: a parent hands it over on
+  // visiting day and the student draws it down at the canteen. Seeded as a
+  // real ledger, so the balances are the sum of the entries rather than a
+  // number somebody typed.
+  // Roughly two thirds of a TSS roll board, which is who holds money here.
+  const boarders = students.filter((_, i) => i % 3 !== 2).slice(0, 240);
+  const pmAccounts: any[] = [];
+  for (const st of boarders) {
+    pmAccounts.push({
+      studentId: st.id,
+      // A parent who sends a term's money does not want it gone by Wednesday.
+      dailyLimit: sample([null, null, 1000, 2000, 2000, 5000]),
+      lowBalanceAlert: sample([null, 1000, 2000]),
+    });
+  }
+  await prisma.pocketMoneyAccount.createMany({ data: pmAccounts });
+  const createdAccounts = await prisma.pocketMoneyAccount.findMany({
+    select: { id: true, studentId: true },
+  });
+
+  const pmRows: any[] = [];
+  const counterStaff = [admin.id, ...teacherUsers.slice(0, 2).map((t) => t.id)];
+  for (const acct of createdAccounts) {
+    // Visiting day money, once or twice a term.
+    let running = 0;
+    const deposits = 1 + rand(2);
+    for (let d = 0; d < deposits; d++) {
+      const amount = sample([5000, 10000, 10000, 15000, 20000]);
+      running += amount;
+      pmRows.push({
+        accountId: acct.id,
+        kind: 'DEPOSIT',
+        amount,
+        note: sample([
+          'Visiting day, handed in by mother',
+          'Visiting day, handed in by father',
+          'Sent through the bursar',
+        ]),
+        recordedByUserId: sample(counterStaff),
+        createdAt: minDate(addDays(today, -(20 + rand(50))), today),
+      });
+    }
+    // Then the canteen, a little at a time.
+    const trips = rand(9);
+    for (let w = 0; w < trips; w++) {
+      const amount = sample([200, 300, 500, 500, 800, 1000, 1500]);
+      if (amount > running) break;
+      running -= amount;
+      pmRows.push({
+        accountId: acct.id,
+        kind: 'WITHDRAWAL',
+        amount,
+        note: sample(['Canteen', 'Soap and toothpaste', 'Bread', 'Airtime', 'Exercise books']),
+        recordedByUserId: sample(counterStaff),
+        createdAt: minDate(addDays(today, -rand(18)), today),
+      });
+    }
+  }
+  for (let i = 0; i < pmRows.length; i += 5000) {
+    await prisma.pocketMoneyTransaction.createMany({
+      data: pmRows.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${createdAccounts.length} pocket money accounts + ${pmRows.length} entries seeded`,
+  );
+
+
+  // ─── ACTIVITIES ─────────────────────────────────────────────────────────────
+  // A school's week is not only lessons. These are the things a Rwandan
+  // secondary school actually runs, so the calendar reads like one rather than
+  // like a list of test rows.
+  const activityStaff = [admin.id, ...teacherUsers.slice(0, 4).map((t) => t.id)];
+  // Which year level each class belongs to, so a level audience can be turned
+  // into the students actually in it.
+  const sectionLevelId = new Map(
+    sectionMetas.map((m) => [m.section.id, m.level.id]),
+  );
+  const oLevels = classLevels.filter((l) => l.stage === EducationStage.O_LEVEL);
+  const aLevels = classLevels.filter((l) => l.stage === EducationStage.A_LEVEL);
+
+  const dayAt = (offset: number, hour: number, minute = 0) => {
+    const d = addDays(today, offset);
+    d.setHours(hour, minute, 0, 0);
+    return d;
+  };
+
+  const activityPlan: {
+    kind: ActivityKind;
+    title: string;
+    description: string;
+    location: string;
+    offset: number;
+    hour: number;
+    hours: number;
+    audience: ActivityAudience;
+    levels?: any[];
+    requiresConsent?: boolean;
+    tracksAttendance?: boolean;
+    capacity?: number;
+    cancelled?: string;
+  }[] = [
+    { kind: ActivityKind.ASSEMBLY, title: 'Monday assembly', description: 'Flag raising, notices and the week ahead.', location: 'Assembly ground', offset: 3, hour: 7, hours: 1, audience: ActivityAudience.WHOLE_SCHOOL },
+    { kind: ActivityKind.CLUB, title: 'Debate club', description: 'Weekly motion practice ahead of the inter-school debate.', location: 'Room 4', offset: 2, hour: 15, hours: 2, audience: ActivityAudience.WHOLE_SCHOOL, tracksAttendance: true, capacity: 40 },
+    { kind: ActivityKind.CLUB, title: 'Anti-AIDS club', description: 'Peer education session with the school nurse.', location: 'Room 7', offset: 5, hour: 15, hours: 1, audience: ActivityAudience.WHOLE_SCHOOL, tracksAttendance: true },
+    { kind: ActivityKind.CLUB, title: 'Umuganda club', description: 'Community work in the school garden and the road outside.', location: 'School garden', offset: 9, hour: 8, hours: 3, audience: ActivityAudience.WHOLE_SCHOOL, tracksAttendance: true },
+    { kind: ActivityKind.CLUB, title: 'ICT club', description: 'Robotics and web projects in the computer lab.', location: 'Computer lab', offset: 4, hour: 15, hours: 2, audience: ActivityAudience.LEVELS, levels: aLevels, tracksAttendance: true, capacity: 30 },
+    { kind: ActivityKind.SPORT, title: 'Football against Groupe Scolaire Kacyiru', description: 'Home match, senior boys and girls.', location: 'School field', offset: 6, hour: 15, hours: 2, audience: ActivityAudience.WHOLE_SCHOOL },
+    { kind: ActivityKind.SPORT, title: 'Inter-class volleyball', description: 'Class against class, all week.', location: 'Volleyball court', offset: 12, hour: 15, hours: 2, audience: ActivityAudience.WHOLE_SCHOOL, tracksAttendance: true },
+    { kind: ActivityKind.VISITING_DAY, title: 'Visiting day', description: 'Families may visit boarders between 10:00 and 16:00. Pocket money can be handed in at the office.', location: 'School grounds', offset: 10, hour: 10, hours: 6, audience: ActivityAudience.WHOLE_SCHOOL },
+    { kind: ActivityKind.TRIP, title: 'Nyungwe forest trip', description: 'Senior 2 biology field trip. Depart 06:00, return by 19:00.', location: 'Nyungwe National Park', offset: 18, hour: 6, hours: 13, audience: ActivityAudience.LEVELS, levels: oLevels.slice(1, 2), requiresConsent: true, tracksAttendance: true, capacity: 45 },
+    { kind: ActivityKind.TRIP, title: 'Kigali Genocide Memorial visit', description: 'Senior 3 history visit to Gisozi.', location: 'Kigali Genocide Memorial', offset: 24, hour: 8, hours: 5, audience: ActivityAudience.LEVELS, levels: oLevels.slice(2, 3), requiresConsent: true, tracksAttendance: true, capacity: 60 },
+    { kind: ActivityKind.SCHOOL_EVENT, title: 'Parents meeting, Senior 1', description: 'First term progress and boarding arrangements.', location: 'School hall', offset: 15, hour: 14, hours: 2, audience: ActivityAudience.LEVELS, levels: oLevels.slice(0, 1) },
+    { kind: ActivityKind.SCHOOL_EVENT, title: 'Career day', description: 'Alumni and employers talk to the TVET levels.', location: 'School hall', offset: 21, hour: 9, hours: 4, audience: ActivityAudience.LEVELS, levels: aLevels },
+    { kind: ActivityKind.SPORT, title: 'Swimming gala', description: 'Inter-house gala at the Kigali pool.', location: 'Amahoro pool', offset: 8, hour: 9, hours: 4, audience: ActivityAudience.WHOLE_SCHOOL, requiresConsent: true, cancelled: 'The pool is closed for repairs. A new date will be announced.' },
+    // Behind us, so the calendar has a past as well as a future.
+    { kind: ActivityKind.ASSEMBLY, title: 'Term opening assembly', description: 'Welcome back and the term calendar.', location: 'Assembly ground', offset: -30, hour: 7, hours: 1, audience: ActivityAudience.WHOLE_SCHOOL },
+    { kind: ActivityKind.SPORT, title: 'Cross country', description: 'Whole school run through Kimironko.', location: 'Kimironko', offset: -14, hour: 7, hours: 3, audience: ActivityAudience.WHOLE_SCHOOL, tracksAttendance: true },
+    { kind: ActivityKind.VISITING_DAY, title: 'Visiting day (last month)', description: 'Families visited boarders.', location: 'School grounds', offset: -21, hour: 10, hours: 6, audience: ActivityAudience.WHOLE_SCHOOL },
+  ];
+
+  const createdActivities: any[] = [];
+  for (const a of activityPlan) {
+    const activity = await prisma.activity.create({
+      data: {
+        kind: a.kind,
+        title: a.title,
+        description: a.description,
+        location: a.location,
+        startsAt: dayAt(a.offset, a.hour),
+        endsAt: dayAt(a.offset, a.hour + a.hours),
+        audience: a.audience,
+        requiresConsent: a.requiresConsent ?? false,
+        tracksAttendance: a.tracksAttendance ?? false,
+        capacity: a.capacity ?? null,
+        isCancelled: !!a.cancelled,
+        cancelledReason: a.cancelled ?? null,
+        createdByUserId: sample(activityStaff),
+        termId: currentTerm.id,
+        ...(a.levels?.length && {
+          classLevels: {
+            create: a.levels.map((l: any) => ({ classLevelId: l.id })),
+          },
+        }),
+      },
+    });
+    createdActivities.push({ ...activity, plan: a });
+  }
+
+  // Who is signed up, and whether their family answered. The pending ones are
+  // the point: a head teacher's real question the day before a trip is "who
+  // has not answered yet".
+  const activityParticipants: any[] = [];
+  for (const activity of createdActivities) {
+    const plan = activity.plan;
+    if (!plan.tracksAttendance && !plan.requiresConsent) continue;
+    if (activity.isCancelled) continue;
+
+    const pool = plan.levels?.length
+      ? students.filter((st: any) =>
+          plan.levels.some(
+            (l: any) => sectionLevelId.get(st.classSectionId) === l.id,
+          ),
+        )
+      : students;
+
+    const size = Math.min(plan.capacity ?? 35, pool.length, 35);
+    const chosen = shuffled(pool).slice(0, size);
+    const past = plan.offset < 0;
+
+    for (const st of chosen) {
+      // A third of families have not answered yet, which is what the office
+      // spends the day before a trip chasing.
+      const consent = plan.requiresConsent
+        ? sample([
+            ConsentState.GIVEN,
+            ConsentState.GIVEN,
+            ConsentState.GIVEN,
+            ConsentState.PENDING,
+            ConsentState.PENDING,
+            ConsentState.REFUSED,
+          ])
+        : ConsentState.PENDING;
+
+      activityParticipants.push({
+        activityId: activity.id,
+        studentId: st.id,
+        consent,
+        consentByUserId:
+          consent === ConsentState.PENDING ? null : sample(activityStaff),
+        consentAt:
+          consent === ConsentState.PENDING
+            ? null
+            : addDays(today, -(1 + rand(10))),
+        // A register only exists for something that has already happened.
+        attended: past && plan.tracksAttendance ? rand(10) > 1 : null,
+        attendedAt: past && plan.tracksAttendance ? activity.startsAt : null,
+      });
+    }
+  }
+  for (let i = 0; i < activityParticipants.length; i += 5000) {
+    await prisma.activityParticipant.createMany({
+      data: activityParticipants.slice(i, i + 5000),
+    });
+  }
+  console.log(
+    `  ✅ ${createdActivities.length} activities + ${activityParticipants.length} sign-ups seeded`,
+  );
+
+  // ─── HEALTH ─────────────────────────────────────────────────────────────────
+  // The sick bay, as it actually runs: mostly headaches and stomach aches,
+  // a few referrals, and one or two students who keep coming back.
+  const clinicalStaff = [admin.id, ...teacherUsers.slice(0, 2).map((t) => t.id)];
+
+  const COMPLAINTS: {
+    complaint: string;
+    findings: string;
+    treatment: string;
+    severity: ClinicSeverity;
+    medicine?: string;
+    dose?: string;
+  }[] = [
+    { complaint: 'Headache since morning assembly', findings: 'No fever. Slept badly.', treatment: 'Rest and water', severity: ClinicSeverity.MINOR, medicine: 'Paracetamol', dose: '500mg' },
+    { complaint: 'Stomach ache after breakfast', findings: 'Tender, no fever', treatment: 'Rest, plain food', severity: ClinicSeverity.MINOR },
+    { complaint: 'Toothache on the left side', findings: 'Swollen gum', treatment: 'Pain relief, dentist advised', severity: ClinicSeverity.MODERATE, medicine: 'Paracetamol', dose: '500mg' },
+    { complaint: 'Cough and blocked nose for three days', findings: 'Mild fever, chest clear', treatment: 'Fluids and rest', severity: ClinicSeverity.MINOR },
+    { complaint: 'Fever since last night', findings: '38.4 degrees', treatment: 'Antipyretic, kept in the sick bay', severity: ClinicSeverity.MODERATE, medicine: 'Paracetamol', dose: '500mg' },
+    { complaint: 'Cut on the knee from the football pitch', findings: 'Superficial graze', treatment: 'Cleaned and dressed', severity: ClinicSeverity.MINOR },
+    { complaint: 'Twisted ankle during the match', findings: 'Swelling, weight bearing painful', treatment: 'Cold compress, referred', severity: ClinicSeverity.SERIOUS },
+    { complaint: 'Period pains', findings: 'No fever', treatment: 'Rest and pain relief', severity: ClinicSeverity.MINOR, medicine: 'Ibuprofen', dose: '200mg' },
+    { complaint: 'Dizzy at assembly', findings: 'Skipped breakfast, low blood pressure', treatment: 'Sugar water, rest', severity: ClinicSeverity.MODERATE },
+    { complaint: 'Rash on both arms', findings: 'Contact rash, no fever', treatment: 'Cream applied, watched', severity: ClinicSeverity.MINOR },
+    { complaint: 'Malaria symptoms, chills and headache', findings: 'Temperature 38.9', treatment: 'Referred for a test', severity: ClinicSeverity.SERIOUS },
+    { complaint: 'Eye redness and itching', findings: 'Conjunctivitis, both eyes', treatment: 'Drops, kept away from class', severity: ClinicSeverity.MODERATE },
+  ];
+
+  const HEALTH_CENTRES = [
+    'Kacyiru Health Centre',
+    'Kimironko Health Centre',
+    'King Faisal Hospital',
+    'Kibagabaga Hospital',
+  ];
+
+  // Boarders live here, so they are who the sick bay mostly sees.
+  const clinicPool = shuffled(students).slice(0, 150);
+  const visitRows: any[] = [];
+  const repeatOffenders = clinicPool.slice(0, 4);
+
+  for (const st of clinicPool) {
+    // Most students visit once or twice a term. A few keep coming back, which
+    // is the pattern the summary exists to surface.
+    const visits = repeatOffenders.includes(st) ? 4 + rand(3) : rand(3);
+    for (let v = 0; v < visits; v++) {
+      const c = sample(COMPLAINTS);
+      const daysAgo = rand(60);
+      const outcome =
+        c.severity === ClinicSeverity.SERIOUS
+          ? sample([
+              ClinicVisitOutcome.REFERRED_OUT,
+              ClinicVisitOutcome.REFERRED_OUT,
+              ClinicVisitOutcome.SENT_HOME,
+            ])
+          : c.severity === ClinicSeverity.MODERATE
+            ? sample([
+                ClinicVisitOutcome.RESTING_IN_SICK_BAY,
+                ClinicVisitOutcome.RETURNED_TO_CLASS,
+              ])
+            : ClinicVisitOutcome.RETURNED_TO_CLASS;
+
+      visitRows.push({
+        studentId: st.id,
+        complaint: c.complaint,
+        findings: c.findings,
+        treatment: c.treatment,
+        severity: c.severity,
+        outcome,
+        temperature:
+          c.severity === ClinicSeverity.MINOR
+            ? null
+            : Number((36.5 + Math.random() * 2.4).toFixed(1)),
+        referredTo:
+          outcome === ClinicVisitOutcome.REFERRED_OUT
+            ? sample(HEALTH_CENTRES)
+            : null,
+        seenByUserId: sample(clinicalStaff),
+        visitedAt: addDays(today, -daysAgo),
+        // A stay in the sick bay ends the same day unless it is today's.
+        dischargedAt:
+          outcome === ClinicVisitOutcome.RESTING_IN_SICK_BAY && daysAgo > 0
+            ? addDays(today, -daysAgo)
+            : null,
+        // The families of the serious ones were told; the minor ones were not,
+        // which is exactly the gap a school should be able to see.
+        parentNotifiedAt:
+          c.severity === ClinicSeverity.MINOR
+            ? null
+            : addDays(today, -daysAgo),
+        updatedAt: addDays(today, -daysAgo),
+        medicine: c.medicine,
+        dose: c.dose,
+      });
+    }
+  }
+
+  // Three students lying in the sick bay right now. Without these the demo's
+  // first screen is always empty, and a nurse looking at it would reasonably
+  // conclude the feature does not work.
+  for (const st of clinicPool.slice(4, 7)) {
+    const c = COMPLAINTS.find((x) => x.severity === ClinicSeverity.MODERATE)!;
+    visitRows.push({
+      studentId: st.id,
+      complaint: c.complaint,
+      findings: c.findings,
+      treatment: c.treatment,
+      severity: c.severity,
+      outcome: ClinicVisitOutcome.RESTING_IN_SICK_BAY,
+      temperature: Number((37.8 + Math.random()).toFixed(1)),
+      referredTo: null,
+      seenByUserId: sample(clinicalStaff),
+      visitedAt: addDays(today, 0),
+      // Still in there, so not discharged.
+      dischargedAt: null,
+      parentNotifiedAt: null,
+      updatedAt: today,
+      medicine: c.medicine,
+      dose: c.dose,
+    });
+  }
+
+  for (const row of visitRows) {
+    const { medicine, dose, ...visitData } = row;
+    const visit = await prisma.clinicVisit.create({ data: visitData });
+    if (medicine) {
+      await prisma.medicationAdministration.create({
+        data: {
+          studentId: visit.studentId,
+          visitId: visit.id,
+          medicine,
+          dose,
+          reason: visit.complaint,
+          givenByUserId: visit.seenByUserId,
+          givenAt: visit.visitedAt,
+        },
+      });
+    }
+  }
+
+  // The emergency card, for the students who have something worth recording.
+  // Deliberately not everybody: a card on every student would be a lie about
+  // how much a school actually knows.
+  const CONDITIONS = [
+    { chronicConditions: 'Asthma', regularMedication: 'Blue inhaler as needed', emergencyPlan: 'Inhaler is kept in the dormitory locker. If breathing does not settle in ten minutes, go to Kacyiru Health Centre.' },
+    { chronicConditions: 'Sickle cell', regularMedication: 'Folic acid daily', emergencyPlan: 'Keep warm and hydrated. Any severe pain is an emergency, go straight to King Faisal.' },
+    { chronicConditions: 'Epilepsy', regularMedication: 'Carbamazepine, morning and evening', emergencyPlan: 'Turn onto the side, do not restrain, time the seizure. Over five minutes, call an ambulance.' },
+    { chronicConditions: 'Type 1 diabetes', regularMedication: 'Insulin before meals', emergencyPlan: 'Sugar and a snack if shaky or confused. Glucometer is with the nurse.' },
+    { chronicConditions: 'Severe peanut allergy', allergyNotes: 'Peanuts and groundnut sauce', emergencyPlan: 'Adrenaline pen is in the sick bay fridge. Use it and call an ambulance.' },
+  ];
+
+  const healthRecordRows: any[] = [];
+  const cardStudents = shuffled(students).slice(0, 60);
+  for (const [i, st] of cardStudents.entries()) {
+    const condition = i < 15 ? CONDITIONS[i % CONDITIONS.length] : {};
+    healthRecordRows.push({
+      studentId: st.id,
+      ...condition,
+      // Not always the parent on the account: an aunt in Kigali is who a
+      // boarding school can actually reach at three in the morning.
+      emergencyContactName: (() => {
+        const n = adultName(sample([Gender.MALE, Gender.FEMALE]));
+        return `${n.first} ${n.last}`;
+      })(),
+      emergencyContactPhone: realPhone(),
+      emergencyRelationship: sample([
+        'Mother',
+        'Father',
+        'Aunt',
+        'Uncle',
+        'Grandmother',
+        'Elder brother',
+      ]),
+      insuranceProvider: sample([
+        'Mutuelle de Sante',
+        'Mutuelle de Sante',
+        'RSSB',
+        'Radiant',
+        'Britam',
+      ]),
+      insuranceNumber: `MUT-${1000 + rand(9000)}`,
+      preferredClinic: sample(HEALTH_CENTRES),
+      updatedByUserId: sample(clinicalStaff),
+      updatedAt: addDays(today, -rand(90)),
+    });
+  }
+  await prisma.studentHealthRecord.createMany({ data: healthRecordRows });
+  console.log(
+    `  ✅ ${visitRows.length} clinic visits + ${healthRecordRows.length} emergency cards seeded`,
+  );
+
+  // ─── MERITS ─────────────────────────────────────────────────────────────────
+  // The other half of behaviour. Deliberately fewer than the incidents, which
+  // is honest about where most schools are and is exactly what the ratio on
+  // the discipline page is there to show.
+  const MERITS: { category: MeritCategory; description: string; points: number }[] = [
+    { category: MeritCategory.HELPING_OTHERS, description: 'Stayed behind to help clear the science lab', points: 5 },
+    { category: MeritCategory.HELPING_OTHERS, description: 'Walked a younger student to the sick bay and waited with her', points: 5 },
+    { category: MeritCategory.ACADEMIC_EFFORT, description: 'Kept working at maths through the whole term despite a hard start', points: 8 },
+    { category: MeritCategory.ACADEMIC_EFFORT, description: 'Best improvement in physics this term', points: 10 },
+    { category: MeritCategory.LEADERSHIP, description: 'Led the Senior 2 debate team to the district final', points: 10 },
+    { category: MeritCategory.LEADERSHIP, description: 'Ran the dormitory as head girl without a single complaint', points: 10 },
+    { category: MeritCategory.SPORT, description: 'Scored the winning goal against Groupe Scolaire Kacyiru', points: 5 },
+    { category: MeritCategory.SPORT, description: 'Captained the volleyball team all season', points: 8 },
+    { category: MeritCategory.ARTS, description: 'Painted the mural in the school hall', points: 8 },
+    { category: MeritCategory.ARTS, description: 'Wrote and directed the Liberation Day drama', points: 10 },
+    { category: MeritCategory.SERVICE, description: 'Worked every umuganda in the school garden this term', points: 8 },
+    { category: MeritCategory.SERVICE, description: 'Kept the library shelves in order without being asked', points: 5 },
+    { category: MeritCategory.HONESTY, description: 'Handed in a wallet found on the football pitch', points: 10 },
+    { category: MeritCategory.HONESTY, description: 'Owned up to breaking a lab flask nobody had seen', points: 8 },
+    { category: MeritCategory.IMPROVEMENT, description: 'Turned around a difficult first term. No incidents since March.', points: 12 },
+    { category: MeritCategory.IMPROVEMENT, description: 'Went from constant lateness to first in the classroom every day', points: 12 },
+  ];
+
+  // Dated across the same school days the incidents use, and deliberately
+  // fewer than them. Both matter: comparing a term of praise against a month
+  // of trouble would make the ratio meaningless, and a seed showing more
+  // praise than trouble would hide the very thing the ratio exists to show.
+  const meritDays = schoolDaysByTerm.get(currentTerm.id) ?? [];
+  const meritRows: any[] = [];
+  const merited = shuffled(students).slice(0, 25);
+  const award = (st: any) => {
+    const merit = sample(MERITS);
+    meritRows.push({
+      studentId: st.id,
+      termId: currentTerm.id,
+      awardedByUserId: sample(activityStaff),
+      category: merit.category,
+      description: merit.description,
+      points: merit.points,
+      date: meritDays.length ? sample(meritDays) : addDays(today, -rand(30)),
+    });
+  };
+  for (const st of merited) award(st);
+  // A few students turn up again and again, so "most recognised" is a real
+  // list rather than six names that each happen to have one.
+  for (const st of merited.slice(0, 6)) {
+    for (let m = 0; m < 1 + rand(2); m++) award(st);
+  }
+  await prisma.meritAward.createMany({ data: meritRows });
+
+  // The points a merit restores, applied once at the end rather than per row,
+  // because the ledger is what matters and the score is derived from it.
+  const meritTotals = new Map<string, number>();
+  for (const row of meritRows) {
+    meritTotals.set(
+      row.studentId,
+      (meritTotals.get(row.studentId) ?? 0) + row.points,
+    );
+  }
+  for (const [studentId, earned] of meritTotals) {
+    const st = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { disciplinePoints: true },
+    });
+    if (!st) continue;
+    // Capped at a clean sheet, exactly as the service does it, so the seeded
+    // numbers agree with what the app would have produced.
+    await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        disciplinePoints: Math.min(100, st.disciplinePoints + earned),
+      },
+    });
+  }
+  console.log(`  ✅ ${meritRows.length} merits seeded`);
 
   // ─── FAQ ────────────────────────────────────────────────────────────────────
   await prisma.faqArticle.createMany({

@@ -11,6 +11,8 @@ import {
   useCurrentTerm,
   useNotifications,
   useChronicAbsentees,
+  useClinicSummary,
+  useUpcomingActivities,
 } from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
@@ -49,6 +51,8 @@ export default function Home() {
   if (role === 'TEACHER') return <TeacherHome />;
   if (role === 'ADMIN') return <AdminHome />;
   if (role === 'LIBRARIAN') return <LibrarianHome />;
+  if (role === 'PATRON' || role === 'MATRON' || role === 'NURSE')
+    return <BoardingHome nurse={role === 'NURSE'} />;
   return <ParentHome />;
 }
 
@@ -348,6 +352,144 @@ function LibrarianHome() {
             onPress={() => router.push('/(app)/(tabs)/circulate')}
           />
           <Row title="The catalogue" onPress={() => router.push('/(app)/(tabs)/books')} last />
+        </RowGroup>
+      </Section>
+    </Screen>
+  );
+}
+
+/**
+ * Home for the boarding staff and the nurse.
+ *
+ * The question a matron opens the app to answer at seven in the morning is not
+ * a statistic. It is whether anybody is still lying in the sick bay, and
+ * whether anything is happening today that she has to get children ready for.
+ * So the headline is that, in words, and the rest is one tap away.
+ *
+ * A nurse sees the same screen without the money, because she holds none.
+ */
+function BoardingHome({ nurse }: { nurse: boolean }) {
+  const router = useRouter();
+  const { data: clinic, isPending, refetch, isRefetching } = useClinicSummary(30);
+  const { data: activities } = useUpcomingActivities(5);
+
+  const inSickBay = clinic?.inSickBay ?? 0;
+  const headline =
+    inSickBay === 0
+      ? 'Nobody is in the sick bay'
+      : `${inSickBay} student${inSickBay === 1 ? '' : 's'} in the sick bay`;
+
+  // What is on today, which is what turns into "get them ready by six".
+  const today = new Date().toDateString();
+  const todays = (activities ?? []).filter(
+    (a) => new Date(a.startsAt).toDateString() === today,
+  );
+
+  if (isPending)
+    return (
+      <Screen bleed>
+        <LoadingRows count={4} />
+      </Screen>
+    );
+
+  return (
+    <Screen
+      bleed
+      onRefresh={refetch}
+      refreshing={isRefetching}
+      contentContainerStyle={{ paddingHorizontal: 0, gap: space.xxl }}
+    >
+      <Headline
+        lead={headline}
+        detail={
+          todays.length > 0
+            ? `${todays.length} thing${todays.length === 1 ? '' : 's'} on the calendar today`
+            : undefined
+        }
+      />
+
+      <View style={{ paddingHorizontal: space.xl }}>
+        <StatRow>
+          <Stat
+            value={inSickBay}
+            label="In the sick bay"
+            tone={inSickBay > 0 ? 'caution' : 'primary'}
+          />
+          <Stat value={clinic?.visits ?? 0} label="Visits, 30 days" />
+          <Stat
+            value={clinic?.referred ?? 0}
+            label="Sent to a clinic"
+            tone={(clinic?.referred ?? 0) > 0 ? 'caution' : 'primary'}
+          />
+        </StatRow>
+      </View>
+
+      {/* A student in the sick bay three times in a month is telling the
+          school something no single visit does. */}
+      {(clinic?.repeatVisitors?.length ?? 0) > 0 && (
+        <Section title="Keeps coming back">
+          <RowGroup>
+            {clinic!.repeatVisitors.map((s, i) => (
+              <Row
+                key={s.id}
+                title={`${s.user.firstName} ${s.user.lastName}`}
+                subtitle={`${s.visits} visits in the last month`}
+                lead={<Avatar name={`${s.user.firstName} ${s.user.lastName}`} size="lg" />}
+                chevron={false}
+                last={i === clinic!.repeatVisitors.length - 1}
+              />
+            ))}
+          </RowGroup>
+        </Section>
+      )}
+
+      {todays.length > 0 && (
+        <Section title="Today">
+          <RowGroup>
+            {todays.map((a, i) => (
+              <Row
+                key={a.id}
+                title={a.title}
+                subtitle={[
+                  new Date(a.startsAt).toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  a.location,
+                ]
+                  .filter(Boolean)
+                  .join('   ·   ')}
+                value={
+                  a.requiresConsent ? <Badge label="Slips needed" tone="caution" /> : undefined
+                }
+                chevron={false}
+                last={i === todays.length - 1}
+              />
+            ))}
+          </RowGroup>
+        </Section>
+      )}
+
+      <Section title="Your day">
+        <RowGroup>
+          <Row
+            title="The sick bay"
+            subtitle="Record a visit, give a dose, send somebody back"
+            onPress={() => router.push('/(app)/(tabs)/clinic')}
+          />
+          {!nurse ? (
+            <Row
+              title="The money counter"
+              subtitle="Scan a card and hand over pocket money"
+              onPress={() => router.push('/(app)/(tabs)/money')}
+            />
+          ) : null}
+          <Row
+            title="Messages"
+            subtitle="The office, the nurse and the class teachers"
+            onPress={() => router.push('/(app)/(tabs)/messages')}
+            last
+          />
         </RowGroup>
       </Section>
     </Screen>

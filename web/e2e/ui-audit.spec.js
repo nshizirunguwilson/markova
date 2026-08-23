@@ -138,6 +138,14 @@ const RBAC = [
   ['STUDENT', '/admin/users'], ['STUDENT', '/admin/settings'], ['STUDENT', '/teacher/marks'],
   ['TEACHER', '/admin/settings'], ['TEACHER', '/admin/users'],
   ['PARENT', '/admin'],
+  // The welfare pages are shared with the boarding staff, which widened the
+  // route guard from one role per prefix to a set. That is exactly the change
+  // most likely to let somebody through, so each new page is checked.
+  ['STUDENT', '/admin/health'], ['STUDENT', '/admin/pocket-money'],
+  ['PARENT', '/admin/health'], ['PARENT', '/admin/pocket-money'],
+  ['PARENT', '/admin/activities'], ['PARENT', '/admin/announcements'],
+  ['TEACHER', '/admin/health'], ['TEACHER', '/admin/pocket-money'],
+  ['STUDENT', '/parent/health'], ['STUDENT', '/parent/pocket-money'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {

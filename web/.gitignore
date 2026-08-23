@@ -22,6 +22,8 @@
 .vercel
 .yarn/*
 /.next/
+# A verification build made while the dev server owns /.next
+/.next-verify/
 /.pnp
 /build
 /coverage

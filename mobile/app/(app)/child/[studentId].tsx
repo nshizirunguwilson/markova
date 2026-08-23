@@ -1,6 +1,15 @@
 import { View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { CalendarDays, TrendingUp, AlertTriangle, BookOpen, FileText } from 'lucide-react-native';
+import {
+  CalendarDays,
+  TrendingUp,
+  AlertTriangle,
+  BookOpen,
+  FileText,
+  HeartPulse,
+  Wallet,
+  PartyPopper,
+} from 'lucide-react-native';
 
 import {
   useAttendanceSummary,
@@ -150,6 +159,43 @@ export default function ChildOverview() {
               disabled={!published}
               onPress={() =>
                 router.push({ pathname: '/(app)/child/reports', params: { studentId, name } })
+              }
+              last
+            />
+          </RowGroup>
+        </Section>
+
+        {/*
+          School life, as distinct from school work.
+
+          Activities leads because it is the only one of the three that asks
+          the parent for something: a permission slip nobody answered is why a
+          child gets left at the gate.
+        */}
+        <Section title="School life">
+          <RowGroup>
+            <Row
+              title="Activities"
+              subtitle="Clubs, trips, and anything needing your permission"
+              lead={<PartyPopper size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/activities', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Health"
+              subtitle="Every time the school has looked after them"
+              lead={<HeartPulse size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/health', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Pocket money"
+              subtitle="What the school is holding, and where it has gone"
+              lead={<Wallet size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/money', params: { studentId, name } })
               }
               last
             />

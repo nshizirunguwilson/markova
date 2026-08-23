@@ -108,3 +108,101 @@ export function useDisciplineDashboard(termId?: string) {
     queryFn: async () => (await api.get("/discipline/dashboard", { params: { termId } })).data,
   });
 }
+
+// ─── MERITS ─────────────────────────────────────────────────────────────────
+// The other half of behaviour. A system with only deductions teaches a student
+// that the best possible outcome is to be unnoticed.
+
+export type MeritCategory =
+  | "ACADEMIC_EFFORT"
+  | "HELPING_OTHERS"
+  | "LEADERSHIP"
+  | "SPORT"
+  | "ARTS"
+  | "SERVICE"
+  | "HONESTY"
+  | "IMPROVEMENT";
+
+export interface Merit {
+  id: string;
+  category: MeritCategory;
+  description: string;
+  points: number;
+  date: string;
+  student: {
+    id: string;
+    studentIdNumber: string;
+    disciplinePoints: number;
+    classSection?: { name: string; classLevel?: { name: string } };
+    user: { firstName: string; lastName: string; photoUrl: string | null };
+  };
+  awardedBy: { firstName: string; lastName: string; role: string };
+}
+
+export function useMerits(params?: Record<string, string>) {
+  const search = params ? new URLSearchParams(params).toString() : "";
+  return useQuery({
+    queryKey: ["merits", params],
+    queryFn: async () => (await api.get(`/discipline/merits?${search}`)).data,
+  });
+}
+
+export function useAwardMerit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Payload) =>
+      (await api.post("/discipline/merits", data)).data,
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["merits"] });
+      qc.invalidateQueries({ queryKey: ["merit-summary"] });
+      qc.invalidateQueries({ queryKey: ["watch-list"] });
+      qc.invalidateQueries({ queryKey: ["standing"] });
+      toast.success(
+        res?.pointsRestored > 0
+          ? `Recorded. ${res.pointsRestored} conduct points restored.`
+          : "Recorded. Their conduct score was already clean.",
+      );
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not record it")),
+  });
+}
+
+/** Both sides of one student's ledger, plus how far back to a clean sheet. */
+export function useStanding(studentId?: string, termId?: string) {
+  return useQuery({
+    queryKey: ["standing", studentId, termId],
+    queryFn: async () =>
+      (
+        await api.get(`/discipline/standing/${studentId}`, {
+          params: termId ? { termId } : {},
+        })
+      ).data,
+    enabled: !!studentId,
+  });
+}
+
+/**
+ * Who to look at this week.
+ *
+ * Not "who has the fewest points", which is the same names all year. This is
+ * movement: incidents picked up recently with nothing on the other side.
+ */
+export function useWatchList(days = 30) {
+  return useQuery({
+    queryKey: ["watch-list", days],
+    queryFn: async () =>
+      (await api.get("/discipline/merits/watch-list", { params: { days } })).data,
+  });
+}
+
+export function useMeritSummary(termId?: string, days = 30) {
+  return useQuery({
+    queryKey: ["merit-summary", termId, days],
+    queryFn: async () =>
+      (
+        await api.get("/discipline/merits/summary", {
+          params: { ...(termId ? { termId } : {}), days },
+        })
+      ).data,
+  });
+}

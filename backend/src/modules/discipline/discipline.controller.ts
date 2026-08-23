@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DisciplineService } from './discipline.service';
+import { MeritsService } from './merits.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
   CreateIncidentDto,
@@ -21,6 +22,8 @@ import {
   ReviewAppealDto,
   AcknowledgeIncidentDto,
   QueryIncidentsDto,
+  AwardMeritDto,
+  QueryMeritsDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -33,6 +36,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class DisciplineController {
   constructor(
     private readonly service: DisciplineService,
+    private readonly merits: MeritsService,
     private readonly ownership: OwnershipService,
   ) {}
 
@@ -144,5 +148,52 @@ export class DisciplineController {
   @ApiOperation({ summary: 'Get discipline dashboard data' })
   getDashboard(@Query('termId') termId?: string) {
     return this.service.getDashboard(termId);
+  }
+
+  // ── Merits ──────────────────────────────────────────────────────────────
+  // The other half of behaviour. A system with only deductions teaches a
+  // student that the best possible outcome is to be unnoticed.
+
+  @Get('merits/watch-list')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
+  @ApiOperation({
+    summary: 'Students losing points recently with nothing on the other side',
+  })
+  watchList(@Query('days') days?: string) {
+    return this.merits.watchList(days ? Number(days) : 30);
+  }
+
+  @Get('merits/summary')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
+  @ApiOperation({ summary: 'What the school recognises, and what it does not' })
+  meritSummary(@Query('termId') termId?: string, @Query('days') days?: string) {
+    return this.merits.summary(termId, days ? Number(days) : 30);
+  }
+
+  @Get('merits')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
+  @ApiOperation({ summary: 'Merits awarded, filterable' })
+  findMerits(@Query() query: QueryMeritsDto) {
+    return this.merits.find(query);
+  }
+
+  @Post('merits')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
+  @ApiOperation({ summary: 'Recognise a student' })
+  awardMerit(@Body() dto: AwardMeritDto, @CurrentUser() user: any) {
+    return this.merits.award(dto, user.id);
+  }
+
+  // Both sides of the ledger, plus how far back to a clean sheet.
+  @Get('standing/:studentId')
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'PATRON', 'MATRON')
+  @ApiOperation({ summary: 'The conduct standing of one student, both sides' })
+  async standing(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: any,
+    @Query('termId') termId?: string,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    return this.merits.standing(studentId, termId);
   }
 }

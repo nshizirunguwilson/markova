@@ -226,3 +226,119 @@ Missing, in order of how much a school will feel it:
 
 Each lands as its own commit with tests. Anything not finished will be named
 explicitly rather than left to look complete.
+
+---
+
+## What was built
+
+All six items above shipped. What each one turned into, and the decisions that
+were not obvious when the plan was written:
+
+### 1. Assessments
+
+Renamed throughout, paged. Landed before this branch.
+
+### 2. Pocket money
+
+`PocketMoneyAccount` and `PocketMoneyTransaction`, a counter page for the
+office and the boarding staff, and a statement for parents. Three rules the
+implementation holds and the tests protect:
+
+- The balance is **derived**, never stored. A stored balance that drifts from
+  its transactions is how money disappears.
+- Nothing is edited or deleted. A mistake becomes a reversing entry, so the
+  ledger stands up months later.
+- No overdraft. It is the child's own money; there is nothing to lend.
+
+`PATRON`, `MATRON` and `NURSE` joined the `Role` enum, which meant widening the
+web route guard from one role per prefix to a set (`SHARED_ADMIN_PAGES` in
+`dashboard-shell.tsx`). That is the change most likely to let somebody through,
+so every shared page has an RBAC case in `web/e2e/ui-audit.spec.js`.
+
+### 3. Activities
+
+`Activity`, `ActivityClassLevel`, `ActivitySection`, `ActivityParticipant`.
+Clubs, matches, assemblies, visiting day and trips, with consent and a register.
+
+Decisions worth keeping:
+
+- **Cancelling is never deleting.** A family who signed a slip needs to see why
+  the trip is off.
+- **Consent has three states, not two.** "Not answered" is the list a head
+  teacher actually works from the day before a trip, and a boolean hides it.
+- `/activities/student/:id` returns that student's own consent state, so it is
+  scoped: a student may only ask about themselves, a parent only about their
+  own children, staff about anyone.
+
+### 4. Health
+
+Built as `clinic`, not `health`, because `/api/health` was already the liveness
+probe and one folder holding both would confuse every reader after us.
+
+`ClinicVisit`, `MedicationAdministration`, `StudentHealthRecord`. The rules:
+
+- **Nothing is deleted.** A health record that can be tidied away is worth
+  nothing the day somebody has to account for what happened. Wrong entries are
+  corrected in place.
+- **Reading is narrow.** Nurse, boarding staff, office, and the child's own
+  parent. Teachers never, however senior: a class teacher has no business
+  knowing a student is on epilepsy medication.
+- **The repeat-dose check.** The same medicine within four hours is refused,
+  and the refusal says how long ago the last one was and how much. That is the
+  single most dangerous thing an exercise book cannot do.
+- **Telling the family is a dated field**, not a note somebody remembers.
+
+### 5. Behaviour merits
+
+`MeritAward`, in the discipline module rather than its own, because two
+services writing the same conduct score is how the score stops meaning
+anything.
+
+The design decision that shapes everything else: **points restore, they do not
+inflate.** The conduct score is capped at a clean sheet, so 100 keeps meaning
+"nothing against you" and a merit is a way back rather than a currency to bank
+against future trouble. The recognition itself is not capped: the award stands
+on the record whether or not there were points left to restore.
+
+Two things came out of the plan's "patterns before they become incidents":
+
+- **The watch list.** Not "who has the fewest points", which is the same names
+  all year. It is movement: who has picked up incidents recently, and whether
+  anything at all has gone the other way. `nothingPositive` is the field that
+  earns its place.
+- **The praise-to-trouble ratio.** Below 1 means the school writes down more of
+  what goes wrong than what goes right, which is the state most schools are in
+  and never see. The category split is there for the same reason: a school
+  awarding nothing but sport is telling every non-sporting student where they
+  stand.
+
+The student's own page leads with what they were recognised for and states the
+points back to a clean sheet as a number. A record that opens with what went
+wrong teaches a child that being unnoticed is the best they can manage.
+
+### 6. Messaging
+
+- **Announcements.** Audiences are described in the school's own terms
+  ("parents of Senior 1"), resolved through the students, so a parent of two
+  children in a year is one recipient. The count is shown **before** the send:
+  nobody should find out they addressed four hundred families by doing it.
+  An announcement is not a thread, so recipients cannot reply into it and the
+  composer does not offer them a box that would be refused.
+- **Attachments.** An allow-list of types, with the stored extension taken from
+  the mime type and never from the uploaded filename, for the same reason the
+  avatar upload does it: Express serves `/uploads` by extension. SVG is
+  deliberately absent. The original filename travels beside the stored one, so
+  a recipient is offered a name they recognise rather than a uuid.
+- **Group membership.** Adding and removing belong to a group admin, because a
+  group anybody can add to is a group that leaks. The last admin cannot leave.
+  Messages from a departing member stay: a group's history is a record of what
+  was said.
+
+### On the phone
+
+The boarding roles get their own tabs, and nothing academic appears in them. A
+matron holding a child's money in a dormitory or walking one to the sick bay at
+two in the morning is never at a desk, which is the whole argument for these
+screens existing on mobile at all. Parents answer permission slips from the
+child's screen, which is the thing that stops an office spending the evening
+before a trip on the telephone.

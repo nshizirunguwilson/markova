@@ -18,6 +18,10 @@ import {
   Backpack,
   CreditCard,
   ArrowUpCircle,
+  Wallet,
+  HeartPulse,
+  CalendarDays,
+  Megaphone,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -64,13 +68,17 @@ const adminNav: NavSection[] = [
       { label: "Attendance", href: "/admin/attendance", icon: Calendar },
       { label: "Discipline", href: "/admin/discipline", icon: AlertTriangle },
       { label: "Library", href: "/admin/library", icon: Library },
+      { label: "Pocket Money", href: "/admin/pocket-money", icon: Wallet },
+      { label: "Health", href: "/admin/health", icon: HeartPulse },
       { label: "Assessments", href: "/admin/homework", icon: ClipboardList },
+      { label: "Activities", href: "/admin/activities", icon: CalendarDays },
     ],
   },
   {
     title: "Communication",
     items: [
       { label: "Messages", href: "/admin/messages", icon: MessageSquare },
+      { label: "Announcements", href: "/admin/announcements", icon: Megaphone },
     ],
   },
   {
@@ -101,12 +109,14 @@ const teacherNav: NavSection[] = [
     items: [
       { label: "Attendance", href: "/teacher/attendance", icon: Calendar },
       { label: "Discipline", href: "/teacher/discipline", icon: AlertTriangle },
+      { label: "Activities", href: "/teacher/activities", icon: CalendarDays },
     ],
   },
   {
     title: "Communication",
     items: [
       { label: "Messages", href: "/teacher/messages", icon: MessageSquare },
+      { label: "Announcements", href: "/teacher/announcements", icon: Megaphone },
     ],
   },
   {
@@ -136,6 +146,7 @@ const studentNav: NavSection[] = [
     title: "Other",
     items: [
       { label: "Attendance", href: "/student/attendance", icon: Calendar },
+      { label: "Activities", href: "/student/activities", icon: CalendarDays },
       { label: "Library", href: "/student/library", icon: Library },
       { label: "Messages", href: "/student/messages", icon: MessageSquare },
       { label: "Analytics", href: "/student/analytics", icon: BarChart3 },
@@ -157,6 +168,9 @@ const parentNav: NavSection[] = [
       { label: "Attendance", href: "/parent/attendance", icon: Calendar },
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
+      { label: "Pocket Money", href: "/parent/pocket-money", icon: Wallet },
+      { label: "Activities", href: "/parent/activities", icon: CalendarDays },
+      { label: "Health", href: "/parent/health", icon: HeartPulse },
     ],
   },
   {
@@ -200,6 +214,50 @@ const librarianNav: NavSection[] = [
   },
 ];
 
+/**
+ * The boarding staff.
+ *
+ * Deliberately narrow: they handle money, welfare and health, and nothing
+ * academic. A matron has no business reading marks.
+ */
+const boardingNav: NavSection[] = [
+  {
+    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+  },
+  {
+    title: "Student welfare",
+    items: [
+      { label: "Pocket Money", href: "/admin/pocket-money", icon: Wallet },
+      { label: "Health", href: "/admin/health", icon: HeartPulse },
+      { label: "Activities", href: "/admin/activities", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [{ label: "Messages", href: "/messages", icon: MessageSquare }],
+  },
+  {
+    items: [{ label: "Help", href: "/help", icon: HelpCircle }],
+  },
+];
+
+const nurseNav: NavSection[] = [
+  {
+    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+  },
+  {
+    title: "Clinic",
+    items: [{ label: "Health", href: "/admin/health", icon: HeartPulse }],
+  },
+  {
+    title: "Communication",
+    items: [{ label: "Messages", href: "/messages", icon: MessageSquare }],
+  },
+  {
+    items: [{ label: "Help", href: "/help", icon: HelpCircle }],
+  },
+];
+
 export function getNavigation(role: Role): NavSection[] {
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,
@@ -207,6 +265,9 @@ export function getNavigation(role: Role): NavSection[] {
     STUDENT: studentNav,
     PARENT: parentNav,
     LIBRARIAN: librarianNav,
+    PATRON: boardingNav,
+    MATRON: boardingNav,
+    NURSE: nurseNav,
   };
   return navMap[role] || adminNav;
 }

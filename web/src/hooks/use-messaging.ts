@@ -73,3 +73,154 @@ export function useUnreadMessageCount() {
     refetchInterval: 60000,
   });
 }
+
+// ─── BROADCAST ──────────────────────────────────────────────────────────────
+// "Everyone in Senior 1's family needs to know by Friday" is the single most
+// common thing a school has to say, and the only tool for it today is a
+// photocopied letter handed to a child.
+
+export type BroadcastAudience =
+  | "ALL_PARENTS"
+  | "ALL_TEACHERS"
+  | "ALL_STUDENTS"
+  | "ALL_STAFF"
+  | "PARENTS_OF_LEVELS"
+  | "PARENTS_OF_CLASSES"
+  | "STUDENTS_OF_LEVELS"
+  | "STUDENTS_OF_CLASSES";
+
+export interface AudienceSpec {
+  audience: BroadcastAudience;
+  classLevelIds?: string[];
+  classSectionIds?: string[];
+}
+
+/**
+ * How many people an announcement would reach, before sending it.
+ *
+ * Nobody should find out they addressed four hundred families by doing it.
+ */
+export function usePreviewAudience(spec: AudienceSpec | null) {
+  return useQuery<{ count: number }>({
+    queryKey: ["broadcast-preview", spec],
+    queryFn: async () => (await api.post("/messaging/broadcast/preview", spec)).data,
+    enabled: !!spec,
+    retry: false,
+  });
+}
+
+export function useBroadcast() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Payload) =>
+      (await api.post("/messaging/broadcast", data)).data,
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success(`Sent to ${res?.recipients ?? 0} people`);
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not send it")),
+  });
+}
+
+// ─── GROUP MEMBERSHIP ───────────────────────────────────────────────────────
+
+export function useParticipants(conversationId?: string) {
+  return useQuery({
+    queryKey: ["participants", conversationId],
+    queryFn: async () =>
+      (await api.get(`/messaging/conversations/${conversationId}/participants`))
+        .data,
+    enabled: !!conversationId,
+  });
+}
+
+export function useAddParticipants() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      userIds,
+    }: {
+      conversationId: string;
+      userIds: string[];
+    }) =>
+      (
+        await api.post(
+          `/messaging/conversations/${conversationId}/participants`,
+          { userIds },
+        )
+      ).data,
+    onSuccess: (res: any, vars) => {
+      qc.invalidateQueries({ queryKey: ["participants", vars.conversationId] });
+      toast.success(`${res?.added ?? 0} added`);
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not add them")),
+  });
+}
+
+export function useRemoveParticipant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      userId,
+    }: {
+      conversationId: string;
+      userId: string;
+    }) =>
+      (
+        await api.delete(
+          `/messaging/conversations/${conversationId}/participants/${userId}`,
+        )
+      ).data,
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["participants", vars.conversationId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Removed");
+    },
+    onError: (e: unknown) =>
+      toast.error(errorMessage(e, "Could not remove them")),
+  });
+}
+
+export function useRenameConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      name,
+    }: {
+      conversationId: string;
+      name: string;
+    }) =>
+      (await api.put(`/messaging/conversations/${conversationId}/name`, { name }))
+        .data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      toast.success("Renamed");
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not rename it")),
+  });
+}
+
+/**
+ * Uploading a file to attach.
+ *
+ * The API decides what may be sent and stores it under an extension derived
+ * from the type, never from the name the file arrived with.
+ */
+export function useUploadAttachment() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return (
+        await api.post("/messaging/attachments", body, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data as { fileUrl: string; fileName: string; size: number };
+    },
+    onError: (e: unknown) =>
+      toast.error(errorMessage(e, "That file could not be sent")),
+  });
+}
