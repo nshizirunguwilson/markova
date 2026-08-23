@@ -138,44 +138,46 @@ model SchoolConfig {
 }
 
 model User {
-  id                  String   @id @default(uuid())
-  email               String?  @unique
-  phone               String?  @unique
+  id                  String    @id @default(uuid())
+  email               String?   @unique
+  phone               String?   @unique
   // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
   // Students carry theirs on Student.studentIdNumber (STD prefix).
-  code                String?  @unique
+  code                String?   @unique
   // NIDA 16-digit national identification number (stored without spaces).
-  nationalId          String?  @unique @map("national_id")
+  nationalId          String?   @unique @map("national_id")
   nationality         String?
   // For staff and parents. Students carry theirs on Student, which stays
   // the single source of truth for student demographics.
   gender              Gender?
   dateOfBirth         DateTime? @map("date_of_birth")
-  passwordHash        String?  @map("password_hash")
+  passwordHash        String?   @map("password_hash")
   role                Role
-  firstName           String   @map("first_name")
-  lastName            String   @map("last_name")
-  photoUrl            String?  @map("photo_url")
-  isActive            Boolean  @default(true) @map("is_active")
-  forcePasswordChange Boolean  @default(true) @map("force_password_change")
+  firstName           String    @map("first_name")
+  lastName            String    @map("last_name")
+  photoUrl            String?   @map("photo_url")
+  isActive            Boolean   @default(true) @map("is_active")
+  forcePasswordChange Boolean   @default(true) @map("force_password_change")
   lastLoginAt         DateTime? @map("last_login_at")
   lastSeenAt          DateTime? @map("last_seen_at")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   // Relations
   sessions                UserSession[]
   auditLogs               AuditLog[]
-  pocketMoneyEntries      PocketMoneyTransaction[] @relation("PocketMoneyRecordedBy")
+  pocketMoneyEntries      PocketMoneyTransaction[]  @relation("PocketMoneyRecordedBy")
+  activitiesCreated       Activity[]                @relation("ActivityCreatedBy")
+  activityConsents        ActivityParticipant[]     @relation("ActivityConsentBy")
   student                 Student?
   teacher                 Teacher?
   parentStudents          ParentStudent[]
-  markedAttendances       Attendance[]         @relation("MarkedByUser")
-  recordedIncidents       DisciplineIncident[] @relation("RecordedByUser")
-  submittedAppeals        DisciplineAppeal[]   @relation("SubmittedByUser")
-  reviewedAppeals         DisciplineAppeal[]   @relation("ReviewedByUser")
+  markedAttendances       Attendance[]              @relation("MarkedByUser")
+  recordedIncidents       DisciplineIncident[]      @relation("RecordedByUser")
+  submittedAppeals        DisciplineAppeal[]        @relation("SubmittedByUser")
+  reviewedAppeals         DisciplineAppeal[]        @relation("ReviewedByUser")
   bookLoans               BookLoan[]
-  gradedSubmissions       HomeworkSubmission[]  @relation("GradedByUser")
+  gradedSubmissions       HomeworkSubmission[]      @relation("GradedByUser")
   createdConversations    Conversation[]
   conversationMemberships ConversationParticipant[]
   sentMessages            Message[]
@@ -234,9 +236,10 @@ model AcademicYear {
   endDate   DateTime @map("end_date")
   isCurrent Boolean  @default(false) @map("is_current")
 
-  terms               Term[]
+  terms                 Term[]
   teacherSubjectClasses TeacherSubjectClass[]
-  yearResults          YearResult[]
+  yearResults           YearResult[]
+
   @@map("academic_years")
 }
 
@@ -256,6 +259,7 @@ model Term {
   disciplineIncidents DisciplineIncident[]
   homeworks           Homework[]
   examSchedules       ExamSchedule[]
+  activities          Activity[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -268,8 +272,9 @@ model ClassLevel {
   order Int
   stage EducationStage @default(O_LEVEL)
 
-  sections ClassSection[]
-  subjects Subject[]
+  sections            ClassSection[]
+  subjects            Subject[]
+  activityClassLevels ActivityClassLevel[]
 
   @@map("class_levels")
 }
@@ -306,6 +311,7 @@ model ClassSection {
   attendances           Attendance[]
   homeworks             Homework[]
   examSchedules         ExamSchedule[]
+  activitySections      ActivitySection[]
 
   // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
   // null) are additionally guarded in AcademicService.
@@ -352,13 +358,13 @@ model AssessmentType {
 }
 
 model Timetable {
-  id             String @id @default(uuid())
-  classSectionId String @map("class_section_id")
-  subjectId      String @map("subject_id")
-  teacherId      String @map("teacher_id")
-  dayOfWeek      Int    @map("day_of_week") // 1=Monday, 7=Sunday
-  startTime      String @map("start_time")
-  endTime        String @map("end_time")
+  id             String  @id @default(uuid())
+  classSectionId String  @map("class_section_id")
+  subjectId      String  @map("subject_id")
+  teacherId      String  @map("teacher_id")
+  dayOfWeek      Int     @map("day_of_week") // 1=Monday, 7=Sunday
+  startTime      String  @map("start_time")
+  endTime        String  @map("end_time")
   room           String?
 
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
@@ -417,6 +423,7 @@ model Student {
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
   pocketMoney         PocketMoneyAccount?
+  activities          ActivityParticipant[]
   parentStudents      ParentStudent[]
   marks               Mark[]
   termResults         TermResult[]
@@ -424,6 +431,7 @@ model Student {
   attendances         Attendance[]
   disciplineIncidents DisciplineIncident[]
   homeworkSubmissions HomeworkSubmission[]
+
   @@index([classSectionId])
   @@index([status])
   @@map("students")
@@ -450,7 +458,7 @@ model Teacher {
   id               String                @id @default(uuid())
   userId           String                @unique @map("user_id")
   employmentStatus EmploymentStatus      @default(FULL_TIME) @map("employment_status")
-  qualification    TeacherQualification? 
+  qualification    TeacherQualification?
   rssbNumber       String?               @map("rssb_number")
   hireDate         DateTime?             @map("hire_date")
   isActive         Boolean               @default(true) @map("is_active")
@@ -593,16 +601,16 @@ model YearResult {
 // ─── ATTENDANCE ─────────────────────────────────────────────────────────────────
 
 model Attendance {
-  id              String            @id @default(uuid())
-  studentId       String            @map("student_id")
-  classSectionId  String            @map("class_section_id")
-  date            DateTime          @db.Date
-  type            String            // "daily" or "subject"
-  subjectId       String?           @map("subject_id")
-  status          AttendanceStatus
-  reasonCategory  AbsenceReason?    @map("reason_category")
-  scannedAt       DateTime?         @map("scanned_at")
-  markedByUserId  String            @map("marked_by_user_id")
+  id             String           @id @default(uuid())
+  studentId      String           @map("student_id")
+  classSectionId String           @map("class_section_id")
+  date           DateTime         @db.Date
+  type           String // "daily" or "subject"
+  subjectId      String?          @map("subject_id")
+  status         AttendanceStatus
+  reasonCategory AbsenceReason?   @map("reason_category")
+  scannedAt      DateTime?        @map("scanned_at")
+  markedByUserId String           @map("marked_by_user_id")
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
@@ -658,15 +666,15 @@ model DisciplineIncident {
 }
 
 model DisciplineAppeal {
-  id               String       @id @default(uuid())
-  incidentId       String       @map("incident_id")
-  submittedByUserId String      @map("submitted_by_user_id")
-  statement        String
-  evidenceUrls     String[]     @map("evidence_urls")
-  status           AppealStatus @default(PENDING)
-  reviewedByUserId String?      @map("reviewed_by_user_id")
-  reviewNotes      String?      @map("review_notes")
-  createdAt        DateTime     @default(now()) @map("created_at")
+  id                String       @id @default(uuid())
+  incidentId        String       @map("incident_id")
+  submittedByUserId String       @map("submitted_by_user_id")
+  statement         String
+  evidenceUrls      String[]     @map("evidence_urls")
+  status            AppealStatus @default(PENDING)
+  reviewedByUserId  String?      @map("reviewed_by_user_id")
+  reviewNotes       String?      @map("review_notes")
+  createdAt         DateTime     @default(now()) @map("created_at")
 
   incident    DisciplineIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   submittedBy User               @relation("SubmittedByUser", fields: [submittedByUserId], references: [id])
@@ -733,18 +741,18 @@ enum AssessmentKind {
 }
 
 model Homework {
-  id                  String   @id @default(uuid())
-  teacherId           String   @map("teacher_id")
-  subjectId           String   @map("subject_id")
-  classSectionId      String   @map("class_section_id")
-  termId              String   @map("term_id")
+  id                  String         @id @default(uuid())
+  teacherId           String         @map("teacher_id")
+  subjectId           String         @map("subject_id")
+  classSectionId      String         @map("class_section_id")
+  termId              String         @map("term_id")
   kind                AssessmentKind @default(HOMEWORK)
   title               String
   description         String?
-  dueDate             DateTime @map("due_date")
-  maxMarks            Float?   @map("max_marks")
-  lateDeductionPerDay Float?   @default(0) @map("late_deduction_per_day")
-  createdAt           DateTime @default(now()) @map("created_at")
+  dueDate             DateTime       @map("due_date")
+  maxMarks            Float?         @map("max_marks")
+  lateDeductionPerDay Float?         @default(0) @map("late_deduction_per_day")
+  createdAt           DateTime       @default(now()) @map("created_at")
 
   teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -759,15 +767,15 @@ model Homework {
 }
 
 model HomeworkSubmission {
-  id            String    @id @default(uuid())
-  homeworkId    String    @map("homework_id")
-  studentId     String    @map("student_id")
-  fileUrl       String?   @map("file_url")
-  submittedAt   DateTime  @default(now()) @map("submitted_at")
-  isLate        Boolean   @default(false) @map("is_late")
-  marks         Float?
-  gradedAt      DateTime? @map("graded_at")
-  gradedByUserId String?  @map("graded_by_user_id")
+  id             String    @id @default(uuid())
+  homeworkId     String    @map("homework_id")
+  studentId      String    @map("student_id")
+  fileUrl        String?   @map("file_url")
+  submittedAt    DateTime  @default(now()) @map("submitted_at")
+  isLate         Boolean   @default(false) @map("is_late")
+  marks          Float?
+  gradedAt       DateTime? @map("graded_at")
+  gradedByUserId String?   @map("graded_by_user_id")
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -841,7 +849,6 @@ model MessageRead {
   @@map("message_reads")
 }
 
-
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────────
 
 model Notification {
@@ -866,7 +873,7 @@ model PushToken {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   token     String   @unique
-  platform  String   // 'ios', 'android'
+  platform  String // 'ios', 'android'
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -952,36 +959,36 @@ enum PocketMoneyKind {
 }
 
 model PocketMoneyAccount {
-  id        String   @id @default(uuid())
-  studentId String   @unique @map("student_id")
+  id              String   @id @default(uuid())
+  studentId       String   @unique @map("student_id")
   /// What the student may spend in one day. Set by the parent, because it is
   /// their money and a term's money has to last a term. Null means no cap.
-  dailyLimit Float?  @map("daily_limit")
+  dailyLimit      Float?   @map("daily_limit")
   /// Below this the parent is told. Null means never.
-  lowBalanceAlert Float? @map("low_balance_alert")
-  isFrozen  Boolean  @default(false) @map("is_frozen")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  lowBalanceAlert Float?   @map("low_balance_alert")
+  isFrozen        Boolean  @default(false) @map("is_frozen")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  student      Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   transactions PocketMoneyTransaction[]
 
   @@map("pocket_money_accounts")
 }
 
 model PocketMoneyTransaction {
-  id        String          @id @default(uuid())
-  accountId String          @map("account_id")
-  kind      PocketMoneyKind
+  id               String          @id @default(uuid())
+  accountId        String          @map("account_id")
+  kind             PocketMoneyKind
   /// Always positive. The kind decides the direction, so a reader never has to
   /// work out whether a negative deposit means a refund.
-  amount    Float
-  note      String?
+  amount           Float
+  note             String?
   /// Who was at the counter. Null only for entries the system makes itself.
-  recordedByUserId String? @map("recorded_by_user_id")
+  recordedByUserId String?         @map("recorded_by_user_id")
   /// The entry this one undoes, for a REVERSAL.
-  reversesId String? @unique @map("reverses_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  reversesId       String?         @unique @map("reverses_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
 
   account    PocketMoneyAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   recordedBy User?                   @relation("PocketMoneyRecordedBy", fields: [recordedByUserId], references: [id])
@@ -990,4 +997,131 @@ model PocketMoneyTransaction {
 
   @@index([accountId, createdAt])
   @@map("pocket_money_transactions")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTIVITIES AND EVENTS
+//
+// A head teacher's week is not lessons. It is visiting day, an inter-school
+// match, a club that meets on Wednesday, and a trip that needs a bus and
+// thirty signed permission slips. All of that lives in a paper diary today.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ActivityKind {
+  /// Meets regularly: debate, drama, scouts, choir.
+  CLUB
+  /// Football, athletics, an inter-school match.
+  SPORT
+  /// Whole-school gathering.
+  ASSEMBLY
+  /// Off the premises. Needs consent, and needs a list of exactly who went.
+  TRIP
+  /// The day of the month that matters most to a boarder.
+  VISITING_DAY
+  /// Exams, prize-giving, parents' evening.
+  SCHOOL_EVENT
+}
+
+enum ActivityAudience {
+  /// Everybody.
+  WHOLE_SCHOOL
+  /// Named year levels, e.g. all of Senior 1.
+  LEVELS
+  /// Named classes.
+  CLASSES
+}
+
+model Activity {
+  id               String           @id @default(uuid())
+  kind             ActivityKind
+  title            String
+  description      String?
+  location         String?
+  startsAt         DateTime         @map("starts_at")
+  endsAt           DateTime?        @map("ends_at")
+  audience         ActivityAudience @default(WHOLE_SCHOOL)
+  /// A trip off the premises needs recorded consent; an assembly does not.
+  requiresConsent  Boolean          @default(false) @map("requires_consent")
+  /// A club meeting takes a register; an assembly does not.
+  tracksAttendance Boolean          @default(false) @map("tracks_attendance")
+  /// Null means no cap.
+  capacity         Int?
+  isCancelled      Boolean          @default(false) @map("is_cancelled")
+  cancelledReason  String?          @map("cancelled_reason")
+
+  createdByUserId String   @map("created_by_user_id")
+  termId          String?  @map("term_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  createdBy    User                  @relation("ActivityCreatedBy", fields: [createdByUserId], references: [id])
+  term         Term?                 @relation(fields: [termId], references: [id])
+  classLevels  ActivityClassLevel[]
+  sections     ActivitySection[]
+  participants ActivityParticipant[]
+
+  @@index([startsAt])
+  @@map("activities")
+}
+
+/// Which year levels an activity concerns, when the audience is LEVELS.
+model ActivityClassLevel {
+  id           String @id @default(uuid())
+  activityId   String @map("activity_id")
+  classLevelId String @map("class_level_id")
+
+  activity   Activity   @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classLevel ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classLevelId])
+  @@map("activity_class_levels")
+}
+
+/// Which classes an activity concerns, when the audience is CLASSES.
+model ActivitySection {
+  id             String @id @default(uuid())
+  activityId     String @map("activity_id")
+  classSectionId String @map("class_section_id")
+
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classSectionId])
+  @@map("activity_sections")
+}
+
+enum ConsentState {
+  /// Nobody has answered yet.
+  PENDING
+  GIVEN
+  REFUSED
+}
+
+/// One student's place in one activity.
+///
+/// Consent and attendance live together because they answer the same question
+/// from two sides: may this child go, and did they.
+model ActivityParticipant {
+  id         String @id @default(uuid())
+  activityId String @map("activity_id")
+  studentId  String @map("student_id")
+
+  consent         ConsentState @default(PENDING)
+  consentByUserId String?      @map("consent_by_user_id")
+  consentAt       DateTime?    @map("consent_at")
+  consentNote     String?      @map("consent_note")
+
+  /// Null until the register is taken.
+  attended   Boolean?  @map("attended")
+  attendedAt DateTime? @map("attended_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  activity  Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  consentBy User?    @relation("ActivityConsentBy", fields: [consentByUserId], references: [id])
+
+  @@unique([activityId, studentId])
+  @@index([studentId])
+  @@map("activity_participants")
 }

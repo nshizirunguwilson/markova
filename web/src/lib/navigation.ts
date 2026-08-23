@@ -142,6 +142,7 @@ const studentNav: NavSection[] = [
     title: "Other",
     items: [
       { label: "Attendance", href: "/student/attendance", icon: Calendar },
+      { label: "Activities", href: "/student/activities", icon: CalendarDays },
       { label: "Library", href: "/student/library", icon: Library },
       { label: "Messages", href: "/student/messages", icon: MessageSquare },
       { label: "Analytics", href: "/student/analytics", icon: BarChart3 },
@@ -164,6 +165,7 @@ const parentNav: NavSection[] = [
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
       { label: "Pocket Money", href: "/parent/pocket-money", icon: Wallet },
+      { label: "Activities", href: "/parent/activities", icon: CalendarDays },
     ],
   },
   {
