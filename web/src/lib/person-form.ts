@@ -83,10 +83,15 @@ export function generatePassword(): string {
   return chars.join("");
 }
 
-/** The school convention: firstname.kinyarwandaname@markova.edu */
+/**
+ * The school convention: initial.kinyarwandaname@markova.edu
+ *
+ * The wizard checks this against the API and appends a number if it is taken,
+ * so this only has to produce the unnumbered form.
+ */
 export function suggestEmail(firstName: string, lastName: string): string {
   const first = firstName.trim().split(/\s+/)[0] || "";
   const last = lastName.trim().split(/\s+/)[0] || "";
   if (!first || !last) return "";
-  return `${first.toLowerCase()}.${last.toLowerCase()}@markova.edu`;
+  return `${first[0].toLowerCase()}.${last.toLowerCase()}@markova.edu`;
 }

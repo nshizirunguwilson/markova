@@ -15,6 +15,14 @@ enum Role {
   STUDENT
   PARENT
   LIBRARIAN
+  /// Boys' boarding master. Runs the dormitories, holds pocket money, and
+  /// takes students to the clinic. A real role in a Rwandan boarding school,
+  /// not an administrator with extra duties.
+  PATRON
+  /// Girls' boarding mistress. The same duties, for the girls' side.
+  MATRON
+  /// School nurse. Sees health records; sees nothing academic.
+  NURSE
 }
 
 enum SpecialRole {
@@ -158,6 +166,7 @@ model User {
   // Relations
   sessions                UserSession[]
   auditLogs               AuditLog[]
+  pocketMoneyEntries      PocketMoneyTransaction[] @relation("PocketMoneyRecordedBy")
   student                 Student?
   teacher                 Teacher?
   parentStudents          ParentStudent[]
@@ -396,6 +405,10 @@ model Student {
   // Printed on the card as a QR. Unguessable, and cleared when a card is
   // revoked, so a lost card stops verifying the moment it is reissued.
   cardCode          String?       @unique @map("card_code")
+  // A card mislaid for a few days is suspended, not revoked: verification
+  // refuses it and the gate turns it away, but the same printed card comes
+  // back to life when it is found. Revoking destroys the code instead.
+  cardSuspendedAt   DateTime?     @map("card_suspended_at")
   status            StudentStatus @default(ACTIVE)
   disciplinePoints  Int           @default(100) @map("discipline_points")
   createdAt         DateTime      @default(now()) @map("created_at")
@@ -403,6 +416,7 @@ model Student {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   classSection ClassSection @relation(fields: [classSectionId], references: [id])
 
+  pocketMoney         PocketMoneyAccount?
   parentStudents      ParentStudent[]
   marks               Mark[]
   termResults         TermResult[]
@@ -705,12 +719,26 @@ model BookLoan {
 
 // ─── HOMEWORK ───────────────────────────────────────────────────────────────────
 
+/// What a teacher sets for a class: homework, an assignment, a quiz, a test or
+/// a project. One model, because they differ only in what they are called and
+/// how much they are worth, and a school that keeps them apart ends up unable
+/// to answer "how much work has Senior 1 been set this week".
+enum AssessmentKind {
+  HOMEWORK
+  ASSIGNMENT
+  QUIZ
+  TEST
+  PROJECT
+  PRACTICAL
+}
+
 model Homework {
   id                  String   @id @default(uuid())
   teacherId           String   @map("teacher_id")
   subjectId           String   @map("subject_id")
   classSectionId      String   @map("class_section_id")
   termId              String   @map("term_id")
+  kind                AssessmentKind @default(HOMEWORK)
   title               String
   description         String?
   dueDate             DateTime @map("due_date")
@@ -899,4 +927,67 @@ model FaqArticle {
 
   @@index([category])
   @@map("faq_articles")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POCKET MONEY
+//
+// The school holds a child's money, so this is a trust ledger rather than a
+// wallet. Nothing is ever edited or deleted: a correction is a reversing
+// entry, and the balance is the sum of the entries. A stored balance that
+// drifts from its transactions is how money disappears.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum PocketMoneyKind {
+  /// A parent hands money in, usually on visiting day.
+  DEPOSIT
+  /// The student draws it at the canteen or the counter.
+  WITHDRAWAL
+  /// Money returned to the family, typically at the end of a year.
+  REFUND
+  /// Undoes an earlier entry. The original is never touched.
+  REVERSAL
+  /// Corrects a counting error found at reconciliation.
+  ADJUSTMENT
+}
+
+model PocketMoneyAccount {
+  id        String   @id @default(uuid())
+  studentId String   @unique @map("student_id")
+  /// What the student may spend in one day. Set by the parent, because it is
+  /// their money and a term's money has to last a term. Null means no cap.
+  dailyLimit Float?  @map("daily_limit")
+  /// Below this the parent is told. Null means never.
+  lowBalanceAlert Float? @map("low_balance_alert")
+  isFrozen  Boolean  @default(false) @map("is_frozen")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student      Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  transactions PocketMoneyTransaction[]
+
+  @@map("pocket_money_accounts")
+}
+
+model PocketMoneyTransaction {
+  id        String          @id @default(uuid())
+  accountId String          @map("account_id")
+  kind      PocketMoneyKind
+  /// Always positive. The kind decides the direction, so a reader never has to
+  /// work out whether a negative deposit means a refund.
+  amount    Float
+  note      String?
+  /// Who was at the counter. Null only for entries the system makes itself.
+  recordedByUserId String? @map("recorded_by_user_id")
+  /// The entry this one undoes, for a REVERSAL.
+  reversesId String? @unique @map("reverses_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  account    PocketMoneyAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  recordedBy User?                   @relation("PocketMoneyRecordedBy", fields: [recordedByUserId], references: [id])
+  reverses   PocketMoneyTransaction? @relation("Reversal", fields: [reversesId], references: [id])
+  reversedBy PocketMoneyTransaction? @relation("Reversal")
+
+  @@index([accountId, createdAt])
+  @@map("pocket_money_transactions")
 }

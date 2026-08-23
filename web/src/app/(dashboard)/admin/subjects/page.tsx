@@ -24,7 +24,14 @@ import {
   useDeleteSubject,
 } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
-import { Plus, Pencil, Trash2, BookOpen } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -44,6 +51,16 @@ export default function AdminSubjectsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [page, setPage] = useState(1);
+
+  /**
+   * Paged in the browser.
+   *
+   * `/academic/subjects` answers with a plain array and is used by half the
+   * app, so it is not the place to introduce an envelope. Ninety rows is small
+   * enough to hold and large enough that nobody should have to scroll it.
+   */
+  const PER_PAGE = 20;
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SubjectForm>({
     resolver: zodResolver(subjectSchema),
@@ -81,6 +98,11 @@ export default function AdminSubjectsPage() {
       });
     }
   };
+
+  const totalPages = Math.max(1, Math.ceil((subjects?.length ?? 0) / PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const pageOf = (rows: any[]) =>
+    rows.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
   const handleExport = (format: "json" | "csv" | "pdf" | "xlsx") => {
     exportData(format, {
@@ -134,7 +156,7 @@ export default function AdminSubjectsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              subjects.map((s: any) => (
+              pageOf(subjects).map((s: any) => (
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
                   <TableCell>
@@ -158,6 +180,38 @@ export default function AdminSubjectsPage() {
             )}
           </TableBody>
         </Table>
+      )}
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-muted">
+            Showing {(currentPage - 1) * PER_PAGE + 1}–
+            {Math.min(currentPage * PER_PAGE, subjects.length)} of {subjects.length}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              aria-label="Previous page"
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="flex items-center px-3 text-sm text-muted">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              aria-label="Next page"
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Create / Edit Modal */}

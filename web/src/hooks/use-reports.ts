@@ -70,7 +70,9 @@ export function useBulkIdCards() {
 export interface IdCardRegistryFilters {
   classSectionId?: string;
   search?: string;
-  status?: "all" | "issued" | "not_issued";
+  status?: "all" | "issued" | "not_issued" | "suspended";
+  page?: number;
+  limit?: number;
 }
 
 export function useIdCardRegistry(filters: IdCardRegistryFilters) {
@@ -93,6 +95,43 @@ export function useIssueIdCard() {
     onError: (e: unknown) => {
         toast.error(errorMessage(e, "Failed to issue card"));
       },
+  });
+}
+
+/**
+ * Suspend a card without destroying it.
+ *
+ * For a card mislaid rather than lost: it stops verifying at once, and the
+ * same printed card works again once it turns up. Revoking is the permanent
+ * version and forces a reprint.
+ */
+export function useSuspendIdCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { studentId: string }) =>
+      (await api.post("/reports/id-cards/suspend", data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["id-card-registry"] });
+      toast.success("Card suspended. It will not verify until restored.");
+    },
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Failed to suspend card"));
+    },
+  });
+}
+
+export function useRestoreIdCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { studentId: string }) =>
+      (await api.post("/reports/id-cards/restore", data)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["id-card-registry"] });
+      toast.success("Card restored");
+    },
+    onError: (e: unknown) => {
+      toast.error(errorMessage(e, "Failed to restore card"));
+    },
   });
 }
 

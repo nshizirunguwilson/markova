@@ -1,5 +1,6 @@
 import {
   PrismaClient,
+  AssessmentKind,
   Role,
   SpecialRole,
   EmploymentStatus,
@@ -378,41 +379,24 @@ function studentNumber(first: string, last: string, year: number, key: string): 
 
 // ─── NAME GENERATION ─────────────────────────────────────────────────────────
 
-// firstname.kinyarwandaname@markova.edu. The whole school shares one domain;
-// students and parents get a number after the name (see numberedEmail).
-// Collisions get a number here too.
+/**
+ * initial.kinyarwandaname@markova.edu, for everyone in the school.
+ *
+ * One rule for staff, students and parents alike. A number is appended only
+ * when the address is genuinely taken, so the first Wilson Mugisha is
+ * `w.mugisha@` and the next one is `w.mugisha1@`. Numbering every address
+ * unconditionally is what produced things like `aaron.iradukunda959@`, which
+ * is not an address any school would issue.
+ */
 const usedEmails = new Set<string>();
 function emailFor(first: string, last: string): string {
-  const base = `${first.trim().split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
+  const given = first.trim().split(' ')[0].toLowerCase();
+  const family = last.trim().split(' ')[0].toLowerCase();
+  const base = `${given[0]}.${family}`;
+
   let candidate = `${base}@markova.edu`;
-  for (let n = 2; usedEmails.has(candidate); n++) {
+  for (let n = 1; usedEmails.has(candidate); n++) {
     candidate = `${base}${n}@markova.edu`;
-  }
-  usedEmails.add(candidate);
-  return candidate;
-}
-
-/**
- * firstname.lastnameN@markova.edu for students and parents.
- *
- * The whole school shares one domain. The number keeps a common name unique
- * across three years of intake without inventing a second domain to hide in.
- */
-function studentEmail(first: string, last: string, i: number): string {
-  return numberedEmail(first, last, i + 1);
-}
-
-function parentEmail(first: string, last: string, i: number): string {
-  return numberedEmail(first, last, i);
-}
-
-function numberedEmail(first: string, last: string, n: number): string {
-  const token = `${first.split(' ')[0].toLowerCase()}.${last.split(' ')[0].toLowerCase()}`;
-  let candidate = `${token}${n}@markova.edu`;
-  // Two people can land on the same token and number, and the column is unique.
-  while (usedEmails.has(candidate)) {
-    n += 1;
-    candidate = `${token}${n}@markova.edu`;
   }
   usedEmails.add(candidate);
   return candidate;
@@ -1550,7 +1534,7 @@ async function main() {
       const user = await prisma.user.create({
         data: {
           email:
-            i < 30 ? `student${i + 1}@markova.edu` : studentEmail(first, last, i),
+            i < 30 ? `student${i + 1}@markova.edu` : emailFor(first, last),
           ...extras.user,
           passwordHash,
           role: Role.STUDENT,
@@ -1609,7 +1593,7 @@ async function main() {
         nationalId: makeNid(gender, pBirthYear),
         nationality: 'Rwandan',
         // First 15 parents keep their phone-only login profile to match docs.
-        email: i >= 15 ? parentEmail(first, last, i) : null,
+        email: i >= 15 ? emailFor(first, last) : null,
         passwordHash,
         role: Role.PARENT,
         firstName: first,
@@ -1801,7 +1785,7 @@ async function main() {
     );
     const user = await prisma.user.create({
       data: {
-        email: studentEmail(name.first, name.last, i),
+        email: emailFor(name.first, name.last),
         ...extras.user,
         passwordHash,
         role: Role.STUDENT,
@@ -2689,28 +2673,34 @@ async function main() {
     {
       t: (s: any) => `${s.name}: past paper practice`,
       d: 'Attempt the paper under exam conditions; we mark together on the due day.',
+      k: AssessmentKind.TEST,
     },
     {
       t: (s: any) => `${s.name} research assignment`,
       d: 'One page, handwritten. Cite at least two sources from the library.',
+      k: AssessmentKind.ASSIGNMENT,
     },
     {
       t: (s: any) => `${s.name}: revision worksheet`,
       d: 'Complete the worksheet and bring questions on the hard items.',
+      k: AssessmentKind.HOMEWORK,
     },
   ];
   const HW_TRADE = [
     {
       t: (s: any) => `${s.name}: practical report`,
       d: 'Write up the last lab session: objective, steps, result, what went wrong.',
+      k: AssessmentKind.PRACTICAL,
     },
     {
       t: (s: any) => `${s.name}: project milestone`,
       d: 'Bring your project to the next checkpoint and be ready to demo it.',
+      k: AssessmentKind.PROJECT,
     },
     {
       t: (s: any) => `${s.name}: task write-up`,
       d: 'Document the assigned task following the workshop template.',
+      k: AssessmentKind.ASSIGNMENT,
     },
   ];
   const studentsBySection = new Map<string, any[]>();
@@ -2758,6 +2748,7 @@ async function main() {
             subjectId: subject.id,
             classSectionId: meta.section.id,
             termId: term.id,
+            kind: (tpl as any).k ?? AssessmentKind.HOMEWORK,
             title: tpl.t(subject),
             description: tpl.d,
             dueDate: dueAt,
@@ -2855,32 +2846,186 @@ async function main() {
       contentType: MessageContentType.TEXT,
     },
   });
-  console.log('  ✅ Conversations + messages seeded');
+  /**
+   * Real staffroom traffic.
+   *
+   * Two conversations made the inbox look broken rather than quiet. A school
+   * that has been running three years has teachers asking each other about
+   * cover, parents chasing marks, and a head teacher sending notices, so the
+   * seed produces that instead of a welcome message.
+   */
+  const staffThreads: [string, string[]][] = [
+    ['Senior 1 A needs cover on Thursday', [
+      'Aline is at the district meeting on Thursday. Can anyone take Senior 1 A period 3?',
+      'I can take it. Which topic are they on?',
+      'Quadratic equations, exercise 4. The books are in the staffroom cupboard.',
+      'Noted, thank you.',
+    ]],
+    ['Term 2 marks deadline', [
+      'Please have Term 2 marks entered by Friday so report cards can go out next week.',
+      'Mine are in for both my classes.',
+      'Still finishing the practicals for Level 4 SWD. Monday at the latest?',
+      'Monday is fine, but not later, the printer is booked for Tuesday.',
+    ]],
+    ['Library books not returned', [
+      'Six titles are still out past their date from Senior 2. Can class teachers remind them?',
+      'I will read the list out at assembly tomorrow.',
+    ]],
+    ['Sports day arrangements', [
+      'Sports day is the 14th. Each class needs two students for the relay.',
+      'Senior 1 B has their two already.',
+      'Level 3 SWD as well.',
+    ]],
+  ];
+
+  let convCount = 0;
+  let msgCount = 0;
+  for (const [name, lines] of staffThreads) {
+    const members = shuffled(teacherUsers).slice(0, 3 + rand(2));
+    const conv = await prisma.conversation.create({
+      data: {
+        type: ConversationType.GROUP,
+        name,
+        createdByUserId: admin.id,
+      },
+    });
+    await prisma.conversationParticipant.createMany({
+      data: [
+        { conversationId: conv.id, userId: admin.id, isAdmin: true },
+        ...members.map((m) => ({ conversationId: conv.id, userId: m.id })),
+      ],
+    });
+    const speakers = [admin, ...members];
+    for (let i = 0; i < lines.length; i++) {
+      await prisma.message.create({
+        data: {
+          conversationId: conv.id,
+          senderUserId: speakers[i % speakers.length].id,
+          content: lines[i],
+          contentType: MessageContentType.TEXT,
+          createdAt: minDate(addDays(today, -(lines.length - i) - rand(4)), today),
+        },
+      });
+      msgCount++;
+    }
+    convCount++;
+  }
+
+  // A parent asking a teacher about their child, which is the other half of
+  // what this inbox is for.
+  const parentThreads: [string, string][] = [
+    ['Good afternoon, could you tell me how my son is finding Mathematics this term?', 'He has improved a lot since Term 1, particularly on the written work. Keep him practising past papers.'],
+    ['My daughter was unwell on Tuesday, I have sent a note with her today.', 'Thank you for letting us know, I have marked it as excused.'],
+    ['Will there be extra lessons before the end of term exams?', 'Yes, Saturdays from the 9th, 9am to noon. No charge.'],
+  ];
+  for (let i = 0; i < parentThreads.length; i++) {
+    const parent = parentUsers[i * 7];
+    const teacher = teacherUsers[i % teacherUsers.length];
+    if (!parent || !teacher) continue;
+    const conv = await prisma.conversation.create({
+      data: { type: ConversationType.ONE_ON_ONE, createdByUserId: parent.id },
+    });
+    await prisma.conversationParticipant.createMany({
+      data: [
+        { conversationId: conv.id, userId: parent.id },
+        { conversationId: conv.id, userId: teacher.id },
+      ],
+    });
+    const [ask, reply] = parentThreads[i];
+    await prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        senderUserId: parent.id,
+        content: ask,
+        contentType: MessageContentType.TEXT,
+        createdAt: minDate(addDays(today, -(3 + i)), today),
+      },
+    });
+    await prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        senderUserId: teacher.id,
+        content: reply,
+        contentType: MessageContentType.TEXT,
+        createdAt: minDate(addDays(today, -(2 + i)), today),
+      },
+    });
+    convCount++;
+    msgCount += 2;
+  }
+  console.log(`  ✅ ${convCount} conversations + ${msgCount} messages seeded`);
 
   // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
+  // The bell is only useful if it has something in it. These are the notices a
+  // school actually generates in a week.
+  const notices: {
+    userId: string;
+    title: string;
+    message: string;
+    type: NotificationType;
+    daysAgo: number;
+  }[] = [
+    { userId: admin.id, title: 'Term 2 marks are due', message: 'Nine teachers have not finished entering Term 2 marks. Reports print on Tuesday.', type: NotificationType.PUSH, daysAgo: 0 },
+    { userId: admin.id, title: 'Six books are overdue', message: 'Six library titles are past their return date, the oldest by 21 days.', type: NotificationType.EMAIL, daysAgo: 1 },
+    { userId: admin.id, title: 'Attendance below 90%', message: 'Senior 2 B attendance was 87% this week, the lowest in the school.', type: NotificationType.PUSH, daysAgo: 2 },
+    { userId: admin.id, title: 'A discipline appeal is waiting', message: 'A parent has appealed an incident and is waiting on a decision.', type: NotificationType.EMAIL, daysAgo: 3 },
+    { userId: admin.id, title: 'System Ready', message: 'Markova Academy system has been set up successfully.', type: NotificationType.EMAIL, daysAgo: 6 },
+  ];
+  for (const t of teacherUsers.slice(0, 6)) {
+    notices.push({
+      userId: t.id,
+      title: 'Marks entry closes Friday',
+      message: 'Please enter Term 2 marks for your classes before Friday.',
+      type: NotificationType.PUSH,
+      daysAgo: rand(4),
+    });
+  }
+  for (const p of parentUsers.slice(0, 8)) {
+    notices.push({
+      userId: p.id,
+      title: 'Report card published',
+      message: "Your child's Term 2 report card is now available to view.",
+      type: NotificationType.EMAIL,
+      daysAgo: rand(5),
+    });
+  }
   await prisma.notification.createMany({
-    data: [
-      {
-        userId: admin.id,
-        title: 'System Ready',
-        message: 'Markova Academy system has been set up successfully.',
-        type: NotificationType.EMAIL,
-      },
-      {
-        userId: teacherUsers[0].id,
-        title: 'New Assignment',
-        message: 'You have been assigned to teach Mathematics for Senior 1 A.',
-        type: NotificationType.PUSH,
-      },
-      {
-        userId: parentUsers[0].id,
-        title: 'Attendance Alert',
-        message: 'Your child was marked absent today. Please contact the school if needed.',
-        type: NotificationType.EMAIL,
-      },
-    ],
+    data: notices.map((n) => ({
+      userId: n.userId,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      createdAt: minDate(addDays(today, -n.daysAgo), today),
+    })),
   });
-  console.log('  ✅ Notifications seeded');
+  console.log(`  ✅ ${notices.length} notifications seeded`);
+
+  // ─── SUPPORT TICKETS ────────────────────────────────────────────────────────
+  // An empty queue reads as a broken feature. These are the things staff
+  // actually raise.
+  const ticketRows = [
+    { user: teacherUsers[0], title: 'Projector in Senior 1 A will not connect', description: 'The HDMI port is loose and the picture cuts out during lessons.', category: 'Technical', status: 'OPEN', daysAgo: 1 },
+    { user: teacherUsers[1], title: 'Cannot enter marks for Level 4 SWD', description: 'The subject does not appear in my list even though I teach it.', category: 'Account', status: 'IN_PROGRESS', daysAgo: 3 },
+    { user: parentUsers[0], title: 'Report card shows the wrong term', description: 'Term 2 marks appear under Term 3 on the card I downloaded.', category: 'Bug Report', status: 'RESOLVED', daysAgo: 9 },
+    { user: teacherUsers[2], title: 'Add a column for practical marks', description: 'TVET subjects are marked on theory and practical separately.', category: 'Feature Request', status: 'OPEN', daysAgo: 5 },
+    { user: librarianUser, title: 'Barcode scanner types the wrong digits', description: 'Every scan drops the last character of the book code.', category: 'Technical', status: 'IN_PROGRESS', daysAgo: 2 },
+  ].filter((t) => t.user);
+
+  await prisma.supportTicket.createMany({
+    data: ticketRows.map((t) => ({
+      userId: t.user!.id,
+      title: t.title,
+      description: t.description,
+      category: t.category,
+      status: t.status,
+      createdAt: minDate(addDays(today, -t.daysAgo), today),
+      resolvedAt:
+        t.status === 'RESOLVED'
+          ? minDate(addDays(today, -(t.daysAgo - 2)), today)
+          : null,
+    })),
+  });
+  console.log(`  ✅ ${ticketRows.length} support tickets seeded`);
 
   // ─── FAQ ────────────────────────────────────────────────────────────────────
   await prisma.faqArticle.createMany({

@@ -19,12 +19,24 @@ import {
   useIssueIdCard,
   useIssueBulkIdCards,
   useRevokeIdCard,
+  useSuspendIdCard,
+  useRestoreIdCard,
 } from "@/hooks/use-reports";
 import { useBrandStore } from "@/stores/brand-store";
-import { Printer, Search, Plus, IdCard, Ban } from "lucide-react";
+import {
+  Printer,
+  Search,
+  Plus,
+  IdCard,
+  Ban,
+  PauseCircle,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 
-type StatusFilter = "all" | "issued" | "not_issued";
+type StatusFilter = "all" | "issued" | "not_issued" | "suspended";
 
 export default function AdminIdCardsPage() {
   const schoolName = useBrandStore((s) => s.schoolName);
@@ -35,6 +47,7 @@ export default function AdminIdCardsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [showPrint, setShowPrint] = useState(false);
+  const [page, setPage] = useState(1);
 
   const { data: levels } = useClassLevels();
   const { data: sections } = useSections(levelId || undefined);
@@ -43,11 +56,15 @@ export default function AdminIdCardsPage() {
     classSectionId: sectionId || undefined,
     status,
     search: search || undefined,
+    page,
+    limit: 25,
   });
 
   const issueCard = useIssueIdCard();
   const issueBulk = useIssueBulkIdCards();
   const revokeCard = useRevokeIdCard();
+  const suspendCard = useSuspendIdCard();
+  const restoreCard = useRestoreIdCard();
 
   // Debounced auto-search
   useEffect(() => {
@@ -55,7 +72,14 @@ export default function AdminIdCardsPage() {
     return () => clearTimeout(id);
   }, [searchInput]);
 
+  // Any change of filter starts again at the first page: staying on page 12
+  // of a narrower list shows an empty table.
+  useEffect(() => {
+    setPage(1);
+  }, [sectionId, status, search]);
+
   const items: any[] = data?.items || [];
+  const meta = data?.meta ?? { total: 0, page: 1, limit: 25, totalPages: 1 };
   const issuedItems = items.filter((i) => i.hasCard);
 
   const handlePrint = () => {
@@ -166,6 +190,7 @@ export default function AdminIdCardsPage() {
               <option value="all">All</option>
               <option value="issued">Has a card</option>
               <option value="not_issued">No card</option>
+              <option value="suspended">Suspended</option>
             </select>
           </div>
         </div>
@@ -200,7 +225,10 @@ export default function AdminIdCardsPage() {
                   <TableCell className="font-mono text-xs">{it.studentIdNumber}</TableCell>
                   <TableCell>
                     {it.hasCard ? (
-                      <span className="font-mono text-xs">{it.cardId}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{it.cardId}</span>
+                        {it.suspended && <Badge variant="warning">Suspended</Badge>}
+                      </div>
                     ) : (
                       <Badge variant="danger">No card</Badge>
                     )}
@@ -212,16 +240,46 @@ export default function AdminIdCardsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     {it.hasCard ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm(`Revoke ${it.name}'s card?`))
-                            revokeCard.mutate({ studentId: it.id });
-                        }}
-                      >
-                        <Ban className="mr-1 h-3.5 w-3.5" /> Revoke
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {/*
+                          Two different actions, and the difference matters:
+                          suspending keeps the card and can be undone, revoking
+                          destroys the code and forces a reprint.
+                        */}
+                        {it.suspended ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => restoreCard.mutate({ studentId: it.id })}
+                            disabled={restoreCard.isPending}
+                          >
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Restore
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => suspendCard.mutate({ studentId: it.id })}
+                            disabled={suspendCard.isPending}
+                          >
+                            <PauseCircle className="mr-1 h-3.5 w-3.5" /> Suspend
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Revoke ${it.name}'s card? The printed card stops working for good and a new one has to be issued. To stop it only for now, use Suspend.`,
+                              )
+                            )
+                              revokeCard.mutate({ studentId: it.id });
+                          }}
+                        >
+                          <Ban className="mr-1 h-3.5 w-3.5" /> Revoke
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         size="sm"
@@ -236,6 +294,42 @@ export default function AdminIdCardsPage() {
               ))}
             </TableBody>
           </Table>
+        )}
+
+        {/*
+          The roll runs to hundreds of students, so the registry is paged. The
+          counts above describe the whole filtered roll, not this page.
+        */}
+        {!isLoading && meta.totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-muted">
+              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+              {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                aria-label="Previous page"
+                variant="outline"
+                size="sm"
+                disabled={meta.page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="flex items-center px-3 text-sm text-muted">
+                Page {meta.page} of {meta.totalPages}
+              </span>
+              <Button
+                aria-label="Next page"
+                variant="outline"
+                size="sm"
+                disabled={meta.page >= meta.totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         )}
       </Card>
 

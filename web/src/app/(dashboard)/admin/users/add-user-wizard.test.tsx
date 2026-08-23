@@ -1147,9 +1147,9 @@ describe("the photo and the suggested email", () => {
       fireEvent.click(screen.getByRole("button", { name: /suggest/i }));
     });
 
-    // The house convention is the first name and the surname.
+    // The house convention is the first initial and the surname.
     const email = screen.getByLabelText(/email/i) as HTMLInputElement;
-    await waitFor(() => expect(email.value).toBe("aline.uwase@markova.edu"));
+    await waitFor(() => expect(email.value).toBe("a.uwase@markova.edu"));
   }, 30000);
 
   // Two people called Aline Uwase is ordinary in one school. The second one
@@ -1199,7 +1199,7 @@ describe("the photo and the suggested email", () => {
 
     // It falls back to the plain form rather than leaving the field empty.
     const email = screen.getByLabelText(/email/i) as HTMLInputElement;
-    await waitFor(() => expect(email.value).toBe("aline.uwase@markova.edu"));
+    await waitFor(() => expect(email.value).toBe("a.uwase@markova.edu"));
   }, 30000);
 });
 

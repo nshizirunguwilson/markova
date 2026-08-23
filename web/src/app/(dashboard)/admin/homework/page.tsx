@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,12 +33,23 @@ import {
 } from "@/hooks/use-academic";
 import { useUsers } from "@/hooks/use-users";
 import { exportData } from "@/lib/export";
-import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 
 const homeworkSchema = z.object({
+  // Not `.default()`: that makes the field optional on the way in, which no
+  // longer matches the resolver's own type. The default lives in
+  // `defaultValues` instead.
+  kind: z.enum(["HOMEWORK", "ASSIGNMENT", "QUIZ", "TEST", "PROJECT", "PRACTICAL"]),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   subjectId: z.string().min(1, "Subject is required"),
@@ -51,6 +62,7 @@ const homeworkSchema = z.object({
 type HomeworkForm = z.infer<typeof homeworkSchema>;
 
 const defaultValues: HomeworkForm = {
+  kind: "HOMEWORK",
   title: "",
   description: "",
   subjectId: "",
@@ -61,17 +73,42 @@ const defaultValues: HomeworkForm = {
   maxMarks: 100,
 };
 
+/**
+ * What a teacher can set. One model behind them all, because they differ only
+ * in what they are called and how much they are worth.
+ */
+const KIND_LABELS: Record<string, string> = {
+  HOMEWORK: "Homework",
+  ASSIGNMENT: "Assignment",
+  QUIZ: "Quiz",
+  TEST: "Test",
+  PROJECT: "Project",
+  PRACTICAL: "Practical",
+};
+
 export default function AdminHomeworkPage() {
   const [filterLevelId, setFilterLevelId] = useState("");
   const [filterSectionId, setFilterSectionId] = useState("");
   const [filterSubjectId, setFilterSubjectId] = useState("");
+  const [filterKind, setFilterKind] = useState("");
+  const [page, setPage] = useState(1);
   const { data: filterSections } = useSections(filterLevelId || undefined);
 
-  const params: Record<string, string> = {};
+  // Always paged on this screen: a whole school sets hundreds of assessments a
+  // term, and the teacher and student views read the same endpoint unpaged.
+  const params: Record<string, string> = { page: String(page), limit: "20" };
   if (filterSectionId) params.classSectionId = filterSectionId;
   if (filterSubjectId) params.subjectId = filterSubjectId;
+  if (filterKind) params.kind = filterKind;
 
-  const { data: homeworks, isLoading } = useHomeworks(Object.keys(params).length > 0 ? params : undefined);
+  const { data: response, isLoading } = useHomeworks(params);
+  const homeworks: any[] = response?.data ?? [];
+  const meta = response?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 1 };
+
+  // Narrowing the list while deep in it would land on a page that is gone.
+  useEffect(() => {
+    setPage(1);
+  }, [filterSectionId, filterSubjectId, filterKind]);
   const { data: levels } = useClassLevels();
   const { data: subjects } = useSubjects();
   const { data: years } = useAcademicYears();
@@ -179,15 +216,15 @@ export default function AdminHomeworkPage() {
   return (
     <div>
       <PageHeader
-        title="Homework"
-        description="Manage homework assignments"
+        title="Assessments"
+        description="Homework, assignments, quizzes, tests and projects across the school"
         actions={
           <>
             <div className="flex gap-2">
           <ExportDropdown onExport={handleExport} disabled={!homeworks || homeworks.length === 0} />
           <Button onClick={() => { resetForm(); setShowModal(true); }}>
             <Plus className="mr-2 h-4 w-4" />
-            Create Homework
+            New assessment
           </Button>
         </div>
           </>
@@ -228,6 +265,18 @@ export default function AdminHomeworkPage() {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+
+          <select
+            className="rounded-lg border border-input px-3 py-2 text-sm"
+            value={filterKind}
+            onChange={(e) => setFilterKind(e.target.value)}
+            aria-label="All Types"
+          >
+            <option value="">All Types</option>
+            {Object.entries(KIND_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
         </div>
       </Card>
 
@@ -251,13 +300,18 @@ export default function AdminHomeworkPage() {
               <TableRow>
                 <TableCell colSpan={7} className="py-12 text-center text-muted">
                   <ClipboardList className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                  No homework found
+                  No assessments found
                 </TableCell>
               </TableRow>
             ) : (
               homeworks.map((hw: any) => (
                 <TableRow key={hw.id}>
-                  <TableCell className="font-medium">{hw.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <div>{hw.title}</div>
+                    <Badge variant="default" className="mt-1">
+                      {KIND_LABELS[hw.kind] ?? "Homework"}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="info">{hw.subject?.name || "—"}</Badge>
                   </TableCell>
@@ -288,15 +342,60 @@ export default function AdminHomeworkPage() {
         </Table>
       )}
 
+      {!isLoading && meta.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-muted">
+            Showing {(meta.page - 1) * meta.limit + 1}–
+            {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              aria-label="Previous page"
+              variant="outline"
+              size="sm"
+              disabled={meta.page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="flex items-center px-3 text-sm text-muted">
+              Page {meta.page} of {meta.totalPages}
+            </span>
+            <Button
+              aria-label="Next page"
+              variant="outline"
+              size="sm"
+              disabled={meta.page >= meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Create/Edit Modal */}
-      <Modal isOpen={showModal} onClose={resetForm} title={editingId ? "Edit Homework" : "Create Homework"} size="lg">
+      <Modal isOpen={showModal} onClose={resetForm} title={editingId ? "Edit assessment" : "New assessment"} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label htmlFor="f-kind" className="mb-1 block text-sm font-medium">Type</label>
+            <select
+              id="f-kind"
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+              {...register("kind")}
+              aria-label="Type"
+            >
+              {Object.entries(KIND_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label htmlFor="f-title" className="mb-1 block text-sm font-medium">Title</label>
             <input id="f-title"
               className={`w-full rounded-lg border ${errors.title ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
               {...register("title")}
-              placeholder="Homework title"
+              placeholder="e.g. Algebra sheet 3"
              aria-label="Title"/>
             {errors.title && <p className="mt-1 text-xs text-danger">{errors.title.message}</p>}
           </div>
@@ -414,7 +513,7 @@ export default function AdminHomeworkPage() {
       </Modal>
 
       {/* Delete Confirmation */}
-      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Homework" size="sm">
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete assessment" size="sm">
         <p className="mb-4 text-sm text-muted">Are you sure you want to delete <strong>{deleteTarget?.title}</strong>?</p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>

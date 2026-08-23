@@ -84,19 +84,50 @@ export class HomeworkService {
     if (query.termId) where.termId = query.termId;
     if (query.subjectId) where.subjectId = query.subjectId;
     if (query.teacherId) where.teacherId = query.teacherId;
+    if (query.kind) where.kind = query.kind;
 
-    return this.prisma.homework.findMany({
-      where,
-      include: {
-        subject: { select: { name: true } },
-        classSection: { include: { classLevel: true, trade: true } },
-        teacher: {
-          include: { user: { select: { firstName: true, lastName: true } } },
-        },
-        _count: { select: { submissions: true } },
+    const include = {
+      subject: { select: { name: true } },
+      classSection: { include: { classLevel: true, trade: true } },
+      teacher: {
+        include: { user: { select: { firstName: true, lastName: true } } },
       },
-      orderBy: { dueDate: 'desc' },
-    });
+      _count: { select: { submissions: true } },
+    };
+
+    // Unpaged when nobody asks for a page, because the teacher and student
+    // views read this as a plain list and a whole school runs to hundreds of
+    // rows only on the admin screen.
+    if (!query.page && !query.limit) {
+      return this.prisma.homework.findMany({
+        where,
+        include,
+        orderBy: { dueDate: 'desc' },
+      });
+    }
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const [total, data] = await Promise.all([
+      this.prisma.homework.count({ where }),
+      this.prisma.homework.findMany({
+        where,
+        include,
+        orderBy: { dueDate: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   async findById(id: string) {

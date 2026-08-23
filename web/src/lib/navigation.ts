@@ -64,7 +64,7 @@ const adminNav: NavSection[] = [
       { label: "Attendance", href: "/admin/attendance", icon: Calendar },
       { label: "Discipline", href: "/admin/discipline", icon: AlertTriangle },
       { label: "Library", href: "/admin/library", icon: Library },
-      { label: "Homework", href: "/admin/homework", icon: ClipboardList },
+      { label: "Assessments", href: "/admin/homework", icon: ClipboardList },
     ],
   },
   {
@@ -93,7 +93,7 @@ const teacherNav: NavSection[] = [
     title: "Teaching",
     items: [
       { label: "Marks Entry", href: "/teacher/marks", icon: ClipboardList },
-      { label: "Homework", href: "/teacher/homework", icon: FileText },
+      { label: "Assessments", href: "/teacher/homework", icon: FileText },
     ],
   },
   {
@@ -129,7 +129,7 @@ const studentNav: NavSection[] = [
     items: [
       { label: "My Marks", href: "/student/marks", icon: ClipboardList },
       { label: "Report Card", href: "/student/reports", icon: FileText },
-      { label: "Homework", href: "/student/homework", icon: BookOpen },
+      { label: "My Work", href: "/student/homework", icon: BookOpen },
     ],
   },
   {

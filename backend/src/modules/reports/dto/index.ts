@@ -1,4 +1,13 @@
-import { IsUUID, IsOptional, IsString, IsEnum } from 'class-validator';
+import {
+  IsUUID,
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum DocumentType {
@@ -46,6 +55,7 @@ export enum IdCardStatusFilter {
   ALL = 'all',
   ISSUED = 'issued',
   NOT_ISSUED = 'not_issued',
+  SUSPENDED = 'suspended',
 }
 
 export class IdCardRegistryQueryDto {
@@ -55,4 +65,12 @@ export class IdCardRegistryQueryDto {
   @IsOptional()
   @IsEnum(IdCardStatusFilter)
   status?: IdCardStatusFilter;
+
+  // The roll runs to hundreds of students, so the registry is paged rather
+  // than loaded whole.
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  limit?: number;
 }

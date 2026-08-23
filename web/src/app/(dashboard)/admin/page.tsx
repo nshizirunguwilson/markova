@@ -87,7 +87,9 @@ export default function AdminDashboard() {
 
   // The last school days, present / late / absent stacked.
   const attendanceOption = useMemo<EChartsOption | null>(() => {
-    const days = attendanceStats?.byDate;
+    // The last five school days, not the year. A full year of bars is 230
+    // slivers a head teacher cannot read; this week is the thing they act on.
+    const days = attendanceStats?.byDate?.slice(-5);
     if (!days?.length) return null;
     const label = (iso: string) =>
       new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
@@ -231,7 +233,7 @@ export default function AdminDashboard() {
           )}
           {attendanceOption && (
             <Card>
-              <CardTitle>Recent school days</CardTitle>
+              <CardTitle>The last five school days</CardTitle>
               <p className="mt-0.5 text-sm text-muted">Who was in, late or missing</p>
               <EChart option={attendanceOption} height={215} />
             </Card>

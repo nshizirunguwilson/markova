@@ -36,16 +36,23 @@ const routes = {
   "/academic/class-levels": [classLevel],
   "/academic/sections": [classSection],
   "/academic/subjects": [subject],
-  "/homework": [
-    { ...homework, _count: { submissions: 2 } },
-    {
-      ...homework,
-      id: "hw-2",
-      title: "Essay on Imigani",
-      dueDate: "2026-09-15",
-      _count: { submissions: 0 },
-    },
-  ],
+  // The admin screen always asks for a page, so this endpoint answers with an
+  // envelope here. The teacher and student views ask unpaged and still get a
+  // plain array.
+  "/homework": {
+    data: [
+      { ...homework, kind: "HOMEWORK", _count: { submissions: 2 } },
+      {
+        ...homework,
+        id: "hw-2",
+        kind: "QUIZ",
+        title: "Essay on Imigani",
+        dueDate: "2026-09-15",
+        _count: { submissions: 0 },
+      },
+    ],
+    meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+  },
 };
 
 beforeEach(() => {
@@ -116,6 +123,7 @@ describe("narrowing the list", () => {
     await mount();
     expect(lastQuery().classSectionId).toBeUndefined();
     expect(lastQuery().subjectId).toBeUndefined();
+    expect(lastQuery().kind).toBeUndefined();
   });
 
   it("filters to one subject", async () => {
@@ -207,5 +215,154 @@ describe("removing a homework", () => {
     await click(confirm);
 
     await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+});
+
+/**
+ * One list, several kinds of work.
+ *
+ * Homework, assignments, quizzes, tests and projects are the same thing with a
+ * different name and weight. Keeping them apart in the data would make "how
+ * much work has Senior 1 been set this week" unanswerable, so the kind is a
+ * column rather than a separate module.
+ */
+describe("the kinds of assessment", () => {
+  // Scoped to the table: the filter offers every kind as an option too.
+  it("says what each row is", async () => {
+    await mount();
+    const table = document.querySelector("table")!;
+    expect(table.textContent).toMatch(/Quiz/);
+    expect(table.textContent).toMatch(/Homework/);
+  });
+
+  // A row set before the rename has no kind at all, and must not read blank.
+  it("treats an older row with no kind as homework", async () => {
+    serve(h.api, {
+      ...routes,
+      "/homework": {
+        data: [{ ...homework, kind: undefined, _count: { submissions: 0 } }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Algebra sheet 3/)).toBeInTheDocument());
+    expect(document.querySelector("table")!.textContent).toMatch(/Homework/);
+  });
+
+  it("offers every kind to filter by", async () => {
+    await mount();
+    const picker = screen.getByLabelText(/all types/i) as HTMLSelectElement;
+    const values = Array.from(picker.options).map((o) => o.value);
+    expect(values).toEqual([
+      "",
+      "HOMEWORK",
+      "ASSIGNMENT",
+      "QUIZ",
+      "TEST",
+      "PROJECT",
+      "PRACTICAL",
+    ]);
+  });
+
+  it("filters to one kind", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all types/i), {
+        target: { value: "QUIZ" },
+      });
+    });
+
+    await waitFor(() => expect(lastQuery().kind).toBe("QUIZ"));
+  });
+
+  it("goes back to every kind when the filter is cleared", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all types/i), { target: { value: "TEST" } });
+    });
+    await waitFor(() => expect(lastQuery().kind).toBe("TEST"));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all types/i), { target: { value: "" } });
+    });
+    await waitFor(() => expect(lastQuery().kind).toBeUndefined());
+  });
+
+  // A teacher setting a quiz should not have to call it homework.
+  it("lets a new assessment be given a kind", async () => {
+    await mount();
+    await click(
+      screen.queryAllByRole("button").find((b) => /new assessment/i.test(b.textContent ?? "")),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    const picker = within(dialog).getByLabelText(/^type$/i) as HTMLSelectElement;
+    expect(picker.value).toBe("HOMEWORK");
+
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: "PROJECT" } });
+    });
+    expect(picker.value).toBe("PROJECT");
+  });
+});
+
+describe("paging the assessment list", () => {
+  function paged(page: number, totalPages: number) {
+    return {
+      ...routes,
+      "/homework": {
+        data: [{ ...homework, id: `hw-${page}`, title: `Item page ${page}` }],
+        meta: { total: 45, page, limit: 20, totalPages },
+      },
+    };
+  }
+
+  it("shows nothing to page through on a short list", async () => {
+    await mount();
+    expect(screen.queryByRole("button", { name: /next page/i })).toBeNull();
+  });
+
+  it("asks for a page from the start", async () => {
+    await mount();
+    expect(lastQuery().page).toBe("1");
+    expect(lastQuery().limit).toBe("20");
+  });
+
+  it("says which page it is on", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+    expect(document.body.textContent).toMatch(/of 45/);
+  });
+
+  it("cannot go back from the first page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("asks for the next page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastQuery().page).toBe("2"));
+  });
+
+  // Narrowing the list while deep in it would land on a page that is gone.
+  it("returns to the first page when a filter changes", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastQuery().page).toBe("2"));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all types/i), { target: { value: "QUIZ" } });
+    });
+    await waitFor(() => expect(lastQuery().page).toBe("1"));
   });
 });

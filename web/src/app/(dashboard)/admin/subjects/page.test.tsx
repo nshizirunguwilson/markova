@@ -342,3 +342,93 @@ describe("exporting the subjects", () => {
     expect((h.exportData.mock.calls[0][1] as any).data).toHaveLength(2);
   });
 });
+
+/**
+ * Paging the subject list.
+ *
+ * A school with trade modules runs to ninety subjects. Twenty to a page keeps
+ * the table readable; the list itself is small enough to hold in the browser,
+ * so `/academic/subjects` keeps answering with a plain array.
+ */
+describe("paging a long subject list", () => {
+  const many = Array.from({ length: 45 }, (_, i) => ({
+    id: `subject-${i}`,
+    name: `Subject ${String(i).padStart(2, "0")}`,
+    code: `S${i}`,
+    category: "SCIENCE",
+    maxMarks: 100,
+  }));
+
+  async function mountMany() {
+    serve(h.api, { "/academic/subjects": many });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText("Subject 00")).toBeInTheDocument());
+  }
+
+  it("shows nothing to page through on a short list", async () => {
+    await mount();
+    expect(screen.queryByRole("button", { name: /next page/i })).toBeNull();
+  });
+
+  it("shows only the first page", async () => {
+    await mountMany();
+    expect(screen.getByText("Subject 19")).toBeInTheDocument();
+    expect(screen.queryByText("Subject 20")).toBeNull();
+  });
+
+  it("says how many there are in total", async () => {
+    await mountMany();
+    expect(document.body.textContent).toMatch(/of 45/);
+    expect(document.body.textContent).toMatch(/Page 1 of 3/);
+  });
+
+  it("cannot go back from the first page", async () => {
+    await mountMany();
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("goes forward to the next twenty", async () => {
+    await mountMany();
+    await click(screen.getByRole("button", { name: /next page/i }));
+
+    await waitFor(() => expect(screen.getByText("Subject 20")).toBeInTheDocument());
+    expect(screen.queryByText("Subject 00")).toBeNull();
+  });
+
+  it("comes back again", async () => {
+    await mountMany();
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(screen.getByText("Subject 20")).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /previous page/i }));
+    await waitFor(() => expect(screen.getByText("Subject 00")).toBeInTheDocument());
+  });
+
+  it("cannot go past the last page", async () => {
+    await mountMany();
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await click(screen.getByRole("button", { name: /next page/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled(),
+    );
+    expect(screen.getByText("Subject 44")).toBeInTheDocument();
+  });
+
+  // Every subject still goes into the file, not just the page on screen.
+  it("exports the whole list, not just this page", async () => {
+    await mountMany();
+    await click(button(/export/i));
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    expect((h.exportData.mock.calls[0][1] as any).data).toHaveLength(45);
+  });
+});
