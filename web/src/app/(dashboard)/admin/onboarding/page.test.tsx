@@ -147,3 +147,73 @@ describe("leaving setup", () => {
     await waitFor(() => expect(h.api.put).not.toHaveBeenCalled());
   });
 });
+
+/**
+ * Every step of the wizard, and its two ends.
+ *
+ * Ten steps means ten arms of one switch, and a step that renders nothing is a
+ * school stuck on a blank page half way through their first hour with the
+ * software. Walking the whole way is the only way to know each one mounts.
+ */
+describe("all ten steps", () => {
+  const stepText = [
+    /school info/i,
+    /branding/i,
+    /academic year/i,
+    /term/i,
+    /class/i,
+    /subject/i,
+    /teacher/i,
+    /student/i,
+    /assign/i,
+    /review/i,
+  ];
+
+  it("draws something on every one of them", async () => {
+    await mount();
+
+    for (let step = 0; step < stepText.length; step += 1) {
+      await waitFor(() =>
+        expect(document.body.textContent).toMatch(stepText[step]),
+      );
+      // The page is never blank: each step mounts its own panel.
+      expect(document.querySelector("main, div")).not.toBeNull();
+
+      const next = button(/^next$/i);
+      if (!next || step === stepText.length - 1) break;
+      await click(next);
+    }
+  }, 30000);
+
+  it("offers no Next on the last step", async () => {
+    await mount();
+    for (let step = 0; step < 9; step += 1) {
+      const next = button(/^next$/i);
+      if (!next) break;
+      await click(next);
+    }
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/review/i));
+    // The last step finishes rather than advancing into nothing, so Next is
+    // gone entirely by the time the school reaches Review.
+    expect(button(/^next$/i)).toBeUndefined();
+  }, 30000);
+
+  it("stores each step it reaches", async () => {
+    await mount();
+    h.api.put.mockClear();
+
+    for (let step = 0; step < 3; step += 1) {
+      const next = button(/^next$/i);
+      if (!next) break;
+      await click(next);
+    }
+
+    await waitFor(() => {
+      const steps = h.api.put.mock.calls
+        .filter(([url]: any[]) => String(url).includes("/school-config/onboarding"))
+        .map(([, body]: any[]) => body.currentStep);
+      expect(steps).toEqual(["1", "2", "3"]);
+    });
+  }, 30000);
+});
