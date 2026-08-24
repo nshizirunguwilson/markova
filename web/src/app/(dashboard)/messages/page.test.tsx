@@ -1353,3 +1353,135 @@ describe("an inbox with no threads in it at all", () => {
     expect(await screen.findByText("No conversations yet")).toBeInTheDocument();
   });
 });
+
+/**
+ * Threads and people the joins came back short on.
+ *
+ * A school's messaging list outlives its accounts: a teacher leaves, a parent
+ * is deactivated, and the threads they were in are still there. Every one of
+ * these has to draw rather than take the inbox down.
+ */
+describe("people whose accounts are gone", () => {
+  it("puts a question mark where an initial would be", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/contacts": {
+        data: [{ id: "u-9", firstName: "", lastName: "", role: "TEACHER" }],
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "a");
+
+    expect(await screen.findByText("?")).toBeInTheDocument();
+  });
+
+  it("falls back to an id when a chosen person is no longer in the results", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const candidate = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    // The search moves on and no longer contains them; the chip must still
+    // show something rather than going blank.
+    serve(h.api, { ...routes, "/messaging/contacts": { data: [] } });
+    await user.clear(screen.getByLabelText("Search users by name..."));
+    await user.type(screen.getByLabelText("Search users by name..."), "zzz");
+
+    await waitFor(() =>
+      expect(within(dialog).getByText("u-3")).toBeInTheDocument(),
+    );
+  });
+
+  it("names a message from someone with no name left", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-ghost",
+          conversationId: "conv-1",
+          senderId: "u-gone",
+          sender: { id: "u-gone" },
+          content: "Muraho",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    // The message itself survives, on the left, with a blank name above it.
+    expect(await screen.findByText("Muraho")).toBeInTheDocument();
+  });
+
+  it("shows your own attachment on your own side", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-mine",
+          conversationId: "conv-1",
+          senderId: "user-1",
+          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+          content: "Here it is",
+          fileUrl: "/uploads/messaging/notes.pdf",
+          fileName: "notes.pdf",
+          createdAt: "2026-08-21T09:05:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    const link = await screen.findByRole("link", { name: /notes\.pdf/ });
+    // Your own attachments sit on the tinted side of the bubble.
+    expect(link.className).toMatch(/white/);
+  });
+});
+
+describe("a group whose member list is still loading", () => {
+  it("opens the members panel with nothing in it rather than throwing", async () => {
+    const group = {
+      id: "conv-2",
+      type: "GROUP",
+      name: "Senior 2 parents",
+      participants: [{ user: other }],
+      lastMessage: null,
+      unreadCount: 0,
+    };
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [group],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": undefined,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Senior 2 parents"));
+    await user.click(await screen.findByLabelText("Members"));
+
+    // The rename box opens seeded with the group's current name.
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Senior 2 parents")).toBeInTheDocument(),
+    );
+  });
+});
