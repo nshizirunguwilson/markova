@@ -458,3 +458,73 @@ describe("the academic tab before a year is opened", () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * Closing a term, and opening it again.
+ *
+ * Closing a term locks its marks: nothing can be entered or changed against it
+ * afterwards. That is the point, and it is also why reopening has to work,
+ * because a term gets closed a week early roughly once per school.
+ */
+describe("closing and reopening a term", () => {
+  const term = (over: Record<string, unknown> = {}) => ({
+    id: "term-1",
+    name: "Term 1",
+    startDate: "2026-09-01",
+    endDate: "2026-12-15",
+    isCurrent: true,
+    isClosed: false,
+    ...over,
+  });
+
+  async function mountTerms(terms: unknown[]) {
+    serve(h.api, { ...populatedRoutes, "/academic/terms": terms });
+    renderWithProviders(<AcademicTab />);
+    await waitFor(() => expect(screen.getByText("Term 1")).toBeInTheDocument());
+  }
+
+  it("marks a closed term as closed", async () => {
+    await mountTerms([term({ isClosed: true })]);
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort about an open one", async () => {
+    await mountTerms([term()]);
+    expect(screen.queryByText("Closed")).toBeNull();
+  });
+
+  it("closes an open term", async () => {
+    await mountTerms([term()]);
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms/term-1/close"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("reopens a closed one rather than closing it twice", async () => {
+    await mountTerms([term({ isClosed: true })]);
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms/term-1/reopen"),
+      );
+      expect(call).toBeTruthy();
+    });
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) => String(url).includes("/close")),
+    ).toBeUndefined();
+  });
+});
