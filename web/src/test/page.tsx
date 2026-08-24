@@ -74,7 +74,10 @@ export function serve(
       }
       const data =
         typeof handler === "function"
-          ? (handler as (b?: unknown) => unknown)(body)
+          ? // A route may answer with a promise, including one that never
+            // settles: that is how a test holds one query in its loading state
+            // while the rest of the page arrives.
+            await (handler as (b?: unknown) => unknown)(body)
           : handler;
       return { data, status: 200 };
     });

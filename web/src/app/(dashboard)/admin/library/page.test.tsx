@@ -1105,3 +1105,343 @@ describe("after a book is lent out", () => {
     expect(box.value).toBe("ubuzima");
   });
 });
+
+/**
+ * The corners of the library screen.
+ *
+ * Everything below is a path a librarian reaches on an ordinary day but that
+ * the happy-path tests above walk straight past: a record typed in without an
+ * ISBN, a tab that is still loading, a form submitted half empty, a CSV with
+ * the columns in the wrong order.
+ */
+describe("the library when the data is not tidy", () => {
+  it("opens a book with nothing but a title for editing", async () => {
+    const user = userEvent.setup();
+    serve(h.api, {
+      ...routes,
+      // Everything optional left blank, which is how a rushed stock take
+      // actually enters a book.
+      "/library/books": [
+        { id: "bare", title: "Untitled Donation", author: "", availableCount: 0 },
+      ],
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await screen.findByText("Untitled Donation");
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+
+    // The blanks come through as blanks, not as the word "undefined".
+    expect(await screen.findByLabelText("Title")).toHaveValue("Untitled Donation");
+    expect(screen.getByLabelText("Author")).toHaveValue("");
+    expect(screen.getByLabelText("ISBN")).toHaveValue("");
+    expect(screen.getByLabelText("Total Copies")).toHaveValue(1);
+    expect(screen.getByLabelText("Shelf Location")).toHaveValue("");
+  });
+
+  it("shows an em dash where a book has no ISBN or category", async () => {
+    serve(h.api, {
+      ...routes,
+      "/library/books": [
+        { id: "bare", title: "Untitled Donation", author: "Anon", availableCount: 0 },
+      ],
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText("Untitled Donation")).closest("tr")!;
+    expect(within(row).getAllByText("—")).toHaveLength(2);
+  });
+
+  it("refuses to save a book with no title and no author", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: /add book/i }));
+    // Two buttons now read "Add Book": the header one and the form's submit.
+    await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
+
+    expect(await screen.findByText("Title is required")).toBeInTheDocument();
+    expect(screen.getByText("Author is required")).toBeInTheDocument();
+    // Nothing was sent: a rejected form must not reach the API.
+    expect(h.api.post).not.toHaveBeenCalledWith("/library/books", expect.anything());
+  });
+
+  it("refuses a book with no copies", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: /add book/i }));
+    await user.type(screen.getByLabelText("Title"), "Imbonezamubano");
+    await user.type(screen.getByLabelText("Author"), "Uwase Aline");
+    await user.clear(screen.getByLabelText("Total Copies"));
+    await user.type(screen.getByLabelText("Total Copies"), "0");
+    await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
+
+    expect(await screen.findByText("At least 1 copy")).toBeInTheDocument();
+  });
+});
+
+describe("the library while it is still loading", () => {
+  const hangs = () => new Promise(() => {});
+
+  it("spins on the loans tab until the loans arrive", async () => {
+    const user = userEvent.setup();
+    serve(h.api, { ...routes, "/library/loans/active": hangs });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("spins on the overdue tab until the overdue list arrives", async () => {
+    const user = userEvent.setup();
+    serve(h.api, { ...routes, "/library/loans/overdue": hangs });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Overdue" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("spins on the analytics tab until the figures arrive", async () => {
+    const user = userEvent.setup();
+    serve(h.api, { ...routes, "/library/analytics": hangs });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Analytics" }));
+    expect(screen.queryByText("Total Books")).not.toBeInTheDocument();
+  });
+});
+
+/** Opens the export dropdown and picks CSV. Both are plain buttons. */
+async function exportCsv(user: ReturnType<typeof userEvent.setup>) {
+  h.exportData.mockClear();
+  const trigger = screen
+    .queryAllByRole("button")
+    .find((b) => /export/i.test(b.textContent ?? ""))!;
+  await user.click(trigger);
+  const csv = await waitFor(() => {
+    const found = screen
+      .queryAllByRole("button")
+      .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+    expect(found).toBeTruthy();
+    return found!;
+  });
+  await user.click(csv);
+  await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+}
+
+describe("exporting each library tab", () => {
+  const namelessLoan = {
+    id: "loan-x",
+    bookId: "book-x",
+    book: { title: "Ubumenyi" },
+    borrower: {},
+    checkoutDate: "2026-08-01T00:00:00Z",
+    dueDate: "2026-08-08T00:00:00Z",
+  };
+
+  it("exports the active loans, blank borrower and all", async () => {
+    const user = userEvent.setup();
+    serve(h.api, { ...routes, "/library/loans/active": [namelessLoan] });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    await screen.findByText("Ubumenyi");
+    await exportCsv(user);
+
+    const [, payload] = h.exportData.mock.calls.at(-1)!;
+    expect(payload.filename).toBe("active-loans");
+    expect(payload.data[0]._borrower).toBe("");
+  });
+
+  it("exports the overdue loans with the days counted", async () => {
+    const user = userEvent.setup();
+    serve(h.api, { ...routes, "/library/loans/overdue": [namelessLoan] });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Overdue" }));
+    await screen.findByText("Ubumenyi");
+    await exportCsv(user);
+
+    const [, payload] = h.exportData.mock.calls.at(-1)!;
+    expect(payload.filename).toBe("overdue-loans");
+    expect(payload.data[0]._daysOverdue).toBeGreaterThan(0);
+  });
+
+  it("returns a loan that only carries a bookId", async () => {
+    const user = userEvent.setup();
+    serve(h.api, {
+      ...routes,
+      "/library/loans/active": [{ ...namelessLoan, book: undefined }],
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    await user.click(await screen.findByRole("button", { name: "Return" }));
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/library/return", {
+        bookIdentifier: "book-x",
+      }),
+    );
+  });
+
+  it("returns an overdue loan that only carries a bookId", async () => {
+    const user = userEvent.setup();
+    serve(h.api, {
+      ...routes,
+      "/library/loans/overdue": [{ ...namelessLoan, book: undefined }],
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Overdue" }));
+    await user.click(await screen.findByRole("button", { name: "Return" }));
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/library/return", {
+        bookIdentifier: "book-x",
+      }),
+    );
+  });
+
+  it("shows nought against a popular book with no count", async () => {
+    const user = userEvent.setup();
+    serve(h.api, {
+      ...routes,
+      "/library/analytics": {
+        totalBooks: 3,
+        popularBooks: [{ title: "Ubumenyi", author: "Anon" }],
+      },
+    });
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    await user.click(await screen.findByRole("button", { name: "Analytics" }));
+    const row = (await screen.findByText("Ubumenyi")).closest("tr")!;
+    expect(within(row).getByText("0")).toBeInTheDocument();
+  });
+});
+
+describe("importing a CSV of books", () => {
+  const openImport = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole("button", { name: /bulk import/i }));
+    return screen.getByLabelText("Select item") as HTMLInputElement;
+  };
+
+  const csv = (text: string) =>
+    new File([text], "books.csv", { type: "text/csv" });
+
+  it("takes the columns in any order and fills in a missing quantity", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, csv("author,title\nUwase Aline,Imbonezamubano"));
+
+    expect(await screen.findByText(/1 book will be imported/i)).toBeInTheDocument();
+    const row = screen.getByText("Imbonezamubano").closest("tr")!;
+    // No isbn column at all, and no quantity: one copy, no ISBN.
+    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("1")).toBeInTheDocument();
+  });
+
+  it("reads quantity from a column called copies", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(
+      input,
+      csv("title,author,isbn,copies\nImbonezamubano,Uwase Aline,978-1,4"),
+    );
+
+    const row = (await screen.findByText("Imbonezamubano")).closest("tr")!;
+    expect(within(row).getByText("4")).toBeInTheDocument();
+    expect(within(row).getByText("978-1")).toBeInTheDocument();
+  });
+
+  it("counts the rows it is not showing", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const rows = Array.from({ length: 8 }, (_, i) => `Book ${i},Author ${i}`);
+    const input = await openImport(user);
+    await user.upload(input, csv(["title,author", ...rows].join("\n")));
+
+    expect(await screen.findByText(/8 books will be imported/i)).toBeInTheDocument();
+    expect(screen.getByText(/and 3 more/i)).toBeInTheDocument();
+  });
+
+  it("skips rows with a blank title or author", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(
+      input,
+      csv("title,author\nImbonezamubano,Uwase Aline\n,Nobody\nNo Author,"),
+    );
+
+    expect(await screen.findByText(/1 book will be imported/i)).toBeInTheDocument();
+  });
+
+  it("says so when a header row names neither title nor author", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, csv("name,writer\nImbonezamubano,Uwase Aline"));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "CSV must have at least 'title' and 'author' columns",
+      ),
+    );
+  });
+
+  it("says so when every row is blank", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, csv("title,author\n,\n,"));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("No valid book rows found in CSV"),
+    );
+  });
+
+  it("says so when the file is only a header", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, csv("title,author"));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "CSV must have a header row and at least one data row",
+      ),
+    );
+  });
+
+  it("does nothing at all when the picker is dismissed", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    // Dismissing the OS file picker fires change with an empty list.
+    await user.upload(input, []);
+
+    expect(h.toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByText(/will be imported/i)).not.toBeInTheDocument();
+  });
+});

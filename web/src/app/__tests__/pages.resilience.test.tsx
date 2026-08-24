@@ -43,7 +43,7 @@ vi.mock("@/components/ui/echart", () => ({
 
 import { renderPage, serve, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
-import { edgeRoutes, populatedRoutes } from "@/test/fixtures";
+import { edgeRoutes, populatedRoutes, strainedRoutes, thinRoutes } from "@/test/fixtures";
 import type { User } from "@/stores/auth-store";
 
 import AdminAnalytics from "@/app/(dashboard)/admin/analytics/page";
@@ -234,6 +234,61 @@ describe("every dashboard page handles a school with problems", () => {
 describe("every dashboard page survives being used on bad data", () => {
   it.each(pages)("$name handles its controls with problems present", async ({ role, Page }) => {
     serve(h.api, edgeRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const { rejections } = await exercisePage();
+    expect(rejections).toEqual([]);
+  }, 30000);
+});
+
+/**
+ * The same pages against rows with none of their relations.
+ *
+ * A `select` that forgot an `include`, a teacher who was deactivated, a loan
+ * whose borrower record went: the API answers with the row and nothing hanging
+ * off it. Every page is written with `x?.y || "—"` guards for that, and this is
+ * the pass that runs them. A blank screen here is the failure that tells a
+ * teacher their marks are gone.
+ */
+describe("every dashboard page survives rows with no relations", () => {
+  it.each(pages)("$name draws what it can from a thin answer", async ({ role, Page }) => {
+    serve(h.api, thinRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
+
+describe("every dashboard page survives being used on thin rows", () => {
+  it.each(pages)("$name handles its controls with nothing attached", async ({ role, Page }) => {
+    serve(h.api, thinRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const { rejections } = await exercisePage();
+    expect(rejections).toEqual([]);
+  }, 30000);
+});
+
+/**
+ * The same pages for a school where the news is bad.
+ *
+ * Attendance under every threshold, nothing in any count, every flag the other
+ * way round. Almost every page colours a figure against a threshold, and a
+ * fixture set with one healthy number in it only ever paints the green arm.
+ * The red one is the arm a head teacher actually acts on.
+ */
+describe("every dashboard page draws a school that is struggling", () => {
+  it.each(pages)("$name paints the bad news too", async ({ role, Page }) => {
+    serve(h.api, strainedRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
+
+describe("every dashboard page survives being used while things go badly", () => {
+  it.each(pages)("$name handles its controls under strain", async ({ role, Page }) => {
+    serve(h.api, strainedRoutes);
     renderPage(Page, { role, user: asUser });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 

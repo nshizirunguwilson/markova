@@ -271,7 +271,12 @@ export default function AdminMarksPage() {
                     </TableCell>
                     <TableCell>
                       <p className="font-medium text-foreground">
-                        {r.student.user.firstName} {r.student.user.lastName}
+                        {/* A result the API answered without its student still
+                            has to draw: a white screen here reads as marks
+                            that have gone missing. */}
+                        {`${r.student?.user?.firstName ?? ""} ${
+                          r.student?.user?.lastName ?? ""
+                        }`.trim() || "—"}
                       </p>
                     </TableCell>
                     <TableCell>{r.totalMarks?.toFixed(1) || "—"}</TableCell>

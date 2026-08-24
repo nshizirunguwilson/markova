@@ -205,7 +205,7 @@ export default function AdminDisciplinePage() {
                       {inc.student?.user?.firstName ?? "Unknown"} {inc.student?.user?.lastName ?? ""}
                     </TableCell>
                     <TableCell className="text-sm text-muted">
-                      {classDisplayName(inc.student.classSection)}
+                      {classDisplayName(inc.student?.classSection)}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm">{inc.description}</TableCell>
                     <TableCell><Badge variant="danger">-{inc.pointsDeducted}</Badge></TableCell>
@@ -312,7 +312,7 @@ export default function AdminDisciplinePage() {
                         {m.student?.user?.firstName} {m.student?.user?.lastName}
                       </TableCell>
                       <TableCell className="text-sm text-muted">
-                        {classDisplayName(m.student.classSection)}
+                        {classDisplayName(m.student?.classSection)}
                       </TableCell>
                       <TableCell className="max-w-xs text-sm">
                         {m.description}
@@ -420,7 +420,7 @@ export default function AdminDisciplinePage() {
                     <p className="font-medium text-foreground">
                       {a.incident?.student?.user?.firstName ?? "Unknown"} {a.incident?.student?.user?.lastName ?? ""}
                       <span className="ml-2 text-xs text-muted">
-                        {classDisplayName(a.incident.student.classSection)}
+                        {classDisplayName(a.incident?.student?.classSection)}
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-muted">Incident: {a.incident.description}</p>
@@ -479,7 +479,7 @@ export default function AdminDisciplinePage() {
             <Card>
               <p className="text-xs text-muted">Actions</p>
               <p className="text-2xl font-bold text-foreground">
-                {Object.keys(dashboard.byAction).length} types
+                {Object.keys(dashboard.byAction ?? {}).length} types
               </p>
             </Card>
           </div>
@@ -488,7 +488,7 @@ export default function AdminDisciplinePage() {
           <Card>
             <CardTitle>Actions Breakdown</CardTitle>
             <div className="mt-4 space-y-2">
-              {Object.entries(dashboard.byAction).map(([action, count]) => (
+              {Object.entries(dashboard.byAction ?? {}).map(([action, count]) => (
                 <div key={action} className="flex items-center justify-between">
                   <span className="text-sm text-foreground">{ACTION_LABELS[action] || action}</span>
                   <Badge>{String(count)}</Badge>

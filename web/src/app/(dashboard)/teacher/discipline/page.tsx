@@ -94,7 +94,9 @@ export default function TeacherDisciplinePage() {
                   <TableRow key={inc.id}>
                     <TableCell>{new Date(inc.date).toLocaleDateString()}</TableCell>
                     <TableCell className="font-medium">
-                      {inc.student.user.firstName} {inc.student.user.lastName}
+                      {`${inc.student?.user?.firstName ?? ""} ${
+                        inc.student?.user?.lastName ?? ""
+                      }`.trim() || "—"}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm">{inc.description}</TableCell>
                     <TableCell><Badge variant="danger">-{inc.pointsDeducted}</Badge></TableCell>

@@ -487,3 +487,79 @@ export const edgeRoutes: Record<string, unknown> = {
     averageScore: 0,
   },
 };
+
+/**
+ * The same school, answered without any of its relations.
+ *
+ * A real API drops them all the time: a `select` that forgot an `include`, a
+ * row whose teacher was deactivated, a loan whose borrower record went. Every
+ * page is full of `l.borrower?.firstName || ""` guards written for exactly
+ * that, and until something renders against a row with no borrower on it,
+ * none of those guards has ever run.
+ *
+ * The transform is deliberately blunt: keep the scalars, drop the nested
+ * objects and arrays-of-objects. What is left is what a thin `select` returns.
+ */
+function stripRelations(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripRelations);
+  if (value === null || typeof value !== "object") return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+    if (inner === null || typeof inner !== "object") {
+      out[key] = inner;
+      continue;
+    }
+    // `data` and `meta` are the response envelope, not a relation, so they
+    // have to survive or every list becomes undefined.
+    if (key === "data" || key === "meta") out[key] = stripRelations(inner);
+  }
+  return out;
+}
+
+export const thinRoutes: Record<string, unknown> = Object.fromEntries(
+  Object.entries(populatedRoutes).map(([url, body]) => [
+    url,
+    stripRelations(body),
+  ]),
+);
+
+/**
+ * The same school, doing badly.
+ *
+ * Almost every page colours a figure against a threshold: an attendance rate
+ * is green above ninety, amber above seventy-five, red below. A fixture set
+ * with one healthy number in it only ever paints the first of those, and the
+ * red arm — the one a head teacher actually acts on — is never drawn.
+ *
+ * So this maps the rates down under every threshold, empties the counts, and
+ * flips the flags. It is deliberately blunt: what it proves is that a page
+ * renders the same way when the news is bad.
+ */
+function underThreshold(value: unknown, key = ""): unknown {
+  if (Array.isArray(value)) return value.map((v) => underThreshold(v, key));
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "number") {
+      if (/rate|percent|average|score|attendance|progress/i.test(key)) return 41;
+      if (/count|total|pending|overdue|balance|points|marks|quantity/i.test(key)) return 0;
+      return value;
+    }
+    if (typeof value === "boolean") return !value;
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+      k,
+      // The envelope has to keep its shape, or every list becomes unreadable.
+      k === "meta" ? v : underThreshold(v, k),
+    ]),
+  );
+}
+
+export const strainedRoutes: Record<string, unknown> = Object.fromEntries(
+  Object.entries(populatedRoutes).map(([url, body]) => [
+    url,
+    underThreshold(body),
+  ]),
+);
