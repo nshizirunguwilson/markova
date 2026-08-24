@@ -945,13 +945,9 @@ describe("a clinic with nothing in it", () => {
     renderPage(HealthPage, { role: "NURSE" });
     await screen.findByText("Nobody is in the sick bay.");
 
-    // The other tabs are the written record, so "nobody is lying down" would
+    // The clinic book is the written record, so "nobody is lying down" would
     // be the wrong sentence there.
-    const other = screen
-      .queryAllByRole("button")
-      .find((b) => /today|all|week/i.test((b.textContent ?? "").trim()));
-    if (!other) return;
-    await click(other);
+    await click(button(/the clinic book/i));
 
     expect(await screen.findByText("Nothing in the book yet.")).toBeInTheDocument();
   });
@@ -1032,5 +1028,77 @@ describe("a card and a visit with nothing filled in", () => {
     await openVisit();
     expect(screen.getAllByText(/Paracetamol/).length).toBeGreaterThan(0);
     expect(screen.queryByText("Nothing given yet.")).toBeNull();
+  });
+});
+
+/**
+ * Visits and cards the joins came back short on.
+ *
+ * The clinic list names a student from a join two tables deep, and every one
+ * of those can come back empty for a student who has since left. A nurse
+ * looking for who is lying down must not be shown a blank page instead.
+ */
+describe("a visit whose student record has gone", () => {
+  it("still lists the visit", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [{ ...resting, student: undefined }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(HealthPage, { role: "NURSE" });
+
+    expect(await screen.findByText("Fever since last night")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("still lists a visit whose student has no user behind it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [{ ...resting, student: { id: "student-1" } }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(HealthPage, { role: "NURSE" });
+
+    expect(await screen.findByText("Fever since last night")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});
+
+describe("a visit and a card with the lists left off entirely", () => {
+  it("says nothing has been given when the doses list is absent", async () => {
+    const noMeds = { ...resting };
+    delete (noMeds as Record<string, unknown>).medications;
+
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [noMeds, referred],
+        meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+      },
+      "/clinic/visits/visit-1": noMeds,
+    });
+    await openVisit();
+
+    expect(screen.getByText("Nothing given yet.")).toBeInTheDocument();
+  });
+
+  it("leaves out recent visits when the card has no list at all", async () => {
+    const noVisits = { student: card.student, recentMedication: [] };
+    serve(h.api, { ...routes, "/clinic/student/student-1": noVisits });
+    await mount();
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "Divine Niyonkuru"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Emergency card")).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByText("Recent visits")).toBeNull();
   });
 });

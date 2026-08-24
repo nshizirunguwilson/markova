@@ -236,16 +236,19 @@ export default function HealthPage() {
                 visits.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-medium">
+                      {/* A student who has since left the school comes back
+                          with the join empty, and losing the whole list is far
+                          worse than losing one name off one row. */}
                       <button
-                        onClick={() => setCardFor(v.student.id)}
+                        onClick={() => v.student?.id && setCardFor(v.student.id)}
                         className="text-left hover:underline"
                       >
                         {nameOf(v)}
                       </button>
                       <div className="font-mono text-xs text-muted">
-                        {v.student.studentIdNumber}
+                        {v.student?.studentIdNumber}
                       </div>
-                      {v.student.allergies && (
+                      {v.student?.allergies && (
                         <Badge variant="danger" className="mt-1">
                           Allergy: {v.student.allergies}
                         </Badge>
