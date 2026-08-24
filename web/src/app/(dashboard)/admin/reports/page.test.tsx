@@ -1743,3 +1743,63 @@ describe("retrying only the reports that failed", () => {
     );
   }, 45000);
 });
+
+/**
+ * The moment a whole class's cards are being made.
+ *
+ * Generating thirty report cards takes long enough that an admin will press
+ * the button twice if nothing tells them it is working, and two runs against
+ * the same term is how duplicate cards get printed.
+ */
+describe("while a class is being generated", () => {
+  it("refuses a second press", async () => {
+    serve(h.api, {
+      ...routes,
+      // The generate never settles, which is what a slow school link looks
+      // like from the office.
+      "/reports/term/class": () => new Promise(() => {}),
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate report cards/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() =>
+      expect(buttonMatching(/generate report cards/i)).toBeDisabled(),
+    );
+  }, 30000);
+
+  it("comes back once it finishes", async () => {
+    serve(h.api, routes);
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate report cards/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() =>
+      expect(buttonMatching(/generate report cards/i)).toBeEnabled(),
+    );
+  }, 30000);
+});
