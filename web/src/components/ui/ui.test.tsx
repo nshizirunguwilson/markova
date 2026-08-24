@@ -468,6 +468,10 @@ describe("Modal keyboard handling", () => {
 
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(dialog).toBeInTheDocument();
+
+    // The dialog tries to focus its first control on the next frame and finds
+    // none, which must leave focus where it was rather than throwing.
+    await waitFor(() => expect(document.activeElement).toBe(document.body));
   });
 
   it("ignores Shift+Tab too when there is nothing to cycle", async () => {

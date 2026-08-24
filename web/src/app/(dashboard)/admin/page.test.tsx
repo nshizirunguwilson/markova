@@ -87,6 +87,31 @@ describe("today's attendance on the dashboard", () => {
     );
   });
 
+  it("counts a school where nobody was late", async () => {
+    mount({
+      "/attendance/dashboard": attendance({
+        totalStudents: 100,
+        present: 90,
+        absent: 10,
+      }),
+    });
+
+    await waitFor(() =>
+      expect(screen.getAllByText("90%").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("counts a school where the present figure never arrived", async () => {
+    mount({
+      "/attendance/dashboard": attendance({ totalStudents: 100, late: 5 }),
+    });
+
+    // Only the latecomers are accounted for, and the sum is still a number.
+    await waitFor(() =>
+      expect(screen.getAllByText("5%").length).toBeGreaterThan(0),
+    );
+  });
+
   it("shows an em dash before the figures arrive", async () => {
     mount({ "/attendance/dashboard": () => new Promise(() => {}) });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
