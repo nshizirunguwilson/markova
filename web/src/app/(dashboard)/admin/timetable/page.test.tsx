@@ -627,3 +627,111 @@ describe("colouring the grid by subject", () => {
     expect(events.every((e) => e.backgroundColor)).toBe(true);
   });
 });
+
+/**
+ * Sunday, midnight, and a lesson with no room.
+ *
+ * The model numbers days 1..7 with Sunday last; JavaScript numbers them 0..6
+ * with Sunday first. A lesson dragged onto a Sunday is the one case where the
+ * two disagree, and getting it wrong files the lesson under Monday.
+ */
+describe("the day the two calendars disagree about", () => {
+  it("files a Sunday lesson as day seven, not day nought", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    // 23 August 2026 is a Sunday.
+    const start = new Date("2026-08-23T10:00:00");
+    const end = new Date("2026-08-23T11:00:00");
+    h.api.put.mockClear();
+
+    await fireCalendar("eventDrop", {
+      event: { extendedProps: { entry, entryId: entry.id }, start, end },
+      revert: vi.fn(),
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    const [, body] = h.api.put.mock.calls.at(-1)! as [string, any];
+    expect(body.dayOfWeek).toBe(7);
+  });
+
+  it("files a Monday lesson as day one", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    const start = new Date("2026-08-24T10:00:00");
+    const end = new Date("2026-08-24T11:00:00");
+    h.api.put.mockClear();
+
+    await fireCalendar("eventDrop", {
+      event: { extendedProps: { entry, entryId: entry.id }, start, end },
+      revert: vi.fn(),
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    const [, body] = h.api.put.mock.calls.at(-1)! as [string, any];
+    expect(body.dayOfWeek).toBe(1);
+  });
+
+  it("shows a Sunday lesson on the grid rather than hiding it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/academic/timetable": [{ ...entry, id: "tt-sun", dayOfWeek: 7 }],
+    });
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    await waitFor(() => {
+      const events = (h.calendar.props?.events ?? []) as any[];
+      expect(events.length).toBeGreaterThan(0);
+    });
+    const events = (h.calendar.props?.events ?? []) as any[];
+    // Placed on a Sunday, not silently dropped or filed under Monday.
+    expect(events.some((e) => new Date(e.start).getDay() === 0)).toBe(true);
+  });
+});
+
+describe("clicking an empty day rather than dragging over it", () => {
+  it("opens the hour at eight when the click carries no time", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    // A month-view click lands on midnight; nobody teaches at midnight.
+    await fireCalendar("dateClick", { date: new Date("2026-08-19T00:00:00") });
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    expect((screen.getByLabelText(/start/i) as HTMLInputElement).value).toBe("08:00");
+  });
+
+  it("keeps the hour a click already carries", async () => {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    await fireCalendar("dateClick", { date: new Date("2026-08-19T14:30:00") });
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    expect((screen.getByLabelText(/start/i) as HTMLInputElement).value).toBe("14:30");
+  });
+});
+
+describe("a lesson with no room recorded", () => {
+  it("opens for editing with the room box blank", async () => {
+    serve(h.api, {
+      ...routes,
+      "/academic/timetable": [{ ...entry, room: null }],
+    });
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return;
+
+    await fireCalendar("eventClick", {
+      event: { extendedProps: { entry: { ...entry, room: null } } },
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByLabelText(/room/i)).toHaveValue("");
+  });
+});
