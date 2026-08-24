@@ -755,3 +755,89 @@ describe("deliberating before a destination is chosen", () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * A student the server had no advice about.
+ *
+ * A student with no marks at all comes back with no recommendation, and the
+ * deliberation table has to show them anyway: they are exactly the student a
+ * meeting needs to talk about.
+ */
+describe("a student with no recommendation", () => {
+  it("still appears in the table", async () => {
+    serve(h.api, routes);
+    const real = h.api.post.getMockImplementation();
+    h.api.post.mockImplementation(async (url: string, payload?: unknown) => {
+      if (String(url).includes("promote/preview")) {
+        return {
+          data: {
+            students: [
+              {
+                studentId: "student-9",
+                studentIdNumber: "STD-2026-9",
+                name: "Iradukunda Mukamana",
+                average: 0,
+                disciplinePoints: 100,
+                recommendation: undefined,
+                reason: "No marks recorded",
+              },
+            ],
+          },
+          status: 200,
+        };
+      }
+      return real ? real(url, payload) : { data: {}, status: 200 };
+    });
+
+    await mount();
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll("select")).some((el) =>
+          Array.from(el.options).some((o) => o.value),
+        ),
+      ).toBe(true),
+    );
+
+    const year = screen.getByLabelText(/academic year/i) as HTMLSelectElement;
+    const firstYear = Array.from(year.options).find((o) => o.value);
+    if (!firstYear) return;
+    await act(async () => {
+      fireEvent.change(year, { target: { value: firstYear.value } });
+    });
+    for (const level of screen.getAllByLabelText(/select level/i) as HTMLSelectElement[]) {
+      const option = Array.from(level.options).find((o) => o.value);
+      if (option) {
+        await act(async () => {
+          fireEvent.change(level, { target: { value: option.value } });
+        });
+      }
+    }
+    await waitFor(() => {
+      const sections = screen.queryAllByLabelText(/select section/i) as HTMLSelectElement[];
+      expect(sections.some((s) => Array.from(s.options).some((o) => o.value))).toBe(true);
+    });
+    for (const section of screen.getAllByLabelText(/select section/i) as HTMLSelectElement[]) {
+      const option = Array.from(section.options).find((o) => o.value);
+      if (option) {
+        await act(async () => {
+          fireEvent.change(section, { target: { value: option.value } });
+        });
+      }
+    }
+
+    const load = screen
+      .queryAllByRole("button")
+      .find((b) => /load students/i.test(b.textContent ?? ""));
+    if (!load || load.hasAttribute("disabled")) return;
+    await act(async () => {
+      fireEvent.click(load);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/Iradukunda Mukamana/)).toBeInTheDocument(),
+    );
+    // With no advice either way they count towards Retain, which is the safe
+    // default for a student nobody has marks for.
+    expect(document.body.textContent).toMatch(/Retain:\s*1/);
+  });
+});
