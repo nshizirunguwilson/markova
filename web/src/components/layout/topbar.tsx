@@ -277,21 +277,21 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                       onClick={() => handleNotificationClick(notif)}
                       className={cn(
                         "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left hover:bg-accent-light last:border-0",
-                        !notif.read && "bg-primary/5"
+                        !notif.isRead && "bg-primary/5"
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p
                           className={cn(
                             "text-sm",
-                            notif.read
+                            notif.isRead
                               ? "text-foreground"
                               : "font-medium text-foreground"
                           )}
                         >
                           {notif.title}
                         </p>
-                        {!notif.read && (
+                        {!notif.isRead && (
                           <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                         )}
                       </div>
