@@ -172,9 +172,9 @@ function Merit() {
       <Section title="Who">
         <RowGroup>
           {((students as any[]) ?? []).map((s, i, arr) => {
-            const name = `${s.firstName ?? s.user?.firstName ?? ''} ${
-              s.lastName ?? s.user?.lastName ?? ''
-            }`.trim();
+            // useClassStudents always hands back the nested shape, whatever
+            // the endpoint answered with, so there is only one place to look.
+            const name = `${s.user?.firstName ?? ''} ${s.user?.lastName ?? ''}`.trim();
             return (
               <Row
                 key={s.id}
@@ -294,9 +294,9 @@ function Record() {
       <Section title="Who">
         <RowGroup>
           {((students as any[]) ?? []).map((s, i, arr) => {
-            const name = `${s.firstName ?? s.user?.firstName ?? ''} ${
-              s.lastName ?? s.user?.lastName ?? ''
-            }`.trim();
+            // useClassStudents always hands back the nested shape, whatever
+            // the endpoint answered with, so there is only one place to look.
+            const name = `${s.user?.firstName ?? ''} ${s.user?.lastName ?? ''}`.trim();
             return (
               <Row
                 key={s.id}

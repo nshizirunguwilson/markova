@@ -146,6 +146,20 @@ describe('who is still waiting', () => {
     await waitFor(() => expect(screen.getByText('Eric Habimana')).toBeTruthy());
   });
 
+  it('reads a row identified under either field the API uses', async () => {
+    registry([entry({ studentId: undefined, id: 'student-9' })]);
+    const screen = await open();
+    await waitFor(() => expect(screen.getByText('Issue')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Issue'));
+
+    await waitFor(() =>
+      expect(http.post).toHaveBeenCalledWith('/reports/id-cards/issue', {
+        studentId: 'student-9',
+      }),
+    );
+  });
+
   it('names an unnamed row something rather than nothing', async () => {
     registry([entry({ studentName: undefined })]);
 
@@ -178,6 +192,45 @@ describe('who already has one', () => {
 
     await waitFor(() => expect(screen.getByText('Show 1')).toBeTruthy());
     expect(screen.queryByText('ABCD-EFGH')).toBeNull();
+  });
+
+  it('reads an already-issued row under either identifying field', async () => {
+    registry([
+      entry({ studentId: undefined, id: 'student-9', nfcCardId: 'ABCD-EFGH' }),
+    ]);
+    const screen = await open();
+    await showIssued(screen);
+    await waitFor(() => expect(screen.getByText('Revoke')).toBeTruthy());
+    await fireEvent.press(screen.getByText('Revoke'));
+    await waitFor(() => expect(screen.getByText('Really revoke')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Really revoke'));
+
+    await waitFor(() =>
+      expect(http.post).toHaveBeenCalledWith('/reports/id-cards/revoke', {
+        studentId: 'student-9',
+      }),
+    );
+  });
+
+  it('names an already-issued row under either name field', async () => {
+    registry([
+      entry({ studentName: undefined, name: 'Eric Habimana', nfcCardId: 'ABCD' }),
+    ]);
+    const screen = await open();
+
+    await showIssued(screen);
+
+    await waitFor(() => expect(screen.getByText('Eric Habimana')).toBeTruthy());
+  });
+
+  it('names an unnamed already-issued row something', async () => {
+    registry([entry({ studentName: undefined, nfcCardId: 'ABCD' })]);
+    const screen = await open();
+
+    await showIssued(screen);
+
+    await waitFor(() => expect(screen.getByText('Student')).toBeTruthy());
   });
 
   it('opens on the toggle, showing the card each one holds', async () => {

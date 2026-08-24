@@ -4,6 +4,7 @@ import { defaultTheme } from '@/design/theme';
 import { givenApi, http, resetApi } from '@/test/api-mock';
 import { screenTitle } from '@/test/router-mock';
 import {
+  meterFill,
   renderScreen,
   resetHarness,
   signedInAs,
@@ -123,6 +124,14 @@ describe('the class as a whole', () => {
     );
   });
 
+  it('skips an assignment the API sent with no class on it', async () => {
+    givenApi({ '/academic/assignments': [{ id: 'orphan' }] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('No classes')).toBeTruthy());
+  });
+
   it('says who assigns a class, since a teacher cannot', async () => {
     givenApi({ '/academic/assignments': [] });
 
@@ -202,6 +211,40 @@ describe('where the class sits', () => {
     );
   });
 
+  it('reads a band labelled under any of the names the API uses', async () => {
+    figures({ gradeDistribution: [{ label: 'Top third', count: 5 }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Top third   ·   5 students')).toBeTruthy(),
+    );
+  });
+
+  it('copes with a band the API sent with no count', async () => {
+    figures({ gradeDistribution: [{ grade: 'A' }, { grade: 'B' }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('A   ·   0 students')).toBeTruthy(),
+    );
+  });
+
+  it('reads the bottom band as serious under either letter', async () => {
+    const { defaultTheme } = require('@/design/theme');
+    figures({ gradeDistribution: [{ letter: 'S', count: 2 }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('S   ·   2 students')).toBeTruthy(),
+    );
+    expect(meterFill(screen).backgroundColor).toBe(
+      defaultTheme.status.critical.solid,
+    );
+  });
+
   it('draws nothing where nothing has been graded', async () => {
     const screen = await open();
 
@@ -245,6 +288,14 @@ describe('who is worth a word', () => {
     await waitFor(() =>
       expect(screen.getByText('Below the class average')).toBeTruthy(),
     );
+  });
+
+  it('draws a row the API sent with no id at all', async () => {
+    figures({ strugglingStudents: [{ studentName: 'Aline Uwase' }] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Aline Uwase')).toBeTruthy());
   });
 
   it('names an unnamed student something rather than nothing', async () => {

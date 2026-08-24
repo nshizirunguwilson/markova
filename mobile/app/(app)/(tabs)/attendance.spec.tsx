@@ -138,11 +138,23 @@ describe('everyone starts present', () => {
 
     const screen = await open();
 
-    await waitFor(() => expect(screen.getByText('Aline')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByLabelText('Mark Aline present')).toBeTruthy(),
+    );
     expect(
       screen.getByRole('button', { name: 'Save the register' }).props
         .accessibilityState.disabled,
     ).toBe(false);
+  });
+
+  it('draws a row with no name at all rather than falling over', async () => {
+    classroom({ '/attendance/class-students': [{ id: '1' }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Mark  present')).toBeTruthy(),
+    );
   });
 });
 

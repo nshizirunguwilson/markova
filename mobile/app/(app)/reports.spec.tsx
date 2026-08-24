@@ -93,6 +93,16 @@ describe('where the class stands', () => {
     );
   });
 
+  it('says so plainly when a school has no current term', async () => {
+    term([], { '/academic/years': [] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('No current term')).toBeTruthy(),
+    );
+  });
+
   it('shows a placeholder while it reads', async () => {
     givenApi({ '/marks/term-results/class': () => new Promise(() => {}) });
 
@@ -166,6 +176,24 @@ describe('step one: working the results out', () => {
 
     await waitFor(() =>
       expect(notify.error).toHaveBeenCalledWith('Marks are still missing'),
+    );
+  });
+
+  it('has something to say when the school refused silently', async () => {
+    givenApiFails('/marks/term-results/calculate', new Error('offline'));
+    const screen = await open();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Calculate for this class' }),
+      ).toBeTruthy(),
+    );
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Calculate for this class' }),
+    );
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('Could not calculate those'),
     );
   });
 
@@ -365,6 +393,27 @@ describe('step three: publishing', () => {
       expect(notify.error).toHaveBeenCalledWith(
         'Comments are missing on 3 cards',
       ),
+    );
+  });
+
+  it('has something to say when the school refused silently', async () => {
+    givenApiFails('/marks/term-results/publish', new Error('offline'));
+    const screen = await open();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Publish this class' }),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Publish this class' }),
+    );
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Publish 2 cards' }),
+    );
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('Could not publish'),
     );
   });
 

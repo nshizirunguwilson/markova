@@ -143,6 +143,34 @@ describe('the school’s figures', () => {
     expect(screen.getByText('By grade')).toBeTruthy();
   });
 
+  it('shows a figure the API sent as words rather than a number', async () => {
+    school({ '/analytics/admin/dashboard': { busiestDay: 'Monday' } });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Monday')).toBeTruthy());
+  });
+
+  it('shows a row figure given as words too', async () => {
+    school({
+      '/analytics/admin/dashboard': {
+        rows: [{ name: 'Senior 3 A', value: 'Above average' }],
+      },
+    });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Above average')).toBeTruthy());
+  });
+
+  it('shows no figure at all for a row that carries none', async () => {
+    school({ '/analytics/admin/dashboard': { rows: [{ name: 'Senior 3 A' }] } });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Senior 3 A')).toBeTruthy());
+  });
+
   it('says so plainly for a row it cannot name', async () => {
     school({ '/analytics/admin/dashboard': { rows: [{ somethingElse: 1 }] } });
 
@@ -255,6 +283,38 @@ describe('a parent’s version', () => {
 
     await waitFor(() => expect(screen.getByText('Aline')).toBeTruthy());
     expect(screen.getByText('Eric')).toBeTruthy();
+  });
+
+  it('names a child the profile left without one', async () => {
+    trends({}, [
+      { id: 'student-1' } as never,
+      { id: 'student-2', user: { firstName: 'Eric' } } as never,
+    ]);
+
+    const screen = await open(parent);
+
+    await waitFor(() => expect(screen.getByText('Child')).toBeTruthy());
+  });
+
+  it('falls back to naming the year when a school has set none', async () => {
+    trends();
+    givenApi({ '/academic/years': [] });
+
+    const screen = await open(parent);
+
+    await waitFor(() => expect(screen.getByText('This year')).toBeTruthy());
+  });
+
+  it('copes with a term the API sent with no average', async () => {
+    const { defaultTheme } = require('@/design/theme');
+    trends({ terms: [{ name: 'Term 1' }] });
+
+    const screen = await open(parent);
+
+    await waitFor(() => expect(screen.getByLabelText('Term 1')).toBeTruthy());
+    expect(meterFill(screen).backgroundColor).toBe(
+      defaultTheme.status.critical.solid,
+    );
   });
 
   it('reads the trend under either name the API uses', async () => {

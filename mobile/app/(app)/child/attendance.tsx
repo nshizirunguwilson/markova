@@ -32,8 +32,11 @@ export default function ChildAttendance() {
   const rate: number = s.attendanceRate ?? 0;
   const records: any[] = s.records ?? [];
 
+  // Anything that is not being in the room counts as a day missed. Listing
+  // only ABSENT and LATE hid the excused and sick days a school records
+  // separately, which are exactly the ones with a reason worth reading.
   const away = useMemo(
-    () => records.filter((r) => r.status === 'ABSENT' || r.status === 'LATE'),
+    () => records.filter((r) => r.status && r.status !== 'PRESENT'),
     [records],
   );
 

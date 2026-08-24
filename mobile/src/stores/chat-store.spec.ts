@@ -202,6 +202,12 @@ describe('working out whose message it is', () => {
     expect(useChatStore.getState().messages.c1[0].senderId).toBe('user-2');
   });
 
+  it('leaves a message that is not there alone', async () => {
+    await useChatStore.getState().connect();
+
+    expect(() => socket.deliver('newMessage', null)).not.toThrow();
+  });
+
   it('normalises the last message on a conversation list too', async () => {
     http.get.mockResolvedValue({
       data: [
@@ -301,6 +307,21 @@ describe('the ticks beside a message', () => {
     });
 
     expect(useChatStore.getState().messages.c1[0].status).toBe('READ');
+  });
+
+  it('leaves the other messages in the thread alone', () => {
+    useChatStore.setState({
+      messages: { c1: [message(), message({ id: 'm2' })] },
+    });
+
+    socket.deliver('messageDelivered', {
+      messageId: 'm1',
+      conversationId: 'c1',
+    });
+
+    const [first, second] = useChatStore.getState().messages.c1;
+    expect(first.status).toBe('DELIVERED');
+    expect(second.status).toBe('SENT');
   });
 
   it('only marks the ones named', () => {
@@ -465,6 +486,19 @@ describe('reading a conversation', () => {
     ]);
   });
 
+  it('starts a thread from an older page when nothing was open', async () => {
+    http.get.mockResolvedValue({
+      data: { data: [message({ id: 'm2' }), message({ id: 'm1' })] },
+    } as never);
+
+    await useChatStore.getState().loadMessages('c1', 2);
+
+    expect(useChatStore.getState().messages.c1.map((m) => m.id)).toEqual([
+      'm1',
+      'm2',
+    ]);
+  });
+
   it('copes with the API answering as a bare list', async () => {
     http.get.mockResolvedValue({ data: [message()] } as never);
 
@@ -569,6 +603,12 @@ describe('the unread badge', () => {
     useChatStore.getState().markRead('c1');
 
     expect(useChatStore.getState().unreadCount).toBe(0);
+  });
+
+  it('is left alone for a conversation it has never seen', () => {
+    useChatStore.getState().markRead('never-seen');
+
+    expect(useChatStore.getState().unreadCount).toBe(5);
   });
 
   it('is left alone for a conversation that had nothing waiting', () => {

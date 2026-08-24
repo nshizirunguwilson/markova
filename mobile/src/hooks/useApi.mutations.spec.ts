@@ -63,6 +63,15 @@ const cases: Record<string, Case> = {
     method: 'post',
     url: '/attendance/chronic/notify',
   },
+  // Nobody named means everybody past the threshold, and the API still needs
+  // a body rather than nothing at all.
+  'telling every one of them': {
+    hook: useApi.useNotifyChronic,
+    send: undefined,
+    method: 'post',
+    url: '/attendance/chronic/notify',
+    body: {},
+  },
 
   'entering a column of marks': {
     hook: useApi.useBatchMarks,

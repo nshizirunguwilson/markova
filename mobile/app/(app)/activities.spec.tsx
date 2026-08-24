@@ -290,6 +290,20 @@ describe('who is on the list', () => {
     expect(screen.queryByText('Waiting')).toBeNull();
   });
 
+  it('draws a detail the API sent almost empty', async () => {
+    calendar([activity()]);
+    givenApi({ '/activities/activity-1': {} });
+    const screen = await open();
+    await waitFor(() =>
+      expect(screen.getByText('Nyungwe forest trip')).toBeTruthy(),
+    );
+
+    await fireEvent.press(screen.getByText('Nyungwe forest trip'));
+
+    await waitFor(() => expect(screen.getByText('On the list (0)')).toBeTruthy());
+    expect(screenTitle()).toBe('Activity');
+  });
+
   it('says so when nobody has signed up', async () => {
     calendar([activity()]);
     const screen = await open();

@@ -18,8 +18,8 @@ import { Screen, Section, Row, RowGroup, Text, Segmented, Meter, Badge, Empty, L
  * confirmation, not information.
  */
 export default function MarksCompletion() {
-  const { data: sections } = useClassSections();
-  const { data: term } = useCurrentTerm();
+  const { data: sections, isPending: sectionsPending } = useClassSections();
+  const { data: term, isPending: termPending } = useCurrentTerm();
   const [classId, setClassId] = useState('');
 
   const classes = useMemo(
@@ -28,11 +28,14 @@ export default function MarksCompletion() {
   );
   const active = classId || classes[0]?.value;
 
-  // A query that has not been enabled yet is pending forever, so reading
-  // isPending alone leaves a school with no current term staring at a
-  // skeleton that never resolves.
   const { data, isPending, fetchStatus } = useMarksCompletion(active, term?.id);
-  const loading = isPending && fetchStatus !== 'idle';
+
+  // The class list and the term both have to arrive before the gaps can even
+  // be asked for. Reading isPending alone showed the empty state, then a
+  // skeleton, then the answer, and a query still waiting on a term it has not
+  // been given is pending forever.
+  const loading =
+    sectionsPending || termPending || (isPending && fetchStatus !== 'idle');
 
   const rows = (data as any[]) ?? [];
   const missing = rows.filter((r) => r.entered < r.expected);

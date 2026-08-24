@@ -63,6 +63,23 @@ describe('who is signed in', () => {
     expect(router.push).toHaveBeenCalledWith('/(app)/profile');
   });
 
+  it('treats somebody it knows nothing about as a parent', async () => {
+    const screen = await renderScreen(<More />);
+
+    // The row and the section heading both say it.
+    expect(screen.getAllByText('You')).toHaveLength(2);
+    expect(screen.getByText('Parent')).toBeTruthy();
+    expect(screen.queryByText('Marks entry')).toBeNull();
+  });
+
+  it('says nothing about contact where there is none on file', async () => {
+    signedInAs({ ...teacher, email: undefined as never, phone: undefined });
+
+    const screen = await renderScreen(<More />);
+
+    expect(screen.getByText('Aline Uwase')).toBeTruthy();
+  });
+
   it('copes with a record that has no name on it', async () => {
     signedInAs({ ...teacher, firstName: '', lastName: '' });
 

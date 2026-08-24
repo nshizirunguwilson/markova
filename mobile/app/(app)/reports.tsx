@@ -33,8 +33,8 @@ import {
  */
 export default function Reports() {
   const t = useTheme();
-  const { data: sections } = useClassSections();
-  const { data: term } = useCurrentTerm();
+  const { data: sections, isPending: sectionsPending } = useClassSections();
+  const { data: term, isPending: termPending } = useCurrentTerm();
 
   const classes = useMemo(
     () => ((sections as any[]) ?? []).map((s) => ({ value: s.id, label: s.name })),
@@ -43,7 +43,14 @@ export default function Reports() {
   const [classId, setClassId] = useState('');
   const active = classId || classes[0]?.value;
 
-  const { data: results, isPending } = useClassTermResults(active, term?.id);
+  const { data: results, isPending, fetchStatus } = useClassTermResults(active, term?.id);
+
+  // The class list and the term both have to arrive before the results can
+  // even be asked for. Reading isPending alone showed the empty state, then a
+  // skeleton, then the answer, and a query still waiting on a term it has not
+  // been given is pending forever.
+  const loading =
+    sectionsPending || termPending || (isPending && fetchStatus !== 'idle');
   const calculate = useCalculateTermResults();
   const publish = usePublishTermResults();
   const comment = useSaveResultComment();
@@ -64,7 +71,7 @@ export default function Reports() {
       <Screen contentContainerStyle={{ gap: space.xxl }}>
         {classes.length ? <Segmented value={active} onChange={setClassId} options={classes} /> : null}
 
-        {isPending ? (
+        {loading ? (
           <LoadingRows count={6} />
         ) : (
           <>

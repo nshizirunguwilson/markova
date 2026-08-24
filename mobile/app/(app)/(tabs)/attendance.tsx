@@ -158,8 +158,10 @@ export default function Register() {
         contentContainerStyle={{ paddingTop: space.lg, paddingBottom: space.huge }}
         ListEmptyComponent={isPending ? <LoadingRows count={10} lead /> : null}
         renderItem={({ item }) => {
-          const name = `${item.firstName ?? item.user?.firstName ?? ''} ${
-            item.lastName ?? item.user?.lastName ?? ''
+          // useClassStudents always hands back the nested shape, whatever the
+          // endpoint answered with, so there is only one place to look.
+          const name = `${item.user?.firstName ?? ''} ${
+            item.user?.lastName ?? ''
           }`.trim();
           const current = marks[item.id] ?? 'PRESENT';
 

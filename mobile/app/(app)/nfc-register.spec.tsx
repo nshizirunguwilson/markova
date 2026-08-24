@@ -110,6 +110,20 @@ describe('the order the desk works in', () => {
     expect(screen.getByText('1. Pick the student')).toBeTruthy();
   });
 
+  it('still names the step for a student the school left half filled in', async () => {
+    desk([{ id: 'student-1', studentIdNumber: 'STD-2025-0417' }]);
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('STD-2025-0417')).toBeTruthy(),
+    );
+    await fireEvent.press(screen.getByText('STD-2025-0417'));
+
+    await waitFor(() =>
+      expect(screen.getByText('2. Read the card for them')).toBeTruthy(),
+    );
+  });
+
   it('counts who is bound and who is still waiting', async () => {
     desk([
       student(),

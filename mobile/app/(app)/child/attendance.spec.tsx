@@ -196,6 +196,25 @@ describe('every day missed', () => {
     );
   });
 
+  it('draws a day the API sent without an id of its own', async () => {
+    summary({ records: [{ date: '2026-08-18', status: 'ABSENT' }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('No reason recorded')).toBeTruthy(),
+    );
+  });
+
+  // A status the shared vocabulary has never seen still draws, quietly.
+  it('draws a day in a state nobody has named', async () => {
+    summary({ records: [day({ status: 'EXCUSED' })] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Excused')).toBeTruthy());
+  });
+
   it('separates a late arrival from an absence', async () => {
     summary({
       records: [day(), day({ id: 'record-2', status: 'LATE' })],

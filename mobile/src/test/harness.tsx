@@ -133,7 +133,13 @@ export function renderScreen(
   { seed }: { seed?: Seed } = {},
 ): Promise<RenderResult> {
   const client = testQueryClient();
-  for (const [key, data] of seed ?? []) client.setQueryData(key, data);
+  for (const [key, data] of seed ?? []) {
+    // Held fresh as well as set: the default is to refetch immediately, which
+    // would replace the seeded answer with whatever the API says and undo the
+    // point of seeding it.
+    client.setQueryDefaults(key, { staleTime: Infinity, gcTime: Infinity });
+    client.setQueryData(key, data);
+  }
 
   const wrapper = ({ children }: { children: ReactNode }) => (
     <SafeAreaProvider initialMetrics={metrics}>
@@ -220,11 +226,15 @@ export function meterFill(screen: { getByRole: (role: string) => unknown }) {
  * the queries themselves instead.
  */
 export async function settle() {
-  await act(async () => {
-    // Wait for the API itself to go quiet, then for the renders its answers
-    // set off. A macrotask lets every microtask already queued run first.
-    await apiIsQuiet();
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
-  });
+  // One answer often starts the next request: a term arrives, and only then
+  // can the results for it be asked for. So each round lets the renders run
+  // first, then waits for whatever they asked the API for, and the next round
+  // checks whether that started anything else.
+  for (let round = 0; round < 6; round++) {
+    await act(async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+      await apiIsQuiet();
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+  }
 }

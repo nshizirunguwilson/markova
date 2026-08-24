@@ -116,6 +116,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // New message received
     socket.on('newMessage', (raw: Message) => {
       const message = normalizeMessage(raw);
+      // A frame with nothing in it is not worth crashing a live socket over.
+      if (!message) return;
       set((state) => {
         const convMessages = state.messages[message.conversationId] ?? [];
         // Avoid duplicates

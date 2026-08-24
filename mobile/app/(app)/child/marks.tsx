@@ -20,19 +20,22 @@ import { Screen, Section, Row, RowGroup, Text, Segmented, Stat, StatRow, Empty, 
 export default function ChildMarks() {
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
 
-  const { data: years } = useAcademicYears();
+  const { data: years, isPending: yearsPending } = useAcademicYears();
   const currentYear = years?.find((y) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
-  const { data: current } = useCurrentTerm();
+  const { data: current, isPending: termPending } = useCurrentTerm();
 
   const [termId, setTermId] = useState<string>('');
   const active = termId || current?.id || '';
 
-  // A query waiting on a term it has not been given is pending forever, so
-  // reading isPending alone leaves a school with no year set staring at a
-  // skeleton that never resolves.
   const { data: result, isPending, fetchStatus } = useStudentTermResult(studentId, active);
-  const loading = isPending && fetchStatus !== 'idle';
+
+  // The year and the term both have to arrive before the result can even be
+  // asked for. Reading isPending alone showed the empty state, then a
+  // skeleton, then the answer, and a query still waiting on a term it has not
+  // been given is pending forever.
+  const loading =
+    yearsPending || termPending || (isPending && fetchStatus !== 'idle');
 
   const r: any = result ?? {};
   const published = Boolean(r.isPublished);

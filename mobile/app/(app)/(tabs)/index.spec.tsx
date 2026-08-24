@@ -1,10 +1,11 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 
-import { givenApi, resetApi } from '@/test/api-mock';
+import { givenApi, givenApiFails, resetApi } from '@/test/api-mock';
 import { router } from '@/test/router-mock';
 import {
   admin,
   meterFill,
+  styleOf,
   librarian,
   matron,
   nurse,
@@ -226,6 +227,66 @@ describe('a parent’s home', () => {
     expect(screen.getByLabelText('Loading')).toBeTruthy();
   });
 
+  /**
+   * A record the school has only half filled in is the normal case in week
+   * one, and a home screen is the worst place to fall over.
+   */
+  /**
+   * The profile read is where the children come from, so a failed one leaves
+   * the screen with nothing rather than with an error. It still has to draw.
+   */
+  it('draws an empty list rather than falling over when the profile fails', async () => {
+    givenApiFails('/auth/profile');
+
+    const screen = await open(parent);
+
+    await waitFor(() =>
+      expect(screen.getByText('Nothing needs you today')).toBeTruthy(),
+    );
+    expect(screen.getByText('Your children')).toBeTruthy();
+  });
+
+  it('draws before it knows who is signed in', async () => {
+    givenApi({ '/auth/profile': { children: [child()] } });
+
+    const screen = await renderScreen(<Home />);
+
+    await waitFor(() => expect(screen.getByText('Aline Uwase')).toBeTruthy());
+    expect(screen.queryByText(/Good to see you/)).toBeNull();
+  });
+
+  it('copes with a profile that carries no children field at all', async () => {
+    givenApi({ '/auth/profile': { id: 'user-3' } });
+
+    const screen = await open(parent);
+
+    await waitFor(() =>
+      expect(screen.getByText('Nothing needs you today')).toBeTruthy(),
+    );
+    expect(screen.getByText('Your children')).toBeTruthy();
+  });
+
+  it('draws a child whose record carries no name', async () => {
+    givenApi({ '/auth/profile': { children: [{ id: 'student-1' }] } });
+
+    const screen = await open(parent);
+
+    await waitFor(() =>
+      expect(screen.getByText('Nothing needs you today')).toBeTruthy(),
+    );
+    expect(screen.getByText('Your child')).toBeTruthy();
+  });
+
+  it('leaves out the greeting for somebody with no first name', async () => {
+    signedInAs({ ...parent, firstName: '' });
+    givenApi({ '/auth/profile': { children: [child()] } });
+
+    const screen = await renderScreen(<Home />);
+
+    await waitFor(() => expect(screen.getByText('Aline Uwase')).toBeTruthy());
+    expect(screen.queryByText(/Good to see you/)).toBeNull();
+  });
+
   // Anybody whose role has no home of its own gets this one, which is the
   // least privileged of the five.
   it('is what an unrecognised role gets', async () => {
@@ -270,6 +331,68 @@ describe('a teacher’s home', () => {
   });
 
   it('says so plainly on a day with nothing on it', async () => {
+    const screen = await open(teacher);
+
+    await waitFor(() => expect(screen.getByText('No lessons today')).toBeTruthy());
+  });
+
+  /**
+   * The API does not report this figure yet. When it starts to, the headline
+   * has to switch from describing the day to naming the problem, so both
+   * halves are exercised by seeding the answer the API will eventually give.
+   */
+  it('says they are up to date once the school reports nothing outstanding', async () => {
+    signedInAs(teacher);
+    const screen = await renderScreen(<Home />, {
+      seed: [
+        [
+          ['teacher-dashboard-stats', 'teacher-1'],
+          {
+            classesToday: 2,
+            attendanceRate: '94%',
+            pendingGrades: '0',
+            unreadMessages: 0,
+          },
+        ],
+      ],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('You are up to date')).toBeTruthy(),
+    );
+  });
+
+  it('names the problem once it reports some', async () => {
+    const { defaultTheme } = require('@/design/theme');
+    signedInAs(teacher);
+    const screen = await renderScreen(<Home />, {
+      seed: [
+        [
+          ['teacher-dashboard-stats', 'teacher-1'],
+          {
+            classesToday: 2,
+            attendanceRate: '94%',
+            pendingGrades: '14',
+            unreadMessages: 0,
+          },
+        ],
+      ],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Some marks are still missing')).toBeTruthy(),
+    );
+    expect(styleOf(screen.getByText('14')).color).toBe(
+      defaultTheme.status.caution.text,
+    );
+  });
+
+  it('falls back to nothing rather than a blank when the figures are missing', async () => {
+    givenApi({
+      '/academic/timetable/teacher/teacher-1': () => {
+        throw Object.assign(new Error('nope'), { response: { status: 500 } });
+      },
+    });
     const screen = await open(teacher);
 
     await waitFor(() => expect(screen.getByText('No lessons today')).toBeTruthy());
@@ -475,6 +598,17 @@ describe('an admin’s home', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
+  it('says nothing about a term where a school has set none', async () => {
+    givenApi({ '/academic/years': [] });
+
+    const screen = await open(admin);
+
+    await waitFor(() =>
+      expect(screen.getByText('The school is running normally')).toBeTruthy(),
+    );
+    expect(screen.queryByText(/closed for marks/)).toBeNull();
+  });
+
   it('says when the term is closed for marks', async () => {
     givenApi({
       '/academic/terms': [
@@ -617,6 +751,29 @@ describe('a matron’s home', () => {
 
     await waitFor(() =>
       expect(screen.getByText('1 student in the sick bay')).toBeTruthy(),
+    );
+  });
+
+  it('draws a summary the API sent half filled in', async () => {
+    givenApi({ '/clinic/summary': { inSickBay: 2 } });
+
+    const screen = await open(matron);
+
+    await waitFor(() =>
+      expect(screen.getByText('2 students in the sick bay')).toBeTruthy(),
+    );
+    expect(screen.getByText('Visits, 30 days')).toBeTruthy();
+  });
+
+  it('warns when somebody has been sent to a clinic', async () => {
+    const { defaultTheme } = require('@/design/theme');
+    sickBay({ referred: 2, visits: 5 });
+
+    const screen = await open(matron);
+
+    await waitFor(() => expect(screen.getByText('Sent to a clinic')).toBeTruthy());
+    expect(styleOf(screen.getByText('2')).color).toBe(
+      defaultTheme.status.caution.text,
     );
   });
 

@@ -111,6 +111,14 @@ describe('recording an incident', () => {
     await pickStudent(screen);
   });
 
+  it('copes with a roster row the school left half filled in', async () => {
+    school({ '/attendance/class-students': [{ id: '1', firstName: 'Aline' }] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Aline')).toBeTruthy());
+  });
+
   /**
    * The action sets the deduction, so the screen says what it will cost
    * before anything is recorded.
@@ -269,6 +277,36 @@ describe('recording an incident', () => {
           'You need a class assigned before you can record anything.',
         ),
       ).toBeTruthy(),
+    );
+  });
+
+  it('skips an assignment the API sent with no class on it', async () => {
+    school({ '/academic/assignments': [{ id: 'orphan' }] });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'You need a class assigned before you can record anything.',
+        ),
+      ).toBeTruthy(),
+    );
+  });
+
+  it('has something to say when the school refused silently', async () => {
+    givenApiFails('/discipline/incidents', new Error('offline'));
+    const screen = await open();
+    await pickStudent(screen);
+    await fireEvent.changeText(
+      screen.getByLabelText('Description'),
+      'Threw a chair across the room during registration',
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Record it' }));
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('Could not record that'),
     );
   });
 
@@ -432,6 +470,24 @@ describe('recognising a student', () => {
 
     await waitFor(() =>
       expect(notify.error).toHaveBeenCalledWith('That term is closed'),
+    );
+  });
+
+  it('has something to say when the school refused silently', async () => {
+    givenApiFails('/discipline/merits', new Error('offline'));
+    const screen = await openMerit();
+    await pickStudent(screen);
+    await fireEvent.changeText(
+      screen.getByLabelText('Description'),
+      'Handed in a wallet she found in the corridor',
+    );
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Recognise them' }),
+    );
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('Could not record that'),
     );
   });
 
@@ -604,6 +660,17 @@ describe('judging an appeal', () => {
     const screen = await openAppeals();
 
     await waitFor(() => expect(screen.getByText('Student')).toBeTruthy());
+  });
+
+  // An appeal in a state the shared vocabulary has never seen still has to
+  // draw, in the quietest colour rather than the loudest.
+  it('draws an appeal in a state nobody has named', async () => {
+    school({
+      '/discipline/appeals/pending': [appeal({ status: 'ESCALATED' })],
+    });
+    const screen = await openAppeals();
+
+    await waitFor(() => expect(screen.getByText('Escalated')).toBeTruthy());
   });
 
   it('says so when nothing has been contested', async () => {

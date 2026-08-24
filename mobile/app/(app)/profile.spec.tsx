@@ -197,6 +197,42 @@ describe('what the school holds and a person cannot touch', () => {
   });
 });
 
+/**
+ * The screen is reachable before the profile has loaded, so every field it
+ * reads has to have somewhere to fall back to.
+ */
+describe('before it knows who is signed in', () => {
+  it('draws an empty form rather than falling over', async () => {
+    resetHarness();
+
+    const screen = await renderScreen(<Profile />);
+
+    expect(screen.getByLabelText('First name').props.value).toBe('');
+    expect(screen.getByLabelText('Phone').props.value).toBe('');
+    // The avatar still has something to draw, named for a screen reader.
+    expect(screen.getByLabelText('You')).toBeTruthy();
+  });
+
+  it('has nothing to save, since nothing has changed', async () => {
+    resetHarness();
+
+    const screen = await renderScreen(<Profile />);
+
+    expect(
+      screen.getByRole('button', { name: 'Save changes' }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+  });
+
+  it('says the account is off rather than guessing it is on', async () => {
+    resetHarness();
+
+    const screen = await renderScreen(<Profile />);
+
+    expect(screen.getByText('Turned off')).toBeTruthy();
+  });
+});
+
 describe('changing the photo', () => {
   it('asks the phone for permission first', async () => {
     const screen = await open();

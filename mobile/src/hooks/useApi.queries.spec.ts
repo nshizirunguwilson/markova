@@ -305,6 +305,11 @@ const cases: Record<string, Case> = {
     url: '/activities/upcoming',
     params: { limit: 5 },
   },
+  'what is coming up, unasked': {
+    hook: () => useApi.useUpcomingActivities(),
+    url: '/activities/upcoming',
+    params: { limit: 10 },
+  },
   'what one child is signed up for': {
     hook: () => useApi.useStudentActivities(ID),
     url: `/activities/student/${ID}`,
@@ -321,6 +326,20 @@ const cases: Record<string, Case> = {
     hook: () => useApi.useClinicSummary(7),
     url: '/clinic/summary',
     params: { days: 7 },
+  },
+  'the month in the sick bay, unasked': {
+    hook: () => useApi.useClinicSummary(),
+    url: '/clinic/summary',
+    params: { days: 30 },
+  },
+  'who has been to the sick bay, unfiltered': {
+    hook: () => useApi.useClinicVisits(),
+    url: '/clinic/visits',
+    params: {},
+  },
+  'a named admin view with nothing to narrow it': {
+    hook: () => useApi.useAdminAnalytics('attendance'),
+    url: '/analytics/admin/attendance',
   },
   'the page somebody needs at three in the morning': {
     hook: () => useApi.useEmergencyCard(ID),

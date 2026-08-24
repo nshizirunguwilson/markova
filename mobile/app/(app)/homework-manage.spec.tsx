@@ -270,6 +270,25 @@ describe('setting a piece of work', () => {
     );
   });
 
+  it('sends no mark ceiling when the field was cleared', async () => {
+    givenApi({ '/homework': { id: 'hw-1' } });
+    const screen = await open();
+    await waitFor(() => expect(screen.getByLabelText('Title')).toBeTruthy());
+    await fireEvent.changeText(screen.getByLabelText('Title'), 'Chapter 4');
+    await fireEvent.changeText(screen.getByLabelText('Out of'), '');
+
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Set the homework' }),
+    );
+
+    await waitFor(() =>
+      expect(http.post).toHaveBeenCalledWith(
+        '/homework',
+        expect.objectContaining({ maxMarks: undefined }),
+      ),
+    );
+  });
+
   it('says what the school said when it refused', async () => {
     givenApiFails('/homework', {
       response: { data: { message: 'That term is closed' } },
@@ -321,6 +340,41 @@ describe('marking what came in', () => {
     );
     expect(screen.getByText('1/2')).toBeTruthy();
     expect(screen.getByLabelText('1 of 2 marked')).toBeTruthy();
+  });
+
+  it('draws a piece the API sent with no class and no submissions', async () => {
+    staffroom({
+      '/homework': [
+        {
+          id: 'hw-1',
+          title: 'Chapter 4 exercises',
+          dueDate: '2026-09-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const screen = await open();
+
+    await openMarking(screen);
+
+    await waitFor(() =>
+      expect(screen.getByText('Chapter 4 exercises')).toBeTruthy(),
+    );
+    expect(screen.getByText('Nobody has handed this in yet.')).toBeTruthy();
+  });
+
+  it('says nothing about a ceiling where the work has none', async () => {
+    staffroom({
+      '/homework': [homework({ maxMarks: null, submissions: [submission()] })],
+    });
+    const screen = await open();
+    await openMarking(screen);
+    await waitFor(() =>
+      expect(screen.getByText('Chapter 4 exercises')).toBeTruthy(),
+    );
+
+    await fireEvent.press(screen.getByText('Chapter 4 exercises'));
+
+    await waitFor(() => expect(screen.getByPlaceholderText('-')).toBeTruthy());
   });
 
   it('says so when nobody has handed anything in', async () => {
