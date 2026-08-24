@@ -102,6 +102,9 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      # The thresholds in package.json are a ratchet: raise them, never lower
+      # them. They are what stops a screen being added with no test at all.
+      - run: npx jest --silent --coverage
       - run: npm run lint
       # Coverage is enforced, not just reported. The thresholds live in
       # vitest.config.ts and are meant to ratchet upward, never down.
@@ -232,9 +235,9 @@ jobs:
       - run: node scripts/check-contrast.mjs
 
   mobile:
-    name: Mobile (typecheck)
+    name: Mobile (typecheck + tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: mobile
@@ -247,3 +250,6 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      # The thresholds in package.json are a ratchet: raise them, never lower
+      # them. They are what stops a screen being added with no test at all.
+      - run: npx jest --silent --coverage
