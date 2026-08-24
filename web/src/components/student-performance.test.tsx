@@ -318,3 +318,87 @@ describe("a profile with pieces missing", () => {
     expect(heatmap.yAxis.data).toEqual(["Mathematics", "Art"]);
   });
 });
+
+/**
+ * The same charts drawn from a record with the labels missing.
+ *
+ * Every tooltip on this page names a term, a year or a subject, and the
+ * analytics profile joins across several tables. When one of those joins comes
+ * back short a parent must not be shown the word "undefined" about their own
+ * child.
+ */
+describe("charts drawn from a record with no labels", () => {
+  const unlabelled = [
+    {
+      yearName: null,
+      termName: null,
+      average: null,
+      classAverage: null,
+      rank: null,
+      classSize: null,
+      letterGrade: null,
+      aggregate: null,
+      aggregateMax: null,
+      attendancePct: null,
+      className: null,
+      subjects: [{ name: null, total: null, grade: null }],
+    },
+    {
+      yearName: null,
+      termName: null,
+      average: 60,
+      classAverage: 58,
+      rank: 3,
+      classSize: 30,
+      letterGrade: "C",
+      aggregate: 20,
+      aggregateMax: 30,
+      attendancePct: 80,
+      className: "Senior 1 A",
+      subjects: [{ name: "Mathematics", total: 60, grade: "C" }],
+    },
+  ];
+
+  async function mountUnlabelled() {
+    serve(h.api, { "/analytics/student": profile(unlabelled) });
+    render();
+    await waitFor(() => expect(h.charts.length).toBeGreaterThan(0));
+  }
+
+  it("no tooltip throws", async () => {
+    const { findThrowingFormatters } = await import("@/test/formatters");
+    await mountUnlabelled();
+
+    expect(findThrowingFormatters(h.charts)).toEqual([]);
+  });
+
+  it("no tooltip prints the word undefined", async () => {
+    const { collectFormatters, HOVER_SHAPES } = await import("@/test/formatters");
+    await mountUnlabelled();
+
+    for (const format of collectFormatters(h.charts)) {
+      for (const shape of HOVER_SHAPES) {
+        let out = "";
+        try {
+          out = String(format(shape) ?? "");
+        } catch {
+          continue;
+        }
+        expect(out).not.toMatch(/\bundefined\b/);
+      }
+    }
+  });
+
+  it("still lays out the subjects chart for a term with no subjects", async () => {
+    serve(h.api, {
+      "/analytics/student": profile([
+        { ...unlabelled[1], subjects: [] },
+        { ...unlabelled[1], termName: "Term 2", subjects: [] },
+      ]),
+    });
+    render();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(document.body.textContent).not.toMatch(/NaN/);
+  });
+});
