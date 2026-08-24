@@ -5,7 +5,7 @@ import { Check, Circle } from 'lucide-react-native';
 
 import {
   useOnboardingStatus, useSchoolConfig, useAcademicYears, useClassLevels,
-  useSubjects, useAssessmentTypes, usePeople, useTeacherAssignments,
+  useSubjects, useAssessmentTypes, usePeople, useAllAssignments,
 } from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
@@ -36,7 +36,9 @@ export default function Onboarding() {
   const { data: assessments } = useAssessmentTypes();
   const { data: teachers } = usePeople({ role: 'TEACHER' });
   const { data: students } = usePeople({ role: 'STUDENT' });
-  const { data: loads } = useTeacherAssignments();
+  // Every load in the school, not one teacher's: the scoped hook waits for a
+  // teacher id and would sit disabled here, leaving this step never ticked.
+  const { data: loads } = useAllAssignments();
 
   const steps = useMemo(
     () => [
