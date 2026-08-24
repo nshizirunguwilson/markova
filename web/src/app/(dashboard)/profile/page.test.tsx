@@ -530,3 +530,107 @@ describe("after a password change lands", () => {
     expect(left).toHaveLength(0);
   });
 });
+
+/**
+ * The profile of somebody the school never finished setting up.
+ *
+ * A parent added by phone alone has no email, no photograph and sometimes no
+ * surname on the account. That is the most common record in a Rwandan school's
+ * database, and it is the one nobody tests.
+ */
+describe("a profile with almost nothing on it", () => {
+  it("shows nothing rather than a broken page when nobody is signed in", async () => {
+    const { signOut } = await import("@/test/harness");
+    const { renderWithProviders } = await import("@/test/harness");
+    signOut();
+    const { container } = renderWithProviders(<ProfilePage />);
+    expect(container.textContent).toBe("");
+  });
+
+  it("says an email is not set rather than leaving a gap", async () => {
+    renderPage(ProfilePage, {
+      role: "PARENT",
+      user: { firstName: "Jean", lastName: "Habimana", email: "" },
+    });
+    // Email and phone are both empty on a parent added by phone alone.
+    await waitFor(() =>
+      expect(screen.getAllByText("Not set").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("builds initials from whatever names there are", async () => {
+    renderPage(ProfilePage, {
+      role: "PARENT",
+      user: { firstName: "Jean", lastName: "", email: "" },
+    });
+    await waitFor(() => expect(document.body.textContent).toMatch(/Jean/));
+    expect(screen.getByText("J")).toBeInTheDocument();
+  });
+
+  it("copes with an account carrying no name at all", async () => {
+    renderPage(ProfilePage, {
+      role: "PARENT",
+      user: { firstName: "", lastName: "", email: "" },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    // Empty initials, not the word "undefined" in a circle.
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("shows the photograph when there is one", async () => {
+    renderPage(ProfilePage, {
+      role: "TEACHER",
+      user: { firstName: "Aline", lastName: "Uwase", photoUrl: "/uploads/avatars/a.png" },
+    });
+
+    const photo = await screen.findByAltText("Aline");
+    expect(photo.getAttribute("src")).toContain("/uploads/avatars/a.png");
+    // The initials circle is gone: never both.
+    expect(screen.queryByText("AU")).toBeNull();
+  });
+});
+
+describe("when the server refuses a change without saying why", () => {
+  it("still tells the person the profile did not save", async () => {
+    renderPage(ProfilePage, { role: "TEACHER", user: { firstName: "Aline", lastName: "Uwase" } });
+    await waitFor(() => expect(document.body.textContent).toMatch(/Aline/));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /edit/i }));
+    // A network failure carries no response body at all.
+    h.api.patch.mockRejectedValue(Object.assign(new Error("offline"), {}));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Failed to update profile"),
+    );
+  });
+
+  it("still tells the person the password did not change", async () => {
+    renderPage(ProfilePage, { role: "TEACHER", user: { firstName: "Aline", lastName: "Uwase" } });
+    await waitFor(() => expect(document.body.textContent).toMatch(/Aline/));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /change password/i }));
+
+    const fields = screen.getAllByDisplayValue("");
+    const passwords = Array.from(
+      document.querySelectorAll<HTMLInputElement>("input[type='password']"),
+    );
+    expect(passwords.length).toBeGreaterThanOrEqual(3);
+    for (const field of passwords.slice(0, 3)) {
+      await user.type(field, "Password123!");
+    }
+    expect(fields.length).toBeGreaterThan(0);
+
+    h.api.post.mockRejectedValue(Object.assign(new Error("offline"), {}));
+    const submit = screen
+      .queryAllByRole("button")
+      .find((b) => /^update password$|^change password$/i.test((b.textContent ?? "").trim()))!;
+    await user.click(submit);
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Failed to change password"),
+    );
+  });
+});
