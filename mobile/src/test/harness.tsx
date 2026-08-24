@@ -160,3 +160,14 @@ export function styleOf(element: { props: { style?: unknown } }) {
     ...[element.props.style].flat(Infinity).filter(Boolean),
   ) as Record<string, never>;
 }
+
+/** The screen's own outermost element, with the providers stepped past. */
+export function rendered(screen: { toJSON: () => unknown }) {
+  const tree = screen.toJSON() as { children?: { props: { style?: unknown } }[] };
+  return tree?.children?.[0];
+}
+
+/** The flattened style on that outermost element. */
+export function rootStyle(screen: { toJSON: () => unknown }) {
+  return styleOf(rendered(screen) ?? { props: {} });
+}

@@ -95,10 +95,112 @@ jest.mock('expo-router', () => {
   };
 });
 
-// Reanimated's own mock, which turns every animation into an immediate value.
-jest.mock('react-native-reanimated', () =>
-  require('react-native-reanimated/mock'),
-);
+/**
+ * Reanimated runs its animations on a native worklet runtime that does not
+ * exist in a test process, and it ships no mock of its own for version 4.
+ *
+ * This stands in for the small part of it this app uses. Animations resolve to
+ * their final value immediately, which is what a test wants to assert on, and
+ * a shared value re-renders when it is written so a change made in an effect
+ * is observable.
+ */
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const { View, Text, ScrollView, Image, FlatList } = require('react-native');
+
+  const useSharedValue = (initial: unknown) => {
+    const [, force] = React.useState(0);
+    const box = React.useRef<{ value: unknown } | null>(null);
+    if (box.current === null) {
+      let current = initial;
+      box.current = {
+        get value() {
+          return current;
+        },
+        set value(next: unknown) {
+          if (next === current) return;
+          current = next;
+          force((n: number) => n + 1);
+        },
+      };
+    }
+    return box.current;
+  };
+
+  // withTiming and friends are asked for their destination, not their path.
+  const withTiming = (toValue: unknown) => toValue;
+  const withSpring = (toValue: unknown) => toValue;
+  const withDelay = (_ms: number, animation: unknown) => animation;
+  const withSequence = (...animations: unknown[]) =>
+    animations[animations.length - 1];
+  const withRepeat = (animation: unknown) => animation;
+
+  // Entering and exiting animations are builders. Every call returns the
+  // builder so a chain of them resolves to something Animated.View can ignore.
+  const builder = (): Record<string, unknown> => {
+    const self: Record<string, unknown> = {};
+    for (const method of [
+      'duration',
+      'delay',
+      'springify',
+      'damping',
+      'stiffness',
+      'easing',
+      'withInitialValues',
+      'randomDelay',
+      'build',
+    ]) {
+      self[method] = () => self;
+    }
+    return self;
+  };
+
+  const passthrough = (Component: unknown) =>
+    React.forwardRef(
+      (
+        { entering, exiting, layout, sharedTransitionTag, ...rest }: never,
+        ref: never,
+      ) => React.createElement(Component as never, { ...(rest as object), ref }),
+    );
+
+  const Animated = {
+    View: passthrough(View),
+    Text: passthrough(Text),
+    ScrollView: passthrough(ScrollView),
+    Image: passthrough(Image),
+    FlatList: passthrough(FlatList),
+    createAnimatedComponent: passthrough,
+  };
+
+  return {
+    __esModule: true,
+    default: Animated,
+    ...Animated,
+    useSharedValue,
+    useAnimatedStyle: (fn: () => unknown) => fn(),
+    useDerivedValue: (fn: () => unknown) => ({ value: fn() }),
+    useAnimatedRef: () => ({ current: null }),
+    interpolate: (value: number) => value,
+    runOnJS: (fn: unknown) => fn,
+    runOnUI: (fn: unknown) => fn,
+    withTiming,
+    withSpring,
+    withDelay,
+    withSequence,
+    withRepeat,
+    cancelAnimation: () => {},
+    Easing: { linear: () => 0, ease: () => 0, bezier: () => () => 0 },
+    FadeIn: builder(),
+    FadeOut: builder(),
+    FadeInDown: builder(),
+    FadeInUp: builder(),
+    FadeOutDown: builder(),
+    SlideInRight: builder(),
+    SlideOutLeft: builder(),
+    Layout: builder(),
+    LinearTransition: builder(),
+  };
+});
 
 jest.mock('react-native-mmkv', () => ({
   MMKV: class {

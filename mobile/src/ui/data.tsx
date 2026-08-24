@@ -109,7 +109,12 @@ export function Meter({
         </View>
       )}
       <View
+        // Without `accessible` a View carrying a role is still not an
+        // accessibility element, so the bar would be drawn and announced to
+        // nobody.
+        accessible
         accessibilityRole="progressbar"
+        accessibilityLabel={label}
         accessibilityValue={{ min: 0, max, now: value }}
         style={{
           height: 6,
