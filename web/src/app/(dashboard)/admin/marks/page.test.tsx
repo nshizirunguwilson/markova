@@ -370,3 +370,121 @@ describe("choosing a different class", () => {
     });
   });
 });
+
+/**
+ * A results table part way through being computed.
+ *
+ * Rank, total, average and grade are each coloured against a band, and a
+ * result row can arrive with any of them still empty: a student who sat no
+ * paper, one whose marks are still being entered, one the calculation has not
+ * reached. Every band and every blank has to draw.
+ */
+describe("results across every band", () => {
+  /** A student with a name of their own, so a row can be found by it. */
+  const named = (first: string, last: string) => ({
+    ...termResult.student,
+    id: `st-${first}`,
+    user: { ...termResult.student.user, firstName: first, lastName: last },
+  });
+
+  const banded = [
+    { ...termResult, id: "b-1", student: named("Keza", "Uwimana"), rank: 1, totalMarks: 412, average: 88.2, letterGrade: "A", isPublished: false },
+    { ...termResult, id: "b-2", student: named("Divine", "Niyonkuru"), rank: 2, totalMarks: 350, average: 71.5, letterGrade: "B", isPublished: false },
+    { ...termResult, id: "b-3", student: named("Manzi", "Habimana"), rank: 3, totalMarks: 268, average: 54.9, letterGrade: "C", isPublished: false },
+    { ...termResult, id: "b-4", student: named("Gasana", "Mugisha"), rank: 4, totalMarks: 190, average: 38.0, letterGrade: "F", isPublished: false },
+    // Nothing computed yet: no rank, no total, no average, no grade.
+    { ...termResult, id: "b-5", student: named("Iradukunda", "Mukamana"), rank: null, totalMarks: null, average: null, letterGrade: null, isPublished: false },
+  ];
+
+  const rowFor = (id: string) => {
+    const cells = Array.from(document.querySelectorAll("tbody tr"));
+    return cells[banded.findIndex((b) => b.id === id)];
+  };
+
+  it("gives the top three ranks their own badge", async () => {
+    await mount(banded);
+
+    const first = within(rowFor("b-1")).getByText("1").className;
+    const second = within(rowFor("b-2")).getByText("2").className;
+    const fourth = within(rowFor("b-4")).getByText("4").className;
+    expect(first).not.toBe(second);
+    expect(second).not.toBe(fourth);
+  });
+
+  it("colours the average against the pass bands", async () => {
+    await mount(banded);
+
+    const classOf = (id: string, text: RegExp) =>
+      within(rowFor(id)).getByText(text).className;
+
+    const top = classOf("b-1", /88\.2/);
+    const middle = classOf("b-2", /71\.5/);
+    const low = classOf("b-3", /54\.9/);
+    const fail = classOf("b-4", /38\.0/);
+    expect(new Set([top, middle, low, fail]).size).toBe(4);
+  });
+
+  it("colours a C differently from an A and from a fail", async () => {
+    await mount(banded);
+
+    const a = within(rowFor("b-1")).getByText("A").className;
+    const c = within(rowFor("b-3")).getByText("C").className;
+    const f = within(rowFor("b-4")).getByText("F").className;
+    expect(a).not.toBe(c);
+    expect(c).not.toBe(f);
+  });
+
+  it("draws em dashes for a student nothing has been computed for", async () => {
+    await mount(banded);
+
+    const row = rowFor("b-5");
+    // Rank, total, average and grade: four blanks, not four zeroes.
+    expect(within(row).getAllByText(/^—/).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("averages the class over the blanks without going NaN", async () => {
+    await mount(banded);
+
+    // Highest, lowest and mean sit above the table. A null average counts as
+    // nothing, not as a missing number that poisons the arithmetic.
+    expect(document.body.textContent).not.toMatch(/NaN/);
+    // Once in the row, once as the class's highest.
+    expect(screen.getAllByText(/88\.2%/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("exports the blanks as blanks", async () => {
+    await mount(banded);
+
+    // The download is a Blob handed to createObjectURL and clicked through an
+    // anchor. Reading the blob is the only place the CSV text exists.
+    let captured: Blob | undefined;
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        captured = blob;
+        return "blob:x";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => {};
+      return el;
+    });
+
+    await click(button(/export/i));
+    vi.mocked(document.createElement).mockRestore();
+
+    expect(captured).toBeTruthy();
+    const lines = (await captured!.text()).split("\n");
+    // The unranked student's row: empty rank, then the name, then two blanks.
+    expect(lines.at(-1)).toMatch(/^"",/);
+    expect(lines.at(-1)).toContain('"",""');
+  });
+
+  it("exports nothing at all when there are no results", async () => {
+    await mountEmpty();
+    const exportButton = button(/export/i);
+    expect(exportButton).toBeDisabled();
+  });
+});
