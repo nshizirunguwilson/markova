@@ -438,6 +438,7 @@ describe("Modal keyboard handling", () => {
   });
 
   it("does nothing on Tab in a dialog with nothing focusable in it", async () => {
+    const { fireEvent } = await import("@testing-library/react");
     render(
       <Modal isOpen onClose={vi.fn()} title="">
         <p>Nothing to focus</p>
@@ -448,8 +449,24 @@ describe("Modal keyboard handling", () => {
     // No title either, so it falls back to a generic accessible name rather
     // than being an unnamed dialog.
     expect(dialog).toHaveAttribute("aria-label", "Dialog");
+    // Nothing inside can hold focus, so the key has to be sent at the dialog
+    // itself rather than at whatever the browser focused.
+    expect(dialog.querySelector("button, input, a[href]")).toBeNull();
 
-    await userEvent.setup().keyboard("{Tab}");
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it("ignores Shift+Tab too when there is nothing to cycle", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(
+      <Modal isOpen onClose={vi.fn()} title="">
+        <p>Nothing to focus</p>
+      </Modal>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     expect(dialog).toBeInTheDocument();
   });
 
