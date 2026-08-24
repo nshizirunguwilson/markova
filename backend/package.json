@@ -110,6 +110,17 @@
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "node_modules/(?!uuid)"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 97,
+        "branches": 82,
+        "functions": 96,
+        "lines": 97
+      }
+    },
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
     ]
   }
 }

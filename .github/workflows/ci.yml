@@ -69,9 +69,11 @@ jobs:
       - run: npx tsc --noEmit -p tsconfig.json
       - run: npm run lint
 
+      # --coverage so the thresholds in package.json are enforced. They are a
+      # ratchet: raise them, never lower them.
       - name: Unit tests
-        timeout-minutes: 6
-        run: npx jest --silent
+        timeout-minutes: 8
+        run: npx jest --silent --coverage
 
       - run: npx prisma migrate deploy
       # The auth e2e suite signs in as real seeded users, so the database has
