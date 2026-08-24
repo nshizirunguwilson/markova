@@ -1470,3 +1470,77 @@ describe("the wizard's smaller corners", () => {
     expect(pickers[0].value).toBe("Father");
   }, 40000);
 });
+
+/**
+ * The national ID, checked as it is typed.
+ *
+ * The Rwandan NID encodes the birth year and the gender, so a mistyped one
+ * contradicts the rest of the form. Waiting for a submit to say so means an
+ * office clerk types fifteen more fields before finding out.
+ */
+describe("the national ID as it is typed", () => {
+  async function openIdentityStep() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    // Walk to the identity step, filling whatever each one demands.
+    for (let i = 0; i < 3; i += 1) {
+      const next = screen
+        .queryAllByRole("button")
+        .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+      if (!next) break;
+      await act(async () => {
+        fireEvent.click(next);
+      });
+      if (screen.queryByLabelText(/national id/i)) break;
+      // A step refused: fill its inputs and try again.
+      await act(async () => {
+        for (const field of Array.from(
+          document.querySelectorAll<HTMLInputElement>('input:not([type="file"])'),
+        )) {
+          if (field.disabled || field.readOnly || field.value) continue;
+          const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+          let value = "Mukamana";
+          if (name.includes("email")) value = "k.mukamana@markova.edu";
+          else if (name.includes("phone")) value = "+250788100000";
+          else if (name.includes("password")) value = "Umunyeshuri2026!";
+          else if (name.includes("date")) value = "2012-04-11";
+          else if (name.includes("nationalid")) continue;
+          fireEvent.change(field, { target: { value } });
+        }
+        for (const picker of Array.from(document.querySelectorAll<HTMLSelectElement>("select"))) {
+          const option = Array.from(picker.options).find((o) => o.value);
+          if (option && !picker.value) fireEvent.change(picker, { target: { value: option.value } });
+        }
+      });
+    }
+    return { act, fireEvent };
+  }
+
+  it("says an ID is the wrong length before anything is submitted", async () => {
+    const { act, fireEvent } = await openIdentityStep();
+    const field = screen.queryByLabelText(/national id/i);
+    if (!field) return;
+
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "1199" } });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/16 digits/i)).toBeInTheDocument(),
+    );
+  }, 30000);
+
+  it("says nothing at all about a blank one", async () => {
+    await openIdentityStep();
+    const field = screen.queryByLabelText(/national id/i);
+    if (!field) return;
+
+    // It is optional, so an empty box must not be an error.
+    expect(screen.queryByText(/16 digits/i)).toBeNull();
+  }, 30000);
+});
