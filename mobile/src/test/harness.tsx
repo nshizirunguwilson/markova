@@ -29,7 +29,9 @@ const testQueryClient = () =>
   new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0, staleTime: 0 },
-      mutations: { retry: false },
+      // A finished mutation is otherwise held for five minutes, and that
+      // timer is what keeps the test runner alive after the suite passes.
+      mutations: { retry: false, gcTime: 0 },
     },
   });
 

@@ -2,6 +2,7 @@ import { Text as RNText } from 'react-native';
 
 import { errorReporter } from '@/lib/error-reporting';
 import { useAuthStore } from '@/stores/auth-store';
+import { givenApi } from '@/test/api-mock';
 import { inheritedOptions } from '@/test/router-mock';
 import {
   rendered,
@@ -11,7 +12,7 @@ import {
   teacher,
 } from '@/test/harness';
 
-import RootLayout from './_layout';
+import RootLayout, { queryClient } from './_layout';
 
 /**
  * Everything wrapped around every screen: the error boundary, the query
@@ -29,9 +30,18 @@ jest.mock('@/hooks/usePushNotifications', () => ({
 
 const reporter = errorReporter as jest.Mocked<typeof errorReporter>;
 
+afterEach(() => {
+  // The app's own client caches for ten minutes, and that timer outlives the
+  // test run.
+  queryClient.clear();
+});
+
 beforeEach(() => {
   resetHarness();
   jest.clearAllMocks();
+  // The design provider reads the school's branding on the way up. Left to
+  // fail it retries on a backoff, and those timers outlive the test run.
+  givenApi({ '/school-config/public': { primaryColor: '#1B4F72' } });
   useAuthStore.setState({ isLoading: false, checkAuth: jest.fn() as never });
 });
 

@@ -14,7 +14,9 @@ import { DesignProvider } from '@/design';
 
 setupGlobalErrorHandling();
 
-const queryClient = new QueryClient({
+// Exported so a sign out, or a test, can drop everything the app cached for
+// the person who was signed in.
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 2,
