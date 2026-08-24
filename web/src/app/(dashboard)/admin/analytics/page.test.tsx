@@ -229,3 +229,72 @@ describe("axis labels", () => {
     }
   });
 });
+
+/**
+ * The same charts drawn from records with the labels missing.
+ *
+ * Every tooltip on this page reads a name off the row it is hovering: a class
+ * name, a term name, a book's author. The analytics endpoints join across
+ * several tables and any of those joins can come back short, at which point a
+ * tooltip either says "undefined" to a head teacher or throws and takes the
+ * chart down.
+ */
+describe("charts drawn from rows with no labels", () => {
+  const unlabelled = {
+    ...populatedRoutes,
+    "/analytics/class-comparison": [
+      { classSectionId: "s-1", className: null, averageScore: null, studentCount: null },
+    ],
+    "/analytics/grade-distribution": [
+      { classLevelId: "l-1", levelName: null, grades: { A: null, B: 2 } },
+    ],
+    "/analytics/term-comparison": [
+      { termId: "t-1", termName: "Term 1", averageScore: null, studentCount: null },
+    ],
+    "/analytics/library": {
+      totalBooks: null,
+      popularBooks: [{ id: "b-1", title: "Ubumenyi", author: null, loanCount: null }],
+    },
+  };
+
+  async function mountUnlabelled() {
+    serve(h.api, unlabelled);
+    renderPage(AnalyticsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await waitFor(() => expect(h.charts.length).toBeGreaterThan(0));
+  }
+
+  it("no tooltip throws", async () => {
+    const { findThrowingFormatters } = await import("@/test/formatters");
+    await mountUnlabelled();
+
+    expect(findThrowingFormatters(h.charts)).toEqual([]);
+  });
+
+  it("no tooltip prints the word undefined", async () => {
+    const { collectFormatters, HOVER_SHAPES } = await import("@/test/formatters");
+    await mountUnlabelled();
+
+    for (const format of collectFormatters(h.charts)) {
+      for (const shape of HOVER_SHAPES) {
+        let out = "";
+        try {
+          out = String(format(shape) ?? "");
+        } catch {
+          continue;
+        }
+        expect(out).not.toMatch(/\bundefined\b/);
+      }
+    }
+  });
+
+  it("still gives the class chart a height", async () => {
+    serve(h.api, { ...unlabelled, "/analytics/class-comparison": [] });
+    renderPage(AnalyticsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    // No classes at all: the chart is still laid out rather than collapsing
+    // to nothing or throwing on a length of undefined.
+    expect(document.body.textContent).not.toMatch(/NaN/);
+  });
+});
