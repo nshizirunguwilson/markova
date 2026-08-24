@@ -759,3 +759,98 @@ describe('updating every field a teacher record carries', () => {
     expect(prisma.teacher.update).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * What the search box understands.
+ *
+ * An office clerk types one thing into one box and expects it to find the
+ * person, whether they typed a name, a class, a role or a status. Each of
+ * those is a separate arm, and a search that matches none of them has to
+ * return nobody rather than everybody.
+ */
+describe('the words the search box understands', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.count.mockResolvedValue(0);
+  });
+
+  const whereFor = async (filters: Record<string, unknown>) => {
+    await service.findAll(filters as never);
+    return prisma.user.findMany.mock.calls[0][0].where;
+  };
+
+  const clauseFor = async (filters: Record<string, unknown>) =>
+    JSON.stringify((await whereFor(filters)).AND[0].OR);
+
+  it('reads a role name as a role', async () => {
+    expect(await clauseFor({ search: 'teach' })).toContain('TEACHER');
+  });
+
+  it('reads "active" as a live account', async () => {
+    const clause = await clauseFor({ search: 'active' });
+    expect(clause).toContain('"isActive":true');
+  });
+
+  it('reads "inactive" as a switched-off one', async () => {
+    const clause = await clauseFor({ search: 'inactive' });
+    expect(clause).toContain('"isActive":false');
+  });
+
+  it('reads a student status as a status', async () => {
+    expect(await clauseFor({ search: 'gradu' })).toContain('GRADUATED');
+  });
+
+  it('finds nobody for a word no field can match', async () => {
+    const clause = await clauseFor({ search: 'zzzz', searchIn: 'role' });
+    expect(clause).toBeUndefined();
+    const where = await whereFor({ search: 'zzzz', searchIn: 'role' });
+    expect(JSON.stringify(where)).toContain('__no_match__');
+  });
+
+  // A class of one letter: "A", not every class containing an A.
+  it('matches a one-letter class exactly', async () => {
+    const clause = await clauseFor({ search: 'A', searchIn: 'class' });
+    expect(clause).toContain('"equals":"A"');
+  });
+
+  it('matches a trade code or its name', async () => {
+    const clause = await clauseFor({ search: 'software', searchIn: 'class' });
+    expect(clause).toContain('trade');
+  });
+
+  // Roles and statuses are whole words; a single letter would match several.
+  it('does not read a single letter as a role', async () => {
+    expect(await clauseFor({ search: 'T', searchIn: 'role' })).toBeUndefined();
+  });
+
+  it('narrows to one class without a search at all', async () => {
+    const where = await whereFor({ classSectionId: 'section-1' });
+    expect(where.student).toEqual({ classSectionId: 'section-1' });
+  });
+
+  it('narrows to one student status without a search at all', async () => {
+    const where = await whereFor({ studentStatus: 'GRADUATED' });
+    expect(where.student).toEqual({ status: 'GRADUATED' });
+  });
+
+  it('narrows by both at once', async () => {
+    const where = await whereFor({
+      classSectionId: 'section-1',
+      studentStatus: 'ACTIVE',
+    });
+    expect(where.student).toEqual({
+      classSectionId: 'section-1',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('adds no student clause when neither was given', async () => {
+    const where = await whereFor({ role: 'TEACHER' });
+    expect(where.student).toBeUndefined();
+  });
+});
