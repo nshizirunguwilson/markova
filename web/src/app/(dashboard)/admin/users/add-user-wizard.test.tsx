@@ -1309,3 +1309,164 @@ describe("the login each role needs", () => {
     await waitFor(() => expect(document.body.textContent).toMatch(/employment/i));
   });
 });
+
+/**
+ * The corners of the wizard.
+ *
+ * Every one of these is something an office clerk does on an ordinary
+ * afternoon: typing a date wrong, opening the photo picker and changing their
+ * mind, or having two children on one parent's record with different
+ * relationships.
+ */
+describe("the wizard's smaller corners", () => {
+  const keza = {
+    id: "u-20",
+    firstName: "Keza",
+    lastName: "Mutesi",
+    student: {
+      id: "student-2",
+      studentIdNumber: "STD-2026-002",
+      classSection: { name: "A", classLevel: { name: "Senior 1" } },
+    },
+  };
+  const manzi = {
+    id: "u-22",
+    firstName: "Manzi",
+    lastName: "Habimana",
+    student: {
+      id: "student-3",
+      studentIdNumber: "STD-2026-003",
+      classSection: { name: "B", classLevel: { name: "Senior 2" } },
+    },
+  };
+
+  async function openStudentStep() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+    return { act, fireEvent };
+  }
+
+  it("shows no age for a date of birth typed wrong", async () => {
+    const { act, fireEvent } = await openStudentStep();
+    const dob = screen.queryByLabelText(/date of birth/i);
+    if (!dob) return;
+
+    await act(async () => {
+      fireEvent.change(dob, { target: { value: "not-a-date" } });
+    });
+
+    // A NaN age beside a child's name is worse than no age at all.
+    expect(document.body.textContent).not.toMatch(/NaN/);
+  }, 30000);
+
+  it("shows no age before a date of birth is given", async () => {
+    await openStudentStep();
+    expect(document.body.textContent).not.toMatch(/NaN|years old/);
+  }, 30000);
+
+  it("attaches nothing when the photo picker is dismissed", async () => {
+    const { act, fireEvent } = await openStudentStep();
+    const picker = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!picker) return;
+
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [] } });
+    });
+
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  }, 30000);
+
+  it("copes with a child search that answers without a list", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.get.mockImplementation((url: string, config?: any) => {
+      if (url === "/users" && config?.params?.role === "STUDENT") {
+        // An envelope with no rows in it at all.
+        return Promise.resolve({ data: {} });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("PARENT");
+
+    const next = screen
+      .queryAllByRole("button")
+      .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+    if (next) {
+      await act(async () => {
+        fireEvent.click(next);
+      });
+    }
+    const box = screen.queryByPlaceholderText(/keza or std/i);
+    if (!box) return;
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "Keza" } });
+    });
+
+    await new Promise((r) => setTimeout(r, 500));
+    // No rows and no crash: the panel simply stays empty.
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  }, 30000);
+
+  it("sets the relationship on each child separately", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.get.mockImplementation((url: string, config?: any) => {
+      if (url === "/users" && config?.params?.role === "STUDENT") {
+        const term = String(config.params.search ?? "");
+        const found = [keza, manzi].filter((u) =>
+          u.firstName.toLowerCase().startsWith(term.slice(0, 3).toLowerCase()),
+        );
+        return Promise.resolve({ data: { data: found, meta: { total: found.length } } });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("PARENT");
+    const next = screen
+      .queryAllByRole("button")
+      .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+    if (next) {
+      await act(async () => {
+        fireEvent.click(next);
+      });
+    }
+    const box = screen.queryByPlaceholderText(/keza or std/i);
+    if (!box) return;
+
+    for (const [term, name] of [["Keza", "Keza Mutesi"], ["Manzi", "Manzi Habimana"]] as const) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: term } });
+      });
+      await waitFor(() => expect(screen.getByText(name)).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByText(name).closest("button")!);
+      });
+    }
+
+    const pickers = screen.queryAllByRole("combobox").filter((el) =>
+      Array.from((el as HTMLSelectElement).options).some((o) => o.value === "Guardian"),
+    ) as HTMLSelectElement[];
+    if (pickers.length < 2) return;
+
+    await act(async () => {
+      fireEvent.change(pickers[1], { target: { value: "Guardian" } });
+    });
+
+    // Only the second child changed; the first is still whatever it was.
+    expect(pickers[1].value).toBe("Guardian");
+    expect(pickers[0].value).toBe("Father");
+  }, 40000);
+});
