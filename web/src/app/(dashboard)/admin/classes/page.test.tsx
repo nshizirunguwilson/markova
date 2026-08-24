@@ -836,3 +836,54 @@ describe("the forms refusing what a school cannot use", () => {
     expect(within(dialog).getByLabelText("Stream").className).toMatch(/border-danger/);
   });
 });
+
+/**
+ * Deleting a trade, which is the most destructive of the three.
+ *
+ * A trade is what every A-Level stream hangs off. Deleting one when you meant
+ * a single class takes the whole TVET side of the school with it, so the
+ * confirmation has to name the trade and the request has to go to the trades
+ * endpoint rather than the sections one.
+ */
+describe("removing a trade", () => {
+  it("names the trade in the confirmation", async () => {
+    await mount();
+    await click(button(new RegExp(`delete trade ${trade.code}`, "i")));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain(trade.code);
+    expect(dialog.textContent).toContain(trade.name);
+  });
+
+  it("deletes it from the trades endpoint, not the sections one", async () => {
+    await mount();
+    await click(button(new RegExp(`delete trade ${trade.code}`, "i")));
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^delete$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith(`/academic/trades/${trade.id}`),
+    );
+  });
+});
+
+describe("a section modal with no trades to choose from", () => {
+  it("still opens, offering only its prompt", async () => {
+    serve(h.api, { ...routes, "/academic/trades": [] });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Level 4");
+
+    await click(screen.getByRole("button", { name: /^add class to level 4$/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    const picker = within(dialog).getByLabelText("Trade") as HTMLSelectElement;
+    expect(picker.options).toHaveLength(1);
+    expect(picker.options[0].textContent).toMatch(/select a trade/i);
+  });
+});
