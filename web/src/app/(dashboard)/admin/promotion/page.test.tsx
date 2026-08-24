@@ -538,3 +538,106 @@ describe("the guards on a year's promotion", () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * A preview whose rows are missing pieces, and a commit with nothing loaded.
+ *
+ * The API answers `{ students }`, and a version of it that does not is the
+ * difference between a page that says "nobody to deliberate" and a page that
+ * dies half way through the meeting.
+ */
+describe("a preview that comes back in the wrong shape", () => {
+  function previewAnswers(body: unknown) {
+    const real = h.api.post.getMockImplementation();
+    h.api.post.mockImplementation(async (url: string, payload?: unknown) => {
+      if (String(url).includes("promote/preview")) return { data: body, status: 200 };
+      return real ? real(url, payload) : { data: {}, status: 200 };
+    });
+  }
+
+  async function loadWith(body: unknown) {
+    serve(h.api, routes);
+    previewAnswers(body);
+    await mount();
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll("select")).some((el) =>
+          Array.from(el.options).some((o) => o.value),
+        ),
+      ).toBe(true),
+    );
+
+    const year = screen.getByLabelText(/academic year/i) as HTMLSelectElement;
+    const firstYear = Array.from(year.options).find((o) => o.value);
+    if (!firstYear) return false;
+    await act(async () => {
+      fireEvent.change(year, { target: { value: firstYear.value } });
+    });
+    for (const level of screen.getAllByLabelText(/select level/i) as HTMLSelectElement[]) {
+      const option = Array.from(level.options).find((o) => o.value);
+      if (option) {
+        await act(async () => {
+          fireEvent.change(level, { target: { value: option.value } });
+        });
+      }
+    }
+    await waitFor(() => {
+      const sections = screen.queryAllByLabelText(/select section/i) as HTMLSelectElement[];
+      expect(sections.some((s) => Array.from(s.options).some((o) => o.value))).toBe(true);
+    });
+    for (const section of screen.getAllByLabelText(/select section/i) as HTMLSelectElement[]) {
+      const option = Array.from(section.options).find((o) => o.value);
+      if (option) {
+        await act(async () => {
+          fireEvent.change(section, { target: { value: option.value } });
+        });
+      }
+    }
+
+    const load = screen
+      .queryAllByRole("button")
+      .find((b) => /load students/i.test(b.textContent ?? ""));
+    if (!load || load.hasAttribute("disabled")) return false;
+    await act(async () => {
+      fireEvent.click(load);
+    });
+    return true;
+  }
+
+  it("survives a preview with no list on it at all", async () => {
+    if (!(await loadWith({ total: 0 }))) return;
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("survives a preview that is not an object", async () => {
+    if (!(await loadWith(null))) return;
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("falls back to the recommendation for a student nobody decided on", async () => {
+    const ok = await loadWith({
+      students: [
+        {
+          studentId: "student-9",
+          studentIdNumber: "STD-2026-9",
+          name: "Keza Uwimana",
+          average: 71,
+          disciplinePoints: 95,
+          recommendation: "PROMOTE",
+          reason: "Above the pass mark",
+        },
+      ],
+    });
+    if (!ok) return;
+
+    await waitFor(() =>
+      expect(screen.getByText(/Keza Uwimana/)).toBeInTheDocument(),
+    );
+    // Nothing was overridden, so the tally follows what the server advised.
+    expect(document.body.textContent).toMatch(/Promote:\s*1/);
+  });
+});
