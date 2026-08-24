@@ -229,3 +229,63 @@ describe("refreshing an expired session", () => {
     expect(axiosPost).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The corners of the interceptors.
+ *
+ * A rejected request never reaches the server, a failure with no config at all
+ * arrives when axios itself throws, and a non-401 has to pass straight through
+ * rather than triggering a refresh.
+ */
+describe("failures that are not an expired session", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("passes a server error straight through", async () => {
+    localStorage.setItem("refresh_token", "good");
+    await expect(
+      responseErrorHandler()(failure("/users", 500)),
+    ).rejects.toBeTruthy();
+
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("passes a forbidden through without ending the session", async () => {
+    localStorage.setItem("refresh_token", "good");
+    await expect(
+      responseErrorHandler()(failure("/users", 403)),
+    ).rejects.toBeTruthy();
+
+    expect(localStorage.getItem("refresh_token")).toBe("good");
+  });
+
+  it("copes with a failure that carries no request config at all", async () => {
+    // axios throws this shape when a request is aborted before it is sent.
+    await expect(
+      responseErrorHandler()({ message: "Network Error" }),
+    ).rejects.toBeTruthy();
+  });
+
+  it("does not retry a request that has already been retried once", async () => {
+    localStorage.setItem("refresh_token", "good");
+    const already = {
+      config: { url: "/users", headers: {}, _retry: true },
+      response: { status: 401 },
+    };
+
+    await expect(responseErrorHandler()(already)).rejects.toBeTruthy();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("the request interceptor's own rejection path", () => {
+  it("passes a request that never left the browser straight through", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handlers = (api.interceptors.request as any).handlers;
+    const rejected = handlers[0].rejected as (e: unknown) => Promise<unknown>;
+
+    await expect(rejected(new Error("no network"))).rejects.toThrow("no network");
+  });
+});
