@@ -24,11 +24,7 @@ jest.mock('@/lib/api', () => require('@/test/api-mock').apiMock);
 const notify = toast as jest.Mocked<typeof toast>;
 const picker = ImagePicker as jest.Mocked<typeof ImagePicker>;
 
-const me = {
-  ...teacher,
-  phone: '+250788000123',
-  photoUrl: null as string | null,
-};
+const me = { ...teacher, phone: '+250788000123' };
 
 const account = () =>
   givenApi({
