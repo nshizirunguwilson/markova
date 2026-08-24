@@ -919,3 +919,162 @@ describe('AcademicService', () => {
     });
   });
 });
+
+/**
+ * Editing the shape of the year, one field at a time and all at once.
+ *
+ * Every update method here spreads each field only when it was sent, so a
+ * school correcting a single date must not have the rest of the record
+ * blanked. The tests below send everything, then send nothing, which are the
+ * two ends every one of those spreads has.
+ */
+describe('editing the school year', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+    prisma.academicYear.findUnique.mockResolvedValue({ id: 'year-1' });
+    prisma.academicYear.update.mockResolvedValue({});
+    prisma.academicYear.updateMany.mockResolvedValue({ count: 1 });
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1' });
+    prisma.term.update.mockResolvedValue({});
+    prisma.term.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  describe('a year', () => {
+    it('changes every field it was given', async () => {
+      await service.updateYear('year-1', {
+        name: '2027-2028',
+        startDate: '2027-09-01',
+        endDate: '2028-07-15',
+        isCurrent: true,
+      } as never);
+
+      const written = prisma.academicYear.update.mock.calls[0][0].data;
+      expect(written.name).toBe('2027-2028');
+      expect(written.startDate).toBeInstanceOf(Date);
+      expect(written.endDate).toBeInstanceOf(Date);
+      expect(written.isCurrent).toBe(true);
+    });
+
+    // Two current years would make "this term" ambiguous everywhere.
+    it('stands the other years down when one becomes current', async () => {
+      await service.updateYear('year-1', { isCurrent: true } as never);
+
+      expect(prisma.academicYear.updateMany).toHaveBeenCalledWith({
+        where: { isCurrent: true },
+        data: { isCurrent: false },
+      });
+    });
+
+    it('stands nobody down when a year is merely renamed', async () => {
+      await service.updateYear('year-1', { name: '2027' } as never);
+
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('records a year being stood down itself', async () => {
+      await service.updateYear('year-1', { isCurrent: false } as never);
+
+      expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({
+        isCurrent: false,
+      });
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateYear('year-1', {} as never);
+
+      expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('creates a year that is not the current one by default', async () => {
+      prisma.academicYear.create.mockResolvedValue({});
+      await service.createYear({
+        name: '2027-2028',
+        startDate: '2027-09-01',
+        endDate: '2028-07-15',
+      } as never);
+
+      expect(prisma.academicYear.create.mock.calls[0][0].data.isCurrent).toBe(
+        false,
+      );
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a term', () => {
+    it('changes every field it was given', async () => {
+      await service.updateTerm('term-1', {
+        name: 'Term 2',
+        startDate: '2027-01-08',
+        endDate: '2027-04-05',
+        isCurrent: true,
+        isClosed: false,
+      } as never);
+
+      const written = prisma.term.update.mock.calls[0][0].data;
+      expect(written.name).toBe('Term 2');
+      expect(written.startDate).toBeInstanceOf(Date);
+      expect(written.endDate).toBeInstanceOf(Date);
+      expect(written.isCurrent).toBe(true);
+      expect(written.isClosed).toBe(false);
+    });
+
+    it('stands the other terms down when one becomes current', async () => {
+      await service.updateTerm('term-1', { isCurrent: true } as never);
+
+      expect(prisma.term.updateMany).toHaveBeenCalledWith({
+        where: { isCurrent: true },
+        data: { isCurrent: false },
+      });
+    });
+
+    it('stands nobody down when a term is merely closed', async () => {
+      await service.updateTerm('term-1', { isClosed: true } as never);
+
+      expect(prisma.term.updateMany).not.toHaveBeenCalled();
+      expect(prisma.term.update.mock.calls[0][0].data).toEqual({
+        isClosed: true,
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTerm('term-1', {} as never);
+
+      expect(prisma.term.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('stands the other terms down when a new current one is created', async () => {
+      prisma.term.create.mockResolvedValue({});
+      await service.createTerm({
+        academicYearId: 'year-1',
+        name: 'Term 1',
+        startDate: '2026-09-01',
+        endDate: '2026-12-15',
+        isCurrent: true,
+      } as never);
+
+      expect(prisma.term.updateMany).toHaveBeenCalled();
+      expect(prisma.term.create.mock.calls[0][0].data.isCurrent).toBe(true);
+    });
+
+    it('lists every term when no year is named', async () => {
+      prisma.term.findMany.mockResolvedValue([]);
+      await service.findAllTerms();
+
+      expect(prisma.term.findMany.mock.calls[0][0].where).toBeUndefined();
+    });
+
+    it('lists one years terms when a year is named', async () => {
+      prisma.term.findMany.mockResolvedValue([]);
+      await service.findAllTerms('year-1');
+
+      expect(prisma.term.findMany.mock.calls[0][0].where).toEqual({
+        academicYearId: 'year-1',
+      });
+    });
+  });
+});
