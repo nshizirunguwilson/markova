@@ -735,3 +735,70 @@ describe("a lesson with no room recorded", () => {
     expect(screen.getByLabelText(/room/i)).toHaveValue("");
   });
 });
+
+/**
+ * A lesson the grid handed over without an id.
+ *
+ * FullCalendar carries the entry through `extendedProps`, and an event built
+ * from a stale render can arrive without one. Saving it would PUT to
+ * /timetable/undefined and delete would do the same, so both refuse.
+ */
+describe("editing a lesson with no id behind it", () => {
+  async function openEditWithout(entryId: unknown) {
+    await mount();
+    if (!(await fireCalendar("datesSet", week))) return false;
+
+    await fireCalendar("eventClick", {
+      event: { extendedProps: { entry: { ...entry, id: entryId } } },
+    });
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    return true;
+  }
+
+  it("says so rather than saving to nowhere", async () => {
+    if (!(await openEditWithout(undefined))) return;
+    h.api.put.mockClear();
+    h.toast.error.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.put).not.toHaveBeenCalled();
+  });
+
+  it("deletes nothing either", async () => {
+    if (!(await openEditWithout(undefined))) return;
+    h.api.delete.mockClear();
+
+    const remove = screen
+      .queryAllByRole("button")
+      .find((b) => /^delete/i.test((b.textContent ?? "").trim()));
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("saves normally once the id is there", async () => {
+    if (!(await openEditWithout("tt-1"))) return;
+    h.api.put.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+  });
+});
