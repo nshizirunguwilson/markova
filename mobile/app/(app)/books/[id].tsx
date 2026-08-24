@@ -124,10 +124,9 @@ export default function BookDetail() {
                             tone="brand"
                             suppressHighlighting
                             onPress={() =>
-                              returnBook.mutate(
-                                { loanId: loan.id } as never,
-                                { onSuccess: () => toast.success('Returned') },
-                              )
+                              returnBook.mutate(loan.id, {
+                                onSuccess: () => toast.success('Returned'),
+                              })
                             }
                           >
                             Return

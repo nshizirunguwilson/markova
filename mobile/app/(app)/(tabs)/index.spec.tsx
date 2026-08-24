@@ -4,6 +4,7 @@ import { givenApi, resetApi } from '@/test/api-mock';
 import { router } from '@/test/router-mock';
 import {
   admin,
+  meterFill,
   librarian,
   matron,
   nurse,
@@ -456,10 +457,7 @@ describe('an admin’s home', () => {
         screen.getByLabelText('Attendance across the school today'),
       ).toBeTruthy(),
     );
-    const bar = screen.getByRole('progressbar').children[0] as {
-      props: { style: { backgroundColor: string } };
-    };
-    expect(bar.props.style.backgroundColor).toBe(
+    expect(meterFill(screen).backgroundColor).toBe(
       tone === 'positive'
         ? defaultTheme.status.positive.solid
         : tone === 'caution'

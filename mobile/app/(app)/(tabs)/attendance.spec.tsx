@@ -6,7 +6,14 @@ import { defaultTheme } from '@/design/theme';
 import { touch } from '@/design/tokens';
 import * as queue from '@/lib/offline-queue';
 import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
-import { renderScreen, resetHarness, signedInAs, styleOf, teacher } from '@/test/harness';
+import {
+  meterFill,
+  renderScreen,
+  resetHarness,
+  signedInAs,
+  styleOf,
+  teacher,
+} from '@/test/harness';
 
 import Register from './attendance';
 
@@ -242,10 +249,7 @@ describe('the shape of the class at a glance', () => {
         screen.getByLabelText('3 present, 0 late, 0 away'),
       ).toBeTruthy(),
     );
-    const bar = screen.getByRole('progressbar').children[0] as {
-      props: { style: { backgroundColor: string } };
-    };
-    expect(bar.props.style.backgroundColor).toBe(
+    expect(meterFill(screen).backgroundColor).toBe(
       defaultTheme.status.positive.solid,
     );
   });
@@ -263,10 +267,7 @@ describe('the shape of the class at a glance', () => {
 
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase absent'));
 
-    const bar = screen.getByRole('progressbar').children[0] as {
-      props: { style: { backgroundColor: string } };
-    };
-    expect(bar.props.style.backgroundColor).toBe(
+    expect(meterFill(screen).backgroundColor).toBe(
       defaultTheme.status.caution.solid,
     );
   });
@@ -279,10 +280,7 @@ describe('the shape of the class at a glance', () => {
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase absent'));
     await fireEvent.press(screen.getByLabelText('Mark Eric Uwase absent'));
 
-    const bar = screen.getByRole('progressbar').children[0] as {
-      props: { style: { backgroundColor: string } };
-    };
-    expect(bar.props.style.backgroundColor).toBe(
+    expect(meterFill(screen).backgroundColor).toBe(
       defaultTheme.status.critical.solid,
     );
   });
@@ -293,10 +291,7 @@ describe('the shape of the class at a glance', () => {
 
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase late'));
 
-    const bar = screen.getByRole('progressbar').children[0] as {
-      props: { style: { width: string } };
-    };
-    expect(bar.props.style.width).toBe('100%');
+    expect(meterFill(screen).width).toBe('100%');
   });
 });
 

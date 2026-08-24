@@ -191,3 +191,13 @@ export function renderApiHook<T>(hook: () => T) {
   );
   return { client, wrapper, run: () => renderHookWith(hook, { wrapper }) };
 }
+
+/** The first child of a rendered node, typed loosely enough to read a style. */
+export function firstChild(node: unknown) {
+  return (node as { children: { props: { style?: unknown } }[] }).children[0];
+}
+
+/** The filled part of a Meter, which is the only child of its track. */
+export function meterFill(screen: { getByRole: (role: string) => unknown }) {
+  return styleOf(firstChild(screen.getByRole('progressbar')));
+}

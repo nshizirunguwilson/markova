@@ -59,8 +59,10 @@ export default function Circulate() {
   const loans = useMemo<Loan[]>(() => (source.data as Loan[]) ?? [], [source.data]);
 
   const handleReturn = (loan: Loan) => {
+    // The mutation takes the loan id itself. Wrapping it posted
+    // { loanId: { loanId } }, which the API refuses, so no return recorded.
     returnBook.mutate(
-      { loanId: loan.id } as never,
+      loan.id,
       {
         onSuccess: () => toast.success(`${loan.book?.title ?? 'Book'} returned`),
         onError: () => toast.error('Could not record that return'),

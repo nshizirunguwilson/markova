@@ -2,7 +2,14 @@ import { fireEvent, waitFor } from '@testing-library/react-native';
 
 import { defaultTheme } from '@/design/theme';
 import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
-import { parent, renderScreen, resetHarness, signedInAs, styleOf } from '@/test/harness';
+import {
+  firstChild,
+  parent,
+  renderScreen,
+  resetHarness,
+  signedInAs,
+  styleOf,
+} from '@/test/harness';
 
 import Alerts from './alerts';
 
@@ -125,9 +132,7 @@ describe('what arrived', () => {
  */
 describe('marking what has been read', () => {
   const dotOf = (screen: Awaited<ReturnType<typeof renderScreen>>) =>
-    screen.getByText('Marks published').parent!.parent!.children[0] as {
-      props: { style: Record<string, string> };
-    };
+    firstChild(screen.getByText('Marks published').parent!.parent!);
 
   it('marks an unread alert with the school colour', async () => {
     waiting([alert()]);
