@@ -441,4 +441,96 @@ describe('MeritsService', () => {
       ).toBeInstanceOf(Date);
     });
   });
+
+  describe('the list of merits awarded', () => {
+    beforeEach(() => {
+      prisma.meritAward.findMany.mockResolvedValue([]);
+      prisma.meritAward.count.mockResolvedValue(0);
+    });
+
+    it('narrows by student, term, category and class', async () => {
+      await service.find({
+        studentId: 'student-1',
+        termId: 'term-1',
+        category: 'HONESTY' as never,
+        classSectionId: 'section-1',
+      });
+      expect(prisma.meritAward.findMany.mock.calls[0][0].where).toEqual({
+        studentId: 'student-1',
+        termId: 'term-1',
+        category: 'HONESTY',
+        student: { classSectionId: 'section-1' },
+      });
+    });
+
+    it('narrows to nothing at all when nothing was asked for', async () => {
+      await service.find({});
+      expect(prisma.meritAward.findMany.mock.calls[0][0].where).toEqual({});
+    });
+
+    // Recognition reads like a newsfeed: the most recent thing first.
+    it('reads the most recent first', async () => {
+      await service.find({});
+      expect(prisma.meritAward.findMany.mock.calls[0][0].orderBy).toEqual({
+        date: 'desc',
+      });
+    });
+
+    it('pages', async () => {
+      prisma.meritAward.count.mockResolvedValue(45);
+      const result = await service.find({ page: 3, limit: 20 });
+      expect(prisma.meritAward.findMany.mock.calls[0][0].skip).toBe(40);
+      expect(result.meta).toEqual({
+        total: 45,
+        page: 3,
+        limit: 20,
+        totalPages: 3,
+      });
+    });
+
+    it('takes twenty a page unless told otherwise', async () => {
+      await service.find({});
+      expect(prisma.meritAward.findMany.mock.calls[0][0].take).toBe(20);
+    });
+  });
+
+  describe('who has been recognised most', () => {
+    beforeEach(() => {
+      prisma.meritAward.count.mockResolvedValue(0);
+      prisma.disciplineIncident.count.mockResolvedValue(0);
+      prisma.meritAward.groupBy.mockResolvedValue([]);
+    });
+
+    it('names them with their count', async () => {
+      prisma.meritAward.groupBy
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ studentId: 'student-1', _count: { _all: 4 } }]);
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-2026-001',
+          user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+          classSection: { name: 'A' },
+        },
+      ]);
+
+      const result = await service.summary();
+      expect(result.mostRecognised).toEqual([
+        {
+          id: 'student-1',
+          studentIdNumber: 'STD-2026-001',
+          user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+          classSection: { name: 'A' },
+          merits: 4,
+        },
+      ]);
+    });
+
+    it('names nobody when nothing has been awarded', async () => {
+      prisma.student.findMany.mockResolvedValue([]);
+      const result = await service.summary();
+      expect(result.mostRecognised).toEqual([]);
+      expect(prisma.student.findMany).not.toHaveBeenCalled();
+    });
+  });
 });

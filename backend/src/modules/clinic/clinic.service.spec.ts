@@ -490,4 +490,110 @@ describe('ClinicService', () => {
       expect(sickBayCall[0].where.visitedAt).toBeUndefined();
     });
   });
+
+  describe('one visit in full', () => {
+    it('refuses one that does not exist', async () => {
+      prisma.clinicVisit.findUnique.mockResolvedValue(null);
+      await expect(service.findVisit('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    // The doses given during a visit read newest first, because the question
+    // at the bedside is what they had last, not what they had first.
+    it('brings the doses along, most recent first', async () => {
+      prisma.clinicVisit.findUnique.mockResolvedValue({ id: 'visit-1' });
+      await service.findVisit('visit-1');
+      expect(
+        prisma.clinicVisit.findUnique.mock.calls[0][0].include.medications
+          .orderBy,
+      ).toEqual({ givenAt: 'desc' });
+    });
+
+    it('names who gave each dose', async () => {
+      prisma.clinicVisit.findUnique.mockResolvedValue({ id: 'visit-1' });
+      await service.findVisit('visit-1');
+      expect(
+        prisma.clinicVisit.findUnique.mock.calls[0][0].include.medications
+          .include,
+      ).toHaveProperty('givenBy');
+    });
+  });
+
+  describe('one student’s doses', () => {
+    it('reads the most recent first', async () => {
+      prisma.medicationAdministration.findMany.mockResolvedValue([]);
+      await service.medicationFor('student-1');
+      expect(
+        prisma.medicationAdministration.findMany.mock.calls[0][0].orderBy,
+      ).toEqual({ givenAt: 'desc' });
+    });
+
+    it('reads fifty unless told otherwise', async () => {
+      prisma.medicationAdministration.findMany.mockResolvedValue([]);
+      await service.medicationFor('student-1');
+      expect(
+        prisma.medicationAdministration.findMany.mock.calls[0][0].take,
+      ).toBe(50);
+    });
+
+    it('reads only that student’s', async () => {
+      prisma.medicationAdministration.findMany.mockResolvedValue([]);
+      await service.medicationFor('student-1');
+      expect(
+        prisma.medicationAdministration.findMany.mock.calls[0][0].where,
+      ).toEqual({ studentId: 'student-1' });
+    });
+  });
+
+  describe('the clinic book, narrowed', () => {
+    beforeEach(() => {
+      prisma.clinicVisit.findMany.mockResolvedValue([]);
+      prisma.clinicVisit.count.mockResolvedValue(0);
+    });
+
+    it('narrows to one student', async () => {
+      await service.findVisits({ studentId: 'student-1' });
+      expect(prisma.clinicVisit.findMany.mock.calls[0][0].where.studentId).toBe(
+        'student-1',
+      );
+    });
+
+    it('narrows by how bad it was and how it ended', async () => {
+      await service.findVisits({
+        severity: 'SERIOUS' as never,
+        outcome: 'REFERRED_OUT' as never,
+      });
+      expect(prisma.clinicVisit.findMany.mock.calls[0][0].where).toMatchObject({
+        severity: 'SERIOUS',
+        outcome: 'REFERRED_OUT',
+      });
+    });
+
+    it('narrows to a date range', async () => {
+      await service.findVisits({ from: '2026-08-01', to: '2026-08-31' });
+      const where = prisma.clinicVisit.findMany.mock.calls[0][0].where;
+      expect(where.visitedAt.gte).toBeInstanceOf(Date);
+      expect(where.visitedAt.lte).toBeInstanceOf(Date);
+    });
+
+    // The sick bay filter is stricter than the outcome filter, and it has to
+    // win: somebody discharged yesterday is not in the sick bay now.
+    it('lets the sick bay filter override a looser outcome', async () => {
+      await service.findVisits({
+        outcome: 'RETURNED_TO_CLASS' as never,
+        inSickBay: 'true',
+      });
+      const where = prisma.clinicVisit.findMany.mock.calls[0][0].where;
+      expect(where.outcome).toBe('RESTING_IN_SICK_BAY');
+      expect(where.dischargedAt).toBeNull();
+    });
+
+    it('ignores the sick bay filter unless it says true', async () => {
+      await service.findVisits({ inSickBay: 'false' });
+      expect(
+        prisma.clinicVisit.findMany.mock.calls[0][0].where,
+      ).not.toHaveProperty('dischargedAt');
+    });
+  });
 });

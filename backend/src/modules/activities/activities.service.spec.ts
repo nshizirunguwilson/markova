@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ActivitiesService } from './activities.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Role } from '@prisma/client';
@@ -550,6 +554,117 @@ describe('ActivitiesService', () => {
       prisma.activity.findMany.mockResolvedValue([]);
       await service.upcoming(500);
       expect(prisma.activity.findMany.mock.calls[0][0].take).toBe(20);
+    });
+  });
+
+  describe('changing an activity', () => {
+    beforeEach(() => {
+      prisma.activity.findUnique.mockResolvedValue({
+        id: 'act-1',
+        startsAt: new Date('2026-09-10T07:00:00Z'),
+        endsAt: new Date('2026-09-10T18:00:00Z'),
+      });
+      prisma.activity.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.activity.findUnique.mockResolvedValue(null);
+      await expect(service.update('nope', {})).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    // An event that ends before it starts breaks every calendar reading it,
+    // and moving only one of the two dates is exactly how that happens.
+    it('refuses a new end that falls before the existing start', async () => {
+      await expect(
+        service.update('act-1', { endsAt: '2026-09-09T07:00:00.000Z' }),
+      ).rejects.toThrow(/cannot be before its start/i);
+      expect(prisma.activity.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a new start that falls after the existing end', async () => {
+      await expect(
+        service.update('act-1', { startsAt: '2026-09-11T07:00:00.000Z' }),
+      ).rejects.toThrow(/cannot be before its start/i);
+    });
+
+    it('accepts moving both together', async () => {
+      await expect(
+        service.update('act-1', {
+          startsAt: '2026-10-01T07:00:00.000Z',
+          endsAt: '2026-10-01T18:00:00.000Z',
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('changes only what was sent', async () => {
+      await service.update('act-1', { title: 'Renamed' });
+      expect(prisma.activity.update.mock.calls[0][0].data).toMatchObject({
+        title: 'Renamed',
+      });
+    });
+
+    it('accepts clearing the description', async () => {
+      await service.update('act-1', { description: '' });
+      expect(prisma.activity.update.mock.calls[0][0].data.description).toBe('');
+    });
+  });
+
+  describe('one activity with its list', () => {
+    it('refuses one that does not exist', async () => {
+      prisma.activity.findUnique.mockResolvedValue(null);
+      await expect(service.findById('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    // A register is read in the order people signed up, which is the order a
+    // teacher wrote them down in.
+    it('lists who signed up in the order they did', async () => {
+      prisma.activity.findUnique.mockResolvedValue({ id: 'act-1' });
+      await service.findById('act-1');
+      expect(
+        prisma.activity.findUnique.mock.calls[0][0].include.participants.orderBy,
+      ).toEqual({ createdAt: 'asc' });
+    });
+  });
+
+  /**
+   * Taking somebody off the list. Deleting by the pair rather than by a row
+   * id means a double click cannot fail on the second attempt.
+   */
+  describe('taking a student off the list', () => {
+    it('removes them by the activity and the student', async () => {
+      prisma.activityParticipant.deleteMany.mockResolvedValue({ count: 1 });
+      await expect(
+        service.removeParticipant('act-1', 'student-1'),
+      ).resolves.toEqual({ success: true });
+      expect(prisma.activityParticipant.deleteMany).toHaveBeenCalledWith({
+        where: { activityId: 'act-1', studentId: 'student-1' },
+      });
+    });
+
+    it('says the same when they were never on it', async () => {
+      prisma.activityParticipant.deleteMany.mockResolvedValue({ count: 0 });
+      await expect(
+        service.removeParticipant('act-1', 'student-9'),
+      ).resolves.toEqual({ success: true });
+    });
+  });
+
+  describe('an activity aimed at named classes', () => {
+    it('attaches the classes chosen', async () => {
+      await service.create(
+        {
+          ...base,
+          audience: 'CLASSES' as never,
+          classSectionIds: ['section-1', 'section-2'],
+        },
+        'user-1',
+      );
+      const data = prisma.activity.create.mock.calls[0][0].data;
+      expect(data.sections.create).toHaveLength(2);
     });
   });
 });
