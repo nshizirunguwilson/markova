@@ -1803,3 +1803,91 @@ describe("while a class is being generated", () => {
     );
   }, 30000);
 });
+
+/**
+ * Closing the pack dialog while it is still working.
+ *
+ * The dialog's own close is not the Stop button: it is Escape, or the cross.
+ * Pressing it mid-run has to stop the run rather than leaving thirty requests
+ * in flight behind a dialog nobody can see.
+ */
+describe("dismissing the pack dialog mid-run", () => {
+  async function packSlowly() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) {
+        await new Promise((r) => setTimeout(r, 400));
+        return { data: new Blob(["pdf"]), status: 200 };
+      }
+      return real(url, config);
+    });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    return waitFor(() => {
+      const stop = screen
+        .queryAllByRole("button")
+        .find((x) => /^stop$/i.test((x.textContent ?? "").trim()));
+      expect(stop).toBeTruthy();
+      return stop!;
+    });
+  }
+
+  it("stops the run rather than closing over it", async () => {
+    await packSlowly();
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    // The dialog stays open long enough to say what happened, and nothing is
+    // saved.
+    await waitFor(
+      () => expect(document.body.textContent).toMatch(/nothing was downloaded/i),
+      { timeout: 15000 },
+    );
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+
+  it("closes normally once the run has stopped", async () => {
+    const stop = await packSlowly();
+    await act(async () => {
+      fireEvent.click(stop);
+    });
+    await waitFor(
+      () => expect(document.body.textContent).toMatch(/nothing was downloaded/i),
+      { timeout: 15000 },
+    );
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, 40000);
+});
