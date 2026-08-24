@@ -1,3 +1,6 @@
+// The decorators on every DTO are read through Reflect. Nest's own
+// bootstrap loads this; a spec that imports a DTO directly has to.
+import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 

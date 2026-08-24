@@ -214,8 +214,8 @@ describe('promotion', () => {
       academicYearId: 'year-1',
       toClassSectionId: 'section-2',
       decisions: [
-        { studentId: 's-1', decision: 'PROMOTE' as const },
-        { studentId: 's-2', decision: 'RETAIN' as const },
+        { studentId: 's-1', decision: 'PROMOTE' as never },
+        { studentId: 's-2', decision: 'RETAIN' as never },
       ],
     };
 
@@ -264,7 +264,7 @@ describe('promotion', () => {
       ]);
       await service.commitPromotion({
         ...commit,
-        decisions: [{ studentId: 's-1', decision: 'PROMOTE' }],
+        decisions: [{ studentId: 's-1', decision: 'PROMOTE' as never }],
       });
       expect(prisma.student.update).toHaveBeenCalled();
       expect(prisma.yearResult.update).not.toHaveBeenCalled();

@@ -228,8 +228,16 @@ describe('AttendanceService', () => {
    * scanned" rather than writing a second row.
    */
   describe.each([
-    ['a QR code', 'processQrScan', { qrData: 'STD-2026-001', classSectionId: 'section-1' }, 'findFirst'],
-    ['a card', 'processNfcScan', { nfcCardId: '1111 2222 3333', classSectionId: 'section-1' }, 'findFirst'],
+    [
+      'a QR code',
+      'processQrScan',
+      { qrData: 'STD-2026-001', classSectionId: 'section-1' } as Record<string, string>,
+    ],
+    [
+      'a card',
+      'processNfcScan',
+      { nfcCardId: '1111 2222 3333', classSectionId: 'section-1' } as Record<string, string>,
+    ],
   ])('scanning %s', (_name, method, dto) => {
     beforeEach(() => prisma.student.findFirst.mockResolvedValue(student));
 

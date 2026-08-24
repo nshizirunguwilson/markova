@@ -1,3 +1,6 @@
+// The decorators on every DTO are read through Reflect. Nest's own
+// bootstrap loads this; a spec that imports a DTO directly has to.
+import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
@@ -29,7 +32,7 @@ import { CreateHomeworkDto } from '../../modules/homework/dto';
 const errorsOn = (cls: any, value: unknown): string[] => {
   const instance = plainToInstance(cls, value, {
     enableImplicitConversion: true,
-  });
+  }) as object;
   return validateSync(instance, {
     whitelist: true,
     forbidNonWhitelisted: true,
@@ -344,11 +347,25 @@ describe('the smaller declarations', () => {
     );
   });
 
-  it('needs a title and a count of copies for a book', () => {
+  // A catalogue entry with no author is a book nobody can find on a shelf.
+  it('needs a title, an author and a count of copies for a book', () => {
     expect(
-      accepts(CreateBookDto, { title: 'Things Fall Apart', quantity: 5 }),
+      accepts(CreateBookDto, {
+        title: 'Things Fall Apart',
+        author: 'Chinua Achebe',
+        quantity: 5,
+      }),
     ).toBe(true);
-    expect(errorsOn(CreateBookDto, { quantity: 5 })).toContain('title');
+    expect(errorsOn(CreateBookDto, { quantity: 5 })).toEqual(
+      expect.arrayContaining(['title', 'author']),
+    );
+    expect(
+      errorsOn(CreateBookDto, {
+        title: 'Things Fall Apart',
+        author: 'Chinua Achebe',
+        quantity: 0,
+      }),
+    ).toContain('quantity');
   });
 
   it('needs a due date on a piece of work', () => {

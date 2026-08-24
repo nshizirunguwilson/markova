@@ -4,9 +4,9 @@ import { NotificationsService } from './notifications.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 
 const sendMail = jest.fn();
-const createTransport = jest.fn(() => ({ sendMail }));
+const createTransport = jest.fn((..._args: unknown[]) => ({ sendMail }));
 jest.mock('nodemailer', () => ({
-  createTransport: (...args: unknown[]) => createTransport(...(args as [])),
+  createTransport: (...args: unknown[]) => createTransport(...args),
 }));
 
 const twilioCreate = jest.fn();

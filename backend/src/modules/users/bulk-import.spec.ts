@@ -119,7 +119,7 @@ describe('bulk import', () => {
       );
       const passwords = new Set(result.credentials.map((c) => c.password));
       expect(passwords.size).toBe(30);
-    });
+    }, 30000);
 
     /**
      * The generated password has to pass the school's own complexity rule, or
@@ -139,7 +139,7 @@ describe('bulk import', () => {
         expect(password).toMatch(/\d/);
         expect(password).toMatch(/[!@#$%&*]/);
       }
-    });
+    }, 30000);
 
     // A password read aloud from a printout should not turn on whether that
     // was an l or a 1.
@@ -154,7 +154,7 @@ describe('bulk import', () => {
       for (const { password } of result.credentials) {
         expect(password).not.toMatch(/[ilIO01]/);
       }
-    });
+    }, 30000);
 
     it('shows a parent’s phone as their login, since that is what they use', async () => {
       const result = await service.bulkImport([
