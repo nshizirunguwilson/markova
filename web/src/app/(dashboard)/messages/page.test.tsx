@@ -1679,3 +1679,80 @@ describe("renaming a group that has no name yet", () => {
     expect(document.body.textContent).not.toMatch(/undefined/);
   });
 });
+
+/**
+ * The typing indicator timing out, and a file the server named nothing.
+ *
+ * The indicator is switched off five seconds after the last keystroke, or the
+ * other side is told somebody is typing for the rest of the day. The nameless
+ * file is the other half: an upload that answers without a filename must not
+ * become a message reading "undefined".
+ */
+describe("the typing indicator timing out", () => {
+  it("tells the other side you stopped", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, routes);
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await user.click(screen.getByText(/Aline/));
+    const box = await screen.findByPlaceholderText(/type a message/i);
+    await user.type(box, "Mu");
+
+    h.chat.stopTyping.mockClear();
+    await act(async () => {
+      vi.advanceTimersByTime(6000);
+    });
+
+    expect(h.chat.stopTyping).toHaveBeenCalledWith("conv-1");
+    vi.useRealTimers();
+  }, 20000);
+});
+
+describe("a file the upload named nothing", () => {
+  it("sends it without inventing a name", async () => {
+    serve(h.api, {
+      ...routes,
+      // The upload succeeded but carries no filename back.
+      "/messaging/attachments": { fileUrl: "/uploads/messaging/x" },
+    });
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    await user.upload(picker, new File(["x"], "x.pdf", { type: "application/pdf" }));
+
+    // The chip appears with nothing written on it, which is the whole point:
+    // there is no name to write.
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/attachments",
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+
+    h.api.post.mockClear();
+    const send = screen
+      .queryAllByRole("button")
+      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
+    await user.click(send);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/messages"),
+      );
+      expect(call).toBeTruthy();
+      // Empty, not the word "undefined".
+      expect((call![1] as any).content).toBe("");
+    });
+  });
+});
