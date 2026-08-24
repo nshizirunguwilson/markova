@@ -548,3 +548,214 @@ describe('UsersService', () => {
     });
   });
 });
+
+/**
+ * The whole Rwandan school record, written in one go.
+ *
+ * A student's row carries the SDMS fields a school is inspected on: province
+ * down to village, both parents' names, insurance, boarding, religion,
+ * disability. The update method spreads each one only when it was sent, and a
+ * test that sends one field at a time proves nothing about the other twenty.
+ * This sends the lot, and then sends none.
+ */
+describe('updating every field a student record carries', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const everything = {
+    email: 'k.uwimana@markova.edu',
+    phone: '+250788100000',
+    firstName: 'Keza',
+    lastName: 'Uwimana',
+    isActive: true,
+    nationalId: '1201382901978078',
+    nationality: 'Rwandan',
+    classSectionId: 'section-1',
+    dateOfBirth: '2012-04-11',
+    gender: 'FEMALE' as const,
+    status: 'ACTIVE' as const,
+    bloodType: 'A-',
+    allergies: 'Penicillin',
+    medicalConditions: 'Asthma',
+    previousSchool: 'GS Kacyiru',
+    enrollmentDate: '2026-01-15',
+    province: 'Kigali City',
+    district: 'Kicukiro',
+    sector: 'Kanombe',
+    cell: 'Amajyambere',
+    village: 'Karisimbi',
+    disability: 'None',
+    fatherName: 'Jonas Ndagijimana',
+    motherName: 'Seraphine Mukamazimpaka',
+    insuranceNumber: '1234994661',
+    isBoarder: true,
+    religion: 'Protestant',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', student: { id: 'student-1' }, teacher: null }
+          : null,
+      ),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.student.update.mockResolvedValue({});
+  });
+
+  it('writes every field it was given', async () => {
+    await service.update('user-1', everything as never);
+
+    const written = prisma.student.update.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      classSectionId: 'section-1',
+      gender: 'FEMALE',
+      status: 'ACTIVE',
+      bloodType: 'A-',
+      allergies: 'Penicillin',
+      medicalConditions: 'Asthma',
+      previousSchool: 'GS Kacyiru',
+      province: 'Kigali City',
+      district: 'Kicukiro',
+      sector: 'Kanombe',
+      cell: 'Amajyambere',
+      village: 'Karisimbi',
+      disability: 'None',
+      fatherName: 'Jonas Ndagijimana',
+      motherName: 'Seraphine Mukamazimpaka',
+      insuranceNumber: '1234994661',
+      isBoarder: true,
+      religion: 'Protestant',
+    });
+  });
+
+  it('turns the two dates into dates', async () => {
+    await service.update('user-1', everything as never);
+
+    const written = prisma.student.update.mock.calls[0][0].data;
+    expect(written.dateOfBirth).toBeInstanceOf(Date);
+    expect(written.enrollmentDate).toBeInstanceOf(Date);
+  });
+
+  it('writes the account fields onto the account, not the student', async () => {
+    await service.update('user-1', everything as never);
+
+    expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
+      email: 'k.uwimana@markova.edu',
+      phone: '+250788100000',
+      firstName: 'Keza',
+      lastName: 'Uwimana',
+      isActive: true,
+      nationalId: '1201382901978078',
+      nationality: 'Rwandan',
+    });
+  });
+
+  // A student's gender and birthday live on the student row, not on the
+  // account, or the two copies drift apart.
+  it('keeps gender and birthday off a student account row', async () => {
+    await service.update('user-1', everything as never);
+
+    const account = prisma.user.update.mock.calls[0][0].data;
+    expect(account.gender).toBeUndefined();
+    expect(account.dateOfBirth).toBeUndefined();
+  });
+
+  it('writes them onto the account of somebody who is not a student', async () => {
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-2', student: null, teacher: { id: 'teacher-1' } }
+          : null,
+      ),
+    );
+    prisma.teacher.update.mockResolvedValue({});
+
+    await service.update('user-2', {
+      gender: 'FEMALE',
+      dateOfBirth: '1990-02-02',
+    } as never);
+
+    const account = prisma.user.update.mock.calls[0][0].data;
+    expect(account.gender).toBe('FEMALE');
+    expect(account.dateOfBirth).toBeInstanceOf(Date);
+  });
+
+  it('writes nothing at all when nothing was sent', async () => {
+    await service.update('user-1', {} as never);
+
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual({});
+    expect(prisma.student.update.mock.calls[0][0].data).toEqual({});
+  });
+
+  // Clearing a field is not the same as leaving it alone: an empty string has
+  // to reach the database, or a wrong allergy can never be removed.
+  it('clears a field that was sent empty', async () => {
+    await service.update('user-1', {
+      allergies: '',
+      bloodType: '',
+      motherName: '',
+    } as never);
+
+    expect(prisma.student.update.mock.calls[0][0].data).toEqual({
+      allergies: '',
+      bloodType: '',
+      motherName: '',
+    });
+  });
+});
+
+describe('updating every field a teacher record carries', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', student: null, teacher: { id: 'teacher-1' } }
+          : null,
+      ),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.teacher.update.mockResolvedValue({});
+  });
+
+  it('writes the employment details', async () => {
+    await service.update('user-1', {
+      employmentStatus: 'FULL_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+      hireDate: '2019-01-14',
+    } as never);
+
+    const written = prisma.teacher.update.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      employmentStatus: 'FULL_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+    });
+    expect(written.hireDate).toBeInstanceOf(Date);
+  });
+
+  it('clears an RSSB number that was sent empty', async () => {
+    await service.update('user-1', { rssbNumber: '' } as never);
+
+    expect(prisma.teacher.update.mock.calls[0][0].data).toEqual({
+      rssbNumber: '',
+    });
+  });
+
+  it('leaves the teacher row alone when nothing about it changed', async () => {
+    await service.update('user-1', { firstName: 'Aline' } as never);
+
+    expect(prisma.teacher.update).not.toHaveBeenCalled();
+  });
+});
