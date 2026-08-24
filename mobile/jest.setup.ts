@@ -86,6 +86,25 @@ jest.mock('expo-notifications', () => ({
 
 jest.mock('expo-device', () => ({ isDevice: true }));
 
+// The camera is hardware. What a test cares about is the permission state and
+// the code a scan produced, so the view is a plain View that hands its
+// callback back through a label.
+jest.mock('expo-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CameraView: (props: Record<string, unknown>) =>
+      React.createElement(View, {
+        ...props,
+        accessibilityLabel: 'Camera',
+      }),
+    useCameraPermissions: jest.fn(() => [
+      { granted: true, canAskAgain: true, status: 'granted' },
+      jest.fn(() => Promise.resolve({ granted: true })),
+    ]),
+  };
+});
+
 jest.mock('sonner-native', () => ({
   toast: {
     success: jest.fn(),

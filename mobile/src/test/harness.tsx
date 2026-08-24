@@ -2,13 +2,14 @@ import { type ReactElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
+  act,
   render,
   renderHook as renderHookWith,
   type RenderResult,
 } from '@testing-library/react-native';
 
 import { useAuthStore, type User } from '@/stores/auth-store';
-import { resetApi } from './api-mock';
+import { apiIsQuiet, resetApi } from './api-mock';
 import { resetRouter } from './router-mock';
 
 /**
@@ -115,23 +116,32 @@ export function resetHarness() {
   resetRouter();
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  return (
-    <SafeAreaProvider
-      initialMetrics={{
-        frame: { x: 0, y: 0, width: 390, height: 844 },
-        insets: { top: 47, left: 0, right: 0, bottom: 34 },
-      }}
-    >
-      <QueryClientProvider client={testQueryClient()}>
-        {children}
-      </QueryClientProvider>
+const metrics = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+};
+
+/**
+ * Data a screen reads but never draws — a lookup table, a list it only
+ * searches — leaves a test nothing to wait for on screen. Seeding it makes
+ * the screen's own behaviour the only thing under test.
+ */
+export type Seed = [queryKey: unknown[], data: unknown][];
+
+export function renderScreen(
+  ui: ReactElement,
+  { seed }: { seed?: Seed } = {},
+): Promise<RenderResult> {
+  const client = testQueryClient();
+  for (const [key, data] of seed ?? []) client.setQueryData(key, data);
+
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <SafeAreaProvider initialMetrics={metrics}>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
     </SafeAreaProvider>
   );
-}
 
-export function renderScreen(ui: ReactElement): Promise<RenderResult> {
-  return render(ui, { wrapper: Providers });
+  return render(ui, { wrapper });
 }
 
 /**
@@ -200,4 +210,21 @@ export function firstChild(node: unknown) {
 /** The filled part of a Meter, which is the only child of its track. */
 export function meterFill(screen: { getByRole: (role: string) => unknown }) {
   return styleOf(firstChild(screen.getByRole('progressbar')));
+}
+
+/**
+ * Lets every settled promise land.
+ *
+ * A screen that reads something it never shows — a lookup table, a list it
+ * only searches — gives a test nothing to wait for on screen. This waits for
+ * the queries themselves instead.
+ */
+export async function settle() {
+  await act(async () => {
+    // Wait for the API itself to go quiet, then for the renders its answers
+    // set off. A macrotask lets every microtask already queued run first.
+    await apiIsQuiet();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+  });
 }
