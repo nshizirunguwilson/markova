@@ -26,6 +26,44 @@ const field = (props: Record<string, unknown> = {}) => (
 );
 
 describe('a field', () => {
+  /**
+   * The label is drawn above the box rather than inside it, which is what
+   * keeps it readable while somebody is typing. That leaves the input itself
+   * with no name unless it is given one, and an unnamed field announces
+   * nothing at all to a screen reader.
+   */
+  it('carries its label for a screen reader as well as on screen', async () => {
+    const screen = await renderScreen(field());
+
+    expect(screen.getByLabelText('Email')).toBeTruthy();
+  });
+
+  it('announces the hint alongside it', async () => {
+    const screen = await renderScreen(field({ hint: 'We will send a code' }));
+
+    expect(
+      screen.getByLabelText('Email').props.accessibilityHint,
+    ).toBe('We will send a code');
+  });
+
+  it('announces the error instead once there is one', async () => {
+    const screen = await renderScreen(
+      field({ hint: 'A hint', error: 'That address is not valid' }),
+    );
+
+    expect(screen.getByLabelText('Email').props.accessibilityHint).toBe(
+      'That address is not valid',
+    );
+  });
+
+  it('lets a caller name it something else', async () => {
+    const screen = await renderScreen(
+      field({ accessibilityLabel: 'Your school email' }),
+    );
+
+    expect(screen.getByLabelText('Your school email')).toBeTruthy();
+  });
+
   it('keeps its label above the box where it stays readable', async () => {
     const screen = await renderScreen(field());
 

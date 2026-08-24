@@ -95,6 +95,11 @@ export function Field({
       >
         <TextInput
           {...rest}
+          // The label is drawn above the box rather than inside it, so without
+          // this a screen reader lands on an unnamed field and announces
+          // nothing at all. The error, when there is one, is announced with it.
+          accessibilityLabel={rest.accessibilityLabel ?? label}
+          accessibilityHint={rest.accessibilityHint ?? error ?? hint}
           secureTextEntry={isSecret && !revealed}
           onFocus={(e) => {
             setFocused(true);
