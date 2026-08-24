@@ -1254,19 +1254,102 @@ describe("threads with pieces missing", () => {
   });
 });
 
-describe("the new conversation picker with nobody left to pick", () => {
-  it("says so when every contact is already chosen", async () => {
-    serve(h.api, { ...routes, "/messaging/contacts": { data: [] } });
-    renderPage(MessagesPage, { role: "ADMIN" });
+describe("choosing who a new conversation is with", () => {
+  async function openPicker(over: Record<string, unknown> = {}) {
+    serve(h.api, { ...routes, ...over });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
     const user = userEvent.setup();
-    const plus = screen
-      .queryAllByRole("button")
-      .find((b) => /new|plus/i.test(b.getAttribute("aria-label") ?? ""));
-    if (!plus) return;
-    await user.click(plus);
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("dialog");
+    return user;
+  }
 
-    await waitFor(() => expect(document.body.textContent).toMatch(/no |none/i));
+  it("shows nobody until a name is typed", async () => {
+    await openPicker();
+    // The thread list behind the dialog still names Aline, so this asks the
+    // dialog itself.
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByText(/Aline Uwase/)).toBeNull();
+  });
+
+  it("says so when the search matches nobody", async () => {
+    const user = await openPicker({ "/messaging/contacts": { data: [] } });
+    await user.type(screen.getByLabelText("Search users by name..."), "zzz");
+
+    expect(await screen.findByText("No users found")).toBeInTheDocument();
+  });
+
+  it("lists the people it found and puts one in the chip row", async () => {
+    const user = await openPicker();
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const row = await screen.findByRole("dialog");
+    const candidate = within(row)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    // Chosen people move into a chip row above the search box.
+    await waitFor(() =>
+      expect(within(row).getAllByText(/Aline Uwase/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drops a person back out of the chip row", async () => {
+    const user = await openPicker();
+    const dialog = screen.getByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const candidate = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    const chipClose = await waitFor(() => {
+      const found = within(dialog)
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "\u00d7");
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(chipClose);
+
+    await waitFor(() =>
+      expect(
+        within(dialog)
+          .queryAllByRole("button")
+          .some((b) => (b.textContent ?? "").trim() === "\u00d7"),
+      ).toBe(false),
+    );
+  });
+
+  it("sends nothing when Create is pressed with nobody chosen", async () => {
+    const user = await openPicker();
+    const dialog = screen.getByRole("dialog");
+    h.api.post.mockClear();
+
+    const create = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /create|start/i.test((b.textContent ?? "").trim()));
+    if (!create) return;
+    await user.click(create);
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/conversations"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("an inbox with no threads in it at all", () => {
+  it("says so rather than showing an empty column", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(await screen.findByText("No conversations yet")).toBeInTheDocument();
   });
 });
