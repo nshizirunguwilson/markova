@@ -480,3 +480,69 @@ describe("an incident recorded without the details", () => {
     expect(document.body.textContent).toMatch(/Assembly ground/);
   });
 });
+
+/**
+ * A parent record the API answered short on.
+ *
+ * A parent account still resolving, a child with no class yet, and a record
+ * that came back with no incidents list at all. None may leave the page blank
+ * for someone who opened it because the school rang them.
+ */
+describe("a parent record with pieces missing", () => {
+  it("asks for nothing before the account has an id", async () => {
+    serve(h.api, routes);
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "", studentId: "student-1" },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/users/")),
+    ).toBe(false);
+  });
+
+  it("leaves the class blank for a child not placed yet", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users/user-1": {
+        id: "user-1",
+        role: "PARENT",
+        parentStudents: [
+          {
+            student: {
+              id: "student-1",
+              user: { firstName: "Keza", lastName: "Uwimana" },
+              classSection: null,
+            },
+          },
+        ],
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined|null/);
+  });
+
+  it("survives a record with no incidents list at all", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/student": {
+        student: { currentPoints: 100, startingPoints: 100, percentage: 100 },
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});
