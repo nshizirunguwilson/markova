@@ -1544,3 +1544,114 @@ describe("the national ID as it is typed", () => {
     expect(screen.queryByText(/16 digits/i)).toBeNull();
   }, 30000);
 });
+
+/**
+ * Adding the same child twice.
+ *
+ * A search that runs again while a child is already on the list offers them
+ * again, and tapping them a second time would send two links for one
+ * relationship. The wizard has to ignore the second tap.
+ */
+describe("a child who is already on the list", () => {
+  const keza = {
+    id: "u-20",
+    firstName: "Keza",
+    lastName: "Mutesi",
+    student: {
+      id: "student-2",
+      studentIdNumber: "STD-2026-002",
+      classSection: { name: "A", classLevel: { name: "Senior 1" } },
+    },
+  };
+
+  async function reachChildSearch(answer: unknown) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.get.mockImplementation((url: string, config?: any) => {
+      if (url === "/users" && config?.params?.role === "STUDENT") {
+        return Promise.resolve({ data: answer });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("PARENT");
+
+    // The account step has to be filled before Next will move on.
+    await act(async () => {
+      for (const field of Array.from(
+        document.querySelectorAll<HTMLInputElement>('input:not([type="file"])'),
+      )) {
+        if (field.disabled || field.readOnly) continue;
+        const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+        let value = "Mukamana";
+        if (name.includes("email")) value = "jean.mukamana@markova.edu";
+        else if (name.includes("phone")) value = "+250788100000";
+        else if (name.includes("password")) value = "Umubyeyi2026!";
+        else if (name.includes("nationalid")) value = "";
+        fireEvent.change(field, { target: { value } });
+      }
+    });
+
+    const next = screen
+      .queryAllByRole("button")
+      .find((b) => /^(next|continue)/i.test((b.textContent ?? "").trim()));
+    if (next) {
+      await act(async () => {
+        fireEvent.click(next);
+      });
+    }
+    const box = await waitFor(() => {
+      const found = screen.queryByPlaceholderText(/keza or std/i);
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    return { act, fireEvent, box };
+  }
+
+  it("is added only once, however many times they are tapped", async () => {
+    const { act, fireEvent, box } = await reachChildSearch({
+      data: [keza],
+      meta: { total: 1 },
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Keza Mutesi" } });
+      });
+      const result = await waitFor(
+        () => {
+          const found = screen
+            .queryAllByRole("button")
+            .find((b) => /Keza Mutesi/.test(b.textContent ?? ""));
+          expect(found).toBeTruthy();
+          return found!;
+        },
+        { timeout: 3000 },
+      );
+      await act(async () => {
+        fireEvent.click(result);
+      });
+    }
+
+    // One chip, one Remove control: the second tap changed nothing.
+    expect(
+      screen.queryAllByRole("button", { name: /remove keza mutesi/i }),
+    ).toHaveLength(1);
+  }, 40000);
+
+  it("shows nobody when the search answers with no list at all", async () => {
+    const { act, fireEvent, box } = await reachChildSearch({});
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "Keza" } });
+    });
+    await new Promise((r) => setTimeout(r, 500));
+
+    // An envelope with no rows: an empty panel, not a crash.
+    expect(screen.queryByText("Keza Mutesi")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  }, 30000);
+});
