@@ -28,7 +28,11 @@ export default function ChildMarks() {
   const [termId, setTermId] = useState<string>('');
   const active = termId || current?.id || '';
 
-  const { data: result, isPending } = useStudentTermResult(studentId, active);
+  // A query waiting on a term it has not been given is pending forever, so
+  // reading isPending alone leaves a school with no year set staring at a
+  // skeleton that never resolves.
+  const { data: result, isPending, fetchStatus } = useStudentTermResult(studentId, active);
+  const loading = isPending && fetchStatus !== 'idle';
 
   const r: any = result ?? {};
   const published = Boolean(r.isPublished);
@@ -48,7 +52,7 @@ export default function ChildMarks() {
           </View>
         ) : null}
 
-        {isPending ? (
+        {loading ? (
           <LoadingRows count={6} />
         ) : !published ? (
           <Empty
