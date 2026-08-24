@@ -394,3 +394,33 @@ describe("searching the staff list from the keyboard", () => {
     expect(h.api.get).not.toHaveBeenCalled();
   });
 });
+
+
+describe("pressing Enter with nothing typed", () => {
+  it("drops the search rather than sending an empty one", async () => {
+    serve(h.api, routes);
+    renderPage(TeachersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const box = screen.getByPlaceholderText(/search/i);
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "uwase" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+
+    await waitFor(() => {
+      const last = [...h.api.get.mock.calls]
+        .reverse()
+        .find(([u]: any[]) => String(u).startsWith("/users?"));
+      expect(String(last![0])).not.toMatch(/search=/);
+    });
+  });
+});

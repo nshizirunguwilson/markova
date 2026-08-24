@@ -412,6 +412,19 @@ describe("Modal keyboard handling", () => {
     expect(document.activeElement).toBe(focusable[focusable.length - 1]);
   });
 
+  it("leaves Shift+Tab alone in the middle of the cycle", async () => {
+    render(withThreeButtons());
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+    focusable[2].focus();
+
+    await userEvent.setup().keyboard("{Shift>}{Tab}{/Shift}");
+
+    // Only the first control wraps backwards; the rest are the browser's job.
+    expect(document.activeElement).not.toBe(focusable[focusable.length - 1]);
+  });
+
   it("leaves Tab alone in the middle of the cycle", async () => {
     render(withThreeButtons());
     const dialog = screen.getByRole("dialog");
