@@ -176,7 +176,7 @@ export default function TeacherHomeworkPage() {
                 <TableBody>
                   {viewingHw.submissions.map((sub: any) => (
                     <TableRow key={sub.id}>
-                      <TableCell>{sub.student.user.firstName} {sub.student.user.lastName}</TableCell>
+                      <TableCell>{sub.student?.user?.firstName} {sub.student?.user?.lastName}</TableCell>
                       <TableCell className="text-sm">{new Date(sub.submittedAt).toLocaleDateString()}</TableCell>
                       <TableCell>{sub.isLate ? <Badge variant="warning">Late</Badge> : <Badge variant="success">On time</Badge>}</TableCell>
                       <TableCell>
@@ -233,7 +233,7 @@ export default function TeacherHomeworkPage() {
               <option value="">Select...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {classDisplayName(a.classSection)} — {a.subject.name}
+                  {classDisplayName(a.classSection)} — {a.subject?.name ?? "Subject"}
                 </option>
               ))}
             </select>

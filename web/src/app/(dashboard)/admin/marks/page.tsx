@@ -66,7 +66,7 @@ export default function AdminMarksPage() {
     const headers = ["Rank", "Name", "Average", "Grade", "Published"];
     const rows = results.map((r: any) => [
       r.rank || "",
-      `${r.student.user.firstName} ${r.student.user.lastName}`,
+      `${r.student?.user?.firstName ?? ""} ${r.student?.user?.lastName ?? ""}`.trim(),
       r.average?.toFixed(1) || "",
       r.letterGrade || "",
       r.isPublished ? "Yes" : "No",

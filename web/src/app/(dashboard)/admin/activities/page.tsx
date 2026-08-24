@@ -591,7 +591,7 @@ function ActivityDetail({
                     {participants.map((p: any) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-sm">
-                          {p.student.user.firstName} {p.student.user.lastName}
+                          {p.student?.user?.firstName} {p.student?.user?.lastName}
                           <div className="font-mono text-xs text-muted">
                             {p.student.studentIdNumber}
                           </div>
@@ -619,7 +619,7 @@ function ActivityDetail({
                           <TableCell>
                             <input
                               type="checkbox"
-                              aria-label={`${p.student.user.firstName} came`}
+                              aria-label={`${p.student?.user?.firstName} came`}
                               checked={p.attended === true}
                               onChange={(e) =>
                                 attendance.mutate({
@@ -639,7 +639,7 @@ function ActivityDetail({
                           <Button
                             size="sm"
                             variant="ghost"
-                            aria-label={`Remove ${p.student.user.firstName}`}
+                            aria-label={`Remove ${p.student?.user?.firstName}`}
                             onClick={() =>
                               removeOne.mutate({
                                 activityId: id,

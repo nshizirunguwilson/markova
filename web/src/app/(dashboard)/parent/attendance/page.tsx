@@ -28,7 +28,7 @@ export default function ParentAttendancePage() {
         const links = res.data?.parentStudents || [];
         const mapped = links.map((ps: any) => ({
           id: ps.student.id,
-          name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
+          name: `${ps.student?.user?.firstName} ${ps.student?.user?.lastName}`,
           className: ps.student.classSection
             ? classDisplayName(ps.student.classSection)
             : "",

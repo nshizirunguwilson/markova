@@ -67,7 +67,7 @@ beforeEach(() => {
   });
 });
 
-async function mount(withResults = unpublished) {
+async function mount(withResults: unknown[] = unpublished) {
   serve(h.api, { ...routes, "/marks/term-results/class": withResults });
   renderPage(MarksPage, { role: "ADMIN" });
   await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
@@ -397,7 +397,7 @@ describe("results across every band", () => {
   ];
 
   const rowFor = (id: string) => {
-    const cells = Array.from(document.querySelectorAll("tbody tr"));
+    const cells = Array.from(document.querySelectorAll<HTMLElement>("tbody tr"));
     return cells[banded.findIndex((b) => b.id === id)];
   };
 

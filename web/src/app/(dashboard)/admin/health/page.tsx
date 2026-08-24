@@ -74,7 +74,7 @@ function when(iso: string): string {
 }
 
 function nameOf(v: ClinicVisit): string {
-  return `${v.student.user.firstName} ${v.student.user.lastName}`;
+  return `${v.student?.user?.firstName ?? ""} ${v.student?.user?.lastName ?? ""}`.trim();
 }
 
 /**
