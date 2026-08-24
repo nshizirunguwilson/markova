@@ -200,6 +200,10 @@ function MarkHomework({ onSwitchToSet }: { onSwitchToSet: () => void }) {
                           <View style={{ width: 92 }}>
                             <Field
                               label=""
+                              // The label is deliberately blank on screen, so
+                              // without this a screen reader lands on an
+                              // unnamed box in a list of thirty identical ones.
+                              accessibilityLabel={`Mark for ${name || 'student'}`}
                               value={marks[key] ?? (sub.marks != null ? String(sub.marks) : '')}
                               onChangeText={(v) => setMarks((prev) => ({ ...prev, [key]: v.replace(/[^\d.]/g, '') }))}
                               keyboardType="numeric"
