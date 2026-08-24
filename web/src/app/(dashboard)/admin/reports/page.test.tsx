@@ -1495,3 +1495,109 @@ describe("a document that comes back as plain html", () => {
     expect(screen.getByTitle("Document preview")).toBeInTheDocument();
   });
 });
+
+/**
+ * A bulk run where nothing at all could be fetched.
+ *
+ * Every student failed, the retry failed too, and there is nothing to zip.
+ * That is the state a school hits when the API is down half way through, and
+ * the dialog has to say so rather than quietly producing an empty archive.
+ */
+describe("a bulk run that fetched nothing", () => {
+  async function generateOne() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  /** Starts the pack, with every PDF fetch refused. */
+  async function packWithEveryFetchFailing() {
+    await generateOne();
+    h.api.get.mockImplementation(async (url: string) => {
+      if (String(url).includes("/pdf")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return { data: [] };
+    });
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+  }
+
+  it("offers to retry rather than saving an empty archive", async () => {
+    await packWithEveryFetchFailing();
+
+    await waitFor(
+      () => expect(screen.getByText(/could not be fetched/i)).toBeInTheDocument(),
+      { timeout: 20000 },
+    );
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+
+  it("says which kind of failure it was", async () => {
+    await packWithEveryFetchFailing();
+    await waitFor(
+      () => expect(screen.getByText(/could not be fetched/i)).toBeInTheDocument(),
+      { timeout: 20000 },
+    );
+
+    expect(screen.getByText(/Server error 500/)).toBeInTheDocument();
+  }, 40000);
+});
+
+describe("the document generator with nothing chosen", () => {
+  it("refuses and says which fields are missing", async () => {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(tab);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+
+    // The button is refused, so nothing can be sent by mistake.
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()))!;
+    expect(generate).toBeDisabled();
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(generate);
+    });
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/reports/document"),
+      ),
+    ).toBeUndefined();
+  });
+});
