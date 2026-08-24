@@ -43,7 +43,7 @@ vi.mock("@/components/ui/echart", () => ({
 
 import { renderPage, serve, serveAll, serveFailure, serveNever, waitFor } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
-import { edgeRoutes, populatedRoutes, strainedRoutes, thinRoutes } from "@/test/fixtures";
+import { blankRoutes, edgeRoutes, populatedRoutes, strainedRoutes, thinRoutes } from "@/test/fixtures";
 import type { User } from "@/stores/auth-store";
 
 import AdminAnalytics from "@/app/(dashboard)/admin/analytics/page";
@@ -289,6 +289,34 @@ describe("every dashboard page draws a school that is struggling", () => {
 describe("every dashboard page survives being used while things go badly", () => {
   it.each(pages)("$name handles its controls under strain", async ({ role, Page }) => {
     serve(h.api, strainedRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const { rejections } = await exercisePage();
+    expect(rejections).toEqual([]);
+  }, 30000);
+});
+
+/**
+ * The same pages for records that were only half filled in.
+ *
+ * Every optional field blank: no phone, no category, no room, no comment, no
+ * total. Almost every column in this app is written as `value ?? "—"`, and a
+ * fixture set where everything is filled in never draws one of them.
+ */
+describe("every dashboard page survives half-filled records", () => {
+  it.each(pages)("$name draws the blanks as blanks", async ({ role, Page }) => {
+    serve(h.api, blankRoutes);
+    renderPage(Page, { role, user: asUser });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    // A blank must never reach the screen as the word "undefined".
+    expect(document.body.textContent).not.toMatch(/\bundefined\b/);
+  });
+});
+
+describe("every dashboard page can still be used on half-filled records", () => {
+  it.each(pages)("$name handles its controls on blanks", async ({ role, Page }) => {
+    serve(h.api, blankRoutes);
     renderPage(Page, { role, user: asUser });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
