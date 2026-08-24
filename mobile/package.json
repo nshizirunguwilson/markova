@@ -8,7 +8,9 @@
     "ios": "open -a Simulator && expo start --ios",
     "web": "expo start --web --port 8081",
     "typecheck": "tsc --noEmit",
-    "design:check": "tsx scripts/check-contrast.ts"
+    "design:check": "tsx scripts/check-contrast.ts",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
@@ -53,9 +55,34 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
+    "jest": "~29.7.0",
+    "jest-expo": "~55.0.21",
+    "react-test-renderer": "^19.1.0",
     "tsx": "^4.23.1",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|sonner-native|lucide-react-native|react-native-css-interop))"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "app/**/*.{ts,tsx}",
+      "!**/*.d.ts"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    }
+  }
 }
