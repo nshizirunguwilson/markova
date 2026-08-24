@@ -154,9 +154,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     try {
+      // loadProfile swallows its own failure and records the result in the
+      // store, so the answer to "are we in" is the store's, not this call's.
+      // Returning true here regardless would tell a caller a revoked token
+      // was a live session.
       await get().loadProfile();
       if (await get().captureBlockedRole()) return false;
-      return true;
+      return get().isAuthenticated;
     } catch {
       set({ isLoading: false, isAuthenticated: false });
       return false;
