@@ -475,3 +475,160 @@ describe("leaving the record", () => {
     await waitFor(() => expect(h.api.put).not.toHaveBeenCalled());
   });
 });
+
+/**
+ * Records at the far end of every field on the form.
+ *
+ * A boarder rather than a day student, a deactivated account, a teacher with
+ * no grade recorded, a parent whose child has no student number yet. Each one
+ * is an arm of a ternary that the tidy fixtures above never take, and each
+ * shows up in a school's real database within the first term.
+ */
+describe("a boarder rather than a day student", () => {
+  const boarder = {
+    ...student,
+    student: {
+      ...student.student,
+      isBoarder: true,
+      bloodType: null,
+      enrollmentDate: "2025-01-15T00:00:00.000Z",
+    },
+  };
+
+  it("says boarder on the record", async () => {
+    await mount(boarder);
+    expect(screen.getByText("Boarder")).toBeInTheDocument();
+  });
+
+  it("shows the enrolment date once there is one", async () => {
+    await mount(boarder);
+    expect(screen.getByText("Enrolled")).toBeInTheDocument();
+    // A real date, not the em dash the fixture with no enrolment shows.
+    const field = screen.getByText("Enrolled").parentElement!;
+    expect(field.textContent).not.toContain("—");
+  });
+
+  it("draws an em dash where no blood type is recorded", async () => {
+    await mount(boarder);
+    const field = screen.getByText("Blood Type").parentElement!;
+    expect(field.textContent).toContain("—");
+  });
+
+  it("opens the form already set to boarding", async () => {
+    await mount(boarder);
+    await startEditing();
+    expect(screen.getByLabelText(/boarding/i)).toHaveValue("BOARDER");
+  });
+
+  it("sends boarding back as a boolean, not a word", async () => {
+    await mount(boarder);
+    await startEditing();
+    await save();
+
+    await waitFor(() => expect(savedBody().isBoarder).toBe(true));
+  });
+
+  it("sends nothing at all for a person who is not a student", async () => {
+    await mount(teacher);
+    await startEditing();
+    await save();
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    expect(savedBody().isBoarder).toBeUndefined();
+  });
+});
+
+describe("an account that has been switched off", () => {
+  const suspended = {
+    ...student,
+    isActive: false,
+    forcePasswordChange: true,
+    lastLoginAt: "2026-06-01T08:00:00.000Z",
+  };
+
+  it("says inactive on the header badge", async () => {
+    await mount(suspended);
+    expect(screen.getAllByText("Inactive").length).toBeGreaterThan(0);
+  });
+
+  it("says the person must change their password next time", async () => {
+    await mount(suspended);
+    const field = screen.getByText("Force Password Change").parentElement!;
+    expect(field.textContent).toContain("Yes");
+  });
+
+  it("shows when they last signed in", async () => {
+    await mount(suspended);
+    const field = screen.getByText("Last Login").parentElement!;
+    expect(field.textContent).not.toContain("Never");
+  });
+
+  it("says never for an account that has not been used", async () => {
+    await mount(student);
+    const field = screen.getByText("Last Login").parentElement!;
+    expect(field.textContent).toContain("Never");
+  });
+
+  it("says no when a password change is not being forced", async () => {
+    await mount(student);
+    const field = screen.getByText("Force Password Change").parentElement!;
+    expect(field.textContent).toContain("No");
+  });
+});
+
+describe("a teacher whose file is incomplete", () => {
+  const bare = {
+    ...teacher,
+    teacher: {
+      id: "teacher-1",
+      employmentStatus: "PART_TIME",
+      qualification: null,
+      rssbNumber: null,
+      hireDate: null,
+    },
+  };
+
+  it("draws em dashes for the grade and the RSSB number", async () => {
+    await mount(bare);
+    for (const label of ["Qualification", "RSSB Number"]) {
+      expect(screen.getByText(label).parentElement!.textContent).toContain("—");
+    }
+  });
+
+  it("draws an em dash where there is no hire date", async () => {
+    await mount(bare);
+    expect(screen.getByText("Hired").parentElement!.textContent).toContain("—");
+  });
+});
+
+describe("a parent and the children on their record", () => {
+  const parent = {
+    id: "u-1",
+    firstName: "Jean",
+    lastName: "Habimana",
+    email: null,
+    phone: "+250788100000",
+    role: "PARENT",
+    isActive: true,
+    code: "PAR-2026-001",
+    photoUrl: null,
+    parentStudents: [
+      {
+        id: "ps-1",
+        relationship: "Father",
+        student: {
+          // Admitted this week, so no student number has been issued yet.
+          studentIdNumber: null,
+          classSection,
+          user: { firstName: "Divine", lastName: "Niyonkuru" },
+        },
+      },
+    ],
+  };
+
+  it("lists the child with an em dash where the number will go", async () => {
+    await mount(parent);
+    const child = screen.getByText(/Divine/).closest("div")!.parentElement!;
+    expect(child.textContent).toContain("—");
+  });
+});
