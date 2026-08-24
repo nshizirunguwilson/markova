@@ -240,18 +240,27 @@ describe("axis labels", () => {
  * chart down.
  */
 describe("charts drawn from rows with no labels", () => {
+  // The class name has to survive: the tooltip finds its row by it, and a
+  // row nobody can find is a tooltip that returns nothing at all.
   const unlabelled = {
     ...populatedRoutes,
-    "/analytics/class-comparison": [
-      { classSectionId: "s-1", className: null, averageScore: null, studentCount: null },
+    "/analytics/admin/class-comparisons": [
+      {
+        classSectionId: "s-1",
+        className: "Senior 1 A",
+        averageScore: null,
+        studentCount: null,
+        lowest: null,
+        highest: null,
+      },
     ],
-    "/analytics/grade-distribution": [
+    "/analytics/admin/grade-distribution": [
       { classLevelId: "l-1", levelName: null, grades: { A: null, B: 2 } },
     ],
-    "/analytics/term-comparison": [
+    "/analytics/admin/performance-trends": [
       { termId: "t-1", termName: "Term 1", averageScore: null, studentCount: null },
     ],
-    "/analytics/library": {
+    "/analytics/admin/library": {
       totalBooks: null,
       popularBooks: [{ id: "b-1", title: "Ubumenyi", author: null, loanCount: null }],
     },
@@ -289,7 +298,7 @@ describe("charts drawn from rows with no labels", () => {
   });
 
   it("still gives the class chart a height", async () => {
-    serve(h.api, { ...unlabelled, "/analytics/class-comparison": [] });
+    serve(h.api, { ...unlabelled, "/analytics/admin/class-comparisons": [] });
     renderPage(AnalyticsPage, { role: "ADMIN" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
