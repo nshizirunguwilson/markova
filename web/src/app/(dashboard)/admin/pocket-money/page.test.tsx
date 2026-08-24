@@ -279,6 +279,65 @@ describe("one student's account", () => {
   });
 });
 
+/** The filters the list was last asked for. */
+function lastOverviewParams(): Record<string, unknown> {
+  const call = [...h.api.get.mock.calls]
+    .reverse()
+    .find(([url]: any[]) => String(url).includes("/pocket-money/overview"));
+  return ((call?.[1] as { params?: Record<string, unknown> })?.params) ?? {};
+}
+
+describe("paging a long list", () => {
+  function paged(page: number, totalPages: number) {
+    return {
+      ...routes,
+      "/pocket-money/overview": {
+        ...overview,
+        meta: { total: 60, page, limit: 25, totalPages },
+      },
+    };
+  }
+
+  it("shows nothing to page through on a short list", async () => {
+    await mount();
+    expect(screen.queryByRole("button", { name: /next page/i })).toBeNull();
+  });
+
+  it("asks for the next page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument(),
+    );
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+
+    await waitFor(() => expect(lastOverviewParams().page).toBe(2));
+  });
+
+  it("cannot go back from the first page", async () => {
+    serve(h.api, paged(1, 3));
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument(),
+    );
+
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("goes back a page", async () => {
+    serve(h.api, paged(2, 3));
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument(),
+    );
+
+    await click(screen.getByRole("button", { name: /previous page/i }));
+
+    await waitFor(() => expect(lastOverviewParams().page).toBe(1));
+  });
+});
+
 describe("moving money", () => {
   async function enterAmount(dialog: HTMLElement, amount: string) {
     await act(async () => {
@@ -556,6 +615,56 @@ describe("finding a student in the list", () => {
   it("keeps the class picker shut until a level is chosen", async () => {
     await mount();
     expect(screen.getByLabelText(/class section/i)).toBeDisabled();
+  });
+
+  /**
+   * The point of a scan is that the counter opens on the student without
+   * anybody looking them up in the list.
+   */
+  it("opens the counter on whoever the card belongs to", async () => {
+    await mount();
+    const box = screen.getByLabelText(/scan a card/i);
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "MK-12345" } });
+    });
+    await click(button(/open account/i));
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    expect((box as HTMLInputElement).value).toBe("");
+  });
+
+  it("does nothing at all on an empty box", async () => {
+    await mount();
+
+    await click(button(/open account/i));
+
+    expect(h.api.post).not.toHaveBeenCalledWith(
+      "/pocket-money/lookup",
+      expect.anything(),
+    );
+  });
+
+  it("stays on the list when the card belongs to nobody", async () => {
+    serve(h.api, { ...routes, "/pocket-money/lookup": undefined as never });
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/scan a card/i), {
+        target: { value: "nonsense" },
+      });
+    });
+    await click(button(/open account/i));
+
+    await waitFor(() =>
+      expect((screen.getByLabelText(/scan a card/i) as HTMLInputElement).value).toBe(""),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   // A card reader types the code and then sends Enter. A scan that only works

@@ -24,7 +24,7 @@ export default defineConfig({
         // scripts/sync-design-tokens.mjs --check instead.
         'src/app/tokens.css',
       ],
-      reporter: ['text-summary', 'html', 'lcov'],
+      reporter: ['text-summary', 'html', 'lcov', 'json'],
       // A ratchet, not a target. These are set just under the current numbers
       // so an accidental deletion of tests fails the build, and they are meant
       // to be raised as coverage climbs, never lowered to make a build pass.

@@ -6,10 +6,12 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    exportData: fn(),
   };
 });
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
+vi.mock("@/lib/export", () => ({ exportData: h.exportData }));
 vi.mock("sonner", () => ({ toast: h.toast }));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
@@ -58,6 +60,7 @@ const routes = {
 beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.toast)) m.mockReset();
+  h.exportData.mockReset();
   serve(h.api, routes);
 });
 
@@ -364,5 +367,179 @@ describe("paging the assessment list", () => {
       fireEvent.change(screen.getByLabelText(/all types/i), { target: { value: "QUIZ" } });
     });
     await waitFor(() => expect(lastQuery().page).toBe("1"));
+  });
+});
+
+/**
+ * The section list only exists once a level is chosen, so filling this form in
+ * one pass leaves it empty and the submit fails validation on a field the test
+ * thought it had set.
+ */
+async function fill(dialog: ReturnType<typeof within>, title: string) {
+  const teacherOption = dialog
+    .getByLabelText(/^teacher$/i)
+    .querySelectorAll("option")[1] as HTMLOptionElement;
+
+  await act(async () => {
+    fireEvent.change(dialog.getByLabelText(/^title$/i), { target: { value: title } });
+    fireEvent.change(dialog.getByLabelText(/^subject$/i), {
+      target: { value: subject.id },
+    });
+    fireEvent.change(dialog.getByLabelText(/^teacher$/i), {
+      target: { value: teacherOption.value },
+    });
+    fireEvent.change(dialog.getByLabelText(/class level/i), {
+      target: { value: classLevel.id },
+    });
+  });
+
+  await waitFor(() =>
+    expect(
+      dialog.getByLabelText(/^section$/i).querySelectorAll("option").length,
+    ).toBeGreaterThan(1),
+  );
+
+  await act(async () => {
+    fireEvent.change(dialog.getByLabelText(/^section$/i), {
+      target: { value: classSection.id },
+    });
+    fireEvent.change(dialog.getByLabelText(/^term$/i), {
+      target: { value: "term-1" },
+    });
+    fireEvent.change(dialog.getByLabelText(/due date/i), {
+      target: { value: "2026-09-30" },
+    });
+  });
+
+  await act(async () => {
+    fireEvent.submit(dialog.getByLabelText(/^title$/i).closest("form")!);
+  });
+}
+
+describe("setting an assessment", () => {
+  async function openForm() {
+    await mount();
+    await click(
+      screen.queryAllByRole("button").find((b) => /new assessment/i.test(b.textContent ?? "")),
+    );
+    return within(await screen.findByRole("dialog"));
+  }
+
+  it("creates one against the subject, class, term and teacher", async () => {
+    const dialog = await openForm();
+
+    await fill(dialog, "Chapter 4 exercises");
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    const [url, body] = h.api.post.mock.calls.at(-1)!;
+    expect(url).toBe("/homework");
+    expect(body).toMatchObject({
+      title: "Chapter 4 exercises",
+      subjectId: subject.id,
+      classSectionId: classSection.id,
+      termId: "term-1",
+    });
+    expect(String(body.dueDate)).toMatch(/^2026-09-30/);
+  });
+
+  it("closes the form once it has gone", async () => {
+    const dialog = await openForm();
+
+    await fill(dialog, "Chapter 4 exercises");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("can be abandoned", async () => {
+    const dialog = await openForm();
+
+    await click(
+      dialog.queryAllByRole("button").find((b) => /cancel/i.test(b.textContent ?? "")),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Who an assessment is for is fixed once it exists: moving it to another class
+ * would strip the submissions already handed in, so editing only touches what
+ * it says and when it is due.
+ */
+describe("changing one that already exists", () => {
+  async function openEdit() {
+    await mount();
+    const row = screen.getByText(/Algebra sheet 3/).closest("tr")!;
+    await click(within(row).getByRole("button", { name: /edit/i }));
+    return within(await screen.findByRole("dialog"));
+  }
+
+  it("opens filled in with what it already says", async () => {
+    const dialog = await openEdit();
+
+    expect((dialog.getByLabelText(/^title$/i) as HTMLInputElement).value).toBe(
+      "Algebra sheet 3",
+    );
+  });
+
+  it("will not let its recipients be moved", async () => {
+    const dialog = await openEdit();
+
+    expect(dialog.getByLabelText(/^subject$/i)).toBeDisabled();
+    expect(dialog.getByLabelText(/^section$/i)).toBeDisabled();
+    expect(dialog.getByLabelText(/^term$/i)).toBeDisabled();
+    expect(dialog.getByLabelText(/^teacher$/i)).toBeDisabled();
+  });
+
+  it("sends only what it is allowed to change", async () => {
+    const dialog = await openEdit();
+
+    await act(async () => {
+      fireEvent.change(dialog.getByLabelText(/^title$/i), {
+        target: { value: "Algebra sheet 4" },
+      });
+    });
+    await act(async () => {
+      fireEvent.submit(dialog.getByLabelText(/^title$/i).closest("form")!);
+    });
+
+    await waitFor(() => expect(h.api.put).toHaveBeenCalled());
+    const [url, body] = h.api.put.mock.calls.at(-1)!;
+    expect(url).toMatch(new RegExp(`/homework/${homework.id}$`));
+    expect(body).not.toHaveProperty("subjectId");
+    expect(body).not.toHaveProperty("classSectionId");
+    expect(body.title).toBe("Algebra sheet 4");
+  });
+});
+
+describe("taking the list away with you", () => {
+  it("exports what is on screen, with the class and teacher spelled out", async () => {
+    await mount();
+
+    await click(
+      screen.queryAllByRole("button").find((b) => /export/i.test(b.textContent ?? "")),
+    );
+    const csv = screen
+      .queryAllByRole("button")
+      .find((b) => /csv/i.test(b.textContent ?? ""));
+    await click(csv);
+
+    await waitFor(() => expect(h.exportData).toHaveBeenCalled());
+    const [format, options] = h.exportData.mock.calls.at(-1)!;
+    expect(format).toBe("csv");
+    expect(options.filename).toBe("homework");
+    expect(options.data[0]._class).toMatch(/Senior 1/);
+  });
+
+  it("offers nothing to export from an empty school", async () => {
+    serve(h.api, { ...routes, "/homework": [] });
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const button = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""));
+    expect(button).toBeDisabled();
   });
 });

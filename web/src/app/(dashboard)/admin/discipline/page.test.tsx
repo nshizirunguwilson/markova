@@ -487,6 +487,56 @@ describe("recording an incident", () => {
   });
 });
 
+/**
+ * Deleting an incident takes a conduct penalty off a student's record, so it
+ * asks before it goes.
+ */
+describe("removing an incident", () => {
+  it("asks first", async () => {
+    await mount();
+
+    await click(
+      screen.queryAllByRole("button", { name: /delete/i })[0],
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/are you sure you want to delete this incident/i))
+        .toBeInTheDocument(),
+    );
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes nothing when the ask is dismissed", async () => {
+    await mount();
+    await click(screen.queryAllByRole("button", { name: /delete/i })[0]);
+    await waitFor(() =>
+      expect(screen.getByText(/are you sure/i)).toBeInTheDocument(),
+    );
+
+    await click(
+      screen.queryAllByRole("button").find((b) => /^cancel$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(screen.queryByText(/are you sure/i)).toBeNull());
+    expect(h.api.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes it once confirmed", async () => {
+    await mount();
+    await click(screen.queryAllByRole("button", { name: /delete/i })[0]);
+    await waitFor(() =>
+      expect(screen.getByText(/are you sure/i)).toBeInTheDocument(),
+    );
+
+    await click(
+      screen.queryAllByRole("button").find((b) => /^confirm$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+    expect(String(h.api.delete.mock.calls.at(-1)![0])).toMatch(/incidents/);
+  });
+});
+
 describe("the term's discipline picture", () => {
   it("opens", async () => {
     await mount();
@@ -603,6 +653,92 @@ describe("merits", () => {
     expect(
       screen.queryAllByRole("button").find((b) => /^Recognise$/.test((b.textContent ?? "").trim())),
     ).toBeDisabled();
+  });
+
+  /**
+   * Picking the student is three dependent dropdowns, and the button stays
+   * disabled until the last of them has an answer.
+   */
+  async function pickStudent() {
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/level…/i), {
+        target: { value: "level-1" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/section…/i).querySelectorAll("option").length,
+      ).toBeGreaterThan(1),
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/section…/i), {
+        target: { value: "section-1" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/student…/i).querySelectorAll("option").length,
+      ).toBeGreaterThan(1),
+    );
+    const option = screen
+      .getByLabelText(/student…/i)
+      .querySelectorAll("option")[1] as HTMLOptionElement;
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/student…/i), {
+        target: { value: option.value },
+      });
+    });
+    return option.value;
+  }
+
+  it("records it against the student, the reason and the term", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    const studentId = await pickStudent();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what they did/i), {
+        target: { value: "Handed in a wallet she found" },
+      });
+      fireEvent.change(screen.getByLabelText(/what for/i), {
+        target: { value: "HONESTY" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(
+      screen.queryAllByRole("button").find((b) => /^Recognise$/.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/merits"),
+      );
+      expect(call).toBeTruthy();
+      expect(call![1]).toMatchObject({
+        studentId,
+        category: "HONESTY",
+        description: "Handed in a wallet she found",
+        termId: "term-1",
+      });
+    });
+  });
+
+  it("clears the form so the next one can be recorded", async () => {
+    await mount();
+    await click(tab(/recognise a student/i));
+    await pickStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what they did/i), {
+        target: { value: "Handed in a wallet she found" },
+      });
+    });
+
+    await click(
+      screen.queryAllByRole("button").find((b) => /^Recognise$/.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("explains that points never go past a clean sheet", async () => {

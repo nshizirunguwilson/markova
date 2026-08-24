@@ -45,20 +45,45 @@ import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 
-const homeworkSchema = z.object({
-  // Not `.default()`: that makes the field optional on the way in, which no
-  // longer matches the resolver's own type. The default lives in
-  // `defaultValues` instead.
-  kind: z.enum(["HOMEWORK", "ASSIGNMENT", "QUIZ", "TEST", "PROJECT", "PRACTICAL"]),
-  title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  subjectId: z.string().min(1, "Subject is required"),
-  classSectionId: z.string().min(1, "Class section is required"),
-  termId: z.string().min(1, "Term is required"),
-  teacherId: z.string().min(1, "Teacher is required"),
-  dueDate: z.string().min(1, "Due date is required"),
-  maxMarks: z.number().min(1, "Must be at least 1").max(1000, "Max 1000"),
-});
+/**
+ * Who an assessment is for is fixed once it exists, so those four controls are
+ * disabled while editing and their values are never sent on an update.
+ * Requiring them anyway meant a row the API returned without a term could not
+ * be edited at all: the form refused, and it refused on a control the person
+ * could not reach to fix. So the requirement is carried in the data rather
+ * than in two schemas, which react-hook-form would not swap between anyway.
+ */
+const homeworkSchema = z
+  .object({
+    // Not `.default()`: that makes the field optional on the way in, which no
+    // longer matches the resolver's own type. The default lives in
+    // `defaultValues` instead.
+    kind: z.enum(["HOMEWORK", "ASSIGNMENT", "QUIZ", "TEST", "PROJECT", "PRACTICAL"]),
+    title: z.string().min(1, "Title is required"),
+    description: z.string().optional(),
+    subjectId: z.string(),
+    classSectionId: z.string(),
+    termId: z.string(),
+    teacherId: z.string(),
+    dueDate: z.string().min(1, "Due date is required"),
+    maxMarks: z.number().min(1, "Must be at least 1").max(1000, "Max 1000"),
+    /** Not a field on screen: which of the two shapes above is being asked for. */
+    editing: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.editing) return;
+    const required = [
+      ["subjectId", "Subject is required"],
+      ["classSectionId", "Class section is required"],
+      ["termId", "Term is required"],
+      ["teacherId", "Teacher is required"],
+    ] as const;
+    for (const [field, message] of required) {
+      if (!value[field]) {
+        ctx.addIssue({ code: "custom", path: [field], message });
+      }
+    }
+  });
 type HomeworkForm = z.infer<typeof homeworkSchema>;
 
 const defaultValues: HomeworkForm = {
@@ -71,6 +96,7 @@ const defaultValues: HomeworkForm = {
   teacherId: "",
   dueDate: "",
   maxMarks: 100,
+  editing: false,
 };
 
 /**
@@ -160,13 +186,14 @@ export default function AdminHomeworkPage() {
       teacherId: hw.teacherId || "",
       dueDate: hw.dueDate ? toLocalDateString(new Date(hw.dueDate)) : "",
       maxMarks: hw.maxMarks || 100,
+      editing: true,
     });
     if (hw.classSection?.classLevelId) setModalLevelId(hw.classSection.classLevelId);
     setEditingId(hw.id);
     setShowModal(true);
   };
 
-  const onSubmit = (data: HomeworkForm) => {
+  const onSubmit = ({ editing: _editing, ...data }: HomeworkForm) => {
     const dueDate = data.dueDate ? new Date(data.dueDate).toISOString() : undefined;
     if (editingId) {
       // A homework's recipients (subject/class/term/teacher) are fixed; update
