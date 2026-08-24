@@ -1610,3 +1610,72 @@ describe("a group whose members have no names left", () => {
     );
   });
 });
+
+/**
+ * A group with no name, and lists that never arrived.
+ *
+ * A group started from the picker carries no name until somebody sets one, so
+ * the rename box has to open empty rather than showing "undefined". The two
+ * lists behind the members panel each come from their own request, and either
+ * can fail on its own.
+ */
+describe("renaming a group that has no name yet", () => {
+  const unnamed = {
+    id: "conv-2",
+    type: "GROUP",
+    name: null,
+    participants: [{ user: other }, { user: second }],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  async function openMembersOf(over: Record<string, unknown> = {}) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [unnamed],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": [{ id: "p-1", user: other }],
+      ...over,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Group \(2\)/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Group \(2\)/));
+    await user.click(await screen.findByLabelText("Members"));
+    return user;
+  }
+
+  it("opens the rename box empty", async () => {
+    await openMembersOf();
+
+    const box = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("textbox")
+        .find((el) => /name/i.test(el.getAttribute("placeholder") ?? ""));
+      expect(found).toBeTruthy();
+      return found as HTMLInputElement;
+    });
+    expect(box.value).toBe("");
+  });
+
+  it("copes with a member list that never arrived", async () => {
+    await openMembersOf({
+      "/messaging/conversations/conv-2/participants": undefined,
+    });
+
+    // The panel opens on an empty list rather than throwing on undefined.
+    expect(await screen.findByText("Nobody to show.")).toBeInTheDocument();
+  });
+
+  it("copes with a contact list that never arrived", async () => {
+    await openMembersOf({ "/messaging/contacts": undefined });
+
+    // The "add someone" picker inside the panel has nobody to offer, and the
+    // panel still draws rather than throwing on an undefined list.
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});
