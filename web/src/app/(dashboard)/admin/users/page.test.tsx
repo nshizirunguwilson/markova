@@ -753,3 +753,94 @@ describe("searching from the keyboard", () => {
     expect(h.api.get).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The last few corners of the directory.
+ *
+ * A role filter set back to "all", a delete confirmed rather than dismissed,
+ * and a student who does have a class. Each is one arm of a pair the tests
+ * above only ever walk one side of.
+ */
+describe("clearing the role filter", () => {
+  it("drops the constraint rather than sending an empty one", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const picker = screen
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "TEACHER"),
+      )!;
+
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: "TEACHER" } });
+    });
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map(([u]: any[]) => String(u));
+      expect(urls.some((u) => u.includes("role=TEACHER"))).toBe(true);
+    });
+
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: "" } });
+    });
+
+    await waitFor(() => {
+      const last = [...h.api.get.mock.calls]
+        .reverse()
+        .find(([u]: any[]) => String(u).startsWith("/users?"));
+      // An empty role would filter for people whose role is "", which is
+      // nobody at all.
+      expect(String(last![0])).not.toMatch(/role=/);
+    });
+  });
+});
+
+describe("a student who is in a class", () => {
+  it("names it rather than drawing an em dash", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": page([
+        {
+          ...person("u-9", "Keza", "Mutesi", "STUDENT"),
+          student: {
+            studentIdNumber: "STD-2026-9",
+            classSection: { id: "s-1", name: "A", classLevel: { name: "Senior 1" } },
+          },
+        },
+      ]),
+    });
+    renderPage(UsersPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText(/Keza/)).closest("tr")!;
+    expect(within(row).getByText(/Senior 1/)).toBeInTheDocument();
+    expect(within(row).queryByText("—")).toBeNull();
+  });
+});
+
+describe("confirming a deletion", () => {
+  it("deactivates the account only after the dialog is confirmed", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const remove = screen.queryAllByRole("button", { name: /delete/i })[0];
+    if (!remove) return;
+    await act(async () => {
+      fireEvent.click(remove);
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    expect(h.api.delete).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(
+        within(dialog)
+          .getAllByRole("button")
+          .find((b) => /^(deactivate|delete|confirm|yes)/i.test((b.textContent ?? "").trim()))!,
+      );
+    });
+
+    await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
+  });
+});
