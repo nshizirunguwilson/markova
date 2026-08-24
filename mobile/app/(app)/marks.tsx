@@ -28,7 +28,11 @@ export default function MarksCompletion() {
   );
   const active = classId || classes[0]?.value;
 
-  const { data, isPending } = useMarksCompletion(active, term?.id);
+  // A query that has not been enabled yet is pending forever, so reading
+  // isPending alone leaves a school with no current term staring at a
+  // skeleton that never resolves.
+  const { data, isPending, fetchStatus } = useMarksCompletion(active, term?.id);
+  const loading = isPending && fetchStatus !== 'idle';
 
   const rows = (data as any[]) ?? [];
   const missing = rows.filter((r) => r.entered < r.expected);
@@ -42,7 +46,7 @@ export default function MarksCompletion() {
       <Screen contentContainerStyle={{ gap: space.xxl }}>
         {classes.length ? <Segmented value={active} onChange={setClassId} options={classes} /> : null}
 
-        {isPending ? (
+        {loading ? (
           <LoadingRows count={6} />
         ) : !rows.length ? (
           <Empty
