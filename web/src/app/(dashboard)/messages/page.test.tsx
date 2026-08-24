@@ -1485,3 +1485,128 @@ describe("a group whose member list is still loading", () => {
     );
   });
 });
+
+/**
+ * A file sent on its own, and a member list with no names in it.
+ *
+ * Requiring words alongside an attachment means people type "." to get past
+ * the check, so a file is a message by itself, and the filename becomes what
+ * the thread shows. The member list is the other half: a group outlives the
+ * accounts in it.
+ */
+describe("sending a file with nothing typed", () => {
+  it("uses the filename as the message", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/attachments": {
+        fileUrl: "/uploads/messaging/trip-letter.pdf",
+        fileName: "trip-letter.pdf",
+      },
+    });
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    await user.upload(
+      picker,
+      new File(["x"], "trip-letter.pdf", { type: "application/pdf" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("trip-letter.pdf")).toBeInTheDocument(),
+    );
+
+    h.api.post.mockClear();
+    const send = screen
+      .queryAllByRole("button")
+      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
+    await user.click(send);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/messages"),
+      );
+      expect(call).toBeTruthy();
+      // A file with no words still carries something readable in the list.
+      expect((call![1] as any).content).toBe("trip-letter.pdf");
+      expect((call![1] as any).contentType).toBe("FILE");
+    });
+  });
+
+  it("attaches nothing when the picker is dismissed", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [] } });
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/attachments"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("a group whose members have no names left", () => {
+  const group = {
+    id: "conv-2",
+    type: "GROUP",
+    name: "Senior 2 parents",
+    participants: [{ user: other }],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  async function openMembers(participants: unknown) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [group],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": participants,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Senior 2 parents"));
+    await user.click(await screen.findByLabelText("Members"));
+  }
+
+  it("puts a question mark where an initial would be", async () => {
+    await openMembers([{ id: "p-1", user: { id: "u-9", firstName: "", lastName: "" } }]);
+
+    expect(await screen.findByText("?")).toBeInTheDocument();
+  });
+
+  it("says so when a group has nobody in it", async () => {
+    await openMembers([]);
+
+    expect(await screen.findByText("Nobody to show.")).toBeInTheDocument();
+  });
+
+  it("names the members it does have", async () => {
+    await openMembers([{ id: "p-1", user: other }]);
+
+    await waitFor(() =>
+      expect(screen.getAllByText(/Aline Uwase/).length).toBeGreaterThan(0),
+    );
+  });
+});
