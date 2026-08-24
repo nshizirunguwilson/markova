@@ -1298,3 +1298,168 @@ describe('editing what the school teaches', () => {
     });
   });
 });
+
+/**
+ * Moving a lesson and an exam.
+ *
+ * A timetable entry places a teacher in a room with a class at an hour, and
+ * every one of those five things can be changed on its own. A move that
+ * quietly blanked the room would leave a class with nowhere to go.
+ */
+describe('editing the week', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+  });
+
+  describe('a lesson', () => {
+    beforeEach(() => {
+      prisma.timetable.findUnique.mockResolvedValue({ id: 'tt-1' });
+      prisma.timetable.update.mockResolvedValue({});
+      prisma.timetable.delete.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.timetable.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTimetable('nope', { room: 'Lab 2' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('moves every part of it at once', async () => {
+      await service.updateTimetable('tt-1', {
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        teacherId: 'teacher-2',
+        dayOfWeek: 3,
+        startTime: '10:00',
+        endTime: '11:00',
+        room: 'Lab 2',
+      } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        teacherId: 'teacher-2',
+        dayOfWeek: 3,
+        startTime: '10:00',
+        endTime: '11:00',
+        room: 'Lab 2',
+      });
+    });
+
+    // Sunday is day seven in the model, and zero is Monday's neighbour in
+    // JavaScript, so a falsy day must still be written.
+    it('writes a day of nought rather than dropping it', async () => {
+      await service.updateTimetable('tt-1', { dayOfWeek: 0 } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        dayOfWeek: 0,
+      });
+    });
+
+    it('clears a room that was sent empty', async () => {
+      await service.updateTimetable('tt-1', { room: '' } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        room: '',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTimetable('tt-1', {} as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.timetable.findUnique.mockResolvedValue(null);
+      await expect(service.deleteTimetable('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('reads a whole class week when no teacher is named', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1');
+
+      expect(prisma.timetable.findMany.mock.calls[0][0].where).toEqual({
+        classSectionId: 'section-1',
+      });
+    });
+
+    it('narrows to one teacher when one is named', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1', 'teacher-1');
+
+      expect(prisma.timetable.findMany.mock.calls[0][0].where).toEqual({
+        classSectionId: 'section-1',
+        teacherId: 'teacher-1',
+      });
+    });
+  });
+
+  describe('an exam', () => {
+    beforeEach(() => {
+      prisma.examSchedule.findUnique.mockResolvedValue({ id: 'ex-1' });
+      prisma.examSchedule.update.mockResolvedValue({});
+      prisma.examSchedule.delete.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.examSchedule.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateExamSchedule('nope', { room: 'Hall' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('moves every part of it at once', async () => {
+      await service.updateExamSchedule('ex-1', {
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        termId: 'term-2',
+        examDate: '2026-12-01',
+        startTime: '08:00',
+        endTime: '11:00',
+        room: 'Hall',
+        syllabus: 'Chapters 1 to 8',
+      } as never);
+
+      const written = prisma.examSchedule.update.mock.calls[0][0].data;
+      expect(written).toMatchObject({
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        termId: 'term-2',
+        startTime: '08:00',
+        endTime: '11:00',
+        room: 'Hall',
+        syllabus: 'Chapters 1 to 8',
+      });
+      expect(written.examDate).toBeInstanceOf(Date);
+    });
+
+    it('clears a syllabus that was sent empty', async () => {
+      await service.updateExamSchedule('ex-1', { syllabus: '' } as never);
+
+      expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({
+        syllabus: '',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateExamSchedule('ex-1', {} as never);
+
+      expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.examSchedule.findUnique.mockResolvedValue(null);
+      await expect(service.deleteExamSchedule('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});
