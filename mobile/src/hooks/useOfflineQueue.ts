@@ -45,7 +45,10 @@ export function useOfflineQueue() {
   // Auto-process when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+      // currentState can be null on Android before the app has fully started,
+      // so this reads it as a string rather than calling a method on it.
+      const wasAway = /inactive|background/.test(String(appState.current));
+      if (wasAway && nextState === 'active') {
         processNow();
       }
       appState.current = nextState;

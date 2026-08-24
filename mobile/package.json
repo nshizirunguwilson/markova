@@ -80,7 +80,8 @@
       "!**/*.d.ts"
     ],
     "coveragePathIgnorePatterns": [
-      "/node_modules/"
+      "/node_modules/",
+      "<rootDir>/src/test/"
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
