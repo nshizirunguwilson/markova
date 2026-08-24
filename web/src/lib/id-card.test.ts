@@ -172,3 +172,65 @@ describe("initials", () => {
     expect(initialsOf("  Wilson   Nshizirungu ")).toBe("WN");
   });
 });
+
+/**
+ * Artwork drawn differently, and details a school never filled in.
+ *
+ * The whole promise of this module is that a designer can move things around
+ * without touching code. So the tests below hand it artwork that leaves the
+ * placeholder box out, omits the fallback's text node, or carries no school
+ * branding at all.
+ */
+describe("artwork drawn differently", () => {
+  it("falls back to the designer's default QR position", () => {
+    // A slot with no rect in it: the code has to land somewhere sensible
+    // rather than at nought by nought at zero size.
+    const noBox = TEMPLATE.replace(
+      '<g id="qr-code"><rect x="628" y="176" width="180" height="180" /></g>',
+      '<g id="qr-code"></g>',
+    );
+    const out = parse(renderIdCard(noBox, student));
+
+    // The slot is replaced by the image, so it is the last <image> in the
+    // card rather than a child of anything.
+    const qr = Array.from(out.querySelectorAll("image")).at(-1)!;
+    expect(qr.getAttribute("x")).toBe("0");
+    expect(qr.getAttribute("y")).toBe("0");
+    expect(qr.getAttribute("width")).toBe("180");
+    expect(qr.getAttribute("height")).toBe("180");
+  });
+
+  it("copes with a fallback group that has no text in it", () => {
+    const noLabel = TEMPLATE.replace(
+      '<g id="student-photo-fallback"><rect /><text>--</text></g>',
+      '<g id="student-photo-fallback"><rect /></g>',
+    );
+    const out = parse(renderIdCard(noLabel, { ...student, photoUrl: null }));
+
+    // The frame survives; there is simply nowhere to write initials.
+    expect(out.querySelector("#student-photo-fallback")).not.toBeNull();
+    expect(out.querySelector("#student-photo")).toBeNull();
+  });
+
+  it("removes the logo when the school has not uploaded one", () => {
+    const out = parse(renderIdCard(TEMPLATE, { ...student, schoolLogoUrl: null }));
+    expect(out.querySelector("#school-logo")).toBeNull();
+  });
+
+  it("removes the school name when there is none on file", () => {
+    const out = parse(renderIdCard(TEMPLATE, { ...student, schoolName: null }));
+    expect(out.querySelector("#school-name")).toBeNull();
+  });
+
+  it("removes a field left as an empty string, not just a null", () => {
+    const out = parse(renderIdCard(TEMPLATE, { ...student, level: "" }));
+    expect(out.querySelector("#student-level")).toBeNull();
+  });
+
+  it("writes initials for a name with a stray blank part", () => {
+    // "Uwase  " off the end of a CSV import: no crash, and no stray space in
+    // the initials either.
+    expect(initialsOf("Uwase ")).toBe("U");
+    expect(initialsOf("")).toBe("");
+  });
+});
