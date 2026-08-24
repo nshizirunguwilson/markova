@@ -24,9 +24,6 @@ import ChildReport from './reports';
  */
 
 jest.mock('@/lib/api', () => require('@/test/api-mock').apiMock);
-jest.mock('expo-web-browser', () => ({
-  openBrowserAsync: jest.fn(() => Promise.resolve({ type: 'opened' })),
-}));
 
 const report = (over: Record<string, unknown> = {}) =>
   givenApi({

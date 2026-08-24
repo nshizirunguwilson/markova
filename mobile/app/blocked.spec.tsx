@@ -20,12 +20,6 @@ import Blocked from './blocked';
  */
 
 jest.mock('@/lib/api', () => require('@/test/api-mock').apiMock);
-jest.mock('expo-clipboard', () => ({
-  setStringAsync: jest.fn(() => Promise.resolve(true)),
-}));
-jest.mock('expo-web-browser', () => ({
-  openBrowserAsync: jest.fn(() => Promise.resolve({ type: 'opened' })),
-}));
 
 const notify = toast as jest.Mocked<typeof toast>;
 

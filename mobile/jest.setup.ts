@@ -86,6 +86,27 @@ jest.mock('expo-notifications', () => ({
 
 jest.mock('expo-device', () => ({ isDevice: true }));
 
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: jest.fn(() => Promise.resolve({ canceled: true })),
+}));
+
+jest.mock('expo-clipboard', () => ({
+  setStringAsync: jest.fn(() => Promise.resolve(true)),
+  getStringAsync: jest.fn(() => Promise.resolve('')),
+}));
+
+jest.mock('expo-web-browser', () => ({
+  openBrowserAsync: jest.fn(() => Promise.resolve({ type: 'opened' })),
+}));
+
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(() => Promise.resolve({ canceled: true })),
+  requestMediaLibraryPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ granted: true }),
+  ),
+  MediaTypeOptions: { Images: 'Images' },
+}));
+
 // The camera is hardware. What a test cares about is the permission state and
 // the code a scan produced, so the view is a plain View that hands its
 // callback back through a label.
