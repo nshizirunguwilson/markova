@@ -418,3 +418,128 @@ describe("disconnecting", () => {
     expect(() => useChatStore.getState().disconnect()).not.toThrow();
   });
 });
+
+/**
+ * The paths a live chat only takes on a bad connection.
+ *
+ * A stop-typing for a thread nobody is typing in, a token that changed while
+ * the socket was down, an emit attempted between the socket existing and it
+ * being connected. None of these are reachable from a test that only ever
+ * drives a healthy socket, and every one of them is reachable on a phone on
+ * a school's wifi.
+ */
+describe("typing that stops out of order", () => {
+  it("ignores a stop for a thread nobody was typing in", () => {
+    connect();
+    socket.fire("connect");
+
+    socket.fire("userStopTyping", { conversationId: "c-unknown", userId: "u-1" });
+
+    expect(useChatStore.getState().typingUsers.size).toBe(0);
+  });
+
+  it("keeps the thread while somebody else is still typing", () => {
+    connect();
+    socket.fire("connect");
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-2", userName: "Keza" });
+
+    socket.fire("userStopTyping", { conversationId: "c-1", userId: "u-1" });
+
+    const typing = useChatStore.getState().typingUsers.get("c-1");
+    expect(typing?.size).toBe(1);
+    expect(typing?.get("u-2")).toBe("Keza");
+  });
+
+  it("drops the thread once the last person stops", () => {
+    connect();
+    socket.fire("connect");
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+
+    socket.fire("userStopTyping", { conversationId: "c-1", userId: "u-1" });
+
+    expect(useChatStore.getState().typingUsers.has("c-1")).toBe(false);
+  });
+});
+
+describe("a connection that fails and is retried", () => {
+  it("picks up a token that was refreshed while it was down", () => {
+    connect();
+    localStorage.setItem("access_token", "a-newer-token");
+
+    socket.fire("connect_error");
+
+    expect((socket as unknown as { auth?: { token: string } }).auth).toEqual({
+      token: "a-newer-token",
+    });
+  });
+
+  it("leaves the socket alone when the token has not changed", () => {
+    connect();
+    localStorage.setItem("access_token", "token");
+
+    socket.fire("connect_error");
+
+    expect((socket as unknown as { auth?: unknown }).auth).toBeUndefined();
+  });
+
+  it("leaves the socket alone when there is no token at all", () => {
+    connect();
+    localStorage.removeItem("access_token");
+
+    socket.fire("connect_error");
+
+    expect((socket as unknown as { auth?: unknown }).auth).toBeUndefined();
+  });
+});
+
+describe("emitting before the socket is up", () => {
+  // The store is created, the socket exists, but the handshake has not
+  // finished. Every one of these has to be a no-op rather than a crash.
+  const beforeConnect = () => {
+    connect();
+    socket.connected = false;
+  };
+
+  it("does not mark a thread read", () => {
+    beforeConnect();
+    useChatStore.getState().markRead("c-1");
+    expect(socket.emitted).toEqual([]);
+  });
+
+  it("does not announce typing", () => {
+    beforeConnect();
+    useChatStore.getState().startTyping("c-1");
+    expect(socket.emitted).toEqual([]);
+  });
+
+  it("does not announce that typing stopped", () => {
+    beforeConnect();
+    useChatStore.getState().stopTyping("c-1");
+    expect(socket.emitted).toEqual([]);
+  });
+
+  it("does not join a conversation", () => {
+    beforeConnect();
+    useChatStore.getState().joinConversation("c-1");
+    expect(socket.emitted).toEqual([]);
+  });
+
+  it("does all four once the socket is up", () => {
+    connect();
+    socket.fire("connect");
+
+    const store = useChatStore.getState();
+    store.markRead("c-1");
+    store.startTyping("c-1");
+    store.stopTyping("c-1");
+    store.joinConversation("c-1");
+
+    expect(socket.emitted.map((e) => e.event)).toEqual([
+      "markRead",
+      "typing",
+      "stopTyping",
+      "joinConversation",
+    ]);
+  });
+});
