@@ -1299,3 +1299,199 @@ describe("printing one row", () => {
     );
   }, 30000);
 });
+
+/**
+ * Report cards for a class the office has not finished setting up.
+ *
+ * A term can be generated before every student has a result, and the grade
+ * column is coloured off a letter that may not be there at all. None of that
+ * should stop a head teacher from seeing the list.
+ */
+describe("a generated class with gaps in it", () => {
+  const patchy = {
+    count: 4,
+    reports: [
+      // Nothing at all under `data`: the row still has to be numbered.
+      { studentId: "s-1", data: {} },
+      { studentId: "s-2", data: { student: { name: "Keza Uwase" }, result: { letterGrade: "A", average: 91 } } },
+      { studentId: "s-3", data: { student: { name: "Divine Niyonkuru" }, result: { letterGrade: "C", average: 62 } } },
+      { studentId: "s-4", data: { student: { name: "Manzi Habimana" }, result: { letterGrade: "F", average: 31 } } },
+    ],
+  };
+
+  async function generatePatchy() {
+    serve(h.api, { ...routes, "/reports/term/class": patchy });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const button = buttonMatching(/generate/i);
+        expect(button).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(button!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText("Keza Uwase")).toBeInTheDocument());
+  }
+
+  it("numbers a report that carries no student at all", async () => {
+    await generatePatchy();
+    expect(screen.getByText("Student 1")).toBeInTheDocument();
+  });
+
+  it("leaves an em dash where there is no average", async () => {
+    await generatePatchy();
+    const row = screen.getByText("Student 1").closest("tr")!;
+    expect(row.textContent).toContain("—");
+  });
+
+  it("colours each grade band differently", async () => {
+    await generatePatchy();
+
+    const badgeFor = (name: string) => {
+      const row = screen.getByText(name).closest("tr")!;
+      return Array.from(row.querySelectorAll("span")).find((s) =>
+        /^[A-F]$|^—$/.test((s.textContent ?? "").trim()),
+      )!;
+    };
+
+    // A passes green, C is neutral information, F is a warning. Three
+    // different classes, or the column is decoration.
+    const a = badgeFor("Keza Uwase").className;
+    const c = badgeFor("Divine Niyonkuru").className;
+    const f = badgeFor("Manzi Habimana").className;
+    expect(a).not.toBe(c);
+    expect(c).not.toBe(f);
+    expect(a).not.toBe(f);
+  });
+
+  it("survives a generate call that comes back with no reports", async () => {
+    serve(h.api, { ...routes, "/reports/term/class": { count: 0 } });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const button = buttonMatching(/generate/i);
+        expect(button).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(button!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+    expect(screen.queryByText(/Generated Report Cards/)).toBeNull();
+  });
+});
+
+describe("a document that comes back as plain html", () => {
+  async function openDocuments() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(tab);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+  }
+
+  async function pickStudentAndGenerate(payload: unknown) {
+    await openDocuments();
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const el of Array.from(document.querySelectorAll("select"))) {
+        if (el.value) continue;
+        const option = Array.from(el.options).find((o) => o.value);
+        if (!option) continue;
+        await act(async () => {
+          fireEvent.change(el, { target: { value: option.value } });
+        });
+      }
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    }
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()))!;
+    if (generate.hasAttribute("disabled")) return false;
+
+    h.api.post.mockResolvedValue({ data: payload });
+    await act(async () => {
+      fireEvent.click(generate);
+    });
+    await waitFor(() =>
+      expect(screen.getByTitle("Document preview")).toBeInTheDocument(),
+    );
+    return true;
+  }
+
+  // The API answers either `{ html, title }` or the bare markup, depending on
+  // the document type. Both have to preview, download and print.
+  const bare = "<html><body><h1>Enrollment</h1></body></html>";
+
+  it("previews markup that arrived without an envelope", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+    expect(screen.getByTitle("Document preview")).toHaveAttribute("srcdoc", bare);
+  });
+
+  it("downloads it under a default name", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    const download = screen
+      .queryAllByRole("button")
+      .find((b) => /download/i.test(b.textContent ?? ""))!;
+    const clicks: string[] = [];
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => clicks.push(el.getAttribute("download") ?? "");
+      return el;
+    });
+
+    await act(async () => {
+      fireEvent.click(download);
+    });
+    vi.mocked(document.createElement).mockRestore();
+
+    // No title in the payload, so it falls back rather than saving "undefined".
+    expect(clicks.at(-1)).toBe("Document.html");
+  });
+
+  it("prints it", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    const print = screen
+      .queryAllByRole("button")
+      .find((b) => /print/i.test(b.textContent ?? ""))!;
+    await act(async () => {
+      fireEvent.click(print);
+    });
+
+    expect(window.open).toHaveBeenCalled();
+  });
+
+  it("does nothing when the browser blocks the print window", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    // A pop-up blocker returns null from window.open. Reading .document off
+    // that is the classic white screen.
+    vi.stubGlobal("open", vi.fn(() => null));
+    const print = screen
+      .queryAllByRole("button")
+      .find((b) => /print/i.test(b.textContent ?? ""))!;
+
+    await act(async () => {
+      fireEvent.click(print);
+    });
+    expect(screen.getByTitle("Document preview")).toBeInTheDocument();
+  });
+});
