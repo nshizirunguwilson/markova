@@ -307,3 +307,28 @@ describe("charts drawn from rows with no labels", () => {
     expect(document.body.textContent).not.toMatch(/NaN/);
   });
 });
+
+/**
+ * The class chart when its own call fails.
+ *
+ * Each panel on this dashboard loads separately, so one endpoint being down
+ * must not take the others with it, and the chart it belongs to still has to
+ * be given a height rather than collapsing to nothing.
+ */
+describe("when the class comparison call fails on its own", () => {
+  it("still draws the rest of the dashboard", async () => {
+    serve(h.api, populatedRoutes);
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/analytics/admin/class-comparisons")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return real(url, config);
+    });
+
+    renderPage(AnalyticsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(document.body.textContent).not.toMatch(/NaN|undefined/);
+  });
+});
