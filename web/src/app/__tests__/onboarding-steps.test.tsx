@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
+import { act, fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders, signIn } from "@/test/harness";
 import { serve, serveAll, serveFailure, waitFor } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
@@ -118,4 +119,97 @@ describe("onboarding steps are safe to use", () => {
     const { rejections } = await exercisePage();
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+/**
+ * Adding a section on the classes step.
+ *
+ * This is the one step where the school types something and presses Enter
+ * rather than submitting a form, and it is the only place in the wizard that
+ * can send a request with an empty name attached to a real class level.
+ */
+describe("the classes step in use", () => {
+  async function mountClasses() {
+    serve(h.api, populatedRoutes);
+    renderWithProviders(<StepClasses />);
+    await waitFor(() =>
+      expect(screen.getByLabelText(/section name/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("shows the levels the school already has", async () => {
+    await mountClasses();
+    expect(screen.getByText("Senior 1")).toBeInTheDocument();
+  });
+
+  it("sends nothing when the box is empty", async () => {
+    await mountClasses();
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByLabelText("Add")[0]);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/sections"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("sends nothing for a name that is only spaces", async () => {
+    await mountClasses();
+    await act(async () => {
+      fireEvent.change(screen.getAllByLabelText(/section name/i)[0], {
+        target: { value: "   " },
+      });
+    });
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByLabelText("Add")[0]);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/sections"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("adds the section when Enter is pressed in the box", async () => {
+    await mountClasses();
+    const box = screen.getAllByLabelText(/section name/i)[0];
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "C" } });
+    });
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/sections"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).name).toBe("C");
+    });
+  });
+
+  it("ignores every other key", async () => {
+    await mountClasses();
+    const box = screen.getAllByLabelText(/section name/i)[0];
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "C" } });
+    });
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Escape" });
+    });
+
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
 });
