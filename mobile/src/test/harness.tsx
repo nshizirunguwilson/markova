@@ -1,0 +1,162 @@
+import { type ReactElement, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { render, type RenderResult } from '@testing-library/react-native';
+
+import { useAuthStore, type User } from '@/stores/auth-store';
+import { resetApi } from './api-mock';
+
+/**
+ * What a screen needs around it before it will draw.
+ *
+ * Deliberately not the real root layout: that one loads fonts, hides a splash
+ * screen and opens a socket, none of which a screen test is about. What is
+ * here is only what a screen actually reads from context.
+ *
+ * The theme is not provided at all, on purpose. useTheme falls back to the
+ * default navy when no school has been loaded, which is the same thing that
+ * happens on a real phone before branding arrives.
+ */
+
+// Retries turn a deliberately failing endpoint into a three second test, and
+// the cache would carry one test's data into the next.
+const testQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+export const teacher: User = {
+  id: 'user-1',
+  email: 'aline.uwase@markova.edu',
+  firstName: 'Aline',
+  lastName: 'Uwase',
+  role: 'TEACHER',
+  isActive: true,
+  teacherId: 'teacher-1',
+};
+
+export const admin: User = {
+  ...teacher,
+  id: 'user-2',
+  email: 'wilsonshizirungu@gmail.com',
+  firstName: 'Wilson',
+  lastName: 'Nshizirungu',
+  role: 'ADMIN',
+  teacherId: undefined,
+};
+
+export const parent: User = {
+  ...teacher,
+  id: 'user-3',
+  email: undefined as never,
+  firstName: 'Jean',
+  lastName: 'Habimana',
+  role: 'PARENT',
+  phone: '+250788100000',
+  teacherId: undefined,
+};
+
+export const librarian: User = {
+  ...teacher,
+  id: 'user-4',
+  email: 'librarian@markova.edu',
+  firstName: 'Chantal',
+  lastName: 'Mukamana',
+  role: 'LIBRARIAN',
+  teacherId: undefined,
+};
+
+export const matron: User = {
+  ...teacher,
+  id: 'user-5',
+  email: 'm.uwimana@markova.edu',
+  firstName: 'Marie',
+  lastName: 'Uwimana',
+  role: 'MATRON',
+  teacherId: undefined,
+};
+
+export const nurse: User = {
+  ...teacher,
+  id: 'user-6',
+  email: 'n.ingabire@markova.edu',
+  firstName: 'Nadine',
+  lastName: 'Ingabire',
+  role: 'NURSE',
+  teacherId: undefined,
+};
+
+const blankAuth = useAuthStore.getState();
+
+/** Puts somebody in the app, the way a completed sign in would. */
+export function signedInAs(user: User) {
+  useAuthStore.setState({
+    user,
+    isAuthenticated: true,
+    isLoading: false,
+  });
+  return user;
+}
+
+/** Empties the stores between tests so nothing leaks from one to the next. */
+export function resetHarness() {
+  useAuthStore.setState({ ...blankAuth, isLoading: false }, true);
+  resetApi();
+}
+
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 390, height: 844 },
+        insets: { top: 47, left: 0, right: 0, bottom: 34 },
+      }}
+    >
+      <QueryClientProvider client={testQueryClient()}>
+        {children}
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
+}
+
+export function renderScreen(ui: ReactElement): Promise<RenderResult> {
+  return render(ui, { wrapper: Providers });
+}
+
+/**
+ * The library dropped its component-type queries, so these walk the rendered
+ * host tree instead. A Pressable is a View that claims the responder, which
+ * is exactly what "can this be touched" means on a phone.
+ */
+type Node = { props?: Record<string, unknown>; children?: unknown[] };
+
+function hostNodes(node: unknown, found: Node[] = []): Node[] {
+  if (!node || typeof node !== 'object') return found;
+  const n = node as Node;
+  if (n.props) found.push(n);
+  for (const child of n.children ?? []) hostNodes(child, found);
+  return found;
+}
+
+/** How many things on this screen a finger can actually press. */
+export function pressableCount(screen: { container: unknown }): number {
+  return hostNodes(screen.container).filter(
+    (n) => n.props?.onStartShouldSetResponder,
+  ).length;
+}
+
+/** Whether an icon was drawn. lucide draws through react-native-svg. */
+export function hasIcon(screen: { toJSON: () => unknown }): boolean {
+  return JSON.stringify(screen.toJSON()).includes('RNSVGSvgView');
+}
+
+/** Flattens a style prop, which React Native allows to be an array of arrays. */
+export function styleOf(element: { props: { style?: unknown } }) {
+  return Object.assign(
+    {},
+    ...[element.props.style].flat(Infinity).filter(Boolean),
+  ) as Record<string, never>;
+}
