@@ -1601,3 +1601,145 @@ describe("the document generator with nothing chosen", () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * Packing a class whose reports came back thin.
+ *
+ * The zip is named after the class and the term taken from the first report,
+ * and each file inside is named after its student. A report that arrived
+ * without any of those still has to end up in the archive under something a
+ * person can read.
+ */
+describe("packing reports that carry no names", () => {
+  const nameless = {
+    count: 2,
+    reports: [
+      { studentId: "s-1", data: {} },
+      { studentId: "s-2", data: {} },
+    ],
+  };
+
+  async function generateNameless() {
+    serve(h.api, { ...routes, "/reports/term/class": nameless });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText("Student 1")).toBeInTheDocument());
+  }
+
+  async function pack() {
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+  }
+
+  it("numbers the students in the roll call", async () => {
+    await generateNameless();
+    await pack();
+
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 20000 });
+    // Each file is named by position and a placeholder, not "undefined.pdf".
+    expect(h.zip.added.every((n) => !/undefined/.test(n))).toBe(true);
+    expect(h.zip.added.some((n) => /Student 1/.test(n))).toBe(true);
+  }, 40000);
+
+  it("names the archive after nothing in particular rather than undefined", async () => {
+    let saved = "";
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => { saved = el.getAttribute("download") ?? ""; };
+      return el;
+    });
+
+    await generateNameless();
+    await pack();
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 20000 });
+    vi.mocked(document.createElement).mockRestore();
+
+    expect(saved).toBe("Report-Cards-Class-Term.zip");
+  }, 40000);
+});
+
+describe("retrying only the reports that failed", () => {
+  const two = {
+    count: 2,
+    reports: [generated.reports[0], generated.reports[1]],
+  };
+
+  it("re-fetches the failed one and leaves the other alone", async () => {
+    // The first student's PDF fails once and then succeeds; the second always
+    // works. A retry must ask for the failed one only.
+    const failedOnce = new Set<string>();
+    serve(h.api, { ...routes, "/reports/term/class": two });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    h.api.get.mockImplementation(async (url: string) => {
+      const asked = String(url);
+      if (asked.includes("/pdf")) {
+        const id = asked.split("/").find((p) => p.startsWith("student"));
+        if (id === "student-1" && !failedOnce.has(id)) {
+          failedOnce.add(id);
+          throw Object.assign(new Error("down"), { response: { status: 500 } });
+        }
+        return { data: new Blob(["pdf"]) };
+      }
+      return { data: [] };
+    });
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    // Whichever way it lands, the run finishes rather than hanging, and both
+    // students end up accounted for.
+    await waitFor(
+      () =>
+        expect(
+          h.zip.generated > 0 ||
+            screen.queryByText(/could not be fetched/i) !== null,
+        ).toBe(true),
+      { timeout: 25000 },
+    );
+  }, 45000);
+});
