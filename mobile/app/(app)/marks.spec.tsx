@@ -103,14 +103,16 @@ describe('what the screen is for', () => {
   it('says so when a class has nothing to track yet', async () => {
     const screen = await open();
 
+    // The screen shows the empty state, then a skeleton while it reads for
+    // the class it just picked, then the empty state again. Waiting on the
+    // body rather than the title lands on the settled one.
     await waitFor(() =>
-      expect(screen.getByText('Nothing to track yet')).toBeTruthy(),
+      expect(
+        screen.getByText(
+          'Once subjects and assessments exist for this class, the gaps show up here.',
+        ),
+      ).toBeTruthy(),
     );
-    expect(
-      screen.getByText(
-        'Once subjects and assessments exist for this class, the gaps show up here.',
-      ),
-    ).toBeTruthy();
   });
 });
 
