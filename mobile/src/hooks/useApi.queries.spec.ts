@@ -62,6 +62,10 @@ const cases: Record<string, Case> = {
     params: { teacherId: ID },
     withoutItsKey: () => useApi.useTeacherAssignments(),
   },
+  'every teaching load in the school': {
+    hook: () => useApi.useAllAssignments(),
+    url: '/academic/assignments',
+  },
   'who teaches a class': {
     hook: () => useApi.useClassTeachers(ID),
     url: '/academic/assignments',

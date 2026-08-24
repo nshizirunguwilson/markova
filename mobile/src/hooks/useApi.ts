@@ -81,6 +81,20 @@ export function useTeacherAssignments(teacherId?: string) {
   });
 }
 
+/**
+ * Every teaching load in the school.
+ *
+ * Separate from useTeacherAssignments because that one waits for a teacher id
+ * and is disabled without one. The "who teaches what" screen wants the lot,
+ * and calling the scoped hook with nothing left it pending forever.
+ */
+export function useAllAssignments() {
+  return useQuery<TeacherAssignment[]>({
+    queryKey: ['assignments', 'all'],
+    queryFn: () => api.get('/academic/assignments').then((r) => r.data),
+  });
+}
+
 export function useClassTeachers(classSectionId?: string) {
   return useQuery<TeacherAssignment[]>({
     queryKey: ['class-teachers', classSectionId],

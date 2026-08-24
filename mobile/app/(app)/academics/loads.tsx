@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
 
-import { useTeacherAssignments, useClassSections, useSubjects } from '@/hooks/useApi';
+import { useAllAssignments } from '@/hooks/useApi';
 import { useDebounce } from '@/hooks/useDebounce';
 import { space } from '@/design/tokens';
 import { Screen, Section, Row, RowGroup, Text, Field, Segmented, Empty, LoadingRows, Avatar, Badge } from '@/ui';
@@ -20,13 +20,14 @@ import { Screen, Section, Row, RowGroup, Text, Field, Segmented, Empty, LoadingR
  * absent, since an empty row is the thing this screen exists to find.
  */
 export default function Loads() {
-  const { data: assignments, isPending } = useTeacherAssignments();
+  const { data: assignments, isPending } = useAllAssignments();
   const [by, setBy] = useState<'class' | 'teacher'>('class');
   const [query, setQuery] = useState('');
   const search = useDebounce(query, 250).toLowerCase();
 
   const groups = useMemo(() => {
-    type Group = { key: string; title: string; items: string[] };
+    type Item = { line: string; unassigned: boolean };
+    type Group = { key: string; title: string; items: Item[] };
     const map = new Map<string, Group>();
 
     for (const a of ((assignments as any[]) ?? [])) {
@@ -42,12 +43,19 @@ export default function Loads() {
       const line = by === 'class' ? `${subject.name}  ·  ${teacherName}` : `${subject.name}  ·  ${section.name}`;
 
       const entry: Group = map.get(key) ?? { key, title, items: [] };
-      entry.items.push(line);
+      // Carried rather than inferred from the line: a teacher actually named
+      // Unassigned would otherwise be flagged as a gap.
+      entry.items.push({ line, unassigned: !teacher });
       map.set(key, entry);
     }
 
     let out = [...map.values()].sort((a, b) => a.title.localeCompare(b.title));
-    if (search) out = out.filter((g) => g.title.toLowerCase().includes(search) || g.items.some((i) => i.toLowerCase().includes(search)));
+    if (search)
+      out = out.filter(
+        (g) =>
+          g.title.toLowerCase().includes(search) ||
+          g.items.some((i) => i.line.toLowerCase().includes(search)),
+      );
     return out;
   }, [assignments, by, search]);
 
@@ -83,13 +91,21 @@ export default function Loads() {
           groups.map((group) => (
             <Section key={group.key} title={group.title}>
               <RowGroup>
-                {group.items.map((line, i) => (
+                {group.items.map((item, i) => (
                   <Row
-                    key={line + i}
-                    title={line.split('  ·  ')[0]}
-                    subtitle={line.split('  ·  ')[1]}
-                    lead={by === 'teacher' ? undefined : <Avatar name={line.split('  ·  ')[1] ?? '?'} size="sm" />}
-                    value={line.includes('Unassigned') ? <Badge label="No teacher" tone="critical" /> : undefined}
+                    key={item.line + i}
+                    title={item.line.split('  ·  ')[0]}
+                    subtitle={item.line.split('  ·  ')[1]}
+                    lead={
+                      by === 'teacher' ? undefined : (
+                        <Avatar name={item.line.split('  ·  ')[1] ?? '?'} size="sm" />
+                      )
+                    }
+                    value={
+                      item.unassigned ? (
+                        <Badge label="No teacher" tone="critical" />
+                      ) : undefined
+                    }
                     chevron={false}
                     last={i === group.items.length - 1}
                   />
