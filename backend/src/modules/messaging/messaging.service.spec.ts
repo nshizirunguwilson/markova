@@ -28,6 +28,7 @@ describe('MessagingService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
+      update: jest.fn(),
       updateMany: jest.fn(),
     },
     messageRead: { createMany: jest.fn() },
@@ -587,6 +588,309 @@ describe('MessagingService', () => {
       await expect(
         service.getParticipants('conv-1', 'intruder'),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  /**
+   * The conversation list, which is the first thing anybody sees. It has to
+   * open on whoever wrote last, because that is the thread they came for.
+   */
+  describe('the conversation list', () => {
+    const conv = (id: string, created: string, last?: string) => ({
+      id,
+      createdAt: new Date(created),
+      participants: [],
+      messages: last ? [{ id: `m-${id}`, createdAt: new Date(last) }] : [],
+    });
+
+    beforeEach(() => mockPrisma.message.count.mockResolvedValue(0));
+
+    it('reads only the conversations this person is in', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([]);
+      await service.getConversations('user-1');
+      expect(mockPrisma.conversation.findMany.mock.calls[0][0].where).toEqual({
+        participants: { some: { userId: 'user-1' } },
+      });
+    });
+
+    it('puts the most recently active thread first', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        conv('c-1', '2026-01-01', '2026-08-01'),
+        conv('c-2', '2026-01-01', '2026-08-20'),
+      ]);
+      const result = await service.getConversations('user-1');
+      expect(result.map((c: any) => c.id)).toEqual(['c-2', 'c-1']);
+    });
+
+    // A conversation somebody just started has no messages yet, and it should
+    // not sink to the bottom of the list.
+    it('orders an empty thread by when it was started', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        conv('c-1', '2026-01-01', '2026-08-01'),
+        conv('c-2', '2026-08-24'),
+      ]);
+      const result = await service.getConversations('user-1');
+      expect(result[0].id).toBe('c-2');
+    });
+
+    it('flattens the last message onto each thread', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        conv('c-1', '2026-01-01', '2026-08-01'),
+      ]);
+      const result = await service.getConversations('user-1');
+      expect(result[0].lastMessage).toMatchObject({ id: 'm-c-1' });
+      expect(result[0].messages).toBeUndefined();
+    });
+
+    /**
+     * The unread badge counts what somebody else sent and this person has
+     * not opened. Counting their own would badge every thread they wrote in.
+     */
+    it('counts only what somebody else sent and they have not read', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        conv('c-1', '2026-01-01'),
+      ]);
+      mockPrisma.message.count.mockResolvedValue(3);
+      const result = await service.getConversations('user-1');
+      expect(result[0].unreadCount).toBe(3);
+      expect(mockPrisma.message.count.mock.calls[0][0].where).toEqual({
+        conversationId: 'c-1',
+        senderUserId: { not: 'user-1' },
+        reads: { none: { userId: 'user-1' } },
+      });
+    });
+  });
+
+  describe('reading a thread', () => {
+    beforeEach(() => {
+      asParticipant();
+      mockPrisma.message.findMany.mockResolvedValue([]);
+    });
+
+    it('reads newest first, because a chat opens at the bottom', async () => {
+      await service.getMessages('c-1', 'user-1');
+      expect(mockPrisma.message.findMany.mock.calls[0][0].orderBy).toEqual({
+        createdAt: 'desc',
+      });
+    });
+
+    it('reads fifty unless told otherwise', async () => {
+      await service.getMessages('c-1', 'user-1');
+      expect(mockPrisma.message.findMany.mock.calls[0][0].take).toBe(50);
+    });
+
+    // Scrolling up asks for what came before a message already on screen.
+    it('reads only what came before a given point', async () => {
+      await service.getMessages('c-1', 'user-1', 20, '2026-08-20T10:00:00Z');
+      const where = mockPrisma.message.findMany.mock.calls[0][0].where;
+      expect(where.createdAt.lt).toBeInstanceOf(Date);
+      expect(mockPrisma.message.findMany.mock.calls[0][0].take).toBe(20);
+    });
+  });
+
+  /**
+   * Who a person may write to. A student messaging another student's parent
+   * is not something a school wants to have to explain.
+   */
+  describe('who somebody may write to', () => {
+    beforeEach(() => mockPrisma.user.findMany.mockResolvedValue([]));
+
+    it('answers with nobody for an account that does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.getContacts('nobody')).resolves.toEqual({ data: [] });
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['STUDENT', 'PARENT'])('holds a %s to staff only', async (role) => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role });
+      await service.getContacts('user-1');
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where.role).toEqual({
+        in: ['ADMIN', 'TEACHER', 'LIBRARIAN'],
+      });
+    });
+
+    it.each(['ADMIN', 'TEACHER', 'LIBRARIAN'])(
+      'lets a %s write to anybody',
+      async (role) => {
+        mockPrisma.user.findUnique.mockResolvedValue({ role });
+        await service.getContacts('user-1');
+        expect(
+          mockPrisma.user.findMany.mock.calls[0][0].where,
+        ).not.toHaveProperty('role');
+      },
+    );
+
+    it('leaves the person themselves out of their own list', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+      await service.getContacts('user-1');
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where.id).toEqual({
+        not: 'user-1',
+      });
+    });
+
+    it('leaves out accounts that have been retired', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+      await service.getContacts('user-1');
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where.isActive).toBe(true);
+    });
+
+    it('searches the name and the address', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+      await service.getContacts('user-1', 'Aline');
+      const or = JSON.stringify(
+        mockPrisma.user.findMany.mock.calls[0][0].where.OR,
+      );
+      expect(or).toContain('firstName');
+      expect(or).toContain('email');
+    });
+
+    it('ignores a search of nothing but spaces', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+      await service.getContacts('user-1', '   ');
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where).not.toHaveProperty(
+        'OR',
+      );
+    });
+
+    // A picker is for picking from, not for scrolling through a whole school.
+    it('offers at most thirty names', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+      await service.getContacts('user-1');
+      expect(mockPrisma.user.findMany.mock.calls[0][0].take).toBe(30);
+    });
+  });
+
+  /**
+   * Delivery ticks. The second tick means a device has the message, which is
+   * only true for messages sent to this person by somebody else.
+   */
+  describe('marking messages delivered', () => {
+    it('takes only what was sent to this person and not yet delivered', async () => {
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      await service.markDelivered('user-1');
+      expect(mockPrisma.message.findMany.mock.calls[0][0].where).toEqual({
+        status: 'SENT',
+        senderUserId: { not: 'user-1' },
+        conversation: { participants: { some: { userId: 'user-1' } } },
+      });
+    });
+
+    it('writes nothing when there was nothing waiting', async () => {
+      mockPrisma.message.findMany.mockResolvedValue([]);
+      const result = await service.markDelivered('user-1');
+      expect(result).toEqual([]);
+      expect(mockPrisma.message.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('moves them all in one write and hands back who to tell', async () => {
+      mockPrisma.message.findMany.mockResolvedValue([
+        { id: 'm-1', senderUserId: 'user-9', conversationId: 'c-1' },
+        { id: 'm-2', senderUserId: 'user-9', conversationId: 'c-1' },
+      ]);
+      const result = await service.markDelivered('user-1');
+      expect(mockPrisma.message.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['m-1', 'm-2'] } },
+        data: { status: 'DELIVERED' },
+      });
+      expect(result).toHaveLength(2);
+    });
+
+    it('moves one message to a given status', async () => {
+      mockPrisma.message.update.mockResolvedValue({});
+      await service.updateMessageStatus('m-1', 'READ');
+      expect(mockPrisma.message.update).toHaveBeenCalledWith({
+        where: { id: 'm-1' },
+        data: { status: 'READ' },
+      });
+    });
+  });
+
+  describe('the rooms a socket belongs to', () => {
+    it('lists the conversations a person is in', async () => {
+      mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+        { conversationId: 'c-1' },
+        { conversationId: 'c-2' },
+      ]);
+      await expect(service.getUserConversationIds('user-1')).resolves.toEqual([
+        'c-1',
+        'c-2',
+      ]);
+    });
+
+    it('lists who is in a conversation', async () => {
+      mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+      await expect(
+        service.getConversationParticipantIds('c-1'),
+      ).resolves.toEqual(['user-1', 'user-2']);
+    });
+  });
+
+  /**
+   * The student audiences for an announcement, which resolve to the students
+   * themselves rather than through their families.
+   */
+  describe('announcing to students rather than families', () => {
+    beforeEach(() => {
+      mockPrisma.conversation.create.mockResolvedValue({
+        id: 'conv-1',
+        messages: [{ id: 'msg-1' }],
+      });
+      mockPrisma.notification.createMany.mockResolvedValue({ count: 0 });
+    });
+
+    it.each([
+      ['STUDENTS_OF_LEVELS', { classLevelIds: ['level-1'] }],
+      ['STUDENTS_OF_CLASSES', { classSectionIds: ['section-1'] }],
+    ])('reaches the students of %s directly', async (audience, scope) => {
+      mockPrisma.student.findMany.mockResolvedValue([
+        { userId: 'u-1' },
+        { userId: 'u-2' },
+      ]);
+      const result = await service.broadcast(
+        { audience, title: 'X', message: 'Y', ...scope } as never,
+        'admin-1',
+      );
+      expect(result.recipients).toBe(2);
+      expect(mockPrisma.parentStudent.findMany).not.toHaveBeenCalled();
+    });
+
+    it('leaves out students whose account has been retired', async () => {
+      mockPrisma.student.findMany.mockResolvedValue([]);
+      await expect(
+        service.broadcast(
+          {
+            audience: 'STUDENTS_OF_LEVELS',
+            title: 'X',
+            message: 'Y',
+            classLevelIds: ['level-1'],
+          } as never,
+          'admin-1',
+        ),
+      ).rejects.toThrow(/nobody to tell/i);
+      expect(mockPrisma.student.findMany.mock.calls[0][0].where.user).toEqual({
+        isActive: true,
+      });
+    });
+
+    // A student in two classes would otherwise be counted twice.
+    it('counts a student once however many times they matched', async () => {
+      mockPrisma.student.findMany.mockResolvedValue([
+        { userId: 'u-1' },
+        { userId: 'u-1' },
+      ]);
+      const result = await service.broadcast(
+        {
+          audience: 'STUDENTS_OF_CLASSES',
+          title: 'X',
+          message: 'Y',
+          classSectionIds: ['section-1'],
+        } as never,
+        'admin-1',
+      );
+      expect(result.recipients).toBe(1);
     });
   });
 });
