@@ -240,3 +240,70 @@ describe("the marks themselves", () => {
     });
   });
 });
+
+/**
+ * A child whose subjects sit in every band.
+ *
+ * Each subject bar is coloured against three thresholds, and a single fixture
+ * with two subjects in it only ever paints two of the four arms.
+ */
+describe("subjects across every band", () => {
+  const single = parentWith({ id: "student-1", first: "Keza", last: "Uwimana" });
+
+  const spread = {
+    result: { average: 61, letterGrade: "C", rank: 8 },
+    marks: [
+      mark("s-1", "Mathematics", 88),
+      mark("s-2", "Kinyarwanda", 71),
+      mark("s-3", "Physics", 54),
+      mark("s-4", "Chemistry", 33),
+    ],
+  };
+
+  it("gives all four bands their own colour", async () => {
+    mount(single, spread);
+    await waitFor(() => expect(screen.getAllByText("Mathematics").length).toBe(1));
+
+    const bar = (name: string) =>
+      screen
+        .getByText(name)
+        .closest("div")!
+        .parentElement!.querySelector("[style*='width']")!.className;
+
+    const bands = ["Mathematics", "Kinyarwanda", "Physics", "Chemistry"].map(bar);
+    expect(new Set(bands).size).toBe(4);
+  });
+
+  it("shows nought for a subject with no assessments on it", async () => {
+    mount(single, {
+      result: { average: 0, letterGrade: "F", rank: 30 },
+      // A subject row that arrived without a score at all.
+      marks: [{ ...mark("s-1", "Mathematics", 0), score: 0, maxScore: 100 }],
+    });
+
+    await waitFor(() => expect(screen.getByText("Mathematics")).toBeInTheDocument());
+    expect(screen.getAllByText("0%").length).toBeGreaterThan(0);
+  });
+
+  it("names a subject the API sent without one", async () => {
+    mount(single, {
+      result: { average: 61, letterGrade: "C", rank: 8 },
+      marks: [{ ...mark("s-1", "Mathematics", 61), subject: undefined }],
+    });
+
+    // Better a generic label than a page that dies on a missing join.
+    expect(await screen.findByText("Subject")).toBeInTheDocument();
+  });
+});
+
+describe("a parent whose account carries no id", () => {
+  it("asks the API for nothing at all", async () => {
+    serve(h.api, routesWith(parentWith({ id: "student-1", first: "Keza", last: "Uwimana" }), someMarks));
+    renderPage(ParentMarksPage, { role: "PARENT", user: { id: "" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/users/")),
+    ).toBe(false);
+  });
+});
