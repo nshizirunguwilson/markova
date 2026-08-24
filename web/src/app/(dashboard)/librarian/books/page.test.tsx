@@ -98,7 +98,7 @@ describe("the catalogue", () => {
     await mount();
     const row = screen.getByText(/Ubuzima/).closest("tr")!;
     expect(row.textContent).toMatch(/Mukamana J./);
-    expect(row.textContent).toMatch(/978-1-23/);
+    expect(row.textContent).toMatch(/978-9970/);
   });
 
   // Two counts, and they are not the same question: how many the school owns,

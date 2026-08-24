@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveAll } from "@/test/page";
 import { book, loan, students } from "@/test/fixtures";
 import LibraryPage from "./page";
@@ -1438,10 +1438,99 @@ describe("importing a CSV of books", () => {
     renderPage(LibraryPage, { role: "ADMIN" });
 
     const input = await openImport(user);
-    // Dismissing the OS file picker fires change with an empty list.
-    await user.upload(input, []);
+    // Dismissing the OS file picker fires change with an empty list, which
+    // userEvent will not do, so the event is dispatched directly.
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [] } });
+    });
 
     expect(h.toast.error).not.toHaveBeenCalled();
     expect(screen.queryByText(/will be imported/i)).not.toBeInTheDocument();
+  });
+
+  it("does nothing for a file with nothing in it", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, new File([], "empty.csv", { type: "text/csv" }));
+
+    // An empty file has no header row either, so there is nothing to say
+    // beyond leaving the picker where it was.
+    expect(screen.queryByText(/will be imported/i)).not.toBeInTheDocument();
+  });
+
+  it("leaves the ISBN blank when the column is there but the cell is not", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(input, csv("title,author,isbn\nImbonezamubano,Uwase Aline,"));
+
+    const row = (await screen.findByText("Imbonezamubano")).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("falls back to one copy when the quantity cell is not a number", async () => {
+    const user = userEvent.setup();
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+
+    const input = await openImport(user);
+    await user.upload(
+      input,
+      csv("title,author,quantity\nImbonezamubano,Uwase Aline,several"),
+    );
+
+    const row = (await screen.findByText("Imbonezamubano")).closest("tr")!;
+    expect(within(row).getByText("1")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The ISBN a librarian types in.
+ *
+ * It is optional, but a wrong one is worse than none: the next librarian looks
+ * the book up by it and finds nothing, then catalogues a second copy.
+ */
+describe("the ISBN on a book", () => {
+  async function openNewBook(user: ReturnType<typeof userEvent.setup>) {
+    serve(h.api, routes);
+    renderPage(LibraryPage, { role: "ADMIN" });
+    await user.click(await screen.findByRole("button", { name: /add book/i }));
+    await user.type(screen.getByLabelText("Title"), "Imbonezamubano");
+    await user.type(screen.getByLabelText("Author"), "Uwase Aline");
+  }
+
+  it("refuses one that is the wrong length", async () => {
+    const user = userEvent.setup();
+    await openNewBook(user);
+    await user.type(screen.getByLabelText("ISBN"), "12345");
+    await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
+
+    expect(await screen.findByText("An ISBN is 10 or 13 digits")).toBeInTheDocument();
+  });
+
+  it("accepts one written with hyphens", async () => {
+    const user = userEvent.setup();
+    await openNewBook(user);
+    await user.type(screen.getByLabelText("ISBN"), "978-3-16-148410-0");
+    await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/library/books", expect.anything()),
+    );
+  });
+
+  it("accepts a book with no ISBN at all", async () => {
+    const user = userEvent.setup();
+    await openNewBook(user);
+    await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/library/books", expect.anything()),
+    );
   });
 });
