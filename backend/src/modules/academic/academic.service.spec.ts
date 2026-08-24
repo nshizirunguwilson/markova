@@ -1078,3 +1078,223 @@ describe('editing the school year', () => {
     });
   });
 });
+
+/**
+ * Editing what the school teaches, and where.
+ *
+ * A year level, a class, a subject and a trade each edit the same way: send
+ * one field, the rest are left alone. Getting that wrong quietly blanks a
+ * trade's sector or a subject's mark ceiling, which every report card then
+ * reads back.
+ */
+describe('editing what the school teaches', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+  });
+
+  describe('a year level', () => {
+    beforeEach(() => {
+      prisma.classLevel.findUnique.mockResolvedValue({
+        id: 'level-1',
+        name: 'Senior 1',
+        order: 1,
+        stage: 'O_LEVEL',
+      });
+      prisma.classLevel.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.classLevel.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateClassLevel('nope', { name: 'x' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('changes the name and the order together', async () => {
+      await service.updateClassLevel('level-1', {
+        name: 'Senior 2',
+        order: 2,
+      } as never);
+
+      expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({
+        name: 'Senior 2',
+        order: 2,
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateClassLevel('level-1', {} as never);
+
+      expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.classLevel.findUnique.mockResolvedValue(null);
+      await expect(service.deleteClassLevel('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('a class', () => {
+    beforeEach(() => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        name: 'A',
+        classLevelId: 'level-1',
+        tradeId: null,
+      });
+      prisma.classSection.findFirst.mockResolvedValue(null);
+      prisma.classLevel.findUnique.mockResolvedValue({
+        id: 'level-1',
+        stage: 'O_LEVEL',
+      });
+      prisma.classSection.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateSection('nope', { name: 'B' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    // Renaming a class must not move it to another level by accident.
+    it('keeps the level and trade it already had', async () => {
+      await service.updateSection('section-1', { name: 'B' } as never);
+
+      expect(prisma.classSection.update.mock.calls[0][0].data).toEqual({
+        classLevelId: 'level-1',
+        tradeId: null,
+        name: 'B',
+      });
+    });
+
+    it('clears a trade that was sent as null', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        name: 'A',
+        classLevelId: 'level-1',
+        tradeId: 'trade-1',
+      });
+
+      await service.updateSection('section-1', { tradeId: null } as never);
+
+      expect(prisma.classSection.update.mock.calls[0][0].data.tradeId).toBeNull();
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(service.deleteSection('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deletes an empty one', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        _count: { students: 0 },
+      });
+      prisma.classSection.delete.mockResolvedValue({});
+
+      await expect(service.deleteSection('section-1')).resolves.toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('a subject', () => {
+    beforeEach(() => {
+      prisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        name: 'Mathematics',
+        scope: 'O_CORE',
+        tradeId: null,
+      });
+      prisma.subject.update.mockResolvedValue({});
+    });
+
+    it('changes every field it was given', async () => {
+      await service.updateSubject('subject-1', {
+        name: 'Additional Mathematics',
+        category: 'SCIENCE',
+        classLevelId: 'level-1',
+        maxMarks: 50,
+        isActive: false,
+      } as never);
+
+      expect(prisma.subject.update.mock.calls[0][0].data).toMatchObject({
+        name: 'Additional Mathematics',
+        category: 'SCIENCE',
+        classLevelId: 'level-1',
+        maxMarks: 50,
+        isActive: false,
+      });
+    });
+
+    // Clearing a category is not the same as leaving it alone.
+    it('clears a category that was sent empty', async () => {
+      await service.updateSubject('subject-1', { category: null } as never);
+
+      expect(prisma.subject.update.mock.calls[0][0].data.category).toBeNull();
+    });
+
+    it('keeps the scope and trade it already had', async () => {
+      await service.updateSubject('subject-1', { name: 'Maths' } as never);
+
+      const written = prisma.subject.update.mock.calls[0][0].data;
+      expect(written.scope).toBe('O_CORE');
+      expect(written.tradeId).toBeNull();
+    });
+  });
+
+  describe('a trade', () => {
+    beforeEach(() => {
+      prisma.trade.findUnique.mockResolvedValue({
+        id: 'trade-1',
+        code: 'SWD',
+        name: 'Software Development',
+        sector: 'ICT',
+      });
+      prisma.trade.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.trade.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTrade('nope', { code: 'X' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('upper-cases a code and trims the rest', async () => {
+      await service.updateTrade('trade-1', {
+        code: '  nit  ',
+        name: '  Networking  ',
+        sector: '  ICT  ',
+      } as never);
+
+      expect(prisma.trade.update.mock.calls[0][0].data).toEqual({
+        code: 'NIT',
+        name: 'Networking',
+        sector: 'ICT',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTrade('trade-1', {} as never);
+
+      expect(prisma.trade.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.trade.findUnique.mockResolvedValue(null);
+      await expect(service.deleteTrade('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});
