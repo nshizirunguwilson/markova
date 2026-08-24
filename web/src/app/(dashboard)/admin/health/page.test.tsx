@@ -1102,3 +1102,84 @@ describe("a visit and a card with the lists left off entirely", () => {
     expect(screen.queryByText("Recent visits")).toBeNull();
   });
 });
+
+/**
+ * The temperature box, which is the one number on the visit form.
+ *
+ * It is optional, and an empty box is not a temperature of nought degrees.
+ * Sending one would put a dead child in the clinic book.
+ */
+describe("recording a temperature", () => {
+  async function openNewWithStudent() {
+    await mount();
+    await click(button(/new visit/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Student"), {
+        target: { value: "Divine" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByRole("button")
+          .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+      ).toBeTruthy(),
+    );
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Headache" },
+      });
+    });
+  }
+
+  it("sends the reading when there is one", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/temperature/i), {
+        target: { value: "38.6" },
+      });
+    });
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1].temperature).toBe(38.6);
+    });
+  });
+
+  it("leaves it out entirely when the box is empty", async () => {
+    await openNewWithStudent();
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      // Not nought degrees.
+      expect(call?.[1].temperature).toBeUndefined();
+    });
+  });
+
+  it("leaves the findings and treatment out when they are blank", async () => {
+    await openNewWithStudent();
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1].findings).toBeUndefined();
+      expect(call?.[1].treatment).toBeUndefined();
+    });
+  });
+});
