@@ -974,3 +974,45 @@ describe("adding a whole class from the picker", () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * An activity that needs no permission slip.
+ *
+ * A debate club does not; a forest trip does. The consent summary is only
+ * fetched for the second kind, because asking for it on every club would put
+ * a "0 of 0 answered" panel on screens that have nothing to answer.
+ */
+describe("an activity that asks for no permission", () => {
+  it("does not fetch a consent summary for it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/act-1": { ...detail, requiresConsent: false },
+    });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    h.api.get.mockClear();
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/consent")),
+    ).toBe(false);
+  });
+
+  it("shows no permission column on its list", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/act-1": { ...detail, requiresConsent: false },
+    });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Permission")).toBeNull();
+  });
+});
