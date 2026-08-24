@@ -156,11 +156,22 @@ function TeacherHome() {
   const { data: term } = useCurrentTerm();
   const { data: stats, isPending, refetch, isRefetching } = useTeacherDashboardStats(teacherId);
 
-  const pending = stats?.pendingGrades ?? '0';
+  // The API has no per-teacher "marks still owed" figure yet, so the stat
+  // comes back as '--'. An unknown is not the same as a problem: saying
+  // "some marks are still missing" on every single load would be a warning
+  // nobody could ever clear, so the headline falls back to the day instead.
+  const pending = stats?.pendingGrades ?? '--';
+  const outstanding = /^\d+%?$/.test(pending) ? parseInt(pending, 10) : null;
+  const lessons = stats?.classesToday ?? 0;
+
   const headline =
-    pending === '0' || pending === '0%'
-      ? 'You are up to date'
-      : 'Some marks are still missing';
+    outstanding === null
+      ? lessons === 0
+        ? 'No lessons today'
+        : `${lessons} lesson${lessons === 1 ? '' : 's'} today`
+      : outstanding === 0
+        ? 'You are up to date'
+        : 'Some marks are still missing';
 
   if (isPending)
     return (
@@ -182,7 +193,11 @@ function TeacherHome() {
         <StatRow>
           <Stat value={stats?.classesToday ?? 0} label="Lessons today" />
           <Stat value={stats?.attendanceRate ?? '0%'} label="Attendance" tone="positive" />
-          <Stat value={pending} label="Marks outstanding" tone={pending === '0' ? 'primary' : 'caution'} />
+          <Stat
+            value={pending}
+            label="Marks outstanding"
+            tone={outstanding ? 'caution' : 'primary'}
+          />
         </StatRow>
       </View>
 
