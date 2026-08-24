@@ -555,3 +555,201 @@ describe("deactivating an account", () => {
     await waitFor(() => expect(h.api.delete).toHaveBeenCalled());
   });
 });
+
+/**
+ * A directory that is not perfectly filled in, and one that will not load.
+ *
+ * Every school has records missing a role, a class or a login, and an admin
+ * looking for one person cannot be stopped by any of them. The failed load is
+ * the other half: a directory that goes blank looks like a school with no
+ * staff in it.
+ */
+describe("records with pieces missing", () => {
+  const untidy = [
+    // No role recorded at all, so the badge has nothing to colour itself by.
+    { ...person("u-1", "Mugisha", "Habimana", ""), role: undefined, isActive: true },
+    { ...person("u-2", "Aline", "Uwase", "TEACHER"), email: null, phone: null },
+    {
+      ...person("u-3", "Keza", "Mutesi", "STUDENT"),
+      isActive: false,
+      student: { studentIdNumber: "STD-2026-1", classSection: null },
+    },
+  ];
+
+  async function mountUntidy() {
+    serve(h.api, { ...routes, "/users": page(untidy) });
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Mugisha/)).toBeInTheDocument());
+  }
+
+  it("still draws a row for someone with no role", async () => {
+    await mountUntidy();
+    expect(screen.getByText(/Mugisha/)).toBeInTheDocument();
+  });
+
+  it("leaves the contact column empty rather than printing null", async () => {
+    await mountUntidy();
+    const row = screen.getByText(/Aline/).closest("tr")!;
+    expect(row.textContent).not.toContain("null");
+  });
+
+  it("draws an em dash for a student in no class", async () => {
+    await mountUntidy();
+    const row = screen.getByText(/Keza/).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("marks a deactivated account as inactive", async () => {
+    await mountUntidy();
+    const row = screen.getByText(/Keza/).closest("tr")!;
+    expect(within(row).getByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("sorts by role even when one person has none", async () => {
+    await mountUntidy();
+    const roleHeader = screen
+      .queryAllByRole("button")
+      .find((b) => /^role/i.test((b.textContent ?? "").trim()))!;
+
+    await act(async () => {
+      fireEvent.click(roleHeader);
+    });
+
+    // Blank sorts first rather than throwing on a missing string.
+    const first = document.querySelectorAll("tbody tr")[0];
+    expect(first.textContent).toMatch(/Mugisha/);
+  });
+});
+
+describe("a directory nobody matches", () => {
+  it("suggests loosening the search rather than showing an empty table", async () => {
+    serve(h.api, { ...routes, "/users": page([]) });
+    renderPage(UsersPage, { role: "ADMIN" });
+
+    expect(await screen.findByText("No users found")).toBeInTheDocument();
+    expect(screen.getByText(/adjusting your search/i)).toBeInTheDocument();
+  });
+});
+
+describe("a directory that will not load", () => {
+  function fails() {
+    const error = Object.assign(new Error("boom"), {
+      response: { status: 500, data: { message: "boom" } },
+    });
+    for (const method of ["get", "post", "put", "patch", "delete"] as const) {
+      h.api[method].mockRejectedValue(error);
+    }
+  }
+
+  it("says so, and offers to try again", async () => {
+    fails();
+    renderPage(UsersPage, { role: "ADMIN" });
+
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /retry/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks the API again when Retry is pressed", async () => {
+    fails();
+    renderPage(UsersPage, { role: "ADMIN" });
+    await screen.findByText("Something went wrong");
+
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    });
+
+    await waitFor(() => expect(h.api.get).toHaveBeenCalled());
+  });
+});
+
+describe("paging through a large school", () => {
+  const many = Array.from({ length: 20 }, (_, i) =>
+    person(`u-${i}`, `Person${i}`, "Uwase", "STUDENT"),
+  );
+
+  /**
+   * Answers with whichever page was asked for, so the footer reads back the
+   * page the table is actually on rather than a number frozen in a fixture.
+   */
+  async function mountPaged() {
+    h.api.get.mockImplementation(async (url: string) => {
+      const asked = String(url);
+      if (!asked.startsWith("/users")) return { data: [] };
+      const page = Number(new URLSearchParams(asked.split("?")[1]).get("page") ?? 1);
+      return {
+        data: { data: many, meta: { total: 60, page, limit: 20, totalPages: 3 } },
+      };
+    });
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Person0/)).toBeInTheDocument());
+  }
+
+  it("comes back to the page before", async () => {
+    await mountPaged();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /next page/i }));
+    });
+    await waitFor(() => expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /previous page/i }));
+    });
+
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+    // And there is nowhere further back to go.
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("asks for the page after", async () => {
+    await mountPaged();
+    h.api.get.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /next page/i }));
+    });
+
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map(([u]: any[]) => String(u));
+      expect(urls.some((u) => /page=2\b/.test(u))).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeEnabled();
+  });
+});
+
+describe("searching from the keyboard", () => {
+  it("searches on Enter without waiting for the debounce", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const box = screen.getByPlaceholderText(/search/i);
+    const user = userEvent.setup();
+    await user.type(box, "uwase");
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+
+    await waitFor(() => {
+      const urls = h.api.get.mock.calls.map(([u]: any[]) => String(u));
+      expect(urls.some((u) => u.includes("search=uwase"))).toBe(true);
+    });
+  });
+
+  it("ignores any other key", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const box = screen.getByPlaceholderText(/search/i);
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "a" });
+    });
+
+    expect(h.api.get).not.toHaveBeenCalled();
+  });
+});
