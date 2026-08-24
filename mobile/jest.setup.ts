@@ -230,12 +230,24 @@ jest.mock('socket.io-client', () => ({
 
 // Fonts load asynchronously on a device and never resolve in a test process.
 jest.mock('expo-font', () => ({
-  useFonts: () => [true, null],
+  useFonts: jest.fn(() => [true, null]),
   loadAsync: jest.fn(() => Promise.resolve()),
   isLoaded: () => true,
 }));
 
-jest.mock('@expo-google-fonts/poppins', () => ({ useFonts: () => [true, null] }));
+// The font files themselves are binary assets the bundler resolves. A name is
+// all the provider passes on to useFonts.
+jest.mock('@expo-google-fonts/poppins', () => ({
+  Poppins_400Regular: 'Poppins_400Regular',
+  Poppins_500Medium: 'Poppins_500Medium',
+  Poppins_600SemiBold: 'Poppins_600SemiBold',
+}));
 jest.mock('@expo-google-fonts/jetbrains-mono', () => ({
-  useFonts: () => [true, null],
+  JetBrainsMono_400Regular: 'JetBrainsMono_400Regular',
+  JetBrainsMono_500Medium: 'JetBrainsMono_500Medium',
+}));
+
+jest.mock('expo-splash-screen', () => ({
+  preventAutoHideAsync: jest.fn(() => Promise.resolve()),
+  hideAsync: jest.fn(() => Promise.resolve()),
 }));

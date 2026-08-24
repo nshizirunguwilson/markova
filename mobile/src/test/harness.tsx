@@ -1,7 +1,11 @@
 import { type ReactElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render, type RenderResult } from '@testing-library/react-native';
+import {
+  render,
+  renderHook as renderHookWith,
+  type RenderResult,
+} from '@testing-library/react-native';
 
 import { useAuthStore, type User } from '@/stores/auth-store';
 import { resetApi } from './api-mock';
@@ -170,4 +174,16 @@ export function rendered(screen: { toJSON: () => unknown }) {
 /** The flattened style on that outermost element. */
 export function rootStyle(screen: { toJSON: () => unknown }) {
   return styleOf(rendered(screen) ?? { props: {} });
+}
+
+/**
+ * Runs one of the useApi hooks against the mocked API, with a query client
+ * that neither retries nor caches between tests.
+ */
+export function renderApiHook<T>(hook: () => T) {
+  const client = testQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, wrapper, run: () => renderHookWith(hook, { wrapper }) };
 }
