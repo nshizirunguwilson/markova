@@ -91,7 +91,10 @@ export class ActivitiesController {
   @Put(':id')
   @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Change an activity' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateActivityDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateActivityDto,
+  ) {
     return this.service.update(id, dto);
   }
 

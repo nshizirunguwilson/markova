@@ -81,7 +81,10 @@ describe('MessagingGateway', () => {
     // A token stays valid for fifteen minutes. An account deactivated inside
     // that window must not still be able to open a socket.
     it('disconnects a socket for an account since deactivated', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: false });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        isActive: false,
+      });
       const client = socket();
       await gateway.handleConnection(client);
       expect(client.disconnect).toHaveBeenCalled();
@@ -180,9 +183,9 @@ describe('MessagingGateway', () => {
       await gateway.handleDisconnect(
         socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
       );
-      expect(prisma.user.update.mock.calls[0][0].data.lastSeenAt).toBeInstanceOf(
-        Date,
-      );
+      expect(
+        prisma.user.update.mock.calls[0][0].data.lastSeenAt,
+      ).toBeInstanceOf(Date);
     });
 
     it('tells the conversations they were in', async () => {
@@ -211,7 +214,9 @@ describe('MessagingGateway', () => {
    */
   describe('sending a message', () => {
     const client = () =>
-      socket({ data: { user: { sub: 'user-1', firstName: 'A', lastName: 'B' } } });
+      socket({
+        data: { user: { sub: 'user-1', firstName: 'A', lastName: 'B' } },
+      });
 
     it('stores it and pushes it to the thread', async () => {
       messaging.getConversationParticipantIds.mockResolvedValue([
@@ -223,7 +228,10 @@ describe('MessagingGateway', () => {
         content: 'Muraho',
       });
       expect(messaging.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ conversationId: 'conv-1', content: 'Muraho' }),
+        expect.objectContaining({
+          conversationId: 'conv-1',
+          content: 'Muraho',
+        }),
         'user-1',
       );
       expect(result).toEqual({ messageId: 'msg-1', status: 'SENT' });
@@ -251,7 +259,10 @@ describe('MessagingGateway', () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-08-20T10:00:00Z'));
       const c = client();
       for (let i = 0; i < 30; i++) {
-        await gateway.handleSendMessage(c, { conversationId: 'c', content: 'x' });
+        await gateway.handleSendMessage(c, {
+          conversationId: 'c',
+          content: 'x',
+        });
       }
       jest.setSystemTime(new Date('2026-08-20T10:01:30Z'));
       const result = await gateway.handleSendMessage(c, {
@@ -267,7 +278,10 @@ describe('MessagingGateway', () => {
       const a = client();
       const b = socket({ data: { user: { sub: 'user-2' } } });
       for (let i = 0; i < 30; i++) {
-        await gateway.handleSendMessage(a, { conversationId: 'c', content: 'x' });
+        await gateway.handleSendMessage(a, {
+          conversationId: 'c',
+          content: 'x',
+        });
       }
       const result = await gateway.handleSendMessage(b, {
         conversationId: 'c',
@@ -363,7 +377,7 @@ describe('MessagingGateway', () => {
   });
 
   describe('typing', () => {
-    it('tells the others in the thread, not the typist', async () => {
+    it('tells the others in the thread, not the typist', () => {
       const roomEmit = jest.fn();
       const client = socket({
         data: { user: { sub: 'user-1', firstName: 'Divine', lastName: 'N' } },
@@ -379,7 +393,7 @@ describe('MessagingGateway', () => {
       });
     });
 
-    it('copes with a token that carried no name', async () => {
+    it('copes with a token that carried no name', () => {
       const roomEmit = jest.fn();
       const client = socket({
         data: { user: { sub: 'user-1' } },
@@ -389,7 +403,7 @@ describe('MessagingGateway', () => {
       expect(roomEmit.mock.calls[0][1].userName).toBe('');
     });
 
-    it('tells them when the typing stops', async () => {
+    it('tells them when the typing stops', () => {
       const roomEmit = jest.fn();
       const client = socket({
         data: { user: { sub: 'user-1' } },

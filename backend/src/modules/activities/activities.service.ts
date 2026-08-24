@@ -33,7 +33,9 @@ export class ActivitiesService {
 
   private readonly detail = {
     createdBy: { select: { firstName: true, lastName: true } },
-    classLevels: { include: { classLevel: { select: { id: true, name: true } } } },
+    classLevels: {
+      include: { classLevel: { select: { id: true, name: true } } },
+    },
     sections: {
       include: {
         classSection: {
@@ -82,7 +84,10 @@ export class ActivitiesService {
         'Choose at least one year level, or aim this at the whole school',
       );
     }
-    if (audience === ActivityAudience.CLASSES && !data.classSectionIds?.length) {
+    if (
+      audience === ActivityAudience.CLASSES &&
+      !data.classSectionIds?.length
+    ) {
       throw new BadRequestException(
         'Choose at least one class, or aim this at the whole school',
       );
@@ -125,7 +130,9 @@ export class ActivitiesService {
     const existing = await this.prisma.activity.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Activity not found');
 
-    const startsAt = data.startsAt ? new Date(data.startsAt) : existing.startsAt;
+    const startsAt = data.startsAt
+      ? new Date(data.startsAt)
+      : existing.startsAt;
     const endsAt = data.endsAt ? new Date(data.endsAt) : existing.endsAt;
     if (endsAt && endsAt < startsAt) {
       throw new BadRequestException(
@@ -137,7 +144,9 @@ export class ActivitiesService {
       where: { id },
       data: {
         ...(data.title !== undefined && { title: data.title }),
-        ...(data.description !== undefined && { description: data.description }),
+        ...(data.description !== undefined && {
+          description: data.description,
+        }),
         ...(data.location !== undefined && { location: data.location }),
         ...(data.startsAt !== undefined && { startsAt }),
         ...(data.endsAt !== undefined && { endsAt }),
@@ -242,7 +251,10 @@ export class ActivitiesService {
                 studentIdNumber: true,
                 user: { select: { firstName: true, lastName: true } },
                 classSection: {
-                  select: { name: true, classLevel: { select: { name: true } } },
+                  select: {
+                    name: true,
+                    classLevel: { select: { name: true } },
+                  },
                 },
               },
             },

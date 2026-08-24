@@ -183,7 +183,7 @@ describe('SchoolConfigService', () => {
 
     it('writes a key that did not exist yet', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
-      await service.upsert({ key: 'pass_mark', value: '50' } as never);
+      await service.upsert({ key: 'pass_mark', value: '50' });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledWith({
         where: { key: 'pass_mark' },
         update: { value: '50' },
@@ -198,7 +198,7 @@ describe('SchoolConfigService', () => {
           { key: 'a', value: '1' },
           { key: 'b', value: '2' },
         ],
-      } as never);
+      });
       expect(result).toHaveLength(2);
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
     });
@@ -210,7 +210,9 @@ describe('SchoolConfigService', () => {
     });
 
     it('removes one that exists', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue({ key: 'pass_mark' });
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue({
+        key: 'pass_mark',
+      });
       mockPrisma.schoolConfig.delete.mockResolvedValue({});
       await expect(service.delete('pass_mark')).resolves.toMatchObject({
         message: 'Config "pass_mark" deleted',
@@ -254,7 +256,7 @@ describe('SchoolConfigService', () => {
     it('moves the step along', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
       mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
-      await service.updateOnboarding({ currentStep: '5' } as never);
+      await service.updateOnboarding({ currentStep: '5' });
       expect(mockPrisma.schoolConfig.upsert.mock.calls[0][0].where).toEqual({
         key: 'onboarding_step',
       });
@@ -265,7 +267,7 @@ describe('SchoolConfigService', () => {
     it('does not mark a school finished just for moving a step', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
       mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
-      await service.updateOnboarding({ currentStep: '5' } as never);
+      await service.updateOnboarding({ currentStep: '5' });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(1);
     });
 
@@ -275,7 +277,7 @@ describe('SchoolConfigService', () => {
       await service.updateOnboarding({
         currentStep: '10',
         completed: 'true',
-      } as never);
+      });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
       expect(mockPrisma.schoolConfig.upsert.mock.calls[1][0].where).toEqual({
         key: 'onboarding_completed',

@@ -68,7 +68,8 @@ describe('ClinicController', () => {
     },
     {
       name: 'a visit recorded, attributed to whoever saw them',
-      call: (c) => c.createVisit({ studentId: 'student-1', complaint: 'Fever' }, admin),
+      call: (c) =>
+        c.createVisit({ studentId: 'student-1', complaint: 'Fever' }, admin),
       calls: 'createVisit',
       withArgs: [{ studentId: 'student-1', complaint: 'Fever' }, admin.id],
     },

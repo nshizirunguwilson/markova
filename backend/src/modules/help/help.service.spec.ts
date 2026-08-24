@@ -184,7 +184,7 @@ describe('HelpService', () => {
       await service.createFaq({
         title: 'How do I reset my password?',
         content: 'Ask the office.',
-      } as never);
+      });
       expect(mockPrisma.faqArticle.create).toHaveBeenCalledWith({
         data: {
           title: 'How do I reset my password?',
@@ -196,7 +196,7 @@ describe('HelpService', () => {
     it('changes one that does', async () => {
       mockPrisma.faqArticle.findUnique.mockResolvedValue({ id: 'faq-1' });
       mockPrisma.faqArticle.update.mockResolvedValue({});
-      await service.updateFaq('faq-1', { title: 'Reworded' } as never);
+      await service.updateFaq('faq-1', { title: 'Reworded' });
       expect(mockPrisma.faqArticle.update).toHaveBeenCalledWith({
         where: { id: 'faq-1' },
         data: { title: 'Reworded' },
@@ -214,14 +214,16 @@ describe('HelpService', () => {
 
     it('refuses to change a question that does not exist', async () => {
       mockPrisma.faqArticle.findUnique.mockResolvedValue(null);
-      await expect(service.updateFaq('nope', {} as never)).rejects.toThrow(
+      await expect(service.updateFaq('nope', {})).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('refuses to remove one that does not exist', async () => {
       mockPrisma.faqArticle.findUnique.mockResolvedValue(null);
-      await expect(service.deleteFaq('nope')).rejects.toThrow(NotFoundException);
+      await expect(service.deleteFaq('nope')).rejects.toThrow(
+        NotFoundException,
+      );
       expect(mockPrisma.faqArticle.delete).not.toHaveBeenCalled();
     });
   });
@@ -239,8 +241,10 @@ describe('HelpService', () => {
       await service.createTicket('user-1', {
         title: 'Broken projector',
         description: 'It flickers',
-      } as never);
-      expect(mockPrisma.supportTicket.create.mock.calls[0][0].data).toMatchObject({
+      });
+      expect(
+        mockPrisma.supportTicket.create.mock.calls[0][0].data,
+      ).toMatchObject({
         userId: 'user-1',
         title: 'Broken projector',
       });
@@ -248,8 +252,12 @@ describe('HelpService', () => {
 
     it('reads the whole queue newest first', async () => {
       await service.findAllTickets();
-      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].where).toEqual({});
-      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].orderBy).toEqual({
+      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].where).toEqual(
+        {},
+      );
+      expect(
+        mockPrisma.supportTicket.findMany.mock.calls[0][0].orderBy,
+      ).toEqual({
         createdAt: 'desc',
       });
     });
@@ -279,14 +287,17 @@ describe('HelpService', () => {
      * "How long does the office take to answer" is only answerable if closing
      * a ticket writes down when it closed.
      */
-    it.each(['RESOLVED', 'CLOSED'])('dates a ticket moved to %s', async (status) => {
-      mockPrisma.supportTicket.findUnique.mockResolvedValue({ id: 't-1' });
-      mockPrisma.supportTicket.update.mockResolvedValue({});
-      await service.updateTicketStatus('t-1', { status } as never);
-      expect(
-        mockPrisma.supportTicket.update.mock.calls[0][0].data.resolvedAt,
-      ).toBeInstanceOf(Date);
-    });
+    it.each(['RESOLVED', 'CLOSED'])(
+      'dates a ticket moved to %s',
+      async (status) => {
+        mockPrisma.supportTicket.findUnique.mockResolvedValue({ id: 't-1' });
+        mockPrisma.supportTicket.update.mockResolvedValue({});
+        await service.updateTicketStatus('t-1', { status } as never);
+        expect(
+          mockPrisma.supportTicket.update.mock.calls[0][0].data.resolvedAt,
+        ).toBeInstanceOf(Date);
+      },
+    );
 
     it('does not date one that is only being picked up', async () => {
       mockPrisma.supportTicket.findUnique.mockResolvedValue({ id: 't-1' });

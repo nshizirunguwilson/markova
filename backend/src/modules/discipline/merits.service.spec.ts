@@ -193,7 +193,9 @@ describe('MeritsService', () => {
           student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
         },
       ]);
-      prisma.notification.create.mockRejectedValue(new Error('SMS gateway down'));
+      prisma.notification.create.mockRejectedValue(
+        new Error('SMS gateway down'),
+      );
 
       await expect(service.award(merit, 'teacher-1')).resolves.toBeDefined();
     });
@@ -279,7 +281,11 @@ describe('MeritsService', () => {
     // One incident in a month is a bad day, not a pattern.
     it('ignores a student with a single small incident', async () => {
       prisma.disciplineIncident.groupBy.mockResolvedValue([
-        { studentId: 'student-1', _count: { _all: 1 }, _sum: { pointsDeducted: 5 } },
+        {
+          studentId: 'student-1',
+          _count: { _all: 1 },
+          _sum: { pointsDeducted: 5 },
+        },
       ]);
       const result = await service.watchList(30);
       expect(result.students).toEqual([]);
@@ -287,7 +293,11 @@ describe('MeritsService', () => {
 
     it('flags a student with two incidents', async () => {
       prisma.disciplineIncident.groupBy.mockResolvedValue([
-        { studentId: 'student-1', _count: { _all: 2 }, _sum: { pointsDeducted: 8 } },
+        {
+          studentId: 'student-1',
+          _count: { _all: 2 },
+          _sum: { pointsDeducted: 8 },
+        },
       ]);
       prisma.student.findMany.mockResolvedValue([
         {
@@ -308,7 +318,11 @@ describe('MeritsService', () => {
     // A single serious incident is worth a look even without a second one.
     it('flags one heavy incident on points alone', async () => {
       prisma.disciplineIncident.groupBy.mockResolvedValue([
-        { studentId: 'student-1', _count: { _all: 1 }, _sum: { pointsDeducted: 20 } },
+        {
+          studentId: 'student-1',
+          _count: { _all: 1 },
+          _sum: { pointsDeducted: 20 },
+        },
       ]);
       prisma.student.findMany.mockResolvedValue([
         {
@@ -330,8 +344,16 @@ describe('MeritsService', () => {
     // reputation, and it is the cheapest thing for a school to fix.
     it('says plainly when a flagged student has had nothing positive', async () => {
       prisma.disciplineIncident.groupBy.mockResolvedValue([
-        { studentId: 'student-1', _count: { _all: 3 }, _sum: { pointsDeducted: 12 } },
-        { studentId: 'student-2', _count: { _all: 2 }, _sum: { pointsDeducted: 6 } },
+        {
+          studentId: 'student-1',
+          _count: { _all: 3 },
+          _sum: { pointsDeducted: 12 },
+        },
+        {
+          studentId: 'student-2',
+          _count: { _all: 2 },
+          _sum: { pointsDeducted: 6 },
+        },
       ]);
       prisma.student.findMany.mockResolvedValue([
         {
@@ -363,8 +385,16 @@ describe('MeritsService', () => {
 
     it('puts the heaviest losses first', async () => {
       prisma.disciplineIncident.groupBy.mockResolvedValue([
-        { studentId: 'student-1', _count: { _all: 2 }, _sum: { pointsDeducted: 6 } },
-        { studentId: 'student-2', _count: { _all: 2 }, _sum: { pointsDeducted: 18 } },
+        {
+          studentId: 'student-1',
+          _count: { _all: 2 },
+          _sum: { pointsDeducted: 6 },
+        },
+        {
+          studentId: 'student-2',
+          _count: { _all: 2 },
+          _sum: { pointsDeducted: 18 },
+        },
       ]);
       prisma.student.findMany.mockResolvedValue([
         {
@@ -452,7 +482,7 @@ describe('MeritsService', () => {
       await service.find({
         studentId: 'student-1',
         termId: 'term-1',
-        category: 'HONESTY' as never,
+        category: 'HONESTY',
         classSectionId: 'section-1',
       });
       expect(prisma.meritAward.findMany.mock.calls[0][0].where).toEqual({
@@ -504,7 +534,9 @@ describe('MeritsService', () => {
     it('names them with their count', async () => {
       prisma.meritAward.groupBy
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ studentId: 'student-1', _count: { _all: 4 } }]);
+        .mockResolvedValueOnce([
+          { studentId: 'student-1', _count: { _all: 4 } },
+        ]);
       prisma.student.findMany.mockResolvedValue([
         {
           id: 'student-1',

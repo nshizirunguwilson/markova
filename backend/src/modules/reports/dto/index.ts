@@ -68,9 +68,18 @@ export class IdCardRegistryQueryDto {
 
   // The roll runs to hundreds of students, so the registry is paged rather
   // than loaded whole.
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
 }

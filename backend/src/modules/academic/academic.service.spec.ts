@@ -173,7 +173,10 @@ describe('AcademicService', () => {
      * is a sign somebody is looking at stale state.
      */
     it('closes a term and stands it down as current', async () => {
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
       prisma.term.update.mockResolvedValue({});
       await service.closeTerm('term-1');
       expect(prisma.term.update.mock.calls[0][0].data).toEqual({
@@ -183,7 +186,10 @@ describe('AcademicService', () => {
     });
 
     it('refuses to close a term that is already closed', async () => {
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: true });
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: true,
+      });
       await expect(service.closeTerm('term-1')).rejects.toThrow(
         BadRequestException,
       );
@@ -191,7 +197,10 @@ describe('AcademicService', () => {
     });
 
     it('reopens a closed term without making it current again', async () => {
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: true });
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: true,
+      });
       prisma.term.update.mockResolvedValue({});
       await service.reopenTerm('term-1');
       expect(prisma.term.update.mock.calls[0][0].data).toEqual({
@@ -200,7 +209,10 @@ describe('AcademicService', () => {
     });
 
     it('refuses to reopen a term that was never closed', async () => {
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+      });
       await expect(service.reopenTerm('term-1')).rejects.toThrow(
         BadRequestException,
       );
@@ -346,7 +358,10 @@ describe('AcademicService', () => {
 
     it('refuses a trade module with no trade', async () => {
       await expect(
-        service.createSubject({ name: 'Web Development', scope: 'A_SPECIFIC' } as never),
+        service.createSubject({
+          name: 'Web Development',
+          scope: 'A_SPECIFIC',
+        } as never),
       ).rejects.toThrow(/must belong to a trade/i);
     });
 
@@ -361,14 +376,14 @@ describe('AcademicService', () => {
     });
 
     it('treats a subject as core unless told otherwise', async () => {
-      await service.createSubject({ name: 'Mathematics' } as never);
+      await service.createSubject({ name: 'Mathematics' });
       expect(prisma.subject.create.mock.calls[0][0].data.scope).toBe('O_CORE');
     });
 
     it('refuses a subject that already exists for that trade', async () => {
       prisma.subject.findFirst.mockResolvedValue({ id: 'existing' });
       await expect(
-        service.createSubject({ name: 'Mathematics' } as never),
+        service.createSubject({ name: 'Mathematics' }),
       ).rejects.toThrow(/already exists/i);
     });
 
@@ -387,7 +402,7 @@ describe('AcademicService', () => {
     });
 
     it('marks a subject out of a hundred unless told otherwise', async () => {
-      await service.createSubject({ name: 'Mathematics' } as never);
+      await service.createSubject({ name: 'Mathematics' });
       expect(prisma.subject.create.mock.calls[0][0].data.maxMarks).toBe(100);
     });
 
@@ -416,7 +431,7 @@ describe('AcademicService', () => {
         tradeId: 'trade-1',
       });
       await expect(
-        service.updateSubject('subject-1', { tradeId: null } as never),
+        service.updateSubject('subject-1', { tradeId: null }),
       ).rejects.toThrow(/must belong to a trade/i);
     });
   });
@@ -436,7 +451,9 @@ describe('AcademicService', () => {
      * the class twice on their timetable and double every load calculation.
      */
     it('refuses an assignment that already exists', async () => {
-      prisma.teacherSubjectClass.findFirst.mockResolvedValue({ id: 'existing' });
+      prisma.teacherSubjectClass.findFirst.mockResolvedValue({
+        id: 'existing',
+      });
       await expect(service.createAssignment(assignment)).rejects.toThrow(
         ConflictException,
       );
@@ -552,7 +569,7 @@ describe('AcademicService', () => {
     it('refuses a fourth O-Level year', async () => {
       prisma.classLevel.count.mockResolvedValue(3);
       await expect(
-        service.createClassLevel({ name: 'Senior 4', order: 4 } as never),
+        service.createClassLevel({ name: 'Senior 4', order: 4 }),
       ).rejects.toThrow(/limited to 3 year levels/i);
       expect(prisma.classLevel.create).not.toHaveBeenCalled();
     });
@@ -560,7 +577,7 @@ describe('AcademicService', () => {
     it('allows the third one', async () => {
       prisma.classLevel.count.mockResolvedValue(2);
       prisma.classLevel.create.mockResolvedValue({});
-      await service.createClassLevel({ name: 'Senior 3', order: 3 } as never);
+      await service.createClassLevel({ name: 'Senior 3', order: 3 });
       expect(prisma.classLevel.create).toHaveBeenCalled();
     });
 
@@ -577,7 +594,7 @@ describe('AcademicService', () => {
     it('treats a level as O-Level unless told otherwise', async () => {
       prisma.classLevel.count.mockResolvedValue(0);
       prisma.classLevel.create.mockResolvedValue({});
-      await service.createClassLevel({ name: 'Senior 1', order: 1 } as never);
+      await service.createClassLevel({ name: 'Senior 1', order: 1 });
       expect(prisma.classLevel.create.mock.calls[0][0].data.stage).toBe(
         'O_LEVEL',
       );
@@ -771,7 +788,7 @@ describe('AcademicService', () => {
         examDate: '2026-11-20',
         startTime: '08:00',
         endTime: '11:00',
-      } as never);
+      });
       expect(
         prisma.examSchedule.create.mock.calls[0][0].data.examDate,
       ).toBeInstanceOf(Date);
@@ -822,15 +839,16 @@ describe('AcademicService', () => {
 
     it('creates one', async () => {
       prisma.assessmentType.create.mockResolvedValue({ id: 'a-1' });
-      await service.createAssessmentType({ name: 'CAT 1', weight: 20 } as never);
+      await service.createAssessmentType({
+        name: 'CAT 1',
+        weight: 20,
+      } as never);
       expect(prisma.assessmentType.create).toHaveBeenCalled();
     });
 
     it('removes one', async () => {
       prisma.assessmentType.delete.mockResolvedValue({});
-      await expect(
-        service.deleteAssessmentType('a-1'),
-      ).resolves.toBeDefined();
+      await expect(service.deleteAssessmentType('a-1')).resolves.toBeDefined();
     });
   });
 

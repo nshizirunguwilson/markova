@@ -295,7 +295,10 @@ describe('the year report', () => {
     prisma = createMockPrisma();
     service = new ReportsService(prisma);
     prisma.student.findUnique.mockResolvedValue(student);
-    prisma.academicYear.findUnique.mockResolvedValue({ id: 'year-1', name: '2026' });
+    prisma.academicYear.findUnique.mockResolvedValue({
+      id: 'year-1',
+      name: '2026',
+    });
     prisma.term.findMany.mockResolvedValue([
       { id: 'term-1', name: 'Term 1' },
       { id: 'term-2', name: 'Term 2' },
@@ -310,9 +313,9 @@ describe('the year report', () => {
 
   it('refuses a student who does not exist', async () => {
     prisma.student.findUnique.mockResolvedValue(null);
-    await expect(
-      service.getYearReportData('nobody', 'year-1'),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.getYearReportData('nobody', 'year-1')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('refuses a year that does not exist', async () => {

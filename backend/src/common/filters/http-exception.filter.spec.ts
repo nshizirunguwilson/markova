@@ -21,15 +21,21 @@ describe('HttpExceptionFilter', () => {
     } as any;
 
     const filter = new HttpExceptionFilter();
-    const warn = jest.spyOn((filter as any).logger, 'warn').mockImplementation();
-    const error = jest.spyOn((filter as any).logger, 'error').mockImplementation();
+    const warn = jest
+      .spyOn((filter as any).logger, 'warn')
+      .mockImplementation();
+    const error = jest
+      .spyOn((filter as any).logger, 'error')
+      .mockImplementation();
 
     filter.catch(exception, host);
     return { status, json, body: json.mock.calls[0]?.[0], warn, error };
   };
 
   it('keeps the status the exception carried', () => {
-    const { status, body } = run(new HttpException('Nope', HttpStatus.FORBIDDEN));
+    const { status, body } = run(
+      new HttpException('Nope', HttpStatus.FORBIDDEN),
+    );
     expect(status).toHaveBeenCalledWith(403);
     expect(body.statusCode).toBe(403);
   });

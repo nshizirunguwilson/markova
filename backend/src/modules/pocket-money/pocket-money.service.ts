@@ -346,7 +346,11 @@ export class PocketMoneyService {
     },
   ) {
     const account = await this.accountFor(studentId);
-    if (data.dailyLimit !== undefined && data.dailyLimit !== null && data.dailyLimit < 0) {
+    if (
+      data.dailyLimit !== undefined &&
+      data.dailyLimit !== null &&
+      data.dailyLimit < 0
+    ) {
       throw new BadRequestException('A daily limit cannot be negative');
     }
     await this.prisma.pocketMoneyAccount.update({
@@ -363,7 +367,12 @@ export class PocketMoneyService {
    * query per student, because the alternative is 700 round trips to draw one
    * screen.
    */
-  async overview(query: { classSectionId?: string; search?: string; page?: number; limit?: number }) {
+  async overview(query: {
+    classSectionId?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const where: any = { status: 'ACTIVE' };
     if (query.classSectionId) where.classSectionId = query.classSectionId;
     if (query.search?.trim()) {
@@ -386,8 +395,12 @@ export class PocketMoneyService {
           id: true,
           studentIdNumber: true,
           user: { select: { firstName: true, lastName: true } },
-          classSection: { select: { name: true, classLevel: { select: { name: true } } } },
-          pocketMoney: { select: { id: true, dailyLimit: true, isFrozen: true } },
+          classSection: {
+            select: { name: true, classLevel: { select: { name: true } } },
+          },
+          pocketMoney: {
+            select: { id: true, dailyLimit: true, isFrozen: true },
+          },
         },
         orderBy: [{ user: { firstName: 'asc' } }],
         skip: (page - 1) * limit,
@@ -402,7 +415,13 @@ export class PocketMoneyService {
     const entries = accountIds.length
       ? await this.prisma.pocketMoneyTransaction.findMany({
           where: { accountId: { in: accountIds } },
-          select: { id: true, accountId: true, kind: true, amount: true, reversesId: true },
+          select: {
+            id: true,
+            accountId: true,
+            kind: true,
+            amount: true,
+            reversesId: true,
+          },
         })
       : [];
 
@@ -488,7 +507,11 @@ export class PocketMoneyService {
 
     const student = await this.prisma.student.findFirst({
       where: {
-        OR: [{ studentIdNumber: value }, { cardCode: value }, { nfcCardId: value }],
+        OR: [
+          { studentIdNumber: value },
+          { cardCode: value },
+          { nfcCardId: value },
+        ],
       },
       select: { id: true },
     });
@@ -505,11 +528,7 @@ export class PocketMoneyService {
    * their own parents. A teacher has no business in a child's finances.
    */
   async assertMayView(userId: string, role: Role, studentId: string) {
-    if (
-      role === Role.ADMIN ||
-      role === Role.PATRON ||
-      role === Role.MATRON
-    ) {
+    if (role === Role.ADMIN || role === Role.PATRON || role === Role.MATRON) {
       return;
     }
 

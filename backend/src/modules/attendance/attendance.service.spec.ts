@@ -87,7 +87,9 @@ describe('AttendanceService', () => {
 
     it('looks for a daily row by a null subject, not an empty string', async () => {
       await service.markAttendance(mark as never, 'teacher-1');
-      expect(prisma.attendance.findFirst.mock.calls[0][0].where.subjectId).toBeNull();
+      expect(
+        prisma.attendance.findFirst.mock.calls[0][0].where.subjectId,
+      ).toBeNull();
     });
 
     it('turns a unique clash into an answer a person can read', async () => {
@@ -108,20 +110,27 @@ describe('AttendanceService', () => {
      * A family learning at four o'clock that their child never arrived is the
      * whole point of an electronic register.
      */
-    it.each(['ABSENT', 'LATE'])('tells the family about a %s', async (status) => {
-      prisma.parentStudent.findMany.mockResolvedValue([
-        {
-          parentUserId: 'parent-1',
-          parent: { firstName: 'Claudine', phone: '+250788', email: 'c@x.rw' },
-          student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
-        },
-      ]);
-      await service.markAttendance({ ...mark, status } as never, 'teacher-1');
-      expect(notifications.send).toHaveBeenCalled();
-      const message = notifications.send.mock.calls[0][0].message;
-      expect(message).toContain('Divine Niyonkuru');
-      expect(message).toContain(status === 'LATE' ? 'late' : 'absent');
-    });
+    it.each(['ABSENT', 'LATE'])(
+      'tells the family about a %s',
+      async (status) => {
+        prisma.parentStudent.findMany.mockResolvedValue([
+          {
+            parentUserId: 'parent-1',
+            parent: {
+              firstName: 'Claudine',
+              phone: '+250788',
+              email: 'c@x.rw',
+            },
+            student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
+          },
+        ]);
+        await service.markAttendance({ ...mark, status } as never, 'teacher-1');
+        expect(notifications.send).toHaveBeenCalled();
+        const message = notifications.send.mock.calls[0][0].message;
+        expect(message).toContain('Divine Niyonkuru');
+        expect(message).toContain(status === 'LATE' ? 'late' : 'absent');
+      },
+    );
 
     it('says nothing to the family about a student who turned up', async () => {
       prisma.parentStudent.findMany.mockResolvedValue([
@@ -145,7 +154,10 @@ describe('AttendanceService', () => {
           student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
         },
       ]);
-      await service.markAttendance({ ...mark, status: 'ABSENT' } as never, 't-1');
+      await service.markAttendance(
+        { ...mark, status: 'ABSENT' } as never,
+        't-1',
+      );
       const types = notifications.send.mock.calls.map((c) => c[0].type);
       expect(types).toEqual(['SMS', 'EMAIL', 'PUSH']);
     });
@@ -158,7 +170,10 @@ describe('AttendanceService', () => {
           student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
         },
       ]);
-      await service.markAttendance({ ...mark, status: 'ABSENT' } as never, 't-1');
+      await service.markAttendance(
+        { ...mark, status: 'ABSENT' } as never,
+        't-1',
+      );
       expect(notifications.send.mock.calls.map((c) => c[0].type)).toEqual([
         'PUSH',
       ]);
@@ -193,7 +208,10 @@ describe('AttendanceService', () => {
     };
 
     it('records every student', async () => {
-      const result = await service.bulkMarkAttendance(bulk as never, 'teacher-1');
+      const result = await service.bulkMarkAttendance(
+        bulk as never,
+        'teacher-1',
+      );
       expect(result.count).toBe(2);
     });
 
@@ -202,7 +220,10 @@ describe('AttendanceService', () => {
       prisma.attendance.create
         .mockRejectedValueOnce({ code: 'P2002' })
         .mockResolvedValue({ id: 'att-2' });
-      const result = await service.bulkMarkAttendance(bulk as never, 'teacher-1');
+      const result = await service.bulkMarkAttendance(
+        bulk as never,
+        'teacher-1',
+      );
       expect(result.count).toBe(1);
     });
 
@@ -216,9 +237,9 @@ describe('AttendanceService', () => {
       ]);
       await service.bulkMarkAttendance(bulk as never, 'teacher-1');
       expect(prisma.parentStudent.findMany).toHaveBeenCalledTimes(1);
-      expect(prisma.parentStudent.findMany.mock.calls[0][0].where.studentId).toBe(
-        's-2',
-      );
+      expect(
+        prisma.parentStudent.findMany.mock.calls[0][0].where.studentId,
+      ).toBe('s-2');
     });
   });
 
@@ -231,21 +252,21 @@ describe('AttendanceService', () => {
     [
       'a QR code',
       'processQrScan',
-      { qrData: 'STD-2026-001', classSectionId: 'section-1' } as Record<string, string>,
+      { qrData: 'STD-2026-001', classSectionId: 'section-1' },
     ],
     [
       'a card',
       'processNfcScan',
-      { nfcCardId: '1111 2222 3333', classSectionId: 'section-1' } as Record<string, string>,
+      { nfcCardId: '1111 2222 3333', classSectionId: 'section-1' },
     ],
   ])('scanning %s', (_name, method, dto) => {
     beforeEach(() => prisma.student.findFirst.mockResolvedValue(student));
 
     it('refuses one nobody is registered against', async () => {
       prisma.student.findFirst.mockResolvedValue(null);
-      await expect(
-        (service as any)[method](dto, 'teacher-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect((service as any)[method](dto, 'teacher-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     // Scanning a Senior 2 card into a Senior 1 register would put a student
@@ -255,9 +276,9 @@ describe('AttendanceService', () => {
         ...student,
         classSectionId: 'other-section',
       });
-      await expect(
-        (service as any)[method](dto, 'teacher-1'),
-      ).rejects.toThrow(BadRequestException);
+      await expect((service as any)[method](dto, 'teacher-1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('says so on a second scan rather than writing another row', async () => {
@@ -305,7 +326,7 @@ describe('AttendanceService', () => {
     ])('a scan at %s:%s is %s', async (h, m, expected) => {
       at(h, m);
       await service.processQrScan(
-        { qrData: 'STD-2026-001', classSectionId: 'section-1' } as never,
+        { qrData: 'STD-2026-001', classSectionId: 'section-1' },
         'teacher-1',
       );
       expect(prisma.attendance.create.mock.calls[0][0].data.status).toBe(
@@ -342,7 +363,7 @@ describe('AttendanceService', () => {
         service.registerNfcCard({
           studentId: 'nope',
           nfcCardId: '1111',
-        } as never),
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -353,7 +374,7 @@ describe('AttendanceService', () => {
         service.registerNfcCard({
           studentId: 'student-1',
           nfcCardId: '1111',
-        } as never),
+        }),
       ).rejects.toThrow(ConflictException);
       expect(prisma.student.update).not.toHaveBeenCalled();
     });
@@ -366,7 +387,7 @@ describe('AttendanceService', () => {
         service.registerNfcCard({
           studentId: 'student-1',
           nfcCardId: '1111',
-        } as never),
+        }),
       ).resolves.toMatchObject({ studentId: 'student-1' });
       // The clash lookup deliberately excludes the student themselves.
       expect(prisma.student.findFirst.mock.calls[0][0].where.id).toEqual({
@@ -446,7 +467,9 @@ describe('AttendanceService', () => {
       prisma.student.findMany.mockResolvedValue([]);
       prisma.attendance.groupBy.mockResolvedValue([]);
       await service.getChronicallyAbsent();
-      expect(prisma.attendance.groupBy.mock.calls[0][0].where.type).toBe('daily');
+      expect(prisma.attendance.groupBy.mock.calls[0][0].where.type).toBe(
+        'daily',
+      );
     });
 
     it('narrows to one class when asked', async () => {
@@ -469,7 +492,12 @@ describe('AttendanceService', () => {
           _count: 50,
         })),
       );
-      const result = await service.getChronicallyAbsent(undefined, undefined, 2, 10);
+      const result = await service.getChronicallyAbsent(
+        undefined,
+        undefined,
+        2,
+        10,
+      );
       expect(result.count).toBe(25);
       expect(result.students).toHaveLength(10);
       expect(result.totalPages).toBe(3);
@@ -494,7 +522,10 @@ describe('AttendanceService', () => {
 
     it('writes to the families of everyone over the line', async () => {
       prisma.parentStudent.findMany.mockResolvedValue([
-        { parentUserId: 'p-1', parent: { firstName: 'Claudine', email: 'c@x.rw' } },
+        {
+          parentUserId: 'p-1',
+          parent: { firstName: 'Claudine', email: 'c@x.rw' },
+        },
       ]);
       const result = await service.sendChronicAbsenteeismAlerts();
       expect(result).toMatchObject({ studentsIdentified: 1, alertsSent: 1 });
@@ -537,7 +568,7 @@ describe('AttendanceService', () => {
         classSectionId: 'section-1',
         dateFrom: '2026-08-01',
         dateTo: '2026-08-31',
-      } as never);
+      });
       const where = prisma.attendance.findMany.mock.calls[0][0].where;
       expect(where.classSectionId).toBe('section-1');
       expect(where.date.gte).toBeInstanceOf(Date);
@@ -583,7 +614,9 @@ describe('AttendanceService', () => {
       id: `s-${name}`,
       studentIdNumber: `STD-${name}`,
       user: { firstName: name, lastName: 'X' },
-      attendances: status ? [{ status, scannedAt: null, reasonCategory: null }] : [],
+      attendances: status
+        ? [{ status, scannedAt: null, reasonCategory: null }]
+        : [],
     });
 
     it('counts the three states and works out the rate', async () => {
@@ -593,7 +626,10 @@ describe('AttendanceService', () => {
         inClass('C', 'ABSENT'),
         inClass('D', 'PRESENT'),
       ]);
-      const result = await service.getClassAttendance('section-1', '2026-08-20');
+      const result = await service.getClassAttendance(
+        'section-1',
+        '2026-08-20',
+      );
       expect(result).toMatchObject({
         total: 4,
         present: 2,
@@ -608,14 +644,20 @@ describe('AttendanceService', () => {
         inClass('A', 'PRESENT'),
         inClass('B', null),
       ]);
-      const result = await service.getClassAttendance('section-1', '2026-08-20');
+      const result = await service.getClassAttendance(
+        'section-1',
+        '2026-08-20',
+      );
       expect(result.absent).toBe(1);
       expect(result.students[1].status).toBeNull();
     });
 
     it('reports zero rather than dividing by an empty class', async () => {
       prisma.student.findMany.mockResolvedValue([]);
-      const result = await service.getClassAttendance('section-1', '2026-08-20');
+      const result = await service.getClassAttendance(
+        'section-1',
+        '2026-08-20',
+      );
       expect(result.rate).toBe(0);
     });
 
@@ -702,7 +744,7 @@ describe('AttendanceService', () => {
     it('refuses a scan matching no member of staff', async () => {
       prisma.teacher.findFirst.mockResolvedValue(null);
       await expect(
-        service.processTeacherQrScan({ qrData: 'nobody@x.rw' } as never),
+        service.processTeacherQrScan({ qrData: 'nobody@x.rw' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -713,7 +755,7 @@ describe('AttendanceService', () => {
       });
       prisma.teacherAttendance.findFirst.mockResolvedValue(null);
       prisma.teacherAttendance.create.mockResolvedValue({});
-      await service.processTeacherQrScan({ qrData: 'a@markova.edu' } as never);
+      await service.processTeacherQrScan({ qrData: 'a@markova.edu' });
       const or = prisma.teacher.findFirst.mock.calls[0][0].where.user.OR;
       expect(JSON.stringify(or)).toContain('email');
       expect(JSON.stringify(or)).toContain('phone');
@@ -727,7 +769,7 @@ describe('AttendanceService', () => {
       prisma.teacherAttendance.findFirst.mockResolvedValue({ id: 'ta-1' });
       const result = await service.processTeacherQrScan({
         qrData: 'a@markova.edu',
-      } as never);
+      });
       expect(result.duplicate).toBe(true);
       expect(prisma.teacherAttendance.create).not.toHaveBeenCalled();
     });
@@ -740,10 +782,10 @@ describe('AttendanceService', () => {
       });
       prisma.teacherAttendance.findFirst.mockResolvedValue(null);
       prisma.teacherAttendance.create.mockResolvedValue({});
-      await service.processTeacherQrScan({ qrData: 'a@markova.edu' } as never);
-      expect(
-        prisma.teacherAttendance.create.mock.calls[0][0].data.status,
-      ).toBe('LATE');
+      await service.processTeacherQrScan({ qrData: 'a@markova.edu' });
+      expect(prisma.teacherAttendance.create.mock.calls[0][0].data.status).toBe(
+        'LATE',
+      );
       jest.useRealTimers();
     });
 
@@ -822,12 +864,12 @@ describe('AttendanceService', () => {
       ]);
 
       const result = await service.getDashboardData('2026-08-20');
-      expect(result.sections.find((s: any) => s.sectionId === 'section-1')!.marked).toBe(
-        true,
-      );
-      expect(result.sections.find((s: any) => s.sectionId === 'section-2')!.marked).toBe(
-        false,
-      );
+      expect(
+        result.sections.find((s: any) => s.sectionId === 'section-1')!.marked,
+      ).toBe(true);
+      expect(
+        result.sections.find((s: any) => s.sectionId === 'section-2')!.marked,
+      ).toBe(false);
     });
 
     it('reports zero rather than dividing by an empty class', async () => {

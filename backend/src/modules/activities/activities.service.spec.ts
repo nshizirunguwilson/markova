@@ -50,7 +50,10 @@ describe('ActivitiesService', () => {
     prisma.activityParticipant.create.mockResolvedValue({ id: 'p-1' });
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ActivitiesService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ActivitiesService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
     service = module.get(ActivitiesService);
   });
@@ -103,7 +106,11 @@ describe('ActivitiesService', () => {
 
     it('attaches the chosen levels', async () => {
       await service.create(
-        { ...base, audience: 'LEVELS' as any, classLevelIds: ['level-1', 'level-2'] },
+        {
+          ...base,
+          audience: 'LEVELS',
+          classLevelIds: ['level-1', 'level-2'],
+        },
         'user-1',
       );
       const data = prisma.activity.create.mock.calls[0][0].data;
@@ -146,7 +153,9 @@ describe('ActivitiesService', () => {
         id: 'act-1',
         _count: { participants: 12 },
       });
-      await expect(service.remove('act-1')).rejects.toThrow(/cancel it instead/i);
+      await expect(service.remove('act-1')).rejects.toThrow(
+        /cancel it instead/i,
+      );
       expect(prisma.activity.delete).not.toHaveBeenCalled();
     });
 
@@ -223,7 +232,10 @@ describe('ActivitiesService', () => {
     });
 
     it('skips students already on the list', async () => {
-      prisma.student.findMany.mockResolvedValue([{ id: 'student-1' }, { id: 'student-2' }]);
+      prisma.student.findMany.mockResolvedValue([
+        { id: 'student-1' },
+        { id: 'student-2' },
+      ]);
       prisma.activityParticipant.findUnique
         .mockResolvedValueOnce({ id: 'p-1' })
         .mockResolvedValueOnce(null);
@@ -246,10 +258,10 @@ describe('ActivitiesService', () => {
       await service.recordConsent(
         'act-1',
         'student-1',
-        'GIVEN' as any,
+        'GIVEN',
         'Happy for him to go',
         'user-1',
-        'PARENT' as any,
+        'PARENT',
       );
 
       expect(prisma.activityParticipant.upsert).toHaveBeenCalledWith(
@@ -266,7 +278,14 @@ describe('ActivitiesService', () => {
     it('stamps the time it was given', async () => {
       prisma.parentStudent.findFirst.mockResolvedValue({ id: 'ps-1' });
       prisma.activityParticipant.upsert.mockResolvedValue({});
-      await service.recordConsent('act-1', 'student-1', 'GIVEN' as any, undefined, 'user-1', 'PARENT' as any);
+      await service.recordConsent(
+        'act-1',
+        'student-1',
+        'GIVEN',
+        undefined,
+        'user-1',
+        'PARENT',
+      );
 
       const call = prisma.activityParticipant.upsert.mock.calls[0][0];
       expect(call.update.consentAt).toBeInstanceOf(Date);
@@ -275,7 +294,14 @@ describe('ActivitiesService', () => {
     it('records a refusal as clearly as an agreement', async () => {
       prisma.parentStudent.findFirst.mockResolvedValue({ id: 'ps-1' });
       prisma.activityParticipant.upsert.mockResolvedValue({});
-      await service.recordConsent('act-1', 'student-1', 'REFUSED' as any, 'He is unwell', 'user-1', 'PARENT' as any);
+      await service.recordConsent(
+        'act-1',
+        'student-1',
+        'REFUSED',
+        'He is unwell',
+        'user-1',
+        'PARENT',
+      );
 
       expect(prisma.activityParticipant.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -288,14 +314,28 @@ describe('ActivitiesService', () => {
     it('stops a parent answering for another family', async () => {
       prisma.parentStudent.findFirst.mockResolvedValue(null);
       await expect(
-        service.recordConsent('act-1', 'student-9', 'GIVEN' as any, undefined, 'user-1', 'PARENT' as any),
+        service.recordConsent(
+          'act-1',
+          'student-9',
+          'GIVEN' as any,
+          undefined,
+          'user-1',
+          'PARENT' as any,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     // The office records answers given on paper or over the phone.
     it('lets the office record an answer given elsewhere', async () => {
       prisma.activityParticipant.upsert.mockResolvedValue({});
-      await service.recordConsent('act-1', 'student-9', 'GIVEN' as any, 'Signed slip', 'user-1', 'ADMIN' as any);
+      await service.recordConsent(
+        'act-1',
+        'student-9',
+        'GIVEN',
+        'Signed slip',
+        'user-1',
+        'ADMIN',
+      );
       expect(prisma.activityParticipant.upsert).toHaveBeenCalled();
       expect(prisma.parentStudent.findFirst).not.toHaveBeenCalled();
     });
@@ -304,7 +344,11 @@ describe('ActivitiesService', () => {
   describe('the day before a trip', () => {
     it('splits the list into agreed, refused and not answered', async () => {
       const student = (id: string, first: string) => ({
-        student: { id, studentIdNumber: `STD-${id}`, user: { firstName: first, lastName: 'Uwase' } },
+        student: {
+          id,
+          studentIdNumber: `STD-${id}`,
+          user: { firstName: first, lastName: 'Uwase' },
+        },
       });
       prisma.activity.findUnique.mockResolvedValue({
         id: 'act-1',
@@ -347,7 +391,9 @@ describe('ActivitiesService', () => {
     it('stamps when the register was taken', async () => {
       prisma.activity.findUnique.mockResolvedValue({ id: 'act-1' });
       prisma.activityParticipant.upsert.mockResolvedValue({});
-      await service.markAttendance('act-1', [{ studentId: 'student-1', attended: true }]);
+      await service.markAttendance('act-1', [
+        { studentId: 'student-1', attended: true },
+      ]);
 
       const call = prisma.activityParticipant.upsert.mock.calls[0][0];
       expect(call.update.attendedAt).toBeInstanceOf(Date);
@@ -358,7 +404,9 @@ describe('ActivitiesService', () => {
     it('marks a student who was never on the list', async () => {
       prisma.activity.findUnique.mockResolvedValue({ id: 'act-1' });
       prisma.activityParticipant.upsert.mockResolvedValue({});
-      await service.markAttendance('act-1', [{ studentId: 'walk-in', attended: true }]);
+      await service.markAttendance('act-1', [
+        { studentId: 'walk-in', attended: true },
+      ]);
 
       const call = prisma.activityParticipant.upsert.mock.calls[0][0];
       expect(call.create.studentId).toBe('walk-in');
@@ -369,7 +417,7 @@ describe('ActivitiesService', () => {
    * A student's own view. An activity aimed at the whole school concerns them
    * without any row existing, so this is not simply "what I signed up for".
    */
-  describe("what one student is concerned by", () => {
+  describe('what one student is concerned by', () => {
     it('includes anything aimed at their level or class, signed up or not', async () => {
       prisma.student.findUnique.mockResolvedValue({
         classSectionId: 'section-1',
@@ -397,7 +445,9 @@ describe('ActivitiesService', () => {
       });
       prisma.activity.findMany.mockResolvedValue([]);
       await service.forStudent('student-1');
-      expect(prisma.activity.findMany.mock.calls[0][0].where.isCancelled).toBe(false);
+      expect(prisma.activity.findMany.mock.calls[0][0].where.isCancelled).toBe(
+        false,
+      );
     });
 
     // "Am I on the list and did my parent agree" is one question from the
@@ -408,12 +458,19 @@ describe('ActivitiesService', () => {
         classSection: { classLevelId: 'level-1' },
       });
       prisma.activity.findMany.mockResolvedValue([
-        { id: 'act-1', participants: [{ id: 'p-1', consent: 'GIVEN', attended: null }] },
+        {
+          id: 'act-1',
+          participants: [{ id: 'p-1', consent: 'GIVEN', attended: null }],
+        },
         { id: 'act-2', participants: [] },
       ]);
 
       const result = await service.forStudent('student-1');
-      expect(result[0].myPlace).toEqual({ id: 'p-1', consent: 'GIVEN', attended: null });
+      expect(result[0].myPlace).toEqual({
+        id: 'p-1',
+        consent: 'GIVEN',
+        attended: null,
+      });
       expect(result[1].myPlace).toBeNull();
     });
 
@@ -508,7 +565,9 @@ describe('ActivitiesService', () => {
       prisma.activity.count.mockResolvedValue(0);
       prisma.activity.findMany.mockResolvedValue([]);
       await service.findAll({});
-      expect(prisma.activity.findMany.mock.calls[0][0].where.isCancelled).toBe(false);
+      expect(prisma.activity.findMany.mock.calls[0][0].where.isCancelled).toBe(
+        false,
+      );
     });
 
     it('shows them when asked', async () => {
@@ -614,9 +673,7 @@ describe('ActivitiesService', () => {
   describe('one activity with its list', () => {
     it('refuses one that does not exist', async () => {
       prisma.activity.findUnique.mockResolvedValue(null);
-      await expect(service.findById('nope')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findById('nope')).rejects.toThrow(NotFoundException);
     });
 
     // A register is read in the order people signed up, which is the order a
@@ -625,7 +682,8 @@ describe('ActivitiesService', () => {
       prisma.activity.findUnique.mockResolvedValue({ id: 'act-1' });
       await service.findById('act-1');
       expect(
-        prisma.activity.findUnique.mock.calls[0][0].include.participants.orderBy,
+        prisma.activity.findUnique.mock.calls[0][0].include.participants
+          .orderBy,
       ).toEqual({ createdAt: 'asc' });
     });
   });
@@ -658,7 +716,7 @@ describe('ActivitiesService', () => {
       await service.create(
         {
           ...base,
-          audience: 'CLASSES' as never,
+          audience: 'CLASSES',
           classSectionIds: ['section-1', 'section-2'],
         },
         'user-1',

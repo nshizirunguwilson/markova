@@ -652,7 +652,7 @@ describe('AuthService', () => {
    */
   describe('asking for a password reset', () => {
     it('refuses a request naming neither an email nor a phone', async () => {
-      await expect(service.requestPasswordReset({} as never)).rejects.toThrow(
+      await expect(service.requestPasswordReset({})).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -892,7 +892,9 @@ describe('AuthService', () => {
    */
   describe('how many devices at once', () => {
     it('keeps at most three sessions', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       mockPrisma.userSession.findMany.mockResolvedValue([
         { id: 's-1' },
         { id: 's-2' },
@@ -910,7 +912,9 @@ describe('AuthService', () => {
     });
 
     it('ends the oldest first', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       mockPrisma.userSession.findMany.mockResolvedValue([]);
       await service.login({
         email: 'student1@markova.edu',
@@ -922,7 +926,9 @@ describe('AuthService', () => {
     });
 
     it('ends nothing when there is room', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       mockPrisma.userSession.findMany.mockResolvedValue([{ id: 's-1' }]);
       await service.login({
         email: 'student1@markova.edu',
@@ -937,7 +943,9 @@ describe('AuthService', () => {
      * seven days of access instead of fifteen minutes.
      */
     it('labels the two tokens differently', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -949,7 +957,9 @@ describe('AuthService', () => {
     });
 
     it('signs the refresh token with its own secret', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -959,7 +969,9 @@ describe('AuthService', () => {
     });
 
     it('gives each token its own id', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -970,7 +982,9 @@ describe('AuthService', () => {
     });
 
     it('never answers with the password hash', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'student1@markova.edu',
@@ -990,7 +1004,11 @@ describe('AuthService', () => {
    */
   describe('a token presented in the wrong place', () => {
     it('refuses an access token at the refresh endpoint', async () => {
-      mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN', typ: 'access' });
+      mockJwt.verify.mockReturnValue({
+        sub: 'user-1',
+        role: 'ADMIN',
+        typ: 'access',
+      });
       await expect(
         service.refreshToken({ refreshToken: 'an-access-token' }),
       ).rejects.toThrow(UnauthorizedException);
@@ -1066,7 +1084,9 @@ describe('AuthService', () => {
     // A successful sign-in clears the count, or a person who mistypes twice a
     // day would eventually be locked out for no reason.
     it('clears the count on a successful sign-in', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser({ role: 'STUDENT' }));
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ role: 'STUDENT' }),
+      );
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,

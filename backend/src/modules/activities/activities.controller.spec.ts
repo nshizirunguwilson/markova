@@ -151,7 +151,14 @@ describe('ActivitiesController', () => {
           parent,
         ),
       calls: 'recordConsent',
-      withArgs: ['act-1', 'student-1', 'GIVEN', 'Travel sick', parent.id, 'PARENT'],
+      withArgs: [
+        'act-1',
+        'student-1',
+        'GIVEN',
+        'Travel sick',
+        parent.id,
+        'PARENT',
+      ],
     },
     {
       name: 'the register',

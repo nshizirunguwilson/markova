@@ -195,7 +195,11 @@ describe('file validation', () => {
   describe('the multer file filter', () => {
     it('accepts what the kind allows', () => {
       const cb = jest.fn();
-      fileFilterFor('attachment', 'no')(null, { mimetype: 'application/pdf' }, cb);
+      fileFilterFor('attachment', 'no')(
+        null,
+        { mimetype: 'application/pdf' },
+        cb,
+      );
       expect(cb).toHaveBeenCalledWith(null, true);
     });
 

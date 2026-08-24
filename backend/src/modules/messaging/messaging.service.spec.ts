@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MessagingService } from './messaging.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -347,7 +351,9 @@ describe('MessagingService', () => {
     it('rings everybody as well as writing to them', async () => {
       mockPrisma.user.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
       await service.broadcast(announcement, 'admin-1');
-      expect(mockPrisma.notification.createMany.mock.calls[0][0].data).toHaveLength(2);
+      expect(
+        mockPrisma.notification.createMany.mock.calls[0][0].data,
+      ).toHaveLength(2);
     });
 
     // Nobody should find out they addressed four hundred families by doing it.
@@ -562,7 +568,11 @@ describe('MessagingService', () => {
     it('renames a group for its admin', async () => {
       asGroupAdmin();
       mockPrisma.conversation.update.mockResolvedValue({ id: 'conv-1' });
-      await service.renameConversation('conv-1', 'Senior 1 class teachers', 'u1');
+      await service.renameConversation(
+        'conv-1',
+        'Senior 1 class teachers',
+        'u1',
+      );
       expect(mockPrisma.conversation.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { name: 'Senior 1 class teachers' },
@@ -580,7 +590,9 @@ describe('MessagingService', () => {
     it('shows the membership to anybody in the conversation', async () => {
       asParticipant();
       mockPrisma.conversationParticipant.findMany.mockResolvedValue([]);
-      await expect(service.getParticipants('conv-1', 'u1')).resolves.toEqual([]);
+      await expect(service.getParticipants('conv-1', 'u1')).resolves.toEqual(
+        [],
+      );
     });
 
     it('shows the membership to nobody outside it', async () => {
@@ -697,7 +709,9 @@ describe('MessagingService', () => {
 
     it('answers with nobody for an account that does not exist', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.getContacts('nobody')).resolves.toEqual({ data: [] });
+      await expect(service.getContacts('nobody')).resolves.toEqual({
+        data: [],
+      });
       expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
 
@@ -731,7 +745,9 @@ describe('MessagingService', () => {
     it('leaves out accounts that have been retired', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
       await service.getContacts('user-1');
-      expect(mockPrisma.user.findMany.mock.calls[0][0].where.isActive).toBe(true);
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where.isActive).toBe(
+        true,
+      );
     });
 
     it('searches the name and the address', async () => {
@@ -747,9 +763,9 @@ describe('MessagingService', () => {
     it('ignores a search of nothing but spaces', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
       await service.getContacts('user-1', '   ');
-      expect(mockPrisma.user.findMany.mock.calls[0][0].where).not.toHaveProperty(
-        'OR',
-      );
+      expect(
+        mockPrisma.user.findMany.mock.calls[0][0].where,
+      ).not.toHaveProperty('OR');
     });
 
     // A picker is for picking from, not for scrolling through a whole school.

@@ -78,7 +78,10 @@ describe('promotion', () => {
 
     it('retains a student who behaved but did not pass', async () => {
       prisma.student.findMany.mockResolvedValue([
-        student({ disciplinePoints: 100, yearResults: [{ yearlyAverage: 31 }] }),
+        student({
+          disciplinePoints: 100,
+          yearResults: [{ yearlyAverage: 31 }],
+        }),
       ]);
       const result = await service.getPromotionPreview(preview);
       expect(result.students[0].reason).toMatch(/below pass mark/i);
@@ -312,8 +315,14 @@ describe('promotion', () => {
 
     it('promotes those at or above the pass mark', async () => {
       prisma.student.findMany.mockResolvedValue([
-        student({ id: 's-1', yearResults: [{ id: 'yr-1', yearlyAverage: 50 }] }),
-        student({ id: 's-2', yearResults: [{ id: 'yr-2', yearlyAverage: 49 }] }),
+        student({
+          id: 's-1',
+          yearResults: [{ id: 'yr-1', yearlyAverage: 50 }],
+        }),
+        student({
+          id: 's-2',
+          yearResults: [{ id: 'yr-2', yearlyAverage: 49 }],
+        }),
       ]);
 
       const result = await service.promoteStudents(bulk);

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 
@@ -134,14 +130,14 @@ describe('UsersService', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'existing' });
       await expect(
-        service.create({ ...teacher, phone: '+250788000001' } as never),
+        service.create({ ...teacher, phone: '+250788000001' }),
       ).rejects.toThrow(/phone already in use/i);
     });
 
     it('refuses a national ID somebody already registered', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'existing' });
       await expect(
-        service.create({ ...teacher, nationalId: '1200780012345678' } as never),
+        service.create({ ...teacher, nationalId: '1200780012345678' }),
       ).rejects.toThrow(/national id already registered/i);
     });
   });
@@ -217,12 +213,12 @@ describe('UsersService', () => {
    */
   describe('creating the account', () => {
     it('writes the user and its role record together', async () => {
-      await service.create(teacher as never);
+      await service.create(teacher);
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
     it('hashes the password rather than storing it', async () => {
-      await service.create(teacher as never);
+      await service.create(teacher);
       const data = prisma.user.create.mock.calls[0][0].data;
       expect(data.passwordHash).not.toBe('Password123!');
       expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
@@ -231,7 +227,7 @@ describe('UsersService', () => {
     // The first sign-in has to be the account holder's own choice of
     // password, not one the office knows.
     it('makes the first sign-in change the password', async () => {
-      await service.create(teacher as never);
+      await service.create(teacher);
       expect(prisma.user.create.mock.calls[0][0].data.forcePasswordChange).toBe(
         true,
       );
@@ -325,7 +321,7 @@ describe('UsersService', () => {
 
     it('continues the sequence from the last one issued', async () => {
       prisma.user.findFirst.mockResolvedValue({ code: 'TCH-2026-041' });
-      await service.create(teacher as never);
+      await service.create(teacher);
       expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
         /^TCH-\d{4}-042$/,
       );
@@ -333,7 +329,7 @@ describe('UsersService', () => {
 
     it('starts at one for the first of a role in a year', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
-      await service.create(teacher as never);
+      await service.create(teacher);
       expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
         /^TCH-\d{4}-001$/,
       );
@@ -366,7 +362,9 @@ describe('UsersService', () => {
     });
 
     it('stores a new photo path', async () => {
-      prisma.user.update.mockResolvedValue({ photoUrl: '/uploads/photos/a.png' });
+      prisma.user.update.mockResolvedValue({
+        photoUrl: '/uploads/photos/a.png',
+      });
       await service.updatePhoto('u-1', '/uploads/photos/a.png');
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -396,7 +394,7 @@ describe('UsersService', () => {
     });
 
     it('requires every word to match something', async () => {
-      await service.findAll({ search: 'Divine Senior' } as never);
+      await service.findAll({ search: 'Divine Senior' });
       const and = prisma.user.findMany.mock.calls[0][0].where.AND;
       expect(and).toHaveLength(2);
     });
@@ -404,7 +402,7 @@ describe('UsersService', () => {
     // A lone letter is an initial. Matching it inside every name would return
     // most of the school.
     it('treats a single letter as an initial rather than a substring', async () => {
-      await service.findAll({ search: 'D' } as never);
+      await service.findAll({ search: 'D' });
       const or = prisma.user.findMany.mock.calls[0][0].where.AND[0].OR;
       const names = JSON.stringify(or);
       expect(names).toContain('startsWith');
@@ -413,7 +411,7 @@ describe('UsersService', () => {
 
     // "NIT" scoped to class must not drag in Anitha by her name.
     it('pins the search to one field group when a scope is given', async () => {
-      await service.findAll({ search: 'NIT', searchIn: 'class' } as never);
+      await service.findAll({ search: 'NIT', searchIn: 'class' });
       const or = JSON.stringify(
         prisma.user.findMany.mock.calls[0][0].where.AND[0].OR,
       );
@@ -422,7 +420,7 @@ describe('UsersService', () => {
     });
 
     it('reads a lone digit as a year level', async () => {
-      await service.findAll({ search: '5' } as never);
+      await service.findAll({ search: '5' });
       const or = JSON.stringify(
         prisma.user.findMany.mock.calls[0][0].where.AND[0].OR,
       );
@@ -431,7 +429,7 @@ describe('UsersService', () => {
 
     it('pages', async () => {
       prisma.user.count.mockResolvedValue(45);
-      const result = await service.findAll({ page: 3, limit: 20 } as never);
+      const result = await service.findAll({ page: 3, limit: 20 });
       expect(prisma.user.findMany.mock.calls[0][0].skip).toBe(40);
       expect(result.meta).toMatchObject({ total: 45, page: 3, limit: 20 });
     });
@@ -476,7 +474,7 @@ describe('UsersService', () => {
 
     it('changes only what was sent', async () => {
       asTeacher();
-      await service.update('user-1', { firstName: 'Aline' } as never);
+      await service.update('user-1', { firstName: 'Aline' });
       expect(prisma.user.update.mock.calls[0][0].data).toEqual({
         firstName: 'Aline',
       });
@@ -500,7 +498,7 @@ describe('UsersService', () => {
 
     it('moves a student to another class', async () => {
       asStudent();
-      await service.update('user-1', { classSectionId: 'section-2' } as never);
+      await service.update('user-1', { classSectionId: 'section-2' });
       expect(prisma.student.update.mock.calls[0][0].data.classSectionId).toBe(
         'section-2',
       );
@@ -518,13 +516,13 @@ describe('UsersService', () => {
 
     it('accepts clearing a medical note rather than ignoring the change', async () => {
       asStudent();
-      await service.update('user-1', { allergies: '' } as never);
+      await service.update('user-1', { allergies: '' });
       expect(prisma.student.update.mock.calls[0][0].data.allergies).toBe('');
     });
 
     it('deactivates an account through the same route', async () => {
       asTeacher();
-      await service.update('user-1', { isActive: false } as never);
+      await service.update('user-1', { isActive: false });
       expect(prisma.user.update.mock.calls[0][0].data.isActive).toBe(false);
     });
   });

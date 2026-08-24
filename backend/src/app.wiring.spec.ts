@@ -101,7 +101,8 @@ describe('every controller is reachable', () => {
       if (!file.endsWith('.controller.ts')) continue;
       const source = readFileSync(join(dir, file), 'utf8');
       const match = source.match(/export class (\w+Controller)/);
-      if (match) declared.push({ file: `${feature}/${file}`, className: match[1] });
+      if (match)
+        declared.push({ file: `${feature}/${file}`, className: match[1] });
     }
   }
 

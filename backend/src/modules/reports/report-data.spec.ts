@@ -298,7 +298,9 @@ describe('report card data', () => {
     });
 
     it('says nothing about competence for an ordinary subject', async () => {
-      prisma.mark.findMany.mockResolvedValue([mark('Mathematics', 'CAT 1', 15)]);
+      prisma.mark.findMany.mockResolvedValue([
+        mark('Mathematics', 'CAT 1', 15),
+      ]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.subjects[0].competence).toBeNull();
     });
@@ -395,7 +397,10 @@ describe('documents', () => {
         recordedBy: { firstName: 'Aline', lastName: 'Uwase' },
       },
     ]);
-    const doc = await service.generateDocument('student-1', 'discipline_report');
+    const doc = await service.generateDocument(
+      'student-1',
+      'discipline_report',
+    );
     expect(doc.html).toContain('Late to assembly');
     expect(prisma.disciplineIncident.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ orderBy: { date: 'desc' } }),
@@ -421,7 +426,10 @@ describe('documents', () => {
         ...student,
         user: { ...student.user, firstName: attack },
       });
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toContain('<script>');
       expect(doc.html).toContain('&lt;script&gt;');
     });
@@ -430,7 +438,10 @@ describe('documents', () => {
       prisma.schoolConfig.findMany.mockResolvedValue([
         { key: 'school_name', value: attack },
       ]);
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toContain('<script>');
     });
 
@@ -458,7 +469,10 @@ describe('documents', () => {
         { key: 'school_name', value: 'Markova' },
         { key: 'primary_color', value: 'red;}body{display:none}' },
       ]);
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toContain('display:none');
     });
   });

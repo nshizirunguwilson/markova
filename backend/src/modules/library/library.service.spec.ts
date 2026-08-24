@@ -64,7 +64,7 @@ describe('LibraryService', () => {
       prisma.book.findUnique.mockResolvedValue(
         book({ quantity: 5, availableCount: 3 }),
       );
-      await service.updateBook('book-1', { quantity: 8 } as never);
+      await service.updateBook('book-1', { quantity: 8 });
       // Two are out, so eight in stock means six on the shelf.
       expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(6);
     });
@@ -73,13 +73,13 @@ describe('LibraryService', () => {
       prisma.book.findUnique.mockResolvedValue(
         book({ quantity: 5, availableCount: 0 }),
       );
-      await service.updateBook('book-1', { quantity: 2 } as never);
+      await service.updateBook('book-1', { quantity: 2 });
       expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(0);
     });
 
     it('leaves the shelf count alone when only the title changed', async () => {
       prisma.book.findUnique.mockResolvedValue(book());
-      await service.updateBook('book-1', { title: 'Corrected' } as never);
+      await service.updateBook('book-1', { title: 'Corrected' });
       expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(3);
     });
 
@@ -93,7 +93,10 @@ describe('LibraryService', () => {
     // A book somebody is holding cannot be struck off the catalogue, or the
     // loan points at nothing when they bring it back.
     it('refuses to remove a title that is out on loan', async () => {
-      prisma.book.findUnique.mockResolvedValue({ ...book(), loans: [{ id: 'l-1' }] });
+      prisma.book.findUnique.mockResolvedValue({
+        ...book(),
+        loans: [{ id: 'l-1' }],
+      });
       await expect(service.deleteBook('book-1')).rejects.toThrow(
         BadRequestException,
       );
@@ -109,7 +112,10 @@ describe('LibraryService', () => {
     it('imports a shelf at a time', async () => {
       prisma.book.create.mockResolvedValue({});
       const result = await service.bulkImport({
-        books: [{ title: 'A', quantity: 2 }, { title: 'B', quantity: 1 }],
+        books: [
+          { title: 'A', quantity: 2 },
+          { title: 'B', quantity: 1 },
+        ],
       } as never);
       expect(result.count).toBe(2);
     });
@@ -117,7 +123,7 @@ describe('LibraryService', () => {
     it('searches the title, the author and the ISBN', async () => {
       prisma.book.findMany.mockResolvedValue([]);
       prisma.book.count.mockResolvedValue(0);
-      await service.findAll({ search: 'Achebe' } as never);
+      await service.findAll({ search: 'Achebe' });
       const or = JSON.stringify(prisma.book.findMany.mock.calls[0][0].where.OR);
       expect(or).toContain('title');
       expect(or).toContain('author');
@@ -127,10 +133,10 @@ describe('LibraryService', () => {
     it('shows only what is on the shelf when asked', async () => {
       prisma.book.findMany.mockResolvedValue([]);
       prisma.book.count.mockResolvedValue(0);
-      await service.findAll({ available: true } as never);
-      expect(prisma.book.findMany.mock.calls[0][0].where.availableCount).toEqual(
-        { gt: 0 },
-      );
+      await service.findAll({ available: true });
+      expect(
+        prisma.book.findMany.mock.calls[0][0].where.availableCount,
+      ).toEqual({ gt: 0 });
     });
 
     it('refuses one title that does not exist', async () => {
@@ -156,7 +162,7 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: 'nope',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -166,7 +172,7 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: 'BK-001',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(/no copies available/i);
     });
 
@@ -176,7 +182,7 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: 'BK-001',
           studentIdentifier: 'nope',
-        } as never),
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -184,7 +190,7 @@ describe('LibraryService', () => {
       await service.checkout({
         bookIdentifier: 'BK-001',
         studentIdentifier: 'STD-2026-001',
-      } as never);
+      });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(prisma.book.update.mock.calls[0][0].data).toEqual({
         availableCount: { decrement: 1 },
@@ -197,7 +203,7 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: 'BK-001',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(/borrowing limit reached \(3 books\)/i);
     });
 
@@ -208,21 +214,19 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: 'BK-001',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(/\(5 books\)/);
     });
 
     // Lending to somebody already holding an overdue book is how a library
     // loses its stock one student at a time.
     it('refuses a student holding something overdue', async () => {
-      prisma.bookLoan.count
-        .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(1);
+      prisma.bookLoan.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
       await expect(
         service.checkout({
           bookIdentifier: 'BK-001',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(/has overdue books/i);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
@@ -232,7 +236,7 @@ describe('LibraryService', () => {
       await service.checkout({
         bookIdentifier: 'BK-001',
         studentIdentifier: 'STD-2026-001',
-      } as never);
+      });
       const due: Date = prisma.bookLoan.create.mock.calls[0][0].data.dueDate;
       const days = Math.round((due.getTime() - Date.now()) / 86400000);
       expect(days).toBe(7);
@@ -242,10 +246,10 @@ describe('LibraryService', () => {
       await service.checkout({
         bookIdentifier: 'BK-001',
         studentIdentifier: 'STD-2026-001',
-      } as never);
-      expect(
-        prisma.bookLoan.create.mock.calls[0][0].data.replacementCost,
-      ).toBe(8000);
+      });
+      expect(prisma.bookLoan.create.mock.calls[0][0].data.replacementCost).toBe(
+        8000,
+      );
     });
 
     // A barcode is what a scanner sends. An id is what the web sends.
@@ -253,8 +257,10 @@ describe('LibraryService', () => {
       await service.checkout({
         bookIdentifier: 'BK-001',
         studentIdentifier: 'STD-2026-001',
-      } as never);
-      expect(prisma.book.findFirst.mock.calls[0][0].where.barcode).toBe('BK-001');
+      });
+      expect(prisma.book.findFirst.mock.calls[0][0].where.barcode).toBe(
+        'BK-001',
+      );
     });
 
     it('falls back to the id when no barcode matched', async () => {
@@ -263,7 +269,7 @@ describe('LibraryService', () => {
       await service.checkout({
         bookIdentifier: 'book-1',
         studentIdentifier: 'STD-2026-001',
-      } as never);
+      });
       expect(prisma.book.findUnique).toHaveBeenCalled();
     });
 
@@ -276,7 +282,7 @@ describe('LibraryService', () => {
         service.checkout({
           bookIdentifier: '!!!',
           studentIdentifier: 'STD-2026-001',
-        } as never),
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -291,20 +297,20 @@ describe('LibraryService', () => {
       prisma.book.findFirst.mockResolvedValue(null);
       prisma.book.findUnique.mockResolvedValue(null);
       await expect(
-        service.returnBook({ bookIdentifier: 'nope' } as never),
+        service.returnBook({ bookIdentifier: 'nope' }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('refuses a book that is not out', async () => {
       prisma.bookLoan.findFirst.mockResolvedValue(null);
       await expect(
-        service.returnBook({ bookIdentifier: 'BK-001' } as never),
+        service.returnBook({ bookIdentifier: 'BK-001' }),
       ).rejects.toThrow(/no active loan/i);
     });
 
     it('puts one back on the shelf as the loan is closed', async () => {
       prisma.bookLoan.findFirst.mockResolvedValue({ id: 'loan-1' });
-      await service.returnBook({ bookIdentifier: 'BK-001' } as never);
+      await service.returnBook({ bookIdentifier: 'BK-001' });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(prisma.book.update.mock.calls[0][0].data).toEqual({
         availableCount: { increment: 1 },
@@ -320,7 +326,7 @@ describe('LibraryService', () => {
      */
     it('closes the oldest loan of that title first', async () => {
       prisma.bookLoan.findFirst.mockResolvedValue({ id: 'loan-1' });
-      await service.returnBook({ bookIdentifier: 'BK-001' } as never);
+      await service.returnBook({ bookIdentifier: 'BK-001' });
       expect(prisma.bookLoan.findFirst.mock.calls[0][0].orderBy).toEqual({
         checkedOutAt: 'asc',
       });
@@ -341,9 +347,7 @@ describe('LibraryService', () => {
         status: 'RETURNED',
         book: book(),
       });
-      await expect(service.reportLost('loan-1')).rejects.toThrow(
-        /not active/i,
-      );
+      await expect(service.reportLost('loan-1')).rejects.toThrow(/not active/i);
     });
 
     /**
@@ -370,9 +374,9 @@ describe('LibraryService', () => {
       });
       prisma.bookLoan.update.mockResolvedValue({});
       await service.reportLost('loan-1');
-      expect(
-        prisma.bookLoan.update.mock.calls[0][0].data.replacementCost,
-      ).toBe(12000);
+      expect(prisma.bookLoan.update.mock.calls[0][0].data.replacementCost).toBe(
+        12000,
+      );
     });
   });
 
@@ -409,7 +413,9 @@ describe('LibraryService', () => {
     it('reminds about books due within two days, not ones already late', async () => {
       await service.getDueReminders();
       const due = prisma.bookLoan.findMany.mock.calls[0][0].where.dueDate;
-      const days = Math.round((due.lte.getTime() - due.gte.getTime()) / 86400000);
+      const days = Math.round(
+        (due.lte.getTime() - due.gte.getTime()) / 86400000,
+      );
       expect(days).toBe(2);
     });
 

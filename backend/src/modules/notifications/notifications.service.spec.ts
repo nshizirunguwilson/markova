@@ -292,7 +292,9 @@ describe('NotificationsService', () => {
         type: 'PUSH',
       } as never);
       expect(prisma.notification.createMany).toHaveBeenCalledTimes(1);
-      expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(3);
+      expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(
+        3,
+      );
     });
 
     it('reports how many it addressed', async () => {
@@ -343,7 +345,9 @@ describe('NotificationsService', () => {
         { id: 'u-1', email: 'a@x.rw', firstName: 'A' },
         { id: 'u-2', email: 'b@x.rw', firstName: 'B' },
       ]);
-      sendMail.mockRejectedValueOnce(new Error('bounced')).mockResolvedValue({});
+      sendMail
+        .mockRejectedValueOnce(new Error('bounced'))
+        .mockResolvedValue({});
 
       await expect(
         service.sendBulk({
@@ -445,9 +449,9 @@ describe('NotificationsService', () => {
         { token: 'ExpoToken[a]' },
         { token: 'ExpoToken[b]' },
       ]);
-      const fetchSpy = jest
-        .spyOn(global, 'fetch' as never)
-        .mockResolvedValue({ json: async () => ({ data: [] }) } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+        json: () => Promise.resolve({ data: [] }),
+      } as never);
 
       await service.sendPushNotification('user-1', 'Title', 'Body');
       const body = JSON.parse((fetchSpy.mock.calls[0][1] as any).body);
@@ -466,12 +470,13 @@ describe('NotificationsService', () => {
         { token: 'ExpoToken[live]' },
       ]);
       const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
-        json: async () => ({
-          data: [
-            { details: { error: 'DeviceNotRegistered' } },
-            { status: 'ok' },
-          ],
-        }),
+        json: () =>
+          Promise.resolve({
+            data: [
+              { details: { error: 'DeviceNotRegistered' } },
+              { status: 'ok' },
+            ],
+          }),
       } as never);
 
       await service.sendPushNotification('user-1', 'X', 'Y');
@@ -483,9 +488,9 @@ describe('NotificationsService', () => {
 
     it('drops nothing when every device answered', async () => {
       prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
-      const fetchSpy = jest
-        .spyOn(global, 'fetch' as never)
-        .mockResolvedValue({ json: async () => ({ data: [{ status: 'ok' }] }) } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+        json: () => Promise.resolve({ data: [{ status: 'ok' }] }),
+      } as never);
 
       await service.sendPushNotification('user-1', 'X', 'Y');
       expect(prisma.pushToken.deleteMany).not.toHaveBeenCalled();
@@ -506,9 +511,9 @@ describe('NotificationsService', () => {
 
     it('copes with a reply that is not the shape it expected', async () => {
       prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
-      const fetchSpy = jest
-        .spyOn(global, 'fetch' as never)
-        .mockResolvedValue({ json: async () => ({ errors: ['bad request'] }) } as never);
+      const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+        json: () => Promise.resolve({ errors: ['bad request'] }),
+      } as never);
 
       await expect(
         service.sendPushNotification('user-1', 'X', 'Y'),

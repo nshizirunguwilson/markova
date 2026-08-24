@@ -30,9 +30,9 @@ import { CreateHomeworkDto } from '../../modules/homework/dto';
  */
 
 const errorsOn = (cls: any, value: unknown): string[] => {
-  const instance = plainToInstance(cls, value, {
+  const instance: object = plainToInstance(cls, value, {
     enableImplicitConversion: true,
-  }) as object;
+  });
   return validateSync(instance, {
     whitelist: true,
     forbidNonWhitelisted: true,
@@ -97,9 +97,9 @@ describe('a mark', () => {
   });
 
   it('refuses a student named by anything but an id', () => {
-    expect(errorsOn(CreateMarkDto, { ...valid, studentId: 'Divine' })).toContain(
-      'studentId',
-    );
+    expect(
+      errorsOn(CreateMarkDto, { ...valid, studentId: 'Divine' }),
+    ).toContain('studentId');
   });
 
   it('refuses a mark with no student at all', () => {
@@ -146,7 +146,10 @@ describe('a register entry', () => {
 
   it('accepts a scan carrying just a card and a class', () => {
     expect(
-      accepts(NfcScanDto, { nfcCardId: '1111 2222 3333', classSectionId: uuid }),
+      accepts(NfcScanDto, {
+        nfcCardId: '1111 2222 3333',
+        classSectionId: uuid,
+      }),
     ).toBe(true);
   });
 });
@@ -163,7 +166,9 @@ describe('a clinic visit', () => {
   });
 
   it('refuses a visit with no complaint', () => {
-    expect(errorsOn(CreateVisitDto, { studentId: uuid })).toContain('complaint');
+    expect(errorsOn(CreateVisitDto, { studentId: uuid })).toContain(
+      'complaint',
+    );
   });
 
   it.each([24, 46, 0, 100])('refuses a temperature of %s', (temperature) => {
@@ -172,9 +177,12 @@ describe('a clinic visit', () => {
     );
   });
 
-  it.each([35, 36.6, 38.4, 41])('accepts a temperature of %s', (temperature) => {
-    expect(accepts(CreateVisitDto, { ...valid, temperature })).toBe(true);
-  });
+  it.each([35, 36.6, 38.4, 41])(
+    'accepts a temperature of %s',
+    (temperature) => {
+      expect(accepts(CreateVisitDto, { ...valid, temperature })).toBe(true);
+    },
+  );
 
   it('refuses an outcome nobody recognises', () => {
     expect(
@@ -214,7 +222,9 @@ describe('a merit', () => {
   });
 
   it('refuses a merit worth nothing', () => {
-    expect(errorsOn(AwardMeritDto, { ...valid, points: 0 })).toContain('points');
+    expect(errorsOn(AwardMeritDto, { ...valid, points: 0 })).toContain(
+      'points',
+    );
   });
 
   it('refuses a category the school does not award', () => {
@@ -262,7 +272,9 @@ describe('a money movement', () => {
   });
 
   it('takes a scan as free text, since a card is not a uuid', () => {
-    expect(accepts(LookupDto, { identifier: 'STD-2025-231419-167' })).toBe(true);
+    expect(accepts(LookupDto, { identifier: 'STD-2025-231419-167' })).toBe(
+      true,
+    );
     expect(accepts(LookupDto, { identifier: 'ABCD-EFGH-JKMN' })).toBe(true);
   });
 });
@@ -279,9 +291,9 @@ describe('an announcement', () => {
   });
 
   it('refuses an audience nobody defined', () => {
-    expect(errorsOn(BroadcastDto, { ...valid, audience: 'EVERYONE' })).toContain(
-      'audience',
-    );
+    expect(
+      errorsOn(BroadcastDto, { ...valid, audience: 'EVERYONE' }),
+    ).toContain('audience');
   });
 
   it('accepts year levels alongside a level audience', () => {

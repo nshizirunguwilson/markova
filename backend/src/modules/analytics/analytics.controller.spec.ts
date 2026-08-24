@@ -106,19 +106,25 @@ describe('AnalyticsController', () => {
       // comparing the wrong one silently matches nothing.
       name: 'a teacher’s own class, as their teacher record',
       call: (c) =>
-        c.getTeacherClassAnalytics({ user: withTeacherId }, 'section-1', 'term-1'),
+        c.getTeacherClassAnalytics(
+          { user: withTeacherId },
+          'section-1',
+          'term-1',
+        ),
       calls: 'getTeacherClassAnalytics',
       withArgs: ['teacher-1', 'section-1', 'term-1'],
     },
     {
       name: 'one student’s numbers for a term',
-      call: (c) => c.getStudentAnalytics('student-1', 'term-1', { user: parent }),
+      call: (c) =>
+        c.getStudentAnalytics('student-1', 'term-1', { user: parent }),
       calls: 'getStudentAnalytics',
       withArgs: ['student-1', 'term-1'],
     },
     {
       name: 'a child’s trend across a year',
-      call: (c) => c.getParentChildTrends('student-1', 'year-1', { user: parent }),
+      call: (c) =>
+        c.getParentChildTrends('student-1', 'year-1', { user: parent }),
       calls: 'getParentChildTrends',
       withArgs: ['student-1', 'year-1'],
     },
@@ -150,7 +156,9 @@ describe('AnalyticsController', () => {
     });
 
     it('refuses before answering', async () => {
-      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+      ownership.verifyStudentAccess.mockRejectedValueOnce(
+        new Error('Forbidden'),
+      );
       const run2 = await controllerHarness(AnalyticsController, [
         { token: AnalyticsService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },

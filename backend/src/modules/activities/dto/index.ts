@@ -19,10 +19,16 @@ export class CreateActivityDto {
   @ApiProperty({ enum: ActivityKind }) @IsEnum(ActivityKind) kind: ActivityKind;
   @ApiProperty() @IsString() @MaxLength(200) title: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   description?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   location?: string;
 
   @ApiProperty() @IsDateString() startsAt: string;
@@ -56,10 +62,25 @@ export class CreateActivityDto {
 }
 
 export class UpdateActivityDto {
-  @ApiPropertyOptional({ enum: ActivityKind }) @IsOptional() @IsEnum(ActivityKind) kind?: ActivityKind;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) title?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) description?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) location?: string;
+  @ApiPropertyOptional({ enum: ActivityKind })
+  @IsOptional()
+  @IsEnum(ActivityKind)
+  kind?: ActivityKind;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() requiresConsent?: boolean;
@@ -73,7 +94,10 @@ export class CancelActivityDto {
 }
 
 export class ActivityQueryDto {
-  @ApiPropertyOptional({ enum: ActivityKind }) @IsOptional() @IsEnum(ActivityKind) kind?: ActivityKind;
+  @ApiPropertyOptional({ enum: ActivityKind })
+  @IsOptional()
+  @IsEnum(ActivityKind)
+  kind?: ActivityKind;
   @ApiPropertyOptional() @IsOptional() @IsDateString() from?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() to?: string;
 
@@ -83,8 +107,19 @@ export class ActivityQueryDto {
   @IsBoolean()
   includeCancelled?: boolean;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }
 
 export class ParticipantDto {
@@ -97,8 +132,14 @@ export class AddClassDto {
 
 export class ConsentDto {
   @ApiProperty() @IsUUID() studentId: string;
-  @ApiProperty({ enum: ConsentState }) @IsEnum(ConsentState) consent: ConsentState;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(300) note?: string;
+  @ApiProperty({ enum: ConsentState })
+  @IsEnum(ConsentState)
+  consent: ConsentState;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string;
 }
 
 class AttendanceRecordDto {

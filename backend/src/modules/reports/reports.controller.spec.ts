@@ -3,7 +3,6 @@ import { VerifyController } from './verify.controller';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
-  admin,
   buildController,
   clearMocks,
   controllerHarness,
@@ -74,7 +73,10 @@ describe('ReportsController', () => {
     {
       name: 'a whole class of report cards',
       call: (c) =>
-        c.generateClassReports({ classSectionId: 'section-1', termId: 'term-1' }),
+        c.generateClassReports({
+          classSectionId: 'section-1',
+          termId: 'term-1',
+        }),
       calls: 'generateClassReportCards',
       withArgs: ['section-1', 'term-1'],
     },
@@ -174,7 +176,9 @@ describe('ReportsController', () => {
     });
 
     it('checks whose student before writing a byte of the PDF', async () => {
-      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+      ownership.verifyStudentAccess.mockRejectedValueOnce(
+        new Error('Forbidden'),
+      );
       const ctl: any = await build();
       const r = res();
       await expect(

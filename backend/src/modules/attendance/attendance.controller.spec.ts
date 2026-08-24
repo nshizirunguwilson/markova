@@ -191,7 +191,8 @@ describe('AttendanceController', () => {
   it('checks whose student before summarising their attendance', async () => {
     await run({
       name: 'checked',
-      call: (c) => c.getStudentSummary('student-1', undefined, undefined, parent),
+      call: (c) =>
+        c.getStudentSummary('student-1', undefined, undefined, parent),
       on: 'ownership',
       calls: 'verifyStudentAccess',
       withArgs: [parent.id, 'PARENT', 'student-1'],

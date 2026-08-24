@@ -86,9 +86,18 @@ export class QueryHomeworkDto {
 
   // Paging is opt-in: the teacher and student views read this as a plain list,
   // and only the school-wide admin screen has enough rows to need paging.
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
 }

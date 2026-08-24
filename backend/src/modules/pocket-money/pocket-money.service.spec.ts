@@ -12,14 +12,29 @@ import { PrismaService } from '../../prisma/prisma.service';
  * student cannot spend what they do not have.
  */
 
-const ACCOUNT = { id: 'acct-1', studentId: 'student-1', dailyLimit: null, lowBalanceAlert: null, isFrozen: false };
+const ACCOUNT = {
+  id: 'acct-1',
+  studentId: 'student-1',
+  dailyLimit: null,
+  lowBalanceAlert: null,
+  isFrozen: false,
+};
 
 describe('PocketMoneyService', () => {
   let service: PocketMoneyService;
 
   const prisma: any = {
-    student: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
-    pocketMoneyAccount: { upsert: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+    student: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    pocketMoneyAccount: {
+      upsert: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
+    },
     pocketMoneyTransaction: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -32,19 +47,32 @@ describe('PocketMoneyService', () => {
   /** The ledger this account currently holds. */
   function ledger(rows: any[]) {
     prisma.pocketMoneyTransaction.findMany.mockResolvedValue(
-      rows.map((r, i) => ({ id: r.id ?? `t-${i}`, createdAt: new Date(), reversesId: null, ...r })),
+      rows.map((r, i) => ({
+        id: r.id ?? `t-${i}`,
+        createdAt: new Date(),
+        reversesId: null,
+        ...r,
+      })),
     );
   }
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prisma.student.findUnique.mockResolvedValue({ id: 'student-1', studentIdNumber: 'STD-1', user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null }, classSection: null });
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      studentIdNumber: 'STD-1',
+      user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+      classSection: null,
+    });
     prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT });
     prisma.pocketMoneyTransaction.create.mockResolvedValue({});
     ledger([]);
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PocketMoneyService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        PocketMoneyService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
     service = module.get(PocketMoneyService);
   });
@@ -98,9 +126,27 @@ describe('PocketMoneyService', () => {
       const lastWeek = new Date();
       lastWeek.setDate(lastWeek.getDate() - 7);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 20000, createdAt: lastWeek, reversesId: null },
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 4000, createdAt: lastWeek, reversesId: null },
-        { id: 't-3', kind: 'WITHDRAWAL', amount: 700, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 20000,
+          createdAt: lastWeek,
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 4000,
+          createdAt: lastWeek,
+          reversesId: null,
+        },
+        {
+          id: 't-3',
+          kind: 'WITHDRAWAL',
+          amount: 700,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       const account = await service.getAccount('student-1');
       expect(account.spentToday).toBe(700);
@@ -111,9 +157,27 @@ describe('PocketMoneyService', () => {
     // a student is punished twice for the counter's error.
     it('gives back today’s allowance when a withdrawal is reversed', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 10000, createdAt: new Date(), reversesId: null },
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 2000, createdAt: new Date(), reversesId: null },
-        { id: 't-3', kind: 'REVERSAL', amount: 2000, createdAt: new Date(), reversesId: 't-2' },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 2000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
+        {
+          id: 't-3',
+          kind: 'REVERSAL',
+          amount: 2000,
+          createdAt: new Date(),
+          reversesId: 't-2',
+        },
       ]);
       expect((await service.getAccount('student-1')).spentToday).toBe(0);
     });
@@ -124,23 +188,27 @@ describe('PocketMoneyService', () => {
       await service.deposit('student-1', 5000, 'Visiting day', 'user-1');
       expect(prisma.pocketMoneyTransaction.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ kind: 'DEPOSIT', amount: 5000, recordedByUserId: 'user-1' }),
+          data: expect.objectContaining({
+            kind: 'DEPOSIT',
+            amount: 5000,
+            recordedByUserId: 'user-1',
+          }),
         }),
       );
     });
 
     it('refuses a deposit of nothing', async () => {
-      await expect(service.deposit('student-1', 0, undefined, 'user-1')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.deposit('student-1', 0, undefined, 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     // A negative deposit is a withdrawal in disguise, and would slip past the
     // balance and limit checks entirely.
     it('refuses a negative deposit', async () => {
-      await expect(service.deposit('student-1', -5000, undefined, 'user-1')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.deposit('student-1', -5000, undefined, 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
@@ -180,20 +248,26 @@ describe('PocketMoneyService', () => {
     });
 
     it('refuses a withdrawal of nothing', async () => {
-      await expect(service.withdraw('student-1', 0, undefined, 'user-1')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.withdraw('student-1', 0, undefined, 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('refuses to pay out of a frozen account', async () => {
-      prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT, isFrozen: true });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue({
+        ...ACCOUNT,
+        isFrozen: true,
+      });
       await expect(
         service.withdraw('student-1', 100, undefined, 'user-1'),
       ).rejects.toThrow(/frozen/i);
     });
 
     it('still lets money be paid into a frozen account', async () => {
-      prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT, isFrozen: true });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue({
+        ...ACCOUNT,
+        isFrozen: true,
+      });
       await service.deposit('student-1', 5000, undefined, 'user-1');
       expect(prisma.pocketMoneyTransaction.create).toHaveBeenCalled();
     });
@@ -205,7 +279,10 @@ describe('PocketMoneyService', () => {
    */
   describe('the daily limit', () => {
     beforeEach(() => {
-      prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT, dailyLimit: 2000 });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue({
+        ...ACCOUNT,
+        dailyLimit: 2000,
+      });
     });
 
     it('allows a withdrawal inside the cap', async () => {
@@ -225,8 +302,20 @@ describe('PocketMoneyService', () => {
     // five small trips.
     it('counts what has already been drawn today', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 10000, createdAt: new Date(), reversesId: null },
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 1800, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 1800,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       await expect(
         service.withdraw('student-1', 500, undefined, 'user-1'),
@@ -235,8 +324,20 @@ describe('PocketMoneyService', () => {
 
     it('says how much of today is left when it refuses', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 10000, createdAt: new Date(), reversesId: null },
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 1800, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 1800,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       await expect(
         service.withdraw('student-1', 500, undefined, 'user-1'),
@@ -245,8 +346,20 @@ describe('PocketMoneyService', () => {
 
     it('reports what is left of today alongside the balance', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 10000, createdAt: new Date(), reversesId: null },
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 1200, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 1200,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       const account = await service.getAccount('student-1');
       expect(account.remainingToday).toBe(800);
@@ -271,7 +384,9 @@ describe('PocketMoneyService', () => {
       ledger([{ kind: 'DEPOSIT', amount: 3000 }]);
       await service.refund('student-1', 3000, 'End of year', 'user-1');
       expect(prisma.pocketMoneyTransaction.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ kind: 'REFUND' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ kind: 'REFUND' }),
+        }),
       );
     });
   });
@@ -329,9 +444,9 @@ describe('PocketMoneyService', () => {
         reversedBy: null,
         account: { studentId: 'student-1' },
       });
-      await expect(service.reverse('t-2', 'undo the undo', 'user-1')).rejects.toThrow(
-        /cannot itself be reversed/i,
-      );
+      await expect(
+        service.reverse('t-2', 'undo the undo', 'user-1'),
+      ).rejects.toThrow(/cannot itself be reversed/i);
     });
 
     it('records who made the correction', async () => {
@@ -354,13 +469,19 @@ describe('PocketMoneyService', () => {
 
   describe('a low balance', () => {
     it('is flagged once it drops to the warning level', async () => {
-      prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT, lowBalanceAlert: 1000 });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue({
+        ...ACCOUNT,
+        lowBalanceAlert: 1000,
+      });
       ledger([{ kind: 'DEPOSIT', amount: 900 }]);
       expect((await service.getAccount('student-1')).isLow).toBe(true);
     });
 
     it('is not flagged above it', async () => {
-      prisma.pocketMoneyAccount.upsert.mockResolvedValue({ ...ACCOUNT, lowBalanceAlert: 1000 });
+      prisma.pocketMoneyAccount.upsert.mockResolvedValue({
+        ...ACCOUNT,
+        lowBalanceAlert: 1000,
+      });
       ledger([{ kind: 'DEPOSIT', amount: 4000 }]);
       expect((await service.getAccount('student-1')).isLow).toBe(false);
     });
@@ -407,11 +528,14 @@ describe('PocketMoneyService', () => {
    * information.
    */
   describe('who may see an account', () => {
-    it.each(['ADMIN', 'PATRON', 'MATRON'])('lets %s see any student', async (role) => {
-      await expect(
-        service.assertMayView('user-1', role as any, 'student-1'),
-      ).resolves.toBeUndefined();
-    });
+    it.each(['ADMIN', 'PATRON', 'MATRON'])(
+      'lets %s see any student',
+      async (role) => {
+        await expect(
+          service.assertMayView('user-1', role as any, 'student-1'),
+        ).resolves.toBeUndefined();
+      },
+    );
 
     it('lets a student see their own', async () => {
       prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
@@ -459,8 +583,26 @@ describe('PocketMoneyService', () => {
     it('shows each entry with the direction the money went', async () => {
       prisma.pocketMoneyTransaction.count.mockResolvedValue(2);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-2', kind: 'WITHDRAWAL', amount: 1500, note: 'Canteen', createdAt: new Date(), recordedBy: { firstName: 'Aline', lastName: 'Uwase' }, reversesId: null, reversedBy: null },
-        { id: 't-1', kind: 'DEPOSIT', amount: 10000, note: null, createdAt: new Date(), recordedBy: null, reversesId: null, reversedBy: null },
+        {
+          id: 't-2',
+          kind: 'WITHDRAWAL',
+          amount: 1500,
+          note: 'Canteen',
+          createdAt: new Date(),
+          recordedBy: { firstName: 'Aline', lastName: 'Uwase' },
+          reversesId: null,
+          reversedBy: null,
+        },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          note: null,
+          createdAt: new Date(),
+          recordedBy: null,
+          reversesId: null,
+          reversedBy: null,
+        },
       ]);
 
       const statement = await service.getStatement('student-1');
@@ -471,7 +613,16 @@ describe('PocketMoneyService', () => {
     it('names who was at the counter', async () => {
       prisma.pocketMoneyTransaction.count.mockResolvedValue(1);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 5000, note: null, createdAt: new Date(), recordedBy: { firstName: 'Aline', lastName: 'Uwase' }, reversesId: null, reversedBy: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 5000,
+          note: null,
+          createdAt: new Date(),
+          recordedBy: { firstName: 'Aline', lastName: 'Uwase' },
+          reversesId: null,
+          reversedBy: null,
+        },
       ]);
       const statement = await service.getStatement('student-1');
       expect(statement.data[0].recordedBy).toBe('Aline Uwase');
@@ -482,7 +633,16 @@ describe('PocketMoneyService', () => {
     it('keeps a reversed entry visible and marks it', async () => {
       prisma.pocketMoneyTransaction.count.mockResolvedValue(1);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'WITHDRAWAL', amount: 2000, note: null, createdAt: new Date(), recordedBy: null, reversesId: null, reversedBy: { id: 't-2', createdAt: new Date() } },
+        {
+          id: 't-1',
+          kind: 'WITHDRAWAL',
+          amount: 2000,
+          note: null,
+          createdAt: new Date(),
+          recordedBy: null,
+          reversesId: null,
+          reversedBy: { id: 't-2', createdAt: new Date() },
+        },
       ]);
       const statement = await service.getStatement('student-1');
       expect(statement.data).toHaveLength(1);
@@ -501,7 +661,9 @@ describe('PocketMoneyService', () => {
       prisma.pocketMoneyAccount.update.mockResolvedValue({});
       await service.updateLimits('student-1', { dailyLimit: null });
       expect(prisma.pocketMoneyAccount.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ dailyLimit: null }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ dailyLimit: null }),
+        }),
       );
     });
   });
@@ -537,7 +699,13 @@ describe('PocketMoneyService', () => {
     // else's child.
     it('refuses more than the school is holding, and says how much that is', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 2000, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 2000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       await expect(
         service.refund('student-1', 5000, undefined, 'admin-1'),
@@ -547,12 +715,22 @@ describe('PocketMoneyService', () => {
 
     it('records the whole balance going back', async () => {
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', kind: 'DEPOSIT', amount: 5000, createdAt: new Date(), reversesId: null },
+        {
+          id: 't-1',
+          kind: 'DEPOSIT',
+          amount: 5000,
+          createdAt: new Date(),
+          reversesId: null,
+        },
       ]);
       await service.refund('student-1', 5000, 'Left the school', 'admin-1');
-      expect(prisma.pocketMoneyTransaction.create.mock.calls[0][0].data).toMatchObject(
-        { kind: 'REFUND', amount: 5000, note: 'Left the school' },
-      );
+      expect(
+        prisma.pocketMoneyTransaction.create.mock.calls[0][0].data,
+      ).toMatchObject({
+        kind: 'REFUND',
+        amount: 5000,
+        note: 'Left the school',
+      });
     });
   });
 
@@ -592,7 +770,9 @@ describe('PocketMoneyService', () => {
 
     it('ignores a search of nothing but spaces', async () => {
       await service.overview({ search: '   ' });
-      expect(prisma.student.count.mock.calls[0][0].where).not.toHaveProperty('OR');
+      expect(prisma.student.count.mock.calls[0][0].where).not.toHaveProperty(
+        'OR',
+      );
     });
 
     it('refuses a page size big enough to pull the whole school', async () => {
@@ -641,8 +821,20 @@ describe('PocketMoneyService', () => {
         },
       ]);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', accountId: 'acct-1', kind: 'DEPOSIT', amount: 10000, reversesId: null },
-        { id: 't-2', accountId: 'acct-1', kind: 'WITHDRAWAL', amount: 1500, reversesId: null },
+        {
+          id: 't-1',
+          accountId: 'acct-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          accountId: 'acct-1',
+          kind: 'WITHDRAWAL',
+          amount: 1500,
+          reversesId: null,
+        },
       ]);
       const result = await service.overview({});
       expect(result.items[0].balance).toBe(8500);
@@ -661,9 +853,27 @@ describe('PocketMoneyService', () => {
         },
       ]);
       prisma.pocketMoneyTransaction.findMany.mockResolvedValue([
-        { id: 't-1', accountId: 'acct-1', kind: 'DEPOSIT', amount: 10000, reversesId: null },
-        { id: 't-2', accountId: 'acct-1', kind: 'WITHDRAWAL', amount: 500, reversesId: null },
-        { id: 't-3', accountId: 'acct-1', kind: 'REVERSAL', amount: 500, reversesId: 't-2' },
+        {
+          id: 't-1',
+          accountId: 'acct-1',
+          kind: 'DEPOSIT',
+          amount: 10000,
+          reversesId: null,
+        },
+        {
+          id: 't-2',
+          accountId: 'acct-1',
+          kind: 'WITHDRAWAL',
+          amount: 500,
+          reversesId: null,
+        },
+        {
+          id: 't-3',
+          accountId: 'acct-1',
+          kind: 'REVERSAL',
+          amount: 500,
+          reversesId: 't-2',
+        },
       ]);
       const result = await service.overview({});
       expect(result.items[0].balance).toBe(10000);

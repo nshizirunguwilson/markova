@@ -58,7 +58,13 @@ export class ClinicService {
       bloodType: true,
       allergies: true,
       isBoarder: true,
-      classSection: { select: { id: true, name: true, classLevel: { select: { name: true } } } },
+      classSection: {
+        select: {
+          id: true,
+          name: true,
+          classLevel: { select: { name: true } },
+        },
+      },
       user: { select: { firstName: true, lastName: true, photoUrl: true } },
     },
   };
@@ -74,7 +80,10 @@ export class ClinicService {
    * role check for their own child and must fail it for anybody else's, and
    * that distinction can only be made here where the student is known.
    */
-  async assertMaySee(studentId: string, viewer: { userId: string; role: Role }) {
+  async assertMaySee(
+    studentId: string,
+    viewer: { userId: string; role: Role },
+  ) {
     if (ClinicService.CLINICAL.includes(viewer.role)) return;
 
     if (viewer.role === Role.PARENT) {
@@ -228,7 +237,9 @@ export class ClinicService {
         include: {
           student: this.studentBrief,
           seenBy: this.staffBrief,
-          medications: { select: { id: true, medicine: true, dose: true, givenAt: true } },
+          medications: {
+            select: { id: true, medicine: true, dose: true, givenAt: true },
+          },
         },
         orderBy: { visitedAt: 'desc' },
         skip: (page - 1) * limit,

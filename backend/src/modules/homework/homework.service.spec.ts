@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { HomeworkService } from './homework.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 
@@ -41,22 +37,22 @@ describe('HomeworkService', () => {
 
   describe('setting work', () => {
     it('records who set it and when it is due', async () => {
-      await service.create(homework as never, 'teacher-1');
+      await service.create(homework, 'teacher-1');
       const data = prisma.homework.create.mock.calls[0][0].data;
       expect(data.teacherId).toBe('teacher-1');
       expect(data.dueDate).toBeInstanceOf(Date);
     });
 
     it('refuses when nobody can be named as having set it', async () => {
-      await expect(
-        service.create(homework as never, ''),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.create(homework as never, '')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     // Not every piece of work carries a late penalty, and the absence of one
     // has to mean zero rather than undefined arithmetic later.
     it('carries no late penalty unless one was set', async () => {
-      await service.create(homework as never, 'teacher-1');
+      await service.create(homework, 'teacher-1');
       expect(
         prisma.homework.create.mock.calls[0][0].data.lateDeductionPerDay,
       ).toBe(0);
@@ -77,19 +73,19 @@ describe('HomeworkService', () => {
 
     it('lets the teacher who set it change it', async () => {
       await expect(
-        service.update('hw-1', { title: 'X' } as never, 'teacher-1'),
+        service.update('hw-1', { title: 'X' }, 'teacher-1'),
       ).resolves.toBeDefined();
     });
 
     it('refuses another teacher', async () => {
       await expect(
-        service.update('hw-1', { title: 'X' } as never, 'teacher-9'),
+        service.update('hw-1', { title: 'X' }, 'teacher-9'),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('lets an admin change anybody’s', async () => {
       await expect(
-        service.update('hw-1', { title: 'X' } as never, '', 'ADMIN'),
+        service.update('hw-1', { title: 'X' }, '', 'ADMIN'),
       ).resolves.toBeDefined();
     });
 
@@ -102,13 +98,13 @@ describe('HomeworkService', () => {
 
     it('refuses work that does not exist', async () => {
       prisma.homework.findUnique.mockResolvedValue(null);
-      await expect(service.update('nope', {} as never, 'teacher-1')).rejects.toThrow(
+      await expect(service.update('nope', {}, 'teacher-1')).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('accepts clearing the description rather than ignoring it', async () => {
-      await service.update('hw-1', { description: '' } as never, 'teacher-1');
+      await service.update('hw-1', { description: '' }, 'teacher-1');
       expect(prisma.homework.update.mock.calls[0][0].data).toEqual({
         description: '',
       });
@@ -127,14 +123,17 @@ describe('HomeworkService', () => {
     });
 
     it('answers with a plain list when nobody asked for a page', async () => {
-      const result = await service.findAll({} as never);
+      const result = await service.findAll({});
       expect(Array.isArray(result)).toBe(true);
       expect(prisma.homework.count).not.toHaveBeenCalled();
     });
 
     it('answers with a page when one was asked for', async () => {
       prisma.homework.count.mockResolvedValue(45);
-      const result: any = await service.findAll({ page: 2, limit: 20 } as never);
+      const result: any = await service.findAll({
+        page: 2,
+        limit: 20,
+      });
       expect(result.meta).toEqual({
         total: 45,
         page: 2,
@@ -145,18 +144,18 @@ describe('HomeworkService', () => {
     });
 
     it('refuses a page size big enough to pull the whole school', async () => {
-      await service.findAll({ limit: 5000 } as never);
+      await service.findAll({ limit: 5000 });
       expect(prisma.homework.findMany.mock.calls[0][0].take).toBe(100);
     });
 
     it('treats nonsense paging as the first page', async () => {
-      await service.findAll({ page: -3, limit: 0 } as never);
+      await service.findAll({ page: -3, limit: 0 });
       expect(prisma.homework.findMany.mock.calls[0][0].skip).toBe(0);
       expect(prisma.homework.findMany.mock.calls[0][0].take).toBe(20);
     });
 
     it('always reports at least one page, even when empty', async () => {
-      const result: any = await service.findAll({ page: 1 } as never);
+      const result: any = await service.findAll({ page: 1 });
       expect(result.meta.totalPages).toBe(1);
     });
 
@@ -178,7 +177,7 @@ describe('HomeworkService', () => {
     });
 
     it('reads the soonest deadline first', async () => {
-      await service.findAll({} as never);
+      await service.findAll({});
       expect(prisma.homework.findMany.mock.calls[0][0].orderBy).toEqual({
         dueDate: 'desc',
       });
@@ -218,7 +217,7 @@ describe('HomeworkService', () => {
     it('refuses work that does not exist', async () => {
       prisma.homework.findUnique.mockResolvedValue(null);
       await expect(
-        service.submit({ homeworkId: 'nope' } as never, 'student-1'),
+        service.submit({ homeworkId: 'nope' }, 'student-1'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -227,7 +226,7 @@ describe('HomeworkService', () => {
         classSectionId: 'other-section',
       });
       await expect(
-        service.submit({ homeworkId: 'hw-1' } as never, 'student-1'),
+        service.submit({ homeworkId: 'hw-1' }, 'student-1'),
       ).rejects.toThrow(/only submit homework assigned to your class/i);
       expect(prisma.homeworkSubmission.upsert).not.toHaveBeenCalled();
     });
@@ -235,14 +234,14 @@ describe('HomeworkService', () => {
     it('refuses a student who does not exist', async () => {
       prisma.student.findUnique.mockResolvedValue(null);
       await expect(
-        service.submit({ homeworkId: 'hw-1' } as never, 'nobody'),
+        service.submit({ homeworkId: 'hw-1' }, 'nobody'),
       ).rejects.toThrow(ForbiddenException);
     });
 
     // Handing in again is how a student replaces a wrong file, and it must
     // not collide with the unique key.
     it('replaces an earlier submission rather than failing', async () => {
-      await service.submit({ homeworkId: 'hw-1' } as never, 'student-1');
+      await service.submit({ homeworkId: 'hw-1' }, 'student-1');
       const call = prisma.homeworkSubmission.upsert.mock.calls[0][0];
       expect(call.where.homeworkId_studentId).toEqual({
         homeworkId: 'hw-1',
@@ -256,10 +255,10 @@ describe('HomeworkService', () => {
         classSectionId: 'section-1',
         dueDate: new Date('2020-01-01'),
       });
-      await service.submit({ homeworkId: 'hw-1' } as never, 'student-1');
-      expect(prisma.homeworkSubmission.upsert.mock.calls[0][0].create.isLate).toBe(
-        true,
-      );
+      await service.submit({ homeworkId: 'hw-1' }, 'student-1');
+      expect(
+        prisma.homeworkSubmission.upsert.mock.calls[0][0].create.isLate,
+      ).toBe(true);
     });
 
     it('does not mark work handed in before the deadline as late', async () => {
@@ -268,10 +267,10 @@ describe('HomeworkService', () => {
         classSectionId: 'section-1',
         dueDate: new Date('2099-01-01'),
       });
-      await service.submit({ homeworkId: 'hw-1' } as never, 'student-1');
-      expect(prisma.homeworkSubmission.upsert.mock.calls[0][0].create.isLate).toBe(
-        false,
-      );
+      await service.submit({ homeworkId: 'hw-1' }, 'student-1');
+      expect(
+        prisma.homeworkSubmission.upsert.mock.calls[0][0].create.isLate,
+      ).toBe(false);
     });
   });
 
@@ -305,15 +304,15 @@ describe('HomeworkService', () => {
     it('refuses a submission that does not exist', async () => {
       prisma.homeworkSubmission.findUnique.mockResolvedValue(null);
       await expect(
-        service.grade('nope', { marks: 17 } as never, 'teacher-1'),
+        service.grade('nope', { marks: 17 }, 'teacher-1'),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('records the mark and who gave it', async () => {
-      await service.grade('sub-1', { marks: 17 } as never, 'teacher-1');
-      expect(prisma.homeworkSubmission.update.mock.calls[0][0].data).toMatchObject(
-        { marks: 17, gradedByUserId: 'teacher-1' },
-      );
+      await service.grade('sub-1', { marks: 17 }, 'teacher-1');
+      expect(
+        prisma.homeworkSubmission.update.mock.calls[0][0].data,
+      ).toMatchObject({ marks: 17, gradedByUserId: 'teacher-1' });
     });
 
     it('takes the penalty off for each day late', async () => {
@@ -324,7 +323,7 @@ describe('HomeworkService', () => {
         }),
       );
       // Three days at two points a day.
-      await service.grade('sub-1', { marks: 18 } as never, 'teacher-1');
+      await service.grade('sub-1', { marks: 18 }, 'teacher-1');
       expect(prisma.homeworkSubmission.update.mock.calls[0][0].data.marks).toBe(
         12,
       );
@@ -341,7 +340,7 @@ describe('HomeworkService', () => {
           submittedAt: new Date('2026-10-30'),
         }),
       );
-      await service.grade('sub-1', { marks: 5 } as never, 'teacher-1');
+      await service.grade('sub-1', { marks: 5 }, 'teacher-1');
       expect(prisma.homeworkSubmission.update.mock.calls[0][0].data.marks).toBe(
         0,
       );
@@ -360,7 +359,7 @@ describe('HomeworkService', () => {
           },
         }),
       );
-      await service.grade('sub-1', { marks: 18 } as never, 'teacher-1');
+      await service.grade('sub-1', { marks: 18 }, 'teacher-1');
       expect(prisma.homeworkSubmission.update.mock.calls[0][0].data.marks).toBe(
         18,
       );
@@ -368,7 +367,7 @@ describe('HomeworkService', () => {
 
     it('refuses a mark above what the work was out of', async () => {
       await expect(
-        service.grade('sub-1', { marks: 25 } as never, 'teacher-1'),
+        service.grade('sub-1', { marks: 25 }, 'teacher-1'),
       ).rejects.toThrow(/exceed maximum of 20/i);
       expect(prisma.homeworkSubmission.update).not.toHaveBeenCalled();
     });
@@ -385,12 +384,12 @@ describe('HomeworkService', () => {
         }),
       );
       await expect(
-        service.grade('sub-1', { marks: 99 } as never, 'teacher-1'),
+        service.grade('sub-1', { marks: 99 }, 'teacher-1'),
       ).resolves.toBeDefined();
     });
 
     it('tells the student their work has been marked', async () => {
-      await service.grade('sub-1', { marks: 17 } as never, 'teacher-1');
+      await service.grade('sub-1', { marks: 17 }, 'teacher-1');
       const message = prisma.notification.create.mock.calls[0][0].data.message;
       expect(message).toContain('Chapter 4 essay');
       expect(message).toContain('17/20');
@@ -401,14 +400,14 @@ describe('HomeworkService', () => {
     it('records the mark even when the student cannot be told', async () => {
       prisma.notification.create.mockRejectedValue(new Error('offline'));
       await expect(
-        service.grade('sub-1', { marks: 17 } as never, 'teacher-1'),
+        service.grade('sub-1', { marks: 17 }, 'teacher-1'),
       ).resolves.toBeDefined();
     });
 
     it('records the mark even when the student has since left', async () => {
       prisma.student.findUnique.mockResolvedValue(null);
       await expect(
-        service.grade('sub-1', { marks: 17 } as never, 'teacher-1'),
+        service.grade('sub-1', { marks: 17 }, 'teacher-1'),
       ).resolves.toBeDefined();
       expect(prisma.notification.create).not.toHaveBeenCalled();
     });

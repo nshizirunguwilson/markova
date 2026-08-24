@@ -58,14 +58,21 @@ describe('AuditLogInterceptor', () => {
 
     // A read tells you nothing about what changed, and there are thousands of
     // them for every write.
-    it.each(['GET', 'OPTIONS', 'HEAD'])('writes nothing for a %s', async (method) => {
-      await run({ method, url: '/api/marks', user: { id: 'u-1' } });
-      expect(create).not.toHaveBeenCalled();
-    });
+    it.each(['GET', 'OPTIONS', 'HEAD'])(
+      'writes nothing for a %s',
+      async (method) => {
+        await run({ method, url: '/api/marks', user: { id: 'u-1' } });
+        expect(create).not.toHaveBeenCalled();
+      },
+    );
 
     // Only the paths where a change matters to a person's record.
     it('writes nothing for a path nobody needs a trail of', async () => {
-      await run({ method: 'POST', url: '/api/library/books', user: { id: 'u-1' } });
+      await run({
+        method: 'POST',
+        url: '/api/library/books',
+        user: { id: 'u-1' },
+      });
       expect(create).not.toHaveBeenCalled();
     });
 
@@ -166,7 +173,12 @@ describe('AuditLogInterceptor', () => {
 
     it('does not change the request body itself', async () => {
       const body = { firstName: 'Divine', password: 'secret' };
-      await run({ method: 'POST', url: '/api/users', user: { id: 'u-1' }, body });
+      await run({
+        method: 'POST',
+        url: '/api/users',
+        user: { id: 'u-1' },
+        body,
+      });
       expect(body.password).toBe('secret');
     });
 

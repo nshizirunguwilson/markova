@@ -137,22 +137,36 @@ describe('AnalyticsService', () => {
 
       const trends = await service.getPerformanceTrends('year-1');
       expect(trends).toEqual([
-        { termId: 'term-1', termName: 'Term 1', averageScore: 65, studentCount: 2 },
-        { termId: 'term-2', termName: 'Term 2', averageScore: 80, studentCount: 1 },
+        {
+          termId: 'term-1',
+          termName: 'Term 1',
+          averageScore: 65,
+          studentCount: 2,
+        },
+        {
+          termId: 'term-2',
+          termName: 'Term 2',
+          averageScore: 80,
+          studentCount: 1,
+        },
       ]);
     });
 
     // A term nobody has been marked in yet is 0, not a crash and not NaN.
     it('reports a term with no results as zero rather than dividing by it', async () => {
-      prisma.term.findMany.mockResolvedValue([{ id: 'term-1', name: 'Term 1' }]);
+      prisma.term.findMany.mockResolvedValue([
+        { id: 'term-1', name: 'Term 1' },
+      ]);
       prisma.termResult.findMany.mockResolvedValue([]);
 
       const trends = await service.getPerformanceTrends('year-1');
-      expect(trends[0].averageScore) .toBe(0);
+      expect(trends[0].averageScore).toBe(0);
     });
 
     it('counts a missing average as zero rather than skipping the student', async () => {
-      prisma.term.findMany.mockResolvedValue([{ id: 'term-1', name: 'Term 1' }]);
+      prisma.term.findMany.mockResolvedValue([
+        { id: 'term-1', name: 'Term 1' },
+      ]);
       prisma.termResult.findMany.mockResolvedValue([
         { average: 80 },
         { average: null },
@@ -174,8 +188,18 @@ describe('AnalyticsService', () => {
 
   describe('class against class', () => {
     const sections = [
-      { id: 'section-1', name: 'A', classLevel: { name: 'Senior 1' }, trade: null },
-      { id: 'section-2', name: 'B', classLevel: { name: 'Senior 1' }, trade: null },
+      {
+        id: 'section-1',
+        name: 'A',
+        classLevel: { name: 'Senior 1' },
+        trade: null,
+      },
+      {
+        id: 'section-2',
+        name: 'B',
+        classLevel: { name: 'Senior 1' },
+        trade: null,
+      },
     ];
 
     it('ranks the classes best first', async () => {
@@ -244,10 +268,14 @@ describe('AnalyticsService', () => {
     // incidents for a school that had plenty.
     it('does not narrow to nothing when a year has no terms', async () => {
       prisma.term.findMany.mockResolvedValue([]);
-      prisma.disciplineIncident.findMany.mockResolvedValue([{ actionTaken: 'X' }]);
+      prisma.disciplineIncident.findMany.mockResolvedValue([
+        { actionTaken: 'X' },
+      ]);
 
       const stats = await service.getDisciplineStats('year-1');
-      expect(prisma.disciplineIncident.findMany).toHaveBeenCalledWith({ where: {} });
+      expect(prisma.disciplineIncident.findMany).toHaveBeenCalledWith({
+        where: {},
+      });
       expect(stats.totalIncidents).toBe(1);
     });
   });
@@ -341,7 +369,10 @@ describe('AnalyticsService', () => {
     it('narrows to the dates a term actually covers', async () => {
       const start = new Date('2026-04-20');
       const end = new Date('2026-08-26');
-      prisma.term.findUnique.mockResolvedValue({ startDate: start, endDate: end });
+      prisma.term.findUnique.mockResolvedValue({
+        startDate: start,
+        endDate: end,
+      });
       prisma.attendance.findMany.mockResolvedValue([]);
 
       await service.getAttendanceStats('term-1');
@@ -399,9 +430,18 @@ describe('AnalyticsService', () => {
   describe('who is enrolled', () => {
     it('splits each year level by gender, in school order', async () => {
       prisma.student.findMany.mockResolvedValue([
-        { gender: 'MALE', classSection: { classLevel: { name: 'Senior 2', order: 2 } } },
-        { gender: 'FEMALE', classSection: { classLevel: { name: 'Senior 1', order: 1 } } },
-        { gender: 'FEMALE', classSection: { classLevel: { name: 'Senior 1', order: 1 } } },
+        {
+          gender: 'MALE',
+          classSection: { classLevel: { name: 'Senior 2', order: 2 } },
+        },
+        {
+          gender: 'FEMALE',
+          classSection: { classLevel: { name: 'Senior 1', order: 1 } },
+        },
+        {
+          gender: 'FEMALE',
+          classSection: { classLevel: { name: 'Senior 1', order: 1 } },
+        },
       ]);
 
       const result = await service.getEnrollmentBreakdown();
@@ -415,7 +455,10 @@ describe('AnalyticsService', () => {
     // the row would make the totals disagree with the roll.
     it('keeps a level whose students have no gender on record', async () => {
       prisma.student.findMany.mockResolvedValue([
-        { gender: null, classSection: { classLevel: { name: 'Senior 1', order: 1 } } },
+        {
+          gender: null,
+          classSection: { classLevel: { name: 'Senior 1', order: 1 } },
+        },
       ]);
 
       const result = await service.getEnrollmentBreakdown();
@@ -430,7 +473,6 @@ describe('AnalyticsService', () => {
       );
     });
   });
-
 });
 
 /**
@@ -894,7 +936,9 @@ describe('a student’s own numbers', () => {
 
   it('answers with nothing for a student who does not exist', async () => {
     prisma.student.findUnique.mockResolvedValue(null);
-    await expect(service.getStudentAnalytics('nobody', 'term-1')).resolves.toBeNull();
+    await expect(
+      service.getStudentAnalytics('nobody', 'term-1'),
+    ).resolves.toBeNull();
   });
 
   it('averages each subject across its marks', async () => {
@@ -965,8 +1009,20 @@ describe('a parent’s view of the year', () => {
 
     const result = await service.getParentChildTrends('student-1', 'year-1');
     expect(result.performanceTrends).toEqual([
-      { termId: 'term-1', termName: 'Term 1', average: 72, letterGrade: 'B', rank: 5 },
-      { termId: 'term-2', termName: 'Term 2', average: null, letterGrade: null, rank: null },
+      {
+        termId: 'term-1',
+        termName: 'Term 1',
+        average: 72,
+        letterGrade: 'B',
+        rank: 5,
+      },
+      {
+        termId: 'term-2',
+        termName: 'Term 2',
+        average: null,
+        letterGrade: null,
+        rank: null,
+      },
     ]);
   });
 

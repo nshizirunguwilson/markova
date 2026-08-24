@@ -147,7 +147,10 @@ describe('MessagingController', () => {
       await run({
         name: 'sent',
         call: (c) =>
-          c.sendMessage({ conversationId: 'conv-1', content: 'Muraho' }, teacher),
+          c.sendMessage(
+            { conversationId: 'conv-1', content: 'Muraho' },
+            teacher,
+          ),
         calls: 'sendMessage',
         withArgs: [{ conversationId: 'conv-1', content: 'Muraho' }, teacher.id],
       });
@@ -160,9 +163,15 @@ describe('MessagingController', () => {
       await run({
         name: 'announced',
         call: (c) =>
-          c.broadcast({ audience: 'ALL_PARENTS', title: 'X', message: 'Y' }, admin),
+          c.broadcast(
+            { audience: 'ALL_PARENTS', title: 'X', message: 'Y' },
+            admin,
+          ),
         calls: 'broadcast',
-        withArgs: [{ audience: 'ALL_PARENTS', title: 'X', message: 'Y' }, admin.id],
+        withArgs: [
+          { audience: 'ALL_PARENTS', title: 'X', message: 'Y' },
+          admin.id,
+        ],
       });
       expect(gateway.broadcastNewMessage).toHaveBeenCalledWith('conv-9', {
         id: 'msg-9',
@@ -198,7 +207,9 @@ describe('MessagingController', () => {
 
     it('refuses a request that carried no file', async () => {
       const ctl: any = await build();
-      expect(() => ctl.uploadAttachment(undefined)).toThrow(BadRequestException);
+      expect(() => ctl.uploadAttachment(undefined)).toThrow(
+        BadRequestException,
+      );
     });
   });
 });

@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { Type } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 
 /**
  * Drivers for the controllers.
@@ -75,7 +76,7 @@ export async function buildController<T>(
     controllers: [Controller],
     providers: providers.map((p) => ({ provide: p.token, useValue: p.mock })),
   })
-    .overrideGuard(require('@nestjs/passport').AuthGuard('jwt'))
+    .overrideGuard(AuthGuard('jwt'))
     .useValue({ canActivate: () => true })
     .compile();
   return module.get(Controller);
@@ -96,7 +97,7 @@ export async function controllerHarness<T>(
     // Guards are declared with @UseGuards and would otherwise need the whole
     // passport strategy. What they let through is checked by the browser RBAC
     // suite against a running server, which is where it belongs.
-    .overrideGuard(require('@nestjs/passport').AuthGuard('jwt'))
+    .overrideGuard(AuthGuard('jwt'))
     .useValue({ canActivate: () => true })
     .compile();
 
@@ -120,6 +121,14 @@ export async function controllerHarness<T>(
 
 /** The signed-in user a @CurrentUser() param would receive. */
 export const admin = { id: 'user-1', role: 'ADMIN' };
-export const teacher = { id: 'user-2', role: 'TEACHER', teacher: { id: 'teacher-1' } };
+export const teacher = {
+  id: 'user-2',
+  role: 'TEACHER',
+  teacher: { id: 'teacher-1' },
+};
 export const parent = { id: 'user-3', role: 'PARENT' };
-export const student = { id: 'user-4', role: 'STUDENT', studentId: 'student-1' };
+export const student = {
+  id: 'user-4',
+  role: 'STUDENT',
+  studentId: 'student-1',
+};

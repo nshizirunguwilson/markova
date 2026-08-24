@@ -2,7 +2,6 @@ import { HelpController } from './help.controller';
 import { HelpService } from './help.service';
 import {
   clearMocks,
-  admin,
   controllerHarness,
   mockService,
   parent,
@@ -72,7 +71,10 @@ describe('HelpController', () => {
     {
       name: 'a ticket raised, attributed to whoever raised it',
       call: (c) =>
-        c.createTicket({ user: parent }, { title: 'Broken', description: 'It is' }),
+        c.createTicket(
+          { user: parent },
+          { title: 'Broken', description: 'It is' },
+        ),
       calls: 'createTicket',
       withArgs: [parent.id, { title: 'Broken', description: 'It is' }],
     },

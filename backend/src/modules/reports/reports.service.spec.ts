@@ -76,7 +76,8 @@ describe('ReportsService', () => {
       for (let i = 0; i < 40; i++) {
         prisma.student.update.mockClear();
         await service.issueIdCard('student-1');
-        const code: string = prisma.student.update.mock.calls[0][0].data.cardCode;
+        const code: string =
+          prisma.student.update.mock.calls[0][0].data.cardCode;
         expect(code).not.toMatch(/[ILOU]/);
       }
     });
@@ -98,7 +99,9 @@ describe('ReportsService', () => {
         student({ cardSuspendedAt: new Date(), nfcCardId: '1111 2222 3333' }),
       );
       await service.issueIdCard('student-1', true);
-      expect(prisma.student.update.mock.calls[0][0].data.cardSuspendedAt).toBeNull();
+      expect(
+        prisma.student.update.mock.calls[0][0].data.cardSuspendedAt,
+      ).toBeNull();
     });
 
     it('leaves an existing card alone unless forced', async () => {
@@ -137,7 +140,11 @@ describe('ReportsService', () => {
       expect(result).toEqual({ issued: 2 });
       expect(prisma.student.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { classSectionId: 'section-1', status: 'ACTIVE', nfcCardId: null },
+          where: {
+            classSectionId: 'section-1',
+            status: 'ACTIVE',
+            nfcCardId: null,
+          },
         }),
       );
     });
@@ -237,7 +244,11 @@ describe('ReportsService', () => {
         status: 'ACTIVE',
         cardIssuedAt: new Date('2026-01-10'),
         cardSuspendedAt: null,
-        user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: '/p.png' },
+        user: {
+          firstName: 'Divine',
+          lastName: 'Niyonkuru',
+          photoUrl: '/p.png',
+        },
         classSection: { classLevel: { name: 'Senior 1' } },
       });
 
@@ -261,7 +272,11 @@ describe('ReportsService', () => {
         status: 'ACTIVE',
         cardIssuedAt: null,
         cardSuspendedAt: null,
-        user: { firstName: 'A', lastName: 'B', photoUrl: '/uploads/photos/x.jpg' },
+        user: {
+          firstName: 'A',
+          lastName: 'B',
+          photoUrl: '/uploads/photos/x.jpg',
+        },
         classSection: { classLevel: { name: 'Senior 1' } },
       });
       const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
@@ -468,7 +483,9 @@ describe('ReportsService', () => {
       ['suspended', { cardSuspendedAt: { not: null } }],
     ])('narrows to %s', async (status, expected) => {
       await service.getIdCardRegistry({ status });
-      expect(prisma.student.count.mock.calls[0][0].where).toMatchObject(expected);
+      expect(prisma.student.count.mock.calls[0][0].where).toMatchObject(
+        expected,
+      );
     });
 
     // A card is looked up by the number printed on it as often as by name.
@@ -484,7 +501,9 @@ describe('ReportsService', () => {
 
     it('ignores a search of nothing but spaces', async () => {
       await service.getIdCardRegistry({ search: '   ' });
-      expect(prisma.student.count.mock.calls[0][0].where).not.toHaveProperty('OR');
+      expect(prisma.student.count.mock.calls[0][0].where).not.toHaveProperty(
+        'OR',
+      );
     });
 
     it('reads in school order, then by name', async () => {
@@ -524,7 +543,9 @@ describe('ReportsService', () => {
         hasCard: true,
         suspended: false,
       });
-      expect(result.items[0].verifyUrl).toMatch(/\/verify\/card\/ABCD-EFGH-JKMN$/);
+      expect(result.items[0].verifyUrl).toMatch(
+        /\/verify\/card\/ABCD-EFGH-JKMN$/,
+      );
     });
 
     it('offers no verification link for a student with no card', async () => {

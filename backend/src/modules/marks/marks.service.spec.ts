@@ -49,13 +49,16 @@ describe('MarksService', () => {
    */
   describe('a closed term', () => {
     beforeEach(() =>
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: true }),
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: true,
+      }),
     );
 
     it('refuses a new mark', async () => {
-      await expect(
-        service.create(mark as never, 'teacher-1'),
-      ).rejects.toThrow(/term is closed/i);
+      await expect(service.create(mark as never, 'teacher-1')).rejects.toThrow(
+        /term is closed/i,
+      );
     });
 
     it('refuses a correction', async () => {
@@ -66,7 +69,7 @@ describe('MarksService', () => {
         maxScore: 20,
       });
       await expect(
-        service.update('mark-1', { score: 18 } as never, 'teacher-1'),
+        service.update('mark-1', { score: 18 }, 'teacher-1'),
       ).rejects.toThrow(/term is closed/i);
     });
 
@@ -85,7 +88,7 @@ describe('MarksService', () => {
     it('refuses a whole class at once', async () => {
       await expect(
         service.batchEntry(
-          { ...mark, marks: [{ studentId: 's-1', score: 10 }] } as never,
+          { ...mark, marks: [{ studentId: 's-1', score: 10 }] },
           'teacher-1',
         ),
       ).rejects.toThrow(/term is closed/i);
@@ -93,9 +96,9 @@ describe('MarksService', () => {
 
     it('refuses a term that does not exist at all', async () => {
       prisma.term.findUnique.mockResolvedValue(null);
-      await expect(
-        service.create(mark as never, 'teacher-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.create(mark as never, 'teacher-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -106,19 +109,19 @@ describe('MarksService', () => {
   describe('a score that cannot be right', () => {
     it('refuses one above the subject maximum', async () => {
       await expect(
-        service.create({ ...mark, score: 25 } as never, 'teacher-1'),
+        service.create({ ...mark, score: 25 }, 'teacher-1'),
       ).rejects.toThrow(/exceeds max 20/);
     });
 
     it('refuses one above the maximum the paper was set at', async () => {
       await expect(
-        service.create({ ...mark, score: 60, maxScore: 50 } as never, 'teacher-1'),
+        service.create({ ...mark, score: 60, maxScore: 50 }, 'teacher-1'),
       ).rejects.toThrow(/exceeds max 50/);
     });
 
     it('accepts a score exactly at the maximum', async () => {
       await expect(
-        service.create({ ...mark, score: 20 } as never, 'teacher-1'),
+        service.create({ ...mark, score: 20 }, 'teacher-1'),
       ).resolves.toBeDefined();
     });
 
@@ -131,7 +134,7 @@ describe('MarksService', () => {
               { studentId: 's-1', score: 10 },
               { studentId: 's-2', score: 99 },
             ],
-          } as never,
+          },
           'teacher-1',
         ),
       ).rejects.toThrow(/exceeds max 20 for student s-2/);
@@ -148,7 +151,7 @@ describe('MarksService', () => {
               { studentId: 's-1', score: 10 },
               { studentId: 's-2', score: 99 },
             ],
-          } as never,
+          },
           'teacher-1',
         ),
       ).rejects.toThrow();
@@ -157,9 +160,9 @@ describe('MarksService', () => {
 
     it('refuses a subject that does not exist', async () => {
       prisma.subject.findUnique.mockResolvedValue(null);
-      await expect(
-        service.create(mark as never, 'teacher-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.create(mark as never, 'teacher-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -169,7 +172,7 @@ describe('MarksService', () => {
    */
   describe('entering a mark', () => {
     it('replaces an existing score rather than failing', async () => {
-      await service.create(mark as never, 'teacher-1');
+      await service.create(mark, 'teacher-1');
       const call = prisma.mark.upsert.mock.calls[0][0];
       expect(call.where.studentId_subjectId_termId_assessmentTypeId).toEqual({
         studentId: 'student-1',
@@ -181,12 +184,12 @@ describe('MarksService', () => {
     });
 
     it('falls back to the subject maximum when the paper set none', async () => {
-      await service.create(mark as never, 'teacher-1');
+      await service.create(mark, 'teacher-1');
       expect(prisma.mark.upsert.mock.calls[0][0].update.maxScore).toBe(20);
     });
 
     it('attributes the mark to the teacher who entered it', async () => {
-      await service.create(mark as never, 'teacher-1');
+      await service.create(mark, 'teacher-1');
       expect(prisma.mark.upsert.mock.calls[0][0].update.teacherId).toBe(
         'teacher-1',
       );
@@ -201,7 +204,7 @@ describe('MarksService', () => {
       prisma.teacherSubjectClass.findFirst.mockResolvedValue({
         teacherId: 'teacher-9',
       });
-      await service.create(mark as never, null, 'ADMIN');
+      await service.create(mark, null, 'ADMIN');
       expect(prisma.mark.upsert.mock.calls[0][0].update.teacherId).toBe(
         'teacher-9',
       );
@@ -228,7 +231,7 @@ describe('MarksService', () => {
             { studentId: 's-1', score: 10 },
             { studentId: 's-2', score: 12 },
           ],
-        } as never,
+        },
         'teacher-1',
       );
       expect(result.count).toBe(2);
@@ -252,13 +255,13 @@ describe('MarksService', () => {
 
     it('lets the teacher who entered it correct it', async () => {
       await expect(
-        service.update('mark-1', { score: 18 } as never, 'teacher-1'),
+        service.update('mark-1', { score: 18 }, 'teacher-1'),
       ).resolves.toBeDefined();
     });
 
     it('refuses another teacher', async () => {
       await expect(
-        service.update('mark-1', { score: 18 } as never, 'teacher-9'),
+        service.update('mark-1', { score: 18 }, 'teacher-9'),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -272,14 +275,14 @@ describe('MarksService', () => {
     // a real thing that happens mid-term.
     it('lets an admin correct anybody’s', async () => {
       await expect(
-        service.update('mark-1', { score: 18 } as never, null, 'ADMIN'),
+        service.update('mark-1', { score: 18 }, null, 'ADMIN'),
       ).resolves.toBeDefined();
     });
 
     it('refuses a mark that does not exist', async () => {
       prisma.mark.findUnique.mockResolvedValue(null);
       await expect(
-        service.update('nope', { score: 18 } as never, 'teacher-1'),
+        service.update('nope', { score: 18 }, 'teacher-1'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -298,9 +301,21 @@ describe('MarksService', () => {
   describe('what is left to mark', () => {
     it('counts who has a mark and who has not', async () => {
       prisma.student.findMany.mockResolvedValue([
-        { id: 's-1', studentIdNumber: 'A', user: { firstName: 'A', lastName: 'X' } },
-        { id: 's-2', studentIdNumber: 'B', user: { firstName: 'B', lastName: 'X' } },
-        { id: 's-3', studentIdNumber: 'C', user: { firstName: 'C', lastName: 'X' } },
+        {
+          id: 's-1',
+          studentIdNumber: 'A',
+          user: { firstName: 'A', lastName: 'X' },
+        },
+        {
+          id: 's-2',
+          studentIdNumber: 'B',
+          user: { firstName: 'B', lastName: 'X' },
+        },
+        {
+          id: 's-3',
+          studentIdNumber: 'C',
+          user: { firstName: 'C', lastName: 'X' },
+        },
       ]);
       prisma.mark.findMany.mockResolvedValue([{ studentId: 's-1', score: 15 }]);
 
@@ -375,11 +390,11 @@ describe('MarksService', () => {
       const result = await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       expect(result.count).toBe(1);
-      expect(prisma.termResult.upsert.mock.calls[0][0].create.average).toBeGreaterThan(
-        0,
-      );
+      expect(
+        prisma.termResult.upsert.mock.calls[0][0].create.average,
+      ).toBeGreaterThan(0);
       expect(
         prisma.termResult.upsert.mock.calls[0][0].create.letterGrade,
       ).toBeTruthy();
@@ -394,7 +409,7 @@ describe('MarksService', () => {
       const result = await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       expect(result.count).toBe(0);
       expect(prisma.termResult.upsert).not.toHaveBeenCalled();
     });
@@ -408,7 +423,7 @@ describe('MarksService', () => {
       const result = await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       expect(result.results[0].studentId).toBe('s-2');
       expect(result.results[0].rank).toBe(1);
       expect(result.results[1].rank).toBe(2);
@@ -427,7 +442,7 @@ describe('MarksService', () => {
       await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
@@ -448,8 +463,10 @@ describe('MarksService', () => {
       await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
-      expect(prisma.termResult.upsert.mock.calls[0][0].create.aggregate).toBeNull();
+      });
+      expect(
+        prisma.termResult.upsert.mock.calls[0][0].create.aggregate,
+      ).toBeNull();
     });
 
     it('records an aggregate for the papers that do count', async () => {
@@ -460,7 +477,7 @@ describe('MarksService', () => {
       await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       const created = prisma.termResult.upsert.mock.calls[0][0].create;
       expect(created.aggregate).not.toBeNull();
       expect(created.aggregateMax).toBeGreaterThan(0);
@@ -474,7 +491,7 @@ describe('MarksService', () => {
       await service.calculateTermResults({
         classSectionId: 'section-1',
         termId: 'term-1',
-      } as never);
+      });
       expect(prisma.termResult.upsert.mock.calls[0][0].create.average).toBe(0);
     });
   });
@@ -504,7 +521,7 @@ describe('MarksService', () => {
         service.calculateYearResults({
           classSectionId: 'section-1',
           academicYearId: 'year-1',
-        } as never),
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -517,10 +534,10 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
-      expect(prisma.yearResult.upsert.mock.calls[0][0].create.yearlyAverage).toBe(
-        70,
-      );
+      });
+      expect(
+        prisma.yearResult.upsert.mock.calls[0][0].create.yearlyAverage,
+      ).toBe(70);
     });
 
     // A year still in progress has one or two terms, and averaging over three
@@ -530,10 +547,10 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
-      expect(prisma.yearResult.upsert.mock.calls[0][0].create.yearlyAverage).toBe(
-        80,
-      );
+      });
+      expect(
+        prisma.yearResult.upsert.mock.calls[0][0].create.yearlyAverage,
+      ).toBe(80);
     });
 
     it('records no average at all for a student with no terms worked out', async () => {
@@ -541,7 +558,7 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
+      });
       const created = prisma.yearResult.upsert.mock.calls[0][0].create;
       expect(created.yearlyAverage).toBeNull();
       expect(created.letterGrade).toBeNull();
@@ -554,7 +571,7 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
+      });
       expect(prisma.yearResult.upsert.mock.calls[0][0].create.isPromoted).toBe(
         true,
       );
@@ -566,7 +583,7 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
+      });
       expect(prisma.yearResult.upsert.mock.calls[0][0].create.isPromoted).toBe(
         false,
       );
@@ -577,7 +594,7 @@ describe('MarksService', () => {
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
+      });
       expect(
         prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
       ).toBe(90);
@@ -595,7 +612,7 @@ describe('MarksService', () => {
       const result = await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
-      } as never);
+      });
       expect(result.results[0].studentId).toBe('s-2');
       expect(result.results[0].rank).toBe(1);
     });
@@ -620,9 +637,9 @@ describe('MarksService', () => {
 
     it('refuses to comment on a result that does not exist', async () => {
       prisma.termResult.findUnique.mockResolvedValue(null);
-      await expect(
-        service.updateTermResultComment('nope', {} as never),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateTermResultComment('nope', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('accepts clearing a comment rather than ignoring the change', async () => {
@@ -630,7 +647,7 @@ describe('MarksService', () => {
       prisma.termResult.update.mockResolvedValue({});
       await service.updateTermResultComment('res-1', {
         teacherComment: '',
-      } as never);
+      });
       expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
         teacherComment: '',
       });
@@ -647,7 +664,7 @@ describe('MarksService', () => {
         classSectionId: 'section-1',
         termId: 'term-1',
         isPublished: true,
-      } as never);
+      });
       expect(prisma.termResult.updateMany).toHaveBeenCalledWith({
         where: { classSectionId: 'section-1', termId: 'term-1' },
         data: { isPublished: true },
@@ -660,7 +677,7 @@ describe('MarksService', () => {
         classSectionId: 'section-1',
         termId: 'term-1',
         isPublished: false,
-      } as never);
+      });
       expect(
         prisma.termResult.updateMany.mock.calls[0][0].data.isPublished,
       ).toBe(false);
@@ -701,9 +718,9 @@ describe('MarksService', () => {
 
     it('refuses a student who does not exist', async () => {
       prisma.student.findUnique.mockResolvedValue(null);
-      await expect(
-        service.getReportCardData('nope', 'term-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getReportCardData('nope', 'term-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('refuses a term that does not exist', async () => {
@@ -793,7 +810,7 @@ describe('MarksService', () => {
         termId: 'term-1',
         assessmentTypeId: 'assess-1',
         teacherId: 'teacher-1',
-      } as never);
+      });
       expect(prisma.mark.findMany.mock.calls[0][0].where).toEqual({
         studentId: 'student-1',
         subjectId: 'subject-1',
@@ -806,7 +823,10 @@ describe('MarksService', () => {
 
     it('pages', async () => {
       prisma.mark.count.mockResolvedValue(120);
-      const result: any = await service.findAll({ page: 3, limit: 20 } as never);
+      const result: any = await service.findAll({
+        page: 3,
+        limit: 20,
+      });
       expect(prisma.mark.findMany.mock.calls[0][0].skip).toBe(40);
       expect(result.meta).toMatchObject({ total: 120, page: 3 });
     });

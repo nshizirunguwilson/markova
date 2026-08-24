@@ -1,4 +1,3 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
@@ -81,10 +80,7 @@ describe('bulk import', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: 'existing' });
     await expect(
-      service.bulkImport([
-        student,
-        { ...student, email: 'taken@markova.edu' },
-      ]),
+      service.bulkImport([student, { ...student, email: 'taken@markova.edu' }]),
     ).rejects.toThrow(/^Row 2:/);
   });
 
@@ -170,9 +166,9 @@ describe('bulk import', () => {
 
     it('makes every imported account change its password on first use', async () => {
       await service.bulkImport([student]);
-      expect(
-        prisma.user.create.mock.calls[0][0].data.forcePasswordChange,
-      ).toBe(true);
+      expect(prisma.user.create.mock.calls[0][0].data.forcePasswordChange).toBe(
+        true,
+      );
     });
   });
 
@@ -229,9 +225,9 @@ describe('bulk import', () => {
           studentIds: ['student-1'],
         },
       ]);
-      expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
-        'Parent',
-      );
+      expect(
+        prisma.parentStudent.create.mock.calls[0][0].data.relationship,
+      ).toBe('Parent');
     });
 
     it('imports a parent with no children named yet', async () => {
@@ -260,7 +256,12 @@ describe('bulk import', () => {
     it('reads the boarding column as a real yes or no', async () => {
       await service.bulkImport([
         { ...student, isBoarder: 'TRUE' },
-        { ...student, firstName: 'Keza', email: 'k@markova.edu', isBoarder: 'no' },
+        {
+          ...student,
+          firstName: 'Keza',
+          email: 'k@markova.edu',
+          isBoarder: 'no',
+        },
       ]);
       expect(prisma.student.create.mock.calls[0][0].data.isBoarder).toBe(true);
       expect(prisma.student.create.mock.calls[1][0].data.isBoarder).toBe(false);
@@ -318,7 +319,7 @@ describe('the import template', () => {
   });
 
   it('falls back to the student columns for anything unrecognised', () => {
-    expect(service.getImportTemplate('NURSE' as Role)).toBe(
+    expect(service.getImportTemplate('NURSE')).toBe(
       service.getImportTemplate(Role.STUDENT),
     );
   });

@@ -48,8 +48,7 @@ describe('AuthController', () => {
   const cases: RouteCase[] = [
     {
       name: 'a sign in, with where it came from',
-      call: (c) =>
-        c.login({ email: 'a@markova.edu', password: 'x' }, request),
+      call: (c) => c.login({ email: 'a@markova.edu', password: 'x' }, request),
       calls: 'login',
       withArgs: [
         { email: 'a@markova.edu', password: 'x' },
@@ -138,10 +137,13 @@ describe('AuthController', () => {
     await run({
       name: 'fallback',
       call: (c) =>
-        c.login({ email: 'a@markova.edu', password: 'x' }, {
-          ...request,
-          ip: undefined,
-        }),
+        c.login(
+          { email: 'a@markova.edu', password: 'x' },
+          {
+            ...request,
+            ip: undefined,
+          },
+        ),
       calls: 'login',
       withArgs: [
         { email: 'a@markova.edu', password: 'x' },
@@ -154,7 +156,7 @@ describe('AuthController', () => {
   it('signs out safely when no header arrived at all', async () => {
     await run({
       name: 'no header',
-      call: (c) => c.logout('user-1', undefined as never),
+      call: (c) => c.logout('user-1', undefined),
       calls: 'logout',
       withArgs: ['user-1', undefined],
     });

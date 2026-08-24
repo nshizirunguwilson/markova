@@ -479,7 +479,12 @@ export class MessagingService {
         messages: {
           include: {
             sender: {
-              select: { id: true, firstName: true, lastName: true, photoUrl: true },
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                photoUrl: true,
+              },
             },
           },
         },

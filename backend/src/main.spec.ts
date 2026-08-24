@@ -14,22 +14,37 @@ const create = jest.fn().mockResolvedValue(app);
 const setup = jest.fn();
 const createDocument = jest.fn().mockReturnValue({});
 
-jest.mock('@nestjs/core', () => ({ NestFactory: { create: (...a: unknown[]) => create(...a) } }));
+jest.mock('@nestjs/core', () => ({
+  NestFactory: { create: (...a: unknown[]) => create(...a) },
+}));
 jest.mock('./app.module', () => ({ AppModule: class {} }));
 jest.mock('./sentry', () => ({}));
 jest.mock('helmet', () => ({ __esModule: true, default: () => 'helmet' }));
-jest.mock('compression', () => ({ __esModule: true, default: () => 'compression' }));
+jest.mock('compression', () => ({
+  __esModule: true,
+  default: () => 'compression',
+}));
 jest.mock('@nestjs/swagger', () => ({
   SwaggerModule: {
     createDocument: (...a: unknown[]) => createDocument(...a),
     setup: (...a: unknown[]) => setup(...a),
   },
   DocumentBuilder: class {
-    setTitle() { return this; }
-    setDescription() { return this; }
-    setVersion() { return this; }
-    addBearerAuth() { return this; }
-    build() { return {}; }
+    setTitle() {
+      return this;
+    }
+    setDescription() {
+      return this;
+    }
+    setVersion() {
+      return this;
+    }
+    addBearerAuth() {
+      return this;
+    }
+    build() {
+      return {};
+    }
   },
 }));
 

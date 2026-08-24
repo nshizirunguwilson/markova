@@ -37,7 +37,7 @@ const parse = <T>(cls: new () => T, query: Record<string, unknown>): T =>
   plainToInstance(cls, query, { enableImplicitConversion: true });
 
 const errorsOn = (cls: any, query: Record<string, unknown>): string[] =>
-  validateSync(parse(cls, query) as object, {
+  validateSync(parse(cls, query), {
     whitelist: true,
     forbidNonWhitelisted: true,
   }).map((e) => e.property);
@@ -125,9 +125,9 @@ describe('the user query', () => {
   });
 
   it('pins a search to one field group', () => {
-    expect(errorsOn(QueryUserDto, { search: 'NIT', searchIn: 'class' })).toEqual(
-      [],
-    );
+    expect(
+      errorsOn(QueryUserDto, { search: 'NIT', searchIn: 'class' }),
+    ).toEqual([]);
   });
 
   it('refuses a field group that does not exist', () => {

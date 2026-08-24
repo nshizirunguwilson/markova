@@ -128,7 +128,12 @@ export class QueryMeritsDto {
   @IsEnum(MeritCategory)
   category?: MeritCategory;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DisciplineService } from './discipline.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
@@ -63,7 +59,10 @@ describe('DisciplineService', () => {
     });
 
     it('takes the points off the student’s standing', async () => {
-      const result = await service.createIncident(incident as never, 'teacher-1');
+      const result = await service.createIncident(
+        incident as never,
+        'teacher-1',
+      );
       expect(result.newDisciplinePoints).toBe(95);
       expect(prisma.student.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { disciplinePoints: 95 } }),
@@ -154,14 +153,14 @@ describe('DisciplineService', () => {
     });
 
     it('takes only the extra when the deduction goes up', async () => {
-      await service.updateIncident('inc-1', { pointsDeducted: 8 } as never);
+      await service.updateIncident('inc-1', { pointsDeducted: 8 });
       expect(prisma.student.update.mock.calls[0][0].data).toEqual({
         disciplinePoints: 92,
       });
     });
 
     it('gives back the difference when the deduction goes down', async () => {
-      await service.updateIncident('inc-1', { pointsDeducted: 2 } as never);
+      await service.updateIncident('inc-1', { pointsDeducted: 2 });
       expect(prisma.student.update.mock.calls[0][0].data).toEqual({
         disciplinePoints: 98,
       });
@@ -170,12 +169,12 @@ describe('DisciplineService', () => {
     it('leaves the score alone when only the wording changed', async () => {
       await service.updateIncident('inc-1', {
         description: 'Corrected wording',
-      } as never);
+      });
       expect(prisma.student.update).not.toHaveBeenCalled();
     });
 
     it('leaves the score alone when the points did not actually change', async () => {
-      await service.updateIncident('inc-1', { pointsDeducted: 5 } as never);
+      await service.updateIncident('inc-1', { pointsDeducted: 5 });
       expect(prisma.student.update).not.toHaveBeenCalled();
     });
 
@@ -184,7 +183,7 @@ describe('DisciplineService', () => {
         id: 'student-1',
         disciplinePoints: 2,
       });
-      await service.updateIncident('inc-1', { pointsDeducted: 50 } as never);
+      await service.updateIncident('inc-1', { pointsDeducted: 50 });
       expect(prisma.student.update.mock.calls[0][0].data).toEqual({
         disciplinePoints: 0,
       });
@@ -193,7 +192,7 @@ describe('DisciplineService', () => {
     it('changes the record even if the student has since left', async () => {
       prisma.student.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateIncident('inc-1', { pointsDeducted: 8 } as never),
+        service.updateIncident('inc-1', { pointsDeducted: 8 }),
       ).resolves.toBeDefined();
       expect(prisma.student.update).not.toHaveBeenCalled();
     });
@@ -247,7 +246,7 @@ describe('DisciplineService', () => {
       prisma.disciplineIncident.findUnique.mockResolvedValue(null);
       await expect(
         service.createAppeal(
-          { incidentId: 'nope', statement: 'He was helping' } as never,
+          { incidentId: 'nope', statement: 'He was helping' },
           'parent-1',
           'PARENT',
         ),
@@ -260,7 +259,7 @@ describe('DisciplineService', () => {
      */
     it('holds a parent to their own child', async () => {
       await service.createAppeal(
-        { incidentId: 'inc-1', statement: 'He was helping' } as never,
+        { incidentId: 'inc-1', statement: 'He was helping' },
         'parent-1',
         'PARENT',
       );
@@ -277,7 +276,7 @@ describe('DisciplineService', () => {
       );
       await expect(
         service.createAppeal(
-          { incidentId: 'inc-1', statement: 'x' } as never,
+          { incidentId: 'inc-1', statement: 'x' },
           'parent-9',
           'PARENT',
         ),
@@ -295,7 +294,7 @@ describe('DisciplineService', () => {
       });
       await expect(
         service.createAppeal(
-          { incidentId: 'inc-1', statement: 'x' } as never,
+          { incidentId: 'inc-1', statement: 'x' },
           'parent-1',
           'PARENT',
         ),
@@ -310,7 +309,7 @@ describe('DisciplineService', () => {
       });
       await expect(
         service.createAppeal(
-          { incidentId: 'inc-1', statement: 'x' } as never,
+          { incidentId: 'inc-1', statement: 'x' },
           'parent-1',
           'PARENT',
         ),
@@ -319,13 +318,13 @@ describe('DisciplineService', () => {
 
     it('stores no evidence rather than undefined when none was attached', async () => {
       await service.createAppeal(
-        { incidentId: 'inc-1', statement: 'x' } as never,
+        { incidentId: 'inc-1', statement: 'x' },
         'parent-1',
         'PARENT',
       );
-      expect(prisma.disciplineAppeal.create.mock.calls[0][0].data.evidenceUrls).toEqual(
-        [],
-      );
+      expect(
+        prisma.disciplineAppeal.create.mock.calls[0][0].data.evidenceUrls,
+      ).toEqual([]);
     });
 
     describe('deciding one', () => {
@@ -340,7 +339,11 @@ describe('DisciplineService', () => {
       it('refuses an appeal that does not exist', async () => {
         prisma.disciplineAppeal.findUnique.mockResolvedValue(null);
         await expect(
-          service.reviewAppeal('nope', { status: 'APPROVED' } as never, 'admin-1'),
+          service.reviewAppeal(
+            'nope',
+            { status: 'APPROVED' } as never,
+            'admin-1',
+          ),
         ).rejects.toThrow(NotFoundException);
       });
 
@@ -352,7 +355,11 @@ describe('DisciplineService', () => {
           incident: { studentId: 'student-1', pointsDeducted: 5 },
         });
         await expect(
-          service.reviewAppeal('ap-1', { status: 'REJECTED' } as never, 'admin-1'),
+          service.reviewAppeal(
+            'ap-1',
+            { status: 'REJECTED' } as never,
+            'admin-1',
+          ),
         ).rejects.toThrow(/already been reviewed/i);
         expect(prisma.disciplineAppeal.update).not.toHaveBeenCalled();
       });
@@ -384,7 +391,9 @@ describe('DisciplineService', () => {
           { status: 'APPROVED', reviewNotes: 'Fair point' } as never,
           'admin-1',
         );
-        expect(prisma.disciplineAppeal.update.mock.calls[0][0].data).toMatchObject({
+        expect(
+          prisma.disciplineAppeal.update.mock.calls[0][0].data,
+        ).toMatchObject({
           status: 'APPROVED',
           reviewNotes: 'Fair point',
           reviewedByUserId: 'admin-1',
@@ -404,9 +413,9 @@ describe('DisciplineService', () => {
         student: { parentStudents: [{ parentUserId: 'parent-1' }] },
       });
       await service.acknowledgeIncident('inc-1', 'parent-1');
-      expect(prisma.disciplineIncident.update.mock.calls[0][0].data).toMatchObject(
-        { parentAcknowledged: true },
-      );
+      expect(
+        prisma.disciplineIncident.update.mock.calls[0][0].data,
+      ).toMatchObject({ parentAcknowledged: true });
       expect(
         prisma.disciplineIncident.update.mock.calls[0][0].data
           .parentAcknowledgedAt,
@@ -508,26 +517,28 @@ describe('DisciplineService', () => {
         studentId: 'student-1',
         termId: 'term-1',
         classSectionId: 'section-1',
-      } as never);
-      expect(prisma.disciplineIncident.findMany.mock.calls[0][0].where).toEqual({
-        studentId: 'student-1',
-        termId: 'term-1',
-        student: { classSectionId: 'section-1' },
       });
+      expect(prisma.disciplineIncident.findMany.mock.calls[0][0].where).toEqual(
+        {
+          studentId: 'student-1',
+          termId: 'term-1',
+          student: { classSectionId: 'section-1' },
+        },
+      );
     });
 
     it('narrows to a date range', async () => {
       await service.findIncidents({
         dateFrom: '2026-08-01',
         dateTo: '2026-08-31',
-      } as never);
+      });
       const where = prisma.disciplineIncident.findMany.mock.calls[0][0].where;
       expect(where.date.gte).toBeInstanceOf(Date);
       expect(where.date.lte).toBeInstanceOf(Date);
     });
 
     it('reads newest first', async () => {
-      await service.findIncidents({} as never);
+      await service.findIncidents({});
       expect(
         prisma.disciplineIncident.findMany.mock.calls[0][0].orderBy,
       ).toEqual({ createdAt: 'desc' });
@@ -548,19 +559,25 @@ describe('DisciplineService', () => {
           studentId: 's-1',
           actionTaken: 'VERBAL_WARNING',
           pointsDeducted: 5,
-          student: { classSection: { name: 'A', classLevel: { name: 'Senior 1' } } },
+          student: {
+            classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+          },
         },
         {
           studentId: 's-1',
           actionTaken: 'DETENTION',
           pointsDeducted: 10,
-          student: { classSection: { name: 'A', classLevel: { name: 'Senior 1' } } },
+          student: {
+            classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+          },
         },
         {
           studentId: 's-2',
           actionTaken: 'VERBAL_WARNING',
           pointsDeducted: 5,
-          student: { classSection: { name: 'B', classLevel: { name: 'Senior 1' } } },
+          student: {
+            classSection: { name: 'B', classLevel: { name: 'Senior 1' } },
+          },
         },
       ]);
       prisma.disciplineAppeal.count.mockResolvedValue(3);
@@ -587,7 +604,9 @@ describe('DisciplineService', () => {
           studentId: `s-${i}`,
           actionTaken: 'VERBAL_WARNING',
           pointsDeducted: 5,
-          student: { classSection: { name: 'A', classLevel: { name: 'Senior 1' } } },
+          student: {
+            classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+          },
         })),
       );
       prisma.disciplineAppeal.count.mockResolvedValue(0);
@@ -600,9 +619,11 @@ describe('DisciplineService', () => {
       prisma.disciplineIncident.findMany.mockResolvedValue([]);
       prisma.disciplineAppeal.count.mockResolvedValue(0);
       await service.getDashboard('term-1');
-      expect(prisma.disciplineIncident.findMany.mock.calls[0][0].where).toEqual({
-        termId: 'term-1',
-      });
+      expect(prisma.disciplineIncident.findMany.mock.calls[0][0].where).toEqual(
+        {
+          termId: 'term-1',
+        },
+      );
     });
   });
 });

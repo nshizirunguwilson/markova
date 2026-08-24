@@ -83,17 +83,62 @@ describe('AcademicController', () => {
 
   const cases: RouteCase[] = [
     // ── Years ──────────────────────────────────────────────────────────────
-    { name: 'every year', call: (c) => c.findAllYears(), calls: 'findAllYears', withArgs: [] },
-    { name: 'one year', call: (c) => c.findYearById(id), calls: 'findYearById', withArgs: [id] },
-    { name: 'a year created', call: (c) => c.createYear(body), calls: 'createYear', withArgs: [body] },
-    { name: 'a year changed', call: (c) => c.updateYear(id, body), calls: 'updateYear', withArgs: [id, body] },
-    { name: 'a year removed', call: (c) => c.deleteYear(id), calls: 'deleteYear', withArgs: [id] },
+    {
+      name: 'every year',
+      call: (c) => c.findAllYears(),
+      calls: 'findAllYears',
+      withArgs: [],
+    },
+    {
+      name: 'one year',
+      call: (c) => c.findYearById(id),
+      calls: 'findYearById',
+      withArgs: [id],
+    },
+    {
+      name: 'a year created',
+      call: (c) => c.createYear(body),
+      calls: 'createYear',
+      withArgs: [body],
+    },
+    {
+      name: 'a year changed',
+      call: (c) => c.updateYear(id, body),
+      calls: 'updateYear',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a year removed',
+      call: (c) => c.deleteYear(id),
+      calls: 'deleteYear',
+      withArgs: [id],
+    },
 
     // ── Terms ──────────────────────────────────────────────────────────────
-    { name: 'terms in a year', call: (c) => c.findAllTerms('year-1'), calls: 'findAllTerms', withArgs: ['year-1'] },
-    { name: 'one term', call: (c) => c.findTermById(id), calls: 'findTermById', withArgs: [id] },
-    { name: 'a term created', call: (c) => c.createTerm(body), calls: 'createTerm', withArgs: [body] },
-    { name: 'a term changed', call: (c) => c.updateTerm(id, body), calls: 'updateTerm', withArgs: [id, body] },
+    {
+      name: 'terms in a year',
+      call: (c) => c.findAllTerms('year-1'),
+      calls: 'findAllTerms',
+      withArgs: ['year-1'],
+    },
+    {
+      name: 'one term',
+      call: (c) => c.findTermById(id),
+      calls: 'findTermById',
+      withArgs: [id],
+    },
+    {
+      name: 'a term created',
+      call: (c) => c.createTerm(body),
+      calls: 'createTerm',
+      withArgs: [body],
+    },
+    {
+      name: 'a term changed',
+      call: (c) => c.updateTerm(id, body),
+      calls: 'updateTerm',
+      withArgs: [id, body],
+    },
     {
       // Closing and reopening are opposite acts on adjacent methods. Wiring
       // one to the other would reopen a term somebody had just signed off.
@@ -102,31 +147,103 @@ describe('AcademicController', () => {
       calls: 'closeTerm',
       withArgs: [id],
     },
-    { name: 'a term reopened', call: (c) => c.reopenTerm(id), calls: 'reopenTerm', withArgs: [id] },
-    { name: 'a term removed', call: (c) => c.deleteTerm(id), calls: 'deleteTerm', withArgs: [id] },
+    {
+      name: 'a term reopened',
+      call: (c) => c.reopenTerm(id),
+      calls: 'reopenTerm',
+      withArgs: [id],
+    },
+    {
+      name: 'a term removed',
+      call: (c) => c.deleteTerm(id),
+      calls: 'deleteTerm',
+      withArgs: [id],
+    },
 
     // ── Levels and trades ──────────────────────────────────────────────────
-    { name: 'every year level', call: (c) => c.findAllClassLevels(), calls: 'findAllClassLevels', withArgs: [] },
-    { name: 'a level created', call: (c) => c.createClassLevel(body), calls: 'createClassLevel', withArgs: [body] },
-    { name: 'a level changed', call: (c) => c.updateClassLevel(id, body), calls: 'updateClassLevel', withArgs: [id, body] },
-    { name: 'a level removed', call: (c) => c.deleteClassLevel(id), calls: 'deleteClassLevel', withArgs: [id] },
-    { name: 'every trade', call: (c) => c.findAllTrades(), calls: 'findAllTrades', withArgs: [] },
-    { name: 'a trade created', call: (c) => c.createTrade(body), calls: 'createTrade', withArgs: [body] },
-    { name: 'a trade changed', call: (c) => c.updateTrade(id, body), calls: 'updateTrade', withArgs: [id, body] },
-    { name: 'a trade removed', call: (c) => c.deleteTrade(id), calls: 'deleteTrade', withArgs: [id] },
+    {
+      name: 'every year level',
+      call: (c) => c.findAllClassLevels(),
+      calls: 'findAllClassLevels',
+      withArgs: [],
+    },
+    {
+      name: 'a level created',
+      call: (c) => c.createClassLevel(body),
+      calls: 'createClassLevel',
+      withArgs: [body],
+    },
+    {
+      name: 'a level changed',
+      call: (c) => c.updateClassLevel(id, body),
+      calls: 'updateClassLevel',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a level removed',
+      call: (c) => c.deleteClassLevel(id),
+      calls: 'deleteClassLevel',
+      withArgs: [id],
+    },
+    {
+      name: 'every trade',
+      call: (c) => c.findAllTrades(),
+      calls: 'findAllTrades',
+      withArgs: [],
+    },
+    {
+      name: 'a trade created',
+      call: (c) => c.createTrade(body),
+      calls: 'createTrade',
+      withArgs: [body],
+    },
+    {
+      name: 'a trade changed',
+      call: (c) => c.updateTrade(id, body),
+      calls: 'updateTrade',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a trade removed',
+      call: (c) => c.deleteTrade(id),
+      calls: 'deleteTrade',
+      withArgs: [id],
+    },
 
     // ── Classes ────────────────────────────────────────────────────────────
-    { name: 'classes in a level', call: (c) => c.findAllSections('level-1'), calls: 'findAllSections', withArgs: ['level-1'] },
-    { name: 'a class created', call: (c) => c.createSection(body), calls: 'createSection', withArgs: [body] },
-    { name: 'a class changed', call: (c) => c.updateSection(id, body), calls: 'updateSection', withArgs: [id, body] },
-    { name: 'a class removed', call: (c) => c.deleteSection(id), calls: 'deleteSection', withArgs: [id] },
+    {
+      name: 'classes in a level',
+      call: (c) => c.findAllSections('level-1'),
+      calls: 'findAllSections',
+      withArgs: ['level-1'],
+    },
+    {
+      name: 'a class created',
+      call: (c) => c.createSection(body),
+      calls: 'createSection',
+      withArgs: [body],
+    },
+    {
+      name: 'a class changed',
+      call: (c) => c.updateSection(id, body),
+      calls: 'updateSection',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a class removed',
+      call: (c) => c.deleteSection(id),
+      calls: 'deleteSection',
+      withArgs: [id],
+    },
 
     // ── Subjects ───────────────────────────────────────────────────────────
     {
       name: 'subjects, narrowed by trade and level',
       call: (c) => c.findAllSubjects('O_CORE', 'trade-1', 'level-1'),
       calls: 'findAllSubjects',
-      withArgs: [{ scope: 'O_CORE', tradeId: 'trade-1', classLevelId: 'level-1' }],
+      withArgs: [
+        { scope: 'O_CORE', tradeId: 'trade-1', classLevelId: 'level-1' },
+      ],
     },
     {
       // A scope that is not one of the real ones is dropped rather than passed
@@ -134,16 +251,48 @@ describe('AcademicController', () => {
       name: 'a scope nobody recognises is dropped, not passed on',
       call: (c) => c.findAllSubjects('NONSENSE'),
       calls: 'findAllSubjects',
-      withArgs: [{ scope: undefined, tradeId: undefined, classLevelId: undefined }],
+      withArgs: [
+        { scope: undefined, tradeId: undefined, classLevelId: undefined },
+      ],
     },
-    { name: 'a subject created', call: (c) => c.createSubject(body), calls: 'createSubject', withArgs: [body] },
-    { name: 'a subject changed', call: (c) => c.updateSubject(id, body), calls: 'updateSubject', withArgs: [id, body] },
-    { name: 'a subject removed', call: (c) => c.deleteSubject(id), calls: 'deleteSubject', withArgs: [id] },
+    {
+      name: 'a subject created',
+      call: (c) => c.createSubject(body),
+      calls: 'createSubject',
+      withArgs: [body],
+    },
+    {
+      name: 'a subject changed',
+      call: (c) => c.updateSubject(id, body),
+      calls: 'updateSubject',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a subject removed',
+      call: (c) => c.deleteSubject(id),
+      calls: 'deleteSubject',
+      withArgs: [id],
+    },
 
     // ── Assessment types ───────────────────────────────────────────────────
-    { name: 'every assessment type', call: (c) => c.findAllAssessmentTypes(), calls: 'findAllAssessmentTypes', withArgs: [] },
-    { name: 'an assessment type created', call: (c) => c.createAssessmentType(body), calls: 'createAssessmentType', withArgs: [body] },
-    { name: 'an assessment type removed', call: (c) => c.deleteAssessmentType(id), calls: 'deleteAssessmentType', withArgs: [id] },
+    {
+      name: 'every assessment type',
+      call: (c) => c.findAllAssessmentTypes(),
+      calls: 'findAllAssessmentTypes',
+      withArgs: [],
+    },
+    {
+      name: 'an assessment type created',
+      call: (c) => c.createAssessmentType(body),
+      calls: 'createAssessmentType',
+      withArgs: [body],
+    },
+    {
+      name: 'an assessment type removed',
+      call: (c) => c.deleteAssessmentType(id),
+      calls: 'deleteAssessmentType',
+      withArgs: [id],
+    },
 
     // ── Who teaches what ───────────────────────────────────────────────────
     {
@@ -151,12 +300,31 @@ describe('AcademicController', () => {
       call: (c) => c.findAllAssignments('teacher-1', 'section-1', 'year-1'),
       calls: 'findAllAssignments',
       withArgs: [
-        { teacherId: 'teacher-1', classSectionId: 'section-1', academicYearId: 'year-1' },
+        {
+          teacherId: 'teacher-1',
+          classSectionId: 'section-1',
+          academicYearId: 'year-1',
+        },
       ],
     },
-    { name: 'an assignment created', call: (c) => c.createAssignment(body), calls: 'createAssignment', withArgs: [body] },
-    { name: 'a term of assignments at once', call: (c) => c.bulkCreateAssignments(body), calls: 'bulkCreateAssignments', withArgs: [body] },
-    { name: 'an assignment removed', call: (c) => c.deleteAssignment(id), calls: 'deleteAssignment', withArgs: [id] },
+    {
+      name: 'an assignment created',
+      call: (c) => c.createAssignment(body),
+      calls: 'createAssignment',
+      withArgs: [body],
+    },
+    {
+      name: 'a term of assignments at once',
+      call: (c) => c.bulkCreateAssignments(body),
+      calls: 'bulkCreateAssignments',
+      withArgs: [body],
+    },
+    {
+      name: 'an assignment removed',
+      call: (c) => c.deleteAssignment(id),
+      calls: 'deleteAssignment',
+      withArgs: [id],
+    },
 
     // ── Timetable ──────────────────────────────────────────────────────────
     {
@@ -165,11 +333,36 @@ describe('AcademicController', () => {
       calls: 'findTimetable',
       withArgs: ['section-1', 'teacher-1'],
     },
-    { name: 'a teacher’s own week', call: (c) => c.findTeacherTimetable('teacher-1'), calls: 'findTeacherTimetable', withArgs: ['teacher-1'] },
-    { name: 'a period created', call: (c) => c.createTimetable(body), calls: 'createTimetable', withArgs: [body] },
-    { name: 'a period changed', call: (c) => c.updateTimetable(id, body), calls: 'updateTimetable', withArgs: [id, body] },
-    { name: 'a period removed', call: (c) => c.deleteTimetable(id), calls: 'deleteTimetable', withArgs: [id] },
-    { name: 'a whole week at once', call: (c) => c.bulkCreateTimetable(body), calls: 'bulkCreateTimetable', withArgs: [body] },
+    {
+      name: 'a teacher’s own week',
+      call: (c) => c.findTeacherTimetable('teacher-1'),
+      calls: 'findTeacherTimetable',
+      withArgs: ['teacher-1'],
+    },
+    {
+      name: 'a period created',
+      call: (c) => c.createTimetable(body),
+      calls: 'createTimetable',
+      withArgs: [body],
+    },
+    {
+      name: 'a period changed',
+      call: (c) => c.updateTimetable(id, body),
+      calls: 'updateTimetable',
+      withArgs: [id, body],
+    },
+    {
+      name: 'a period removed',
+      call: (c) => c.deleteTimetable(id),
+      calls: 'deleteTimetable',
+      withArgs: [id],
+    },
+    {
+      name: 'a whole week at once',
+      call: (c) => c.bulkCreateTimetable(body),
+      calls: 'bulkCreateTimetable',
+      withArgs: [body],
+    },
 
     // ── Exams ──────────────────────────────────────────────────────────────
     {
@@ -178,10 +371,30 @@ describe('AcademicController', () => {
       calls: 'findExamSchedules',
       withArgs: ['section-1', 'term-1'],
     },
-    { name: 'an exam date created', call: (c) => c.createExamSchedule(body), calls: 'createExamSchedule', withArgs: [body] },
-    { name: 'an exam date changed', call: (c) => c.updateExamSchedule(id, body), calls: 'updateExamSchedule', withArgs: [id, body] },
-    { name: 'an exam date removed', call: (c) => c.deleteExamSchedule(id), calls: 'deleteExamSchedule', withArgs: [id] },
-    { name: 'a whole exam timetable at once', call: (c) => c.bulkCreateExamSchedules(body), calls: 'bulkCreateExamSchedules', withArgs: [body] },
+    {
+      name: 'an exam date created',
+      call: (c) => c.createExamSchedule(body),
+      calls: 'createExamSchedule',
+      withArgs: [body],
+    },
+    {
+      name: 'an exam date changed',
+      call: (c) => c.updateExamSchedule(id, body),
+      calls: 'updateExamSchedule',
+      withArgs: [id, body],
+    },
+    {
+      name: 'an exam date removed',
+      call: (c) => c.deleteExamSchedule(id),
+      calls: 'deleteExamSchedule',
+      withArgs: [id],
+    },
+    {
+      name: 'a whole exam timetable at once',
+      call: (c) => c.bulkCreateExamSchedules(body),
+      calls: 'bulkCreateExamSchedules',
+      withArgs: [body],
+    },
 
     // ── Promotion ──────────────────────────────────────────────────────────
     {
@@ -192,8 +405,18 @@ describe('AcademicController', () => {
       calls: 'promoteStudents',
       withArgs: [body],
     },
-    { name: 'a promotion previewed', call: (c) => c.promotionPreview(body), calls: 'getPromotionPreview', withArgs: [body] },
-    { name: 'a promotion committed', call: (c) => c.commitPromotion(body), calls: 'commitPromotion', withArgs: [body] },
+    {
+      name: 'a promotion previewed',
+      call: (c) => c.promotionPreview(body),
+      calls: 'getPromotionPreview',
+      withArgs: [body],
+    },
+    {
+      name: 'a promotion committed',
+      call: (c) => c.commitPromotion(body),
+      calls: 'commitPromotion',
+      withArgs: [body],
+    },
   ];
 
   it.each(cases)('$name', async (c) => {

@@ -154,7 +154,16 @@ export class MessagingController {
   // ─── GROUP MEMBERSHIP ─────────────────────────────────────────────────────
 
   @Get('conversations/:id/participants')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles(
+    'ADMIN',
+    'TEACHER',
+    'STUDENT',
+    'PARENT',
+    'LIBRARIAN',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+  )
   @ApiOperation({ summary: 'Who is in this conversation' })
   getParticipants(
     @Param('id', ParseUUIDPipe) id: string,
@@ -177,7 +186,16 @@ export class MessagingController {
   // Leaving is allowed to everybody; removing somebody else is checked in the
   // service, because only it knows who is a group admin.
   @Delete('conversations/:id/participants/:userId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles(
+    'ADMIN',
+    'TEACHER',
+    'STUDENT',
+    'PARENT',
+    'LIBRARIAN',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+  )
   @ApiOperation({ summary: 'Remove somebody, or leave the group yourself' })
   removeParticipant(
     @Param('id', ParseUUIDPipe) id: string,
@@ -201,7 +219,16 @@ export class MessagingController {
   // ─── ATTACHMENTS ──────────────────────────────────────────────────────────
 
   @Post('attachments')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles(
+    'ADMIN',
+    'TEACHER',
+    'STUDENT',
+    'PARENT',
+    'LIBRARIAN',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+  )
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @UseInterceptors(
     FileInterceptor('file', {

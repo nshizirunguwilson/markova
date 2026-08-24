@@ -10,13 +10,21 @@ import { CurrentUser } from './current-user.decorator';
  */
 
 /** Pulls the factory out of a param decorator so it can be called directly. */
-function factoryOf(decorator: unknown): (data: unknown, ctx: unknown) => unknown {
+function factoryOf(
+  decorator: unknown,
+): (data: unknown, ctx: unknown) => unknown {
   // createParamDecorator returns a function; the factory it was built from is
   // what Nest calls per request, and it is reachable through the enhancer.
   const target = {} as any;
   (decorator as any)()(target, 'method', 0);
-  const meta = Reflect.getMetadata('__routeArguments__', target.constructor, 'method');
-  return Object.values(meta)[0] ? (Object.values(meta)[0] as any).factory : (() => undefined);
+  const meta = Reflect.getMetadata(
+    '__routeArguments__',
+    target.constructor,
+    'method',
+  );
+  return Object.values(meta)[0]
+    ? (Object.values(meta)[0] as any).factory
+    : () => undefined;
 }
 
 describe('@CurrentUser()', () => {
@@ -53,9 +61,10 @@ describe('@Roles()', () => {
       @Roles('ADMIN', 'PATRON')
       method() {}
     }
-    expect(
-      Reflect.getMetadata(ROLES_KEY, Target.prototype.method),
-    ).toEqual(['ADMIN', 'PATRON']);
+    expect(Reflect.getMetadata(ROLES_KEY, Target.prototype.method)).toEqual([
+      'ADMIN',
+      'PATRON',
+    ]);
   });
 
   it('writes an empty list when none are named, rather than nothing', () => {

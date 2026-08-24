@@ -20,8 +20,16 @@ export class CreateVisitDto {
   /** What the student said was wrong, in their words. */
   @ApiProperty() @IsString() @MaxLength(500) complaint: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) findings?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) treatment?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  findings?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  treatment?: string;
 
   @ApiPropertyOptional({ enum: ClinicSeverity })
   @IsOptional()
@@ -42,12 +50,24 @@ export class CreateVisitDto {
   @Max(45)
   temperature?: number;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) referredTo?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  referredTo?: string;
 }
 
 export class UpdateVisitDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) findings?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) treatment?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  findings?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  treatment?: string;
 
   @ApiPropertyOptional({ enum: ClinicSeverity })
   @IsOptional()
@@ -66,7 +86,11 @@ export class UpdateVisitDto {
   @Max(45)
   temperature?: number;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) referredTo?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  referredTo?: string;
 }
 
 export class GiveMedicineDto {
@@ -74,20 +98,64 @@ export class GiveMedicineDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() visitId?: string;
   @ApiProperty() @IsString() @MaxLength(200) medicine: string;
   @ApiProperty() @IsString() @MaxLength(100) dose: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) reason?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class HealthRecordDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) chronicConditions?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) regularMedication?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) allergyNotes?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) emergencyPlan?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(150) emergencyContactName?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) emergencyContactPhone?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(50) emergencyRelationship?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) insuranceProvider?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(60) insuranceNumber?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(150) preferredClinic?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  chronicConditions?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  regularMedication?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  allergyNotes?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  emergencyPlan?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  emergencyContactName?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  emergencyContactPhone?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  emergencyRelationship?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  insuranceProvider?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  insuranceNumber?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  preferredClinic?: string;
 }
 
 export class VisitQueryDto {
@@ -109,7 +177,12 @@ export class VisitQueryDto {
   /** The sick bay list: everyone kept in and not yet discharged. */
   @ApiPropertyOptional() @IsOptional() @IsString() inSickBay?: string;
 
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ClinicService } from './clinic.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -70,13 +74,19 @@ describe('ClinicService', () => {
 
     it('refuses a teacher, however senior', async () => {
       await expect(
-        service.assertMaySee('student-1', { userId: 'u-1', role: Role.TEACHER }),
+        service.assertMaySee('student-1', {
+          userId: 'u-1',
+          role: Role.TEACHER,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('refuses a librarian', async () => {
       await expect(
-        service.assertMaySee('student-1', { userId: 'u-1', role: Role.LIBRARIAN }),
+        service.assertMaySee('student-1', {
+          userId: 'u-1',
+          role: Role.LIBRARIAN,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -97,14 +107,20 @@ describe('ClinicService', () => {
     it('lets a student see their own record', async () => {
       prisma.student.findUnique.mockResolvedValue({ userId: 'u-me' });
       await expect(
-        service.assertMaySee('student-1', { userId: 'u-me', role: Role.STUDENT }),
+        service.assertMaySee('student-1', {
+          userId: 'u-me',
+          role: Role.STUDENT,
+        }),
       ).resolves.toBeUndefined();
     });
 
     it('refuses a student reading a classmate', async () => {
       prisma.student.findUnique.mockResolvedValue({ userId: 'u-other' });
       await expect(
-        service.assertMaySee('student-1', { userId: 'u-me', role: Role.STUDENT }),
+        service.assertMaySee('student-1', {
+          userId: 'u-me',
+          role: Role.STUDENT,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -144,7 +160,7 @@ describe('ClinicService', () => {
       await service.createVisit(
         {
           ...visit,
-          outcome: 'REFERRED_OUT' as any,
+          outcome: 'REFERRED_OUT',
           referredTo: 'Kacyiru Health Centre',
         },
         'nurse-1',
@@ -191,7 +207,7 @@ describe('ClinicService', () => {
         outcome: 'RESTING_IN_SICK_BAY',
         referredTo: 'Kacyiru Health Centre',
       });
-      await service.updateVisit('visit-1', { outcome: 'REFERRED_OUT' as any });
+      await service.updateVisit('visit-1', { outcome: 'REFERRED_OUT' });
       expect(prisma.clinicVisit.update).toHaveBeenCalled();
     });
   });
@@ -340,9 +356,16 @@ describe('ClinicService', () => {
         dose: '500mg',
       });
       await service.giveMedicine
-        .call(service, { studentId: 'student-1', medicine: 'paracetamol', dose: '500mg' }, 'n-1')
+        .call(
+          service,
+          { studentId: 'student-1', medicine: 'paracetamol', dose: '500mg' },
+          'n-1',
+        )
         .catch(() => null);
-      expect(prisma.medicationAdministration.findFirst.mock.calls[0][0].where.medicine).toEqual({
+      expect(
+        prisma.medicationAdministration.findFirst.mock.calls[0][0].where
+          .medicine,
+      ).toEqual({
         equals: 'paracetamol',
         mode: 'insensitive',
       });
@@ -394,7 +417,9 @@ describe('ClinicService', () => {
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
       });
       prisma.clinicVisit.findMany.mockResolvedValue([{ id: 'visit-1' }]);
-      prisma.medicationAdministration.findMany.mockResolvedValue([{ id: 'dose-1' }]);
+      prisma.medicationAdministration.findMany.mockResolvedValue([
+        { id: 'dose-1' },
+      ]);
 
       const card = await service.emergencyCard('student-1');
       expect(card.recentVisits).toHaveLength(1);
@@ -427,9 +452,14 @@ describe('ClinicService', () => {
 
     it('records who last changed it', async () => {
       prisma.studentHealthRecord.upsert.mockResolvedValue({ id: 'rec-1' });
-      await service.saveHealthRecord('student-1', { allergyNotes: 'Peanuts' }, 'nurse-1');
+      await service.saveHealthRecord(
+        'student-1',
+        { allergyNotes: 'Peanuts' },
+        'nurse-1',
+      );
       expect(
-        prisma.studentHealthRecord.upsert.mock.calls[0][0].update.updatedByUserId,
+        prisma.studentHealthRecord.upsert.mock.calls[0][0].update
+          .updatedByUserId,
       ).toBe('nurse-1');
     });
   });
@@ -561,8 +591,8 @@ describe('ClinicService', () => {
 
     it('narrows by how bad it was and how it ended', async () => {
       await service.findVisits({
-        severity: 'SERIOUS' as never,
-        outcome: 'REFERRED_OUT' as never,
+        severity: 'SERIOUS',
+        outcome: 'REFERRED_OUT',
       });
       expect(prisma.clinicVisit.findMany.mock.calls[0][0].where).toMatchObject({
         severity: 'SERIOUS',
@@ -581,7 +611,7 @@ describe('ClinicService', () => {
     // win: somebody discharged yesterday is not in the sick bay now.
     it('lets the sick bay filter override a looser outcome', async () => {
       await service.findVisits({
-        outcome: 'RETURNED_TO_CLASS' as never,
+        outcome: 'RETURNED_TO_CLASS',
         inSickBay: 'true',
       });
       const where = prisma.clinicVisit.findMany.mock.calls[0][0].where;

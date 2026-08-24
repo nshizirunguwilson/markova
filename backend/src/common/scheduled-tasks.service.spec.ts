@@ -47,7 +47,9 @@ describe('ScheduledTasksService', () => {
       library.sendDueReminders.mockRejectedValue(boom);
       const { service, error } = build();
 
-      await expect(service.handleLibraryDueReminders()).resolves.toBeUndefined();
+      await expect(
+        service.handleLibraryDueReminders(),
+      ).resolves.toBeUndefined();
       expect(error).toHaveBeenCalledWith(
         'Failed to send library due reminders',
         boom.stack,

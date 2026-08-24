@@ -76,7 +76,9 @@ describe('RolesGuard', () => {
   });
 
   it('reads the roles off the handler first and the class second', () => {
-    const { guard, context, reflector } = contextFor({ role: 'ADMIN' }, ['ADMIN']);
+    const { guard, context, reflector } = contextFor({ role: 'ADMIN' }, [
+      'ADMIN',
+    ]);
     guard.canActivate(context);
     expect(reflector.getAllAndOverride).toHaveBeenCalledWith('roles', [
       'handler',

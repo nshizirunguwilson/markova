@@ -105,7 +105,7 @@ describe('SchoolConfigController', () => {
     ])('%s is stored under its own key', async (_n, method, key) => {
       await run({
         name: 'upload',
-        call: (c) => (c as any)[method]({ filename: 'abc.png' }),
+        call: (c) => c[method]({ filename: 'abc.png' }),
         calls: 'updateBrandingFile',
         withArgs: [key, '/uploads/branding/abc.png'],
       });
@@ -117,7 +117,7 @@ describe('SchoolConfigController', () => {
       service.findByKey.mockRejectedValueOnce(new Error('Not found'));
       await run({
         name: 'first logo',
-        call: (c) => (c as any).uploadLogo({ filename: 'first.png' }),
+        call: (c) => c.uploadLogo({ filename: 'first.png' }),
         calls: 'updateBrandingFile',
         withArgs: ['logo_url', '/uploads/branding/first.png'],
       });

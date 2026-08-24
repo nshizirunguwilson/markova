@@ -111,7 +111,9 @@ export class PocketMoneyController {
   // on their own child as well as the office.
   @Put('limits')
   @Roles('ADMIN', 'PATRON', 'MATRON', 'PARENT')
-  @ApiOperation({ summary: 'Set a daily cap, a low balance warning, or freeze' })
+  @ApiOperation({
+    summary: 'Set a daily cap, a low balance warning, or freeze',
+  })
   async limits(@Body() dto: UpdateLimitsDto, @CurrentUser() user: any) {
     await this.service.assertMayView(user.id, user.role, dto.studentId);
     return this.service.updateLimits(dto.studentId, {

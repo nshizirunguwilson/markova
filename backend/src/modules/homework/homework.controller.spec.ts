@@ -3,7 +3,6 @@ import { HomeworkService } from './homework.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
   clearMocks,
-  admin,
   controllerHarness,
   mockService,
   parent,
@@ -130,7 +129,9 @@ describe('HomeworkController', () => {
     });
 
     it('refuses before reading anything', async () => {
-      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+      ownership.verifyStudentAccess.mockRejectedValueOnce(
+        new Error('Forbidden'),
+      );
       const c: any = await controllerHarness(HomeworkController, [
         { token: HomeworkService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },

@@ -54,7 +54,8 @@ describe('MarksController', () => {
   const cases: RouteCase[] = [
     {
       name: 'one mark entered, as the teacher record',
-      call: (c) => c.create({ studentId: 'student-1', score: 17 }, withTeacherId),
+      call: (c) =>
+        c.create({ studentId: 'student-1', score: 17 }, withTeacherId),
       calls: 'create',
       withArgs: [{ studentId: 'student-1', score: 17 }, 'teacher-1', 'TEACHER'],
     },
@@ -72,7 +73,8 @@ describe('MarksController', () => {
     },
     {
       name: 'how much of a class is still unmarked',
-      call: (c) => c.getCompletion('section-1', 'term-1', 'subject-1', 'assess-1'),
+      call: (c) =>
+        c.getCompletion('section-1', 'term-1', 'subject-1', 'assess-1'),
       calls: 'getCompletionTracker',
       withArgs: ['section-1', 'term-1', 'subject-1', 'assess-1'],
     },
@@ -168,7 +170,10 @@ describe('MarksController', () => {
         'the year result',
         (c: any) => c.getStudentYearResult('student-1', 'y', parent),
       ],
-      ['the report card', (c: any) => c.getReportCard('student-1', 't', parent)],
+      [
+        'the report card',
+        (c: any) => c.getReportCard('student-1', 't', parent),
+      ],
     ])('%s', async (_n, call) => {
       await run({
         name: 'checked',
@@ -180,7 +185,9 @@ describe('MarksController', () => {
     });
 
     it('refuses before reading a mark', async () => {
-      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+      ownership.verifyStudentAccess.mockRejectedValueOnce(
+        new Error('Forbidden'),
+      );
       const run2 = await controllerHarness(MarksController, [
         { token: MarksService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },

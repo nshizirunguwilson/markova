@@ -84,7 +84,10 @@ describe('NotificationsController', () => {
     {
       name: 'a phone registered for push',
       call: (c) =>
-        c.registerPushToken({ token: 'ExpoToken[abc]', platform: 'ios' }, admin),
+        c.registerPushToken(
+          { token: 'ExpoToken[abc]', platform: 'ios' },
+          admin,
+        ),
       calls: 'registerPushToken',
       withArgs: [admin.id, 'ExpoToken[abc]', 'ios'],
     },

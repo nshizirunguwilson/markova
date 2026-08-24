@@ -125,10 +125,7 @@ describe('PocketMoneyController', () => {
   describe('reads of another student are checked', () => {
     it.each([
       ['a balance', (c: any) => c.account('student-1', parent)],
-      [
-        'a statement',
-        (c: any) => c.statement('student-1', {}, parent),
-      ],
+      ['a statement', (c: any) => c.statement('student-1', {}, parent)],
       [
         'a change of limits',
         (c: any) =>

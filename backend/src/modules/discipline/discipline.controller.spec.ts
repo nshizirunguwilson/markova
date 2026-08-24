@@ -34,7 +34,13 @@ describe('DisciplineController', () => {
     'acknowledgeIncident',
     'getDashboard',
   ]);
-  const merits = mockService(['watchList', 'summary', 'find', 'award', 'standing']);
+  const merits = mockService([
+    'watchList',
+    'summary',
+    'find',
+    'award',
+    'standing',
+  ]);
   const ownership = mockService(['verifyStudentAccess']);
 
   let run: (c: RouteCase) => Promise<void>;
@@ -208,7 +214,9 @@ describe('DisciplineController', () => {
     });
 
     it('refuses a parent the incident rather than returning it', async () => {
-      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+      ownership.verifyStudentAccess.mockRejectedValueOnce(
+        new Error('Forbidden'),
+      );
       const run2 = await controllerHarness(DisciplineController, [
         { token: DisciplineService, name: 'service', mock: service },
         { token: MeritsService, name: 'merits', mock: merits },

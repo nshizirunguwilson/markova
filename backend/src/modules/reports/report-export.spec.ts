@@ -39,7 +39,10 @@ describe('the full export', () => {
   const unzip = (zip: Buffer): Record<string, string> => {
     const files: Record<string, string> = {};
     let offset = 0;
-    while (offset + 4 <= zip.length && zip.readUInt32LE(offset) === 0x04034b50) {
+    while (
+      offset + 4 <= zip.length &&
+      zip.readUInt32LE(offset) === 0x04034b50
+    ) {
       const method = zip.readUInt16LE(offset + 8);
       const compressedSize = zip.readUInt32LE(offset + 18);
       const nameLength = zip.readUInt16LE(offset + 26);
@@ -48,7 +51,10 @@ describe('the full export', () => {
       const name = zip.toString('utf8', nameStart, nameStart + nameLength);
       const dataStart = nameStart + nameLength + extraLength;
       const data = zip.subarray(dataStart, dataStart + compressedSize);
-      files[name] = method === 8 ? inflateRawSync(data).toString('utf8') : data.toString('utf8');
+      files[name] =
+        method === 8
+          ? inflateRawSync(data).toString('utf8')
+          : data.toString('utf8');
       offset = dataStart + compressedSize;
     }
     return files;
@@ -237,7 +243,9 @@ describe('one dataset as a CSV', () => {
       prisma.assessmentType.findMany.mockResolvedValue([
         { id: 'assess-1', name: 'CAT 1' },
       ]);
-      prisma.term.findMany.mockResolvedValue([{ id: 'term-1', name: 'Term 3' }]);
+      prisma.term.findMany.mockResolvedValue([
+        { id: 'term-1', name: 'Term 3' },
+      ]);
 
       const { csv } = await service.exportDatasetCsv('marks');
       expect(csv).toContain('Divine');

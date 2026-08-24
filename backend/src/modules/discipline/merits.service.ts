@@ -31,7 +31,9 @@ export class MeritsService {
         id: true,
         studentIdNumber: true,
         disciplinePoints: true,
-        classSection: { select: { name: true, classLevel: { select: { name: true } } } },
+        classSection: {
+          select: { name: true, classLevel: { select: { name: true } } },
+        },
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
       },
     },
@@ -91,9 +93,18 @@ export class MeritsService {
 
     // Told the same way trouble is told. A family that only ever hears from
     // the school when something is wrong learns to dread the message.
-    await this.tellTheFamily(dto.studentId, dto.description, restored, newPoints);
+    await this.tellTheFamily(
+      dto.studentId,
+      dto.description,
+      restored,
+      newPoints,
+    );
 
-    return { ...merit, pointsRestored: restored, newDisciplinePoints: newPoints };
+    return {
+      ...merit,
+      pointsRestored: restored,
+      newDisciplinePoints: newPoints,
+    };
   }
 
   async find(query: QueryMeritsDto) {
@@ -214,7 +225,9 @@ export class MeritsService {
           id: true,
           studentIdNumber: true,
           disciplinePoints: true,
-          classSection: { select: { name: true, classLevel: { select: { name: true } } } },
+          classSection: {
+            select: { name: true, classLevel: { select: { name: true } } },
+          },
           user: { select: { firstName: true, lastName: true } },
         },
       }),
@@ -227,7 +240,8 @@ export class MeritsService {
 
     const rows = students.map((s) => {
       const trouble = concerning.find((r) => r.studentId === s.id)!;
-      const merited = merits.find((m) => m.studentId === s.id)?._count._all ?? 0;
+      const merited =
+        merits.find((m) => m.studentId === s.id)?._count._all ?? 0;
       return {
         ...s,
         incidents: trouble._count._all,
