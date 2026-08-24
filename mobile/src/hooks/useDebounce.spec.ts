@@ -22,7 +22,7 @@ describe('a search box being typed into', () => {
 
   it('says nothing while the typing is still going', async () => {
     const { result, rerender } = await renderHook(
-      ({ value }) => useDebounce(value),
+      ({ value }: { value: string }) => useDebounce(value),
       { initialProps: { value: 'U' } },
     );
 
@@ -36,7 +36,7 @@ describe('a search box being typed into', () => {
 
   it('settles once the typing stops', async () => {
     const { result, rerender } = await renderHook(
-      ({ value }) => useDebounce(value),
+      ({ value }: { value: string }) => useDebounce(value),
       { initialProps: { value: 'U' } },
     );
 
@@ -50,7 +50,7 @@ describe('a search box being typed into', () => {
   // the whole reason the number is 300.
   it('waits three hundred milliseconds unless told otherwise', async () => {
     const { result, rerender } = await renderHook(
-      ({ value }) => useDebounce(value),
+      ({ value }: { value: string }) => useDebounce(value),
       { initialProps: { value: 'U' } },
     );
 
@@ -64,7 +64,7 @@ describe('a search box being typed into', () => {
 
   it('can be told to wait longer or less', async () => {
     const { result, rerender } = await renderHook(
-      ({ value }) => useDebounce(value, 50),
+      ({ value }: { value: string }) => useDebounce(value, 50),
       { initialProps: { value: 'U' } },
     );
 
@@ -76,7 +76,7 @@ describe('a search box being typed into', () => {
 
   it('holds anything, not only text', async () => {
     const { result, rerender } = await renderHook(
-      ({ value }) => useDebounce(value),
+      ({ value }: { value: { page: number } }) => useDebounce(value),
       { initialProps: { value: { page: 1 } } },
     );
 
@@ -91,7 +91,7 @@ describe('a search box being typed into', () => {
   it('drops its pending timer when the screen closes', async () => {
     const clear = jest.spyOn(globalThis, 'clearTimeout');
     const { rerender, unmount } = await renderHook(
-      ({ value }) => useDebounce(value),
+      ({ value }: { value: string }) => useDebounce(value),
       { initialProps: { value: 'U' } },
     );
 

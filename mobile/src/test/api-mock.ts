@@ -40,7 +40,10 @@ function answer(method: string, url: string, config?: never) {
   }
   if (failures.has(key)) return Promise.reject(failures.get(key));
   const reply = routes.get(key);
-  const data = typeof reply === 'function' ? (reply as never)(config ?? {}) : reply;
+  const data =
+    typeof reply === 'function'
+      ? (reply as (c: unknown) => unknown)(config ?? {})
+      : reply;
   return Promise.resolve({ data, status: 200 });
 }
 

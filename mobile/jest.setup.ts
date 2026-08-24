@@ -115,7 +115,7 @@ jest.mock('react-native-reanimated', () => {
 
   const useSharedValue = (initial: unknown) => {
     const [, force] = React.useState(0);
-    const box = React.useRef<{ value: unknown } | null>(null);
+    const box = React.useRef(null) as { current: { value: unknown } | null };
     if (box.current === null) {
       let current = initial;
       box.current = {
@@ -160,13 +160,21 @@ jest.mock('react-native-reanimated', () => {
     return self;
   };
 
+  // Entering, exiting and layout props mean nothing without the native
+  // runtime, so they are dropped rather than passed to a plain View.
   const passthrough = (Component: unknown) =>
-    React.forwardRef(
-      (
-        { entering, exiting, layout, sharedTransitionTag, ...rest }: never,
-        ref: never,
-      ) => React.createElement(Component as never, { ...(rest as object), ref }),
-    );
+    React.forwardRef((props: Record<string, unknown>, ref: unknown) => {
+      const rest = { ...props };
+      for (const key of [
+        'entering',
+        'exiting',
+        'layout',
+        'sharedTransitionTag',
+      ]) {
+        delete rest[key];
+      }
+      return React.createElement(Component as never, { ...rest, ref });
+    });
 
   const Animated = {
     View: passthrough(View),

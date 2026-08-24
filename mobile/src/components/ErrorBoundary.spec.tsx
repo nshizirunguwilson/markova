@@ -19,7 +19,11 @@ jest.mock('@/lib/error-reporting', () => ({
   errorReporter: { captureException: jest.fn() },
 }));
 
-function Boom({ message = 'the marks screen fell over' }: { message?: string }) {
+function Boom({
+  message = 'the marks screen fell over',
+}: {
+  message?: string;
+}): never {
   throw new Error(message);
 }
 

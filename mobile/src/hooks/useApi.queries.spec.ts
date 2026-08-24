@@ -345,7 +345,7 @@ describe.each(Object.entries(cases))('reading %s', (_name, testCase) => {
     const [url, config] = http.get.mock.calls[0];
     expect(url).toBe(testCase.url);
     if (testCase.params) {
-      expect((config as { params: unknown }).params).toMatchObject(
+      expect((config as unknown as { params: unknown }).params).toMatchObject(
         testCase.params,
       );
     }

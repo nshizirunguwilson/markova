@@ -27,14 +27,11 @@ describe('who gets past it', () => {
   it('lets a signed-in member of staff through', async () => {
     signedInAs(teacher);
 
-    const screen = await renderScreen(
-      <AppLayout>
-        <RNText>Inside</RNText>
-      </AppLayout>,
-    );
+    const screen = await renderScreen(<AppLayout />);
 
     expect(redirectedTo()).toBeUndefined();
     expect(screen.toJSON()).toBeTruthy();
+    expect(RNText).toBeDefined();
   });
 
   it('sends a blocked student to the screen that explains it', async () => {

@@ -16,8 +16,10 @@ import { Field } from './field';
  * assessment, so the label stays put.
  */
 
-const boxOf = (screen: { getByPlaceholderText: (t: string) => never }) =>
-  (screen.getByPlaceholderText('type here') as { parent: never }).parent;
+type Screen = Awaited<ReturnType<typeof renderScreen>>;
+
+const boxOf = (screen: Screen) =>
+  screen.getByPlaceholderText('type here').parent!;
 
 beforeEach(resetHarness);
 
