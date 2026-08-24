@@ -233,11 +233,10 @@ export default function AdminSubjectsPage() {
           <div>
             <label htmlFor="f-category" className="mb-1 block text-sm font-medium">Category</label>
             <input id="f-category"
-              className={`w-full rounded-lg border ${errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
               {...register("category")}
               placeholder="e.g. Sciences, Languages, Humanities"
              aria-label="Category"/>
-            {errors.category && <p className="mt-1 text-xs text-danger">{errors.category.message}</p>}
           </div>
           <div>
             <label htmlFor="f-max-marks" className="mb-1 block text-sm font-medium">Max Marks</label>

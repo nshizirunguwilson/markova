@@ -429,11 +429,10 @@ export default function AdminHomeworkPage() {
           <div>
             <label htmlFor="f-description" className="mb-1 block text-sm font-medium">Description</label>
             <textarea id="f-description"
-              className={`w-full rounded-lg border ${errors.description ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
               rows={3}
               {...register("description")}
             />
-            {errors.description && <p className="mt-1 text-xs text-danger">{errors.description.message}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
