@@ -77,7 +77,8 @@
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
       "app/**/*.{ts,tsx}",
-      "!**/*.d.ts"
+      "!**/*.d.ts",
+      "!src/types/index.ts"
     ],
     "coveragePathIgnorePatterns": [
       "/node_modules/",

@@ -10,6 +10,29 @@
 // subpath export.
 import '@testing-library/react-native/matchers';
 
+// The gesture handler installs itself through a native module that does not
+// exist in a test process. Its root view is a plain View once that is gone.
+jest.mock('react-native-gesture-handler', () => {
+  const { View, ScrollView, FlatList, Pressable } = require('react-native');
+  const passthrough = (Component: unknown) => Component;
+  return {
+    GestureHandlerRootView: View,
+    gestureHandlerRootHOC: passthrough,
+    Gesture: {
+      Pan: () => ({ onUpdate: () => ({ onEnd: () => ({}) }) }),
+      Tap: () => ({ onEnd: () => ({}) }),
+    },
+    GestureDetector: View,
+    ScrollView,
+    FlatList,
+    TouchableOpacity: Pressable,
+    RectButton: Pressable,
+    Swipeable: View,
+    Directions: {},
+    State: {},
+  };
+});
+
 // Secure storage is the keychain. There is no keychain in a test process, so
 // this is an in-memory one that behaves the same way.
 jest.mock('expo-secure-store', () => {
@@ -73,27 +96,9 @@ jest.mock('sonner-native', () => ({
   Toaster: () => null,
 }));
 
-// The router is a navigation side effect, and every test that cares asserts on
-// these rather than on a rendered screen changing.
-jest.mock('expo-router', () => {
-  const React = require('react');
-  return {
-    useRouter: () => ({
-      push: jest.fn(),
-      replace: jest.fn(),
-      back: jest.fn(),
-      dismiss: jest.fn(),
-    }),
-    useLocalSearchParams: () => ({}),
-    usePathname: () => '/',
-    useSegments: () => [],
-    Link: ({ children }: { children: React.ReactNode }) => children,
-    Redirect: () => null,
-    Stack: Object.assign(() => null, { Screen: () => null }),
-    Tabs: Object.assign(() => null, { Screen: () => null }),
-    router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
-  };
-});
+// The router is a navigation side effect, and every test that cares asserts
+// on where a screen tried to go rather than on what drew next.
+jest.mock('expo-router', () => require('./src/test/router-mock').expoRouterMock);
 
 /**
  * Reanimated runs its animations on a native worklet runtime that does not

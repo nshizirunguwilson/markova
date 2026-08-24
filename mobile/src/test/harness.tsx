@@ -9,6 +9,7 @@ import {
 
 import { useAuthStore, type User } from '@/stores/auth-store';
 import { resetApi } from './api-mock';
+import { resetRouter } from './router-mock';
 
 /**
  * What a screen needs around it before it will draw.
@@ -109,6 +110,7 @@ export function signedInAs(user: User) {
 export function resetHarness() {
   useAuthStore.setState({ ...blankAuth, isLoading: false }, true);
   resetApi();
+  resetRouter();
 }
 
 function Providers({ children }: { children: ReactNode }) {
