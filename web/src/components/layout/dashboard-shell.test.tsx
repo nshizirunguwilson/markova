@@ -218,3 +218,79 @@ describe("DashboardShell sidebar", () => {
     await waitFor(() => expect(screen.getByText(/the dashboard/i)).toBeInTheDocument());
   });
 });
+
+/**
+ * The welfare staff, who have no dashboard of their own.
+ *
+ * PATRON, MATRON and NURSE work on pages that live under /admin. Sending them
+ * to /patron or /nurse would be a 404, so their redirect is a special case,
+ * and it is a case nobody hits until the first boarding school signs up.
+ */
+describe("DashboardShell and the welfare roles", () => {
+  it.each([
+    ["PATRON", "/admin/pocket-money"],
+    ["MATRON", "/admin/pocket-money"],
+    ["NURSE", "/admin/health"],
+  ])("sends a %s to %s rather than to a page that does not exist", async (role, expected) => {
+    h.pathname.current = "/teacher/marks";
+    signIn(role as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith(expected));
+  });
+
+  it("lets a matron onto the pocket money page itself", async () => {
+    h.pathname.current = "/admin/pocket-money";
+    signIn("MATRON" as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("lets a nurse onto the clinic page", async () => {
+    h.pathname.current = "/admin/health";
+    signIn("NURSE" as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps a matron off the rest of /admin", async () => {
+    h.pathname.current = "/admin/users";
+    signIn("MATRON" as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith("/admin/pocket-money"),
+    );
+  });
+
+  it("lets any signed-in role onto a path no rule covers", async () => {
+    // A route outside every known prefix carries no rule, so the shell defers
+    // to the API rather than inventing a redirect.
+    h.pathname.current = "/somewhere-new";
+    signIn("STUDENT");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+});

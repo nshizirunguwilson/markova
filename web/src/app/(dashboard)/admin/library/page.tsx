@@ -165,7 +165,7 @@ export default function AdminLibraryPage() {
           { header: "Copies", key: "quantity" },
           { header: "Available", key: "availableCount" },
         ],
-        data: books || [],
+        data: books,
       });
     } else if (tab === "loans") {
       exportData(format, {
@@ -177,7 +177,7 @@ export default function AdminLibraryPage() {
           { header: "Checkout Date", key: "_checkoutDate" },
           { header: "Due Date", key: "_dueDate" },
         ],
-        data: (activeLoans || []).map((l: any) => ({
+        data: activeLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
           _checkoutDate: new Date(l.checkoutDate).toLocaleDateString(),
@@ -194,7 +194,7 @@ export default function AdminLibraryPage() {
           { header: "Due Date", key: "_dueDate" },
           { header: "Days Overdue", key: "_daysOverdue" },
         ],
-        data: (overdueLoans || []).map((l: any) => ({
+        data: overdueLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
           _dueDate: new Date(l.dueDate).toLocaleDateString(),
