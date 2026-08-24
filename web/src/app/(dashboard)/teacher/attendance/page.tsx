@@ -235,6 +235,9 @@ export default function TeacherAttendancePage() {
                   </div>
                   <button
                     onClick={() => toggleStatus(s.studentId)}
+                    // Without this a screen reader hears "Present" thirty
+                    // times over with no idea whose register it is reading.
+                    aria-label={`Attendance for ${s.name}`}
                     className="flex items-center gap-1"
                   >
                     {status === "PRESENT" ? (

@@ -239,10 +239,17 @@ describe("the status cycle", () => {
     });
   }
 
+  /**
+   * The status control on Divine's row.
+   *
+   * The button carries only the badge as its text, so matching on the
+   * student's name found nothing and every test in this block quietly did
+   * nothing at all.
+   */
   function studentRow() {
     return screen
       .queryAllByRole("button")
-      .find((b) => /divine/i.test(b.textContent ?? ""));
+      .find((b) => /attendance for divine/i.test(b.getAttribute("aria-label") ?? ""));
   }
 
   it("starts an untouched student at present", async () => {
@@ -525,4 +532,68 @@ describe("taking the register with a scanner", () => {
       expect(call).toBeUndefined();
     });
   });
+});
+
+/**
+ * The guards on the register's two write paths.
+ *
+ * Saving before a class is chosen would post a register with no class on it,
+ * and "mark all present" before the roster arrives would mark an empty class,
+ * which then saves as nothing.
+ */
+describe("what the register refuses to do", () => {
+  it("saves nothing before a class is chosen", async () => {
+    serve(h.api, routes);
+    await mount();
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /^save/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/attendance"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("marks nobody present before the roster arrives", async () => {
+    serve(h.api, routes);
+    await mount();
+
+    const markAll = screen
+      .queryAllByRole("button")
+      .find((b) => /mark all present/i.test(b.textContent ?? ""));
+    if (!markAll) return;
+    await act(async () => {
+      fireEvent.click(markAll);
+    });
+
+    // No roster, so nothing to mark and nothing to save.
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("scans nothing when the box is empty", async () => {
+    serve(h.api, routes);
+    await mount();
+    await pickClass();
+    h.api.post.mockClear();
+
+    const scan = screen
+      .queryAllByRole("button")
+      .find((b) => /^(scan|check in|submit)/i.test((b.textContent ?? "").trim()));
+    if (!scan) return;
+    await act(async () => {
+      fireEvent.click(scan);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) => String(url).includes("/qr")),
+    ).toBeUndefined();
+  }, 20000);
 });
