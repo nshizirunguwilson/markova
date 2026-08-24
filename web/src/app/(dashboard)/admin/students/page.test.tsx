@@ -636,3 +636,52 @@ describe("searching the roll from the keyboard", () => {
     await waitFor(() => expect(lastUserQuery().search).toBeUndefined());
   });
 });
+
+/**
+ * Accounts with the STUDENT role but no student record behind them.
+ *
+ * That is what an account looks like between being created and being enrolled,
+ * and it is the state a bulk import leaves behind when one row fails. Every
+ * column on the row reads through that join.
+ */
+describe("an account with no student record yet", () => {
+  const bare = {
+    ...studentRow(1),
+    student: undefined,
+    isActive: true,
+  };
+
+  it("still draws the row", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": { data: [bare], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
+    });
+    renderPage(StudentsPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("falls back to the account's own status", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": {
+        data: [{ ...bare, isActive: false }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(StudentsPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(screen.getByText("Inactive")).toBeInTheDocument());
+  });
+
+  it("reads as active when the account is", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": { data: [bare], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
+    });
+    renderPage(StudentsPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(screen.getByText("Active")).toBeInTheDocument());
+  });
+});
