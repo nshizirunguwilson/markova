@@ -169,7 +169,13 @@ export default function TabsLayout() {
         tabBarItemStyle: { paddingVertical: 2 },
       }}
     >
-      {ALL.map((name) => {
+      {/*
+        The role's own tabs first, in the order that role reads them, then
+        every other tab file hidden behind href: null. Declaration order is
+        what the bar draws, so listing ALL as it comes would put a parent's
+        alerts before their messages regardless of what ROLE_TABS says.
+      */}
+      {[...tabs.map((s) => s.name), ...ALL.filter((n) => !visible.has(n))].map((name) => {
         const slot = tabs.find((s) => s.name === name);
         const badge = slot ? badgeFor(slot.badge) : undefined;
 

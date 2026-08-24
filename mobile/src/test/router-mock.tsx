@@ -38,6 +38,12 @@ export const screenOptions: Record<string, unknown>[] = [];
 /** The defaults a navigator set for every screen under it. */
 export const navigatorOptions: Record<string, unknown>[] = [];
 
+/** Every screen a navigator declared, by name, with what it declared. */
+export const declaredScreens: {
+  name?: string;
+  options: Record<string, unknown>;
+}[] = [];
+
 export function resetRouter() {
   for (const fn of Object.values(router)) (fn as jest.Mock).mockClear();
   router.canGoBack.mockReturnValue(true);
@@ -47,6 +53,7 @@ export function resetRouter() {
   redirects.length = 0;
   screenOptions.length = 0;
   navigatorOptions.length = 0;
+  declaredScreens.length = 0;
 }
 
 /** Where the screen sent the person instead of drawing itself. */
@@ -62,10 +69,31 @@ function Redirect({ href }: { href: unknown }) {
   return null;
 }
 
-function Screen({ options }: { options?: Record<string, unknown> }) {
-  if (options) screenOptions.push(options);
+function Screen({
+  name,
+  options,
+}: {
+  name?: string;
+  options?: Record<string, unknown>;
+}) {
+  if (options) {
+    screenOptions.push(options);
+    // A re-render declares the same screens again. Keeping the latest for
+    // each name is what a navigator itself does, and it is what a test wants
+    // to read after a query has settled.
+    const existing = declaredScreens.findIndex((s) => s.name === name);
+    if (name !== undefined && existing !== -1) {
+      declaredScreens[existing] = { name, options };
+    } else {
+      declaredScreens.push({ name, options });
+    }
+  }
   return null;
 }
+
+/** The screens a navigator actually put a button on the bar for. */
+export const visibleScreens = () =>
+  declaredScreens.filter((s) => s.options.href !== null);
 
 function Link({
   href,
