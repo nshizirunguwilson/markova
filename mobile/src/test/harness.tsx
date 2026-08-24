@@ -238,3 +238,16 @@ export async function settle() {
     });
   }
 }
+
+/**
+ * Runs a test as if the app were on Android rather than an iPhone.
+ *
+ * The two differ in small, real ways: the keyboard is handled by the system,
+ * and there is no haptic engine to tap back with.
+ */
+export function onAndroid() {
+  const { Platform } = require('react-native');
+  Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+  return () =>
+    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+}

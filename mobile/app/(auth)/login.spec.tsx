@@ -4,7 +4,7 @@ import { toast } from 'sonner-native';
 import { useAuthStore } from '@/stores/auth-store';
 import { givenApi } from '@/test/api-mock';
 import { router } from '@/test/router-mock';
-import { renderScreen, resetHarness } from '@/test/harness';
+import { onAndroid, renderScreen, resetHarness } from '@/test/harness';
 
 import Login from './login';
 
@@ -323,6 +323,22 @@ describe('when it does not work', () => {
           .busy,
       ).toBe(false),
     );
+  });
+});
+
+
+/**
+ * The keyboard is handled by the system on Android, so the screen leaves it
+ * alone rather than pushing content up twice.
+ */
+describe('on Android', () => {
+  it('leaves the keyboard to the system', async () => {
+    const back = onAndroid();
+
+    const screen = await renderScreen(<Login />);
+
+    expect(screen.toJSON()).toBeTruthy();
+    back();
   });
 });
 

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/design/provider';
 import { curve, radius, space, touch } from '@/design/tokens';
@@ -57,7 +57,7 @@ export function Button({
   }[kind];
 
   const press = () => {
-    if (!silent && process.env.EXPO_OS === 'ios') {
+    if (!silent && Platform.OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
     onPress();

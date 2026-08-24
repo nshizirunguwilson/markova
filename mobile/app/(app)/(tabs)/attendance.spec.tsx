@@ -8,6 +8,7 @@ import * as queue from '@/lib/offline-queue';
 import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
 import {
   meterFill,
+  onAndroid,
   renderScreen,
   resetHarness,
   signedInAs,
@@ -239,6 +240,20 @@ describe('marking the exceptions', () => {
     expect(
       styleOf(screen.getByLabelText('Mark Aline Uwase present')).width,
     ).toBeGreaterThanOrEqual(touch.min);
+  });
+
+  it('marks just as well on a phone with no haptic engine', async () => {
+    const back = onAndroid();
+    const screen = await open();
+    await waitForRoll(screen);
+
+    await fireEvent.press(screen.getByLabelText('Mark Aline Uwase absent'));
+
+    await waitFor(() =>
+      expect(screen.getByText('2 present, 0 late, 1 away')).toBeTruthy(),
+    );
+    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+    back();
   });
 
   it('acknowledges each tap in the hand', async () => {

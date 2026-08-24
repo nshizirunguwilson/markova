@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -94,7 +94,7 @@ export default function Login() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
         <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.screen))} style={{ gap: space.md }}>

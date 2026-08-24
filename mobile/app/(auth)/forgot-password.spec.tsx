@@ -3,7 +3,7 @@ import { toast } from 'sonner-native';
 
 import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
 import { router } from '@/test/router-mock';
-import { renderScreen, resetHarness } from '@/test/harness';
+import { onAndroid, renderScreen, resetHarness } from '@/test/harness';
 
 import ForgotPassword from './forgot-password';
 
@@ -169,6 +169,22 @@ describe('when the school cannot be reached', () => {
     await waitFor(() =>
       expect(notify.error).toHaveBeenCalledWith('Could not send that just now'),
     );
+  });
+});
+
+
+/**
+ * The keyboard is handled by the system on Android, so the screen leaves it
+ * alone rather than pushing content up twice.
+ */
+describe('on Android', () => {
+  it('leaves the keyboard to the system', async () => {
+    const back = onAndroid();
+
+    const screen = await renderScreen(<ForgotPassword />);
+
+    expect(screen.toJSON()).toBeTruthy();
+    back();
   });
 });
 

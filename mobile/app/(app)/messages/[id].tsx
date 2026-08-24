@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Pressable, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { SendHorizontal } from 'lucide-react-native';
 
@@ -67,7 +67,7 @@ export default function Thread() {
       <Stack.Screen options={{ title: name }} />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: t.bg.page }}
-        behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={92}
       >
         {loading ? (

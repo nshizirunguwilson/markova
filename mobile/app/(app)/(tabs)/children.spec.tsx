@@ -82,6 +82,14 @@ describe('the list', () => {
     await waitFor(() => expect(screen.getByText('Aline Uwase')).toBeTruthy());
   });
 
+  it('draws a child with no name recorded anywhere', async () => {
+    linked([{ id: 'student-1', classSection: { name: 'Senior 3 A' } }]);
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Senior 3 A')).toBeTruthy());
+  });
+
   it('copes with a child whose class is not set yet', async () => {
     linked([child({ classSection: undefined, studentIdNumber: undefined })]);
 

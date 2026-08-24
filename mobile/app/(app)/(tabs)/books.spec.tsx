@@ -236,6 +236,15 @@ describe('a borrower at the catalogue', () => {
     await waitFor(() => expect(screen.getByText('Overdue')).toBeTruthy());
   });
 
+  // A loan in a state the shared vocabulary has never seen still draws.
+  it('shows a loan in a state nobody has named', async () => {
+    shelves([book()], [loan({ status: 'RENEWED' })]);
+
+    const screen = await open(parent);
+
+    await waitFor(() => expect(screen.getByText('Renewed')).toBeTruthy());
+  });
+
   it('copes with a loan whose book record has gone', async () => {
     shelves([book()], [loan({ book: undefined })]);
 

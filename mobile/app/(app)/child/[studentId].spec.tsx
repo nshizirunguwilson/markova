@@ -123,6 +123,51 @@ describe('the three questions a parent came to answer', () => {
     );
   });
 
+  it.each([
+    [95, 'positive'],
+    [72, 'caution'],
+    [40, 'critical'],
+  ])('reads a conduct score of %s the way a school would', async (points, tone) => {
+    const { defaultTheme } = require('@/design/theme');
+    record({
+      '/auth/profile': {
+        children: [
+          {
+            id: 'student-1',
+            user: { firstName: 'Aline', lastName: 'Uwase' },
+            disciplinePoints: points,
+          },
+        ],
+      },
+    });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText(String(points))).toBeTruthy(),
+    );
+    expect(styleOf(screen.getByText(String(points))).color).toBe(
+      tone === 'positive'
+        ? defaultTheme.status.positive.text
+        : tone === 'caution'
+          ? defaultTheme.status.caution.text
+          : defaultTheme.status.critical.text,
+    );
+  });
+
+  it('shows a dash where a published result carries no grade', async () => {
+    record({
+      '/marks/term-results/student/student-1': {
+        result: { isPublished: true },
+      },
+    });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Term grade')).toBeTruthy());
+    expect(screen.getByText('-')).toBeTruthy();
+  });
+
   it('says nothing is on record when nothing is', async () => {
     const screen = await open();
 

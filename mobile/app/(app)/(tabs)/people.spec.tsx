@@ -97,6 +97,16 @@ describe('the list', () => {
     await waitFor(() => expect(screen.getByText('2 found')).toBeTruthy());
   });
 
+  it('marks somebody turned off even while the list is filtered', async () => {
+    directory([person({ isActive: false })]);
+    const screen = await open();
+    await waitFor(() => expect(screen.getByText('Off')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Teachers'));
+
+    await waitFor(() => expect(screen.getByText('Off')).toBeTruthy());
+  });
+
   it('opens somebody when their row is pressed', async () => {
     directory([person()]);
     const screen = await open();

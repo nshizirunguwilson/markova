@@ -5,7 +5,7 @@ import { toast } from 'sonner-native';
 import { defaultTheme } from '@/design/theme';
 import { useAuthStore } from '@/stores/auth-store';
 import { router, routerState } from '@/test/router-mock';
-import { renderScreen, resetHarness, styleOf } from '@/test/harness';
+import { onAndroid, renderScreen, resetHarness, styleOf } from '@/test/harness';
 
 import VerifyOtp from './verify-otp';
 
@@ -332,6 +332,35 @@ describe('asking for another code', () => {
         'Could not send another code just yet',
       ),
     );
+  });
+});
+
+/**
+ * Android has no haptic engine, and its system handles the keyboard, so the
+ * screen does neither of those things there.
+ */
+describe('on Android', () => {
+  it('says nothing in the hand, and still signs in', async () => {
+    const back = onAndroid();
+    const screen = await renderScreen(<VerifyOtp />);
+
+    await typeCode(screen, '123456');
+
+    await waitFor(() => expect(verify).toHaveBeenCalledWith('123456'));
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    back();
+  });
+
+  it('says nothing in the hand about a wrong code either', async () => {
+    verify.mockRejectedValue(new Error('nope'));
+    const back = onAndroid();
+    const screen = await renderScreen(<VerifyOtp />);
+
+    await typeCode(screen, '123456');
+
+    await waitFor(() => expect(notify.error).toHaveBeenCalled());
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    back();
   });
 });
 

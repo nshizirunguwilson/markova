@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Check, Circle } from 'lucide-react-native';
 import { toast } from 'sonner-native';
@@ -74,7 +74,7 @@ export default function ResetPassword() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
         <View style={{ gap: space.md }}>

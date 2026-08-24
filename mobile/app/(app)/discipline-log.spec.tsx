@@ -111,6 +111,14 @@ describe('recording an incident', () => {
     await pickStudent(screen);
   });
 
+  it('draws a roster row with no name recorded at all', async () => {
+    school({ '/attendance/class-students': [{ id: '1' }] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Who')).toBeTruthy());
+  });
+
   it('copes with a roster row the school left half filled in', async () => {
     school({ '/attendance/class-students': [{ id: '1', firstName: 'Aline' }] });
 

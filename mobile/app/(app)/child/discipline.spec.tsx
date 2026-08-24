@@ -115,6 +115,66 @@ describe('where the child stands', () => {
  * the way back is stated as a number rather than left as a feeling.
  */
 describe('the way back', () => {
+  it('is called plain conduct when it does not know whose it is', async () => {
+    signedInAs(parent);
+    routerState.params = { studentId: 'student-1' };
+
+    const screen = await renderScreen(<ChildDiscipline />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Conduct points')).toBeTruthy(),
+    );
+    expect(screenTitle()).toBe('Conduct');
+  });
+
+  it.each([
+    [95, 'positive'],
+    [72, 'caution'],
+    [40, 'critical'],
+  ])('reads a standing of %s the way a school would', async (points, tone) => {
+    const { defaultTheme } = require('@/design/theme');
+    record({ disciplinePoints: points });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText(String(points))).toBeTruthy(),
+    );
+    expect(
+      Object.assign(
+        {},
+        ...[screen.getByText(String(points)).props.style].flat(Infinity),
+      ).color,
+    ).toBe(
+      tone === 'positive'
+        ? defaultTheme.status.positive.text
+        : tone === 'caution'
+          ? defaultTheme.status.caution.text
+          : defaultTheme.status.critical.text,
+    );
+  });
+
+  it('draws before the standing has arrived', async () => {
+    givenApi({ '/discipline/standing/student-1': () => new Promise(() => {}) });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Conduct points')).toBeTruthy(),
+    );
+    expect(screen.queryByText('Recognised for')).toBeNull();
+    expect(screen.queryByText(/clean sheet/)).toBeNull();
+  });
+
+  it('says nothing about recognition where there is none', async () => {
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText(/conduct record is clean/)).toBeTruthy(),
+    );
+    expect(screen.queryByText('Recognised for')).toBeTruthy();
+  });
+
   it('says how far off a clean sheet they are', async () => {
     givenApi({
       '/discipline/standing/student-1': {
@@ -421,6 +481,19 @@ describe('appealing one', () => {
 
     await waitFor(() => expect(screen.getByText('Pending')).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Appeal this' })).toBeNull();
+  });
+
+  // An appeal in a state the shared vocabulary has never seen still draws.
+  it('shows an appeal in a state nobody has named', async () => {
+    record({
+      incidents: [
+        incident({ appeals: [{ id: 'appeal-1', status: 'ESCALATED' }] }),
+      ],
+    });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Escalated')).toBeTruthy());
   });
 
   it('does not offer a second appeal against the same incident', async () => {

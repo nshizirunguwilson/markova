@@ -280,6 +280,17 @@ describe('who is at the counter', () => {
     expect(screen.getByText('Daily cap 2,000 RWF')).toBeTruthy();
   });
 
+  it('reads a cap with no figure behind it as nothing left', async () => {
+    counter({
+      '/pocket-money/lookup': account({ dailyLimit: 2000, remainingToday: null }),
+    });
+    const screen = await open();
+
+    await scan(screen);
+
+    expect(screen.getByText('0 RWF')).toBeTruthy();
+  });
+
   it('reads a cap already spent as something to stop at', async () => {
     counter({
       '/pocket-money/lookup': account({ dailyLimit: 2000, remainingToday: 0 }),

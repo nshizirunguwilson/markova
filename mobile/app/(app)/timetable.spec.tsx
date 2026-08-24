@@ -216,6 +216,21 @@ describe('a parent’s view', () => {
 });
 
 describe('the day', () => {
+  /**
+   * A school does not run on Sunday, and JavaScript calls it day zero, so
+   * opening the app then has to land somewhere a person can read.
+   */
+  it('opens on Monday when today is a Sunday', async () => {
+    const realDay = Date.prototype.getDay;
+    Date.prototype.getDay = () => 0;
+    week({ '/academic/timetable/teacher/teacher-1': [lesson({ dayOfWeek: '1' })] });
+
+    const screen = await open(teacher);
+
+    await waitFor(() => expect(screen.getByText('1 lesson, today')).toBeTruthy());
+    Date.prototype.getDay = realDay;
+  });
+
   it('opens on today', async () => {
     week({ '/academic/timetable/teacher/teacher-1': [lesson()] });
 

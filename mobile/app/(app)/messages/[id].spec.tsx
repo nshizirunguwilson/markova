@@ -4,6 +4,7 @@ import { defaultTheme } from '@/design/theme';
 import { useChatStore, type Conversation, type Message } from '@/stores/chat-store';
 import { routerState, screenTitle } from '@/test/router-mock';
 import {
+  onAndroid,
   renderScreen,
   resetHarness,
   signedInAs,
@@ -255,6 +256,59 @@ describe('when a time is worth showing', () => {
     await waitFor(() => expect(screen.getByText('Two')).toBeTruthy());
     expect(screen.getByText(stamp('2026-08-24T08:00:00.000Z'))).toBeTruthy();
     expect(screen.getByText(stamp('2026-08-24T10:00:00.000Z'))).toBeTruthy();
+  });
+});
+
+/**
+ * The route can be entered before the id has resolved, and none of what this
+ * screen does means anything without one.
+ */
+describe('before it knows which conversation', () => {
+  it('reads nothing, sends nothing and marks nothing read', async () => {
+    signedInAs(teacher);
+    routerState.params = {};
+
+    const screen = await renderScreen(<Thread />);
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Write a message')).toBeTruthy(),
+    );
+    expect(useChatStore.getState().loadMessages).not.toHaveBeenCalled();
+    expect(useChatStore.getState().markRead).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(
+      screen.getByPlaceholderText('Write a message'),
+      'Murakoze',
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Send' }));
+
+    expect(useChatStore.getState().sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('says somebody is typing without knowing their name', async () => {
+    chat({
+      conversations: [],
+      typingUsers: [
+        { userId: 'user-3', userName: 'Jean', conversationId: 'c1' },
+      ],
+    });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('They is typing')).toBeTruthy());
+  });
+});
+
+describe('on Android', () => {
+  it('leaves the keyboard to the system', async () => {
+    const back = onAndroid();
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Write a message')).toBeTruthy(),
+    );
+    back();
   });
 });
 

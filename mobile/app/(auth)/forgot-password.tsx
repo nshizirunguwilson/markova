@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { toast } from 'sonner-native';
@@ -81,7 +81,7 @@ export default function ForgotPassword() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
         <View style={{ gap: space.md }}>

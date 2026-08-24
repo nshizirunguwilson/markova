@@ -222,6 +222,32 @@ describe('the colour, and what it actually becomes', () => {
     );
   });
 
+  it('saves one typed with its hash exactly as typed', async () => {
+    const screen = await open();
+    await waitFor(() => expect(screen.getByLabelText('Brand colour')).toBeTruthy());
+
+    await fireEvent.changeText(screen.getByLabelText('Brand colour'), '#8E44AD');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(http.put).toHaveBeenCalledWith('/school-config', {
+        key: 'primary_color',
+        value: '#8E44AD',
+      }),
+    );
+  });
+
+  it('measures a bare colour the same way as one with a hash', async () => {
+    config({ primary_color: 'F1C40F' });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText(/Darkened from what you typed/)).toBeTruthy(),
+    );
+    expect(screen.getByText(/measures Lc/)).toBeTruthy();
+  });
+
   it('says nothing about a preview for an empty field', async () => {
     config({ primary_color: '' });
 
@@ -254,6 +280,17 @@ describe('the marks that print on a report card', () => {
 
     await waitFor(() => expect(screen.getByText('Logo')).toBeTruthy());
     expect(screen.getAllByText('Not set')).toHaveLength(2);
+  });
+
+  it('says when a head teacher signature has been uploaded', async () => {
+    config({ signature_url: 'https://school.rw/signature.png' });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Head teacher signature')).toBeTruthy(),
+    );
+    expect(screen.getByText('Uploaded')).toBeTruthy();
   });
 
   it('says where they are uploaded, and why there', async () => {

@@ -291,6 +291,26 @@ describe('committing', () => {
     );
   });
 
+  it('has something to say when the school refused silently', async () => {
+    preview([row()]);
+    givenApiFails('/academic/promote/commit', new Error('offline'));
+    const screen = await open();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Commit these decisions' }),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Commit these decisions' }),
+    );
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Commit' }));
+
+    await waitFor(() =>
+      expect(notify.error).toHaveBeenCalledWith('Could not commit that'),
+    );
+  });
+
   it('says what the school said when it refused', async () => {
     preview([row()]);
     givenApiFails('/academic/promote/commit', {

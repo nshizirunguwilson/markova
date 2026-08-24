@@ -164,6 +164,28 @@ describe('sending the file', () => {
     await waitFor(() => expect(http.post).not.toHaveBeenCalled());
   });
 
+  it('names a file the phone handed over without one', async () => {
+    picker.getDocumentAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///tmp/anon' }],
+    } as never);
+    const screen = await open();
+
+    await choose(screen);
+
+    await waitFor(() => expect(http.post).toHaveBeenCalled());
+  });
+
+  it('counts nothing when the school answered with nothing', async () => {
+    givenApi({ '/users/bulk-import': {} });
+    const screen = await open();
+
+    await choose(screen);
+
+    await waitFor(() => expect(screen.getByText('0 added')).toBeTruthy());
+    expect(screen.getByText('Every row went in cleanly.')).toBeTruthy();
+  });
+
   it('says how many went in', async () => {
     const screen = await open();
 

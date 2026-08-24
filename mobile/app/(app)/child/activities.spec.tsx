@@ -91,6 +91,30 @@ describe('what still needs an answer', () => {
     expect(screenTitle()).toBe('Aline Uwase, activities');
   });
 
+  it('is called plain activities when it does not know whose', async () => {
+    calendar([activity()]);
+    signedInAs(parent);
+    routerState.params = { studentId: 'student-1' };
+
+    const screen = await renderScreen(<ChildActivities />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Nyungwe forest trip')).toBeTruthy(),
+    );
+    expect(screenTitle()).toBe('Activities');
+  });
+
+  it('draws one with nothing said about it and nowhere named', async () => {
+    calendar([activity({ description: null, location: null })]);
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Nyungwe forest trip')).toBeTruthy(),
+    );
+    expect(screen.queryByText('Leaving from the main gate')).toBeNull();
+  });
+
   it('records permission against the child and the activity', async () => {
     calendar([activity()]);
     const screen = await open();

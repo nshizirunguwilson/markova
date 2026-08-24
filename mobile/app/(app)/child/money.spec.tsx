@@ -81,6 +81,26 @@ describe('what the school is holding', () => {
     expect(screenTitle()).toBe('Aline Uwase, pocket money');
   });
 
+  it('is called plain pocket money when it does not know whose', async () => {
+    signedInAs(parent);
+    routerState.params = { studentId: 'student-1' };
+
+    const screen = await renderScreen(<ChildMoney />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Held by the school')).toBeTruthy(),
+    );
+    expect(screenTitle()).toBe('Pocket money');
+  });
+
+  it('draws before the account has arrived', async () => {
+    givenApi({ '/pocket-money/student/student-1': { studentId: 'student-1' } });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getAllByText('0 RWF')).toHaveLength(2));
+  });
+
   it('shows what is left, in Rwandan francs', async () => {
     const screen = await open();
 

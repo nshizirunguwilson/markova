@@ -205,6 +205,26 @@ describe('who has a copy', () => {
     await waitFor(() => expect(screen.getByText('Unknown')).toBeTruthy());
   });
 
+  it('draws before the loans have arrived', async () => {
+    shelf();
+    givenApi({ '/library/loans/active': () => new Promise(() => {}) });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Every copy is on the shelf.')).toBeTruthy(),
+    );
+  });
+
+  // A loan in a state the shared vocabulary has never seen still draws.
+  it('shows a loan in a state nobody has named', async () => {
+    shelf({}, [loan({ status: 'RENEWED' })]);
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Renewed')).toBeTruthy());
+  });
+
   it('says so when every copy is on the shelf', async () => {
     const screen = await open();
 

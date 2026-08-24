@@ -157,6 +157,26 @@ describe('binding a card', () => {
     expect(notify.success).toHaveBeenCalledWith('Card bound to Aline');
   });
 
+  it('still confirms a binding for a student with no first name', async () => {
+    desk([{ id: 'student-1', studentIdNumber: 'STD-2025-0417' }]);
+    const screen = await open();
+    await waitFor(() => expect(screen.getByText('STD-2025-0417')).toBeTruthy());
+    await fireEvent.press(screen.getByText('STD-2025-0417'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Card number')).toBeTruthy(),
+    );
+
+    await fireEvent.changeText(
+      screen.getByLabelText('Card number'),
+      'ABCD-EFGH',
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Bind it' }));
+
+    await waitFor(() =>
+      expect(notify.success).toHaveBeenCalledWith('Card bound to student'),
+    );
+  });
+
   it('binds from the keyboard as well as the button', async () => {
     const screen = await open();
     await pick(screen);

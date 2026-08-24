@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 
 import { defaultTheme } from '@/design/theme';
 import { touch } from '@/design/tokens';
-import { renderScreen, resetHarness, styleOf } from '@/test/harness';
+import { onAndroid, renderScreen, resetHarness, styleOf } from '@/test/harness';
 
 import { Button } from './button';
 
@@ -71,6 +71,20 @@ describe('pressing a button', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Add one' }));
 
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
+  });
+
+  // Android has no haptic engine to tap back with, and a press there still
+  // has to do what it says.
+  it('presses without a buzz on Android', async () => {
+    const back = onAndroid();
+    const onPress = jest.fn();
+    const screen = await renderScreen(<Button label="Save" onPress={onPress} />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
+    expect(onPress).toHaveBeenCalled();
+    back();
   });
 
   /**

@@ -7,6 +7,7 @@ import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
 import { router, routerState, screenTitle } from '@/test/router-mock';
 import {
   librarian,
+  onAndroid,
   renderScreen,
   resetHarness,
   signedInAs,
@@ -309,6 +310,32 @@ describe('scanning cards into a register', () => {
 
     expect(http.post).not.toHaveBeenCalled();
     expect(notify.error).toHaveBeenCalledWith('No book with that code');
+  });
+});
+
+describe('a book with only one of the two codes on it', () => {
+  it('is still found by the one it has', async () => {
+    signedInAs(librarian);
+    const screen = await openScanner([book({ barcode: null })]);
+
+    await scanCode(screen, '0385474547');
+
+    expect(router.replace).toHaveBeenCalledWith('/(app)/books/book-1');
+  });
+});
+
+describe('on Android', () => {
+  it('reads a card without a buzz to confirm it', async () => {
+    const back = onAndroid();
+    signedInAs(teacher);
+    routerState.params = { mode: 'attendance', classSectionId: 'section-1' };
+    const screen = await openScanner();
+
+    await scanCode(screen, 'ABCD-EFGH-JKMN');
+
+    await waitFor(() => expect(http.post).toHaveBeenCalled());
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    back();
   });
 });
 

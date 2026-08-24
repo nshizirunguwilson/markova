@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
+import { FlatList, Platform, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
 import { Check, X, Clock, Users } from 'lucide-react-native';
@@ -92,7 +92,7 @@ export default function Register() {
   }, [marks]);
 
   const set = (studentId: string, status: Status) => {
-    if (process.env.EXPO_OS === 'ios') void Haptics.selectionAsync();
+    if (Platform.OS === 'ios') void Haptics.selectionAsync();
     setMarks((prev) => ({ ...prev, [studentId]: status }));
   };
 

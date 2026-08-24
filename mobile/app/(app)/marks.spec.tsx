@@ -170,6 +170,14 @@ describe('what is still open', () => {
     expect(screen.getByText('70%')).toBeTruthy();
   });
 
+  it('counts a pair the API sent with neither figure', async () => {
+    school({ '/marks/completion': [{ subjectId: 's1', subjectName: 'Maths' }] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('0%')).toBeTruthy());
+  });
+
   it('shows the whole term as one bar', async () => {
     school({ '/marks/completion': [row()] });
 

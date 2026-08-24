@@ -184,6 +184,19 @@ describe('who is in the sick bay', () => {
     expect(screen.getByText('17')).toBeTruthy();
   });
 
+  it('draws before the month’s figures have arrived', async () => {
+    sickBay({ '/clinic/summary': () => new Promise(() => {}) });
+
+    const screen = await open();
+
+    // The stat label and the tab both say it.
+    await waitFor(() =>
+      expect(screen.getAllByText('In the sick bay')).toHaveLength(2),
+    );
+    expect(screen.getAllByText('0').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Keeps coming back')).toBeNull();
+  });
+
   it('warns when somebody is still lying in there', async () => {
     sickBay({
       '/clinic/summary': { inSickBay: 1, visits: 0, dosesGiven: 0, repeatVisitors: [] },
@@ -498,6 +511,20 @@ describe('giving a dose', () => {
   });
 
   it('says nothing has been given yet when nothing has', async () => {
+    const screen = await open();
+
+    await openVisit(screen);
+
+    expect(screen.getByText('Nothing given yet.')).toBeTruthy();
+  });
+
+  it('says nothing has been given for a visit with no list at all', async () => {
+    sickBay({
+      '/clinic/visits': {
+        data: [visit({ medications: undefined })],
+        meta: { total: 1 },
+      },
+    });
     const screen = await open();
 
     await openVisit(screen);

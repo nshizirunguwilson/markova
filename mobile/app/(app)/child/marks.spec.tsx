@@ -137,6 +137,15 @@ describe('once it has', () => {
     expect(screen.getByText('4')).toBeTruthy();
   });
 
+  it('shows a dash where a published result carries neither figure', async () => {
+    published({ letterGrade: undefined, average: undefined, subjects: [] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Overall')).toBeTruthy());
+    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('leaves out a position the school did not calculate', async () => {
     published({ rank: undefined });
 

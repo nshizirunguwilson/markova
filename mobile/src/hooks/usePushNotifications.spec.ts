@@ -129,6 +129,46 @@ describe('once somebody is signed in', () => {
     log.mockRestore();
   });
 
+  /**
+   * A browser has no push service to register with, and asking for one throws
+   * rather than answering.
+   */
+  it('does not try at all on the web', async () => {
+    const { Platform } = require('react-native');
+    Object.defineProperty(Platform, 'OS', { value: 'web', configurable: true });
+
+    const { result } = await renderHook(() => usePushNotifications());
+
+    await waitFor(() =>
+      expect(notifications.addNotificationReceivedListener).toHaveBeenCalled(),
+    );
+    expect(notifications.getPermissionsAsync).not.toHaveBeenCalled();
+    expect(result.current.expoPushToken).toBeNull();
+    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+  });
+
+  /**
+   * Android needs a channel before it will show anything at all, and a
+   * notification with no channel is one nobody sees.
+   */
+  it('opens a channel on Android before registering', async () => {
+    const { Platform } = require('react-native');
+    Object.defineProperty(Platform, 'OS', {
+      value: 'android',
+      configurable: true,
+    });
+
+    await renderHook(() => usePushNotifications());
+
+    await waitFor(() =>
+      expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+        'default',
+        expect.objectContaining({ name: 'Default' }),
+      ),
+    );
+    Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+  });
+
   it('names the project the token belongs to when the build declares one', async () => {
     (Constants as { expoConfig: unknown }).expoConfig = {
       extra: { eas: { projectId: 'project-1' } },

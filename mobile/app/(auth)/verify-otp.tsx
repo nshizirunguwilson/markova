@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -52,13 +52,13 @@ export default function VerifyOtp() {
     setBusy(true);
     try {
       const result = await verifyOtp(code);
-      if (process.env.EXPO_OS === 'ios') {
+      if (Platform.OS === 'ios') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       if (result?.blocked) router.replace('/blocked');
       else router.replace('/(app)/(tabs)');
     } catch (error: any) {
-      if (process.env.EXPO_OS === 'ios') {
+      if (Platform.OS === 'ios') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       setDigits(Array(LENGTH).fill(''));
@@ -111,7 +111,7 @@ export default function VerifyOtp() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
         <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))} style={{ gap: space.md }}>

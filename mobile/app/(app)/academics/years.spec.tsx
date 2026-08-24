@@ -154,6 +154,31 @@ describe('the terms in it', () => {
     await waitFor(() => expect(screen.getByText('Closed')).toBeTruthy());
   });
 
+  it('marks only the current one as current', async () => {
+    calendar({
+      '/academic/terms': [
+        term(),
+        term({ id: 'term-1', name: 'Term 1', isCurrent: false, isClosed: true }),
+      ],
+    });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Term 1')).toBeTruthy());
+    expect(screen.getAllByText('Current')).toHaveLength(1);
+  });
+
+  it('closes the question when the same term is pressed again', async () => {
+    const screen = await open();
+    await waitFor(() => expect(screen.getByText('Term 2')).toBeTruthy());
+    await fireEvent.press(screen.getByText('Term 2'));
+    await waitFor(() => expect(screen.getByText('Close Term 2?')).toBeTruthy());
+
+    await fireEvent.press(screen.getByText('Term 2'));
+
+    await waitFor(() => expect(screen.queryByText('Close Term 2?')).toBeNull());
+  });
+
   it('says when each one runs', async () => {
     const screen = await open();
 
