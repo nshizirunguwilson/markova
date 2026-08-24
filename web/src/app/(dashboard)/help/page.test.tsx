@@ -377,3 +377,95 @@ describe("raising a ticket", () => {
     expect(h.api.post).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * A ticket somebody is already working on, and the wait after Submit.
+ *
+ * "Open" and "Being looked at" have to read differently, or a teacher raises
+ * the same ticket twice on a Monday morning. So does the wait: a form that
+ * looks idle after Submit gets submitted again.
+ */
+describe("a ticket already being looked at", () => {
+  it("colours it differently from an open one", async () => {
+    serve(h.api, {
+      ...routes,
+      "/help/tickets/mine": [
+        { ...tickets[0], id: "t-3", status: "IN_PROGRESS" },
+        tickets[0],
+      ],
+    });
+    renderPage(HelpPage, { role: "TEACHER" });
+    // The tickets live behind their own tab.
+    await click(tab(/my tickets/i));
+
+    const progress = await screen.findByText("IN_PROGRESS");
+    const open = screen.getByText("OPEN");
+    expect(progress.className).not.toBe(open.className);
+  });
+
+  it("colours a status it has never heard of neutrally", async () => {
+    serve(h.api, {
+      ...routes,
+      "/help/tickets/mine": [{ ...tickets[0], id: "t-4", status: "ESCALATED" }],
+    });
+    renderPage(HelpPage, { role: "TEACHER" });
+    await click(tab(/my tickets/i));
+
+    // A status the server grew before the app knew about it still draws.
+    expect(await screen.findByText("ESCALATED")).toBeInTheDocument();
+  });
+
+  it("spins rather than claiming there are no tickets", async () => {
+    serve(h.api, {
+      ...routes,
+      "/help/tickets/mine": () => new Promise(() => {}),
+    });
+    renderPage(HelpPage, { role: "TEACHER" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await click(tab(/my tickets/i));
+
+    expect(screen.queryByText(/Projector/)).toBeNull();
+  });
+});
+
+describe("while a ticket is being submitted", () => {
+  it("refuses a second press", async () => {
+    serve(h.api, {
+      ...routes,
+      // The submit never settles, which is what a slow school link looks like.
+      "/help/tickets": () => new Promise(() => {}),
+    });
+    renderPage(HelpPage, { role: "TEACHER" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /submit ticket/i }));
+    });
+    const dialog = await screen.findByRole("dialog");
+
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/title/i), {
+        target: { value: "The projector will not connect" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/description/i), {
+        target: { value: "The HDMI port is loose." },
+      });
+    });
+
+    const submit = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^submit$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(submit);
+    });
+
+    await waitFor(() =>
+      expect(
+        within(dialog)
+          .getAllByRole("button")
+          .find((b) => /^submit$/i.test((b.textContent ?? "").trim())) ??
+          within(dialog).getAllByRole("button").at(-1),
+      ).toBeDisabled(),
+    );
+  });
+});
