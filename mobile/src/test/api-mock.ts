@@ -44,7 +44,12 @@ function answer(method: string, url: string, config?: never) {
     typeof reply === 'function'
       ? (reply as (c: unknown) => unknown)(config ?? {})
       : reply;
-  return Promise.resolve({ data, status: 200 });
+  // A reply may be a promise, which is how a test holds a screen in its
+  // loading state. Wait for it here rather than handing the promise itself
+  // back as the body.
+  return Promise.resolve(data).then((body) => ({ body, status: 200 })).then(
+    ({ body, status }) => ({ data: body, status }),
+  );
 }
 
 export const apiMock = {
