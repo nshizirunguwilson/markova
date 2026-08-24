@@ -488,3 +488,28 @@ describe("results across every band", () => {
     expect(exportButton).toBeDisabled();
   });
 });
+
+/**
+ * A class whose results have not been computed yet.
+ *
+ * That is every class at the start of a term, and it is a different thing from
+ * "no class chosen": the first needs the Calculate button, the second needs a
+ * class picking. Saying the wrong one sends an admin looking in the wrong
+ * place.
+ */
+describe("a chosen class with nothing computed", () => {
+  it("says so rather than showing an empty table", async () => {
+    await mountEmpty();
+
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/no results|not been calculated|calculate/i),
+    );
+  });
+
+  it("offers Calculate rather than Export", async () => {
+    await mountEmpty();
+
+    expect(button(/calculate/i)).toBeTruthy();
+    expect(button(/export/i)).toBeDisabled();
+  });
+});
