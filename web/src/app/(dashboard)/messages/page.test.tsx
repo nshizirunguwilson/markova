@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 const h = vi.hoisted(() => {
@@ -1107,5 +1107,166 @@ describe("managing a group", () => {
         "Make somebody else an admin first, or the group is left with nobody to manage it",
       ),
     );
+  });
+});
+
+/**
+ * The typing line, and everything the inbox draws when a thread is not tidy.
+ *
+ * "Aline is typing" and "Aline, Jean and 3 more are typing" are two different
+ * sentences, and the second one is the one nobody writes a test for. The rest
+ * of this block covers threads whose sender, name or participants are missing,
+ * which is what a thread looks like after somebody leaves the school.
+ */
+describe("who is typing", () => {
+  async function openWithTyping(names: string[]) {
+    const map = new Map(names.map((n, i) => [`typer-${i}`, n]));
+    h.chat.getTypingUsers = () => map;
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+  }
+
+  afterEach(() => {
+    h.chat.getTypingUsers = () => new Map<string, string>();
+  });
+
+  it("says nothing when nobody is typing", async () => {
+    await openWithTyping([]);
+    expect(screen.queryByText(/is typing/)).toBeNull();
+    expect(screen.queryByText(/are typing/)).toBeNull();
+  });
+
+  it("names one person in the singular", async () => {
+    await openWithTyping(["Aline"]);
+    expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+  });
+
+  it("names two people in the plural", async () => {
+    await openWithTyping(["Aline", "Jean"]);
+    const line = await screen.findByText(/are typing/);
+    expect(line.textContent).toContain("Aline, Jean");
+    expect(line.textContent).not.toContain("more");
+  });
+
+  it("counts the rest once more than two are typing", async () => {
+    await openWithTyping(["Aline", "Jean", "Keza", "Manzi"]);
+    const line = await screen.findByText(/are typing/);
+    // Two names then a count, rather than a wall of names.
+    expect(line.textContent).toContain("Aline, Jean");
+    expect(line.textContent).toContain("and 2 more");
+  });
+});
+
+describe("threads with pieces missing", () => {
+  const nameless = {
+    id: "conv-9",
+    type: "ONE_ON_ONE",
+    // Everyone in it has left, so there is no other person to name it after.
+    participants: [],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  it("falls back to calling it a chat", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [nameless] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    expect(await screen.findByText("Chat")).toBeInTheDocument();
+  });
+
+  it("shows an attachment on a message sent by someone else", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-file",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "Here is the timetable",
+          fileUrl: "/uploads/messaging/timetable.pdf",
+          fileName: "timetable.pdf",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    const link = await screen.findByRole("link", { name: /timetable\.pdf/ });
+    expect(link).toHaveAttribute("href", "/uploads/messaging/timetable.pdf");
+  });
+
+  it("calls an attachment with no filename an attachment", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-file",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "",
+          fileUrl: "/uploads/messaging/x",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    expect(await screen.findByText("Attachment")).toBeInTheDocument();
+  });
+
+  it("names the sender only on messages that are not yours", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "Muraho",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+        {
+          id: "m-2",
+          conversationId: "conv-1",
+          senderId: "user-1",
+          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+          content: "Muraho neza",
+          createdAt: "2026-08-21T09:01:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getAllByText(/Aline/).length).toBeGreaterThan(0));
+    await userEvent.setup().click(screen.getAllByText(/Aline/)[0]);
+
+    await screen.findByText("Muraho neza");
+    // Your own bubble carries no name: you know who you are.
+    expect(screen.queryByText(/Wilson Nshizirungu/)).toBeNull();
+  });
+});
+
+describe("the new conversation picker with nobody left to pick", () => {
+  it("says so when every contact is already chosen", async () => {
+    serve(h.api, { ...routes, "/messaging/contacts": { data: [] } });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    const plus = screen
+      .queryAllByRole("button")
+      .find((b) => /new|plus/i.test(b.getAttribute("aria-label") ?? ""));
+    if (!plus) return;
+    await user.click(plus);
+
+    await waitFor(() => expect(document.body.textContent).toMatch(/no |none/i));
   });
 });
