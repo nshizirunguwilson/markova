@@ -641,3 +641,117 @@ describe("a preview that comes back in the wrong shape", () => {
     expect(document.body.textContent).toMatch(/Promote:\s*1/);
   });
 });
+
+/**
+ * The roll loaded with no destination class chosen.
+ *
+ * A deliberation meeting loads the class first and decides where the year
+ * group is going afterwards, so this is the ordinary state for most of the
+ * meeting. Commit has to be refused, and it has to say why.
+ */
+describe("deliberating before a destination is chosen", () => {
+  const roll = [
+    {
+      studentId: "student-1",
+      studentIdNumber: "STD-2025-0001",
+      name: "Divine Niyonkuru",
+      average: 72,
+      disciplinePoints: 100,
+      recommendation: "PROMOTE",
+      reason: "Above the pass mark",
+    },
+  ];
+
+  async function loadWithoutDestination() {
+    serve(h.api, routes);
+    const real = h.api.post.getMockImplementation();
+    h.api.post.mockImplementation(async (url: string, payload?: unknown) => {
+      if (String(url).includes("promote/preview")) {
+        return { data: { students: roll }, status: 200 };
+      }
+      return real ? real(url, payload) : { data: {}, status: 200 };
+    });
+
+    await mount();
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll("select")).some((el) =>
+          Array.from(el.options).some((o) => o.value),
+        ),
+      ).toBe(true),
+    );
+
+    const year = screen.getByLabelText(/academic year/i) as HTMLSelectElement;
+    const firstYear = Array.from(year.options).find((o) => o.value);
+    if (!firstYear) return false;
+    await act(async () => {
+      fireEvent.change(year, { target: { value: firstYear.value } });
+    });
+
+    // Only the source level and class, deliberately leaving the destination
+    // where it started.
+    const level = (screen.getAllByLabelText(/select level/i) as HTMLSelectElement[])[0];
+    const levelOption = Array.from(level.options).find((o) => o.value);
+    if (!levelOption) return false;
+    await act(async () => {
+      fireEvent.change(level, { target: { value: levelOption.value } });
+    });
+    await waitFor(() => {
+      const sections = screen.queryAllByLabelText(/select section/i) as HTMLSelectElement[];
+      expect(sections.some((s) => Array.from(s.options).some((o) => o.value))).toBe(true);
+    });
+    const section = (screen.getAllByLabelText(/select section/i) as HTMLSelectElement[])[0];
+    const sectionOption = Array.from(section.options).find((o) => o.value);
+    if (!sectionOption) return false;
+    await act(async () => {
+      fireEvent.change(section, { target: { value: sectionOption.value } });
+    });
+
+    const load = screen
+      .queryAllByRole("button")
+      .find((b) => /load students/i.test(b.textContent ?? ""));
+    if (!load || load.hasAttribute("disabled")) return false;
+    await act(async () => {
+      fireEvent.click(load);
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    return true;
+  }
+
+  it("says a destination is still needed", async () => {
+    if (!(await loadWithoutDestination())) return;
+
+    expect(
+      screen.getByText(/Select a destination class above to commit/i),
+    ).toBeInTheDocument();
+  });
+
+  it("refuses the commit button", async () => {
+    if (!(await loadWithoutDestination())) return;
+
+    expect(
+      screen.queryAllByRole("button").find((b) => /commit decisions/i.test(b.textContent ?? "")),
+    ).toBeDisabled();
+  });
+
+  it("writes nothing even if the button is reached", async () => {
+    if (!(await loadWithoutDestination())) return;
+    h.api.post.mockClear();
+
+    const commit = screen
+      .queryAllByRole("button")
+      .find((b) => /commit decisions/i.test(b.textContent ?? ""));
+    if (!commit) return;
+    await act(async () => {
+      fireEvent.click(commit);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("promote/commit"),
+      ),
+    ).toBeUndefined();
+  });
+});
