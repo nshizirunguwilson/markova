@@ -138,4 +138,165 @@ describe('HelpService', () => {
       expect(data.resolvedAt).toBeUndefined();
     });
   });
+
+  /**
+   * A question a school has not published yet is a draft. The public list has
+   * to leave it out, and the admin list has to show it.
+   */
+  describe('which questions are shown', () => {
+    it('shows only published ones to everybody', async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqs();
+      expect(mockPrisma.faqArticle.findMany.mock.calls[0][0].where).toEqual({
+        isPublished: true,
+      });
+    });
+
+    it('shows the drafts too on the admin list', async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqsAdmin();
+      expect(
+        mockPrisma.faqArticle.findMany.mock.calls[0][0],
+      ).not.toHaveProperty('where');
+    });
+
+    it('reads in the order the school arranged them', async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqs();
+      expect(mockPrisma.faqArticle.findMany.mock.calls[0][0].orderBy).toEqual([
+        { displayOrder: 'asc' },
+        { title: 'asc' },
+      ]);
+    });
+
+    it('searches the question and the answer', async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqs('password');
+      const or = JSON.stringify(
+        mockPrisma.faqArticle.findMany.mock.calls[0][0].where.OR,
+      );
+      expect(or).toContain('title');
+      expect(or).toContain('content');
+    });
+
+    it('writes a new question', async () => {
+      mockPrisma.faqArticle.create.mockResolvedValue({ id: 'faq-1' });
+      await service.createFaq({
+        title: 'How do I reset my password?',
+        content: 'Ask the office.',
+      } as never);
+      expect(mockPrisma.faqArticle.create).toHaveBeenCalledWith({
+        data: {
+          title: 'How do I reset my password?',
+          content: 'Ask the office.',
+        },
+      });
+    });
+
+    it('changes one that does', async () => {
+      mockPrisma.faqArticle.findUnique.mockResolvedValue({ id: 'faq-1' });
+      mockPrisma.faqArticle.update.mockResolvedValue({});
+      await service.updateFaq('faq-1', { title: 'Reworded' } as never);
+      expect(mockPrisma.faqArticle.update).toHaveBeenCalledWith({
+        where: { id: 'faq-1' },
+        data: { title: 'Reworded' },
+      });
+    });
+
+    it('removes one that does', async () => {
+      mockPrisma.faqArticle.findUnique.mockResolvedValue({ id: 'faq-1' });
+      mockPrisma.faqArticle.delete.mockResolvedValue({});
+      await service.deleteFaq('faq-1');
+      expect(mockPrisma.faqArticle.delete).toHaveBeenCalledWith({
+        where: { id: 'faq-1' },
+      });
+    });
+
+    it('refuses to change a question that does not exist', async () => {
+      mockPrisma.faqArticle.findUnique.mockResolvedValue(null);
+      await expect(service.updateFaq('nope', {} as never)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('refuses to remove one that does not exist', async () => {
+      mockPrisma.faqArticle.findUnique.mockResolvedValue(null);
+      await expect(service.deleteFaq('nope')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.faqArticle.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Tickets. The two reads are deliberately different: one is the whole
+   * queue, one is mine, and confusing them would show a parent everything
+   * anybody has ever raised.
+   */
+  describe('the support queue', () => {
+    beforeEach(() => mockPrisma.supportTicket.findMany.mockResolvedValue([]));
+
+    it('attributes a ticket to whoever raised it', async () => {
+      mockPrisma.supportTicket.create.mockResolvedValue({});
+      await service.createTicket('user-1', {
+        title: 'Broken projector',
+        description: 'It flickers',
+      } as never);
+      expect(mockPrisma.supportTicket.create.mock.calls[0][0].data).toMatchObject({
+        userId: 'user-1',
+        title: 'Broken projector',
+      });
+    });
+
+    it('reads the whole queue newest first', async () => {
+      await service.findAllTickets();
+      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].where).toEqual({});
+      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].orderBy).toEqual({
+        createdAt: 'desc',
+      });
+    });
+
+    it('narrows the queue to one state', async () => {
+      await service.findAllTickets('OPEN');
+      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].where).toEqual({
+        status: 'OPEN',
+      });
+    });
+
+    it('reads one person’s own tickets and nobody else’s', async () => {
+      await service.findMyTickets('user-1');
+      expect(mockPrisma.supportTicket.findMany.mock.calls[0][0].where).toEqual({
+        userId: 'user-1',
+      });
+    });
+
+    it('refuses to move a ticket that does not exist', async () => {
+      mockPrisma.supportTicket.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTicketStatus('nope', { status: 'RESOLVED' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    /**
+     * "How long does the office take to answer" is only answerable if closing
+     * a ticket writes down when it closed.
+     */
+    it.each(['RESOLVED', 'CLOSED'])('dates a ticket moved to %s', async (status) => {
+      mockPrisma.supportTicket.findUnique.mockResolvedValue({ id: 't-1' });
+      mockPrisma.supportTicket.update.mockResolvedValue({});
+      await service.updateTicketStatus('t-1', { status } as never);
+      expect(
+        mockPrisma.supportTicket.update.mock.calls[0][0].data.resolvedAt,
+      ).toBeInstanceOf(Date);
+    });
+
+    it('does not date one that is only being picked up', async () => {
+      mockPrisma.supportTicket.findUnique.mockResolvedValue({ id: 't-1' });
+      mockPrisma.supportTicket.update.mockResolvedValue({});
+      await service.updateTicketStatus('t-1', {
+        status: 'IN_PROGRESS',
+      } as never);
+      expect(
+        mockPrisma.supportTicket.update.mock.calls[0][0].data,
+      ).not.toHaveProperty('resolvedAt');
+    });
+  });
 });

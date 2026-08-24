@@ -168,4 +168,118 @@ describe('SchoolConfigService', () => {
       });
     });
   });
+
+  /**
+   * The settings a school configures once and depends on for ever after:
+   * the pass mark, the grading scale, the borrowing limit.
+   */
+  describe('reading and writing one setting', () => {
+    it('refuses a key nobody set, and names it', async () => {
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await expect(service.findByKey('pass_threshold')).rejects.toThrow(
+        /Config key "pass_threshold" not found/,
+      );
+    });
+
+    it('writes a key that did not exist yet', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({});
+      await service.upsert({ key: 'pass_mark', value: '50' } as never);
+      expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledWith({
+        where: { key: 'pass_mark' },
+        update: { value: '50' },
+        create: { key: 'pass_mark', value: '50' },
+      });
+    });
+
+    it('writes a page of settings in one go', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({});
+      const result = await service.bulkUpsert({
+        configs: [
+          { key: 'a', value: '1' },
+          { key: 'b', value: '2' },
+        ],
+      } as never);
+      expect(result).toHaveLength(2);
+      expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses to remove a key nobody set', async () => {
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await expect(service.delete('nope')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.schoolConfig.delete).not.toHaveBeenCalled();
+    });
+
+    it('removes one that exists', async () => {
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue({ key: 'pass_mark' });
+      mockPrisma.schoolConfig.delete.mockResolvedValue({});
+      await expect(service.delete('pass_mark')).resolves.toMatchObject({
+        message: 'Config "pass_mark" deleted',
+      });
+    });
+  });
+
+  /**
+   * The setup wizard's own progress, so a school that stops halfway can pick
+   * it up where they left it rather than starting again.
+   */
+  describe('how far through setup a school is', () => {
+    it('starts at the beginning for a school that has done nothing', async () => {
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await expect(service.getOnboardingStatus()).resolves.toEqual({
+        currentStep: 0,
+        completed: false,
+      });
+    });
+
+    it('reads back the step a school reached', async () => {
+      mockPrisma.schoolConfig.findUnique
+        .mockResolvedValueOnce({ value: '4' })
+        .mockResolvedValueOnce({ value: 'false' });
+      await expect(service.getOnboardingStatus()).resolves.toEqual({
+        currentStep: 4,
+        completed: false,
+      });
+    });
+
+    it('says a school is finished only when it actually is', async () => {
+      mockPrisma.schoolConfig.findUnique
+        .mockResolvedValueOnce({ value: '10' })
+        .mockResolvedValueOnce({ value: 'true' });
+      await expect(service.getOnboardingStatus()).resolves.toEqual({
+        currentStep: 10,
+        completed: true,
+      });
+    });
+
+    it('moves the step along', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({});
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await service.updateOnboarding({ currentStep: '5' } as never);
+      expect(mockPrisma.schoolConfig.upsert.mock.calls[0][0].where).toEqual({
+        key: 'onboarding_step',
+      });
+    });
+
+    // Finishing is a separate flag, so a school moving between steps never
+    // accidentally marks itself done.
+    it('does not mark a school finished just for moving a step', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({});
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await service.updateOnboarding({ currentStep: '5' } as never);
+      expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks it finished when told', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({});
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      await service.updateOnboarding({
+        currentStep: '10',
+        completed: 'true',
+      } as never);
+      expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.schoolConfig.upsert.mock.calls[1][0].where).toEqual({
+        key: 'onboarding_completed',
+      });
+    });
+  });
 });
