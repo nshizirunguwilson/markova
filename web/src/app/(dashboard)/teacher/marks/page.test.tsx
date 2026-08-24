@@ -586,3 +586,56 @@ describe("saving without being asked", () => {
  * Enter and Tab move down the roster. Anything that breaks that turns a two
  * minute job into a ten minute one.
  */
+
+/**
+ * A teacher whose account or assignments came back short.
+ *
+ * A teacher signed in on a phone with a flaky connection can reach this page
+ * before their profile has resolved, and the assignments call can answer with
+ * nothing at all. Neither may leave the page in a state where Save fires
+ * against half a selection.
+ */
+describe("before the teacher's own record has arrived", () => {
+  it("asks for no assignments when there is no account id yet", async () => {
+    serve(h.api, routes);
+    renderPage(TeacherMarksPage, {
+      role: "TEACHER",
+      user: { id: "", teacherId: "teacher-1" },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) =>
+        String(url).includes("/academic/assignments"),
+      ),
+    ).toBe(false);
+  });
+
+  it("copes with an assignments call that answers with nothing", async () => {
+    serve(h.api, { ...routes, "/academic/assignments": null });
+    await mount();
+
+    // No classes to teach: the pickers are empty rather than the page blank.
+    await waitFor(() =>
+      expect(document.querySelectorAll("select").length).toBeGreaterThan(0),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("saves nothing while the selection is still incomplete", async () => {
+    await mount();
+    h.api.post.mockClear();
+
+    const save = screen
+      .queryAllByRole("button")
+      .find((b) => /^save/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) => String(url).includes("/marks")),
+    ).toBeUndefined();
+  });
+});
