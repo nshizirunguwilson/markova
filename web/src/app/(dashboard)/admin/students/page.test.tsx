@@ -531,3 +531,108 @@ describe("exporting the roll", () => {
     expect((h.exportData.mock.calls[0][1] as any).filename).toBe("students");
   });
 });
+
+/**
+ * Former students, and the way back through the roll.
+ *
+ * The roll opens on today's school, so leavers are behind a filter. An office
+ * looking up an old transcript needs that filter to actually drop the
+ * constraint rather than silently sending an empty one.
+ */
+describe("looking beyond today's school", () => {
+  it("opens on the current students only", async () => {
+    await mount();
+    expect(lastUserQuery().studentStatus).toBe("ACTIVE");
+  });
+
+  it("drops the constraint entirely for all statuses", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/filter students by status/i), {
+        target: { value: "" },
+      });
+    });
+
+    // An empty studentStatus would be a filter for students whose status is
+    // the empty string, which is nobody.
+    await waitFor(() => expect(lastUserQuery().studentStatus).toBeUndefined());
+  });
+
+  it("goes back to the first page when the status changes", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/filter students by status/i), {
+        target: { value: "GRADUATED" },
+      });
+    });
+
+    await waitFor(() => expect(lastUserQuery().page).toBe("1"));
+    expect(lastUserQuery().studentStatus).toBe("GRADUATED");
+  });
+
+  it("marks a student who left under a cloud as inactive", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users": {
+        data: [
+          studentRow(1, {
+            isActive: false,
+            student: { ...studentRow(1).student, status: undefined },
+          }),
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(StudentsPage, { role: "ADMIN" });
+
+    // No status recorded, so the badge falls back to the account itself.
+    await waitFor(() => expect(screen.getByText("Inactive")).toBeInTheDocument());
+  });
+});
+
+describe("coming back through the roll", () => {
+  it("returns to the page before and stops at the first", async () => {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      const s = String(url);
+      if (s.startsWith("/users?")) {
+        const page = Number(new URLSearchParams(s.split("?")[1]).get("page") || 1);
+        return {
+          data: {
+            data: [studentRow(page)],
+            meta: { total: 45, page, limit: 20, totalPages: 3 },
+          },
+          status: 200,
+        };
+      }
+      return real(url, config);
+    });
+
+    await mount();
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(document.body.textContent).toMatch(/Page 2 of 3/));
+
+    await click(screen.getByRole("button", { name: /previous page/i }));
+    await waitFor(() => expect(document.body.textContent).toMatch(/Page 1 of 3/));
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+});
+
+describe("searching the roll from the keyboard", () => {
+  it("drops the search entirely when the box is cleared", async () => {
+    await mount();
+    const box = screen.getByLabelText(/search by name/i);
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "uwase" } });
+    });
+    await waitFor(() => expect(lastUserQuery().search).toBe("uwase"));
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "" } });
+    });
+
+    // An empty search would match nobody rather than everybody.
+    await waitFor(() => expect(lastUserQuery().search).toBeUndefined());
+  });
+});
