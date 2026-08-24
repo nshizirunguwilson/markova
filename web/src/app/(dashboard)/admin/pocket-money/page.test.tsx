@@ -685,3 +685,141 @@ describe("finding a student in the list", () => {
     );
   });
 });
+
+/**
+ * A counter with nothing to serve, and accounts at their limits.
+ *
+ * The three states an account can be in are ordinary, running low, and frozen,
+ * and they are mutually exclusive on screen: a frozen account must not also
+ * shout that it is running low, because the freeze is the thing the parent
+ * needs to hear about.
+ */
+describe("a school where nobody has an account yet", () => {
+  const empty = {
+    ...routes,
+    "/pocket-money/overview": {
+      items: [],
+      totalHeld: 0,
+      meta: { total: 0, page: 1, limit: 25, totalPages: 0 },
+    },
+  };
+
+  it("says so rather than showing an empty table", async () => {
+    serve(h.api, empty);
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    expect(await screen.findByText("No students found")).toBeInTheDocument();
+  });
+});
+
+describe("a student the office has not put in a class", () => {
+  it("draws an em dash rather than leaving the column blank", async () => {
+    serve(h.api, {
+      ...routes,
+      "/pocket-money/overview": {
+        ...overview,
+        items: [{ ...overview.items[0], class: null }],
+      },
+    });
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText("Divine Niyonkuru")).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+});
+
+describe("an account that is running low", () => {
+  async function openWith(over: Record<string, unknown>) {
+    serve(h.api, {
+      ...routes,
+      "/pocket-money/student/student-1": { ...account, ...over },
+      "/pocket-money/lookup": { ...account, ...over },
+    });
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    await click(screen.getAllByRole("button", { name: /^open$/i })[0]);
+    return screen.findByRole("dialog");
+  }
+
+  it("says it is running low", async () => {
+    const dialog = await openWith({ isLow: true });
+    expect(within(dialog).getByText("Running low")).toBeInTheDocument();
+  });
+
+  it("says frozen instead, when it is both", async () => {
+    const dialog = await openWith({ isLow: true, isFrozen: true });
+    // The freeze is the thing that stops a student eating, so it wins.
+    expect(within(dialog).getByText(/Frozen\./)).toBeInTheDocument();
+    expect(within(dialog).queryByText("Running low")).toBeNull();
+  });
+
+  it("offers to unfreeze an account that is frozen", async () => {
+    const dialog = await openWith({ isFrozen: true });
+    expect(
+      within(dialog).getAllByRole("button").find((b) => /unfreeze/i.test(b.textContent ?? "")),
+    ).toBeTruthy();
+  });
+
+  it("offers to freeze one that is not", async () => {
+    const dialog = await openWith({});
+    const freeze = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /freeze/i.test(b.textContent ?? ""))!;
+    expect(freeze.textContent).toMatch(/^\s*Freeze/);
+  });
+
+  it("says nothing has moved on a brand new account", async () => {
+    serve(h.api, {
+      ...routes,
+      "/pocket-money/student/student-1/statement": { data: [], meta: {} },
+    });
+    renderPage(PocketMoneyPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    await click(screen.getAllByRole("button", { name: /^open$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByText("Nothing has moved on this account yet."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("refusing to move nothing", () => {
+  /** The three buttons that move money on the counter. */
+  const movers = (dialog: HTMLElement) =>
+    within(dialog)
+      .getAllByRole("button")
+      .filter((b) => /^(take in|pay out|refund)$/i.test((b.textContent ?? "").trim()));
+
+  it("refuses every direction while the amount box is empty", async () => {
+    const dialog = await openCounter();
+    const buttons = movers(dialog);
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) expect(b).toBeDisabled();
+  });
+
+  it("still refuses for an amount of zero", async () => {
+    const dialog = await openCounter();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/amount/i), {
+        target: { value: "0" },
+      });
+    });
+
+    for (const b of movers(dialog)) expect(b).toBeDisabled();
+  });
+
+  it("allows them once a real amount is typed", async () => {
+    const dialog = await openCounter();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/amount/i), {
+        target: { value: "500" },
+      });
+    });
+
+    for (const b of movers(dialog)) expect(b).toBeEnabled();
+  });
+});
