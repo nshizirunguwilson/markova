@@ -887,3 +887,110 @@ describe("a section modal with no trades to choose from", () => {
     expect(picker.options[0].textContent).toMatch(/select a trade/i);
   });
 });
+
+/**
+ * Levels and trades the API answered short on.
+ *
+ * A year level created before the order field existed has none, a level whose
+ * sections were not joined comes back without them, and the trades call can
+ * fail on its own while the levels arrive fine. None of those may stop an
+ * admin editing the structure.
+ */
+describe("levels recorded without an order", () => {
+  const noOrder = [
+    { id: "lvl-1", name: "Senior 1", stage: "O_LEVEL", sections: [] },
+    { id: "lvl-2", name: "Senior 2", stage: "O_LEVEL", order: 2, sections: [] },
+  ];
+
+  it("numbers a new level after the highest one there is", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": noOrder });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 2");
+
+    await click(button(/add year level/i));
+    const dialog = await screen.findByRole("dialog");
+
+    // Senior 1 has no order at all, so it counts as nought and the next free
+    // number is three.
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(3);
+  });
+
+  it("opens a level with no order at nought", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": noOrder });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(button(/^edit senior 1$/i));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(0);
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Senior 1");
+  });
+
+  it("exports a level whose sections did not come back", async () => {
+    serve(h.api, {
+      ...routes,
+      "/academic/class-levels": [{ id: "lvl-1", name: "Senior 1", stage: "O_LEVEL" }],
+    });
+    ex.exportData.mockClear();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(button(/export/i));
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await click(csv);
+
+    const [, payload] = ex.exportData.mock.calls.at(-1)! as [string, any];
+    expect(payload.data).toEqual([
+      { _level: "Senior 1", _trade: "—", _section: "—", _students: "—" },
+    ]);
+  });
+});
+
+describe("when the trades call fails on its own", () => {
+  function tradesFail() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/academic/trades")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return real(url, config);
+    });
+  }
+
+  it("still draws the levels", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+
+    expect(await screen.findByText("Senior 1")).toBeInTheDocument();
+  });
+
+  it("says there are no trades rather than going blank", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    expect(await screen.findByText(/SWD, NIT, TOR, AUT/)).toBeInTheDocument();
+  });
+
+  it("opens the class form with no trade to choose", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Level 4");
+
+    await click(screen.getByRole("button", { name: /^add class to level 4$/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    const picker = within(dialog).getByLabelText("Trade") as HTMLSelectElement;
+    expect(picker.options).toHaveLength(1);
+  });
+});
