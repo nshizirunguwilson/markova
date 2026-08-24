@@ -994,3 +994,44 @@ describe("when the trades call fails on its own", () => {
     expect(picker.options).toHaveLength(1);
   });
 });
+
+/**
+ * The structure page when the levels call itself fails.
+ *
+ * A school on a flaky connection sees this on the first load of the day. The
+ * page has to stay usable: the "add a level" form is the whole point of
+ * visiting it when there is nothing there.
+ */
+describe("when the levels call fails", () => {
+  function levelsFail() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/academic/class-levels")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return real(url, config);
+    });
+  }
+
+  it("still offers to add the first year level", async () => {
+    serve(h.api, routes);
+    levelsFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText(/No O-Level years yet/i);
+
+    await click(button(/add year level/i));
+    const dialog = await screen.findByRole("dialog");
+
+    // Nothing on file, so the first level takes order one.
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(1);
+  });
+
+  it("will not let anything be exported", async () => {
+    serve(h.api, routes);
+    levelsFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText(/No O-Level years yet/i);
+
+    expect(button(/export/i)).toBeDisabled();
+  });
+});
