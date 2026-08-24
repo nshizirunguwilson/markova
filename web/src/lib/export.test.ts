@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   text: vi.fn(),
   setFontSize: vi.fn(),
   writeFile: vi.fn(),
+  appendSheet: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: h.toast }));
@@ -25,7 +26,7 @@ vi.mock("xlsx", () => ({
   utils: {
     json_to_sheet: vi.fn((rows: unknown) => ({ rows })),
     book_new: vi.fn(() => ({ Sheets: {} })),
-    book_append_sheet: vi.fn(),
+    book_append_sheet: h.appendSheet,
   },
   writeFile: h.writeFile,
 }));
@@ -60,6 +61,8 @@ let captured: { text: string; filename: string; type: string } | null = null;
 beforeEach(() => {
   captured = null;
   for (const fn of Object.values(h.toast)) fn.mockReset();
+  for (const fn of [h.save, h.autoTable, h.text, h.setFontSize, h.writeFile, h.appendSheet])
+    fn.mockReset();
 
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn((blob: Blob) => {
@@ -207,5 +210,53 @@ describe("exportData", () => {
     expect(h.save).toHaveBeenCalledWith("students.pdf");
     expect(h.autoTable).toHaveBeenCalled();
     expect(h.toast.success).toHaveBeenCalledWith(expect.stringContaining("PDF"));
+  });
+});
+
+/**
+ * An export with no title on it.
+ *
+ * Every page that exports passes a title, but the type says it is optional,
+ * and the PDF lays the table out differently without one: no heading line and
+ * the table starting higher up the page. The spreadsheet needs a sheet name
+ * whatever happens, because a workbook cannot have an unnamed sheet.
+ */
+describe("exporting without a title", () => {
+  it("names the spreadsheet's sheet anyway", async () => {
+    await exportData("xlsx", { filename: "students", columns, data });
+
+    expect(h.appendSheet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "Data",
+    );
+  });
+
+  it("uses the given title when there is one", async () => {
+    await exportData("xlsx", { filename: "students", title: "Students", columns, data });
+
+    expect(h.appendSheet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "Students",
+    );
+  });
+
+  it("starts the pdf table higher up when there is no heading", async () => {
+    await exportData("pdf", { filename: "students", columns, data });
+
+    expect(h.text).not.toHaveBeenCalled();
+    // autoTable is a method on the document, so its only argument is the
+    // table spec.
+    const [options] = h.autoTable.mock.calls.at(-1)! as [any];
+    expect(options.startY).toBe(14);
+  });
+
+  it("leaves room for the heading when there is one", async () => {
+    await exportData("pdf", { filename: "students", title: "Students", columns, data });
+
+    expect(h.text).toHaveBeenCalledWith("Students", 14, 15);
+    const [options] = h.autoTable.mock.calls.at(-1)! as [any];
+    expect(options.startY).toBe(22);
   });
 });
