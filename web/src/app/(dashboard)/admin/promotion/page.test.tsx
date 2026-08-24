@@ -480,3 +480,61 @@ describe("every control on the page", () => {
     expect(rejections).toEqual([]);
   }, 30000);
 });
+
+/**
+ * The school's own pass mark, and the guards on the two buttons.
+ *
+ * Every school sets its own threshold in settings, and the promotion screen
+ * has to use it rather than a number hard-coded here. The guards below are the
+ * other half: neither button may do anything until the school has said which
+ * class the students are coming from and which they are going to.
+ */
+describe("the school's own pass mark", () => {
+  const withThreshold = {
+    ...routes,
+    "/school-config": {
+      schoolName: "Groupe Scolaire Kigali",
+      map: { passThreshold: 60 },
+    },
+  };
+
+  it("shows the school's default beside the field", async () => {
+    serve(h.api, withThreshold);
+    await mount();
+    expect(await screen.findByText(/default 60/)).toBeInTheDocument();
+  });
+
+  it("offers it as the placeholder rather than a made-up fifty", async () => {
+    serve(h.api, withThreshold);
+    await mount();
+    const field = await screen.findByLabelText(/pass mark/i);
+    expect(field).toHaveAttribute("placeholder", "60");
+  });
+
+  it("falls back to fifty when the school has not set one", async () => {
+    await mount();
+    const field = await screen.findByLabelText(/pass mark/i);
+    expect(field).toHaveAttribute("placeholder", "50");
+    expect(screen.queryByText(/^default /)).toBeNull();
+  });
+});
+
+describe("the guards on a year's promotion", () => {
+  it("sends nothing when Load is pressed with no class chosen", async () => {
+    await mount();
+    const load = screen
+      .queryAllByRole("button")
+      .find((b) => /load students/i.test(b.textContent ?? ""))!;
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(load);
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("promote/preview"),
+      ),
+    ).toBeUndefined();
+  });
+});
