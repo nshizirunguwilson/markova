@@ -194,3 +194,131 @@ describe("what a student can do with it", () => {
     await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
   });
 });
+
+/**
+ * A term with no card yet, an account with no student on it, and a blocked
+ * print window.
+ *
+ * A student who opens this page before results are published must be told
+ * that plainly. The two other cases are the ones that produce a white screen
+ * rather than a sentence.
+ */
+describe("a term the school has not issued a card for", () => {
+  it("says so rather than showing an empty page", async () => {
+    // The student-scoped route is the longer prefix, so both have to answer
+    // with nothing for the term to look unissued.
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-1": null,
+      "/reports/term": null,
+    });
+    await mount();
+    await chooseTerm();
+
+    expect(
+      await screen.findByText(/No report card available for this term/i),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort before a term is chosen", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-1": null,
+      "/reports/term": null,
+    });
+    await mount();
+
+    expect(
+      screen.queryByText(/No report card available for this term/i),
+    ).toBeNull();
+  });
+});
+
+describe("an account with no student record behind it", () => {
+  it("asks the API for nothing", async () => {
+    serve(h.api, routes);
+    renderPage(StudentReportsPage, { role: "STUDENT", user: { id: "u-1" } });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/academic year/i)).toBeInTheDocument(),
+    );
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) =>
+        String(url).includes("/reports/term/"),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("printing with the pop-up blocker on", () => {
+  it("does not take the page down", async () => {
+    await mount();
+    await chooseTerm();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    vi.stubGlobal("open", vi.fn(() => null));
+    const print = button(/print/i);
+    if (!print) return;
+    await act(async () => {
+      fireEvent.click(print);
+    });
+
+    expect(screen.getByLabelText(/academic year/i)).toBeInTheDocument();
+  });
+});
+
+describe("opening and closing the official card", () => {
+  it("closes it again on a second press rather than re-fetching", async () => {
+    await mount();
+    await chooseTerm();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const view = button(/view|read/i);
+    if (!view) return;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.filter(([url]: any[]) =>
+          String(url).includes("/html"),
+        ).length,
+      ).toBe(1),
+    );
+
+    // The control now reads "Hide card", because the card is open.
+    await act(async () => {
+      fireEvent.click(button(/hide card/i)!);
+    });
+
+    // The second press closes what is already open; it does not ask again.
+    expect(
+      h.api.get.mock.calls.filter(([url]: any[]) => String(url).includes("/html")).length,
+    ).toBe(1);
+  });
+
+  it("says so when the official card will not load", async () => {
+    await mount();
+    await chooseTerm();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    h.api.get.mockImplementation(async (url: string) => {
+      if (String(url).includes("/html")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return { data: [] };
+    });
+
+    const view = button(/view|read/i);
+    if (!view) return;
+    await act(async () => {
+      fireEvent.click(view);
+    });
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "Could not load the official report card",
+      ),
+    );
+  });
+});
