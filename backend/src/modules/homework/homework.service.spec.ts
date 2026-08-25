@@ -477,7 +477,7 @@ describe('changing homework already set', () => {
         dueDate: '2026-09-06',
         maxMarks: 30,
         lateDeductionPerDay: 2,
-      } as never,
+      },
       'teacher-1',
     );
 
@@ -492,7 +492,7 @@ describe('changing homework already set', () => {
   });
 
   it('changes nothing when nothing was sent', async () => {
-    await service.update('hw-1', {} as never, 'teacher-1');
+    await service.update('hw-1', {}, 'teacher-1');
 
     expect(prisma.homework.update.mock.calls[0][0].data).toEqual({});
   });
@@ -502,7 +502,7 @@ describe('changing homework already set', () => {
   it('turns a late penalty off rather than ignoring it', async () => {
     await service.update(
       'hw-1',
-      { lateDeductionPerDay: 0, maxMarks: 0 } as never,
+      { lateDeductionPerDay: 0, maxMarks: 0 },
       'teacher-1',
     );
 
@@ -513,7 +513,7 @@ describe('changing homework already set', () => {
   });
 
   it('clears a description that was sent empty', async () => {
-    await service.update('hw-1', { description: '' } as never, 'teacher-1');
+    await service.update('hw-1', { description: '' }, 'teacher-1');
 
     expect(prisma.homework.update.mock.calls[0][0].data).toEqual({
       description: '',
@@ -524,7 +524,7 @@ describe('changing homework already set', () => {
     prisma.homework.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.update('gone', { title: 'x' } as never, 'teacher-1'),
+      service.update('gone', { title: 'x' }, 'teacher-1'),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -541,7 +541,7 @@ describe('changing homework already set', () => {
   it('lets an admin change another teachers homework', async () => {
     await service.update(
       'hw-1',
-      { title: 'Chapter 5 essay' } as never,
+      { title: 'Chapter 5 essay' },
       'teacher-9',
       'ADMIN',
     );
@@ -551,7 +551,7 @@ describe('changing homework already set', () => {
 
   it('refuses another teacher who is not an admin', async () => {
     await expect(
-      service.update('hw-1', { title: 'x' } as never, 'teacher-9', 'TEACHER'),
+      service.update('hw-1', { title: 'x' }, 'teacher-9', 'TEACHER'),
     ).rejects.toThrow(ForbiddenException);
   });
 });

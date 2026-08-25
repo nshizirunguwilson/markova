@@ -673,7 +673,7 @@ describe('acting on a visit that is gone', () => {
 
   it('refuses to correct it', async () => {
     await expect(
-      service.updateVisit('gone', { findings: '38.4 degrees' } as never),
+      service.updateVisit('gone', { findings: '38.4 degrees' }),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -689,7 +689,7 @@ describe('acting on a visit that is gone', () => {
 
   it('refuses to write a health record for a student who does not exist', async () => {
     await expect(
-      service.saveHealthRecord('nobody', { allergyNotes: 'None' } as never, 'user-1'),
+      service.saveHealthRecord('nobody', { allergyNotes: 'None' }, 'user-1'),
     ).rejects.toThrow(NotFoundException);
   });
 });

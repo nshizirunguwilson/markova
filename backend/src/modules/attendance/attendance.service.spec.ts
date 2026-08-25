@@ -912,10 +912,9 @@ describe('filtering the register', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AttendanceService(
-      prisma,
-      { send: jest.fn() } as unknown as NotificationsService,
-    );
+    service = new AttendanceService(prisma, {
+      send: jest.fn(),
+    } as unknown as NotificationsService);
     prisma.attendance.findMany.mockResolvedValue([]);
     prisma.attendance.count.mockResolvedValue(0);
   });
@@ -928,7 +927,7 @@ describe('filtering the register', () => {
       subjectId: 'subject-1',
       dateFrom: '2026-09-01',
       dateTo: '2026-12-15',
-    } as never);
+    });
 
     const where = prisma.attendance.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({
@@ -942,13 +941,13 @@ describe('filtering the register', () => {
   });
 
   it('applies none of them when none is given', async () => {
-    await service.findAll({} as never);
+    await service.findAll({});
 
     expect(prisma.attendance.findMany.mock.calls[0][0].where).toEqual({});
   });
 
   it('takes an open-ended range from one end', async () => {
-    await service.findAll({ dateFrom: '2026-09-01' } as never);
+    await service.findAll({ dateFrom: '2026-09-01' });
 
     const where = prisma.attendance.findMany.mock.calls[0][0].where;
     expect(where.date.gte).toBeInstanceOf(Date);
@@ -956,7 +955,7 @@ describe('filtering the register', () => {
   });
 
   it('takes one from the other end', async () => {
-    await service.findAll({ dateTo: '2026-12-15' } as never);
+    await service.findAll({ dateTo: '2026-12-15' });
 
     const where = prisma.attendance.findMany.mock.calls[0][0].where;
     expect(where.date.lte).toBeInstanceOf(Date);
@@ -970,10 +969,9 @@ describe('one student’s attendance over a range', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AttendanceService(
-      prisma,
-      { send: jest.fn() } as unknown as NotificationsService,
-    );
+    service = new AttendanceService(prisma, {
+      send: jest.fn(),
+    } as unknown as NotificationsService);
     prisma.attendance.findMany.mockResolvedValue([]);
   });
 

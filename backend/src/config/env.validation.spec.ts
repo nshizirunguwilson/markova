@@ -177,8 +177,8 @@ describe('values of the wrong shape', () => {
   });
 
   it('trims the spaces off a value', () => {
-    expect(() =>
-      validateEnv({ ...valid, NODE_ENV: '  production  ' }),
-    ).toThrow(/at least 32 characters in production/);
+    expect(() => validateEnv({ ...valid, NODE_ENV: '  production  ' })).toThrow(
+      /at least 32 characters in production/,
+    );
   });
 });

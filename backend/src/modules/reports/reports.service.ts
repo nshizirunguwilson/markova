@@ -1577,14 +1577,20 @@ export class ReportsService implements OnModuleDestroy {
    * sheet, so a transfer letter and a report card sit in the same folder
    * without one of them looking improvised.
    */
+  /**
+   * The letterhead every official document is printed on.
+   *
+   * Each one names a student and carries their student number as its
+   * reference, so both are required rather than optional: a letter with
+   * neither is not a document a school would issue.
+   */
   private renderDocumentShell(
     school: any,
     opts: {
       title: string;
-      subtitle?: string;
-      reference?: string;
+      subtitle: string;
+      reference: string;
       body: string;
-      signOff?: boolean;
     },
   ): string {
     // Already defaulted by sanitizeColor when the school set nothing.
@@ -1649,32 +1655,28 @@ export class ReportsService implements OnModuleDestroy {
             ${contact ? `<div class="addr">${contact}</div>` : ''}
           </div>
           <div class="doc-no">
-            ${opts.reference ? `<b>${escapeHtml(opts.reference)}</b>` : ''}
+            <b>${escapeHtml(opts.reference)}</b>
             ${today}
           </div>
         </div>
 
         <div class="title-band">
           <div class="t">${escapeHtml(opts.title)}</div>
-          ${opts.subtitle ? `<div class="s">${escapeHtml(opts.subtitle)}</div>` : ''}
+          <div class="s">${escapeHtml(opts.subtitle)}</div>
         </div>
 
         <div class="content">${opts.body}</div>
 
-        ${
-          opts.signOff === false
-            ? ''
-            : `<div class="signoff">
-                 <div class="sig-block">
-                   ${signature ? `<img class="sig-img" src="${signature}" alt="" />` : ''}
-                   <div class="sig-line">Head Teacher</div>
-                 </div>
-                 ${stamp ? `<img class="stamp-img" src="${stamp}" alt="" />` : ''}
-                 <div class="sig-block">
-                   <div class="sig-line">Date: ${today}</div>
-                 </div>
-               </div>`
-        }
+        <div class="signoff">
+          <div class="sig-block">
+            ${signature ? `<img class="sig-img" src="${signature}" alt="" />` : ''}
+            <div class="sig-line">Head Teacher</div>
+          </div>
+          ${stamp ? `<img class="stamp-img" src="${stamp}" alt="" />` : ''}
+          <div class="sig-block">
+            <div class="sig-line">Date: ${today}</div>
+          </div>
+        </div>
 
         <div class="foot">
           Issued by ${school.name}${school.website ? ` &nbsp;•&nbsp; ${school.website}` : ''}

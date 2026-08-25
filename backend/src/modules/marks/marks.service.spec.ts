@@ -867,18 +867,18 @@ describe('editing a mark that is out of range', () => {
 
   it('refuses a score above the paper it was marked out of', async () => {
     await expect(
-      service.update('mark-1', { score: 25 } as never, 'teacher-1'),
+      service.update('mark-1', { score: 25 }, 'teacher-1'),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('refuses it against a new ceiling that was sent with it', async () => {
     await expect(
-      service.update('mark-1', { score: 12, maxScore: 10 } as never, 'teacher-1'),
+      service.update('mark-1', { score: 12, maxScore: 10 }, 'teacher-1'),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('accepts a score right on the ceiling', async () => {
-    await service.update('mark-1', { score: 20 } as never, 'teacher-1');
+    await service.update('mark-1', { score: 20 }, 'teacher-1');
 
     expect(prisma.mark.update.mock.calls[0][0].data).toEqual({
       score: 20,
@@ -887,7 +887,7 @@ describe('editing a mark that is out of range', () => {
   });
 
   it('keeps the ceiling the mark already had when none is sent', async () => {
-    await service.update('mark-1', { score: 15 } as never, 'teacher-1');
+    await service.update('mark-1', { score: 15 }, 'teacher-1');
 
     expect(prisma.mark.update.mock.calls[0][0].data.maxScore).toBe(20);
   });
@@ -896,7 +896,7 @@ describe('editing a mark that is out of range', () => {
     prisma.mark.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.update('gone', { score: 10 } as never, 'teacher-1'),
+      service.update('gone', { score: 10 }, 'teacher-1'),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -949,7 +949,7 @@ describe('a whole class entered at once', () => {
       teacherId: 'teacher-9',
     });
 
-    await service.batchEntry(batch as never, null, 'ADMIN');
+    await service.batchEntry(batch, null, 'ADMIN');
 
     expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
       'teacher-9',
@@ -972,7 +972,7 @@ describe('a whole class entered at once', () => {
   });
 
   it('files a teachers own entry against themselves', async () => {
-    await service.batchEntry(batch as never, 'teacher-1');
+    await service.batchEntry(batch, 'teacher-1');
 
     expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
       'teacher-1',
@@ -1037,7 +1037,7 @@ describe('ranking a class', () => {
     await service.calculateTermResults({
       classSectionId: 'section-1',
       termId: 'term-1',
-    } as never);
+    });
 
     const ranked = prisma.termResult.update.mock.calls.map(
       (c: any[]) => c[0].data.rank,
@@ -1075,7 +1075,7 @@ describe('ranking a class', () => {
     await service.calculateTermResults({
       classSectionId: 'section-1',
       termId: 'term-1',
-    } as never);
+    });
 
     expect(prisma.termResult.update).toHaveBeenCalledTimes(1);
     expect(prisma.termResult.update.mock.calls[0][0].where.id).toBe('res-s-1');
@@ -1110,7 +1110,7 @@ describe('a school that starts nobody with conduct points', () => {
     await service.calculateYearResults({
       classSectionId: 'section-1',
       academicYearId: 'year-1',
-    } as never);
+    });
 
     expect(
       prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
@@ -1129,7 +1129,7 @@ describe('a school that starts nobody with conduct points', () => {
     await service.calculateYearResults({
       classSectionId: 'section-1',
       academicYearId: 'year-1',
-    } as never);
+    });
 
     expect(
       prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
@@ -1152,7 +1152,7 @@ describe('the comments on a result', () => {
     prisma.termResult.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.updateTermResultComment('gone', { teacherComment: 'x' } as never),
+      service.updateTermResultComment('gone', { teacherComment: 'x' }),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -1160,7 +1160,7 @@ describe('the comments on a result', () => {
     await service.updateTermResultComment('res-1', {
       teacherComment: 'Steady work all term.',
       headmasterComment: 'Keep it up.',
-    } as never);
+    });
 
     expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
       teacherComment: 'Steady work all term.',
@@ -1171,7 +1171,7 @@ describe('the comments on a result', () => {
   it('leaves the head teachers alone when only the teacher wrote', async () => {
     await service.updateTermResultComment('res-1', {
       teacherComment: 'Steady work.',
-    } as never);
+    });
 
     expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
       teacherComment: 'Steady work.',
@@ -1183,7 +1183,7 @@ describe('the comments on a result', () => {
   it('clears one that was sent empty', async () => {
     await service.updateTermResultComment('res-1', {
       headmasterComment: '',
-    } as never);
+    });
 
     expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
       headmasterComment: '',

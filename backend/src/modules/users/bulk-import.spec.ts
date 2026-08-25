@@ -366,7 +366,7 @@ describe('the optional columns on an imported row', () => {
         dateOfBirth: '1971-03-07',
         qualification: 'A0',
         hireDate: '2019-01-14',
-      } as never,
+      },
     ]);
 
     expect(prisma.user.create.mock.calls[0][0].data.dateOfBirth).toBeInstanceOf(
@@ -384,7 +384,7 @@ describe('the optional columns on an imported row', () => {
         lastName: 'Uwase',
         email: 'a.uwase@markova.edu',
         role: Role.TEACHER,
-      } as never,
+      },
     ]);
 
     expect(prisma.user.create.mock.calls[0][0].data.dateOfBirth).toBeNull();
@@ -402,16 +402,16 @@ describe('the optional columns on an imported row', () => {
         role: Role.STUDENT,
         classSectionId: 'section-1',
         dateOfBirth: '2012-04-11',
-      } as never,
+      },
     ]);
 
     // A student's demographics live on the student row, not the account.
     expect(
       prisma.user.create.mock.calls[0][0].data.dateOfBirth,
     ).toBeUndefined();
-    expect(prisma.student.create.mock.calls[0][0].data.dateOfBirth).toBeInstanceOf(
-      Date,
-    );
+    expect(
+      prisma.student.create.mock.calls[0][0].data.dateOfBirth,
+    ).toBeInstanceOf(Date);
   });
 
   it('stores null for a student row with no birthday', async () => {
@@ -422,7 +422,7 @@ describe('the optional columns on an imported row', () => {
         email: 'd.niyonkuru@markova.edu',
         role: Role.STUDENT,
         classSectionId: 'section-1',
-      } as never,
+      },
     ]);
 
     expect(prisma.student.create.mock.calls[0][0].data.dateOfBirth).toBeNull();
@@ -462,7 +462,7 @@ describe('the login on the credentials list', () => {
         lastName: 'Uwase',
         email: 'a.uwase@markova.edu',
         role: Role.TEACHER,
-      } as never,
+      },
     ]);
 
     expect(result.credentials[0].login).toBe('a.uwase@markova.edu');
@@ -476,7 +476,7 @@ describe('the login on the credentials list', () => {
         lastName: 'Habimana',
         phone: '+250788100000',
         role: Role.PARENT,
-      } as never,
+      },
     ]);
 
     expect(result.credentials[0].login).toBe('+250788100000');

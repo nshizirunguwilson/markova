@@ -337,7 +337,7 @@ describe('where the signing secret comes from', () => {
         STUDENT_ID_SECRET: 'its-own',
         JWT_SECRET: 'the-jwt-one',
         NODE_ENV: 'production',
-      } as NodeJS.ProcessEnv),
+      }),
     ).toBe('its-own');
   });
 
@@ -348,7 +348,7 @@ describe('where the signing secret comes from', () => {
       studentIdSecret({
         JWT_SECRET: 'the-jwt-one',
         NODE_ENV: 'production',
-      } as NodeJS.ProcessEnv),
+      }),
     ).toBe('');
   });
 
@@ -357,11 +357,11 @@ describe('where the signing secret comes from', () => {
       studentIdSecret({
         JWT_SECRET: 'the-jwt-one',
         NODE_ENV: 'development',
-      } as NodeJS.ProcessEnv),
+      }),
     ).toBe('the-jwt-one');
   });
 
   it('copes with an environment that has neither', () => {
-    expect(studentIdSecret({} as NodeJS.ProcessEnv)).toBe('');
+    expect(studentIdSecret({})).toBe('');
   });
 });

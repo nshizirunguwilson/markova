@@ -43,6 +43,15 @@ const errorsOn = (cls: any, value: unknown): string[] => {
 
 const accepts = (cls: any, value: unknown) => errorsOn(cls, value).length === 0;
 
+/**
+ * The instance a DTO's own `@Transform` decorators produce, before any
+ * validation runs. Typed loosely on purpose: these tests reach for fields that
+ * differ between the create and update shapes.
+ */
+
+const transformed = (cls: any, value: unknown): any =>
+  plainToInstance(cls, value);
+
 const uuid = 'a0000000-0000-4000-8000-000000000001';
 
 describe('paging', () => {
@@ -408,7 +417,7 @@ describe('the national ID as it is typed in', () => {
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes it written in the groups the card prints (%#)',
     (cls: any) => {
-      const dto: any = plainToInstance(cls, {
+      const dto = transformed(cls, {
         nationalId: '1 2008 8 8012345 601',
       });
       expect(dto.nationalId).toBe(nid);
@@ -418,7 +427,7 @@ describe('the national ID as it is typed in', () => {
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes it written with no spaces at all (%#)',
     (cls: any) => {
-      const dto: any = plainToInstance(cls, { nationalId: nid });
+      const dto = transformed(cls, { nationalId: nid });
       expect(dto.nationalId).toBe(nid);
     },
   );
@@ -427,7 +436,7 @@ describe('the national ID as it is typed in', () => {
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'leaves a value that is not a string alone (%#)',
     (cls: any) => {
-      const dto: any = plainToInstance(cls, { nationalId: 1234 });
+      const dto = transformed(cls, { nationalId: 1234 });
       expect(dto.nationalId).toBe(1234);
     },
   );
@@ -446,12 +455,8 @@ describe('boarding, however it arrives', () => {
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes a real boolean (%#)',
     (cls: any) => {
-      expect((plainToInstance(cls, { isBoarder: true }) as any).isBoarder).toBe(
-        true,
-      );
-      expect(
-        (plainToInstance(cls, { isBoarder: false }) as any).isBoarder,
-      ).toBe(false);
+      expect(transformed(cls, { isBoarder: true }).isBoarder).toBe(true);
+      expect(transformed(cls, { isBoarder: false }).isBoarder).toBe(false);
     },
   );
 
@@ -460,18 +465,14 @@ describe('boarding, however it arrives', () => {
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'reads the word false as false (%#)',
     (cls: any) => {
-      expect(
-        (plainToInstance(cls, { isBoarder: 'false' }) as any).isBoarder,
-      ).toBe(false);
+      expect(transformed(cls, { isBoarder: 'false' }).isBoarder).toBe(false);
     },
   );
 
   it.each([CreateUserDto, UpdateUserDto] as any[])(
     'reads the word true as true (%#)',
     (cls: any) => {
-      expect(
-        (plainToInstance(cls, { isBoarder: 'true' }) as any).isBoarder,
-      ).toBe(true);
+      expect(transformed(cls, { isBoarder: 'true' }).isBoarder).toBe(true);
     },
   );
 
@@ -480,9 +481,9 @@ describe('boarding, however it arrives', () => {
     'treats anything else as not said (%#)',
     (cls: any) => {
       expect(
-        (plainToInstance(cls, { isBoarder: 'maybe' }) as any).isBoarder,
+        transformed(cls, { isBoarder: 'maybe' }).isBoarder,
       ).toBeUndefined();
-      expect((plainToInstance(cls, {}) as any).isBoarder).toBeUndefined();
+      expect(transformed(cls, {}).isBoarder).toBeUndefined();
     },
   );
 });

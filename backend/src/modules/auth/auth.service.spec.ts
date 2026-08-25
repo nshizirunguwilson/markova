@@ -1157,7 +1157,7 @@ describe('the two ways into the system', () => {
     await service.login({
       email: 'a.uwase@markova.edu',
       password: TEST_PASSWORD,
-    } as never);
+    });
 
     expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
       email: 'a.uwase@markova.edu',
@@ -1173,7 +1173,7 @@ describe('the two ways into the system', () => {
     await service.login({
       phone: '+250788100000',
       password: TEST_PASSWORD,
-    } as never);
+    });
 
     expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
       phone: '+250788100000',
@@ -1186,7 +1186,7 @@ describe('the two ways into the system', () => {
     await service.login({
       email: 'wilsonshizirungu@gmail.com',
       password: TEST_PASSWORD,
-    } as never);
+    });
 
     expect(mockNotifications.sendEmailToAddress).toHaveBeenCalled();
   });
@@ -1197,7 +1197,7 @@ describe('the two ways into the system', () => {
     const result: any = await service.login({
       phone: '+250788000001',
       password: TEST_PASSWORD,
-    } as never);
+    });
 
     expect(mockNotifications.sendEmailToAddress).not.toHaveBeenCalled();
     // The code still exists; in development it comes back for the demo.
@@ -1241,7 +1241,7 @@ describe('a code for an account that is gone', () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.verifyOtp({ sessionId: 'session-1', otp: '123456' } as never),
+      service.verifyOtp({ sessionId: 'session-1', otp: '123456' }),
     ).rejects.toThrow(UnauthorizedException);
   });
 });

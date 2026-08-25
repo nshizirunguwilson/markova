@@ -843,7 +843,7 @@ describe('narrowing the school calendar', () => {
   });
 
   it('narrows to one kind when one is named', async () => {
-    await service.findAll({ kind: 'TRIP' as never });
+    await service.findAll({ kind: 'TRIP' });
 
     expect(prisma.activity.findMany.mock.calls[0][0].where.kind).toBe('TRIP');
   });
@@ -851,7 +851,9 @@ describe('narrowing the school calendar', () => {
   it('shows every kind when none is', async () => {
     await service.findAll({});
 
-    expect(prisma.activity.findMany.mock.calls[0][0].where.kind).toBeUndefined();
+    expect(
+      prisma.activity.findMany.mock.calls[0][0].where.kind,
+    ).toBeUndefined();
   });
 
   it('narrows to a date range at both ends', async () => {

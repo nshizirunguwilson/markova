@@ -608,7 +608,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes every field it was given', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const written = prisma.student.update.mock.calls[0][0].data;
     expect(written).toMatchObject({
@@ -634,7 +634,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('turns the two dates into dates', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const written = prisma.student.update.mock.calls[0][0].data;
     expect(written.dateOfBirth).toBeInstanceOf(Date);
@@ -642,7 +642,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes the account fields onto the account, not the student', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
       email: 'k.uwimana@markova.edu',
@@ -658,7 +658,7 @@ describe('updating every field a student record carries', () => {
   // A student's gender and birthday live on the student row, not on the
   // account, or the two copies drift apart.
   it('keeps gender and birthday off a student account row', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const account = prisma.user.update.mock.calls[0][0].data;
     expect(account.gender).toBeUndefined();
@@ -686,7 +686,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes nothing at all when nothing was sent', async () => {
-    await service.update('user-1', {} as never);
+    await service.update('user-1', {});
 
     expect(prisma.user.update.mock.calls[0][0].data).toEqual({});
     expect(prisma.student.update.mock.calls[0][0].data).toEqual({});
@@ -699,7 +699,7 @@ describe('updating every field a student record carries', () => {
       allergies: '',
       bloodType: '',
       motherName: '',
-    } as never);
+    });
 
     expect(prisma.student.update.mock.calls[0][0].data).toEqual({
       allergies: '',
@@ -746,7 +746,7 @@ describe('updating every field a teacher record carries', () => {
   });
 
   it('clears an RSSB number that was sent empty', async () => {
-    await service.update('user-1', { rssbNumber: '' } as never);
+    await service.update('user-1', { rssbNumber: '' });
 
     expect(prisma.teacher.update.mock.calls[0][0].data).toEqual({
       rssbNumber: '',
@@ -754,7 +754,7 @@ describe('updating every field a teacher record carries', () => {
   });
 
   it('leaves the teacher row alone when nothing about it changed', async () => {
-    await service.update('user-1', { firstName: 'Aline' } as never);
+    await service.update('user-1', { firstName: 'Aline' });
 
     expect(prisma.teacher.update).not.toHaveBeenCalled();
   });
@@ -780,7 +780,7 @@ describe('the words the search box understands', () => {
   });
 
   const whereFor = async (filters: Record<string, unknown>) => {
-    await service.findAll(filters as never);
+    await service.findAll(filters);
     return prisma.user.findMany.mock.calls[0][0].where;
   };
 
@@ -1054,7 +1054,7 @@ describe('linking a parent to their children', () => {
         { studentId: 'student-1', relationship: 'Father' },
         { studentId: 'student-2', relationship: 'Guardian' },
       ],
-    } as never);
+    });
 
     expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
     expect(prisma.parentStudent.create.mock.calls[0][0].data).toMatchObject({
@@ -1072,7 +1072,7 @@ describe('linking a parent to their children', () => {
       ...parent,
       studentIds: ['student-1', 'student-2'],
       relationship: 'Mother',
-    } as never);
+    });
 
     expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
     expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
@@ -1084,7 +1084,7 @@ describe('linking a parent to their children', () => {
     await service.create({
       ...parent,
       studentIds: ['student-1'],
-    } as never);
+    });
 
     expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
       'Parent',
@@ -1092,7 +1092,7 @@ describe('linking a parent to their children', () => {
   });
 
   it('links nobody when no children were named', async () => {
-    await service.create(parent as never);
+    await service.create(parent);
 
     expect(prisma.parentStudent.create).not.toHaveBeenCalled();
   });
@@ -1141,12 +1141,12 @@ describe('issuing numbers when they collide', () => {
       .mockResolvedValueOnce({ id: 'student-9' })
       .mockResolvedValue(null);
 
-    await service.create(student as never);
+    await service.create(student);
 
     expect(prisma.student.findUnique).toHaveBeenCalledTimes(2);
-    expect(
-      prisma.student.create.mock.calls[0][0].data.studentIdNumber,
-    ).toMatch(/^STD-/);
+    expect(prisma.student.create.mock.calls[0][0].data.studentIdNumber).toMatch(
+      /^STD-/,
+    );
   });
 
   // Fifty is far past the largest group of students sharing a name in a real
@@ -1166,11 +1166,11 @@ describe('issuing numbers when they collide', () => {
     await service.create({
       ...student,
       enrollmentDate: '2024-01-15',
-    } as never);
+    });
 
-    expect(
-      prisma.student.create.mock.calls[0][0].data.studentIdNumber,
-    ).toMatch(/^STD-2024-/);
+    expect(prisma.student.create.mock.calls[0][0].data.studentIdNumber).toMatch(
+      /^STD-2024-/,
+    );
   });
 });
 
@@ -1204,7 +1204,7 @@ describe('a registration code left behind in an odd shape', () => {
   it('starts again from one when the last code has no number on it', async () => {
     prisma.user.findFirst.mockResolvedValue({ code: 'TCH' });
 
-    await service.create(teacher as never);
+    await service.create(teacher);
 
     // "TCH" split on "-" gives back "TCH", which is not a number, so the
     // sequence restarts rather than becoming NaN.

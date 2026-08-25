@@ -401,7 +401,7 @@ describe('promoting a student with no year result', () => {
       },
     ]);
     // With no result there is no average, so they fall below the pass mark.
-    const result = await service.promoteStudents(bulk as never);
+    const result = await service.promoteStudents(bulk);
 
     expect(result.retained).toBe(1);
     expect(prisma.yearResult.update).not.toHaveBeenCalled();
@@ -418,7 +418,7 @@ describe('promoting a student with no year result', () => {
       },
     ]);
 
-    await service.promoteStudents(bulk as never);
+    await service.promoteStudents(bulk);
 
     expect(prisma.yearResult.update.mock.calls[0][0].data).toEqual({
       isPromoted: true,

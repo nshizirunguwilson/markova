@@ -1141,9 +1141,8 @@ describe('a profile assembled from thin records', () => {
       markIn('term-1', 'Term 1', { name: '2026' }, 'Practical'),
     ]);
 
-    const subject = (
-      await service.getStudentProfileAnalytics('student-1')
-    ).terms[0].subjects[0];
+    const subject = (await service.getStudentProfileAnalytics('student-1'))
+      .terms[0].subjects[0];
     expect(subject.total).toBeNull();
     expect(subject.grade).toBeNull();
     expect(subject.points).toBeNull();

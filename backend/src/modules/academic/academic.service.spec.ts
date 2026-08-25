@@ -950,7 +950,7 @@ describe('editing the school year', () => {
         startDate: '2027-09-01',
         endDate: '2028-07-15',
         isCurrent: true,
-      } as never);
+      });
 
       const written = prisma.academicYear.update.mock.calls[0][0].data;
       expect(written.name).toBe('2027-2028');
@@ -961,7 +961,7 @@ describe('editing the school year', () => {
 
     // Two current years would make "this term" ambiguous everywhere.
     it('stands the other years down when one becomes current', async () => {
-      await service.updateYear('year-1', { isCurrent: true } as never);
+      await service.updateYear('year-1', { isCurrent: true });
 
       expect(prisma.academicYear.updateMany).toHaveBeenCalledWith({
         where: { isCurrent: true },
@@ -970,13 +970,13 @@ describe('editing the school year', () => {
     });
 
     it('stands nobody down when a year is merely renamed', async () => {
-      await service.updateYear('year-1', { name: '2027' } as never);
+      await service.updateYear('year-1', { name: '2027' });
 
       expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
     });
 
     it('records a year being stood down itself', async () => {
-      await service.updateYear('year-1', { isCurrent: false } as never);
+      await service.updateYear('year-1', { isCurrent: false });
 
       expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({
         isCurrent: false,
@@ -985,7 +985,7 @@ describe('editing the school year', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateYear('year-1', {} as never);
+      await service.updateYear('year-1', {});
 
       expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({});
     });
@@ -996,7 +996,7 @@ describe('editing the school year', () => {
         name: '2027-2028',
         startDate: '2027-09-01',
         endDate: '2028-07-15',
-      } as never);
+      });
 
       expect(prisma.academicYear.create.mock.calls[0][0].data.isCurrent).toBe(
         false,
@@ -1013,7 +1013,7 @@ describe('editing the school year', () => {
         endDate: '2027-04-05',
         isCurrent: true,
         isClosed: false,
-      } as never);
+      });
 
       const written = prisma.term.update.mock.calls[0][0].data;
       expect(written.name).toBe('Term 2');
@@ -1024,7 +1024,7 @@ describe('editing the school year', () => {
     });
 
     it('stands the other terms down when one becomes current', async () => {
-      await service.updateTerm('term-1', { isCurrent: true } as never);
+      await service.updateTerm('term-1', { isCurrent: true });
 
       expect(prisma.term.updateMany).toHaveBeenCalledWith({
         where: { isCurrent: true },
@@ -1033,7 +1033,7 @@ describe('editing the school year', () => {
     });
 
     it('stands nobody down when a term is merely closed', async () => {
-      await service.updateTerm('term-1', { isClosed: true } as never);
+      await service.updateTerm('term-1', { isClosed: true });
 
       expect(prisma.term.updateMany).not.toHaveBeenCalled();
       expect(prisma.term.update.mock.calls[0][0].data).toEqual({
@@ -1042,7 +1042,7 @@ describe('editing the school year', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateTerm('term-1', {} as never);
+      await service.updateTerm('term-1', {});
 
       expect(prisma.term.update.mock.calls[0][0].data).toEqual({});
     });
@@ -1055,7 +1055,7 @@ describe('editing the school year', () => {
         startDate: '2026-09-01',
         endDate: '2026-12-15',
         isCurrent: true,
-      } as never);
+      });
 
       expect(prisma.term.updateMany).toHaveBeenCalled();
       expect(prisma.term.create.mock.calls[0][0].data.isCurrent).toBe(true);
@@ -1110,7 +1110,7 @@ describe('editing what the school teaches', () => {
     it('refuses one that does not exist', async () => {
       prisma.classLevel.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateClassLevel('nope', { name: 'x' } as never),
+        service.updateClassLevel('nope', { name: 'x' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1118,7 +1118,7 @@ describe('editing what the school teaches', () => {
       await service.updateClassLevel('level-1', {
         name: 'Senior 2',
         order: 2,
-      } as never);
+      });
 
       expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({
         name: 'Senior 2',
@@ -1127,7 +1127,7 @@ describe('editing what the school teaches', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateClassLevel('level-1', {} as never);
+      await service.updateClassLevel('level-1', {});
 
       expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({});
     });
@@ -1159,13 +1159,13 @@ describe('editing what the school teaches', () => {
     it('refuses one that does not exist', async () => {
       prisma.classSection.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateSection('nope', { name: 'B' } as never),
+        service.updateSection('nope', { name: 'B' }),
       ).rejects.toThrow(NotFoundException);
     });
 
     // Renaming a class must not move it to another level by accident.
     it('keeps the level and trade it already had', async () => {
-      await service.updateSection('section-1', { name: 'B' } as never);
+      await service.updateSection('section-1', { name: 'B' });
 
       expect(prisma.classSection.update.mock.calls[0][0].data).toEqual({
         classLevelId: 'level-1',
@@ -1182,9 +1182,11 @@ describe('editing what the school teaches', () => {
         tradeId: 'trade-1',
       });
 
-      await service.updateSection('section-1', { tradeId: null } as never);
+      await service.updateSection('section-1', { tradeId: null });
 
-      expect(prisma.classSection.update.mock.calls[0][0].data.tradeId).toBeNull();
+      expect(
+        prisma.classSection.update.mock.calls[0][0].data.tradeId,
+      ).toBeNull();
     });
 
     it('refuses to delete one that does not exist', async () => {
@@ -1225,7 +1227,7 @@ describe('editing what the school teaches', () => {
         classLevelId: 'level-1',
         maxMarks: 50,
         isActive: false,
-      } as never);
+      });
 
       expect(prisma.subject.update.mock.calls[0][0].data).toMatchObject({
         name: 'Additional Mathematics',
@@ -1244,7 +1246,7 @@ describe('editing what the school teaches', () => {
     });
 
     it('keeps the scope and trade it already had', async () => {
-      await service.updateSubject('subject-1', { name: 'Maths' } as never);
+      await service.updateSubject('subject-1', { name: 'Maths' });
 
       const written = prisma.subject.update.mock.calls[0][0].data;
       expect(written.scope).toBe('O_CORE');
@@ -1265,9 +1267,9 @@ describe('editing what the school teaches', () => {
 
     it('refuses one that does not exist', async () => {
       prisma.trade.findUnique.mockResolvedValue(null);
-      await expect(
-        service.updateTrade('nope', { code: 'X' } as never),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateTrade('nope', { code: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('upper-cases a code and trims the rest', async () => {
@@ -1275,7 +1277,7 @@ describe('editing what the school teaches', () => {
         code: '  nit  ',
         name: '  Networking  ',
         sector: '  ICT  ',
-      } as never);
+      });
 
       expect(prisma.trade.update.mock.calls[0][0].data).toEqual({
         code: 'NIT',
@@ -1285,7 +1287,7 @@ describe('editing what the school teaches', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateTrade('trade-1', {} as never);
+      await service.updateTrade('trade-1', {});
 
       expect(prisma.trade.update.mock.calls[0][0].data).toEqual({});
     });
@@ -1325,7 +1327,7 @@ describe('editing the week', () => {
     it('refuses one that does not exist', async () => {
       prisma.timetable.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateTimetable('nope', { room: 'Lab 2' } as never),
+        service.updateTimetable('nope', { room: 'Lab 2' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1338,7 +1340,7 @@ describe('editing the week', () => {
         startTime: '10:00',
         endTime: '11:00',
         room: 'Lab 2',
-      } as never);
+      });
 
       expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
         classSectionId: 'section-2',
@@ -1354,7 +1356,7 @@ describe('editing the week', () => {
     // Sunday is day seven in the model, and zero is Monday's neighbour in
     // JavaScript, so a falsy day must still be written.
     it('writes a day of nought rather than dropping it', async () => {
-      await service.updateTimetable('tt-1', { dayOfWeek: 0 } as never);
+      await service.updateTimetable('tt-1', { dayOfWeek: 0 });
 
       expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
         dayOfWeek: 0,
@@ -1362,7 +1364,7 @@ describe('editing the week', () => {
     });
 
     it('clears a room that was sent empty', async () => {
-      await service.updateTimetable('tt-1', { room: '' } as never);
+      await service.updateTimetable('tt-1', { room: '' });
 
       expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
         room: '',
@@ -1370,7 +1372,7 @@ describe('editing the week', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateTimetable('tt-1', {} as never);
+      await service.updateTimetable('tt-1', {});
 
       expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({});
     });
@@ -1412,7 +1414,7 @@ describe('editing the week', () => {
     it('refuses one that does not exist', async () => {
       prisma.examSchedule.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateExamSchedule('nope', { room: 'Hall' } as never),
+        service.updateExamSchedule('nope', { room: 'Hall' }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1426,7 +1428,7 @@ describe('editing the week', () => {
         endTime: '11:00',
         room: 'Hall',
         syllabus: 'Chapters 1 to 8',
-      } as never);
+      });
 
       const written = prisma.examSchedule.update.mock.calls[0][0].data;
       expect(written).toMatchObject({
@@ -1442,7 +1444,7 @@ describe('editing the week', () => {
     });
 
     it('clears a syllabus that was sent empty', async () => {
-      await service.updateExamSchedule('ex-1', { syllabus: '' } as never);
+      await service.updateExamSchedule('ex-1', { syllabus: '' });
 
       expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({
         syllabus: '',
@@ -1450,7 +1452,7 @@ describe('editing the week', () => {
     });
 
     it('changes nothing when nothing was sent', async () => {
-      await service.updateExamSchedule('ex-1', {} as never);
+      await service.updateExamSchedule('ex-1', {});
 
       expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({});
     });

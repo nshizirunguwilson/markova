@@ -675,7 +675,11 @@ describe('the merits service on a partly set-up school', () => {
 
   it('counts nought for a watch-list student the roll no longer has', async () => {
     prisma.disciplineIncident.groupBy.mockResolvedValue([
-      { studentId: 'student-1', _count: { _all: 3 }, _sum: { pointsDeducted: 20 } },
+      {
+        studentId: 'student-1',
+        _count: { _all: 3 },
+        _sum: { pointsDeducted: 20 },
+      },
     ]);
     prisma.student.findMany.mockResolvedValue([
       {

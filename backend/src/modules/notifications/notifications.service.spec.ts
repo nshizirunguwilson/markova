@@ -552,7 +552,7 @@ describe('what a push notification carries with it', () => {
   });
 
   const sentPayload = (fetchSpy: jest.SpyInstance) =>
-    JSON.parse((fetchSpy.mock.calls[0][1] as any).body)[0];
+    JSON.parse(fetchSpy.mock.calls[0][1].body)[0];
 
   it('carries what the notification points at', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
@@ -687,9 +687,7 @@ describe('a broadcast where some of it fails', () => {
     jest.spyOn((service as any).logger, 'log').mockImplementation();
     // The transporter is built on module init, not in the constructor.
     service.onModuleInit();
-    logged = jest
-      .spyOn((service as any).logger, 'error')
-      .mockImplementation();
+    logged = jest.spyOn((service as any).logger, 'error').mockImplementation();
   });
 
   it('counts the addresses that bounced without failing the rest', async () => {
