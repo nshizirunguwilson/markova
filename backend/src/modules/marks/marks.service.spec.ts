@@ -1190,3 +1190,112 @@ describe('the comments on a result', () => {
     });
   });
 });
+
+/**
+ * A report card built for a school that has entered nothing.
+ *
+ * The card carries the school's own name and motto, and a class average
+ * worked out from whoever has a result. A school on its first day has no
+ * config rows at all and a class where nobody has been marked, and the card
+ * still has to be buildable.
+ */
+describe('report card data for a school with nothing set up', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      classSectionId: 'section-1',
+      studentIdNumber: 'STD-2026-001',
+      user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+      classSection: {
+        name: 'A',
+        classLevel: { name: 'Senior 1' },
+        trade: null,
+      },
+    });
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      isClosed: false,
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.findFirst.mockResolvedValue(null);
+    prisma.termResult.findMany.mockResolvedValue([]);
+  });
+
+  it('leaves the school name and motto empty rather than undefined', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school).toEqual({
+      name: '',
+      motto: '',
+      logoUrl: null,
+      stampUrl: null,
+      signatureUrl: null,
+    });
+  });
+
+  // Two config keys have meant the motto over the years; both still read.
+  it('takes the motto from either key it has ever been stored under', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'motto', value: 'Learn, and lift others' },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school.motto).toBe('Learn, and lift others');
+  });
+
+  it('prefers the newer key when both are set', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'motto', value: 'Old motto' },
+      { key: 'school_motto', value: 'Learn, and lift others' },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school.motto).toBe('Learn, and lift others');
+  });
+
+  it('has no class average when nobody in the class has a result', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.classStats.classAverage).toBeNull();
+    expect(card.classStats.totalStudents).toBe(0);
+  });
+
+  // A classmate whose result exists but carries no average counts as nought
+  // in the mean rather than making it NaN.
+  it('works out a class average around a result with no number on it', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+    prisma.termResult.findMany.mockResolvedValue([
+      { average: 80 },
+      { average: null },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.classStats.classAverage).toBe(40);
+    expect(Number.isNaN(card.classStats.classAverage)).toBe(false);
+  });
+
+  it('averages a subject with nothing recorded against it as nought', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        subjectId: 'subject-1',
+        score: 17,
+        maxScore: 20,
+        subject: { id: 'subject-1', name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 1' },
+      },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.subjects[0].average).toBeGreaterThan(0);
+  });
+});
