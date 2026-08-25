@@ -978,3 +978,167 @@ describe('an audience the school picked by hand', () => {
     ).rejects.toThrow(BadRequestException);
   });
 });
+
+/**
+ * Editing an activity that is already on the calendar.
+ *
+ * A trip moved, renamed, capped or switched to needing permission slips: each
+ * of those is one field, and the others must be left exactly as they were. A
+ * head teacher correcting a start time must not silently clear the capacity
+ * three hundred families have already been told about.
+ */
+describe('editing an activity already on the calendar', () => {
+  let service: ActivitiesService;
+
+  const prisma: any = {
+    activity: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    activityParticipant: {
+      create: jest.fn(),
+      upsert: jest.fn(),
+      findUnique: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    parentStudent: { findFirst: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.activity.findUnique.mockResolvedValue({
+      id: 'act-1',
+      audience: 'WHOLE_SCHOOL',
+      isCancelled: false,
+    });
+    prisma.activity.update.mockResolvedValue({ id: 'act-1' });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ActivitiesService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get(ActivitiesService);
+  });
+
+  it('changes every field it was given at once', async () => {
+    await service.update('act-1', {
+      title: 'Nyungwe forest trip',
+      description: 'Senior 2 biology field trip',
+      location: 'Nyungwe National Park',
+      kind: 'TRIP',
+      capacity: 30,
+      requiresConsent: true,
+      tracksAttendance: true,
+    });
+
+    expect(prisma.activity.update.mock.calls[0][0].data).toMatchObject({
+      title: 'Nyungwe forest trip',
+      description: 'Senior 2 biology field trip',
+      location: 'Nyungwe National Park',
+      kind: 'TRIP',
+      capacity: 30,
+      requiresConsent: true,
+      tracksAttendance: true,
+    });
+  });
+
+  it('changes nothing when nothing was sent', async () => {
+    await service.update('act-1', {});
+
+    expect(prisma.activity.update.mock.calls[0][0].data).toEqual({});
+  });
+
+  // Lifting a cap is sending null, which is different from not mentioning it.
+  it('lifts a capacity that was sent as nothing', async () => {
+    await service.update('act-1', { capacity: null });
+
+    expect(prisma.activity.update.mock.calls[0][0].data).toEqual({
+      capacity: null,
+    });
+  });
+
+  it('clears a place that was sent empty', async () => {
+    await service.update('act-1', { location: '' });
+
+    expect(prisma.activity.update.mock.calls[0][0].data).toEqual({
+      location: '',
+    });
+  });
+
+  // Turning permission slips off is sending false, which a truthiness check
+  // would have read as "not mentioned".
+  it('turns permission slips off rather than ignoring it', async () => {
+    await service.update('act-1', {
+      requiresConsent: false,
+      tracksAttendance: false,
+    });
+
+    expect(prisma.activity.update.mock.calls[0][0].data).toEqual({
+      requiresConsent: false,
+      tracksAttendance: false,
+    });
+  });
+});
+
+describe('what one student has coming up', () => {
+  let service: ActivitiesService;
+
+  const prisma: any = {
+    activity: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    activityParticipant: {
+      create: jest.fn(),
+      upsert: jest.fn(),
+      findUnique: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    parentStudent: { findFirst: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.student.findUnique.mockResolvedValue({
+      userId: 'user-1',
+      classSectionId: 'section-1',
+      classSection: { classLevelId: 'level-1' },
+    });
+    prisma.activity.findMany.mockResolvedValue([]);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ActivitiesService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get(ActivitiesService);
+  });
+
+  it('looks only forward from the date it was given', async () => {
+    await service.forStudent('student-1', '2026-09-01');
+
+    const where = prisma.activity.findMany.mock.calls[0][0].where;
+    expect(where.startsAt.gte).toBeInstanceOf(Date);
+  });
+
+  it('looks across the whole calendar when given no date', async () => {
+    await service.forStudent('student-1');
+
+    expect(
+      prisma.activity.findMany.mock.calls[0][0].where.startsAt,
+    ).toBeUndefined();
+  });
+});
