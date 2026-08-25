@@ -862,3 +862,126 @@ describe('a report card with elective subjects on it', () => {
     expect(html).not.toMatch(/Debate/);
   });
 });
+
+/**
+ * The verification strip, and a school with its own crest and colour.
+ *
+ * A printed report card carries a QR and a code so the next school can check
+ * it against the digital original. The strip only appears once a code has
+ * been allocated, and the crest only once a logo has been uploaded, so a
+ * school midway through setting itself up sees a different sheet.
+ */
+describe('a fully set-up school printing a card', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  const student = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-231419-167',
+    classSectionId: 'section-1',
+    gender: 'FEMALE',
+    dateOfBirth: new Date('2010-04-02'),
+    disciplinePoints: 96,
+    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    classSection: {
+      name: 'A',
+      classLevel: { name: 'Senior 1', stage: 'O_LEVEL' },
+      trade: null,
+    },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pdf.mockResolvedValue(Buffer.from('%PDF-1.4 fake'));
+    newPage.mockResolvedValue({ setContent, pdf, close });
+    launch.mockResolvedValue({ newPage, close });
+
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.student.findUnique.mockResolvedValue(student);
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        subjectId: 's-1',
+        score: 78,
+        maxScore: 100,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'End of Term Exam' },
+        termId: 'term-1',
+      },
+    ]);
+    prisma.termResult.findFirst.mockResolvedValue({
+      id: 'res-1',
+      average: 78,
+      letterGrade: 'B',
+      rank: 4,
+      aggregate: 20,
+      aggregateMax: 54,
+    });
+    prisma.termResult.findMany.mockResolvedValue([{ average: 70 }]);
+    prisma.teacherRole.findFirst.mockResolvedValue({
+      teacher: { user: { firstName: 'Aline', lastName: 'Uwase' } },
+    });
+    prisma.attendance.count.mockResolvedValue(60);
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'school_name', value: 'Markova Technical School' },
+      { key: 'school_address', value: 'KG 11 Ave, Kigali' },
+      { key: 'school_email', value: 'info@markova.edu' },
+      { key: 'school_phone', value: '+250788000001' },
+      { key: 'primary_color', value: '#0F4C81' },
+    ]);
+    prisma.reportVerification.findUnique.mockResolvedValue({
+      code: '1234-5678-9012',
+      createdAt: new Date('2026-12-01'),
+    });
+  });
+
+  it('prints the verification strip with its QR', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/Report verification/);
+    expect(html).toMatch(/alt="QR code/);
+    expect(html).toMatch(/1234-5678-9012/);
+  });
+
+  it('uses the schools own colour rather than the brand navy', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/#0F4C81/);
+  });
+
+  // With nothing uploaded the bundled Markova mark is used, so a school that
+  // has not got round to branding still prints a crest rather than a gap.
+  it('falls back to the bundled crest when nothing is uploaded', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/class="crest-img"/);
+  });
+
+  it('prints the address, email and phone on one line', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/KG 11 Ave, Kigali/);
+    expect(html).toMatch(/info@markova\.edu/);
+    expect(html).toMatch(/\+250788000001/);
+  });
+
+  // The document number ends in the tail of the student's own number, so two
+  // cards printed the same day are still tellable apart.
+  it('ends the document number with the tail of the student number', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/\/167</);
+  });
+
+  it('names the class teacher who signed it off', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/Aline Uwase/);
+  });
+
+  it('says what the aggregate is counted from', async () => {
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/9 core subjects only/);
+  });
+});
