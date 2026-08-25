@@ -512,3 +512,102 @@ describe('LibraryService', () => {
     });
   });
 });
+
+/**
+ * The catalogue read back with the filters a librarian uses.
+ *
+ * A category filter is how somebody finds the science shelf, and a book that
+ * has since been removed is what a stale list gives back. Both have to behave
+ * rather than throwing at a counter with a queue in front of it.
+ */
+describe('finding a book, and failing to', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: LibraryService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new LibraryService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+    );
+    prisma.book.findMany.mockResolvedValue([]);
+    prisma.book.count.mockResolvedValue(0);
+    prisma.book.findUnique.mockResolvedValue(null);
+    prisma.book.findFirst.mockResolvedValue(null);
+  });
+
+  it('narrows to one shelf when a category is named', async () => {
+    await service.findAll({ category: 'SCIENCE' } as never);
+
+    expect(prisma.book.findMany.mock.calls[0][0].where.category).toBe(
+      'SCIENCE',
+    );
+  });
+
+  it('shows the whole catalogue when none is', async () => {
+    await service.findAll({} as never);
+
+    expect(
+      prisma.book.findMany.mock.calls[0][0].where.category,
+    ).toBeUndefined();
+  });
+
+  it('refuses to read a book that is not there', async () => {
+    await expect(service.findById('gone')).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to delete one that is not there', async () => {
+    await expect(service.deleteBook('gone')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('refuses to change one that is not there', async () => {
+    await expect(
+      service.updateBook('gone', { title: 'x' } as never),
+    ).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('the shelves in a catalogue nobody has categorised', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: LibraryService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new LibraryService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+    );
+    prisma.book.count.mockResolvedValue(0);
+    prisma.book.aggregate.mockResolvedValue({ _sum: {} });
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.bookLoan.groupBy.mockResolvedValue([]);
+    prisma.book.findMany.mockResolvedValue([]);
+  });
+
+  it('counts nought copies for a shelf the sum came back empty for', async () => {
+    prisma.book.groupBy.mockResolvedValue([
+      { category: null, _count: 3, _sum: { quantity: null } },
+    ]);
+
+    const stats = await service.getAnalytics();
+    expect(stats.categories[0]).toMatchObject({
+      category: 'Uncategorized',
+      count: 3,
+      totalCopies: 0,
+    });
+  });
+
+  it('counts the copies when the sum came back with a number', async () => {
+    prisma.book.groupBy.mockResolvedValue([
+      { category: 'SCIENCE', _count: 3, _sum: { quantity: 12 } },
+    ]);
+
+    const stats = await service.getAnalytics();
+    expect(stats.categories[0]).toMatchObject({
+      category: 'SCIENCE',
+      totalCopies: 12,
+    });
+  });
+});
