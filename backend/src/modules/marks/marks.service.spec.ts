@@ -980,3 +980,201 @@ describe('a whole class entered at once', () => {
     expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Ranking, comments, and a school that starts everyone at nothing.
+ *
+ * A rank puts a child in front of or behind their friends, so ties and
+ * missing averages have to land somewhere defined. The comments are the other
+ * half: a head teacher clearing one they wrote by mistake must actually
+ * clear it.
+ */
+describe('ranking a class', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.update.mockResolvedValue({});
+    prisma.termResult.upsert.mockImplementation((args: any) =>
+      Promise.resolve({ id: `res-${args.create.studentId}`, ...args.create }),
+    );
+  });
+
+  it('puts the highest average first', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 100 },
+      { id: 's-2', disciplinePoints: 100 },
+    ]);
+    prisma.mark.findMany.mockImplementation((args: any) =>
+      Promise.resolve(
+        args.where.studentId === 's-1'
+          ? [
+              {
+                subjectId: 'sub-1',
+                score: 10,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ]
+          : [
+              {
+                subjectId: 'sub-1',
+                score: 18,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ],
+      ),
+    );
+
+    await service.calculateTermResults('section-1', 'term-1');
+
+    const ranked = prisma.termResult.update.mock.calls.map(
+      (c: any[]) => c[0].data.rank,
+    );
+    expect(ranked).toEqual([1, 2]);
+    // The better average is written first, which is rank one.
+    const first = prisma.termResult.update.mock.calls[0][0].where.id;
+    expect(first).toBe('res-s-2');
+  });
+
+  // A student with nothing marked has no result to rank. Writing them a row
+  // with an average of nought would put a zero on their report card for a
+  // term nobody has marked yet.
+  it('leaves a student with no marks out of the ranking entirely', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 100 },
+      { id: 's-2', disciplinePoints: 100 },
+    ]);
+    prisma.mark.findMany.mockImplementation((args: any) =>
+      Promise.resolve(
+        args.where.studentId === 's-1'
+          ? [
+              {
+                subjectId: 'sub-1',
+                score: 18,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ]
+          : [],
+      ),
+    );
+
+    await service.calculateTermResults('section-1', 'term-1');
+
+    expect(prisma.termResult.update).toHaveBeenCalledTimes(1);
+    expect(prisma.termResult.update.mock.calls[0][0].where.id).toBe('res-s-1');
+    expect(prisma.termResult.update.mock.calls[0][0].data.rank).toBe(1);
+  });
+});
+
+describe('a school that starts nobody with conduct points', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findMany.mockResolvedValue([{ id: 'term-1' }]);
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 0 },
+    ]);
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.yearResult.upsert.mockImplementation((args: any) =>
+      Promise.resolve({ id: 'yr-1', ...args.create }),
+    );
+    prisma.yearResult.update.mockResolvedValue({});
+  });
+
+  it('records no conduct average rather than dividing by nothing', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue({
+      key: 'starting_discipline_points',
+      value: '0',
+    });
+
+    await service.calculateYearResults('section-1', 'year-1');
+
+    expect(
+      prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+    ).toBeNull();
+  });
+
+  it('works it out as a percentage when there is a ceiling', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue({
+      key: 'starting_discipline_points',
+      value: '100',
+    });
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 90 },
+    ]);
+
+    await service.calculateYearResults('section-1', 'year-1');
+
+    expect(
+      prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+    ).toBe(90);
+  });
+});
+
+describe('the comments on a result', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.termResult.update.mockResolvedValue({});
+    prisma.termResult.findUnique.mockResolvedValue({ id: 'res-1' });
+  });
+
+  it('refuses a result that is not there', async () => {
+    prisma.termResult.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.updateTermResultComment('gone', { teacherComment: 'x' } as never),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('writes both when both were sent', async () => {
+    await service.updateTermResultComment('res-1', {
+      teacherComment: 'Steady work all term.',
+      headmasterComment: 'Keep it up.',
+    } as never);
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      teacherComment: 'Steady work all term.',
+      headmasterComment: 'Keep it up.',
+    });
+  });
+
+  it('leaves the head teachers alone when only the teacher wrote', async () => {
+    await service.updateTermResultComment('res-1', {
+      teacherComment: 'Steady work.',
+    } as never);
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      teacherComment: 'Steady work.',
+    });
+  });
+
+  // Clearing a comment is not the same as leaving it alone, or one written by
+  // mistake could never be taken off the card.
+  it('clears one that was sent empty', async () => {
+    await service.updateTermResultComment('res-1', {
+      headmasterComment: '',
+    } as never);
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      headmasterComment: '',
+    });
+  });
+});
