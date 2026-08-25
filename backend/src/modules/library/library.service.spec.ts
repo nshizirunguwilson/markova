@@ -526,10 +526,9 @@ describe('finding a book, and failing to', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new LibraryService(
-      prisma,
-      { send: jest.fn() } as unknown as NotificationsService,
-    );
+    service = new LibraryService(prisma, {
+      send: jest.fn(),
+    } as unknown as NotificationsService);
     prisma.book.findMany.mockResolvedValue([]);
     prisma.book.count.mockResolvedValue(0);
     prisma.book.findUnique.mockResolvedValue(null);
@@ -537,7 +536,7 @@ describe('finding a book, and failing to', () => {
   });
 
   it('narrows to one shelf when a category is named', async () => {
-    await service.findAll({ category: 'SCIENCE' } as never);
+    await service.findAll({ category: 'SCIENCE' });
 
     expect(prisma.book.findMany.mock.calls[0][0].where.category).toBe(
       'SCIENCE',
@@ -545,7 +544,7 @@ describe('finding a book, and failing to', () => {
   });
 
   it('shows the whole catalogue when none is', async () => {
-    await service.findAll({} as never);
+    await service.findAll({});
 
     expect(
       prisma.book.findMany.mock.calls[0][0].where.category,
@@ -557,15 +556,13 @@ describe('finding a book, and failing to', () => {
   });
 
   it('refuses to delete one that is not there', async () => {
-    await expect(service.deleteBook('gone')).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(service.deleteBook('gone')).rejects.toThrow(NotFoundException);
   });
 
   it('refuses to change one that is not there', async () => {
-    await expect(
-      service.updateBook('gone', { title: 'x' } as never),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.updateBook('gone', { title: 'x' })).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
 
@@ -575,10 +572,9 @@ describe('the shelves in a catalogue nobody has categorised', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new LibraryService(
-      prisma,
-      { send: jest.fn() } as unknown as NotificationsService,
-    );
+    service = new LibraryService(prisma, {
+      send: jest.fn(),
+    } as unknown as NotificationsService);
     prisma.book.count.mockResolvedValue(0);
     prisma.book.aggregate.mockResolvedValue({ _sum: {} });
     prisma.bookLoan.count.mockResolvedValue(0);

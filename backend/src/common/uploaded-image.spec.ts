@@ -71,9 +71,7 @@ describe('an uploaded school image', () => {
       throw new Error('ENOENT');
     });
 
-    expect(() =>
-      validateUploadedImage('/uploads/branding/gone.png'),
-    ).toThrow();
+    expect(() => validateUploadedImage('/uploads/branding/gone.png')).toThrow();
     expect(unlinkSync).not.toHaveBeenCalled();
   });
 });

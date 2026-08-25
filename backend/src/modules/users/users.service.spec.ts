@@ -1249,7 +1249,7 @@ describe('changing which children a parent answers for', () => {
     await service.update('user-1', {
       studentIds: ['student-1', 'student-2'],
       relationship: 'Mother',
-    } as never);
+    });
 
     expect(prisma.parentStudent.deleteMany).toHaveBeenCalledWith({
       where: { parentUserId: 'user-1' },
@@ -1263,7 +1263,7 @@ describe('changing which children a parent answers for', () => {
   it('calls them a parent when no relationship was chosen', async () => {
     await service.update('user-1', {
       studentIds: ['student-1'],
-    } as never);
+    });
 
     expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
       'Parent',
@@ -1273,14 +1273,14 @@ describe('changing which children a parent answers for', () => {
   // Sending an empty list is how a family with no children left at the school
   // is recorded, and it has to actually clear them.
   it('clears every link when an empty list is sent', async () => {
-    await service.update('user-1', { studentIds: [] } as never);
+    await service.update('user-1', { studentIds: [] });
 
     expect(prisma.parentStudent.deleteMany).toHaveBeenCalled();
     expect(prisma.parentStudent.create).not.toHaveBeenCalled();
   });
 
   it('leaves the links alone when the form did not mention them', async () => {
-    await service.update('user-1', { firstName: 'Jean' } as never);
+    await service.update('user-1', { firstName: 'Jean' });
 
     expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
   });
@@ -1298,7 +1298,7 @@ describe('changing which children a parent answers for', () => {
 
     await service.update('user-2', {
       studentIds: ['student-1'],
-    } as never);
+    });
 
     expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
   });
