@@ -19,6 +19,8 @@ import { CreateActivityDto } from '../../modules/activities/dto';
 import { QueryAnalyticsDto } from '../../modules/analytics/dto';
 import { CreateBookDto } from '../../modules/library/dto';
 import { CreateHomeworkDto } from '../../modules/homework/dto';
+import { CreateUserDto } from '../../modules/users/dto/create-user.dto';
+import { UpdateUserDto } from '../../modules/users/dto/update-user.dto';
 
 /**
  * What the API refuses at the door.
@@ -390,4 +392,97 @@ describe('the smaller declarations', () => {
       }),
     ).toContain('dueDate');
   });
+});
+
+/**
+ * The two fields a person types by hand.
+ *
+ * A Rwandan national ID is sixteen digits, and the office writes it out in
+ * groups the way the card prints it. Boarding arrives as a checkbox from the
+ * web and as the word "false" from a CSV import, and "false" is a truthy
+ * string, so it needs reading before any conversion happens.
+ */
+describe('the national ID as it is typed in', () => {
+  const nid = '1200888012345601';
+
+  it.each([CreateUserDto, UpdateUserDto])(
+    'takes it written in the groups the card prints (%#)',
+    (cls) => {
+      const dto: any = plainToInstance(cls, {
+        nationalId: '1 2008 8 8012345 601',
+      });
+      expect(dto.nationalId).toBe(nid);
+    },
+  );
+
+  it.each([CreateUserDto, UpdateUserDto])(
+    'takes it written with no spaces at all (%#)',
+    (cls) => {
+      const dto: any = plainToInstance(cls, { nationalId: nid });
+      expect(dto.nationalId).toBe(nid);
+    },
+  );
+
+  // A CSV import can hand over a number rather than a string.
+  it.each([CreateUserDto, UpdateUserDto])(
+    'leaves a value that is not a string alone (%#)',
+    (cls) => {
+      const dto: any = plainToInstance(cls, { nationalId: 1234 });
+      expect(dto.nationalId).toBe(1234);
+    },
+  );
+
+  it.each([CreateUserDto, UpdateUserDto])(
+    'refuses one of the wrong length (%#)',
+    (cls) => {
+      expect(errorsOn(cls, { nationalId: '1 2008 8 01' })).toContain(
+        'nationalId',
+      );
+    },
+  );
+});
+
+describe('boarding, however it arrives', () => {
+  it.each([CreateUserDto, UpdateUserDto])(
+    'takes a real boolean (%#)',
+    (cls) => {
+      expect((plainToInstance(cls, { isBoarder: true }) as any).isBoarder).toBe(
+        true,
+      );
+      expect(
+        (plainToInstance(cls, { isBoarder: false }) as any).isBoarder,
+      ).toBe(false);
+    },
+  );
+
+  // "false" is a truthy string, so a CSV import that sent it would have made
+  // every day student a boarder.
+  it.each([CreateUserDto, UpdateUserDto])(
+    'reads the word false as false (%#)',
+    (cls) => {
+      expect(
+        (plainToInstance(cls, { isBoarder: 'false' }) as any).isBoarder,
+      ).toBe(false);
+    },
+  );
+
+  it.each([CreateUserDto, UpdateUserDto])(
+    'reads the word true as true (%#)',
+    (cls) => {
+      expect(
+        (plainToInstance(cls, { isBoarder: 'true' }) as any).isBoarder,
+      ).toBe(true);
+    },
+  );
+
+  // Anything else is "not said", which is different from "day student".
+  it.each([CreateUserDto, UpdateUserDto])(
+    'treats anything else as not said (%#)',
+    (cls) => {
+      expect(
+        (plainToInstance(cls, { isBoarder: 'maybe' }) as any).isBoarder,
+      ).toBeUndefined();
+      expect((plainToInstance(cls, {}) as any).isBoarder).toBeUndefined();
+    },
+  );
 });
