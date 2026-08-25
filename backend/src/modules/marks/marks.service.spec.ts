@@ -1034,7 +1034,10 @@ describe('ranking a class', () => {
       ),
     );
 
-    await service.calculateTermResults('section-1', 'term-1');
+    await service.calculateTermResults({
+      classSectionId: 'section-1',
+      termId: 'term-1',
+    } as never);
 
     const ranked = prisma.termResult.update.mock.calls.map(
       (c: any[]) => c[0].data.rank,
@@ -1069,7 +1072,10 @@ describe('ranking a class', () => {
       ),
     );
 
-    await service.calculateTermResults('section-1', 'term-1');
+    await service.calculateTermResults({
+      classSectionId: 'section-1',
+      termId: 'term-1',
+    } as never);
 
     expect(prisma.termResult.update).toHaveBeenCalledTimes(1);
     expect(prisma.termResult.update.mock.calls[0][0].where.id).toBe('res-s-1');
@@ -1101,7 +1107,10 @@ describe('a school that starts nobody with conduct points', () => {
       value: '0',
     });
 
-    await service.calculateYearResults('section-1', 'year-1');
+    await service.calculateYearResults({
+      classSectionId: 'section-1',
+      academicYearId: 'year-1',
+    } as never);
 
     expect(
       prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
@@ -1117,7 +1126,10 @@ describe('a school that starts nobody with conduct points', () => {
       { id: 's-1', disciplinePoints: 90 },
     ]);
 
-    await service.calculateYearResults('section-1', 'year-1');
+    await service.calculateYearResults({
+      classSectionId: 'section-1',
+      academicYearId: 'year-1',
+    } as never);
 
     expect(
       prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,

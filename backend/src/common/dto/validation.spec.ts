@@ -405,9 +405,9 @@ describe('the smaller declarations', () => {
 describe('the national ID as it is typed in', () => {
   const nid = '1200888012345601';
 
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes it written in the groups the card prints (%#)',
-    (cls) => {
+    (cls: any) => {
       const dto: any = plainToInstance(cls, {
         nationalId: '1 2008 8 8012345 601',
       });
@@ -415,26 +415,26 @@ describe('the national ID as it is typed in', () => {
     },
   );
 
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes it written with no spaces at all (%#)',
-    (cls) => {
+    (cls: any) => {
       const dto: any = plainToInstance(cls, { nationalId: nid });
       expect(dto.nationalId).toBe(nid);
     },
   );
 
   // A CSV import can hand over a number rather than a string.
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'leaves a value that is not a string alone (%#)',
-    (cls) => {
+    (cls: any) => {
       const dto: any = plainToInstance(cls, { nationalId: 1234 });
       expect(dto.nationalId).toBe(1234);
     },
   );
 
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'refuses one of the wrong length (%#)',
-    (cls) => {
+    (cls: any) => {
       expect(errorsOn(cls, { nationalId: '1 2008 8 01' })).toContain(
         'nationalId',
       );
@@ -443,9 +443,9 @@ describe('the national ID as it is typed in', () => {
 });
 
 describe('boarding, however it arrives', () => {
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'takes a real boolean (%#)',
-    (cls) => {
+    (cls: any) => {
       expect((plainToInstance(cls, { isBoarder: true }) as any).isBoarder).toBe(
         true,
       );
@@ -457,18 +457,18 @@ describe('boarding, however it arrives', () => {
 
   // "false" is a truthy string, so a CSV import that sent it would have made
   // every day student a boarder.
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'reads the word false as false (%#)',
-    (cls) => {
+    (cls: any) => {
       expect(
         (plainToInstance(cls, { isBoarder: 'false' }) as any).isBoarder,
       ).toBe(false);
     },
   );
 
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'reads the word true as true (%#)',
-    (cls) => {
+    (cls: any) => {
       expect(
         (plainToInstance(cls, { isBoarder: 'true' }) as any).isBoarder,
       ).toBe(true);
@@ -476,9 +476,9 @@ describe('boarding, however it arrives', () => {
   );
 
   // Anything else is "not said", which is different from "day student".
-  it.each([CreateUserDto, UpdateUserDto])(
+  it.each([CreateUserDto, UpdateUserDto] as any[])(
     'treats anything else as not said (%#)',
-    (cls) => {
+    (cls: any) => {
       expect(
         (plainToInstance(cls, { isBoarder: 'maybe' }) as any).isBoarder,
       ).toBeUndefined();
