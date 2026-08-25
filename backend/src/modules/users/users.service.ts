@@ -906,9 +906,14 @@ export class UsersService {
       where: { code: { startsWith: prefix } },
       orderBy: { code: 'desc' },
     });
-    const sequence = last
-      ? parseInt(last.code!.split('-').pop() || '0') + 1
-      : 1;
+    // A code left behind in an older shape has no number to continue from,
+    // and parsing it produced "TCH-2026-NaN", which the office then wrote on
+    // somebody's badge. Anything unreadable restarts the sequence.
+    const lastSequence = Number.parseInt(
+      last?.code?.split('-').pop() ?? '',
+      10,
+    );
+    const sequence = Number.isFinite(lastSequence) ? lastSequence + 1 : 1;
     return `${prefix}${String(sequence).padStart(digits, '0')}`;
   }
 }

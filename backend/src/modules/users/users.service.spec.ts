@@ -1097,3 +1097,120 @@ describe('linking a parent to their children', () => {
     expect(prisma.parentStudent.create).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The numbers a school hands out, at their edges.
+ *
+ * A student number carries a signed name code, and two students sharing a
+ * name and a year collide by design: the nonce is what separates them. A
+ * registration code carries a sequence that has to survive a malformed one
+ * left behind by an older version.
+ */
+describe('issuing numbers when they collide', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const student = {
+    role: 'STUDENT' as const,
+    firstName: 'Divine',
+    lastName: 'Niyonkuru',
+    email: 'd.niyonkuru@markova.edu',
+    password: 'Password123!',
+    classSectionId: 'section-1',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-1',
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
+      role: 'STUDENT',
+    });
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+    );
+    prisma.student.create.mockResolvedValue({});
+  });
+
+  it('tries again when the first number it builds is taken', async () => {
+    // The first candidate belongs to somebody; the second does not.
+    prisma.student.findUnique
+      .mockResolvedValueOnce({ id: 'student-9' })
+      .mockResolvedValue(null);
+
+    await service.create(student as never);
+
+    expect(prisma.student.findUnique).toHaveBeenCalledTimes(2);
+    expect(
+      prisma.student.create.mock.calls[0][0].data.studentIdNumber,
+    ).toMatch(/^STD-/);
+  });
+
+  // Fifty is far past the largest group of students sharing a name in a real
+  // roll, so reaching it means something else is wrong.
+  it('gives up rather than looping for ever', async () => {
+    prisma.student.findUnique.mockResolvedValue({ id: 'student-9' });
+
+    await expect(service.create(student as never)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(prisma.student.findUnique).toHaveBeenCalledTimes(50);
+  }, 20000);
+
+  it('dates the number from the enrolment rather than from today', async () => {
+    prisma.student.findUnique.mockResolvedValue(null);
+
+    await service.create({
+      ...student,
+      enrollmentDate: '2024-01-15',
+    } as never);
+
+    expect(
+      prisma.student.create.mock.calls[0][0].data.studentIdNumber,
+    ).toMatch(/^STD-2024-/);
+  });
+});
+
+describe('a registration code left behind in an odd shape', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const teacher = {
+    role: 'TEACHER' as const,
+    firstName: 'Aline',
+    lastName: 'Uwase',
+    email: 'a.uwase@markova.edu',
+    password: 'Password123!',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-1',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      role: 'TEACHER',
+    });
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+    );
+    prisma.teacher.create.mockResolvedValue({});
+  });
+
+  it('starts again from one when the last code has no number on it', async () => {
+    prisma.user.findFirst.mockResolvedValue({ code: 'TCH' });
+
+    await service.create(teacher as never);
+
+    // "TCH" split on "-" gives back "TCH", which is not a number, so the
+    // sequence restarts rather than becoming NaN.
+    expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
+      /^TCH-\d{4}-\d{3}$/,
+    );
+    expect(prisma.user.create.mock.calls[0][0].data.code).not.toMatch(/NaN/);
+  });
+});
