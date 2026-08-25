@@ -93,18 +93,20 @@ export class ReportsService implements OnModuleDestroy {
     await browser?.close().catch(() => undefined);
   }
 
-  private async htmlToPdf(
-    html: string,
-    opts?: { marginMm?: number },
-  ): Promise<Buffer> {
+  /**
+   * The margin is the caller's, in millimetres. A margin of nought hands the
+   * page over to the sheet's own CSS, which is how the full-bleed report card
+   * keeps its layout.
+   */
+  private async htmlToPdf(html: string, marginMm: number): Promise<Buffer> {
     const page = await this.newPage();
     try {
       await page.setContent(html, { waitUntil: 'load' });
-      const m = `${opts?.marginMm ?? 10}mm`;
+      const m = `${marginMm}mm`;
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        preferCSSPageSize: opts?.marginMm === 0,
+        preferCSSPageSize: marginMm === 0,
         margin: { top: m, right: m, bottom: m, left: m },
       });
       return Buffer.from(pdf);
@@ -374,7 +376,7 @@ export class ReportsService implements OnModuleDestroy {
   ): Promise<Buffer> {
     const html = await this.generateTermReportHtml(studentId, termId);
     // The report template is a full-bleed A4 sheet with its own margins.
-    return this.htmlToPdf(html, { marginMm: 0 });
+    return this.htmlToPdf(html, 0);
   }
 
   async generateClassReportCards(classSectionId: string, termId: string) {
@@ -1212,7 +1214,8 @@ export class ReportsService implements OnModuleDestroy {
   // The approved A4 report card. One full-bleed 210x297mm sheet; layout,
   // colors and structure are locked to the design signed off in review.
   private renderTermReportHtml(data: any, qrDataUri: string | null): string {
-    const navy = data.school.primaryColor || '#1B4F72';
+    // Already defaulted by sanitizeColor when the school set nothing.
+    const navy = data.school.primaryColor;
     const logo = logoDataUri(data.school.logoUrl);
     const isALevel = data.student.stage === 'A_LEVEL';
 
@@ -1582,7 +1585,8 @@ export class ReportsService implements OnModuleDestroy {
       signOff?: boolean;
     },
   ): string {
-    const navy = school.primaryColor || '#1B4F72';
+    // Already defaulted by sanitizeColor when the school set nothing.
+    const navy = school.primaryColor;
     const logo = logoDataUri(school.logoUrl);
     const stamp = logoDataUri(school.stampUrl);
     const signature = logoDataUri(school.signatureUrl);
