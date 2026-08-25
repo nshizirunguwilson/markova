@@ -1107,3 +1107,141 @@ describe('AuthService', () => {
     });
   });
 });
+
+/**
+ * Signing in the way each kind of person actually does.
+ *
+ * A teacher signs in with an email, a parent with a phone and no email at all.
+ * The one-time code follows the same split: it is emailed where there is an
+ * address and only logged where there is not, which is the difference between
+ * a parent who can sign in and one who cannot.
+ */
+describe('the two ways into the system', () => {
+  let service: AuthService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockJwt.sign.mockReturnValue('mock-token');
+    mockRedis.get.mockResolvedValue(null);
+    mockRedis.set.mockResolvedValue('OK');
+    mockPrisma.userSession.findMany.mockResolvedValue([]);
+    mockPrisma.userSession.create.mockResolvedValue({});
+    mockPrisma.userSession.updateMany.mockResolvedValue({ count: 1 });
+    mockNotifications.sendEmailToAddress.mockResolvedValue(undefined);
+    mockNotifications.sendSMSToPhone.mockResolvedValue(undefined);
+    mockConfig.get.mockImplementation((key: string) => {
+      const map: Record<string, string> = {
+        JWT_SECRET: 'test-jwt-secret',
+        JWT_REFRESH_SECRET: 'test-refresh-secret',
+        NODE_ENV: 'development',
+      };
+      return map[key];
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: RedisService, useValue: mockRedis },
+        { provide: JwtService, useValue: mockJwt },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: NotificationsService, useValue: mockNotifications },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+  });
+
+  it('looks a teacher up by their email', async () => {
+    mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+
+    await service.login({
+      email: 'a.uwase@markova.edu',
+      password: TEST_PASSWORD,
+    } as never);
+
+    expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
+      email: 'a.uwase@markova.edu',
+    });
+  });
+
+  // The first fifteen parents on a Rwandan school's roll have no email at all.
+  it('looks a parent up by their phone number', async () => {
+    mockPrisma.user.findFirst.mockResolvedValue(
+      makeUser({ role: 'PARENT', email: null }),
+    );
+
+    await service.login({
+      phone: '+250788100000',
+      password: TEST_PASSWORD,
+    } as never);
+
+    expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
+      phone: '+250788100000',
+    });
+  });
+
+  it('emails the code to somebody who has an address', async () => {
+    mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+
+    await service.login({
+      email: 'wilsonshizirungu@gmail.com',
+      password: TEST_PASSWORD,
+    } as never);
+
+    expect(mockNotifications.sendEmailToAddress).toHaveBeenCalled();
+  });
+
+  it('emails nobody when there is no address to email', async () => {
+    mockPrisma.user.findFirst.mockResolvedValue(makeUser({ email: null }));
+
+    const result: any = await service.login({
+      phone: '+250788000001',
+      password: TEST_PASSWORD,
+    } as never);
+
+    expect(mockNotifications.sendEmailToAddress).not.toHaveBeenCalled();
+    // The code still exists; in development it comes back for the demo.
+    expect(result.devOtp).toMatch(/^\d{6}$/);
+  });
+});
+
+/**
+ * A session whose user has since been deleted.
+ *
+ * The one-time code lives in Redis and outlives the row it points at. An
+ * account removed between the password and the code leaves a session id that
+ * verifies fine and resolves to nobody.
+ */
+describe('a code for an account that is gone', () => {
+  let service: AuthService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockJwt.sign.mockReturnValue('mock-token');
+    mockRedis.del.mockResolvedValue(1);
+    mockConfig.get.mockImplementation(() => 'x');
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: RedisService, useValue: mockRedis },
+        { provide: JwtService, useValue: mockJwt },
+        { provide: ConfigService, useValue: mockConfig },
+        { provide: NotificationsService, useValue: mockNotifications },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+  });
+
+  it('refuses rather than issuing tokens for nobody', async () => {
+    mockRedis.get.mockResolvedValue(
+      JSON.stringify({ userId: 'user-gone', otp: '123456', attempts: 0 }),
+    );
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.verifyOtp({ sessionId: 'session-1', otp: '123456' } as never),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+});
