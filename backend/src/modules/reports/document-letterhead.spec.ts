@@ -74,18 +74,27 @@ describe('the letterhead on an official document', () => {
     });
 
     it('prints the crest rather than the initials', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/class="crest-img"/);
       expect(doc.html).not.toMatch(/class="crest"/);
     });
 
     it('prints the motto', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/Learn, and lift others/);
     });
 
     it('prints the address, phone, email and website on one line', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/KG 11 Ave, Kigali/);
       expect(doc.html).toMatch(/\+250788000001/);
       expect(doc.html).toMatch(/info@markova\.edu/);
@@ -93,18 +102,27 @@ describe('the letterhead on an official document', () => {
     });
 
     it('prints the head teacher signature and the school stamp', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/class="sig-img"/);
       expect(doc.html).toMatch(/class="stamp-img"/);
     });
 
     it('names the school and its website in the footer', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/Issued by Markova TSS/);
     });
 
     it('carries the student number as the reference', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/STD-2026-001/);
     });
   });
@@ -119,36 +137,54 @@ describe('the letterhead on an official document', () => {
     });
 
     it('draws the school initials where the crest would be', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/class="crest">MA</);
     });
 
     it('leaves out the motto rather than printing an empty line', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toMatch(/class="motto"/);
     });
 
     it('leaves out the contact line', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toMatch(/class="addr"/);
     });
 
     it('leaves the signature and stamp out but keeps the sign-off', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).not.toMatch(/class="sig-img"/);
       expect(doc.html).not.toMatch(/class="stamp-img"/);
       expect(doc.html).toMatch(/Head Teacher/);
     });
 
     it('names the school in the footer with no website beside it', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/Issued by Markova TSS/);
       expect(doc.html).not.toMatch(/Issued by Markova TSS &nbsp;/);
     });
 
     it('falls back to an S when the school has no name either', async () => {
       prisma.schoolConfig.findMany.mockResolvedValue([]);
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/class="crest">S</);
     });
   });
@@ -182,7 +218,10 @@ describe('the letterhead on an official document', () => {
     });
 
     it('lowercases the status on the details table', async () => {
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/<td>active<\/td>/);
     });
 
@@ -192,7 +231,10 @@ describe('the letterhead on an official document', () => {
         status: null,
       });
 
-      const doc = await service.generateDocument('student-1', 'transfer_letter');
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
       expect(doc.html).toMatch(/<html/i);
       expect(doc.html).not.toMatch(/undefined|null<\/td>/);
     });
