@@ -312,3 +312,56 @@ describe('one dataset as a CSV', () => {
     );
   });
 });
+
+/**
+ * An attendance export whose students are no longer on the roll.
+ *
+ * The register is exported flat and the names are joined back afterwards, so
+ * a student who has since left has a row with nothing to join to. The row
+ * still belongs on the sheet — dropping it would make the export disagree with
+ * the register it came from — but it must not carry the word undefined.
+ */
+describe('exporting a register for students who have left', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.attendance.findMany.mockResolvedValue([
+      {
+        studentId: 'student-gone',
+        date: new Date('2026-08-20'),
+        status: 'ABSENT',
+        reasonCategory: null,
+      },
+    ]);
+  });
+
+  it('keeps the row with the name column blank', async () => {
+    prisma.student.findMany.mockResolvedValue([]);
+
+    const { csv } = await service.exportDatasetCsv('attendance');
+    expect(csv).toContain('ABSENT');
+    expect(csv).not.toMatch(/undefined/);
+  });
+
+  it('leaves the student number blank too', async () => {
+    prisma.student.findMany.mockResolvedValue([]);
+
+    const { csv } = await service.exportDatasetCsv('attendance');
+    const row = csv.trim().split('\n').pop() ?? '';
+    // Two empty leading columns where the number and the name would be.
+    expect(row.startsWith(',,') || row.startsWith('"",""')).toBe(true);
+  });
+
+  it('names a student whose record has no user behind it as blank', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { id: 'student-gone', studentIdNumber: 'STD-2026-001' },
+    ]);
+
+    const { csv } = await service.exportDatasetCsv('attendance');
+    expect(csv).toContain('STD-2026-001');
+    expect(csv).not.toMatch(/undefined/);
+  });
+});
