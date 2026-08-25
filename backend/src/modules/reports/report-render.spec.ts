@@ -397,3 +397,253 @@ describe('the year report', () => {
     );
   });
 });
+
+/**
+ * The TVET report card.
+ *
+ * An A-Level sheet in the Rwandan system is a different document from an
+ * O-Level one: modules rather than subjects, split into general and trade
+ * specific, a practical column, and a competence verdict instead of a written
+ * remark. Nothing about that layout was rendered by any test, which meant the
+ * card handed to half a TVET school's students had never been drawn.
+ */
+describe('a TVET report card', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  const tvetStudent = {
+    id: 'student-9',
+    studentIdNumber: 'STD-2026-009',
+    classSectionId: 'section-9',
+    gender: 'MALE',
+    dateOfBirth: new Date('2007-02-14'),
+    disciplinePoints: 96,
+    user: { firstName: 'Manzi', lastName: 'Habimana', photoUrl: null },
+    classSection: {
+      name: 'A',
+      classLevel: { name: 'Level 4', stage: 'A_LEVEL' },
+      trade: { code: 'SWD', name: 'Software Development', sector: 'ICT' },
+    },
+  };
+
+  /** One module's marks, at the weights the A-Level scheme uses. */
+  const marksFor = (
+    subjectId: string,
+    name: string,
+    scope: string,
+    pcts: Record<string, number>,
+  ) =>
+    Object.entries(pcts).map(([type, pct]) => ({
+      subjectId,
+      score: pct,
+      maxScore: 100,
+      subject: { name, scope },
+      assessmentType: { name: type },
+      termId: 'term-1',
+    }));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pdf.mockResolvedValue(Buffer.from('%PDF-1.4 fake'));
+    close.mockResolvedValue(undefined);
+    newPage.mockResolvedValue({ setContent, pdf, close });
+    launch.mockResolvedValue({ newPage, close });
+
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+
+    prisma.student.findUnique.mockResolvedValue(tvetStudent);
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([
+      ...marksFor('sub-1', 'Entrepreneurship', 'A_GENERAL', {
+        'CAT 1': 70,
+        'CAT 2': 75,
+        'End of Term Exam': 68,
+      }),
+      ...marksFor('sub-2', 'Web Development', 'A_SPECIFIC', {
+        'CAT 1': 80,
+        'CAT 2': 78,
+        Practical: 85,
+        'End of Term Exam': 74,
+      }),
+      ...marksFor('sub-3', 'Database Design', 'A_SPECIFIC', {
+        'CAT 1': 40,
+        'CAT 2': 42,
+        Practical: 38,
+        'End of Term Exam': 45,
+      }),
+    ]);
+    prisma.termResult.findFirst.mockResolvedValue({
+      id: 'res-9',
+      average: 68,
+      letterGrade: 'B',
+      rank: 2,
+      aggregate: 18,
+      aggregateMax: 45,
+    });
+    prisma.termResult.findMany.mockResolvedValue([{ average: 64 }]);
+    prisma.teacherRole.findFirst.mockResolvedValue({
+      teacher: { user: { firstName: 'Aline', lastName: 'Uwase' } },
+    });
+    prisma.attendance.count.mockResolvedValue(58);
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'school_name', value: 'Markova TSS' },
+      { key: 'primary_color', value: '#1B4F72' },
+    ]);
+    prisma.reportVerification.findUnique.mockResolvedValue({
+      code: '1234-5678-9012',
+      createdAt: new Date('2026-12-01'),
+    });
+  });
+
+  it('titles the sheet as Advanced Level', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/Advanced Level \(TVET\)/);
+    expect(html).not.toMatch(/Ordinary Level Report/);
+  });
+
+  it('names the trade rather than the level', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/Software Development/);
+    expect(html).toMatch(/SWD/);
+  });
+
+  it('splits the modules into general and trade specific', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/General modules/);
+    expect(html).toMatch(/Specific modules/);
+    expect(html).toMatch(/Entrepreneurship/);
+    expect(html).toMatch(/Web Development/);
+  });
+
+  it('carries a practical column, which O-Level has not', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/Practical/);
+    expect(html).toMatch(/Module<\/th>/);
+  });
+
+  it('gives a competence verdict rather than a written remark', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/Competence/);
+    // One module was passed on the practical and one was not.
+    expect(html).toMatch(/Competent/);
+    expect(html).toMatch(/Not yet competent/i);
+  });
+
+  it('states the weightings the two module groups are marked on', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/CAT 1 20% \+ CAT 2 20% \+ Exam 60%/);
+    expect(html).toMatch(/CAT 1 15% \+ CAT 2 15% \+ Practical 30% \+ Exam 40%/);
+  });
+
+  it('still draws when the trade has no name recorded', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...tvetStudent,
+      classSection: {
+        ...tvetStudent.classSection,
+        trade: { code: 'SWD', name: null, sector: null },
+      },
+    });
+
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/<html/i);
+    expect(html).not.toMatch(/undefined|null<\/b>/);
+  });
+
+  it('draws a module nothing has been marked against yet', async () => {
+    prisma.mark.findMany.mockResolvedValue(
+      marksFor('sub-4', 'Networking', 'A_SPECIFIC', {}),
+    );
+
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/<html/i);
+    expect(html).not.toMatch(/undefined/);
+  });
+});
+
+/**
+ * The conduct line, which is one word chosen from five bands.
+ *
+ * It goes on every card the school issues, and a fixture at ninety-two only
+ * ever prints "Very Good".
+ */
+describe('the conduct verdict on a card', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  const baseStudent = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-001',
+    classSectionId: 'section-1',
+    gender: 'FEMALE',
+    dateOfBirth: new Date('2010-04-02'),
+    disciplinePoints: 92,
+    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    classSection: {
+      name: 'A',
+      classLevel: { name: 'Senior 1', stage: 'O_LEVEL' },
+      trade: null,
+    },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pdf.mockResolvedValue(Buffer.from('%PDF-1.4 fake'));
+    newPage.mockResolvedValue({ setContent, pdf, close });
+    launch.mockResolvedValue({ newPage, close });
+
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.findFirst.mockResolvedValue(null);
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.teacherRole.findFirst.mockResolvedValue(null);
+    prisma.attendance.count.mockResolvedValue(0);
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+    prisma.reportVerification.findUnique.mockResolvedValue(null);
+  });
+
+  const cardFor = async (disciplinePoints: number | null) => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...baseStudent,
+      disciplinePoints,
+    });
+    return service.generateTermReportHtml('student-1', 'term-1');
+  };
+
+  it.each([
+    [98, 'Excellent'],
+    [90, 'Very Good'],
+    [78, 'Good'],
+    [60, 'Fair'],
+    [30, 'Poor'],
+  ])('calls %i points %s', async (points, verdict) => {
+    expect(await cardFor(points)).toMatch(new RegExp(verdict));
+  });
+
+  it('says nothing at all when no conduct is on record', async () => {
+    const html = await cardFor(null);
+    expect(html).toMatch(/<html/i);
+    expect(html).not.toMatch(/Excellent|Very Good|Poor/);
+  });
+
+  it('draws a dash for attendance nobody recorded', async () => {
+    prisma.attendance.count.mockResolvedValue(0);
+    const html = await cardFor(92);
+    expect(html).toMatch(/<html/i);
+    expect(html).not.toMatch(/NaN/);
+  });
+});

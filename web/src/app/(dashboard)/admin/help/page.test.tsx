@@ -512,3 +512,81 @@ describe("how a ticket's state reads", () => {
     expect(badge.className).not.toBe("");
   });
 });
+
+/**
+ * An article filed under nothing, and a save that is still in flight.
+ *
+ * Categories are optional, so an article written in a hurry has none, and it
+ * still has to open for editing with the box blank rather than showing the
+ * word "null" in it.
+ */
+describe("an article with no category", () => {
+  const uncategorised = [{ ...faqs[0], id: "faq-x", category: null }];
+
+  it("opens for editing with the category box empty", async () => {
+    serve(h.api, { ...routes, "/help/faqs/admin": uncategorised });
+    renderPage(AdminHelpPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(faqs[0].title)).toBeInTheDocument(),
+    );
+
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      (within(dialog).getByLabelText(/^category$/i) as HTMLInputElement).value,
+    ).toBe("");
+  });
+
+  it("saves it back without inventing a category", async () => {
+    serve(h.api, { ...routes, "/help/faqs/admin": uncategorised });
+    renderPage(AdminHelpPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(faqs[0].title)).toBeInTheDocument(),
+    );
+
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+    h.api.patch.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() => expect(h.api.patch).toHaveBeenCalled());
+    expect((h.api.patch.mock.calls[0][1] as any).category).toBeFalsy();
+  });
+});
+
+describe("while an article is being saved", () => {
+  it("refuses a second press rather than writing it twice", async () => {
+    serve(h.api, {
+      ...routes,
+      // The save never settles, which is what a slow school connection looks
+      // like from the office.
+      "/help/faqs": () => new Promise(() => {}),
+    });
+    renderPage(AdminHelpPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(faqs[0].title)).toBeInTheDocument(),
+    );
+
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+    const save = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim()))!;
+
+    await click(save);
+
+    await waitFor(() =>
+      expect(
+        within(dialog)
+          .getAllByRole("button")
+          .find((b) => /^(save|update)/i.test((b.textContent ?? "").trim())) ??
+          within(dialog).getAllByRole("button").at(-1),
+      ).toBeDisabled(),
+    );
+  });
+});

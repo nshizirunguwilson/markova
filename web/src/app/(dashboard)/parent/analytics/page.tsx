@@ -25,7 +25,7 @@ export default function ParentAnalyticsPage() {
         const links = res.data?.parentStudents || [];
         const kids = links.map((ps: any) => ({
           id: ps.student.id,
-          name: `${ps.student.user.firstName} ${ps.student.user.lastName}`,
+          name: `${ps.student?.user?.firstName} ${ps.student?.user?.lastName}`,
         }));
         setChildren(kids);
         if (kids.length > 0) setSelectedChild(kids[0].id);

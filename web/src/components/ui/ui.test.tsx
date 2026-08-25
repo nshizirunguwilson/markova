@@ -369,3 +369,131 @@ describe("keyboard focus inside a modal", () => {
     expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
   });
 });
+
+/**
+ * The modal's focus trap.
+ *
+ * A dialog that lets Tab wander onto the page behind it is unusable with a
+ * keyboard and fails WCAG, and the two ends of the cycle are opposite arms of
+ * the same branch: Tab off the last control wraps to the first, Shift+Tab off
+ * the first wraps to the last.
+ */
+describe("Modal keyboard handling", () => {
+  const withThreeButtons = (onClose = vi.fn()) => (
+    <Modal isOpen onClose={onClose} title="Add book">
+      <button type="button">One</button>
+      <button type="button">Two</button>
+      <button type="button">Three</button>
+    </Modal>
+  );
+
+  it("wraps forward from the last control to the first", async () => {
+    render(withThreeButtons());
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    const last = focusable[focusable.length - 1];
+    last.focus();
+
+    await userEvent.setup().keyboard("{Tab}");
+
+    expect(document.activeElement).toBe(focusable[0]);
+  });
+
+  it("wraps backward from the first control to the last", async () => {
+    render(withThreeButtons());
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    // The modal focuses its first control on the next animation frame. Moving
+    // focus before that lands means the autofocus undoes what the trap did.
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+
+    await userEvent.setup().keyboard("{Shift>}{Tab}{/Shift}");
+
+    expect(document.activeElement).toBe(focusable[focusable.length - 1]);
+  });
+
+  it("leaves Shift+Tab alone in the middle of the cycle", async () => {
+    render(withThreeButtons());
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+    focusable[2].focus();
+
+    await userEvent.setup().keyboard("{Shift>}{Tab}{/Shift}");
+
+    // Only the first control wraps backwards; the rest are the browser's job.
+    expect(document.activeElement).not.toBe(focusable[focusable.length - 1]);
+  });
+
+  it("leaves Tab alone in the middle of the cycle", async () => {
+    render(withThreeButtons());
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+    focusable[1].focus();
+
+    await userEvent.setup().keyboard("{Tab}");
+
+    // The browser moves focus itself; the trap only intervenes at the ends.
+    expect(document.activeElement).not.toBe(focusable[1]);
+  });
+
+  it("ignores every key that is not Tab", async () => {
+    const onClose = vi.fn();
+    render(withThreeButtons(onClose));
+    const dialog = screen.getByRole("dialog");
+    const focusable = Array.from(dialog.querySelectorAll("button"));
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+
+    await userEvent.setup().keyboard("a");
+
+    expect(document.activeElement).toBe(focusable[0]);
+  });
+
+  it("does nothing on Tab in a dialog with nothing focusable in it", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(
+      <Modal isOpen onClose={vi.fn()} title="">
+        <p>Nothing to focus</p>
+      </Modal>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    // No title either, so it falls back to a generic accessible name rather
+    // than being an unnamed dialog.
+    expect(dialog).toHaveAttribute("aria-label", "Dialog");
+    // Nothing inside can hold focus, so the key has to be sent at the dialog
+    // itself rather than at whatever the browser focused.
+    expect(dialog.querySelector("button, input, a[href]")).toBeNull();
+
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(dialog).toBeInTheDocument();
+
+    // The dialog tries to focus its first control on the next frame and finds
+    // none, which must leave focus where it was rather than throwing.
+    await waitFor(() => expect(document.activeElement).toBe(document.body));
+  });
+
+  it("ignores Shift+Tab too when there is nothing to cycle", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(
+      <Modal isOpen onClose={vi.fn()} title="">
+        <p>Nothing to focus</p>
+      </Modal>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it("closes when the backdrop behind it is clicked", async () => {
+    const onClose = vi.fn();
+    const { container } = render(withThreeButtons(onClose));
+    const backdrop = container.querySelector(".fixed.inset-0.bg-black\\/40")!;
+
+    await userEvent.setup().click(backdrop);
+
+    expect(onClose).toHaveBeenCalled();
+  });
+});

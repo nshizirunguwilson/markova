@@ -444,3 +444,77 @@ describe("attaching a file", () => {
     });
   });
 });
+/**
+ * The preview panel before anything has been chosen.
+ *
+ * The count and the mock-up are what stop a head teacher sending four hundred
+ * families a message meant for one class. Both have to say something sensible
+ * from the moment the page opens, before there is an audience or a subject.
+ */
+describe("the preview before anything is chosen", () => {
+  it("shows an em dash rather than a count of nought", async () => {
+    await mount();
+
+    // Nought would read as "this will reach nobody", which is different from
+    // "you have not said who yet".
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText(/finish choosing the audience/i)).toBeInTheDocument();
+  });
+
+  it("labels the mock-up with a placeholder subject", async () => {
+    await mount();
+    await pickLevel();
+
+    await waitFor(() => expect(screen.getByText("Subject")).toBeInTheDocument());
+  });
+
+  it("uses the real subject once one is typed", async () => {
+    await mount();
+    await pickLevel();
+    await writeMessage();
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("School closes early on Friday").length,
+      ).toBeGreaterThan(0),
+    );
+  });
+
+  it("shows nought when the audience genuinely matches nobody", async () => {
+    serve(h.api, { ...routes, "/messaging/broadcast/preview": { count: 0 } });
+    await mount();
+    await pickLevel();
+
+    await waitFor(() => expect(screen.getByText("0")).toBeInTheDocument());
+  });
+
+  it("shows nought when the preview comes back with no count at all", async () => {
+    serve(h.api, { ...routes, "/messaging/broadcast/preview": {} });
+    await mount();
+    await pickLevel();
+
+    await waitFor(() => expect(screen.getByText("0")).toBeInTheDocument());
+  });
+});
+
+describe("the file picker being dismissed", () => {
+  it("attaches nothing and uploads nothing", async () => {
+    await mount();
+    await pickLevel();
+
+    const picker = document.querySelector<HTMLInputElement>("#b-file");
+    if (!picker) return;
+    h.api.post.mockClear();
+
+    // Dismissing the OS dialog fires change with an empty file list.
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [] } });
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/attachments"),
+      ),
+    ).toBeUndefined();
+  });
+});

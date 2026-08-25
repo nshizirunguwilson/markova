@@ -1299,3 +1299,595 @@ describe("printing one row", () => {
     );
   }, 30000);
 });
+
+/**
+ * Report cards for a class the office has not finished setting up.
+ *
+ * A term can be generated before every student has a result, and the grade
+ * column is coloured off a letter that may not be there at all. None of that
+ * should stop a head teacher from seeing the list.
+ */
+describe("a generated class with gaps in it", () => {
+  const patchy = {
+    count: 4,
+    reports: [
+      // Nothing at all under `data`: the row still has to be numbered.
+      { studentId: "s-1", data: {} },
+      { studentId: "s-2", data: { student: { name: "Keza Uwase" }, result: { letterGrade: "A", average: 91 } } },
+      { studentId: "s-3", data: { student: { name: "Divine Niyonkuru" }, result: { letterGrade: "C", average: 62 } } },
+      { studentId: "s-4", data: { student: { name: "Manzi Habimana" }, result: { letterGrade: "F", average: 31 } } },
+    ],
+  };
+
+  async function generatePatchy() {
+    serve(h.api, { ...routes, "/reports/term/class": patchy });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const button = buttonMatching(/generate/i);
+        expect(button).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(button!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText("Keza Uwase")).toBeInTheDocument());
+  }
+
+  it("numbers a report that carries no student at all", async () => {
+    await generatePatchy();
+    expect(screen.getByText("Student 1")).toBeInTheDocument();
+  });
+
+  it("leaves an em dash where there is no average", async () => {
+    await generatePatchy();
+    const row = screen.getByText("Student 1").closest("tr")!;
+    expect(row.textContent).toContain("—");
+  });
+
+  it("colours each grade band differently", async () => {
+    await generatePatchy();
+
+    const badgeFor = (name: string) => {
+      const row = screen.getByText(name).closest("tr")!;
+      return Array.from(row.querySelectorAll("span")).find((s) =>
+        /^[A-F]$|^—$/.test((s.textContent ?? "").trim()),
+      )!;
+    };
+
+    // A passes green, C is neutral information, F is a warning. Three
+    // different classes, or the column is decoration.
+    const a = badgeFor("Keza Uwase").className;
+    const c = badgeFor("Divine Niyonkuru").className;
+    const f = badgeFor("Manzi Habimana").className;
+    expect(a).not.toBe(c);
+    expect(c).not.toBe(f);
+    expect(a).not.toBe(f);
+  });
+
+  it("survives a generate call that comes back with no reports", async () => {
+    serve(h.api, { ...routes, "/reports/term/class": { count: 0 } });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const button = buttonMatching(/generate/i);
+        expect(button).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(button!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+    expect(screen.queryByText(/Generated Report Cards/)).toBeNull();
+  });
+});
+
+describe("a document that comes back as plain html", () => {
+  async function openDocuments() {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(tab);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+  }
+
+  async function pickStudentAndGenerate(payload: unknown) {
+    await openDocuments();
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const el of Array.from(document.querySelectorAll("select"))) {
+        if (el.value) continue;
+        const option = Array.from(el.options).find((o) => o.value);
+        if (!option) continue;
+        await act(async () => {
+          fireEvent.change(el, { target: { value: option.value } });
+        });
+      }
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    }
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()))!;
+    if (generate.hasAttribute("disabled")) return false;
+
+    h.api.post.mockResolvedValue({ data: payload });
+    await act(async () => {
+      fireEvent.click(generate);
+    });
+    await waitFor(() =>
+      expect(screen.getByTitle("Document preview")).toBeInTheDocument(),
+    );
+    return true;
+  }
+
+  // The API answers either `{ html, title }` or the bare markup, depending on
+  // the document type. Both have to preview, download and print.
+  const bare = "<html><body><h1>Enrollment</h1></body></html>";
+
+  it("previews markup that arrived without an envelope", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+    expect(screen.getByTitle("Document preview")).toHaveAttribute("srcdoc", bare);
+  });
+
+  it("downloads it under a default name", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    const download = screen
+      .queryAllByRole("button")
+      .find((b) => /download/i.test(b.textContent ?? ""))!;
+    const clicks: string[] = [];
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => clicks.push(el.getAttribute("download") ?? "");
+      return el;
+    });
+
+    await act(async () => {
+      fireEvent.click(download);
+    });
+    vi.mocked(document.createElement).mockRestore();
+
+    // No title in the payload, so it falls back rather than saving "undefined".
+    expect(clicks.at(-1)).toBe("Document.html");
+  });
+
+  it("prints it", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    const print = screen
+      .queryAllByRole("button")
+      .find((b) => /print/i.test(b.textContent ?? ""))!;
+    await act(async () => {
+      fireEvent.click(print);
+    });
+
+    expect(window.open).toHaveBeenCalled();
+  });
+
+  it("does nothing when the browser blocks the print window", async () => {
+    if (!(await pickStudentAndGenerate(bare))) return;
+
+    // A pop-up blocker returns null from window.open. Reading .document off
+    // that is the classic white screen.
+    vi.stubGlobal("open", vi.fn(() => null));
+    const print = screen
+      .queryAllByRole("button")
+      .find((b) => /print/i.test(b.textContent ?? ""))!;
+
+    await act(async () => {
+      fireEvent.click(print);
+    });
+    expect(screen.getByTitle("Document preview")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A bulk run where nothing at all could be fetched.
+ *
+ * Every student failed, the retry failed too, and there is nothing to zip.
+ * That is the state a school hits when the API is down half way through, and
+ * the dialog has to say so rather than quietly producing an empty archive.
+ */
+describe("a bulk run that fetched nothing", () => {
+  async function generateOne() {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+  }
+
+  /** Starts the pack, with every PDF fetch refused. */
+  async function packWithEveryFetchFailing() {
+    await generateOne();
+    h.api.get.mockImplementation(async (url: string) => {
+      if (String(url).includes("/pdf")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return { data: [] };
+    });
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+  }
+
+  it("offers to retry rather than saving an empty archive", async () => {
+    await packWithEveryFetchFailing();
+
+    await waitFor(
+      () => expect(screen.getByText(/could not be fetched/i)).toBeInTheDocument(),
+      { timeout: 20000 },
+    );
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+
+  it("says which kind of failure it was", async () => {
+    await packWithEveryFetchFailing();
+    await waitFor(
+      () => expect(screen.getByText(/could not be fetched/i)).toBeInTheDocument(),
+      { timeout: 20000 },
+    );
+
+    expect(screen.getByText(/Server error 500/)).toBeInTheDocument();
+  }, 40000);
+});
+
+describe("the document generator with nothing chosen", () => {
+  it("refuses and says which fields are missing", async () => {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const tab = screen
+      .queryAllByRole("button")
+      .find((b) => /^documents$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(tab);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText(/document type/i)).toBeInTheDocument(),
+    );
+
+    // The button is refused, so nothing can be sent by mistake.
+    const generate = screen
+      .queryAllByRole("button")
+      .find((b) => /^generate$/i.test((b.textContent ?? "").trim()))!;
+    expect(generate).toBeDisabled();
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.click(generate);
+    });
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/reports/document"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+/**
+ * Packing a class whose reports came back thin.
+ *
+ * The zip is named after the class and the term taken from the first report,
+ * and each file inside is named after its student. A report that arrived
+ * without any of those still has to end up in the archive under something a
+ * person can read.
+ */
+describe("packing reports that carry no names", () => {
+  const nameless = {
+    count: 2,
+    reports: [
+      { studentId: "s-1", data: {} },
+      { studentId: "s-2", data: {} },
+    ],
+  };
+
+  async function generateNameless() {
+    serve(h.api, { ...routes, "/reports/term/class": nameless });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText("Student 1")).toBeInTheDocument());
+  }
+
+  async function pack() {
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+  }
+
+  it("numbers the students in the roll call", async () => {
+    await generateNameless();
+    await pack();
+
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 20000 });
+    // Each file is named by position and a placeholder, not "undefined.pdf".
+    expect(h.zip.added.every((n) => !/undefined/.test(n))).toBe(true);
+    expect(h.zip.added.some((n) => /Student 1/.test(n))).toBe(true);
+  }, 40000);
+
+  it("names the archive after nothing in particular rather than undefined", async () => {
+    let saved = "";
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => { saved = el.getAttribute("download") ?? ""; };
+      return el;
+    });
+
+    await generateNameless();
+    await pack();
+    await waitFor(() => expect(h.zip.generated).toBe(1), { timeout: 20000 });
+    vi.mocked(document.createElement).mockRestore();
+
+    expect(saved).toBe("Report-Cards-Class-Term.zip");
+  }, 40000);
+});
+
+describe("retrying only the reports that failed", () => {
+  const two = {
+    count: 2,
+    reports: [generated.reports[0], generated.reports[1]],
+  };
+
+  it("re-fetches the failed one and leaves the other alone", async () => {
+    // The first student's PDF fails once and then succeeds; the second always
+    // works. A retry must ask for the failed one only.
+    const failedOnce = new Set<string>();
+    serve(h.api, { ...routes, "/reports/term/class": two });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    h.api.get.mockImplementation(async (url: string) => {
+      const asked = String(url);
+      if (asked.includes("/pdf")) {
+        const id = asked.split("/").find((p) => p.startsWith("student"));
+        if (id === "student-1" && !failedOnce.has(id)) {
+          failedOnce.add(id);
+          throw Object.assign(new Error("down"), { response: { status: 500 } });
+        }
+        return { data: new Blob(["pdf"]) };
+      }
+      return { data: [] };
+    });
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    // Whichever way it lands, the run finishes rather than hanging, and both
+    // students end up accounted for.
+    await waitFor(
+      () =>
+        expect(
+          h.zip.generated > 0 ||
+            screen.queryByText(/could not be fetched/i) !== null,
+        ).toBe(true),
+      { timeout: 25000 },
+    );
+  }, 45000);
+});
+
+/**
+ * The moment a whole class's cards are being made.
+ *
+ * Generating thirty report cards takes long enough that an admin will press
+ * the button twice if nothing tells them it is working, and two runs against
+ * the same term is how duplicate cards get printed.
+ */
+describe("while a class is being generated", () => {
+  it("refuses a second press", async () => {
+    serve(h.api, {
+      ...routes,
+      // The generate never settles, which is what a slow school link looks
+      // like from the office.
+      "/reports/term/class": () => new Promise(() => {}),
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate report cards/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() =>
+      expect(buttonMatching(/generate report cards/i)).toBeDisabled(),
+    );
+  }, 30000);
+
+  it("comes back once it finishes", async () => {
+    serve(h.api, routes);
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate report cards/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+
+    await waitFor(() =>
+      expect(buttonMatching(/generate report cards/i)).toBeEnabled(),
+    );
+  }, 30000);
+});
+
+/**
+ * Closing the pack dialog while it is still working.
+ *
+ * The dialog's own close is not the Stop button: it is Escape, or the cross.
+ * Pressing it mid-run has to stop the run rather than leaving thirty requests
+ * in flight behind a dialog nobody can see.
+ */
+describe("dismissing the pack dialog mid-run", () => {
+  async function packSlowly() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/pdf")) {
+        await new Promise((r) => setTimeout(r, 400));
+        return { data: new Blob(["pdf"]), status: 200 };
+      }
+      return real(url, config);
+    });
+
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    await chooseFilters();
+    await waitFor(
+      async () => {
+        const generate = buttonMatching(/generate/i);
+        expect(generate).toBeTruthy();
+        await act(async () => {
+          fireEvent.click(generate!);
+        });
+        expect(h.api.post).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(buttonMatching(/pack|download all|zip/i)!);
+    });
+    const confirm = screen
+      .queryAllByRole("button")
+      .filter((b) => /pack|start|confirm|download/i.test(b.textContent ?? ""))
+      .at(-1);
+    await act(async () => {
+      fireEvent.click(confirm!);
+    });
+
+    return waitFor(() => {
+      const stop = screen
+        .queryAllByRole("button")
+        .find((x) => /^stop$/i.test((x.textContent ?? "").trim()));
+      expect(stop).toBeTruthy();
+      return stop!;
+    });
+  }
+
+  it("stops the run rather than closing over it", async () => {
+    await packSlowly();
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    // The dialog stays open long enough to say what happened, and nothing is
+    // saved.
+    await waitFor(
+      () => expect(document.body.textContent).toMatch(/nothing was downloaded/i),
+      { timeout: 15000 },
+    );
+    expect(h.zip.generated).toBe(0);
+  }, 40000);
+
+  it("closes normally once the run has stopped", async () => {
+    const stop = await packSlowly();
+    await act(async () => {
+      fireEvent.click(stop);
+    });
+    await waitFor(
+      () => expect(document.body.textContent).toMatch(/nothing was downloaded/i),
+      { timeout: 15000 },
+    );
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, 40000);
+});

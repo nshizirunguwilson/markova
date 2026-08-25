@@ -432,3 +432,90 @@ describe("paging a long subject list", () => {
     expect((h.exportData.mock.calls[0][1] as any).data).toHaveLength(45);
   });
 });
+
+/**
+ * Subjects a school added in a hurry.
+ *
+ * A subject typed in during setup week carries a name and nothing else, and it
+ * still has to list, open for editing and export. The empty list is the very
+ * first screen a new school sees.
+ */
+describe("a school that has entered no subjects", () => {
+  it("says so rather than showing an empty table", async () => {
+    serve(h.api, { "/academic/subjects": [] });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+    expect(await screen.findByText("No subjects yet")).toBeInTheDocument();
+  });
+
+  it("will not let an empty list be exported", async () => {
+    serve(h.api, { "/academic/subjects": [] });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+    await screen.findByText("No subjects yet");
+
+    // Nothing to write, so the control is refused rather than producing an
+    // empty file the office then has to explain.
+    expect(button(/export/i)).toBeDisabled();
+  });
+});
+
+describe("a subject with only a name", () => {
+  const bare = [{ id: "subject-9", name: "Entrepreneurship" }];
+
+  it("draws an em dash for the category", async () => {
+    serve(h.api, { "/academic/subjects": bare });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText("Entrepreneurship")).closest("tr")!;
+    expect(row.textContent).toContain("—");
+  });
+
+  it("shows the usual hundred as the ceiling", async () => {
+    serve(h.api, { "/academic/subjects": bare });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText("Entrepreneurship")).closest("tr")!;
+    expect(row.textContent).toContain("100");
+  });
+
+  it("opens for editing with the category blank and marks at a hundred", async () => {
+    serve(h.api, { "/academic/subjects": bare });
+    renderPage(SubjectsPage, { role: "ADMIN" });
+    await screen.findByText("Entrepreneurship");
+
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+
+    expect(await screen.findByLabelText("Name")).toHaveValue("Entrepreneurship");
+    expect(screen.getByLabelText("Category")).toHaveValue("");
+    expect(screen.getByLabelText("Max Marks")).toHaveValue(100);
+  });
+});
+
+describe("the ceiling a subject is marked out of", () => {
+  async function openNew() {
+    await mount();
+    await click(button(/add subject|new subject/i));
+    await waitFor(() => expect(screen.getByLabelText("Name")).toBeInTheDocument());
+  }
+
+  it("refuses a subject marked out of nothing", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Art" } });
+      fireEvent.change(screen.getByLabelText("Max Marks"), { target: { value: "0" } });
+    });
+    await click(button(/^create$|^save$|^add$/i));
+
+    expect(await screen.findByText("Must be at least 1")).toBeInTheDocument();
+  });
+
+  it("refuses a ceiling no paper could carry", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Art" } });
+      fireEvent.change(screen.getByLabelText("Max Marks"), { target: { value: "5000" } });
+    });
+    await click(button(/^create$|^save$|^add$/i));
+
+    expect(await screen.findByText("Must be at most 1000")).toBeInTheDocument();
+  });
+});

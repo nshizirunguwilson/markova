@@ -33,10 +33,12 @@ export default defineConfig({
         // around pages in a way that shifts the total by a few statements
         // between runs, so a threshold set exactly at the measurement would
         // fail CI at random.
-        statements: 96,
-        branches: 85,
-        functions: 96,
-        lines: 97,
+        //
+        // Measured 98.17 / 97.04 / 97.77 / 98.65 on 25 August 2026.
+        statements: 97,
+        branches: 96,
+        functions: 97,
+        lines: 98,
       },
     },
   },

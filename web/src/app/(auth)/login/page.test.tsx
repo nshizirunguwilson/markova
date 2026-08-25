@@ -439,3 +439,126 @@ describe("resending the OTP", () => {
     expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Where each role lands, and the resend's own guards.
+ *
+ * A role the app does not know about still has to land somewhere real rather
+ * than on a blank screen, and the resend button has to refuse a second press
+ * while the first is still in flight: two codes issued a second apart is how
+ * someone locks themselves out.
+ */
+describe("where signing in sends each role", () => {
+  it.each([
+    ["ADMIN", "/admin"],
+    ["TEACHER", "/teacher"],
+    ["STUDENT", "/student"],
+    ["PARENT", "/parent"],
+    ["LIBRARIAN", "/librarian"],
+  ])("sends a %s to %s", async (role, path) => {
+    h.api.post.mockResolvedValue({
+      data: { ...tokens, user: { ...tokens.user, role } },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith(path));
+  });
+
+  it("sends a role it has never heard of to the admin dashboard", async () => {
+    // A role added on the server before the app knows about it. Landing
+    // somewhere real beats landing nowhere.
+    h.api.post.mockResolvedValue({
+      data: { ...tokens, user: { ...tokens.user, role: "BURSAR" } },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/admin"));
+  });
+});
+
+describe("the resend button's own guard", () => {
+  async function reachOtpStep() {
+    h.api.post.mockResolvedValue({ data: { requiresOtp: true, sessionId: "session-1" } });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() =>
+      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("sends nothing while the cooldown is still running", async () => {
+    await reachOtpStep();
+    h.api.post.mockClear();
+
+    const { act } = await import("@testing-library/react");
+    const resend = screen.getByRole("button", { name: /resend/i });
+    await act(async () => {
+      resend.click();
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/auth/resend-otp"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps the old session when the server sends no new one", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtpStep();
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    // A resend that reuses the session answers without a sessionId.
+    h.api.post.mockResolvedValue({ data: {} });
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+
+    h.api.post.mockClear();
+    h.api.post.mockResolvedValue({ data: tokens });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/verification code/i), {
+        target: { value: "123456" },
+      });
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: /verify & continue/i }).click();
+    });
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith("/auth/verify-otp", {
+        sessionId: "session-1",
+        otp: "123456",
+      }),
+    );
+    vi.useRealTimers();
+  }, 20000);
+
+  it("waits again when a resend that is not rate limited fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await reachOtpStep();
+
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      vi.advanceTimersByTime(31_000);
+    });
+
+    // A 500, not a 429: the button comes back rather than pretending to be
+    // rate limited.
+    h.api.post.mockRejectedValue({ response: { status: 500, data: {} } });
+    await act(async () => {
+      screen.getByRole("button", { name: /resend/i }).click();
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /resend/i })).toBeEnabled();
+    vi.useRealTimers();
+  }, 20000);
+});

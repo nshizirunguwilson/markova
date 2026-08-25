@@ -10,7 +10,13 @@ export interface Notification {
   type?: string;
   title: string;
   message: string;
-  read: boolean;
+  /**
+   * The column is `isRead` on the server (see the Notification model in
+   * backend/prisma/schema.prisma). Declaring it as `read` here meant every
+   * notification rendered as unread for ever: bold, tinted and carrying a
+   * dot, however many times it had been opened.
+   */
+  isRead: boolean;
   createdAt: string;
 }
 

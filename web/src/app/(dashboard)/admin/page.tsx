@@ -146,10 +146,26 @@ export default function AdminDashboard() {
     );
   }
 
-  const attendanceRate =
-    attendance?.totalStudents > 0
-      ? Math.round((attendance.presentCount / attendance.totalStudents) * 100)
-      : 0;
+  /**
+   * Today's attendance, as a percentage.
+   *
+   * The figures live under `overall` (see getDashboard in
+   * backend/src/modules/attendance/attendance.service.ts). Reading
+   * `attendance.totalStudents` and `attendance.presentCount` off the top level
+   * meant this card read 0% every day of the year, on the screen a head
+   * teacher looks at first.
+   *
+   * A late student is in school, so they count towards the rate; that is what
+   * the server's own `rate` does, and it is used when it is there.
+   */
+  const attendanceRate = (() => {
+    const overall = attendance?.overall;
+    if (!overall) return 0;
+    if (typeof overall.rate === "number") return Math.round(overall.rate);
+    const total = overall.totalStudents ?? 0;
+    if (total <= 0) return 0;
+    return Math.round((((overall.present ?? 0) + (overall.late ?? 0)) / total) * 100);
+  })();
 
   const statCards = [
     {
@@ -178,7 +194,7 @@ export default function AdminDashboard() {
     },
     {
       label: "Attendance Today",
-      value: attendance ? `${attendanceRate}%` : "—",
+      value: attendance?.overall ? `${attendanceRate}%` : "—",
       icon: Calendar,
       color: "text-cyan-600 bg-cyan-50",
     },
@@ -267,7 +283,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Attendance Rate (Today)</span>
               <span className="text-sm font-semibold text-foreground">
-                {attendance ? `${attendanceRate}%` : "—"}
+                {attendance?.overall ? `${attendanceRate}%` : "—"}
               </span>
             </div>
             <div className="h-2 rounded-full bg-surface-muted">

@@ -259,7 +259,7 @@ export default function TeacherMarksPage() {
               <option value="">Select assignment...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {classDisplayName(a.classSection)} — {a.subject.name}
+                  {classDisplayName(a.classSection)} — {a.subject?.name ?? "Subject"}
                 </option>
               ))}
             </select>

@@ -67,7 +67,11 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
           const rows = list
             .map(
               (p: any) =>
-                `${p.marker} ${p.seriesName}: <b>${p.value == null ? "–" : Number(p.value).toFixed(1) + "%"}</b>`,
+                // ECharts omits the marker on a series it has no swatch for,
+                // and the series name on a point outside every series.
+                `${p.marker ?? ""} ${p.seriesName ?? ""}: <b>${
+                  p.value == null ? "–" : Number(p.value).toFixed(1) + "%"
+                }</b>`,
             )
             .join("<br/>");
           return `${head}<br/>${rows}`;
@@ -136,7 +140,12 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         formatter: (p: any) => {
           const s = rows[p?.dataIndex ?? -1];
           if (!s) return "";
-          return `<b>${s.name}</b><br/>${s.total}% · Grade ${s.grade} (${s.points} points)`;
+          // A subject can arrive with a total but no aggregate points, which
+          // is how the Rwandan A-Level marksheet records module credits.
+          const points = s.points == null ? "" : ` (${s.points} points)`;
+          return `<b>${s.name ?? ""}</b><br/>${s.total ?? 0}% · Grade ${
+            s.grade ?? "–"
+          }${points}`;
         },
       },
       series: [

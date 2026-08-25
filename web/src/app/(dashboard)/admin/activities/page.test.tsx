@@ -841,3 +841,178 @@ describe("the rest of the create form", () => {
     );
   });
 });
+/**
+ * A permission a parent actually refused, and activities recorded thinly.
+ *
+ * "Refused" is the answer that matters most on a trip list, and it is the one
+ * a fixture built out of agreed-and-waiting never produces. The rest of this
+ * block covers activities entered with no place, no roll and no class named.
+ */
+describe("a permission that was refused", () => {
+  const refused = {
+    ...detail,
+    participants: [
+      { ...participants[0], id: "p-9", consent: "REFUSED" },
+      participants[1],
+    ],
+  };
+
+  it("marks the student who may not go", async () => {
+    serve(h.api, { ...routes, "/activities/act-1": refused });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    const student = screen.getByText(/Divine Niyonkuru/).closest("tr")!;
+    expect(within(student).getByText("Refused")).toBeInTheDocument();
+  });
+
+  it("colours a refusal differently from a permission still waiting", async () => {
+    serve(h.api, { ...routes, "/activities/act-1": refused });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    await click(within(row).getByRole("button", { name: /open/i }));
+    await waitFor(() =>
+      expect(screen.getByText("Refused")).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText("Refused").className).not.toBe(
+      screen.getByText("Waiting").className,
+    );
+  });
+});
+
+describe("an activity entered without its details", () => {
+  const thin = {
+    ...club,
+    id: "act-9",
+    title: "Reading hour",
+    location: null,
+    capacity: null,
+    audience: "SECTIONS",
+    sections: [],
+    classLevels: [],
+    _count: undefined,
+  };
+
+  async function mountThin() {
+    serve(h.api, {
+      ...routes,
+      "/activities": { data: [thin], meta: { total: 1, page: 1, limit: 25, totalPages: 1 } },
+    });
+    renderPage(ActivitiesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText("Reading hour")).toBeInTheDocument());
+    return screen.getByText("Reading hour").closest("tr")!;
+  }
+
+  it("draws an em dash where no place was named", async () => {
+    const row = await mountThin();
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("says nobody is signed up rather than leaving the count blank", async () => {
+    const row = await mountThin();
+    expect(within(row).getByText("0")).toBeInTheDocument();
+  });
+
+  it("falls back to a general audience when no class is named", async () => {
+    const row = await mountThin();
+    expect(within(row).getByText("Classes")).toBeInTheDocument();
+  });
+
+  it("names the classes when there are some", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities": {
+        data: [
+          {
+            ...thin,
+            audience: "SECTIONS",
+            sections: [{ classSection: { id: "s-1", name: "Senior 1 A" } }],
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 25, totalPages: 1 },
+      },
+    });
+    renderPage(ActivitiesPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(screen.getByText("Senior 1 A")).toBeInTheDocument());
+  });
+
+  it("leaves the capacity out of the heading when there is none", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/act-1": { ...detail, capacity: null },
+    });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/On the list \(2\)/)).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("adding a whole class from the picker", () => {
+  it("sends nothing when the picker is set back to its prompt", async () => {
+    await openDetail();
+    const picker = screen.getByLabelText("Class") as HTMLSelectElement;
+
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: "" } });
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/participants/class"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+/**
+ * An activity that needs no permission slip.
+ *
+ * A debate club does not; a forest trip does. The consent summary is only
+ * fetched for the second kind, because asking for it on every club would put
+ * a "0 of 0 answered" panel on screens that have nothing to answer.
+ */
+describe("an activity that asks for no permission", () => {
+  it("does not fetch a consent summary for it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/act-1": { ...detail, requiresConsent: false },
+    });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    h.api.get.mockClear();
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/consent")),
+    ).toBe(false);
+  });
+
+  it("shows no permission column on its list", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/act-1": { ...detail, requiresConsent: false },
+    });
+    await mount();
+    const row = screen.getByText("Nyungwe forest trip").closest("tr")!;
+    await click(within(row).getByRole("button", { name: /open/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Permission")).toBeNull();
+  });
+});

@@ -145,3 +145,73 @@ describe("GuestGuard exemptions", () => {
     await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/admin"));
   });
 });
+
+/**
+ * The welfare roles, which have no dashboard of their own.
+ *
+ * PATRON, MATRON and NURSE work on pages under /admin. Sending them to
+ * /patron after signing in would land them on a 404 on their very first
+ * screen.
+ */
+describe("GuestGuard and the welfare roles", () => {
+  it.each([
+    ["PATRON", "/admin/pocket-money"],
+    ["MATRON", "/admin/pocket-money"],
+    ["NURSE", "/admin/health"],
+  ])("sends a %s to %s", async (role, path) => {
+    signIn(role as "ADMIN");
+    render(<GuestGuard><Child /></GuestGuard>);
+    await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith(path));
+  });
+
+  it("sends a matron there after verifying a stored token", async () => {
+    localStorage.setItem("access_token", "good");
+    h.api.get.mockResolvedValue({
+      data: { id: "u-9", role: "MATRON", firstName: "Grace", forcePasswordChange: false },
+    });
+
+    render(<GuestGuard><Child /></GuestGuard>);
+
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith("/admin/pocket-money"),
+    );
+  });
+});
+
+describe("GuestGuard when the page is left mid-check", () => {
+  it("does not resolve after the component has gone", async () => {
+    localStorage.setItem("access_token", "good");
+    let settle: (v: unknown) => void = () => {};
+    h.api.get.mockImplementation(
+      () => new Promise((resolve) => { settle = resolve; }),
+    );
+
+    const { unmount } = render(<GuestGuard><Child /></GuestGuard>);
+    expect(screen.getByText(/checking your session/i)).toBeInTheDocument();
+
+    unmount();
+    // The profile lands after the user has already navigated away. Nothing
+    // must be redirected or set on a component that is gone.
+    settle({ data: { id: "u-1", role: "ADMIN", forcePasswordChange: false } });
+    await Promise.resolve();
+
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("does not sign anyone out after the component has gone", async () => {
+    localStorage.setItem("access_token", "stale");
+    let fail: (e: unknown) => void = () => {};
+    h.api.get.mockImplementation(
+      () => new Promise((_, reject) => { fail = reject; }),
+    );
+
+    const { unmount } = render(<GuestGuard><Child /></GuestGuard>);
+    unmount();
+    fail({ response: { status: 401 } });
+    await Promise.resolve();
+
+    // The token is still there: clearing it would sign the user out of the
+    // page they navigated to.
+    expect(localStorage.getItem("access_token")).toBe("stale");
+  });
+});

@@ -666,3 +666,372 @@ describe("adding a class to an O-Level level", () => {
     });
   });
 });
+
+// Declared here rather than at the top because only the block below needs it;
+// vi.mock and vi.hoisted are lifted to the top of the module either way.
+const ex = vi.hoisted(() => ({ exportData: vi.fn() }));
+vi.mock("@/lib/export", () => ({ exportData: ex.exportData }));
+
+/**
+ * A school that has not finished setting itself up.
+ *
+ * A structure page is the first thing an admin touches on day one, when there
+ * are no levels, no trades and no classes, and the second thing they touch
+ * years later when O-Level is full. Both ends have to be usable.
+ */
+describe("a school with nothing set up yet", () => {
+  const empty = { ...routes, "/academic/class-levels": [], "/academic/trades": [] };
+
+  it("says there are no O-Level years", async () => {
+    serve(h.api, empty);
+    renderPage(ClassesPage, { role: "ADMIN" });
+    expect(await screen.findByText(/No O-Level years yet/i)).toBeInTheDocument();
+  });
+
+  it("suggests the trades a Rwandan TVET school usually starts with", async () => {
+    serve(h.api, empty);
+    renderPage(ClassesPage, { role: "ADMIN" });
+    expect(await screen.findByText(/SWD, NIT, TOR, AUT/)).toBeInTheDocument();
+  });
+
+  it("will not let anything be exported", async () => {
+    serve(h.api, empty);
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText(/No O-Level years yet/i);
+    expect(button(/export/i)).toBeDisabled();
+  });
+});
+
+describe("a school whose O-Level is full", () => {
+  const three = ["Senior 1", "Senior 2", "Senior 3"].map((name, i) => ({
+    id: `lvl-${i}`,
+    name,
+    stage: "O_LEVEL",
+    order: i + 1,
+    sections: [],
+  }));
+
+  it("refuses a fourth year level and says why", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": three });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 3");
+
+    expect(
+      screen.getByText(/limited to 3 year levels/i),
+    ).toBeInTheDocument();
+    expect(button(/add year level/i)).toBeDisabled();
+  });
+
+  it("offers to add the first class from inside an empty level", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": three });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(screen.getByText("Senior 1").closest("div")!);
+    const addOne = await screen.findByRole("button", { name: /add one/i });
+    await click(addOne);
+
+    expect(await screen.findByText("Add Class")).toBeInTheDocument();
+  });
+});
+
+describe("a class recorded without its trade or its roll", () => {
+  const untidy = {
+    id: "level-9",
+    name: "Level 5",
+    stage: "A_LEVEL",
+    order: 5,
+    sections: [{ id: "sec-9", name: "B", classLevelId: "level-9" }],
+  };
+
+  it("draws an em dash for the trade and a nought for the students", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": [untidy] });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Level 5");
+
+    await click(screen.getByText("Level 5").closest("div")!);
+    await waitFor(() => expect(document.querySelector("table")).toBeTruthy());
+
+    const row = screen.getByText("B").closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("0")).toBeInTheDocument();
+  });
+});
+
+describe("what the export actually writes", () => {
+  it("writes one row for a level that has no classes at all", async () => {
+    const mixed = [
+      { id: "l-1", name: "Senior 1", stage: "O_LEVEL", order: 1, sections: [] },
+      {
+        id: "l-2",
+        name: "Level 4",
+        stage: "A_LEVEL",
+        order: 4,
+        // No trade and no roll recorded on this one.
+        sections: [{ id: "s-1", name: "A", classLevelId: "l-2" }],
+      },
+    ];
+    serve(h.api, { ...routes, "/academic/class-levels": mixed });
+    ex.exportData.mockClear();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(button(/export/i));
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await click(csv);
+
+    const [, payload] = ex.exportData.mock.calls.at(-1)! as [string, any];
+    // The empty level still appears, so a structure export is a full picture
+    // of the school rather than only the parts that are filled in.
+    expect(payload.data).toEqual([
+      { _level: "Senior 1", _trade: "—", _section: "—", _students: "—" },
+      { _level: "Level 4", _trade: "—", _section: "A", _students: "—" },
+    ]);
+  });
+});
+
+describe("the forms refusing what a school cannot use", () => {
+  it("asks for a name and a sensible order on a year level", async () => {
+    await mount();
+    await click(button(/add year level/i));
+
+    const dialog = await screen.findByRole("dialog");
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText("Order"), {
+        target: { value: "-1" },
+      });
+    });
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^create$/i.test((b.textContent ?? "").trim())),
+    );
+
+    expect(await screen.findByText("Name is required")).toBeInTheDocument();
+    expect(screen.getByText("Order must be 0 or greater")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Order").className).toMatch(/border-danger/);
+  });
+
+  it("asks for a stream name on a class", async () => {
+    await mount();
+    await click(screen.getByText("Senior 1").closest("div")!);
+    await waitFor(() => expect(document.querySelector("table")).toBeTruthy());
+    await click(button(/add class/i));
+
+    const dialog = await screen.findByRole("dialog");
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^create$/i.test((b.textContent ?? "").trim())),
+    );
+
+    const message = await within(dialog).findByText(/required/i);
+    expect(message).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Stream").className).toMatch(/border-danger/);
+  });
+});
+
+/**
+ * Deleting a trade, which is the most destructive of the three.
+ *
+ * A trade is what every A-Level stream hangs off. Deleting one when you meant
+ * a single class takes the whole TVET side of the school with it, so the
+ * confirmation has to name the trade and the request has to go to the trades
+ * endpoint rather than the sections one.
+ */
+describe("removing a trade", () => {
+  it("names the trade in the confirmation", async () => {
+    await mount();
+    await click(button(new RegExp(`delete trade ${trade.code}`, "i")));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain(trade.code);
+    expect(dialog.textContent).toContain(trade.name);
+  });
+
+  it("deletes it from the trades endpoint, not the sections one", async () => {
+    await mount();
+    await click(button(new RegExp(`delete trade ${trade.code}`, "i")));
+    const dialog = await screen.findByRole("dialog");
+
+    h.api.delete.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^delete$/i.test((b.textContent ?? "").trim())),
+    );
+
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith(`/academic/trades/${trade.id}`),
+    );
+  });
+});
+
+describe("a section modal with no trades to choose from", () => {
+  it("still opens, offering only its prompt", async () => {
+    serve(h.api, { ...routes, "/academic/trades": [] });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Level 4");
+
+    await click(screen.getByRole("button", { name: /^add class to level 4$/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    const picker = within(dialog).getByLabelText("Trade") as HTMLSelectElement;
+    expect(picker.options).toHaveLength(1);
+    expect(picker.options[0].textContent).toMatch(/select a trade/i);
+  });
+});
+
+/**
+ * Levels and trades the API answered short on.
+ *
+ * A year level created before the order field existed has none, a level whose
+ * sections were not joined comes back without them, and the trades call can
+ * fail on its own while the levels arrive fine. None of those may stop an
+ * admin editing the structure.
+ */
+describe("levels recorded without an order", () => {
+  const noOrder = [
+    { id: "lvl-1", name: "Senior 1", stage: "O_LEVEL", sections: [] },
+    { id: "lvl-2", name: "Senior 2", stage: "O_LEVEL", order: 2, sections: [] },
+  ];
+
+  it("numbers a new level after the highest one there is", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": noOrder });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 2");
+
+    await click(button(/add year level/i));
+    const dialog = await screen.findByRole("dialog");
+
+    // Senior 1 has no order at all, so it counts as nought and the next free
+    // number is three.
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(3);
+  });
+
+  it("opens a level with no order at nought", async () => {
+    serve(h.api, { ...routes, "/academic/class-levels": noOrder });
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(button(/^edit senior 1$/i));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(0);
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Senior 1");
+  });
+
+  it("exports a level whose sections did not come back", async () => {
+    serve(h.api, {
+      ...routes,
+      "/academic/class-levels": [{ id: "lvl-1", name: "Senior 1", stage: "O_LEVEL" }],
+    });
+    ex.exportData.mockClear();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    await click(button(/export/i));
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await click(csv);
+
+    const [, payload] = ex.exportData.mock.calls.at(-1)! as [string, any];
+    expect(payload.data).toEqual([
+      { _level: "Senior 1", _trade: "—", _section: "—", _students: "—" },
+    ]);
+  });
+});
+
+describe("when the trades call fails on its own", () => {
+  function tradesFail() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/academic/trades")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return real(url, config);
+    });
+  }
+
+  it("still draws the levels", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+
+    expect(await screen.findByText("Senior 1")).toBeInTheDocument();
+  });
+
+  it("says there are no trades rather than going blank", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Senior 1");
+
+    expect(await screen.findByText(/SWD, NIT, TOR, AUT/)).toBeInTheDocument();
+  });
+
+  it("opens the class form with no trade to choose", async () => {
+    serve(h.api, routes);
+    tradesFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText("Level 4");
+
+    await click(screen.getByRole("button", { name: /^add class to level 4$/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    const picker = within(dialog).getByLabelText("Trade") as HTMLSelectElement;
+    expect(picker.options).toHaveLength(1);
+  });
+});
+
+/**
+ * The structure page when the levels call itself fails.
+ *
+ * A school on a flaky connection sees this on the first load of the day. The
+ * page has to stay usable: the "add a level" form is the whole point of
+ * visiting it when there is nothing there.
+ */
+describe("when the levels call fails", () => {
+  function levelsFail() {
+    const real = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      if (String(url).includes("/academic/class-levels")) {
+        throw Object.assign(new Error("down"), { response: { status: 500 } });
+      }
+      return real(url, config);
+    });
+  }
+
+  it("still offers to add the first year level", async () => {
+    serve(h.api, routes);
+    levelsFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText(/No O-Level years yet/i);
+
+    await click(button(/add year level/i));
+    const dialog = await screen.findByRole("dialog");
+
+    // Nothing on file, so the first level takes order one.
+    expect(within(dialog).getByLabelText("Order")).toHaveValue(1);
+  });
+
+  it("will not let anything be exported", async () => {
+    serve(h.api, routes);
+    levelsFail();
+    renderPage(ClassesPage, { role: "ADMIN" });
+    await screen.findByText(/No O-Level years yet/i);
+
+    expect(button(/export/i)).toBeDisabled();
+  });
+});

@@ -338,3 +338,211 @@ describe("appealing an incident", () => {
     expect(h.api.post).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The same record when the news is worse.
+ *
+ * The conduct bar changes colour twice and the appeal badge three times, and a
+ * parent reads both at a glance. A single fixture at eighty points only ever
+ * paints the healthy arm of each.
+ */
+describe("a conduct bar further down the scale", () => {
+  const at = (percentage: number) => ({
+    ...routes,
+    "/discipline/student": {
+      student: { currentPoints: percentage, startingPoints: 100, percentage },
+      incidents,
+    },
+  });
+
+  async function mountAt(percentage: number) {
+    serve(h.api, at(percentage));
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    return document.querySelector("[style*='width']")!.className;
+  }
+
+  it("warns in the middle of the scale", async () => {
+    expect(await mountAt(64)).toMatch(/warning/);
+  });
+
+  it("paints a record in real trouble differently again", async () => {
+    expect(await mountAt(22)).toMatch(/danger/);
+  });
+});
+
+describe("what an appeal came back as", () => {
+  const withAppeal = (status: string) => ({
+    ...routes,
+    "/discipline/student": {
+      student: { currentPoints: 80, startingPoints: 100, percentage: 80 },
+      incidents: [
+        { ...incidents[0], appeals: [{ id: "ap-1", status }] },
+      ],
+    },
+  });
+
+  async function mountAppeal(status: string) {
+    serve(h.api, withAppeal(status));
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Appeal: /)).toBeInTheDocument(),
+    );
+    return screen.getByText(/Appeal: /).className;
+  }
+
+  it("marks an upheld appeal differently from a refused one", async () => {
+    const approved = await mountAppeal("APPROVED");
+    document.body.innerHTML = "";
+    const rejected = await mountAppeal("REJECTED");
+
+    expect(approved).not.toBe(rejected);
+  });
+
+  it("marks one still being decided differently again", async () => {
+    const pending = await mountAppeal("PENDING");
+    document.body.innerHTML = "";
+    const approved = await mountAppeal("APPROVED");
+
+    expect(pending).not.toBe(approved);
+  });
+
+  it("offers no second appeal once one is filed", async () => {
+    serve(h.api, withAppeal("PENDING"));
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+    await waitFor(() => expect(screen.getByText(/Appeal: /)).toBeInTheDocument());
+
+    expect(button(/^appeal$/i)).toBeUndefined();
+  });
+});
+
+describe("an incident recorded without the details", () => {
+  it("leaves out the time and place rather than printing undefined", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/student": {
+        student: { currentPoints: 80, startingPoints: 100, percentage: 80 },
+        incidents: [
+          {
+            ...incidents[0],
+            date: "2026-08-20T07:30:00Z",
+            time: null,
+            location: null,
+          },
+        ],
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined|null| at $/);
+  });
+
+  it("shows the time and place when they are recorded", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/student": {
+        student: { currentPoints: 80, startingPoints: 100, percentage: 80 },
+        incidents: [
+          {
+            ...incidents[0],
+            date: "2026-08-20T07:30:00Z",
+            time: "07:30",
+            location: "Assembly ground",
+          },
+        ],
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/at 07:30/),
+    );
+    expect(document.body.textContent).toMatch(/Assembly ground/);
+  });
+});
+
+/**
+ * A parent record the API answered short on.
+ *
+ * A parent account still resolving, a child with no class yet, and a record
+ * that came back with no incidents list at all. None may leave the page blank
+ * for someone who opened it because the school rang them.
+ */
+describe("a parent record with pieces missing", () => {
+  it("asks for nothing before the account has an id", async () => {
+    serve(h.api, routes);
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "", studentId: "student-1" },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/users/")),
+    ).toBe(false);
+  });
+
+  it("leaves the class blank for a child not placed yet", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users/user-1": {
+        id: "user-1",
+        role: "PARENT",
+        parentStudents: [
+          {
+            student: {
+              id: "student-1",
+              user: { firstName: "Keza", lastName: "Uwimana" },
+              classSection: null,
+            },
+          },
+        ],
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined|null/);
+  });
+
+  it("survives a record with no incidents list at all", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/student": {
+        student: { currentPoints: 100, startingPoints: 100, percentage: 100 },
+      },
+    });
+    renderPage(ParentDisciplinePage, {
+      role: "PARENT",
+      user: { id: "user-1", studentId: "student-1" },
+    });
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});

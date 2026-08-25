@@ -292,3 +292,135 @@ describe("exporting the staff list", () => {
     expect(payload.data[0].code).toBe("TCH-2026-001");
   });
 });
+
+/**
+ * The staff list at its edges.
+ *
+ * A school with no teachers on file is the first screen a new deployment
+ * shows, and the last page of a large staff list is where the "showing x to y
+ * of z" arithmetic goes wrong.
+ */
+describe("a school with nobody on the staff list", () => {
+  const empty = {
+    ...routes,
+    "/users": { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } },
+  };
+
+  it("says so rather than showing an empty table", async () => {
+    serve(h.api, empty);
+    renderPage(TeachersPage, { role: "ADMIN" });
+    expect(await screen.findByText("No teachers found")).toBeInTheDocument();
+  });
+
+  it("counts from nought rather than from one", async () => {
+    serve(h.api, empty);
+    renderPage(TeachersPage, { role: "ADMIN" });
+    await screen.findByText("No teachers found");
+
+    // "Showing 1 to 0 of 0" is the classic off-by-one on an empty list.
+    expect(screen.getByText(/Showing 0/)).toBeInTheDocument();
+  });
+});
+
+describe("moving back through the staff list", () => {
+  /** Answers with whichever page was asked for. */
+  function servePaged() {
+    h.api.get.mockImplementation(async (url: string) => {
+      const asked = String(url);
+      if (asked.startsWith("/academic/assignments")) return { data: assignments };
+      if (!asked.startsWith("/users")) return { data: [] };
+      const page = Number(new URLSearchParams(asked.split("?")[1]).get("page") ?? 1);
+      return {
+        data: {
+          data: page1.data,
+          meta: { total: 45, page, limit: 20, totalPages: 3 },
+        },
+      };
+    });
+  }
+
+  it("comes back a page and stops at the first", async () => {
+    servePaged();
+    renderPage(TeachersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /previous page/i }));
+    await waitFor(() => expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+  });
+
+  it("counts the rows on a middle page from the right number", async () => {
+    servePaged();
+    renderPage(TeachersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument());
+
+    expect(screen.getByText(/Showing 21/)).toBeInTheDocument();
+  });
+});
+
+describe("searching the staff list from the keyboard", () => {
+  it("searches on Enter", async () => {
+    await mount();
+    const box = screen.getByPlaceholderText(/search by name/i);
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "uwase" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+
+    await waitFor(() => expect(lastUserQuery().search).toBe("uwase"));
+  });
+
+  it("ignores every other key", async () => {
+    await mount();
+    const box = screen.getByPlaceholderText(/search by name/i);
+
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "uwase" } });
+    });
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Escape" });
+    });
+
+    expect(h.api.get).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("pressing Enter with nothing typed", () => {
+  it("drops the search rather than sending an empty one", async () => {
+    serve(h.api, routes);
+    renderPage(TeachersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const box = screen.getByPlaceholderText(/search/i);
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "uwase" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+    await act(async () => {
+      fireEvent.change(box, { target: { value: "" } });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+
+    await waitFor(() => {
+      const last = [...h.api.get.mock.calls]
+        .reverse()
+        .find(([u]: any[]) => String(u).startsWith("/users?"));
+      expect(String(last![0])).not.toMatch(/search=/);
+    });
+  });
+});

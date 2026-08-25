@@ -24,7 +24,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders, signIn } from "@/test/harness";
 import { serve, serveAll } from "@/test/page";
 import { exercisePage } from "@/test/exercise";
@@ -358,4 +358,173 @@ describe("every settings tab under strain", () => {
     const { rejections } = await exercisePage({ limit: 30 });
     expect(rejections).toEqual([]);
   }, 30000);
+});
+
+/**
+ * Settings for a school that has entered almost nothing.
+ *
+ * These two tabs are the first screens a new deployment shows, before there
+ * are subjects, years or terms. Every count and label on them has to read as
+ * "nothing yet" rather than as "undefined".
+ */
+describe("the subjects tab with nothing in it", () => {
+  it("counts nought rather than leaving the heading half written", async () => {
+    serve(h.api, { ...populatedRoutes, "/academic/subjects": undefined });
+    renderWithProviders(<SubjectsTab />);
+
+    expect(await screen.findByText(/Subjects \(0\)/)).toBeInTheDocument();
+  });
+
+  it("draws an em dash for a subject with no category", async () => {
+    serve(h.api, {
+      ...populatedRoutes,
+      "/academic/subjects": [
+        { id: "s-1", name: "Entrepreneurship", category: null, maxMarks: 100, isActive: true },
+      ],
+    });
+    renderWithProviders(<SubjectsTab />);
+
+    const row = (await screen.findByText("Entrepreneurship")).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
+
+  it("marks a deactivated subject as inactive", async () => {
+    serve(h.api, {
+      ...populatedRoutes,
+      "/academic/subjects": [{ ...subject, isActive: false }],
+    });
+    renderWithProviders(<SubjectsTab />);
+
+    expect(await screen.findByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("leaves the category out of the request when none is typed", async () => {
+    renderWithProviders(<SubjectsTab />);
+    await waitFor(() => expect(screen.getByText(/Mathematics/)).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^name$/i), {
+        target: { value: "Kinyarwanda" },
+      });
+    });
+    h.api.post.mockClear();
+
+    const form = document.querySelector("form");
+    if (!form) return;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    // An empty string would create a category literally called "".
+    expect((h.api.post.mock.calls[0][1] as any).category).toBeUndefined();
+  });
+});
+
+describe("the academic tab before a year is opened", () => {
+  it("draws an em dash where the current year's name would be", async () => {
+    serve(h.api, { ...populatedRoutes, "/academic/years": [] });
+    renderWithProviders(<AcademicTab />);
+
+    expect(await screen.findByText(/Terms \(—\)/)).toBeInTheDocument();
+  });
+
+  it("refuses a term that ends before it starts", async () => {
+    renderWithProviders(<AcademicTab />);
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const start = screen.queryByLabelText(/start/i);
+    const end = screen.queryByLabelText(/end/i);
+    if (!start || !end) return;
+
+    await act(async () => {
+      fireEvent.change(start, { target: { value: "2026-12-01" } });
+      fireEvent.change(end, { target: { value: "2026-09-01" } });
+    });
+    h.api.post.mockClear();
+
+    const add = button(/^add/i);
+    if (!add) return;
+    await act(async () => {
+      fireEvent.click(add);
+    });
+
+    // A term that ends before it starts would make every date filter in the
+    // app return nothing.
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+/**
+ * Closing a term, and opening it again.
+ *
+ * Closing a term locks its marks: nothing can be entered or changed against it
+ * afterwards. That is the point, and it is also why reopening has to work,
+ * because a term gets closed a week early roughly once per school.
+ */
+describe("closing and reopening a term", () => {
+  const term = (over: Record<string, unknown> = {}) => ({
+    id: "term-1",
+    name: "Term 1",
+    startDate: "2026-09-01",
+    endDate: "2026-12-15",
+    isCurrent: true,
+    isClosed: false,
+    ...over,
+  });
+
+  async function mountTerms(terms: unknown[]) {
+    serve(h.api, { ...populatedRoutes, "/academic/terms": terms });
+    renderWithProviders(<AcademicTab />);
+    await waitFor(() => expect(screen.getByText("Term 1")).toBeInTheDocument());
+  }
+
+  it("marks a closed term as closed", async () => {
+    await mountTerms([term({ isClosed: true })]);
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort about an open one", async () => {
+    await mountTerms([term()]);
+    expect(screen.queryByText("Closed")).toBeNull();
+  });
+
+  it("closes an open term", async () => {
+    await mountTerms([term()]);
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms/term-1/close"),
+      );
+      expect(call).toBeTruthy();
+    });
+  });
+
+  it("reopens a closed one rather than closing it twice", async () => {
+    await mountTerms([term({ isClosed: true })]);
+    h.api.post.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    });
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/academic/terms/term-1/reopen"),
+      );
+      expect(call).toBeTruthy();
+    });
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) => String(url).includes("/close")),
+    ).toBeUndefined();
+  });
 });

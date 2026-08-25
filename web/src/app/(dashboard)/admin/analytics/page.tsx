@@ -245,8 +245,12 @@ export default function AdminAnalyticsPage() {
       legend: { ...legendStyle, bottom: 0, data: ["Boys", "Girls"] },
       tooltip: {
         ...tooltipStyle,
+        // A pointer between two bars arrives with no point at all, and
+        // "undefined: NaN" is not something to show a head teacher.
         formatter: (p: any) =>
-          `<b>${p.name}</b><br/>${p.seriesName}: ${Math.abs(p.value)}`,
+          `<b>${p?.name ?? ""}</b><br/>${p?.seriesName ?? ""}: ${
+            p?.value == null ? 0 : Math.abs(p.value)
+          }`,
       },
       series: [
         {

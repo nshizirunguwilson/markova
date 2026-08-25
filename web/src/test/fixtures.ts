@@ -114,7 +114,7 @@ export const termResult = {
 // The Book model counts copies as `quantity` and `availableCount` (see
 // schema.prisma). Naming them totalCopies/availableCopies here left the two
 // count columns blank in tests while the pages still passed.
-export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-1-23", category: "SCIENCE", quantity: 5, availableCount: 3, barcode: "BK-0001", replacementCost: 12000 };
+export const book = { id: "book-1", title: "Ubuzima n'Ubumenyi", author: "Mukamana J.", isbn: "978-9970-19-522-4", category: "SCIENCE", quantity: 5, availableCount: 3, barcode: "BK-0001", replacementCost: 12000 };
 export const loan = { id: "loan-1", bookId: "book-1", book, borrowerId: "u-1", borrower: user("u-1", "Divine", "Niyonkuru"), dueDate: "2026-09-30", returnedAt: null, isOverdue: false };
 
 export const incident = { id: "inc-1", studentId: "student-1", student: students[0], category: "LATENESS", severity: "MINOR", points: 5, description: "Late to assembly", actionTaken: "WARNING", createdAt: "2026-08-20T07:30:00Z", reportedBy: user("u-3", "Aline", "Uwase", "TEACHER") };
@@ -562,4 +562,41 @@ export const strainedRoutes: Record<string, unknown> = Object.fromEntries(
     url,
     underThreshold(body),
   ]),
+);
+
+/**
+ * The same school with every optional field left empty.
+ *
+ * Almost every column in this app is written as `value ?? "—"` or
+ * `value || 0`, and a fixture set where every field is filled in never draws
+ * a single one of those fallbacks. This blanks every leaf that is not an id,
+ * a name or part of the response envelope, which is what a record imported
+ * from a spreadsheet with three columns in it actually looks like.
+ *
+ * Ids and names are kept: without them React has no keys and a page cannot be
+ * found by the thing it is showing, which would make a failure here impossible
+ * to read.
+ */
+const KEEP = /(^|[a-z])(id|ids|name|title|status|type|kind|role|key|url)$/i;
+
+function blankOptional(value: unknown, key = ""): unknown {
+  if (Array.isArray(value)) return value.map((v) => blankOptional(v, key));
+  if (value === null || typeof value !== "object") {
+    if (KEEP.test(key)) return value;
+    if (typeof value === "string") return "";
+    if (typeof value === "number") return null;
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+      k,
+      // The envelope keeps its shape, or every paginated list becomes empty.
+      k === "meta" ? v : blankOptional(v, k),
+    ]),
+  );
+}
+
+export const blankRoutes: Record<string, unknown> = Object.fromEntries(
+  Object.entries(populatedRoutes).map(([url, body]) => [url, blankOptional(body)]),
 );

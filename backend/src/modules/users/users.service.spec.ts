@@ -548,3 +548,552 @@ describe('UsersService', () => {
     });
   });
 });
+
+/**
+ * The whole Rwandan school record, written in one go.
+ *
+ * A student's row carries the SDMS fields a school is inspected on: province
+ * down to village, both parents' names, insurance, boarding, religion,
+ * disability. The update method spreads each one only when it was sent, and a
+ * test that sends one field at a time proves nothing about the other twenty.
+ * This sends the lot, and then sends none.
+ */
+describe('updating every field a student record carries', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const everything = {
+    email: 'k.uwimana@markova.edu',
+    phone: '+250788100000',
+    firstName: 'Keza',
+    lastName: 'Uwimana',
+    isActive: true,
+    nationalId: '1201382901978078',
+    nationality: 'Rwandan',
+    classSectionId: 'section-1',
+    dateOfBirth: '2012-04-11',
+    gender: 'FEMALE' as const,
+    status: 'ACTIVE' as const,
+    bloodType: 'A-',
+    allergies: 'Penicillin',
+    medicalConditions: 'Asthma',
+    previousSchool: 'GS Kacyiru',
+    enrollmentDate: '2026-01-15',
+    province: 'Kigali City',
+    district: 'Kicukiro',
+    sector: 'Kanombe',
+    cell: 'Amajyambere',
+    village: 'Karisimbi',
+    disability: 'None',
+    fatherName: 'Jonas Ndagijimana',
+    motherName: 'Seraphine Mukamazimpaka',
+    insuranceNumber: '1234994661',
+    isBoarder: true,
+    religion: 'Protestant',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', student: { id: 'student-1' }, teacher: null }
+          : null,
+      ),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.student.update.mockResolvedValue({});
+  });
+
+  it('writes every field it was given', async () => {
+    await service.update('user-1', everything as never);
+
+    const written = prisma.student.update.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      classSectionId: 'section-1',
+      gender: 'FEMALE',
+      status: 'ACTIVE',
+      bloodType: 'A-',
+      allergies: 'Penicillin',
+      medicalConditions: 'Asthma',
+      previousSchool: 'GS Kacyiru',
+      province: 'Kigali City',
+      district: 'Kicukiro',
+      sector: 'Kanombe',
+      cell: 'Amajyambere',
+      village: 'Karisimbi',
+      disability: 'None',
+      fatherName: 'Jonas Ndagijimana',
+      motherName: 'Seraphine Mukamazimpaka',
+      insuranceNumber: '1234994661',
+      isBoarder: true,
+      religion: 'Protestant',
+    });
+  });
+
+  it('turns the two dates into dates', async () => {
+    await service.update('user-1', everything as never);
+
+    const written = prisma.student.update.mock.calls[0][0].data;
+    expect(written.dateOfBirth).toBeInstanceOf(Date);
+    expect(written.enrollmentDate).toBeInstanceOf(Date);
+  });
+
+  it('writes the account fields onto the account, not the student', async () => {
+    await service.update('user-1', everything as never);
+
+    expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
+      email: 'k.uwimana@markova.edu',
+      phone: '+250788100000',
+      firstName: 'Keza',
+      lastName: 'Uwimana',
+      isActive: true,
+      nationalId: '1201382901978078',
+      nationality: 'Rwandan',
+    });
+  });
+
+  // A student's gender and birthday live on the student row, not on the
+  // account, or the two copies drift apart.
+  it('keeps gender and birthday off a student account row', async () => {
+    await service.update('user-1', everything as never);
+
+    const account = prisma.user.update.mock.calls[0][0].data;
+    expect(account.gender).toBeUndefined();
+    expect(account.dateOfBirth).toBeUndefined();
+  });
+
+  it('writes them onto the account of somebody who is not a student', async () => {
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-2', student: null, teacher: { id: 'teacher-1' } }
+          : null,
+      ),
+    );
+    prisma.teacher.update.mockResolvedValue({});
+
+    await service.update('user-2', {
+      gender: 'FEMALE',
+      dateOfBirth: '1990-02-02',
+    } as never);
+
+    const account = prisma.user.update.mock.calls[0][0].data;
+    expect(account.gender).toBe('FEMALE');
+    expect(account.dateOfBirth).toBeInstanceOf(Date);
+  });
+
+  it('writes nothing at all when nothing was sent', async () => {
+    await service.update('user-1', {} as never);
+
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual({});
+    expect(prisma.student.update.mock.calls[0][0].data).toEqual({});
+  });
+
+  // Clearing a field is not the same as leaving it alone: an empty string has
+  // to reach the database, or a wrong allergy can never be removed.
+  it('clears a field that was sent empty', async () => {
+    await service.update('user-1', {
+      allergies: '',
+      bloodType: '',
+      motherName: '',
+    } as never);
+
+    expect(prisma.student.update.mock.calls[0][0].data).toEqual({
+      allergies: '',
+      bloodType: '',
+      motherName: '',
+    });
+  });
+});
+
+describe('updating every field a teacher record carries', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', student: null, teacher: { id: 'teacher-1' } }
+          : null,
+      ),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.teacher.update.mockResolvedValue({});
+  });
+
+  it('writes the employment details', async () => {
+    await service.update('user-1', {
+      employmentStatus: 'FULL_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+      hireDate: '2019-01-14',
+    } as never);
+
+    const written = prisma.teacher.update.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      employmentStatus: 'FULL_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+    });
+    expect(written.hireDate).toBeInstanceOf(Date);
+  });
+
+  it('clears an RSSB number that was sent empty', async () => {
+    await service.update('user-1', { rssbNumber: '' } as never);
+
+    expect(prisma.teacher.update.mock.calls[0][0].data).toEqual({
+      rssbNumber: '',
+    });
+  });
+
+  it('leaves the teacher row alone when nothing about it changed', async () => {
+    await service.update('user-1', { firstName: 'Aline' } as never);
+
+    expect(prisma.teacher.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * What the search box understands.
+ *
+ * An office clerk types one thing into one box and expects it to find the
+ * person, whether they typed a name, a class, a role or a status. Each of
+ * those is a separate arm, and a search that matches none of them has to
+ * return nobody rather than everybody.
+ */
+describe('the words the search box understands', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.count.mockResolvedValue(0);
+  });
+
+  const whereFor = async (filters: Record<string, unknown>) => {
+    await service.findAll(filters as never);
+    return prisma.user.findMany.mock.calls[0][0].where;
+  };
+
+  const clauseFor = async (filters: Record<string, unknown>) =>
+    JSON.stringify((await whereFor(filters)).AND[0].OR);
+
+  it('reads a role name as a role', async () => {
+    expect(await clauseFor({ search: 'teach' })).toContain('TEACHER');
+  });
+
+  it('reads "active" as a live account', async () => {
+    const clause = await clauseFor({ search: 'active' });
+    expect(clause).toContain('"isActive":true');
+  });
+
+  it('reads "inactive" as a switched-off one', async () => {
+    const clause = await clauseFor({ search: 'inactive' });
+    expect(clause).toContain('"isActive":false');
+  });
+
+  it('reads a student status as a status', async () => {
+    expect(await clauseFor({ search: 'gradu' })).toContain('GRADUATED');
+  });
+
+  it('finds nobody for a word no field can match', async () => {
+    const clause = await clauseFor({ search: 'zzzz', searchIn: 'role' });
+    expect(clause).toBeUndefined();
+    const where = await whereFor({ search: 'zzzz', searchIn: 'role' });
+    expect(JSON.stringify(where)).toContain('__no_match__');
+  });
+
+  // A class of one letter: "A", not every class containing an A.
+  it('matches a one-letter class exactly', async () => {
+    const clause = await clauseFor({ search: 'A', searchIn: 'class' });
+    expect(clause).toContain('"equals":"A"');
+  });
+
+  it('matches a trade code or its name', async () => {
+    const clause = await clauseFor({ search: 'software', searchIn: 'class' });
+    expect(clause).toContain('trade');
+  });
+
+  // Roles and statuses are whole words; a single letter would match several.
+  it('does not read a single letter as a role', async () => {
+    expect(await clauseFor({ search: 'T', searchIn: 'role' })).toBeUndefined();
+  });
+
+  it('narrows to one class without a search at all', async () => {
+    const where = await whereFor({ classSectionId: 'section-1' });
+    expect(where.student).toEqual({ classSectionId: 'section-1' });
+  });
+
+  it('narrows to one student status without a search at all', async () => {
+    const where = await whereFor({ studentStatus: 'GRADUATED' });
+    expect(where.student).toEqual({ status: 'GRADUATED' });
+  });
+
+  it('narrows by both at once', async () => {
+    const where = await whereFor({
+      classSectionId: 'section-1',
+      studentStatus: 'ACTIVE',
+    });
+    expect(where.student).toEqual({
+      classSectionId: 'section-1',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('adds no student clause when neither was given', async () => {
+    const where = await whereFor({ role: 'TEACHER' });
+    expect(where.student).toBeUndefined();
+  });
+});
+
+/**
+ * Creating a whole record in one transaction.
+ *
+ * A student's row is written with the same twenty SDMS fields the update path
+ * carries, a teacher's with their employment details, and a parent's with the
+ * children they are responsible for. Each of the three is a different arm of
+ * the same transaction.
+ */
+describe('creating a record with everything on it', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-1',
+      firstName: 'Keza',
+      lastName: 'Uwimana',
+      role: 'STUDENT',
+    });
+    prisma.student.create.mockResolvedValue({});
+    prisma.teacher.create.mockResolvedValue({});
+    prisma.parentStudent.create.mockResolvedValue({});
+    prisma.student.findUnique.mockResolvedValue(null);
+    prisma.student.findFirst.mockResolvedValue(null);
+  });
+
+  it('writes a student with the whole SDMS record on them', async () => {
+    await service.create({
+      role: 'STUDENT',
+      firstName: 'Keza',
+      lastName: 'Uwimana',
+      email: 'k.uwimana@markova.edu',
+      password: 'Password123!',
+      classSectionId: 'section-1',
+      dateOfBirth: '2012-04-11',
+      gender: 'FEMALE',
+      status: 'ACTIVE',
+      enrollmentDate: '2026-01-15',
+      bloodType: 'A-',
+      allergies: 'Penicillin',
+      medicalConditions: 'Asthma',
+      previousSchool: 'GS Kacyiru',
+      province: 'Kigali City',
+      district: 'Kicukiro',
+      sector: 'Kanombe',
+      cell: 'Amajyambere',
+      village: 'Karisimbi',
+      disability: 'None',
+      fatherName: 'Jonas Ndagijimana',
+      motherName: 'Seraphine Mukamazimpaka',
+      insuranceNumber: '1234994661',
+      isBoarder: true,
+      religion: 'Protestant',
+    } as never);
+
+    const written = prisma.student.create.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      classSectionId: 'section-1',
+      gender: 'FEMALE',
+      status: 'ACTIVE',
+      bloodType: 'A-',
+      province: 'Kigali City',
+      village: 'Karisimbi',
+      isBoarder: true,
+      religion: 'Protestant',
+      disciplinePoints: 100,
+    });
+    expect(written.dateOfBirth).toBeInstanceOf(Date);
+    expect(written.enrollmentDate).toBeInstanceOf(Date);
+  });
+
+  it('stores a student with nothing optional filled in as nulls', async () => {
+    await service.create({
+      role: 'STUDENT',
+      firstName: 'Keza',
+      lastName: 'Uwimana',
+      email: 'k.uwimana@markova.edu',
+      password: 'Password123!',
+      classSectionId: 'section-1',
+    } as never);
+
+    const written = prisma.student.create.mock.calls[0][0].data;
+    // Nulls, not empty strings: the reports read these back and an empty
+    // string prints as a blank line where "–" belongs.
+    expect(written).toMatchObject({
+      dateOfBirth: null,
+      gender: null,
+      status: 'ACTIVE',
+      bloodType: null,
+      motherName: null,
+      isBoarder: false,
+    });
+    expect(written.enrollmentDate).toBeUndefined();
+  });
+
+  it('writes a teacher with their employment details', async () => {
+    prisma.user.create.mockResolvedValue({
+      id: 'u-2',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      role: 'TEACHER',
+    });
+
+    await service.create({
+      role: 'TEACHER',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      email: 'a.uwase@markova.edu',
+      password: 'Password123!',
+      employmentStatus: 'PART_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+      hireDate: '2019-01-14',
+    } as never);
+
+    const written = prisma.teacher.create.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      employmentStatus: 'PART_TIME',
+      qualification: 'A0',
+      rssbNumber: 'RSSB-0099',
+      isActive: true,
+    });
+    expect(written.hireDate).toBeInstanceOf(Date);
+  });
+
+  it('defaults a teacher with no employment details to full time', async () => {
+    prisma.user.create.mockResolvedValue({
+      id: 'u-2',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      role: 'TEACHER',
+    });
+
+    await service.create({
+      role: 'TEACHER',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      email: 'a.uwase@markova.edu',
+      password: 'Password123!',
+    } as never);
+
+    expect(prisma.teacher.create.mock.calls[0][0].data).toMatchObject({
+      employmentStatus: 'FULL_TIME',
+      qualification: null,
+      rssbNumber: null,
+      hireDate: null,
+    });
+  });
+});
+
+/**
+ * A parent and the children they answer for.
+ *
+ * A parent account with no child linked sees nothing at all, so the link is
+ * the point of the record. Two shapes reach this: the wizard sends a
+ * relationship per child, and bulk import sends a list of ids with one
+ * relationship for all of them.
+ */
+describe('linking a parent to their children', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const parent = {
+    role: 'PARENT' as const,
+    firstName: 'Jean',
+    lastName: 'Habimana',
+    phone: '+250788100000',
+    password: 'Password123!',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-3' } : null),
+    );
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-3',
+      firstName: 'Jean',
+      lastName: 'Habimana',
+      role: 'PARENT',
+    });
+    prisma.parentStudent.create.mockResolvedValue({});
+  });
+
+  it('links each child with the relationship it was given', async () => {
+    await service.create({
+      ...parent,
+      children: [
+        { studentId: 'student-1', relationship: 'Father' },
+        { studentId: 'student-2', relationship: 'Guardian' },
+      ],
+    } as never);
+
+    expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.parentStudent.create.mock.calls[0][0].data).toMatchObject({
+      studentId: 'student-1',
+      relationship: 'Father',
+    });
+    expect(prisma.parentStudent.create.mock.calls[1][0].data).toMatchObject({
+      studentId: 'student-2',
+      relationship: 'Guardian',
+    });
+  });
+
+  it('takes the bulk import shape as well', async () => {
+    await service.create({
+      ...parent,
+      studentIds: ['student-1', 'student-2'],
+      relationship: 'Mother',
+    } as never);
+
+    expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Mother',
+    );
+  });
+
+  it('calls them a parent when the import named no relationship', async () => {
+    await service.create({
+      ...parent,
+      studentIds: ['student-1'],
+    } as never);
+
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Parent',
+    );
+  });
+
+  it('links nobody when no children were named', async () => {
+    await service.create(parent as never);
+
+    expect(prisma.parentStudent.create).not.toHaveBeenCalled();
+  });
+});

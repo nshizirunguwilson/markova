@@ -547,7 +547,7 @@ export default function UserDetailPage() {
                   >
                     <div>
                       <p className="font-medium text-foreground">
-                        {ps.student.user.firstName} {ps.student.user.lastName}
+                        {ps.student?.user?.firstName} {ps.student?.user?.lastName}
                       </p>
                       <p className="text-sm text-muted">
                         {classDisplayName(ps.student.classSection)} — {ps.relationship}

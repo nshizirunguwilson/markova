@@ -519,3 +519,90 @@ describe("Topbar account menu", () => {
     expect(localStorage.getItem("access_token")).toBe("a");
   });
 });
+
+/**
+ * Read and unread.
+ *
+ * A notification that has been opened must stop shouting: no tint, no dot, no
+ * bold. The field is `isRead` on the server, and reading the wrong name here
+ * made every notification permanently unread, which is the same as having no
+ * read state at all.
+ */
+describe("Topbar read and unread notifications", () => {
+  const opened = { ...notifications[1], isRead: true };
+  const fresh = { ...notifications[0], isRead: false };
+
+  async function openBell(rows: unknown[]) {
+    serve(h.api, {
+      "/notifications/unread": { count: 1 },
+      "/notifications": rows,
+    });
+    mount();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    await waitFor(() =>
+      expect(screen.getByText("Notifications")).toBeInTheDocument(),
+    );
+  }
+
+  it("marks an unopened one with a dot", async () => {
+    await openBell([fresh]);
+    const row = (await screen.findByText("Marks published")).closest("div")!
+      .parentElement!;
+    expect(row.querySelector(".bg-primary")).not.toBeNull();
+  });
+
+  it("leaves an opened one plain", async () => {
+    await openBell([opened]);
+    const row = (await screen.findByText("Absent today")).closest("div")!
+      .parentElement!;
+    expect(row.querySelector(".bg-primary")).toBeNull();
+  });
+
+  it("bolds only the unopened one", async () => {
+    await openBell([fresh, opened]);
+
+    const unread = await screen.findByText("Marks published");
+    const read = screen.getByText("Absent today");
+    expect(unread.className).toMatch(/font-medium/);
+    expect(read.className).not.toMatch(/font-medium/);
+  });
+
+  it("tints only the unopened row", async () => {
+    await openBell([fresh, opened]);
+
+    const rowOf = (title: string) =>
+      screen.getByText(title).closest("button")!;
+    expect(rowOf("Marks published").className).toMatch(/bg-primary/);
+    expect(rowOf("Absent today").className).not.toMatch(/bg-primary/);
+  });
+});
+
+describe("Topbar unread badge", () => {
+  async function withCount(count: number) {
+    serve(h.api, {
+      "/notifications/unread": { count },
+      "/notifications": notifications,
+    });
+    mount();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /notifications/i })).toBeInTheDocument(),
+    );
+  }
+
+  it("shows the number when there are a few", async () => {
+    await withCount(7);
+    expect(await screen.findByText("7")).toBeInTheDocument();
+  });
+
+  it("caps a very large count so it still fits the badge", async () => {
+    await withCount(348);
+    expect(await screen.findByText("99+")).toBeInTheDocument();
+  });
+
+  it("shows no badge at all when nothing is waiting", async () => {
+    await withCount(0);
+    const bell = screen.getByRole("button", { name: /notifications/i });
+    expect(bell.querySelector("span")).toBeNull();
+  });
+});

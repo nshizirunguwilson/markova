@@ -398,3 +398,116 @@ describe("changing what is being imported", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+/**
+ * A long import, and a template for a role nobody thought of.
+ *
+ * A school importing four hundred students needs the preview to say how many
+ * rows it is not showing, and the template fallback has to produce something
+ * useful for any role the picker can be set to.
+ */
+describe("previewing a long import", () => {
+  it("says how many rows it is not showing", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    const rows = Array.from(
+      { length: 9 },
+      (_, i) => `Student${i},Uwase,student${i}@markova.edu,+25078800001${i}`,
+    );
+    await upload([HEADER, ...rows].join("\n"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/and 4 more rows/)).toBeInTheDocument(),
+    );
+  });
+
+  it("says nothing of the sort for a short import", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}\n${ROW_TWO}`);
+
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    expect(screen.queryByText(/more rows/)).toBeNull();
+  });
+
+  it("clears the file picker when the form is reset", async () => {
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+    await upload(`${HEADER}\n${ROW_ONE}`);
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const { act, fireEvent } = await import("@testing-library/react");
+    const role = screen
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "TEACHER"),
+      )!;
+    await act(async () => {
+      fireEvent.change(role, { target: { value: "TEACHER" } });
+    });
+
+    // The same file must be uploadable again after a reset, which only works
+    // if the input's value was cleared.
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe(""));
+  });
+});
+
+describe("the local template for each role", () => {
+  async function downloadFor(role: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    renderWithProviders(<BulkImportModal isOpen onClose={onClose} />);
+
+    const picker = screen
+      .getAllByRole("combobox")
+      .find((el) =>
+        Array.from((el as HTMLSelectElement).options).some((o) => o.value === role),
+      );
+    if (picker) {
+      await act(async () => {
+        fireEvent.change(picker, { target: { value: role } });
+      });
+    }
+
+    // The API is down, so the locally generated template is used.
+    h.api.get.mockRejectedValue(new Error("down"));
+
+    let csv = "";
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(async (blob: Blob) => {
+        csv = await blob.text();
+        return "blob:x";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "a") el.click = () => {};
+      return el;
+    });
+
+    const download = screen
+      .queryAllByRole("button")
+      .find((b) => /template/i.test(b.textContent ?? ""))!;
+    await act(async () => {
+      fireEvent.click(download);
+    });
+    await waitFor(() => expect(csv).not.toBe(""));
+    vi.mocked(document.createElement).mockRestore();
+    return csv;
+  }
+
+  it("names the fields a parent record needs", async () => {
+    expect(await downloadFor("PARENT")).toContain("studentIds");
+  });
+
+  it("names the fields a teacher record needs", async () => {
+    document.body.innerHTML = "";
+    expect(await downloadFor("TEACHER")).toContain("rssbNumber");
+  });
+
+  it("falls back to the student columns for anything else", async () => {
+    document.body.innerHTML = "";
+    // LIBRARIAN has no template of its own, and an empty file would be worse
+    // than a set of columns to edit.
+    expect(await downloadFor("LIBRARIAN")).toContain("firstName");
+  });
+});

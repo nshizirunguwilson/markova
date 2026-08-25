@@ -838,3 +838,134 @@ describe("the watch list", () => {
     ).toHaveLength(0);
   });
 });
+/**
+ * A term the school has not opened yet, and records with pieces missing.
+ *
+ * Both write paths on this page stamp the current term onto the record, so
+ * neither may fire before the school has one. The rest of this block covers an
+ * appeal whose student has left and a merit in a category the app does not
+ * know the wording for.
+ */
+describe("before the school has an open term", () => {
+  // The page picks the current term out of the term list, so an empty
+  // list is a school that has not opened one.
+  const noTerm = { ...routes, "/academic/terms": [] };
+
+  it("records no incident", async () => {
+    serve(h.api, noTerm);
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+
+    await click(
+      screen.queryAllByRole("button").find((b) => /record|add|new/i.test(b.textContent ?? "")),
+    );
+    const dialog = await screen.findByRole("dialog");
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|record|create|add)/i.test((b.textContent ?? "").trim())),
+    );
+
+    // Without a term the record could not be filed anywhere, so nothing is
+    // sent rather than a row landing in the wrong term.
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/incidents"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("awards no merit either", async () => {
+    serve(h.api, noTerm);
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /recognise a student/i.test(b.textContent ?? "")),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    h.api.post.mockClear();
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^(save|award|record|create|recognise)/i.test((b.textContent ?? "").trim())),
+    );
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/discipline/merits"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("records the joins came back short on", () => {
+  it("names an appeal whose student has since left", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/appeals/pending": [{ ...appeal, incident: {} }],
+    });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    await click(tab(/appeals/i));
+
+    // Better a placeholder than a page that dies, or an appeal that vanishes.
+    expect(await screen.findByText(/Unknown/)).toBeInTheDocument();
+  });
+
+  it("shows the raw category of a merit it has no wording for", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/merits": {
+        data: [
+          {
+            id: "merit-x",
+            category: "COMMUNITY_CLEANUP",
+            description: "Cleared the compound after the storm",
+            points: 5,
+            date: "2026-08-20T00:00:00Z",
+            student: { ...students[0], classSection, disciplinePoints: 88 },
+            awardedBy: { firstName: "Aline", lastName: "Uwase", role: "TEACHER" },
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    await click(tab(/^Merits$/));
+
+    expect(await screen.findByText("COMMUNITY_CLEANUP")).toBeInTheDocument();
+  });
+
+  it("draws an em dash where no praise ratio could be worked out", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/merits/summary": {
+        awarded: 0,
+        incidents: 0,
+        ratio: null,
+        byCategory: {},
+      },
+    });
+    renderPage(DisciplinePage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+    await click(tab(/^Merits$/));
+
+    const ratio = await screen.findByText("Praise per incident");
+    expect(ratio.parentElement!.textContent).toContain("—");
+  });
+});

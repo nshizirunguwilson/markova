@@ -158,3 +158,62 @@ describe("walking through the months", () => {
     );
   });
 });
+
+/**
+ * The rate at each end of the scale, and the wait before it arrives.
+ *
+ * The rate is coloured against two thresholds, and it is the only number a
+ * student's parent is going to look at. A single fixture at ninety-five only
+ * ever paints the healthy arm.
+ */
+describe("how the attendance rate is coloured", () => {
+  const rateClass = async (attendanceRate: number) => {
+    serve(h.api, {
+      ...routes,
+      "/attendance/student-summary": { ...summary, attendanceRate },
+    });
+    renderPage(StudentAttendancePage, asStudent);
+    const value = await screen.findByText(`${attendanceRate}%`);
+    return value.className;
+  };
+
+  it("paints a healthy record one way", async () => {
+    expect(await rateClass(96)).toMatch(/success/);
+  });
+
+  it("warns in the middle", async () => {
+    document.body.innerHTML = "";
+    expect(await rateClass(82)).toMatch(/warning/);
+  });
+
+  it("paints a record that needs acting on differently again", async () => {
+    document.body.innerHTML = "";
+    expect(await rateClass(58)).toMatch(/danger/);
+  });
+});
+
+describe("before the record arrives", () => {
+  it("spins rather than showing an empty month", async () => {
+    serve(h.api, {
+      ...routes,
+      "/attendance/student-summary": () => new Promise(() => {}),
+    });
+    renderPage(StudentAttendancePage, asStudent);
+
+    expect(
+      screen.queryByRole("button", { name: /previous page/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for nothing at all when the account carries no student", async () => {
+    serve(h.api, routes);
+    renderPage(StudentAttendancePage, { role: "STUDENT", user: { id: "u-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    expect(
+      h.api.get.mock.calls.some(([url]: any[]) =>
+        String(url).includes("/attendance/student-summary"),
+      ),
+    ).toBe(false);
+  });
+});

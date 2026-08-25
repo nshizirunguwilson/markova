@@ -260,3 +260,40 @@ describe("more than one child", () => {
     );
   });
 });
+
+/**
+ * A visit that ended at a health centre.
+ *
+ * Where the school sent a child is the single most important line on this
+ * page: it is what a parent needs before they set off looking for them.
+ */
+describe("a child who was sent out to a health centre", () => {
+  it("says where they were sent", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/student/student-1/visits": {
+        data: [
+          {
+            ...visits.data[0],
+            id: "visit-9",
+            complaint: "Deep cut to the hand",
+            outcome: "REFERRED_OUT",
+            referredTo: "Kacyiru Health Centre",
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(ParentHealthPage, { role: "PARENT", user: { id: "user-1" } });
+
+    await waitFor(() =>
+      expect(screen.getByText("Deep cut to the hand")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Kacyiru Health Centre")).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort about a visit that stayed in school", async () => {
+    await mount();
+    expect(screen.queryByText(/Sent to:/)).toBeNull();
+  });
+});

@@ -52,7 +52,16 @@ type Tab = "books" | "loans" | "overdue" | "analytics";
 const bookSchema = z.object({
   title: z.string().min(1, "Title is required"),
   author: z.string().min(1, "Author is required"),
-  isbn: z.string().optional(),
+  // Optional, but a typed ISBN has to be one: 10 or 13 digits, however the
+  // person spaces or hyphenates it. A wrong one is worse than none, because
+  // the next librarian looks the book up by it and finds nothing.
+  isbn: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v?.trim() || /^\d{10}$|^\d{13}$/.test(v.replace(/[\s-]/g, "")),
+      "An ISBN is 10 or 13 digits",
+    ),
   category: z.string().optional(),
   quantity: z.number().min(1, "At least 1 copy"),
   shelfLocation: z.string().optional(),
@@ -165,7 +174,7 @@ export default function AdminLibraryPage() {
           { header: "Copies", key: "quantity" },
           { header: "Available", key: "availableCount" },
         ],
-        data: books || [],
+        data: books,
       });
     } else if (tab === "loans") {
       exportData(format, {
@@ -177,7 +186,7 @@ export default function AdminLibraryPage() {
           { header: "Checkout Date", key: "_checkoutDate" },
           { header: "Due Date", key: "_dueDate" },
         ],
-        data: (activeLoans || []).map((l: any) => ({
+        data: activeLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
           _checkoutDate: new Date(l.checkoutDate).toLocaleDateString(),
@@ -194,7 +203,7 @@ export default function AdminLibraryPage() {
           { header: "Due Date", key: "_dueDate" },
           { header: "Days Overdue", key: "_daysOverdue" },
         ],
-        data: (overdueLoans || []).map((l: any) => ({
+        data: overdueLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
           _dueDate: new Date(l.dueDate).toLocaleDateString(),
@@ -524,13 +533,10 @@ export default function AdminLibraryPage() {
             <div>
               <label htmlFor="f-category" className="mb-1 block text-sm font-medium">Category</label>
               <input id="f-category"
-                className={`w-full rounded-lg border ${bookForm.formState.errors.category ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...bookForm.register("category")}
                 placeholder="e.g. Fiction, Science, History"
                aria-label="Category"/>
-              {bookForm.formState.errors.category && (
-                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.category.message}</p>
-              )}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -548,13 +554,10 @@ export default function AdminLibraryPage() {
             <div>
               <label htmlFor="f-shelf-location" className="mb-1 block text-sm font-medium">Shelf Location</label>
               <input id="f-shelf-location"
-                className={`w-full rounded-lg border ${bookForm.formState.errors.shelfLocation ? "border-danger" : "border-border"} px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30`}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
                 {...bookForm.register("shelfLocation")}
                 placeholder="e.g. A-3-12"
                aria-label="Shelf Location"/>
-              {bookForm.formState.errors.shelfLocation && (
-                <p className="mt-1 text-xs text-danger">{bookForm.formState.errors.shelfLocation.message}</p>
-              )}
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">

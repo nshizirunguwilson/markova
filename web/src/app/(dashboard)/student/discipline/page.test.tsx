@@ -182,3 +182,141 @@ describe("what a student sees about themselves", () => {
     );
   });
 });
+
+/**
+ * The same record, further down the scale.
+ *
+ * The conduct bar is the one thing on this page a student reads at a glance,
+ * and it changes colour twice: healthy, warning, and in trouble. A single
+ * fixture at 88 points only ever paints the first of those.
+ */
+describe("conduct at each end of the scale", () => {
+  const at = (percentage: number) => ({
+    "/discipline/student/student-1": {
+      ...discipline,
+      student: { currentPoints: percentage, startingPoints: 100, percentage },
+    },
+  });
+
+  const bar = () =>
+    document.querySelector("[style*='width']")!.className;
+
+  async function mountAt(percentage: number) {
+    serve(h.api, { ...routes, ...at(percentage) });
+    renderPage(StudentDisciplinePage, {
+      role: "STUDENT",
+      user: { studentId: "student-1" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+  }
+
+  it("paints a clean record one way", async () => {
+    await mountAt(88);
+    expect(bar()).toMatch(/success/);
+  });
+
+  it("warns in the middle of the scale", async () => {
+    await mountAt(62);
+    expect(bar()).toMatch(/warning/);
+  });
+
+  it("paints a record in real trouble differently again", async () => {
+    await mountAt(24);
+    expect(bar()).toMatch(/danger/);
+  });
+
+  it("counts a single incident in the singular", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/student/student-1": { ...discipline, totalIncidents: 1 },
+    });
+    renderPage(StudentDisciplinePage, {
+      role: "STUDENT",
+      user: { studentId: "student-1" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText("1 incident")).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("an incident that has been appealed", () => {
+  const withAppeal = (status: string) => ({
+    "/discipline/student/student-1": {
+      ...discipline,
+      incidents: [
+        {
+          ...discipline.incidents[0],
+          actionTaken: "SUSPENSION",
+          appeals: [{ id: "ap-1", status }],
+        },
+      ],
+    },
+  });
+
+  async function mountAppeal(status: string) {
+    serve(h.api, { ...routes, ...withAppeal(status) });
+    renderPage(StudentDisciplinePage, {
+      role: "STUDENT",
+      user: { studentId: "student-1" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Late to assembly/)).toBeInTheDocument(),
+    );
+  }
+
+  it("shows an appeal that is still being decided", async () => {
+    await mountAppeal("PENDING");
+    expect(screen.getByText("PENDING")).toBeInTheDocument();
+  });
+
+  it("marks an upheld appeal differently from a refused one", async () => {
+    await mountAppeal("APPROVED");
+    const approved = screen.getByText("APPROVED").className;
+
+    document.body.innerHTML = "";
+    await mountAppeal("REJECTED");
+    const rejected = screen.getByText("REJECTED").className;
+
+    expect(approved).not.toBe(rejected);
+  });
+
+  it("colours a suspension differently from a verbal warning", async () => {
+    await mountAppeal("PENDING");
+    const suspension = screen.getByText("Suspension").className;
+
+    document.body.innerHTML = "";
+    await mount();
+    const warning = screen.getByText("Verbal Warning").className;
+
+    expect(suspension).not.toBe(warning);
+  });
+});
+
+describe("a merit in a category the app does not know", () => {
+  it("shows the raw category rather than nothing at all", async () => {
+    serve(h.api, {
+      ...routes,
+      "/discipline/standing/student-1": {
+        ...standing,
+        merits: [
+          {
+            ...standing.merits[0],
+            id: "merit-x",
+            category: "COMMUNITY_CLEANUP",
+          },
+        ],
+      },
+    });
+    renderPage(StudentDisciplinePage, {
+      role: "STUDENT",
+      user: { studentId: "student-1" },
+    });
+
+    // A category added on the server before the app knows its wording still
+    // has to appear: silently dropping a merit is worse than an ugly label.
+    expect(await screen.findByText("COMMUNITY_CLEANUP")).toBeInTheDocument();
+  });
+});

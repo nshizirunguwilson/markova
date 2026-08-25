@@ -829,3 +829,357 @@ describe("the whole visit form", () => {
     expect(h.api.put).not.toHaveBeenCalled();
   });
 });
+/**
+ * The corners of the clinic screen.
+ *
+ * A referral out to a health centre needs somewhere to refer to, a card with
+ * nothing on it must still open, and the empty states differ between the sick
+ * bay and the day book because they mean different things: nobody is unwell,
+ * versus nothing has been written down yet.
+ */
+describe("referring a student out", () => {
+  async function openNewWithStudent() {
+    await mount();
+    await click(button(/new visit/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Student"), {
+        target: { value: "Divine" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByRole("button")
+          .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+      ).toBeTruthy(),
+    );
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+    );
+  }
+
+  it("will not record a referral with nowhere to refer to", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Deep cut to the hand" },
+      });
+      fireEvent.change(screen.getByLabelText(/what happened next/i), {
+        target: { value: "REFERRED_OUT" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(button(/record the visit/i));
+
+    // Nothing is sent: a referral with no destination is not a referral.
+    expect(
+      h.api.post.mock.calls.find((c: any[]) => String(c[0]) === "/clinic/visits"),
+    ).toBeUndefined();
+  });
+
+  it("sends the health centre once it is named", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Deep cut to the hand" },
+      });
+      fireEvent.change(screen.getByLabelText(/what happened next/i), {
+        target: { value: "REFERRED_OUT" },
+      });
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/sent where/i), {
+        target: { value: "Kacyiru Health Centre" },
+      });
+    });
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1]).toMatchObject({
+        outcome: "REFERRED_OUT",
+        referredTo: "Kacyiru Health Centre",
+      });
+    });
+  });
+
+  it("leaves the referral field off a visit that stays in school", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Headache" },
+      });
+    });
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1].referredTo).toBeUndefined();
+    });
+  });
+});
+
+describe("a clinic with nothing in it", () => {
+  const nothing = {
+    ...routes,
+    "/clinic/visits": { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } },
+  };
+
+  it("says the sick bay is empty", async () => {
+    serve(h.api, nothing);
+    renderPage(HealthPage, { role: "NURSE" });
+    expect(await screen.findByText("Nobody is in the sick bay.")).toBeInTheDocument();
+  });
+
+  it("says the day book is empty in different words", async () => {
+    serve(h.api, nothing);
+    renderPage(HealthPage, { role: "NURSE" });
+    await screen.findByText("Nobody is in the sick bay.");
+
+    // The clinic book is the written record, so "nobody is lying down" would
+    // be the wrong sentence there.
+    await click(button(/the clinic book/i));
+
+    expect(await screen.findByText("Nothing in the book yet.")).toBeInTheDocument();
+  });
+});
+
+describe("a card and a visit with nothing filled in", () => {
+  const blankCard = {
+    student: {
+      ...card.student,
+      allergies: null,
+      bloodType: null,
+      healthRecord: null,
+      parentStudents: [],
+    },
+    recentVisits: [],
+    recentMedication: [],
+  };
+
+  async function openCard() {
+    await mount();
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "Divine Niyonkuru"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Emergency card")).toBeInTheDocument(),
+    );
+  }
+
+  it("opens every field blank rather than showing the word null", async () => {
+    serve(h.api, { ...routes, "/clinic/student/student-1": blankCard });
+    await openCard();
+
+    for (const label of [
+      /long-term conditions/i,
+      /medication taken regularly/i,
+      /allergy notes/i,
+      /what to do in an emergency/i,
+      /who to ring/i,
+      /their phone/i,
+      /relationship/i,
+      /health centre we use/i,
+      /^insurance$/i,
+      /insurance number/i,
+    ]) {
+      expect(screen.getByLabelText(label)).toHaveValue("");
+    }
+  });
+
+  it("leaves out the recent visits list when there have been none", async () => {
+    serve(h.api, { ...routes, "/clinic/student/student-1": blankCard });
+    await openCard();
+    expect(screen.queryByText("Recent visits")).toBeNull();
+  });
+
+  it("shows the recent visits when there have been some", async () => {
+    await openCard();
+    expect(screen.getByText("Recent visits")).toBeInTheDocument();
+  });
+
+  it("says nothing has been given on a visit with no doses", async () => {
+    serve(h.api, {
+      ...routes,
+      // Both the list and the detail: the drawer opens on the row it was
+      // given and refreshes from the detail endpoint after.
+      "/clinic/visits": {
+        data: [{ ...resting, medications: [] }, referred],
+        meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+      },
+      "/clinic/visits/visit-1": { ...resting, medications: [] },
+    });
+    await openVisit();
+    expect(screen.getByText("Nothing given yet.")).toBeInTheDocument();
+  });
+
+  it("lists the doses on a visit that has had some", async () => {
+    await openVisit();
+    expect(screen.getAllByText(/Paracetamol/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Nothing given yet.")).toBeNull();
+  });
+});
+
+/**
+ * Visits and cards the joins came back short on.
+ *
+ * The clinic list names a student from a join two tables deep, and every one
+ * of those can come back empty for a student who has since left. A nurse
+ * looking for who is lying down must not be shown a blank page instead.
+ */
+describe("a visit whose student record has gone", () => {
+  it("still lists the visit", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [{ ...resting, student: undefined }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(HealthPage, { role: "NURSE" });
+
+    expect(await screen.findByText("Fever since last night")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+
+  it("still lists a visit whose student has no user behind it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [{ ...resting, student: { id: "student-1" } }],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      },
+    });
+    renderPage(HealthPage, { role: "NURSE" });
+
+    expect(await screen.findByText("Fever since last night")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});
+
+describe("a visit and a card with the lists left off entirely", () => {
+  it("says nothing has been given when the doses list is absent", async () => {
+    const noMeds = { ...resting };
+    delete (noMeds as Record<string, unknown>).medications;
+
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [noMeds, referred],
+        meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+      },
+      "/clinic/visits/visit-1": noMeds,
+    });
+    await openVisit();
+
+    expect(screen.getByText("Nothing given yet.")).toBeInTheDocument();
+  });
+
+  it("leaves out recent visits when the card has no list at all", async () => {
+    const noVisits = { student: card.student, recentMedication: [] };
+    serve(h.api, { ...routes, "/clinic/student/student-1": noVisits });
+    await mount();
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "Divine Niyonkuru"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Emergency card")).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByText("Recent visits")).toBeNull();
+  });
+});
+
+/**
+ * The temperature box, which is the one number on the visit form.
+ *
+ * It is optional, and an empty box is not a temperature of nought degrees.
+ * Sending one would put a dead child in the clinic book.
+ */
+describe("recording a temperature", () => {
+  async function openNewWithStudent() {
+    await mount();
+    await click(button(/new visit/i));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Student"), {
+        target: { value: "Divine" },
+      });
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .queryAllByRole("button")
+          .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+      ).toBeTruthy(),
+    );
+    await click(
+      screen
+        .queryAllByRole("button")
+        .find((b) => /STD-2025-231419-167/.test(b.textContent ?? "")),
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/what the student says is wrong/i), {
+        target: { value: "Headache" },
+      });
+    });
+  }
+
+  it("sends the reading when there is one", async () => {
+    await openNewWithStudent();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/temperature/i), {
+        target: { value: "38.6" },
+      });
+    });
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1].temperature).toBe(38.6);
+    });
+  });
+
+  it("leaves it out entirely when the box is empty", async () => {
+    await openNewWithStudent();
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      // Not nought degrees.
+      expect(call?.[1].temperature).toBeUndefined();
+    });
+  });
+
+  it("leaves the findings and treatment out when they are blank", async () => {
+    await openNewWithStudent();
+
+    await click(button(/record the visit/i));
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        (c: any[]) => String(c[0]) === "/clinic/visits",
+      );
+      expect(call?.[1].findings).toBeUndefined();
+      expect(call?.[1].treatment).toBeUndefined();
+    });
+  });
+});

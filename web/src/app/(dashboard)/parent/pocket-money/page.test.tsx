@@ -307,3 +307,36 @@ describe("more than one child", () => {
     );
   });
 });
+
+/**
+ * A line on the statement that nobody signed.
+ *
+ * A top-up made through a payment gateway is not recorded by a member of
+ * staff, so there is no name to show. A parent reading the statement must see
+ * a blank rather than the word "undefined" against their child's money.
+ */
+describe("a statement line nobody signed", () => {
+  it("draws an em dash where the name would be", async () => {
+    await mount({
+      "/pocket-money/student/student-1/statement": {
+        data: [
+          {
+            id: "t-9",
+            kind: "DEPOSIT",
+            amount: 5000,
+            signedAmount: 5000,
+            note: "Mobile money top-up",
+            createdAt: "2026-08-23T08:00:00Z",
+            recordedBy: null,
+            isReversed: false,
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 50, totalPages: 1 },
+      },
+    });
+
+    const row = (await screen.findByText("Mobile money top-up")).closest("tr")!;
+    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/undefined|null/);
+  });
+});

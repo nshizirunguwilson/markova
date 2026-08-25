@@ -543,3 +543,154 @@ describe("taking the list away with you", () => {
     expect(button).toBeDisabled();
   });
 });
+
+/**
+ * The form when it is filled in wrong, and the list when the rows are thin.
+ *
+ * An assessment carries seven fields that a school actually needs, and the
+ * screen has to say which one is missing rather than fail silently at the API.
+ * The rows below are the other half: homework created before the school
+ * settled on subjects and terms, which still has to draw.
+ */
+describe("creating an assessment with the form half filled", () => {
+  const openNew = async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /new assessment/i }));
+    return screen.getByRole("button", { name: /^create$/i });
+  };
+
+  it("names every field it is still waiting for", async () => {
+    const create = await openNew();
+    await click(create);
+
+    expect(await screen.findByText("Title is required")).toBeInTheDocument();
+    expect(screen.getByText("Subject is required")).toBeInTheDocument();
+    expect(screen.getByText("Teacher is required")).toBeInTheDocument();
+    expect(screen.getByText("Class section is required")).toBeInTheDocument();
+    expect(screen.getByText("Term is required")).toBeInTheDocument();
+    expect(screen.getByText("Due date is required")).toBeInTheDocument();
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("marks the fields it is waiting for in red", async () => {
+    const create = await openNew();
+    await click(create);
+
+    await screen.findByText("Title is required");
+    expect(screen.getByLabelText("Title").className).toMatch(/border-danger/);
+    expect(screen.getByLabelText("Subject").className).toMatch(/border-danger/);
+    expect(screen.getByLabelText("Due Date").className).toMatch(/border-danger/);
+  });
+
+  it("refuses an assessment worth no marks", async () => {
+    const create = await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Max Marks"), { target: { value: "0" } });
+    });
+    await click(create);
+
+    expect(await screen.findByText("Must be at least 1")).toBeInTheDocument();
+  });
+
+  it("refuses an assessment worth more marks than a paper carries", async () => {
+    const create = await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Max Marks"), { target: { value: "5000" } });
+    });
+    await click(create);
+
+    expect(await screen.findByText("Max 1000")).toBeInTheDocument();
+  });
+
+  it("clears the chosen section when the level changes under it", async () => {
+    await openNew();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Class Level"), {
+        target: { value: classLevel.id },
+      });
+    });
+    // The sections for that level are their own request, so the option only
+    // exists once it lands.
+    await waitFor(() =>
+      expect(
+        within(screen.getByLabelText("Section")).getByRole("option", {
+          name: classSection.name,
+        }),
+      ).toBeInTheDocument(),
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Section"), {
+        target: { value: classSection.id },
+      });
+    });
+    expect(screen.getByLabelText("Section")).toHaveValue(classSection.id);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Class Level"), { target: { value: "" } });
+    });
+    expect(screen.getByLabelText("Section")).toHaveValue("");
+  });
+});
+
+describe("an assessment recorded before the school had its details straight", () => {
+  const bare = {
+    id: "hw-bare",
+    kind: "HOMEWORK",
+    title: "Old exercise",
+    _count: { submissions: 0 },
+  };
+
+  const withBare = {
+    ...routes,
+    "/homework": { data: [bare], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
+  };
+
+  it("draws an em dash for the subject, due date and marks", async () => {
+    serve(h.api, withBare);
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+
+    const row = (await screen.findByText("Old exercise")).closest("tr")!;
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("opens it for editing with the blanks left blank", async () => {
+    serve(h.api, withBare);
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await screen.findByText("Old exercise");
+
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+
+    expect(await screen.findByLabelText("Title")).toHaveValue("Old exercise");
+    expect(screen.getByLabelText("Description")).toHaveValue("");
+    expect(screen.getByLabelText("Subject")).toHaveValue("");
+    expect(screen.getByLabelText("Term")).toHaveValue("");
+    expect(screen.getByLabelText("Due Date")).toHaveValue("");
+    // No max marks recorded, so the form offers the usual hundred.
+    expect(screen.getByLabelText("Max Marks")).toHaveValue(100);
+    // Nothing to preselect, so the level picker stays on its prompt.
+    expect(screen.getByLabelText("Class Level")).toHaveValue("");
+  });
+
+  it("exports it with an em dash where the due date should be", async () => {
+    serve(h.api, withBare);
+    renderPage(AdminHomeworkPage, { role: "ADMIN" });
+    await screen.findByText("Old exercise");
+
+    const trigger = screen
+      .queryAllByRole("button")
+      .find((b) => /export/i.test(b.textContent ?? ""))!;
+    await click(trigger);
+    const csv = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("button")
+        .find((b) => /^csv$/i.test((b.textContent ?? "").trim()));
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await click(csv);
+
+    const [, payload] = h.exportData.mock.calls.at(-1)! as [string, any];
+    expect(payload.data[0]._dueDate).toBe("—");
+    expect(payload.data[0]._teacher).toBe("");
+  });
+});

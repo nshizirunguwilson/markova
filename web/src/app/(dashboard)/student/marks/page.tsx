@@ -29,7 +29,7 @@ export default function StudentMarksPage() {
     const map = new Map<string, { subject: string; assessments: any[]; average: number }>();
     for (const m of marks) {
       if (!map.has(m.subjectId)) {
-        map.set(m.subjectId, { subject: m.subject.name, assessments: [], average: 0 });
+        map.set(m.subjectId, { subject: m.subject?.name ?? "Subject", assessments: [], average: 0 });
       }
       const entry = map.get(m.subjectId)!;
       entry.assessments.push({

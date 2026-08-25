@@ -74,7 +74,7 @@ function when(iso: string): string {
 }
 
 function nameOf(v: ClinicVisit): string {
-  return `${v.student.user.firstName} ${v.student.user.lastName}`;
+  return `${v.student?.user?.firstName ?? ""} ${v.student?.user?.lastName ?? ""}`.trim();
 }
 
 /**
@@ -236,16 +236,19 @@ export default function HealthPage() {
                 visits.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-medium">
+                      {/* A student who has since left the school comes back
+                          with the join empty, and losing the whole list is far
+                          worse than losing one name off one row. */}
                       <button
-                        onClick={() => setCardFor(v.student.id)}
+                        onClick={() => v.student?.id && setCardFor(v.student.id)}
                         className="text-left hover:underline"
                       >
                         {nameOf(v)}
                       </button>
                       <div className="font-mono text-xs text-muted">
-                        {v.student.studentIdNumber}
+                        {v.student?.studentIdNumber}
                       </div>
-                      {v.student.allergies && (
+                      {v.student?.allergies && (
                         <Badge variant="danger" className="mt-1">
                           Allergy: {v.student.allergies}
                         </Badge>
@@ -817,66 +820,66 @@ function EmergencyCardModal({
             <Input
               id="c-conditions"
               label="Long-term conditions"
-              value={form.chronicConditions ?? ""}
+              value={form.chronicConditions}
               onChange={(e) => set("chronicConditions", e.target.value)}
               placeholder="e.g. Asthma"
             />
             <Input
               id="c-medication"
               label="Medication taken regularly"
-              value={form.regularMedication ?? ""}
+              value={form.regularMedication}
               onChange={(e) => set("regularMedication", e.target.value)}
             />
             <Input
               id="c-allergies"
               label="Allergy notes"
-              value={form.allergyNotes ?? ""}
+              value={form.allergyNotes}
               onChange={(e) => set("allergyNotes", e.target.value)}
             />
             <Input
               id="c-plan"
               label="What to do in an emergency"
-              value={form.emergencyPlan ?? ""}
+              value={form.emergencyPlan}
               onChange={(e) => set("emergencyPlan", e.target.value)}
               placeholder="e.g. Blue inhaler is in her locker"
             />
             <Input
               id="c-contact"
               label="Who to ring"
-              value={form.emergencyContactName ?? ""}
+              value={form.emergencyContactName}
               onChange={(e) => set("emergencyContactName", e.target.value)}
             />
             <Input
               id="c-phone"
               label="Their phone"
-              value={form.emergencyContactPhone ?? ""}
+              value={form.emergencyContactPhone}
               onChange={(e) => set("emergencyContactPhone", e.target.value)}
               placeholder="+250…"
             />
             <Input
               id="c-relationship"
               label="Relationship"
-              value={form.emergencyRelationship ?? ""}
+              value={form.emergencyRelationship}
               onChange={(e) => set("emergencyRelationship", e.target.value)}
               placeholder="e.g. Aunt"
             />
             <Input
               id="c-clinic"
               label="Health centre we use"
-              value={form.preferredClinic ?? ""}
+              value={form.preferredClinic}
               onChange={(e) => set("preferredClinic", e.target.value)}
             />
             <Input
               id="c-insurer"
               label="Insurance"
-              value={form.insuranceProvider ?? ""}
+              value={form.insuranceProvider}
               onChange={(e) => set("insuranceProvider", e.target.value)}
               placeholder="e.g. Mutuelle de Sante"
             />
             <Input
               id="c-insurance-no"
               label="Insurance number"
-              value={form.insuranceNumber ?? ""}
+              value={form.insuranceNumber}
               onChange={(e) => set("insuranceNumber", e.target.value)}
             />
           </div>

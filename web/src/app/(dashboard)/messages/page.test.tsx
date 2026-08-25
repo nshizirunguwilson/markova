@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 const h = vi.hoisted(() => {
@@ -1107,5 +1107,652 @@ describe("managing a group", () => {
         "Make somebody else an admin first, or the group is left with nobody to manage it",
       ),
     );
+  });
+});
+
+/**
+ * The typing line, and everything the inbox draws when a thread is not tidy.
+ *
+ * "Aline is typing" and "Aline, Jean and 3 more are typing" are two different
+ * sentences, and the second one is the one nobody writes a test for. The rest
+ * of this block covers threads whose sender, name or participants are missing,
+ * which is what a thread looks like after somebody leaves the school.
+ */
+describe("who is typing", () => {
+  async function openWithTyping(names: string[]) {
+    const map = new Map(names.map((n, i) => [`typer-${i}`, n]));
+    h.chat.getTypingUsers = () => map;
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+  }
+
+  afterEach(() => {
+    h.chat.getTypingUsers = () => new Map<string, string>();
+  });
+
+  it("says nothing when nobody is typing", async () => {
+    await openWithTyping([]);
+    expect(screen.queryByText(/is typing/)).toBeNull();
+    expect(screen.queryByText(/are typing/)).toBeNull();
+  });
+
+  it("names one person in the singular", async () => {
+    await openWithTyping(["Aline"]);
+    expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+  });
+
+  it("names two people in the plural", async () => {
+    await openWithTyping(["Aline", "Jean"]);
+    const line = await screen.findByText(/are typing/);
+    expect(line.textContent).toContain("Aline, Jean");
+    expect(line.textContent).not.toContain("more");
+  });
+
+  it("counts the rest once more than two are typing", async () => {
+    await openWithTyping(["Aline", "Jean", "Keza", "Manzi"]);
+    const line = await screen.findByText(/are typing/);
+    // Two names then a count, rather than a wall of names.
+    expect(line.textContent).toContain("Aline, Jean");
+    expect(line.textContent).toContain("and 2 more");
+  });
+});
+
+describe("threads with pieces missing", () => {
+  const nameless = {
+    id: "conv-9",
+    type: "ONE_ON_ONE",
+    // Everyone in it has left, so there is no other person to name it after.
+    participants: [],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  it("falls back to calling it a chat", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [nameless] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    expect(await screen.findByText("Chat")).toBeInTheDocument();
+  });
+
+  it("shows an attachment on a message sent by someone else", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-file",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "Here is the timetable",
+          fileUrl: "/uploads/messaging/timetable.pdf",
+          fileName: "timetable.pdf",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    const link = await screen.findByRole("link", { name: /timetable\.pdf/ });
+    expect(link).toHaveAttribute("href", "/uploads/messaging/timetable.pdf");
+  });
+
+  it("calls an attachment with no filename an attachment", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-file",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "",
+          fileUrl: "/uploads/messaging/x",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    expect(await screen.findByText("Attachment")).toBeInTheDocument();
+  });
+
+  it("names the sender only on messages that are not yours", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderId: "u-3",
+          sender: other,
+          content: "Muraho",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+        {
+          id: "m-2",
+          conversationId: "conv-1",
+          senderId: "user-1",
+          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+          content: "Muraho neza",
+          createdAt: "2026-08-21T09:01:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getAllByText(/Aline/).length).toBeGreaterThan(0));
+    await userEvent.setup().click(screen.getAllByText(/Aline/)[0]);
+
+    await screen.findByText("Muraho neza");
+    // Your own bubble carries no name: you know who you are.
+    expect(screen.queryByText(/Wilson Nshizirungu/)).toBeNull();
+  });
+});
+
+describe("choosing who a new conversation is with", () => {
+  async function openPicker(over: Record<string, unknown> = {}) {
+    serve(h.api, { ...routes, ...over });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("dialog");
+    return user;
+  }
+
+  it("shows nobody until a name is typed", async () => {
+    await openPicker();
+    // The thread list behind the dialog still names Aline, so this asks the
+    // dialog itself.
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByText(/Aline Uwase/)).toBeNull();
+  });
+
+  it("says so when the search matches nobody", async () => {
+    const user = await openPicker({ "/messaging/contacts": { data: [] } });
+    await user.type(screen.getByLabelText("Search users by name..."), "zzz");
+
+    expect(await screen.findByText("No users found")).toBeInTheDocument();
+  });
+
+  it("lists the people it found and puts one in the chip row", async () => {
+    const user = await openPicker();
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const row = await screen.findByRole("dialog");
+    const candidate = within(row)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    // Chosen people move into a chip row above the search box.
+    await waitFor(() =>
+      expect(within(row).getAllByText(/Aline Uwase/).length).toBeGreaterThan(0),
+    );
+  });
+
+  it("drops a person back out of the chip row", async () => {
+    const user = await openPicker();
+    const dialog = screen.getByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const candidate = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    const chipClose = await waitFor(() => {
+      const found = within(dialog)
+        .getAllByRole("button")
+        .find((b) => (b.textContent ?? "").trim() === "\u00d7");
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(chipClose);
+
+    await waitFor(() =>
+      expect(
+        within(dialog)
+          .queryAllByRole("button")
+          .some((b) => (b.textContent ?? "").trim() === "\u00d7"),
+      ).toBe(false),
+    );
+  });
+
+  it("sends nothing when Create is pressed with nobody chosen", async () => {
+    const user = await openPicker();
+    const dialog = screen.getByRole("dialog");
+    h.api.post.mockClear();
+
+    const create = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /create|start/i.test((b.textContent ?? "").trim()));
+    if (!create) return;
+    await user.click(create);
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/conversations"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("an inbox with no threads in it at all", () => {
+  it("says so rather than showing an empty column", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(await screen.findByText("No conversations yet")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Threads and people the joins came back short on.
+ *
+ * A school's messaging list outlives its accounts: a teacher leaves, a parent
+ * is deactivated, and the threads they were in are still there. Every one of
+ * these has to draw rather than take the inbox down.
+ */
+describe("people whose accounts are gone", () => {
+  it("puts a question mark where an initial would be", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/contacts": {
+        data: [{ id: "u-9", firstName: "", lastName: "", role: "TEACHER" }],
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "a");
+
+    expect(await screen.findByText("?")).toBeInTheDocument();
+  });
+
+  it("falls back to an id when a chosen person is no longer in the results", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(screen.getByLabelText("Search users by name..."), "ali");
+
+    const candidate = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    await user.click(candidate);
+
+    // The search moves on and no longer contains them; the chip must still
+    // show something rather than going blank.
+    serve(h.api, { ...routes, "/messaging/contacts": { data: [] } });
+    await user.clear(screen.getByLabelText("Search users by name..."));
+    await user.type(screen.getByLabelText("Search users by name..."), "zzz");
+
+    await waitFor(() =>
+      expect(within(dialog).getByText("u-3")).toBeInTheDocument(),
+    );
+  });
+
+  it("names a message from someone with no name left", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-ghost",
+          conversationId: "conv-1",
+          senderId: "u-gone",
+          sender: { id: "u-gone" },
+          content: "Muraho",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    // The message itself survives, on the left, with a blank name above it.
+    expect(await screen.findByText("Muraho")).toBeInTheDocument();
+  });
+
+  it("shows your own attachment on your own side", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-mine",
+          conversationId: "conv-1",
+          senderId: "user-1",
+          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+          content: "Here it is",
+          fileUrl: "/uploads/messaging/notes.pdf",
+          fileName: "notes.pdf",
+          createdAt: "2026-08-21T09:05:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByText(/Aline/));
+
+    const link = await screen.findByRole("link", { name: /notes\.pdf/ });
+    // Your own attachments sit on the tinted side of the bubble.
+    expect(link.className).toMatch(/white/);
+  });
+});
+
+describe("a group whose member list is still loading", () => {
+  it("opens the members panel with nothing in it rather than throwing", async () => {
+    const group = {
+      id: "conv-2",
+      type: "GROUP",
+      name: "Senior 2 parents",
+      participants: [{ user: other }],
+      lastMessage: null,
+      unreadCount: 0,
+    };
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [group],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": undefined,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Senior 2 parents"));
+    await user.click(await screen.findByLabelText("Members"));
+
+    // The rename box opens seeded with the group's current name.
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Senior 2 parents")).toBeInTheDocument(),
+    );
+  });
+});
+
+/**
+ * A file sent on its own, and a member list with no names in it.
+ *
+ * Requiring words alongside an attachment means people type "." to get past
+ * the check, so a file is a message by itself, and the filename becomes what
+ * the thread shows. The member list is the other half: a group outlives the
+ * accounts in it.
+ */
+describe("sending a file with nothing typed", () => {
+  it("uses the filename as the message", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/attachments": {
+        fileUrl: "/uploads/messaging/trip-letter.pdf",
+        fileName: "trip-letter.pdf",
+      },
+    });
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    await user.upload(
+      picker,
+      new File(["x"], "trip-letter.pdf", { type: "application/pdf" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("trip-letter.pdf")).toBeInTheDocument(),
+    );
+
+    h.api.post.mockClear();
+    const send = screen
+      .queryAllByRole("button")
+      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
+    await user.click(send);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/messages"),
+      );
+      expect(call).toBeTruthy();
+      // A file with no words still carries something readable in the list.
+      expect((call![1] as any).content).toBe("trip-letter.pdf");
+      expect((call![1] as any).contentType).toBe("FILE");
+    });
+  });
+
+  it("attaches nothing when the picker is dismissed", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    h.api.post.mockClear();
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [] } });
+    });
+
+    expect(
+      h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/attachments"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("a group whose members have no names left", () => {
+  const group = {
+    id: "conv-2",
+    type: "GROUP",
+    name: "Senior 2 parents",
+    participants: [{ user: other }],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  async function openMembers(participants: unknown) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [group],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": participants,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Senior 2 parents"));
+    await user.click(await screen.findByLabelText("Members"));
+  }
+
+  it("puts a question mark where an initial would be", async () => {
+    await openMembers([{ id: "p-1", user: { id: "u-9", firstName: "", lastName: "" } }]);
+
+    expect(await screen.findByText("?")).toBeInTheDocument();
+  });
+
+  it("says so when a group has nobody in it", async () => {
+    await openMembers([]);
+
+    expect(await screen.findByText("Nobody to show.")).toBeInTheDocument();
+  });
+
+  it("names the members it does have", async () => {
+    await openMembers([{ id: "p-1", user: other }]);
+
+    await waitFor(() =>
+      expect(screen.getAllByText(/Aline Uwase/).length).toBeGreaterThan(0),
+    );
+  });
+});
+
+/**
+ * A group with no name, and lists that never arrived.
+ *
+ * A group started from the picker carries no name until somebody sets one, so
+ * the rename box has to open empty rather than showing "undefined". The two
+ * lists behind the members panel each come from their own request, and either
+ * can fail on its own.
+ */
+describe("renaming a group that has no name yet", () => {
+  const unnamed = {
+    id: "conv-2",
+    type: "GROUP",
+    name: null,
+    participants: [{ user: other }, { user: second }],
+    lastMessage: null,
+    unreadCount: 0,
+  };
+
+  async function openMembersOf(over: Record<string, unknown> = {}) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [unnamed],
+      "/messaging/conversations/conv-2/messages": [],
+      "/messaging/conversations/conv-2/participants": [{ id: "p-1", user: other }],
+      ...over,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Group \(2\)/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Group \(2\)/));
+    await user.click(await screen.findByLabelText("Members"));
+    return user;
+  }
+
+  it("opens the rename box empty", async () => {
+    await openMembersOf();
+
+    const box = await waitFor(() => {
+      const found = screen
+        .queryAllByRole("textbox")
+        .find((el) => /name/i.test(el.getAttribute("placeholder") ?? ""));
+      expect(found).toBeTruthy();
+      return found as HTMLInputElement;
+    });
+    expect(box.value).toBe("");
+  });
+
+  it("copes with a member list that never arrived", async () => {
+    await openMembersOf({
+      "/messaging/conversations/conv-2/participants": undefined,
+    });
+
+    // The panel opens on an empty list rather than throwing on undefined.
+    expect(await screen.findByText("Nobody to show.")).toBeInTheDocument();
+  });
+
+  it("copes with a contact list that never arrived", async () => {
+    await openMembersOf({ "/messaging/contacts": undefined });
+
+    // The "add someone" picker inside the panel has nobody to offer, and the
+    // panel still draws rather than throwing on an undefined list.
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument(),
+    );
+    expect(document.body.textContent).not.toMatch(/undefined/);
+  });
+});
+
+/**
+ * The typing indicator timing out, and a file the server named nothing.
+ *
+ * The indicator is switched off five seconds after the last keystroke, or the
+ * other side is told somebody is typing for the rest of the day. The nameless
+ * file is the other half: an upload that answers without a filename must not
+ * become a message reading "undefined".
+ */
+describe("the typing indicator timing out", () => {
+  it("tells the other side you stopped", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve(h.api, routes);
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await user.click(screen.getByText(/Aline/));
+    const box = await screen.findByPlaceholderText(/type a message/i);
+    await user.type(box, "Mu");
+
+    h.chat.stopTyping.mockClear();
+    await act(async () => {
+      vi.advanceTimersByTime(6000);
+    });
+
+    expect(h.chat.stopTyping).toHaveBeenCalledWith("conv-1");
+    vi.useRealTimers();
+  }, 20000);
+});
+
+describe("a file the upload named nothing", () => {
+  it("sends it without inventing a name", async () => {
+    serve(h.api, {
+      ...routes,
+      // The upload succeeded but carries no filename back.
+      "/messaging/attachments": { fileUrl: "/uploads/messaging/x" },
+    });
+    h.chat.connected = true;
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByPlaceholderText(/type a message/i);
+
+    const picker = document.querySelector<HTMLInputElement>("#m-attach");
+    if (!picker) return;
+    await user.upload(picker, new File(["x"], "x.pdf", { type: "application/pdf" }));
+
+    // The chip appears with nothing written on it, which is the whole point:
+    // there is no name to write.
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/attachments",
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+
+    h.api.post.mockClear();
+    const send = screen
+      .queryAllByRole("button")
+      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
+    await user.click(send);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/messaging/messages"),
+      );
+      expect(call).toBeTruthy();
+      // Empty, not the word "undefined".
+      expect((call![1] as any).content).toBe("");
+    });
   });
 });

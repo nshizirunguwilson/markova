@@ -48,7 +48,24 @@ const queries: QueryCase[] = [
   { name: "useSubjects", hook: () => academic.useSubjects(), url: "/academic/subjects" },
   { name: "useAssessmentTypes", hook: () => academic.useAssessmentTypes(), url: "/academic/assessment-types" },
   { name: "useAssignments", hook: () => academic.useAssignments({ teacherId: "teacher-1" }), url: "/academic/assignments" },
+  // The filters are optional and each is set separately, so a call carrying
+  // all of them is the only one that proves none is dropped on the way.
+  {
+    name: "useAssignments (every filter)",
+    hook: () =>
+      academic.useAssignments({
+        teacherId: "teacher-1",
+        classSectionId: "section-1",
+        academicYearId: "year-1",
+      }),
+    url: "classSectionId=section-1",
+  },
   { name: "useTimetable", hook: () => academic.useTimetable("section-1"), url: "/academic/timetable" },
+  {
+    name: "useTimetable (a teacher's own week)",
+    hook: () => academic.useTimetable("section-1", "teacher-1"),
+    url: "teacherId=teacher-1",
+  },
   { name: "useSchoolConfig", hook: () => academic.useSchoolConfig(), url: "/school-config" },
 ];
 

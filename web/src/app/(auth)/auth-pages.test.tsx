@@ -203,3 +203,42 @@ describe("setting a new password", () => {
     expect(document.body.textContent).toMatch(/invalid|expired|link/i);
   });
 });
+
+/**
+ * The development shortcut on the reset form.
+ *
+ * There is no mail server on a school's own machine during a demo, so the API
+ * hands the token back and the form offers it as a link. That must never be
+ * the case in production, where the response carries no token at all.
+ */
+describe("the reset link during a demo", () => {
+  it("offers the link when the API hands the token back", async () => {
+    h.api.post.mockResolvedValue({ data: { devToken: "abc123" } });
+    renderWithProviders(<ForgotPasswordPage />);
+
+    const user = userEvent.setup();
+    await user.type(
+      document.querySelector("input") as HTMLInputElement,
+      "aline.uwase@markova.edu",
+    );
+    await user.click(screen.getByRole("button", { name: /send|reset/i }));
+
+    const link = await screen.findByRole("link", { name: /reset/i });
+    expect(link).toHaveAttribute("href", "/reset-password?token=abc123");
+  });
+
+  it("offers nothing of the sort when it does not", async () => {
+    h.api.post.mockResolvedValue({ data: { message: "sent" } });
+    renderWithProviders(<ForgotPasswordPage />);
+
+    const user = userEvent.setup();
+    await user.type(
+      document.querySelector("input") as HTMLInputElement,
+      "aline.uwase@markova.edu",
+    );
+    await user.click(screen.getByRole("button", { name: /send|reset/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: /reset/i })).toBeNull();
+  });
+});

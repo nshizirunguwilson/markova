@@ -919,3 +919,547 @@ describe('AcademicService', () => {
     });
   });
 });
+
+/**
+ * Editing the shape of the year, one field at a time and all at once.
+ *
+ * Every update method here spreads each field only when it was sent, so a
+ * school correcting a single date must not have the rest of the record
+ * blanked. The tests below send everything, then send nothing, which are the
+ * two ends every one of those spreads has.
+ */
+describe('editing the school year', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+    prisma.academicYear.findUnique.mockResolvedValue({ id: 'year-1' });
+    prisma.academicYear.update.mockResolvedValue({});
+    prisma.academicYear.updateMany.mockResolvedValue({ count: 1 });
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1' });
+    prisma.term.update.mockResolvedValue({});
+    prisma.term.updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  describe('a year', () => {
+    it('changes every field it was given', async () => {
+      await service.updateYear('year-1', {
+        name: '2027-2028',
+        startDate: '2027-09-01',
+        endDate: '2028-07-15',
+        isCurrent: true,
+      } as never);
+
+      const written = prisma.academicYear.update.mock.calls[0][0].data;
+      expect(written.name).toBe('2027-2028');
+      expect(written.startDate).toBeInstanceOf(Date);
+      expect(written.endDate).toBeInstanceOf(Date);
+      expect(written.isCurrent).toBe(true);
+    });
+
+    // Two current years would make "this term" ambiguous everywhere.
+    it('stands the other years down when one becomes current', async () => {
+      await service.updateYear('year-1', { isCurrent: true } as never);
+
+      expect(prisma.academicYear.updateMany).toHaveBeenCalledWith({
+        where: { isCurrent: true },
+        data: { isCurrent: false },
+      });
+    });
+
+    it('stands nobody down when a year is merely renamed', async () => {
+      await service.updateYear('year-1', { name: '2027' } as never);
+
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('records a year being stood down itself', async () => {
+      await service.updateYear('year-1', { isCurrent: false } as never);
+
+      expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({
+        isCurrent: false,
+      });
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateYear('year-1', {} as never);
+
+      expect(prisma.academicYear.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('creates a year that is not the current one by default', async () => {
+      prisma.academicYear.create.mockResolvedValue({});
+      await service.createYear({
+        name: '2027-2028',
+        startDate: '2027-09-01',
+        endDate: '2028-07-15',
+      } as never);
+
+      expect(prisma.academicYear.create.mock.calls[0][0].data.isCurrent).toBe(
+        false,
+      );
+      expect(prisma.academicYear.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('a term', () => {
+    it('changes every field it was given', async () => {
+      await service.updateTerm('term-1', {
+        name: 'Term 2',
+        startDate: '2027-01-08',
+        endDate: '2027-04-05',
+        isCurrent: true,
+        isClosed: false,
+      } as never);
+
+      const written = prisma.term.update.mock.calls[0][0].data;
+      expect(written.name).toBe('Term 2');
+      expect(written.startDate).toBeInstanceOf(Date);
+      expect(written.endDate).toBeInstanceOf(Date);
+      expect(written.isCurrent).toBe(true);
+      expect(written.isClosed).toBe(false);
+    });
+
+    it('stands the other terms down when one becomes current', async () => {
+      await service.updateTerm('term-1', { isCurrent: true } as never);
+
+      expect(prisma.term.updateMany).toHaveBeenCalledWith({
+        where: { isCurrent: true },
+        data: { isCurrent: false },
+      });
+    });
+
+    it('stands nobody down when a term is merely closed', async () => {
+      await service.updateTerm('term-1', { isClosed: true } as never);
+
+      expect(prisma.term.updateMany).not.toHaveBeenCalled();
+      expect(prisma.term.update.mock.calls[0][0].data).toEqual({
+        isClosed: true,
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTerm('term-1', {} as never);
+
+      expect(prisma.term.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('stands the other terms down when a new current one is created', async () => {
+      prisma.term.create.mockResolvedValue({});
+      await service.createTerm({
+        academicYearId: 'year-1',
+        name: 'Term 1',
+        startDate: '2026-09-01',
+        endDate: '2026-12-15',
+        isCurrent: true,
+      } as never);
+
+      expect(prisma.term.updateMany).toHaveBeenCalled();
+      expect(prisma.term.create.mock.calls[0][0].data.isCurrent).toBe(true);
+    });
+
+    it('lists every term when no year is named', async () => {
+      prisma.term.findMany.mockResolvedValue([]);
+      await service.findAllTerms();
+
+      expect(prisma.term.findMany.mock.calls[0][0].where).toBeUndefined();
+    });
+
+    it('lists one years terms when a year is named', async () => {
+      prisma.term.findMany.mockResolvedValue([]);
+      await service.findAllTerms('year-1');
+
+      expect(prisma.term.findMany.mock.calls[0][0].where).toEqual({
+        academicYearId: 'year-1',
+      });
+    });
+  });
+});
+
+/**
+ * Editing what the school teaches, and where.
+ *
+ * A year level, a class, a subject and a trade each edit the same way: send
+ * one field, the rest are left alone. Getting that wrong quietly blanks a
+ * trade's sector or a subject's mark ceiling, which every report card then
+ * reads back.
+ */
+describe('editing what the school teaches', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+  });
+
+  describe('a year level', () => {
+    beforeEach(() => {
+      prisma.classLevel.findUnique.mockResolvedValue({
+        id: 'level-1',
+        name: 'Senior 1',
+        order: 1,
+        stage: 'O_LEVEL',
+      });
+      prisma.classLevel.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.classLevel.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateClassLevel('nope', { name: 'x' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('changes the name and the order together', async () => {
+      await service.updateClassLevel('level-1', {
+        name: 'Senior 2',
+        order: 2,
+      } as never);
+
+      expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({
+        name: 'Senior 2',
+        order: 2,
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateClassLevel('level-1', {} as never);
+
+      expect(prisma.classLevel.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.classLevel.findUnique.mockResolvedValue(null);
+      await expect(service.deleteClassLevel('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('a class', () => {
+    beforeEach(() => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        name: 'A',
+        classLevelId: 'level-1',
+        tradeId: null,
+      });
+      prisma.classSection.findFirst.mockResolvedValue(null);
+      prisma.classLevel.findUnique.mockResolvedValue({
+        id: 'level-1',
+        stage: 'O_LEVEL',
+      });
+      prisma.classSection.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateSection('nope', { name: 'B' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    // Renaming a class must not move it to another level by accident.
+    it('keeps the level and trade it already had', async () => {
+      await service.updateSection('section-1', { name: 'B' } as never);
+
+      expect(prisma.classSection.update.mock.calls[0][0].data).toEqual({
+        classLevelId: 'level-1',
+        tradeId: null,
+        name: 'B',
+      });
+    });
+
+    it('clears a trade that was sent as null', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        name: 'A',
+        classLevelId: 'level-1',
+        tradeId: 'trade-1',
+      });
+
+      await service.updateSection('section-1', { tradeId: null } as never);
+
+      expect(prisma.classSection.update.mock.calls[0][0].data.tradeId).toBeNull();
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(service.deleteSection('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('deletes an empty one', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1',
+        _count: { students: 0 },
+      });
+      prisma.classSection.delete.mockResolvedValue({});
+
+      await expect(service.deleteSection('section-1')).resolves.toMatchObject({
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('a subject', () => {
+    beforeEach(() => {
+      prisma.subject.findUnique.mockResolvedValue({
+        id: 'subject-1',
+        name: 'Mathematics',
+        scope: 'O_CORE',
+        tradeId: null,
+      });
+      prisma.subject.update.mockResolvedValue({});
+    });
+
+    it('changes every field it was given', async () => {
+      await service.updateSubject('subject-1', {
+        name: 'Additional Mathematics',
+        category: 'SCIENCE',
+        classLevelId: 'level-1',
+        maxMarks: 50,
+        isActive: false,
+      } as never);
+
+      expect(prisma.subject.update.mock.calls[0][0].data).toMatchObject({
+        name: 'Additional Mathematics',
+        category: 'SCIENCE',
+        classLevelId: 'level-1',
+        maxMarks: 50,
+        isActive: false,
+      });
+    });
+
+    // Clearing a category is not the same as leaving it alone.
+    it('clears a category that was sent empty', async () => {
+      await service.updateSubject('subject-1', { category: null } as never);
+
+      expect(prisma.subject.update.mock.calls[0][0].data.category).toBeNull();
+    });
+
+    it('keeps the scope and trade it already had', async () => {
+      await service.updateSubject('subject-1', { name: 'Maths' } as never);
+
+      const written = prisma.subject.update.mock.calls[0][0].data;
+      expect(written.scope).toBe('O_CORE');
+      expect(written.tradeId).toBeNull();
+    });
+  });
+
+  describe('a trade', () => {
+    beforeEach(() => {
+      prisma.trade.findUnique.mockResolvedValue({
+        id: 'trade-1',
+        code: 'SWD',
+        name: 'Software Development',
+        sector: 'ICT',
+      });
+      prisma.trade.update.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.trade.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTrade('nope', { code: 'X' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('upper-cases a code and trims the rest', async () => {
+      await service.updateTrade('trade-1', {
+        code: '  nit  ',
+        name: '  Networking  ',
+        sector: '  ICT  ',
+      } as never);
+
+      expect(prisma.trade.update.mock.calls[0][0].data).toEqual({
+        code: 'NIT',
+        name: 'Networking',
+        sector: 'ICT',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTrade('trade-1', {} as never);
+
+      expect(prisma.trade.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.trade.findUnique.mockResolvedValue(null);
+      await expect(service.deleteTrade('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});
+
+/**
+ * Moving a lesson and an exam.
+ *
+ * A timetable entry places a teacher in a room with a class at an hour, and
+ * every one of those five things can be changed on its own. A move that
+ * quietly blanked the room would leave a class with nowhere to go.
+ */
+describe('editing the week', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+  });
+
+  describe('a lesson', () => {
+    beforeEach(() => {
+      prisma.timetable.findUnique.mockResolvedValue({ id: 'tt-1' });
+      prisma.timetable.update.mockResolvedValue({});
+      prisma.timetable.delete.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.timetable.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTimetable('nope', { room: 'Lab 2' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('moves every part of it at once', async () => {
+      await service.updateTimetable('tt-1', {
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        teacherId: 'teacher-2',
+        dayOfWeek: 3,
+        startTime: '10:00',
+        endTime: '11:00',
+        room: 'Lab 2',
+      } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        teacherId: 'teacher-2',
+        dayOfWeek: 3,
+        startTime: '10:00',
+        endTime: '11:00',
+        room: 'Lab 2',
+      });
+    });
+
+    // Sunday is day seven in the model, and zero is Monday's neighbour in
+    // JavaScript, so a falsy day must still be written.
+    it('writes a day of nought rather than dropping it', async () => {
+      await service.updateTimetable('tt-1', { dayOfWeek: 0 } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        dayOfWeek: 0,
+      });
+    });
+
+    it('clears a room that was sent empty', async () => {
+      await service.updateTimetable('tt-1', { room: '' } as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
+        room: '',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateTimetable('tt-1', {} as never);
+
+      expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.timetable.findUnique.mockResolvedValue(null);
+      await expect(service.deleteTimetable('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('reads a whole class week when no teacher is named', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1');
+
+      expect(prisma.timetable.findMany.mock.calls[0][0].where).toEqual({
+        classSectionId: 'section-1',
+      });
+    });
+
+    it('narrows to one teacher when one is named', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1', 'teacher-1');
+
+      expect(prisma.timetable.findMany.mock.calls[0][0].where).toEqual({
+        classSectionId: 'section-1',
+        teacherId: 'teacher-1',
+      });
+    });
+  });
+
+  describe('an exam', () => {
+    beforeEach(() => {
+      prisma.examSchedule.findUnique.mockResolvedValue({ id: 'ex-1' });
+      prisma.examSchedule.update.mockResolvedValue({});
+      prisma.examSchedule.delete.mockResolvedValue({});
+    });
+
+    it('refuses one that does not exist', async () => {
+      prisma.examSchedule.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateExamSchedule('nope', { room: 'Hall' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('moves every part of it at once', async () => {
+      await service.updateExamSchedule('ex-1', {
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        termId: 'term-2',
+        examDate: '2026-12-01',
+        startTime: '08:00',
+        endTime: '11:00',
+        room: 'Hall',
+        syllabus: 'Chapters 1 to 8',
+      } as never);
+
+      const written = prisma.examSchedule.update.mock.calls[0][0].data;
+      expect(written).toMatchObject({
+        classSectionId: 'section-2',
+        subjectId: 'subject-2',
+        termId: 'term-2',
+        startTime: '08:00',
+        endTime: '11:00',
+        room: 'Hall',
+        syllabus: 'Chapters 1 to 8',
+      });
+      expect(written.examDate).toBeInstanceOf(Date);
+    });
+
+    it('clears a syllabus that was sent empty', async () => {
+      await service.updateExamSchedule('ex-1', { syllabus: '' } as never);
+
+      expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({
+        syllabus: '',
+      });
+    });
+
+    it('changes nothing when nothing was sent', async () => {
+      await service.updateExamSchedule('ex-1', {} as never);
+
+      expect(prisma.examSchedule.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('refuses to delete one that does not exist', async () => {
+      prisma.examSchedule.findUnique.mockResolvedValue(null);
+      await expect(service.deleteExamSchedule('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+});

@@ -211,7 +211,9 @@ export default function AdminTeachersPage() {
                 variant="outline"
                 size="sm"
                 disabled={meta.page <= 1}
-                onClick={() => setFilters((f) => ({ ...f, page: (f.page || 1) - 1 }))}
+                // Stepped from the page the footer is showing, which is the
+                // one the server answered with, not the one that was asked for.
+                onClick={() => setFilters((f) => ({ ...f, page: meta.page - 1 }))}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -222,7 +224,7 @@ export default function AdminTeachersPage() {
                 variant="outline"
                 size="sm"
                 disabled={meta.page >= meta.totalPages}
-                onClick={() => setFilters((f) => ({ ...f, page: (f.page || 1) + 1 }))}
+                onClick={() => setFilters((f) => ({ ...f, page: meta.page + 1 }))}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

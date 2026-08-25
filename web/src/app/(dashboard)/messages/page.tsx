@@ -339,7 +339,9 @@ export default function MessagesPage() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {reversedMessages.map((msg: any) => {
-                const isMe = msg.sender.id === user?.id;
+                // A message whose sender has been deleted still has to draw, on the
+                // left, rather than taking the whole thread down.
+                const isMe = msg.sender?.id === user?.id;
                 return (
                   <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${
