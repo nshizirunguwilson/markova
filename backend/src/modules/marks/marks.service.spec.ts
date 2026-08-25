@@ -837,3 +837,465 @@ describe('MarksService', () => {
     });
   });
 });
+
+/**
+ * Editing and batch-entering marks, at the edges.
+ *
+ * A mark is the one number in this system a family will argue about, so the
+ * refusals matter more than the writes: a score above the paper's ceiling, a
+ * mark that is not there any more, a batch entered by an admin who is not a
+ * teacher of anything.
+ */
+describe('editing a mark that is out of range', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.mark.findUnique.mockResolvedValue({
+      id: 'mark-1',
+      teacherId: 'teacher-1',
+      termId: 'term-1',
+      maxScore: 20,
+      subject: { id: 'subject-1' },
+      term: { id: 'term-1', isClosed: false },
+    });
+    prisma.mark.update.mockResolvedValue({ id: 'mark-1' });
+  });
+
+  it('refuses a score above the paper it was marked out of', async () => {
+    await expect(
+      service.update('mark-1', { score: 25 }, 'teacher-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses it against a new ceiling that was sent with it', async () => {
+    await expect(
+      service.update('mark-1', { score: 12, maxScore: 10 }, 'teacher-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('accepts a score right on the ceiling', async () => {
+    await service.update('mark-1', { score: 20 }, 'teacher-1');
+
+    expect(prisma.mark.update.mock.calls[0][0].data).toEqual({
+      score: 20,
+      maxScore: 20,
+    });
+  });
+
+  it('keeps the ceiling the mark already had when none is sent', async () => {
+    await service.update('mark-1', { score: 15 }, 'teacher-1');
+
+    expect(prisma.mark.update.mock.calls[0][0].data.maxScore).toBe(20);
+  });
+
+  it('refuses a mark that is not there any more', async () => {
+    prisma.mark.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.update('gone', { score: 10 }, 'teacher-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to delete one that is not there any more', async () => {
+    prisma.mark.findUnique.mockResolvedValue(null);
+
+    await expect(service.delete('gone', 'teacher-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});
+
+describe('a whole class entered at once', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  const batch = {
+    subjectId: 'subject-1',
+    classSectionId: 'section-1',
+    termId: 'term-1',
+    assessmentTypeId: 'assess-1',
+    marks: [{ studentId: 'student-1', score: 17 }],
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.subject.findUnique.mockResolvedValue({
+      id: 'subject-1',
+      maxMarks: 20,
+      scope: 'O_CORE',
+    });
+    prisma.mark.upsert.mockResolvedValue({ id: 'mark-1' });
+    prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
+  });
+
+  it('refuses a subject the school does not teach', async () => {
+    prisma.subject.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.batchEntry(batch as never, 'teacher-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  // An admin entering marks on a teacher's behalf has no teacher profile of
+  // their own, so the mark is filed against whoever teaches that class.
+  it('files an admin entry against the teacher of that class', async () => {
+    prisma.teacherSubjectClass.findFirst.mockResolvedValue({
+      teacherId: 'teacher-9',
+    });
+
+    await service.batchEntry(batch, null, 'ADMIN');
+
+    expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
+      'teacher-9',
+    );
+  });
+
+  it('refuses when nobody teaches that subject to that class', async () => {
+    await expect(
+      service.batchEntry(batch as never, null, 'ADMIN'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // A teacher without a profile is not an admin, so no lookup is attempted.
+  it('refuses a teacher with no profile without looking anyone up', async () => {
+    await expect(
+      service.batchEntry(batch as never, null, 'TEACHER'),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('files a teachers own entry against themselves', async () => {
+    await service.batchEntry(batch, 'teacher-1');
+
+    expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
+      'teacher-1',
+    );
+    expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Ranking, comments, and a school that starts everyone at nothing.
+ *
+ * A rank puts a child in front of or behind their friends, so ties and
+ * missing averages have to land somewhere defined. The comments are the other
+ * half: a head teacher clearing one they wrote by mistake must actually
+ * clear it.
+ */
+describe('ranking a class', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.update.mockResolvedValue({});
+    prisma.termResult.upsert.mockImplementation((args: any) =>
+      Promise.resolve({ id: `res-${args.create.studentId}`, ...args.create }),
+    );
+  });
+
+  it('puts the highest average first', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 100 },
+      { id: 's-2', disciplinePoints: 100 },
+    ]);
+    prisma.mark.findMany.mockImplementation((args: any) =>
+      Promise.resolve(
+        args.where.studentId === 's-1'
+          ? [
+              {
+                subjectId: 'sub-1',
+                score: 10,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ]
+          : [
+              {
+                subjectId: 'sub-1',
+                score: 18,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ],
+      ),
+    );
+
+    await service.calculateTermResults({
+      classSectionId: 'section-1',
+      termId: 'term-1',
+    });
+
+    const ranked = prisma.termResult.update.mock.calls.map(
+      (c: any[]) => c[0].data.rank,
+    );
+    expect(ranked).toEqual([1, 2]);
+    // The better average is written first, which is rank one.
+    const first = prisma.termResult.update.mock.calls[0][0].where.id;
+    expect(first).toBe('res-s-2');
+  });
+
+  // A student with nothing marked has no result to rank. Writing them a row
+  // with an average of nought would put a zero on their report card for a
+  // term nobody has marked yet.
+  it('leaves a student with no marks out of the ranking entirely', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 100 },
+      { id: 's-2', disciplinePoints: 100 },
+    ]);
+    prisma.mark.findMany.mockImplementation((args: any) =>
+      Promise.resolve(
+        args.where.studentId === 's-1'
+          ? [
+              {
+                subjectId: 'sub-1',
+                score: 18,
+                maxScore: 20,
+                subject: { scope: 'O_CORE' },
+                assessmentType: { name: 'End of Term Exam' },
+              },
+            ]
+          : [],
+      ),
+    );
+
+    await service.calculateTermResults({
+      classSectionId: 'section-1',
+      termId: 'term-1',
+    });
+
+    expect(prisma.termResult.update).toHaveBeenCalledTimes(1);
+    expect(prisma.termResult.update.mock.calls[0][0].where.id).toBe('res-s-1');
+    expect(prisma.termResult.update.mock.calls[0][0].data.rank).toBe(1);
+  });
+});
+
+describe('a school that starts nobody with conduct points', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findMany.mockResolvedValue([{ id: 'term-1' }]);
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 0 },
+    ]);
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.yearResult.upsert.mockImplementation((args: any) =>
+      Promise.resolve({ id: 'yr-1', ...args.create }),
+    );
+    prisma.yearResult.update.mockResolvedValue({});
+  });
+
+  it('records no conduct average rather than dividing by nothing', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue({
+      key: 'starting_discipline_points',
+      value: '0',
+    });
+
+    await service.calculateYearResults({
+      classSectionId: 'section-1',
+      academicYearId: 'year-1',
+    });
+
+    expect(
+      prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+    ).toBeNull();
+  });
+
+  it('works it out as a percentage when there is a ceiling', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue({
+      key: 'starting_discipline_points',
+      value: '100',
+    });
+    prisma.student.findMany.mockResolvedValue([
+      { id: 's-1', disciplinePoints: 90 },
+    ]);
+
+    await service.calculateYearResults({
+      classSectionId: 'section-1',
+      academicYearId: 'year-1',
+    });
+
+    expect(
+      prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+    ).toBe(90);
+  });
+});
+
+describe('the comments on a result', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.termResult.update.mockResolvedValue({});
+    prisma.termResult.findUnique.mockResolvedValue({ id: 'res-1' });
+  });
+
+  it('refuses a result that is not there', async () => {
+    prisma.termResult.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.updateTermResultComment('gone', { teacherComment: 'x' }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('writes both when both were sent', async () => {
+    await service.updateTermResultComment('res-1', {
+      teacherComment: 'Steady work all term.',
+      headmasterComment: 'Keep it up.',
+    });
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      teacherComment: 'Steady work all term.',
+      headmasterComment: 'Keep it up.',
+    });
+  });
+
+  it('leaves the head teachers alone when only the teacher wrote', async () => {
+    await service.updateTermResultComment('res-1', {
+      teacherComment: 'Steady work.',
+    });
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      teacherComment: 'Steady work.',
+    });
+  });
+
+  // Clearing a comment is not the same as leaving it alone, or one written by
+  // mistake could never be taken off the card.
+  it('clears one that was sent empty', async () => {
+    await service.updateTermResultComment('res-1', {
+      headmasterComment: '',
+    });
+
+    expect(prisma.termResult.update.mock.calls[0][0].data).toEqual({
+      headmasterComment: '',
+    });
+  });
+});
+
+/**
+ * A report card built for a school that has entered nothing.
+ *
+ * The card carries the school's own name and motto, and a class average
+ * worked out from whoever has a result. A school on its first day has no
+ * config rows at all and a class where nobody has been marked, and the card
+ * still has to be buildable.
+ */
+describe('report card data for a school with nothing set up', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      classSectionId: 'section-1',
+      studentIdNumber: 'STD-2026-001',
+      user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+      classSection: {
+        name: 'A',
+        classLevel: { name: 'Senior 1' },
+        trade: null,
+      },
+    });
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      isClosed: false,
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.findFirst.mockResolvedValue(null);
+    prisma.termResult.findMany.mockResolvedValue([]);
+  });
+
+  it('leaves the school name and motto empty rather than undefined', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school).toEqual({
+      name: '',
+      motto: '',
+      logoUrl: null,
+      stampUrl: null,
+      signatureUrl: null,
+    });
+  });
+
+  // Two config keys have meant the motto over the years; both still read.
+  it('takes the motto from either key it has ever been stored under', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'motto', value: 'Learn, and lift others' },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school.motto).toBe('Learn, and lift others');
+  });
+
+  it('prefers the newer key when both are set', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'motto', value: 'Old motto' },
+      { key: 'school_motto', value: 'Learn, and lift others' },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.school.motto).toBe('Learn, and lift others');
+  });
+
+  it('has no class average when nobody in the class has a result', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.classStats.classAverage).toBeNull();
+    expect(card.classStats.totalStudents).toBe(0);
+  });
+
+  // A classmate whose result exists but carries no average counts as nought
+  // in the mean rather than making it NaN.
+  it('works out a class average around a result with no number on it', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+    prisma.termResult.findMany.mockResolvedValue([
+      { average: 80 },
+      { average: null },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.classStats.classAverage).toBe(40);
+    expect(Number.isNaN(card.classStats.classAverage)).toBe(false);
+  });
+
+  it('averages a subject with nothing recorded against it as nought', async () => {
+    prisma.schoolConfig.findMany.mockResolvedValue([]);
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        subjectId: 'subject-1',
+        score: 17,
+        maxScore: 20,
+        subject: { id: 'subject-1', name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 1' },
+      },
+    ]);
+
+    const card = await service.getReportCardData('student-1', 'term-1');
+    expect(card.subjects[0].average).toBeGreaterThan(0);
+  });
+});

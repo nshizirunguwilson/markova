@@ -523,3 +523,224 @@ describe('NotificationsService', () => {
     });
   });
 });
+
+/**
+ * A push notification with something attached to it.
+ *
+ * A "marks published" push carries the id of the term result, so tapping it
+ * opens the right sheet rather than the home screen. Both parts are optional,
+ * and a push with neither must not carry the word undefined into the payload.
+ */
+describe('what a push notification carries with it', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: NotificationsService;
+
+  const build = () => {
+    const config = { get: () => undefined } as unknown as ConfigService;
+    prisma = createMockPrisma();
+    service = new NotificationsService(prisma, config);
+    prisma.notification.create.mockResolvedValue({ id: 'n-1' });
+    prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+    jest.spyOn((service as any).logger, 'log').mockImplementation();
+    jest.spyOn((service as any).logger, 'error').mockImplementation();
+    return service;
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    build();
+  });
+
+  const sentPayload = (fetchSpy: jest.SpyInstance) =>
+    JSON.parse(fetchSpy.mock.calls[0][1].body)[0];
+
+  it('carries what the notification points at', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+      json: () => Promise.resolve({ data: [] }),
+    } as never);
+
+    await service.send({
+      userId: 'user-1',
+      title: 'Marks published',
+      message: 'Term 1 is out',
+      type: 'PUSH',
+      relatedEntityType: 'TERM_RESULT',
+      relatedEntityId: 'res-1',
+    } as never);
+
+    expect(sentPayload(fetchSpy).data).toMatchObject({
+      relatedEntityType: 'TERM_RESULT',
+      relatedEntityId: 'res-1',
+    });
+    fetchSpy.mockRestore();
+  });
+
+  it('carries nothing extra when it points at nothing', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+      json: () => Promise.resolve({ data: [] }),
+    } as never);
+
+    await service.send({
+      userId: 'user-1',
+      title: 'School closes early',
+      message: 'Buses leave at midday',
+      type: 'PUSH',
+    } as never);
+
+    expect(sentPayload(fetchSpy).data).toEqual({});
+    fetchSpy.mockRestore();
+  });
+
+  // The notification row is the thing a person actually sees in the app, so a
+  // channel that is down must not lose it.
+  it('keeps the notification when the push itself fails', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch' as never)
+      .mockRejectedValue(new Error('expo is down') as never);
+
+    const result = await service.send({
+      userId: 'user-1',
+      title: 'Marks published',
+      message: 'Term 1 is out',
+      type: 'PUSH',
+    } as never);
+
+    expect(result).toEqual({ id: 'n-1' });
+    expect(prisma.notification.create).toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('keeps it even when the failure is not an Error at all', async () => {
+    const fetchSpy = jest
+      .spyOn(global, 'fetch' as never)
+      .mockRejectedValue('expo is down' as never);
+
+    const result = await service.send({
+      userId: 'user-1',
+      title: 'Marks published',
+      message: 'Term 1 is out',
+      type: 'PUSH',
+    } as never);
+
+    expect(result).toEqual({ id: 'n-1' });
+    fetchSpy.mockRestore();
+  });
+
+  it('sends an access token to Expo when the school has one', async () => {
+    const config = {
+      get: (key: string) =>
+        key === 'EXPO_ACCESS_TOKEN' ? 'expo-secret' : undefined,
+    } as unknown as ConfigService;
+    prisma = createMockPrisma();
+    service = new NotificationsService(prisma, config);
+    prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+    jest.spyOn((service as any).logger, 'error').mockImplementation();
+
+    const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+      json: () => Promise.resolve({ data: [] }),
+    } as never);
+
+    await service.sendPushNotification('user-1', 'Title', 'Body');
+
+    const headers = (fetchSpy.mock.calls[0][1] as any).headers;
+    expect(headers.Authorization).toBe('Bearer expo-secret');
+    fetchSpy.mockRestore();
+  });
+
+  it('sends none when the school has no Expo account', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+      json: () => Promise.resolve({ data: [] }),
+    } as never);
+
+    await service.sendPushNotification('user-1', 'Title', 'Body');
+
+    const headers = (fetchSpy.mock.calls[0][1] as any).headers;
+    expect(headers.Authorization).toBeUndefined();
+    fetchSpy.mockRestore();
+  });
+});
+
+/**
+ * Telling a whole year group at once.
+ *
+ * A broadcast reaches hundreds of families, and one address bouncing must not
+ * stop the rest. The failures are counted and logged rather than thrown.
+ */
+describe('a broadcast where some of it fails', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: NotificationsService;
+  let logged: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    const config = {
+      get: (key: string) =>
+        ({
+          SMTP_HOST: 'smtp.markova.edu',
+          SMTP_USER: 'noreply@markova.edu',
+          SMTP_PASS: 'secret',
+        })[key],
+    } as unknown as ConfigService;
+    prisma = createMockPrisma();
+    service = new NotificationsService(prisma, config);
+    prisma.notification.createMany.mockResolvedValue({ count: 2 });
+    jest.spyOn((service as any).logger, 'log').mockImplementation();
+    // The transporter is built on module init, not in the constructor.
+    service.onModuleInit();
+    logged = jest.spyOn((service as any).logger, 'error').mockImplementation();
+  });
+
+  it('counts the addresses that bounced without failing the rest', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u-1', email: 'a@markova.edu', firstName: 'Aline' },
+      { id: 'u-2', email: 'b@markova.edu', firstName: null },
+    ]);
+    sendMail
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('mailbox full'));
+
+    const result = await service.sendBulk({
+      userIds: ['u-1', 'u-2'],
+      title: 'School closes early',
+      message: 'Buses leave at midday',
+      type: 'EMAIL',
+    } as never);
+
+    expect(result).toEqual({ count: 2 });
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to send 1/2'),
+    );
+  });
+
+  it('greets a person with no first name on file politely', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u-2', email: 'b@markova.edu', firstName: null },
+    ]);
+    sendMail.mockResolvedValue({});
+
+    await service.sendBulk({
+      userIds: ['u-2'],
+      title: 'School closes early',
+      message: 'Buses leave at midday',
+      type: 'EMAIL',
+    } as never);
+
+    expect(sendMail.mock.calls[0][0].html).toMatch(/Dear User,/);
+  });
+
+  it('says nothing when every address took it', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u-1', email: 'a@markova.edu', firstName: 'Aline' },
+    ]);
+    sendMail.mockResolvedValue({});
+
+    await service.sendBulk({
+      userIds: ['u-1'],
+      title: 'School closes early',
+      message: 'Buses leave at midday',
+      type: 'EMAIL',
+    } as never);
+
+    expect(logged).not.toHaveBeenCalled();
+  });
+});

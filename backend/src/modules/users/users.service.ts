@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { randomInt, randomUUID } from 'crypto';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
@@ -856,18 +856,18 @@ export class UsersService {
    * retry is what makes that a fact about this school rather than a promise.
    */
   private async generateStudentId(
-    client: PrismaService | Prisma.TransactionClient = this.prisma,
-    fullName?: string,
-    userId?: string,
+    client: Prisma.TransactionClient,
+    fullName: string,
+    userId: string,
     enrolledAt?: Date,
   ): Promise<string> {
     const secret = studentIdSecret();
     const year = (enrolledAt ?? new Date()).getFullYear();
-    const studentKey = userId ?? randomUUID();
+    const studentKey = userId;
 
     for (let nonce = 0; nonce < 50; nonce += 1) {
       const candidate = buildStudentId(secret, {
-        fullName: fullName ?? 'Unnamed Student',
+        fullName,
         year,
         studentKey,
         nonce,
@@ -887,7 +887,7 @@ export class UsersService {
   // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001.
   private async generateUserCode(
     role: Role,
-    client: PrismaService | Prisma.TransactionClient = this.prisma,
+    client: Prisma.TransactionClient,
   ): Promise<string | null> {
     const prefixes: Partial<Record<Role, string>> = {
       [Role.TEACHER]: 'TCH',
@@ -906,9 +906,14 @@ export class UsersService {
       where: { code: { startsWith: prefix } },
       orderBy: { code: 'desc' },
     });
-    const sequence = last
-      ? parseInt(last.code!.split('-').pop() || '0') + 1
-      : 1;
+    // A code left behind in an older shape has no number to continue from,
+    // and parsing it produced "TCH-2026-NaN", which the office then wrote on
+    // somebody's badge. Anything unreadable restarts the sequence.
+    const lastSequence = Number.parseInt(
+      last?.code?.split('-').pop() ?? '',
+      10,
+    );
+    const sequence = Number.isFinite(lastSequence) ? lastSequence + 1 : 1;
     return `${prefix}${String(sequence).padStart(digits, '0')}`;
   }
 }

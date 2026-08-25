@@ -324,3 +324,161 @@ describe('the import template', () => {
     );
   });
 });
+
+/**
+ * A spreadsheet with the optional columns filled in, and one with none.
+ *
+ * A school importing its whole roll on day one fills every column; a school
+ * importing a handful of late admissions fills three. Both have to produce
+ * accounts somebody can sign into, which is what the credentials list is for.
+ */
+describe('the optional columns on an imported row', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockImplementation((args: any) =>
+      Promise.resolve({
+        id: `user-${args.data.firstName}`,
+        firstName: args.data.firstName,
+        lastName: args.data.lastName,
+      }),
+    );
+    prisma.student.findUnique.mockResolvedValue(null);
+    prisma.student.findFirst.mockResolvedValue(null);
+    prisma.student.create.mockResolvedValue({});
+    prisma.teacher.create.mockResolvedValue({});
+    prisma.parentStudent.create.mockResolvedValue({});
+  });
+
+  it('reads a teacher birthday and hire date into dates', async () => {
+    await service.bulkImport([
+      {
+        firstName: 'Aline',
+        lastName: 'Uwase',
+        email: 'a.uwase@markova.edu',
+        role: Role.TEACHER,
+        gender: 'FEMALE',
+        dateOfBirth: '1971-03-07',
+        qualification: 'A0',
+        hireDate: '2019-01-14',
+      },
+    ]);
+
+    expect(prisma.user.create.mock.calls[0][0].data.dateOfBirth).toBeInstanceOf(
+      Date,
+    );
+    const teacher = prisma.teacher.create.mock.calls[0][0].data;
+    expect(teacher.qualification).toBe('A0');
+    expect(teacher.hireDate).toBeInstanceOf(Date);
+  });
+
+  it('stores nulls for a teacher row with only the required columns', async () => {
+    await service.bulkImport([
+      {
+        firstName: 'Aline',
+        lastName: 'Uwase',
+        email: 'a.uwase@markova.edu',
+        role: Role.TEACHER,
+      },
+    ]);
+
+    expect(prisma.user.create.mock.calls[0][0].data.dateOfBirth).toBeNull();
+    const teacher = prisma.teacher.create.mock.calls[0][0].data;
+    expect(teacher.qualification).toBeNull();
+    expect(teacher.hireDate).toBeNull();
+  });
+
+  it('reads a student birthday into a date on the student row', async () => {
+    await service.bulkImport([
+      {
+        firstName: 'Divine',
+        lastName: 'Niyonkuru',
+        email: 'd.niyonkuru@markova.edu',
+        role: Role.STUDENT,
+        classSectionId: 'section-1',
+        dateOfBirth: '2012-04-11',
+      },
+    ]);
+
+    // A student's demographics live on the student row, not the account.
+    expect(
+      prisma.user.create.mock.calls[0][0].data.dateOfBirth,
+    ).toBeUndefined();
+    expect(
+      prisma.student.create.mock.calls[0][0].data.dateOfBirth,
+    ).toBeInstanceOf(Date);
+  });
+
+  it('stores null for a student row with no birthday', async () => {
+    await service.bulkImport([
+      {
+        firstName: 'Divine',
+        lastName: 'Niyonkuru',
+        email: 'd.niyonkuru@markova.edu',
+        role: Role.STUDENT,
+        classSectionId: 'section-1',
+      },
+    ]);
+
+    expect(prisma.student.create.mock.calls[0][0].data.dateOfBirth).toBeNull();
+  });
+});
+
+/**
+ * What a person signs in with, handed back after an import.
+ *
+ * The office prints this list and gives each person their line. A blank login
+ * on it is an account nobody can reach, so it has to carry whichever
+ * identifier the row actually had.
+ */
+describe('the login on the credentials list', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockImplementation((args: any) =>
+      Promise.resolve({
+        id: `user-${args.data.firstName}`,
+        firstName: args.data.firstName,
+        lastName: args.data.lastName,
+      }),
+    );
+    prisma.parentStudent.create.mockResolvedValue({});
+  });
+
+  it('is the email when the row carried one', async () => {
+    const result = await service.bulkImport([
+      {
+        firstName: 'Aline',
+        lastName: 'Uwase',
+        email: 'a.uwase@markova.edu',
+        role: Role.TEACHER,
+      },
+    ]);
+
+    expect(result.credentials[0].login).toBe('a.uwase@markova.edu');
+  });
+
+  // The first fifteen parents in a Rwandan school's roll have no email at all.
+  it('is the phone number when the row carried no email', async () => {
+    const result = await service.bulkImport([
+      {
+        firstName: 'Jean',
+        lastName: 'Habimana',
+        phone: '+250788100000',
+        role: Role.PARENT,
+      },
+    ]);
+
+    expect(result.credentials[0].login).toBe('+250788100000');
+  });
+});

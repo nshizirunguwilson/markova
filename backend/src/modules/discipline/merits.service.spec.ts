@@ -566,3 +566,174 @@ describe('MeritsService', () => {
     });
   });
 });
+
+/**
+ * A school that has not set its own clean-sheet score, and lists whose rows
+ * have outlived the students on them.
+ *
+ * The watch list and the recognition summary both join a grouped count back
+ * to a roll of students. A student who left between the two queries is not on
+ * the roll any more, and the count has to land on nought rather than on
+ * undefined.
+ */
+describe('the merits service on a partly set-up school', () => {
+  let service: MeritsService;
+
+  const prisma: any = {
+    meritAward: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    disciplineIncident: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    student: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    parentStudent: { findMany: jest.fn() },
+    notification: { create: jest.fn() },
+    schoolConfig: { findUnique: jest.fn() },
+    $transaction: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.parentStudent.findMany.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation(async (ops: any[]) =>
+      Promise.all(ops),
+    );
+    prisma.meritAward.create.mockResolvedValue({ id: 'merit-1' });
+    prisma.student.update.mockResolvedValue({});
+    prisma.meritAward.groupBy.mockResolvedValue([]);
+    prisma.disciplineIncident.groupBy.mockResolvedValue([]);
+    prisma.student.findMany.mockResolvedValue([]);
+    prisma.meritAward.count.mockResolvedValue(0);
+    prisma.disciplineIncident.count.mockResolvedValue(0);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [MeritsService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = module.get(MeritsService);
+  });
+
+  // A hundred is the score the Rwandan conduct scheme starts everyone on.
+  it('starts everyone on a hundred when the school set nothing', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      disciplinePoints: 88,
+    });
+
+    await service.award(
+      {
+        studentId: 'student-1',
+        termId: 'term-1',
+        category: 'HELPING_OTHERS',
+        description: 'Stayed behind to help clear the science lab',
+        points: 5,
+        date: '2026-08-20',
+      } as never,
+      'user-1',
+    );
+
+    // 88 plus 5 is 93, which is still under the clean sheet, so all five land.
+    const update = prisma.student.update.mock.calls[0][0];
+    expect(update.data.disciplinePoints).toBe(93);
+  });
+
+  it('takes the schools own score when it has set one', async () => {
+    prisma.schoolConfig.findUnique.mockResolvedValue({ value: '50' });
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      disciplinePoints: 48,
+    });
+
+    await service.award(
+      {
+        studentId: 'student-1',
+        termId: 'term-1',
+        category: 'HELPING_OTHERS',
+        description: 'Stayed behind to help clear the science lab',
+        points: 5,
+        date: '2026-08-20',
+      } as never,
+      'user-1',
+    );
+
+    // Capped at the school's own clean sheet rather than inflating past it.
+    expect(prisma.student.update.mock.calls[0][0].data.disciplinePoints).toBe(
+      50,
+    );
+  });
+
+  it('looks back a month by default', async () => {
+    const result = await service.watchList();
+    expect(result.days).toBe(30);
+  });
+
+  it('counts nought for a watch-list student the roll no longer has', async () => {
+    prisma.disciplineIncident.groupBy.mockResolvedValue([
+      {
+        studentId: 'student-1',
+        _count: { _all: 3 },
+        _sum: { pointsDeducted: 20 },
+      },
+    ]);
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 'student-1',
+        studentIdNumber: 'STD-2026-001',
+        disciplinePoints: 80,
+        classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+        user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+      },
+    ]);
+    // No merits at all for them in the window.
+    prisma.meritAward.groupBy.mockResolvedValue([]);
+
+    const result = await service.watchList(30);
+    expect(result.students[0].merits).toBe(0);
+    expect(result.students[0].nothingPositive).toBe(true);
+  });
+
+  it('counts nought for a points total the group query left off', async () => {
+    prisma.disciplineIncident.groupBy.mockResolvedValue([
+      {
+        studentId: 'student-1',
+        _count: { _all: 3 },
+        _sum: { pointsDeducted: null },
+      },
+    ]);
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 'student-1',
+        studentIdNumber: 'STD-2026-001',
+        disciplinePoints: 80,
+        classSection: { name: 'A', classLevel: { name: 'Senior 1' } },
+        user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+      },
+    ]);
+
+    const result = await service.watchList(30);
+    expect(result.students[0].pointsLost).toBe(0);
+  });
+
+  it('counts nought for a recognised student the roll no longer has', async () => {
+    prisma.meritAward.groupBy.mockResolvedValue([
+      { studentId: 'student-1', _count: { _all: 6 } },
+    ]);
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 'student-9',
+        studentIdNumber: 'STD-2026-009',
+        user: { firstName: 'Keza', lastName: 'Uwimana' },
+        classSection: { name: 'A' },
+      },
+    ]);
+
+    const result = await service.summary();
+    expect(result.mostRecognised[0].merits).toBe(0);
+  });
+});

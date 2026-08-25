@@ -3,6 +3,7 @@ import {
   checkCode,
   isStudentIdShape,
   nameCode,
+  studentIdSecret,
   verifyStudentId,
 } from './student-id';
 
@@ -288,5 +289,79 @@ describe('recognising the shape alone', () => {
   it('rejects a number with the wrong number of digits', () => {
     expect(isStudentIdShape('STD-2025-23141-167')).toBe(false);
     expect(isStudentIdShape('STD-2025-231419-16')).toBe(false);
+  });
+});
+
+/**
+ * Names too short for the rule to reach into.
+ *
+ * The name code takes three letters, which a one-letter name does not have.
+ * A student registered under a single initial still has to get a number, so
+ * the rule falls back onto the letters it does have rather than reading past
+ * the end of the word.
+ */
+describe('a name with barely any letters in it', () => {
+  it('repeats the only letter a one-letter name has', () => {
+    // K=11, and there is nothing else to take, so it is used three times.
+    expect(nameCode('K')).toBe('111111');
+  });
+
+  it('reaches for the second letter when there is no second name', () => {
+    // J=10, o=15, and no third letter, so the second is used again.
+    expect(nameCode('Jo')).toBe('101515');
+  });
+
+  it('takes the surname first letter when it has no second', () => {
+    // A=01, U=21, and Uwase's second letter for the third position.
+    expect(nameCode('Aline U')).toBe('012121');
+  });
+
+  it('still returns six digits for every one of them', () => {
+    for (const name of ['K', 'Jo', 'Aline U', 'A B C']) {
+      expect(nameCode(name)).toMatch(/^\d{6}$/);
+    }
+  });
+});
+
+/**
+ * The secret a student number is signed with.
+ *
+ * Production must set its own, because reusing the JWT key here would leak it
+ * into the check digits of every printed card. A development run falls back
+ * so nobody has to configure two secrets to see the app work.
+ */
+describe('where the signing secret comes from', () => {
+  it('uses its own secret whenever one is set', () => {
+    expect(
+      studentIdSecret({
+        STUDENT_ID_SECRET: 'its-own',
+        JWT_SECRET: 'the-jwt-one',
+        NODE_ENV: 'production',
+      }),
+    ).toBe('its-own');
+  });
+
+  // Falling back to the JWT secret in production would put it into every
+  // printed card, so production gets nothing rather than that.
+  it('refuses to borrow the JWT secret in production', () => {
+    expect(
+      studentIdSecret({
+        JWT_SECRET: 'the-jwt-one',
+        NODE_ENV: 'production',
+      }),
+    ).toBe('');
+  });
+
+  it('borrows it in development so nothing has to be set up twice', () => {
+    expect(
+      studentIdSecret({
+        JWT_SECRET: 'the-jwt-one',
+        NODE_ENV: 'development',
+      }),
+    ).toBe('the-jwt-one');
+  });
+
+  it('copes with an environment that has neither', () => {
+    expect(studentIdSecret({})).toBe('');
   });
 });

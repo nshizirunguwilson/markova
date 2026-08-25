@@ -1050,3 +1050,143 @@ describe('a parent’s view of the year', () => {
     expect(result.attendance.rate).toBe(0);
   });
 });
+
+/**
+ * A student's history when the joins behind it are thin.
+ *
+ * The profile is built from marks, term results and attendance, joined across
+ * terms and years. A term with no year attached, a result with no average, a
+ * subject with nothing weighted against it: all of them happen, and the chart
+ * a parent sees has to be drawable from what comes back.
+ */
+describe('a profile assembled from thin records', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AnalyticsService;
+
+  const student = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-001',
+    classSectionId: 'section-1',
+    gender: 'FEMALE',
+    status: 'ACTIVE',
+    disciplinePoints: 92,
+    user: {
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
+      email: null,
+      photoUrl: null,
+    },
+    classSection: {
+      name: 'A',
+      classLevel: { name: 'Senior 1', stage: 'O_LEVEL' },
+      trade: null,
+    },
+  };
+
+  const markIn = (
+    termId: string,
+    termName: string,
+    academicYear: { name: string } | null,
+    assessment: string,
+  ) => ({
+    subjectId: 's-1',
+    score: 78,
+    maxScore: 100,
+    subject: { name: 'Mathematics', scope: 'O_CORE' },
+    assessmentType: { name: assessment },
+    termId,
+    term: {
+      id: termId,
+      name: termName,
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear,
+    },
+  });
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AnalyticsService(prisma, {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn(),
+    } as never);
+    prisma.student.findUnique.mockResolvedValue(student);
+    prisma.attendance.findMany.mockResolvedValue([]);
+    prisma.student.count.mockResolvedValue(32);
+    prisma.termResult.findMany.mockResolvedValue([]);
+  });
+
+  it('leaves the year blank for a term with none attached', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      markIn('term-1', 'Term 1', null, 'End of Term Exam'),
+    ]);
+
+    const profile = await service.getStudentProfileAnalytics('student-1');
+    expect(profile.terms[0].yearName).toBeNull();
+  });
+
+  it('names the year when one is attached', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      markIn('term-1', 'Term 1', { name: '2026' }, 'End of Term Exam'),
+    ]);
+
+    const profile = await service.getStudentProfileAnalytics('student-1');
+    expect(profile.terms[0].yearName).toBe('2026');
+  });
+
+  // A subject with only an unweighted assessment has no total, so it has no
+  // grade and no points either, and it sorts to the bottom.
+  it('leaves a subject with no total ungraded', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      markIn('term-1', 'Term 1', { name: '2026' }, 'Practical'),
+    ]);
+
+    const subject = (await service.getStudentProfileAnalytics('student-1'))
+      .terms[0].subjects[0];
+    expect(subject.total).toBeNull();
+    expect(subject.grade).toBeNull();
+    expect(subject.points).toBeNull();
+  });
+
+  it('leaves the class blank for a term the student had no result in', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      markIn('term-1', 'Term 1', { name: '2026' }, 'End of Term Exam'),
+    ]);
+
+    const profile = await service.getStudentProfileAnalytics('student-1');
+    expect(profile.terms[0].className).toBeNull();
+    expect(profile.terms[0].average).toBeNull();
+  });
+
+  // A class result with no average yet must not drag the class average down
+  // to nought; it is left out of the mean entirely.
+  it('leaves an unmarked classmate out of the class average', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      markIn('term-1', 'Term 1', { name: '2026' }, 'End of Term Exam'),
+    ]);
+    prisma.termResult.findMany.mockResolvedValue([
+      {
+        studentId: 'student-1',
+        termId: 'term-1',
+        classSectionId: 'section-1',
+        average: 80,
+        letterGrade: 'A',
+        rank: 1,
+        classSection: student.classSection,
+      },
+      {
+        studentId: 'student-2',
+        termId: 'term-1',
+        classSectionId: 'section-1',
+        average: null,
+        letterGrade: null,
+        rank: null,
+        classSection: student.classSection,
+      },
+    ]);
+
+    const profile = await service.getStudentProfileAnalytics('student-1');
+    // One real average of 80, not a mean of 80 and nought.
+    expect(profile.terms[0].classAverage).toBe(80);
+  });
+});

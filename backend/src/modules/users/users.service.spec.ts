@@ -608,7 +608,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes every field it was given', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const written = prisma.student.update.mock.calls[0][0].data;
     expect(written).toMatchObject({
@@ -634,7 +634,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('turns the two dates into dates', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const written = prisma.student.update.mock.calls[0][0].data;
     expect(written.dateOfBirth).toBeInstanceOf(Date);
@@ -642,7 +642,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes the account fields onto the account, not the student', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
       email: 'k.uwimana@markova.edu',
@@ -658,7 +658,7 @@ describe('updating every field a student record carries', () => {
   // A student's gender and birthday live on the student row, not on the
   // account, or the two copies drift apart.
   it('keeps gender and birthday off a student account row', async () => {
-    await service.update('user-1', everything as never);
+    await service.update('user-1', everything);
 
     const account = prisma.user.update.mock.calls[0][0].data;
     expect(account.gender).toBeUndefined();
@@ -686,7 +686,7 @@ describe('updating every field a student record carries', () => {
   });
 
   it('writes nothing at all when nothing was sent', async () => {
-    await service.update('user-1', {} as never);
+    await service.update('user-1', {});
 
     expect(prisma.user.update.mock.calls[0][0].data).toEqual({});
     expect(prisma.student.update.mock.calls[0][0].data).toEqual({});
@@ -699,7 +699,7 @@ describe('updating every field a student record carries', () => {
       allergies: '',
       bloodType: '',
       motherName: '',
-    } as never);
+    });
 
     expect(prisma.student.update.mock.calls[0][0].data).toEqual({
       allergies: '',
@@ -746,7 +746,7 @@ describe('updating every field a teacher record carries', () => {
   });
 
   it('clears an RSSB number that was sent empty', async () => {
-    await service.update('user-1', { rssbNumber: '' } as never);
+    await service.update('user-1', { rssbNumber: '' });
 
     expect(prisma.teacher.update.mock.calls[0][0].data).toEqual({
       rssbNumber: '',
@@ -754,7 +754,7 @@ describe('updating every field a teacher record carries', () => {
   });
 
   it('leaves the teacher row alone when nothing about it changed', async () => {
-    await service.update('user-1', { firstName: 'Aline' } as never);
+    await service.update('user-1', { firstName: 'Aline' });
 
     expect(prisma.teacher.update).not.toHaveBeenCalled();
   });
@@ -780,7 +780,7 @@ describe('the words the search box understands', () => {
   });
 
   const whereFor = async (filters: Record<string, unknown>) => {
-    await service.findAll(filters as never);
+    await service.findAll(filters);
     return prisma.user.findMany.mock.calls[0][0].where;
   };
 
@@ -1054,7 +1054,7 @@ describe('linking a parent to their children', () => {
         { studentId: 'student-1', relationship: 'Father' },
         { studentId: 'student-2', relationship: 'Guardian' },
       ],
-    } as never);
+    });
 
     expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
     expect(prisma.parentStudent.create.mock.calls[0][0].data).toMatchObject({
@@ -1072,7 +1072,7 @@ describe('linking a parent to their children', () => {
       ...parent,
       studentIds: ['student-1', 'student-2'],
       relationship: 'Mother',
-    } as never);
+    });
 
     expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
     expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
@@ -1084,7 +1084,7 @@ describe('linking a parent to their children', () => {
     await service.create({
       ...parent,
       studentIds: ['student-1'],
-    } as never);
+    });
 
     expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
       'Parent',
@@ -1092,8 +1092,243 @@ describe('linking a parent to their children', () => {
   });
 
   it('links nobody when no children were named', async () => {
-    await service.create(parent as never);
+    await service.create(parent);
 
     expect(prisma.parentStudent.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The numbers a school hands out, at their edges.
+ *
+ * A student number carries a signed name code, and two students sharing a
+ * name and a year collide by design: the nonce is what separates them. A
+ * registration code carries a sequence that has to survive a malformed one
+ * left behind by an older version.
+ */
+describe('issuing numbers when they collide', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const student = {
+    role: 'STUDENT' as const,
+    firstName: 'Divine',
+    lastName: 'Niyonkuru',
+    email: 'd.niyonkuru@markova.edu',
+    password: 'Password123!',
+    classSectionId: 'section-1',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-1',
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
+      role: 'STUDENT',
+    });
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+    );
+    prisma.student.create.mockResolvedValue({});
+  });
+
+  it('tries again when the first number it builds is taken', async () => {
+    // The first candidate belongs to somebody; the second does not.
+    prisma.student.findUnique
+      .mockResolvedValueOnce({ id: 'student-9' })
+      .mockResolvedValue(null);
+
+    await service.create(student);
+
+    expect(prisma.student.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.student.create.mock.calls[0][0].data.studentIdNumber).toMatch(
+      /^STD-/,
+    );
+  });
+
+  // Fifty is far past the largest group of students sharing a name in a real
+  // roll, so reaching it means something else is wrong.
+  it('gives up rather than looping for ever', async () => {
+    prisma.student.findUnique.mockResolvedValue({ id: 'student-9' });
+
+    await expect(service.create(student as never)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(prisma.student.findUnique).toHaveBeenCalledTimes(50);
+  }, 20000);
+
+  it('dates the number from the enrolment rather than from today', async () => {
+    prisma.student.findUnique.mockResolvedValue(null);
+
+    await service.create({
+      ...student,
+      enrollmentDate: '2024-01-15',
+    });
+
+    expect(prisma.student.create.mock.calls[0][0].data.studentIdNumber).toMatch(
+      /^STD-2024-/,
+    );
+  });
+});
+
+describe('a registration code left behind in an odd shape', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const teacher = {
+    role: 'TEACHER' as const,
+    firstName: 'Aline',
+    lastName: 'Uwase',
+    email: 'a.uwase@markova.edu',
+    password: 'Password123!',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.create.mockResolvedValue({
+      id: 'u-1',
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      role: 'TEACHER',
+    });
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+    );
+    prisma.teacher.create.mockResolvedValue({});
+  });
+
+  it('starts again from one when the last code has no number on it', async () => {
+    prisma.user.findFirst.mockResolvedValue({ code: 'TCH' });
+
+    await service.create(teacher);
+
+    // "TCH" split on "-" gives back "TCH", which is not a number, so the
+    // sequence restarts rather than becoming NaN.
+    expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
+      /^TCH-\d{4}-\d{3}$/,
+    );
+    expect(prisma.user.create.mock.calls[0][0].data.code).not.toMatch(/NaN/);
+  });
+});
+
+/**
+ * Re-linking a parent to their children after the fact.
+ *
+ * A family who move a child between classes, or who turn out to have a second
+ * one at the school, are edited rather than created again. The links are
+ * replaced wholesale so a child removed from the form really is removed.
+ */
+describe('changing which children a parent answers for', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const asParent = () =>
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', role: 'PARENT', student: null, teacher: null }
+          : null,
+      ),
+    );
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.parentStudent.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.parentStudent.create.mockResolvedValue({});
+    asParent();
+  });
+
+  it('replaces the links rather than adding to them', async () => {
+    await service.update('user-1', {
+      studentIds: ['student-1', 'student-2'],
+      relationship: 'Mother',
+    });
+
+    expect(prisma.parentStudent.deleteMany).toHaveBeenCalledWith({
+      where: { parentUserId: 'user-1' },
+    });
+    expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Mother',
+    );
+  });
+
+  it('calls them a parent when no relationship was chosen', async () => {
+    await service.update('user-1', {
+      studentIds: ['student-1'],
+    });
+
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Parent',
+    );
+  });
+
+  // Sending an empty list is how a family with no children left at the school
+  // is recorded, and it has to actually clear them.
+  it('clears every link when an empty list is sent', async () => {
+    await service.update('user-1', { studentIds: [] });
+
+    expect(prisma.parentStudent.deleteMany).toHaveBeenCalled();
+    expect(prisma.parentStudent.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves the links alone when the form did not mention them', async () => {
+    await service.update('user-1', { firstName: 'Jean' });
+
+    expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // Only a parent has children to link, so the same field on a teacher is
+  // ignored rather than wiping something else.
+  it('ignores the field entirely on somebody who is not a parent', async () => {
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-2', role: 'TEACHER', student: null, teacher: null }
+          : null,
+      ),
+    );
+
+    await service.update('user-2', {
+      studentIds: ['student-1'],
+    });
+
+    expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('changing somebodys photograph', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.update.mockResolvedValue({});
+  });
+
+  it('refuses somebody who does not exist', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.updatePhoto('nobody', '/uploads/avatars/a.png'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('saves it against somebody who does', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+
+    await service.updatePhoto('user-1', '/uploads/avatars/a.png');
+
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual({
+      photoUrl: '/uploads/avatars/a.png',
+    });
   });
 });

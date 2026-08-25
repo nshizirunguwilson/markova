@@ -74,7 +74,10 @@ export function computeSubjectTotal(
   scope: SubjectScope,
   assessments: { assessmentName: string; score: number; maxScore: number }[],
 ): number | null {
-  const weights = ASSESSMENT_WEIGHTS[scope];
+  // A scope the server grew before this table knew about it has no weights,
+  // and reading through it took the whole report card down. No weights means
+  // no total, which the sheet already draws as a dash.
+  const weights = ASSESSMENT_WEIGHTS[scope] ?? {};
   let weighted = 0;
   let weightSum = 0;
   for (const a of assessments) {

@@ -445,3 +445,113 @@ describe('HomeworkService', () => {
     });
   });
 });
+
+/**
+ * Changing homework that has already been set.
+ *
+ * A class has already seen it, so a teacher pushing the due date back must not
+ * quietly clear the marks it is out of or the late penalty a family was told
+ * about. Each field is written only when it was sent.
+ */
+describe('changing homework already set', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: HomeworkService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new HomeworkService(prisma);
+    prisma.homework.findUnique.mockResolvedValue({
+      id: 'hw-1',
+      teacherId: 'teacher-1',
+    });
+    prisma.homework.update.mockResolvedValue({});
+    prisma.homework.delete.mockResolvedValue({});
+  });
+
+  it('changes every field it was given', async () => {
+    await service.update(
+      'hw-1',
+      {
+        title: 'Chapter 5 essay',
+        description: 'Questions 1 to 12',
+        dueDate: '2026-09-06',
+        maxMarks: 30,
+        lateDeductionPerDay: 2,
+      },
+      'teacher-1',
+    );
+
+    const written = prisma.homework.update.mock.calls[0][0].data;
+    expect(written).toMatchObject({
+      title: 'Chapter 5 essay',
+      description: 'Questions 1 to 12',
+      maxMarks: 30,
+      lateDeductionPerDay: 2,
+    });
+    expect(written.dueDate).toBeInstanceOf(Date);
+  });
+
+  it('changes nothing when nothing was sent', async () => {
+    await service.update('hw-1', {}, 'teacher-1');
+
+    expect(prisma.homework.update.mock.calls[0][0].data).toEqual({});
+  });
+
+  // Turning a late penalty off is sending nought, which a truthiness check
+  // would have read as "not mentioned".
+  it('turns a late penalty off rather than ignoring it', async () => {
+    await service.update(
+      'hw-1',
+      { lateDeductionPerDay: 0, maxMarks: 0 },
+      'teacher-1',
+    );
+
+    expect(prisma.homework.update.mock.calls[0][0].data).toEqual({
+      lateDeductionPerDay: 0,
+      maxMarks: 0,
+    });
+  });
+
+  it('clears a description that was sent empty', async () => {
+    await service.update('hw-1', { description: '' }, 'teacher-1');
+
+    expect(prisma.homework.update.mock.calls[0][0].data).toEqual({
+      description: '',
+    });
+  });
+
+  it('refuses homework that is not there any more', async () => {
+    prisma.homework.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.update('gone', { title: 'x' }, 'teacher-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to delete homework that is not there any more', async () => {
+    prisma.homework.findUnique.mockResolvedValue(null);
+
+    await expect(service.delete('gone', 'teacher-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  // A head teacher fixing a mistake on somebody else's homework is the reason
+  // the admin exception exists.
+  it('lets an admin change another teachers homework', async () => {
+    await service.update(
+      'hw-1',
+      { title: 'Chapter 5 essay' },
+      'teacher-9',
+      'ADMIN',
+    );
+
+    expect(prisma.homework.update).toHaveBeenCalled();
+  });
+
+  it('refuses another teacher who is not an admin', async () => {
+    await expect(
+      service.update('hw-1', { title: 'x' }, 'teacher-9', 'TEACHER'),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});

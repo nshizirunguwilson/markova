@@ -627,3 +627,132 @@ describe('ClinicService', () => {
     });
   });
 });
+
+/**
+ * A visit that is not there any more.
+ *
+ * A nurse working from a list that was loaded before break can reach a visit
+ * another member of staff has since corrected away. Each action has to say so
+ * plainly rather than throwing a raw error at somebody with a child in front
+ * of them.
+ */
+describe('acting on a visit that is gone', () => {
+  let service: ClinicService;
+
+  const prisma: any = {
+    clinicVisit: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    medicationAdministration: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    studentHealthRecord: { upsert: jest.fn() },
+    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    parentStudent: { findFirst: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.clinicVisit.findUnique.mockResolvedValue(null);
+    prisma.student.findUnique.mockResolvedValue(null);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [ClinicService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = module.get(ClinicService);
+  });
+
+  it('refuses to correct it', async () => {
+    await expect(
+      service.updateVisit('gone', { findings: '38.4 degrees' }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to discharge it', async () => {
+    await expect(service.discharge('gone')).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to record that the family was told', async () => {
+    await expect(service.markParentNotified('gone')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('refuses to write a health record for a student who does not exist', async () => {
+    await expect(
+      service.saveHealthRecord('nobody', { allergyNotes: 'None' }, 'user-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('the clinic summary over its default window', () => {
+  let service: ClinicService;
+
+  const prisma: any = {
+    clinicVisit: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    medicationAdministration: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    studentHealthRecord: { upsert: jest.fn() },
+    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    parentStudent: { findFirst: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.clinicVisit.count.mockResolvedValue(0);
+    prisma.medicationAdministration.count.mockResolvedValue(0);
+    prisma.clinicVisit.groupBy.mockResolvedValue([]);
+    prisma.student.findMany.mockResolvedValue([]);
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [ClinicService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = module.get(ClinicService);
+  });
+
+  // A month is the window a head teacher thinks in, so it is the default.
+  it('looks back a month when no window is asked for', async () => {
+    const result = await service.summary();
+    expect(result.days).toBe(30);
+  });
+
+  it('counts nothing for a repeat visitor the roll no longer has', async () => {
+    prisma.clinicVisit.groupBy.mockResolvedValue([
+      { studentId: 'student-1', _count: { _all: 4 } },
+      { studentId: 'student-2', _count: { _all: 3 } },
+    ]);
+    // Only one of them is still on the roll.
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 'student-9',
+        studentIdNumber: 'STD-2025-231419-999',
+        user: { firstName: 'Keza', lastName: 'Uwimana' },
+        classSection: { name: 'A' },
+      },
+    ]);
+
+    const result = await service.summary(30);
+    expect(result.repeatVisitors[0].visits).toBe(0);
+  });
+});
