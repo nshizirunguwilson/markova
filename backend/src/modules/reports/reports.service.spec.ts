@@ -602,3 +602,160 @@ describe('ReportsService', () => {
     });
   });
 });
+
+/**
+ * The card register, and the summary each card action reads back.
+ *
+ * The summary is what the office sees after issuing, suspending or restoring
+ * a card, and it reaches through two joins to name the student's year level.
+ * A student not yet placed in a class has neither, and the office still has
+ * to be told the card was issued.
+ */
+describe('the summary an office reads back after a card action', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  const placed = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-001',
+    classSectionId: 'section-1',
+    status: 'ACTIVE',
+    nfcCardId: '1234 5678 9012',
+    cardIssuedAt: new Date('2026-08-01'),
+    cardCode: 'ABCD-EFGH-JKMN',
+    cardSuspendedAt: null,
+    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    classSection: {
+      name: 'A',
+      classLevel: { name: 'Senior 1', order: 1 },
+      trade: null,
+    },
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.student.update.mockResolvedValue({});
+  });
+
+  it('names the year level of a student who has a class', async () => {
+    prisma.student.findUnique.mockResolvedValue(placed);
+
+    const summary = await service.issueIdCard('student-1');
+    expect(summary).toMatchObject({
+      name: 'Divine Niyonkuru',
+      level: 'Senior 1',
+      hasCard: true,
+    });
+  });
+
+  // A student admitted mid-term is on the roll before they are placed.
+  it('leaves the level blank for a student in no class yet', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...placed,
+      classSectionId: null,
+      classSection: null,
+    });
+
+    const summary = await service.issueIdCard('student-1');
+    expect(summary.level).toBeNull();
+    expect(summary.name).toBe('Divine Niyonkuru');
+  });
+
+  it('leaves it blank when the class has no year level behind it', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...placed,
+      classSection: { name: 'A', classLevel: null, trade: null },
+    });
+
+    const summary = await service.issueIdCard('student-1');
+    expect(summary.level).toBeNull();
+  });
+
+  it('refuses to summarise a student who does not exist', async () => {
+    prisma.student.findUnique.mockResolvedValue(null);
+
+    await expect(service.suspendIdCard('nobody')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});
+
+describe('narrowing the card register to one class', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.student.count.mockResolvedValue(0);
+    prisma.student.findMany.mockResolvedValue([]);
+  });
+
+  it('filters by class when one is named', async () => {
+    await service.getIdCardRegistry({ classSectionId: 'section-1' });
+
+    expect(prisma.student.count.mock.calls[0][0].where).toMatchObject({
+      status: 'ACTIVE',
+      classSectionId: 'section-1',
+    });
+  });
+
+  it('looks across the whole school when none is', async () => {
+    await service.getIdCardRegistry({});
+
+    expect(
+      prisma.student.count.mock.calls[0][0].where.classSectionId,
+    ).toBeUndefined();
+  });
+});
+
+/**
+ * Checking a card that was suspended.
+ *
+ * A suspended card is a different answer from one that was never issued: the
+ * first means the school withheld it, and the gate needs to say so rather
+ * than "no such card".
+ */
+describe('a card the school has withheld', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  const suspended = {
+    id: 'student-1',
+    studentIdNumber: 'STD-2026-001',
+    status: 'ACTIVE',
+    nfcCardId: '1234 5678 9012',
+    cardCode: 'ABCD-EFGH-JKMN',
+    cardIssuedAt: new Date('2026-08-01'),
+    cardSuspendedAt: new Date('2026-08-20'),
+    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    classSection: { name: 'A', classLevel: { name: 'Senior 1' }, trade: null },
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+  });
+
+  it('says it is suspended, and names the student anyway', async () => {
+    prisma.student.findUnique.mockResolvedValue(suspended);
+
+    const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+    expect(result).toMatchObject({
+      valid: false,
+      suspended: true,
+      student: { name: 'Divine Niyonkuru', level: 'Senior 1' },
+    });
+  });
+
+  it('leaves the level blank for a suspended card with no class', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...suspended,
+      classSection: null,
+    });
+
+    const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+    expect(result.student?.level).toBeNull();
+  });
+});
