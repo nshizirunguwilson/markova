@@ -837,3 +837,146 @@ describe('MarksService', () => {
     });
   });
 });
+
+/**
+ * Editing and batch-entering marks, at the edges.
+ *
+ * A mark is the one number in this system a family will argue about, so the
+ * refusals matter more than the writes: a score above the paper's ceiling, a
+ * mark that is not there any more, a batch entered by an admin who is not a
+ * teacher of anything.
+ */
+describe('editing a mark that is out of range', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.mark.findUnique.mockResolvedValue({
+      id: 'mark-1',
+      teacherId: 'teacher-1',
+      termId: 'term-1',
+      maxScore: 20,
+      subject: { id: 'subject-1' },
+      term: { id: 'term-1', isClosed: false },
+    });
+    prisma.mark.update.mockResolvedValue({ id: 'mark-1' });
+  });
+
+  it('refuses a score above the paper it was marked out of', async () => {
+    await expect(
+      service.update('mark-1', { score: 25 } as never, 'teacher-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuses it against a new ceiling that was sent with it', async () => {
+    await expect(
+      service.update('mark-1', { score: 12, maxScore: 10 } as never, 'teacher-1'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('accepts a score right on the ceiling', async () => {
+    await service.update('mark-1', { score: 20 } as never, 'teacher-1');
+
+    expect(prisma.mark.update.mock.calls[0][0].data).toEqual({
+      score: 20,
+      maxScore: 20,
+    });
+  });
+
+  it('keeps the ceiling the mark already had when none is sent', async () => {
+    await service.update('mark-1', { score: 15 } as never, 'teacher-1');
+
+    expect(prisma.mark.update.mock.calls[0][0].data.maxScore).toBe(20);
+  });
+
+  it('refuses a mark that is not there any more', async () => {
+    prisma.mark.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.update('gone', { score: 10 } as never, 'teacher-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to delete one that is not there any more', async () => {
+    prisma.mark.findUnique.mockResolvedValue(null);
+
+    await expect(service.delete('gone', 'teacher-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});
+
+describe('a whole class entered at once', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: MarksService;
+
+  const batch = {
+    subjectId: 'subject-1',
+    classSectionId: 'section-1',
+    termId: 'term-1',
+    assessmentTypeId: 'assess-1',
+    marks: [{ studentId: 'student-1', score: 17 }],
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new MarksService(prisma);
+    prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
+    prisma.subject.findUnique.mockResolvedValue({
+      id: 'subject-1',
+      maxMarks: 20,
+      scope: 'O_CORE',
+    });
+    prisma.mark.upsert.mockResolvedValue({ id: 'mark-1' });
+    prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
+  });
+
+  it('refuses a subject the school does not teach', async () => {
+    prisma.subject.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.batchEntry(batch as never, 'teacher-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  // An admin entering marks on a teacher's behalf has no teacher profile of
+  // their own, so the mark is filed against whoever teaches that class.
+  it('files an admin entry against the teacher of that class', async () => {
+    prisma.teacherSubjectClass.findFirst.mockResolvedValue({
+      teacherId: 'teacher-9',
+    });
+
+    await service.batchEntry(batch as never, null, 'ADMIN');
+
+    expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
+      'teacher-9',
+    );
+  });
+
+  it('refuses when nobody teaches that subject to that class', async () => {
+    await expect(
+      service.batchEntry(batch as never, null, 'ADMIN'),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // A teacher without a profile is not an admin, so no lookup is attempted.
+  it('refuses a teacher with no profile without looking anyone up', async () => {
+    await expect(
+      service.batchEntry(batch as never, null, 'TEACHER'),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('files a teachers own entry against themselves', async () => {
+    await service.batchEntry(batch as never, 'teacher-1');
+
+    expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
+      'teacher-1',
+    );
+    expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
+  });
+});
