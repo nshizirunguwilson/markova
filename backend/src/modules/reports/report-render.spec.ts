@@ -985,3 +985,172 @@ describe('a fully set-up school printing a card', () => {
     expect(html).toMatch(/9 core subjects only/);
   });
 });
+
+/**
+ * A subject the school has entered marks for that do not count.
+ *
+ * Each subject's total is a weighted mix of the assessments its scope defines.
+ * A core paper with only a practical mark recorded has nothing weighted at
+ * all, so it has no total, and with no total it has no grade, no points and
+ * no remark either. Four dashes, not four zeroes.
+ */
+describe('a subject with no weighted marks against it', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pdf.mockResolvedValue(Buffer.from('%PDF-1.4 fake'));
+    newPage.mockResolvedValue({ setContent, pdf, close });
+    launch.mockResolvedValue({ newPage, close });
+
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      studentIdNumber: 'STD-2026-001',
+      classSectionId: 'section-1',
+      gender: 'FEMALE',
+      dateOfBirth: new Date('2010-04-02'),
+      disciplinePoints: 92,
+      user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+      classSection: {
+        name: 'A',
+        classLevel: { name: 'Senior 1', stage: 'O_LEVEL' },
+        trade: null,
+      },
+    });
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear: { name: '2026' },
+    });
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.teacherRole.findFirst.mockResolvedValue(null);
+    prisma.attendance.count.mockResolvedValue(0);
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'school_name', value: 'Markova TSS' },
+    ]);
+    prisma.reportVerification.findUnique.mockResolvedValue(null);
+  });
+
+  it('draws a dash for the total, grade, points and remark', async () => {
+    // A practical carries no weight on a core O-Level paper.
+    prisma.termResult.findFirst.mockResolvedValue(null);
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        subjectId: 's-1',
+        score: 80,
+        maxScore: 100,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'Practical' },
+        termId: 'term-1',
+      },
+    ]);
+
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    const row = html.slice(html.indexOf('Mathematics'));
+    expect(row).toMatch(/<td class="tot">–<\/td>/);
+    expect(row).toMatch(/<td class="gr">–<\/td>/);
+    expect(row).toMatch(/<td class="num">–<\/td>/);
+    expect(row).toMatch(/<td class="rem">–<\/td>/);
+  });
+
+  // A term closed before anything was marked has a result row with no average.
+  it('grades an average of nothing as the bottom band', async () => {
+    prisma.termResult.findFirst.mockResolvedValue({
+      id: 'res-1',
+      average: null,
+      letterGrade: null,
+      rank: null,
+      aggregate: null,
+      aggregateMax: null,
+    });
+    prisma.mark.findMany.mockResolvedValue([]);
+
+    const html = await service.generateTermReportHtml('student-1', 'term-1');
+    expect(html).toMatch(/<html/i);
+    expect(html).not.toMatch(/NaN|undefined/);
+  });
+});
+
+/**
+ * A TVET module nobody has taken the practical for yet.
+ *
+ * Competence is decided on the practical alone, so a module with the written
+ * papers marked and no practical is neither competent nor not: it is not
+ * decided, and the sheet has to say so rather than failing them.
+ */
+describe('a TVET module with no practical marked', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ReportsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pdf.mockResolvedValue(Buffer.from('%PDF-1.4 fake'));
+    newPage.mockResolvedValue({ setContent, pdf, close });
+    launch.mockResolvedValue({ newPage, close });
+
+    prisma = createMockPrisma();
+    service = new ReportsService(prisma);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-9',
+      studentIdNumber: 'STD-2026-009',
+      classSectionId: 'section-9',
+      gender: 'MALE',
+      dateOfBirth: new Date('2007-02-14'),
+      disciplinePoints: 96,
+      user: { firstName: 'Manzi', lastName: 'Habimana', photoUrl: null },
+      classSection: {
+        name: 'A',
+        classLevel: { name: 'Level 4', stage: 'A_LEVEL' },
+        trade: { code: 'SWD', name: 'Software Development', sector: 'ICT' },
+      },
+    });
+    prisma.term.findUnique.mockResolvedValue({
+      id: 'term-1',
+      name: 'Term 1',
+      startDate: new Date('2026-09-01'),
+      endDate: new Date('2026-12-15'),
+      academicYear: { name: '2026' },
+    });
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        subjectId: 'sub-2',
+        score: 74,
+        maxScore: 100,
+        subject: { name: 'Web Development', scope: 'A_SPECIFIC' },
+        assessmentType: { name: 'End of Term Exam' },
+        termId: 'term-1',
+      },
+    ]);
+    prisma.termResult.findFirst.mockResolvedValue({
+      id: 'res-9',
+      average: 74,
+      letterGrade: 'B',
+      rank: 1,
+      aggregate: 5,
+      aggregateMax: 6,
+    });
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.teacherRole.findFirst.mockResolvedValue(null);
+    prisma.attendance.count.mockResolvedValue(0);
+    prisma.schoolConfig.findMany.mockResolvedValue([
+      { key: 'school_name', value: 'Markova TSS' },
+    ]);
+    prisma.reportVerification.findUnique.mockResolvedValue(null);
+  });
+
+  it('leaves the competence undecided rather than failing them', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/Web Development/);
+    expect(html).not.toMatch(/undefined/);
+  });
+
+  it('says what the aggregate is counted from on a TVET sheet', async () => {
+    const html = await service.generateTermReportHtml('student-9', 'term-1');
+    expect(html).toMatch(/modules taken this term/);
+  });
+});

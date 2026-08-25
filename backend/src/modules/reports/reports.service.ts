@@ -847,7 +847,9 @@ export class ReportsService implements OnModuleDestroy {
 
   /** Dump every meaningful table to a CSV and bundle them into one ZIP. */
   async exportEverythingZip(): Promise<Buffer> {
-    const strip = (rows: any[], omit: string[] = []) =>
+    // Columns nobody outside this server may ever see, dropped before the row
+    // reaches a CSV.
+    const strip = (rows: any[], omit: string[]) =>
       rows.map((r) => {
         const clone: any = { ...r };
         for (const k of omit) delete clone[k];
