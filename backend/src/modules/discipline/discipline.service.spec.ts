@@ -627,3 +627,103 @@ describe('DisciplineService', () => {
     });
   });
 });
+
+/**
+ * The incident register, read back over a date range.
+ *
+ * An inspector asks for one term, a head teacher for one week. Each end of
+ * the range is applied on its own, so an open-ended one has to work from
+ * either side.
+ */
+describe('filtering the incident register by date', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: DisciplineService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new DisciplineService(
+      prisma,
+      { assertCanSee: jest.fn() } as unknown as OwnershipService,
+    );
+    prisma.disciplineIncident.findMany.mockResolvedValue([]);
+    prisma.disciplineIncident.count.mockResolvedValue(0);
+  });
+
+  it('takes both ends of a term', async () => {
+    await service.findIncidents({
+      dateFrom: '2026-09-01',
+      dateTo: '2026-12-15',
+    } as never);
+
+    const where = prisma.disciplineIncident.findMany.mock.calls[0][0].where;
+    expect(where.date.gte).toBeInstanceOf(Date);
+    expect(where.date.lte).toBeInstanceOf(Date);
+  });
+
+  it('takes an open-ended range from one end', async () => {
+    await service.findIncidents({ dateFrom: '2026-09-01' } as never);
+
+    const where = prisma.disciplineIncident.findMany.mock.calls[0][0].where;
+    expect(where.date.gte).toBeInstanceOf(Date);
+    expect(where.date.lte).toBeUndefined();
+  });
+
+  it('takes one from the other end', async () => {
+    await service.findIncidents({ dateTo: '2026-12-15' } as never);
+
+    const where = prisma.disciplineIncident.findMany.mock.calls[0][0].where;
+    expect(where.date.lte).toBeInstanceOf(Date);
+    expect(where.date.gte).toBeUndefined();
+  });
+
+  it('takes the whole register when no range is given', async () => {
+    await service.findIncidents({} as never);
+
+    expect(
+      prisma.disciplineIncident.findMany.mock.calls[0][0].where.date,
+    ).toBeUndefined();
+  });
+});
+
+describe('correcting an incident', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: DisciplineService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new DisciplineService(
+      prisma,
+      { assertCanSee: jest.fn() } as unknown as OwnershipService,
+    );
+    prisma.disciplineIncident.findUnique.mockResolvedValue({
+      id: 'inc-1',
+      studentId: 'student-1',
+      pointsDeducted: 5,
+    });
+    prisma.disciplineIncident.update.mockResolvedValue({});
+  });
+
+  it('refuses to read one that is not there any more', async () => {
+    prisma.disciplineIncident.findUnique.mockResolvedValue(null);
+
+    await expect(service.getIncidentById('gone')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('changes the action taken when a new one was sent', async () => {
+    await service.updateIncident('inc-1', { actionTaken: 'DETENTION' } as never);
+
+    expect(prisma.disciplineIncident.update.mock.calls[0][0].data).toMatchObject(
+      { actionTaken: 'DETENTION' },
+    );
+  });
+
+  it('leaves the action alone when none was sent', async () => {
+    await service.updateIncident('inc-1', { description: 'Corrected wording' } as never);
+
+    expect(
+      prisma.disciplineIncident.update.mock.calls[0][0].data.actionTaken,
+    ).toBeUndefined();
+  });
+});
