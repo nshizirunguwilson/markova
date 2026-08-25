@@ -90,3 +90,95 @@ describe('validateEnv()', () => {
     }
   });
 });
+
+/**
+ * The secret a student number is signed with.
+ *
+ * A student number carries an HMAC, so a school running without this secret is
+ * issuing numbers anyone can forge. It is required in production; a
+ * development run falls back to the JWT secret so nothing has to be set up
+ * twice just to see the app work.
+ */
+describe('the student number secret', () => {
+  const production = { ...valid, NODE_ENV: 'production' };
+  const longEnough = 'a'.repeat(32);
+  // A production run needs its dashboard origin too, or the failure below
+  // would be about CORS rather than about the secret under test.
+  const prodValid = {
+    ...production,
+    JWT_SECRET: 'a'.repeat(32),
+    JWT_REFRESH_SECRET: 'b'.repeat(32),
+    CORS_ORIGINS: 'https://markova.edu',
+  };
+
+  it('is not required in development', () => {
+    expect(() => validateEnv({ ...valid })).not.toThrow();
+  });
+
+  it('is required in production', () => {
+    expect(() => validateEnv({ ...prodValid })).toThrow(
+      /STUDENT_ID_SECRET is required in production/,
+    );
+  });
+
+  it('rejects the shipped example placeholder, even in development', () => {
+    expect(() =>
+      validateEnv({ ...valid, STUDENT_ID_SECRET: 'change-me' }),
+    ).toThrow(/still the example placeholder/);
+  });
+
+  it('rejects a placeholder written in another case', () => {
+    expect(() =>
+      validateEnv({ ...valid, STUDENT_ID_SECRET: 'CHANGE-ME' }),
+    ).toThrow(/still the example placeholder/);
+  });
+
+  it('rejects a short one in production', () => {
+    expect(() =>
+      validateEnv({ ...prodValid, STUDENT_ID_SECRET: 'too-short' }),
+    ).toThrow(/at least 32 characters in production/);
+  });
+
+  it('accepts a short one in development', () => {
+    expect(() =>
+      validateEnv({ ...valid, STUDENT_ID_SECRET: 'short-but-fine' }),
+    ).not.toThrow();
+  });
+
+  it('accepts a long one in production', () => {
+    expect(() =>
+      validateEnv({ ...prodValid, STUDENT_ID_SECRET: longEnough }),
+    ).not.toThrow();
+  });
+});
+
+/**
+ * Values that did not come from a .env file.
+ *
+ * Everything arrives as `unknown`. A number is a value somebody set; an
+ * object is not, and stringifying it would put "[object Object]" into a
+ * connection string.
+ */
+describe('values of the wrong shape', () => {
+  it('takes a port given as a number', () => {
+    expect(() => validateEnv({ ...valid, PORT: 3000 })).not.toThrow();
+  });
+
+  it('treats an object as if nothing was set', () => {
+    expect(() =>
+      validateEnv({ ...valid, DATABASE_URL: { host: 'localhost' } }),
+    ).toThrow(/DATABASE_URL is required/);
+  });
+
+  it('treats null as if nothing was set', () => {
+    expect(() => validateEnv({ ...valid, DATABASE_URL: null })).toThrow(
+      /DATABASE_URL is required/,
+    );
+  });
+
+  it('trims the spaces off a value', () => {
+    expect(() =>
+      validateEnv({ ...valid, NODE_ENV: '  production  ' }),
+    ).toThrow(/at least 32 characters in production/);
+  });
+});
