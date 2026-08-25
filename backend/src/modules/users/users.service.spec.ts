@@ -1214,3 +1214,121 @@ describe('a registration code left behind in an odd shape', () => {
     expect(prisma.user.create.mock.calls[0][0].data.code).not.toMatch(/NaN/);
   });
 });
+
+/**
+ * Re-linking a parent to their children after the fact.
+ *
+ * A family who move a child between classes, or who turn out to have a second
+ * one at the school, are edited rather than created again. The links are
+ * replaced wholesale so a child removed from the form really is removed.
+ */
+describe('changing which children a parent answers for', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  const asParent = () =>
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-1', role: 'PARENT', student: null, teacher: null }
+          : null,
+      ),
+    );
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.update.mockResolvedValue({});
+    prisma.parentStudent.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.parentStudent.create.mockResolvedValue({});
+    asParent();
+  });
+
+  it('replaces the links rather than adding to them', async () => {
+    await service.update('user-1', {
+      studentIds: ['student-1', 'student-2'],
+      relationship: 'Mother',
+    } as never);
+
+    expect(prisma.parentStudent.deleteMany).toHaveBeenCalledWith({
+      where: { parentUserId: 'user-1' },
+    });
+    expect(prisma.parentStudent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Mother',
+    );
+  });
+
+  it('calls them a parent when no relationship was chosen', async () => {
+    await service.update('user-1', {
+      studentIds: ['student-1'],
+    } as never);
+
+    expect(prisma.parentStudent.create.mock.calls[0][0].data.relationship).toBe(
+      'Parent',
+    );
+  });
+
+  // Sending an empty list is how a family with no children left at the school
+  // is recorded, and it has to actually clear them.
+  it('clears every link when an empty list is sent', async () => {
+    await service.update('user-1', { studentIds: [] } as never);
+
+    expect(prisma.parentStudent.deleteMany).toHaveBeenCalled();
+    expect(prisma.parentStudent.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves the links alone when the form did not mention them', async () => {
+    await service.update('user-1', { firstName: 'Jean' } as never);
+
+    expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // Only a parent has children to link, so the same field on a teacher is
+  // ignored rather than wiping something else.
+  it('ignores the field entirely on somebody who is not a parent', async () => {
+    prisma.user.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args?.where?.id
+          ? { id: 'user-2', role: 'TEACHER', student: null, teacher: null }
+          : null,
+      ),
+    );
+
+    await service.update('user-2', {
+      studentIds: ['student-1'],
+    } as never);
+
+    expect(prisma.parentStudent.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('changing somebodys photograph', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma);
+    prisma.user.update.mockResolvedValue({});
+  });
+
+  it('refuses somebody who does not exist', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.updatePhoto('nobody', '/uploads/avatars/a.png'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('saves it against somebody who does', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+
+    await service.updatePhoto('user-1', '/uploads/avatars/a.png');
+
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual({
+      photoUrl: '/uploads/avatars/a.png',
+    });
+  });
+});
