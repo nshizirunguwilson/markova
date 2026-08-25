@@ -363,3 +363,109 @@ describe('promotion', () => {
     });
   });
 });
+
+/**
+ * Promoting a student who has no year result behind them.
+ *
+ * A student admitted late has marks but no computed year result yet, and a
+ * deliberation meeting still decides about them. Moving them up must not
+ * depend on a row that does not exist.
+ */
+describe('promoting a student with no year result', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+    prisma.term.findMany.mockResolvedValue([]);
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.student.update.mockResolvedValue({});
+    prisma.yearResult.update.mockResolvedValue({});
+  });
+
+  const bulk = {
+    fromClassSectionId: 'section-1',
+    toClassSectionId: 'section-2',
+    academicYearId: 'year-1',
+  };
+
+  it('moves them up without a result row to stamp', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 's-1',
+        studentIdNumber: 'STD-2026-001',
+        disciplinePoints: 92,
+        yearResults: [],
+        user: { firstName: 'Keza', lastName: 'Uwimana' },
+      },
+    ]);
+    // With no result there is no average, so they fall below the pass mark.
+    const result = await service.promoteStudents(bulk as never);
+
+    expect(result.retained).toBe(1);
+    expect(prisma.yearResult.update).not.toHaveBeenCalled();
+  });
+
+  it('stamps the result row when there is one', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 's-1',
+        studentIdNumber: 'STD-2026-001',
+        disciplinePoints: 92,
+        yearResults: [{ id: 'yr-1', yearlyAverage: 72 }],
+        user: { firstName: 'Keza', lastName: 'Uwimana' },
+      },
+    ]);
+
+    await service.promoteStudents(bulk as never);
+
+    expect(prisma.yearResult.update.mock.calls[0][0].data).toEqual({
+      isPromoted: true,
+    });
+  });
+});
+
+describe('committing a decision for a student with no year result', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AcademicService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AcademicService(prisma);
+    prisma.student.update.mockResolvedValue({});
+    prisma.yearResult.update.mockResolvedValue({});
+    prisma.yearResult.findFirst.mockResolvedValue(null);
+    prisma.student.findMany.mockResolvedValue([
+      {
+        id: 's-1',
+        studentIdNumber: 'STD-2026-001',
+        yearResults: [],
+        user: { firstName: 'Keza', lastName: 'Uwimana' },
+      },
+    ]);
+  });
+
+  const commit = {
+    academicYearId: 'year-1',
+    toClassSectionId: 'section-2',
+    decisions: [{ studentId: 's-1', decision: 'PROMOTE' as const }],
+  };
+
+  it('moves them up without a result row to stamp', async () => {
+    const result = await service.commitPromotion(commit as never);
+
+    expect(result.promoted).toBe(1);
+    expect(prisma.yearResult.update).not.toHaveBeenCalled();
+  });
+
+  it('holds them back without one either', async () => {
+    const result = await service.commitPromotion({
+      ...commit,
+      decisions: [{ studentId: 's-1', decision: 'RETAIN' }],
+    } as never);
+
+    expect(result.retained).toBe(1);
+    expect(prisma.yearResult.update).not.toHaveBeenCalled();
+  });
+});
