@@ -671,8 +671,33 @@ export class ReportsService implements OnModuleDestroy {
   async issueIdCard(studentId: string, force = false) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
+      include: { user: { select: { isActive: true } } },
     });
     if (!student) throw new NotFoundException('Student not found');
+
+    // A card is a key: it opens the gate, borrows books and identifies the
+    // holder as a student here. The bulk route has always filtered on ACTIVE;
+    // the single one did not, so a card could be issued to somebody who had
+    // graduated or transferred out — with no expiry on it, that card works
+    // for ever.
+    if (student.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        `Cannot issue a card to a student who is ${student.status.toLowerCase()}. Set them back to active first.`,
+      );
+    }
+    if (!student.user?.isActive) {
+      throw new BadRequestException(
+        'Cannot issue a card against a deactivated account',
+      );
+    }
+    // The printed card carries the class. Issuing one to a student who has
+    // not been placed produces a card with a blank line where it should be.
+    if (!student.classSectionId) {
+      throw new BadRequestException(
+        'Place the student in a class before issuing their card',
+      );
+    }
+
     if (student.nfcCardId && !force) {
       return this.idCardSummary(studentId);
     }

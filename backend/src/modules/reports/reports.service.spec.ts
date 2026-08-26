@@ -36,7 +36,12 @@ describe('ReportsService', () => {
     cardIssuedAt: null,
     cardCode: null,
     cardSuspendedAt: null,
-    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    user: {
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
+      photoUrl: null,
+      isActive: true,
+    },
     classSection: {
       name: 'A',
       classLevel: { name: 'Senior 1', order: 1 },
@@ -57,6 +62,45 @@ describe('ReportsService', () => {
       prisma.student.findUnique.mockResolvedValue(null);
       await expect(service.issueIdCard('nobody')).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    /**
+     * A card is a key: it opens the gate, borrows books and identifies the
+     * holder as a student here, and it carries no expiry. The bulk route has
+     * always filtered on ACTIVE; the single one did not, so a card issued to
+     * somebody who had left worked for ever.
+     */
+    it.each(['GRADUATED', 'TRANSFERRED', 'INACTIVE'])(
+      'refuses a student who is %s',
+      async (status) => {
+        prisma.student.findUnique.mockResolvedValue(student({ status }));
+        await expect(service.issueIdCard('student-1')).rejects.toThrow(
+          /Cannot issue a card to a student who is/,
+        );
+        expect(prisma.student.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('refuses a card against a deactivated account', async () => {
+      prisma.student.findUnique.mockResolvedValue(
+        student({
+          user: { firstName: 'Divine', lastName: 'N', isActive: false },
+        }),
+      );
+      await expect(service.issueIdCard('student-1')).rejects.toThrow(
+        /deactivated account/,
+      );
+    });
+
+    // The printed card carries the class, so one issued to a student who has
+    // not been placed comes out with a blank line where it should be.
+    it('refuses a student who is in no class', async () => {
+      prisma.student.findUnique.mockResolvedValue(
+        student({ classSectionId: null }),
+      );
+      await expect(service.issueIdCard('student-1')).rejects.toThrow(
+        /Place the student in a class/,
       );
     });
 
@@ -624,7 +668,12 @@ describe('the summary an office reads back after a card action', () => {
     cardIssuedAt: new Date('2026-08-01'),
     cardCode: 'ABCD-EFGH-JKMN',
     cardSuspendedAt: null,
-    user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+    user: {
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
+      photoUrl: null,
+      isActive: true,
+    },
     classSection: {
       name: 'A',
       classLevel: { name: 'Senior 1', order: 1 },
@@ -649,7 +698,12 @@ describe('the summary an office reads back after a card action', () => {
     });
   });
 
-  // A student admitted mid-term is on the roll before they are placed.
+  /**
+   * A student admitted mid-term is on the roll before they are placed. They
+   * cannot be ISSUED a card in that state — the card prints the class — but
+   * an existing card can still be suspended, and that answer has to read
+   * properly rather than carrying a blank where the level goes.
+   */
   it('leaves the level blank for a student in no class yet', async () => {
     prisma.student.findUnique.mockResolvedValue({
       ...placed,
@@ -657,7 +711,7 @@ describe('the summary an office reads back after a card action', () => {
       classSection: null,
     });
 
-    const summary = await service.issueIdCard('student-1');
+    const summary = await service.suspendIdCard('student-1');
     expect(summary.level).toBeNull();
     expect(summary.name).toBe('Divine Niyonkuru');
   });
@@ -668,7 +722,7 @@ describe('the summary an office reads back after a card action', () => {
       classSection: { name: 'A', classLevel: null, trade: null },
     });
 
-    const summary = await service.issueIdCard('student-1');
+    const summary = await service.suspendIdCard('student-1');
     expect(summary.level).toBeNull();
   });
 

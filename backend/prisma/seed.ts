@@ -682,6 +682,10 @@ async function main() {
     { key: 'school_phone', value: '+250788000000' },
     { key: 'school_email', value: 'info@markova.edu' },
     { key: 'school_website', value: 'https://markova.edu' },
+    // Both are printed on every letter the school issues: the head teacher
+    // signs it, and a receiving school checks the registration number.
+    { key: 'head_teacher_name', value: 'Aline Uwase' },
+    { key: 'registration_number', value: 'REB/2015/0142' },
     { key: 'email_provider', value: 'smtp' },
   ];
   // logo_url must point at a real file: copy the bundled mark into uploads.
