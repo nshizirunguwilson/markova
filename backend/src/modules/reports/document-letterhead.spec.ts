@@ -31,6 +31,9 @@ describe('the letterhead on an official document', () => {
     studentIdNumber: 'STD-2026-001',
     status: 'ACTIVE',
     enrollmentDate: new Date('2026-01-15'),
+    dateOfBirth: new Date('2010-03-04'),
+    gender: 'MALE',
+    disciplinePoints: 96,
     user: {
       firstName: 'Divine',
       lastName: 'Niyonkuru',
@@ -56,6 +59,8 @@ describe('the letterhead on an official document', () => {
     { key: 'logo_url', value: '/uploads/branding/logo.png' },
     { key: 'stamp_url', value: '/uploads/branding/stamp.png' },
     { key: 'signature_url', value: '/uploads/branding/signature.png' },
+    { key: 'head_teacher_name', value: 'Aline Uwase' },
+    { key: 'registration_number', value: 'REB/2015/0142' },
   ];
 
   beforeEach(() => {
@@ -110,12 +115,45 @@ describe('the letterhead on an official document', () => {
       expect(doc.html).toMatch(/class="stamp-img"/);
     });
 
-    it('names the school and its website in the footer', async () => {
+    // The letter is signed by a named head teacher, not by "Head Teacher"
+    // alone, and the school's registration number belongs on the letterhead
+    // because that is what a receiving school checks it against.
+    it('signs it in the head teacher\'s own name', async () => {
       const doc = await service.generateDocument(
         'student-1',
         'transfer_letter',
       );
-      expect(doc.html).toMatch(/Issued by Markova TSS/);
+      expect(doc.html).toMatch(/Aline Uwase/);
+      expect(doc.html).toMatch(/Head Teacher, Markova TSS/);
+    });
+
+    it('prints the registration number on the letterhead', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/Registration No\. REB\/2015\/0142/);
+    });
+
+    // Addressed, headed and signed off. Without these it reads as a form.
+    it('addresses, heads and signs off like a letter', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/THE HEAD TEACHER/);
+      expect(doc.html).toMatch(/RE: Transfer Letter/);
+      expect(doc.html).toMatch(/Dear Sir \/ Madam,/);
+      expect(doc.html).toMatch(/Yours faithfully,/);
+    });
+
+    it('quotes the reference in the footer', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/Ref: STD-2026-001/);
+      expect(doc.html).toMatch(/Issued /);
     });
 
     it('carries the student number as the reference', async () => {
@@ -170,13 +208,33 @@ describe('the letterhead on an official document', () => {
       expect(doc.html).toMatch(/Head Teacher/);
     });
 
-    it('names the school in the footer with no website beside it', async () => {
+    it('leaves the website off the footer when there is none', async () => {
       const doc = await service.generateDocument(
         'student-1',
         'transfer_letter',
       );
-      expect(doc.html).toMatch(/Issued by Markova TSS/);
-      expect(doc.html).not.toMatch(/Issued by Markova TSS &nbsp;/);
+      expect(doc.html).toMatch(/Issued /);
+      expect(doc.html).not.toMatch(/·&nbsp; https/);
+    });
+
+    // A school with no stamp uploaded still needs somewhere to put the wet
+    // one. Before this, an empty stamp slot fell back to the house logo, so
+    // the letter went out with Markova's mark where the school's seal belongs.
+    it('rules a place for the wet stamp rather than borrowing a logo', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/class="stamp-placeholder"/);
+    });
+
+    it('leaves the head teacher line blank rather than printing undefined', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/class="sign-name">&nbsp;</);
+      expect(doc.html).not.toMatch(/undefined/);
     });
 
     it('falls back to an S when the school has no name either', async () => {
@@ -200,11 +258,13 @@ describe('the letterhead on an official document', () => {
         'student-1',
         'enrollment_confirmation',
       );
-      expect(doc.html).toMatch(/is currently enrolled/);
-      expect(doc.html).not.toMatch(/N\/A/);
+      expect(doc.html).toMatch(/currently enrolled/);
+      expect(doc.html).toMatch(/15 January 2026/);
     });
 
-    it('says so when there is no enrolment date on file', async () => {
+    // Reads as a sentence either way. The old version printed a literal "N/A"
+    // mid-paragraph, which is a form's answer, not a letter's.
+    it('simply omits the admission date when there is none on file', async () => {
       prisma.student.findUnique.mockResolvedValue({
         ...student,
         enrollmentDate: null,
@@ -214,21 +274,44 @@ describe('the letterhead on an official document', () => {
         'student-1',
         'enrollment_confirmation',
       );
-      expect(doc.html).toMatch(/N\/A/);
+      expect(doc.html).toMatch(/currently enrolled/);
+      expect(doc.html).not.toMatch(/N\/A/);
+      expect(doc.html).not.toMatch(/admitted on ,/);
     });
 
-    it('lowercases the status on the details table', async () => {
+    /**
+     * A transfer letter is read by the school taking the child in, so it has
+     * to answer what they will ask: who this is, how long they were here, what
+     * class they leave from, how they behaved, and whether anything is
+     * outstanding. It used to be one sentence and a four-cell table.
+     */
+    it('says everything a receiving school needs to admit the child', async () => {
       const doc = await service.generateDocument(
         'student-1',
         'transfer_letter',
       );
-      expect(doc.html).toMatch(/<td>active<\/td>/);
+      expect(doc.html).toMatch(/Divine Niyonkuru/);
+      expect(doc.html).toMatch(/STD-2026-001/);
+      expect(doc.html).toMatch(/Senior 1 A/);
+      expect(doc.html).toMatch(/conduct/i);
+      expect(doc.html).toMatch(/financial obligation to this school/i);
     });
 
-    it('leaves the status blank when there is none', async () => {
+    it('states the particulars in prose rather than a grid', async () => {
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).not.toMatch(/<th>Student number<\/th>/);
+    });
+
+    it('prints a letter for a student whose record is half empty', async () => {
       prisma.student.findUnique.mockResolvedValue({
         ...student,
         status: null,
+        dateOfBirth: null,
+        gender: null,
+        disciplinePoints: null,
       });
 
       const doc = await service.generateDocument(
@@ -236,7 +319,7 @@ describe('the letterhead on an official document', () => {
         'transfer_letter',
       );
       expect(doc.html).toMatch(/<html/i);
-      expect(doc.html).not.toMatch(/undefined|null<\/td>/);
+      expect(doc.html).not.toMatch(/undefined|null</);
     });
   });
 });
@@ -301,14 +384,14 @@ describe('a transcript', () => {
     expect(doc.html).toMatch(/Term 1/);
     expect(doc.html).toMatch(/Term 2/);
     expect(doc.html).toMatch(/78\.4%/);
-    expect(doc.html).toMatch(/Terms recorded<\/th><td>2/);
+    expect(doc.html).toMatch(/2 assessed terms/);
   });
 
   it('says so when nothing has been published yet', async () => {
     prisma.termResult.findMany.mockResolvedValue([]);
 
     const doc = await service.generateDocument('student-1', 'transcript');
-    expect(doc.html).toMatch(/No published results yet/);
+    expect(doc.html).toMatch(/No results have been published/);
   });
 
   // A term closed before the marks were finished carries no numbers at all.

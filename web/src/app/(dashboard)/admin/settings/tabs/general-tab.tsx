@@ -20,6 +20,8 @@ export function GeneralTab() {
       school_phone: map.school_phone || "",
       school_email: map.school_email || "",
       school_website: map.school_website || "",
+      head_teacher_name: map.head_teacher_name || "",
+      registration_number: map.registration_number || "",
     },
   });
 
@@ -50,6 +52,23 @@ export function GeneralTab() {
           placeholder="https://markova.edu"
           {...register("school_website")}
         />
+        {/* Both appear on every letter the school issues: the head teacher
+            signs it, and the registration number is what a receiving school
+            or the district checks it against. */}
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            id="head_teacher_name"
+            label="Head Teacher"
+            placeholder="e.g. Aline Uwase"
+            {...register("head_teacher_name")}
+          />
+          <Input
+            id="registration_number"
+            label="School Registration No."
+            placeholder="e.g. REB/2015/0142"
+            {...register("registration_number")}
+          />
+        </div>
         <Button type="submit" isLoading={bulkUpsert.isPending}>
           <Save className="mr-2 h-4 w-4" /> Save Changes
         </Button>

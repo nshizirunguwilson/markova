@@ -414,33 +414,91 @@ export class ReportsService implements OnModuleDestroy {
     if (!student) throw new NotFoundException('Student not found');
 
     const school = await this.getSchoolInfo();
-    const today = new Date().toLocaleDateString('en-US', {
+    const name = `${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}`;
+    const className = escapeHtml(classDisplayName(student.classSection));
+    const particulars = this.studentParticulars(student);
+    const today = new Date().toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     });
+    const enrolled = student.enrollmentDate
+      ? new Date(student.enrollmentDate).toLocaleDateString('en-GB', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : null;
 
     switch (type) {
-      case 'transfer_letter':
+      case 'transfer_letter': {
+        // What a receiving school actually needs to admit a child: who they
+        // are, how long they were here, what class they leave from and
+        // therefore join, and that they leave in good standing with nothing
+        // outstanding. The previous version was one sentence.
+        const body = `
+          <p>This is to certify that ${particulars} was a bona fide student of
+          ${school.name}${enrolled ? `, admitted on ${enrolled}` : ''}, and was
+          enrolled in <strong>${className}</strong> at the time of leaving.</p>
+
+          <p>The student is hereby transferred from this institution with effect
+          from <strong>${today}</strong>.${
+            typeof student.disciplinePoints === 'number'
+              ? ` Their conduct while with us stands at <strong>${student.disciplinePoints}</strong> points out of the school's full mark, and they`
+              : ' They'
+          } leave in good standing with no disciplinary matter pending against
+          them.</p>
+
+          <p>All school property issued to the student has been returned and no
+          financial obligation to this school remains outstanding. Their
+          academic records for the period of study are available on request and
+          will be released directly to the admitting institution.</p>
+
+          <p>We kindly request the receiving institution to admit
+          ${name} into the class following ${escapeHtml(
+            student.classSection?.classLevel?.name || className,
+          )}, and to accord them every assistance in settling into their new
+          school.</p>
+
+          <p>Any query concerning this letter may be addressed to the
+          undersigned${school.phone ? ` on ${school.phone}` : ''}${school.email ? ` or at ${school.email}` : ''},
+          quoting the reference above.</p>`;
         return {
           title: `Transfer Letter - ${student.user.firstName} ${student.user.lastName}`,
-          html: this.renderLetterHtml(
-            school,
-            student,
-            'Transfer Letter',
-            `This is to certify that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) was a student of ${school.name} in ${escapeHtml(classDisplayName(student.classSection))}. The student is hereby transferred from our institution as of ${today}.`,
-          ),
+          html: this.renderLetterHtml(school, student, 'Transfer Letter', body, {
+            addressee: ['THE HEAD TEACHER', 'RECEIVING INSTITUTION'],
+          }),
         };
-      case 'enrollment_confirmation':
+      }
+      case 'enrollment_confirmation': {
+        const body = `
+          <p>This is to confirm that ${particulars} is a currently enrolled,
+          full-time student of ${school.name}${enrolled ? `, admitted on ${enrolled}` : ''}.</p>
+
+          <p>The student is presently following the programme of study offered
+          in <strong>${className}</strong> and is in regular attendance. As at
+          <strong>${today}</strong> their registration with this school is
+          active and in good standing.</p>
+
+          <p>This letter is issued at the request of the student's parent or
+          guardian for whatever lawful purpose it may serve, including
+          application for a bursary, travel document, insurance or bank
+          facility, and it carries no financial obligation on the part of this
+          school.</p>
+
+          <p>Should confirmation of the above be required, the undersigned may
+          be contacted${school.phone ? ` on ${school.phone}` : ''}${school.email ? ` or at ${school.email}` : ''},
+          quoting the reference above.</p>`;
         return {
           title: `Enrollment Confirmation - ${student.user.firstName} ${student.user.lastName}`,
           html: this.renderLetterHtml(
             school,
             student,
-            'Enrollment Confirmation',
-            `This is to confirm that ${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)} (Student ID: ${escapeHtml(student.studentIdNumber)}) is currently enrolled at ${school.name} in ${escapeHtml(classDisplayName(student.classSection))} since ${student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A'}.`,
+            'Confirmation of Enrolment',
+            body,
           ),
         };
+      }
       case 'discipline_report': {
         const incidents = await this.prisma.disciplineIncident.findMany({
           where: { studentId },
@@ -468,6 +526,23 @@ export class ReportsService implements OnModuleDestroy {
       default:
         throw new NotFoundException('Unknown document type');
     }
+  }
+
+  /**
+   * The same letter, rendered to A4 PDF.
+   *
+   * The Documents tab used to "download" the raw HTML file, which opened in a
+   * browser rather than a reader and printed at whatever size the browser
+   * felt like. Every letter is already a full-bleed 210x297mm sheet with its
+   * own margins, so it goes through the same zero-margin path the report cards
+   * use.
+   */
+  async generateDocumentPdf(
+    studentId: string,
+    type: string,
+  ): Promise<{ pdf: Buffer; title: string }> {
+    const { html, title } = await this.generateDocument(studentId, type);
+    return { pdf: await this.htmlToPdf(html, 0), title };
   }
 
   async generateIdCardData(studentId: string) {
@@ -1130,6 +1205,11 @@ export class ReportsService implements OnModuleDestroy {
       logoUrl: map['logo_url'] || null,
       stampUrl: map['stamp_url'] || null,
       signatureUrl: map['signature_url'] || null,
+      // Both are printed on every letter: the head teacher signs it, and a
+      // receiving school checks the registration number. Optional, because a
+      // school that has not filled them in still has to be able to issue one.
+      headTeacher: escapeHtml(map['head_teacher_name'] || ''),
+      registrationNumber: escapeHtml(map['registration_number'] || ''),
       primaryColor: sanitizeColor(map['primary_color']),
     };
   }
@@ -1580,6 +1660,12 @@ export class ReportsService implements OnModuleDestroy {
   /**
    * The letterhead every official document is printed on.
    *
+   * Laid out as a letter rather than a form: reference line, addressee,
+   * subject, salutation, prose, and a closing signed by a named head teacher
+   * beside the school stamp. The previous version put the signature and stamp
+   * in a footer strip alongside a date, which read as a website footer at the
+   * bottom of a piece of school stationery.
+   *
    * Each one names a student and carries their student number as its
    * reference, so both are required rather than optional: a letter with
    * neither is not a document a school would issue.
@@ -1591,13 +1677,21 @@ export class ReportsService implements OnModuleDestroy {
       subtitle: string;
       reference: string;
       body: string;
+      /** Lines above the salutation: who the letter is addressed to. */
+      addressee?: string[];
+      salutation?: string;
+      /** What sits between the closing line and the signature. */
+      closing?: string;
     },
   ): string {
     // Already defaulted by sanitizeColor when the school set nothing.
     const navy = school.primaryColor;
     const logo = logoDataUri(school.logoUrl);
-    const stamp = logoDataUri(school.stampUrl);
-    const signature = logoDataUri(school.signatureUrl);
+    // No house-logo fallback for these two. A school that has uploaded neither
+    // had Markova's mark printed where the stamp and the signature belong, so
+    // every letter went out signed by a logo, twice.
+    const stamp = logoDataUri(school.stampUrl, { fallback: null });
+    const signature = logoDataUri(school.signatureUrl, { fallback: null });
     const today = new Date().toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'long',
@@ -1608,9 +1702,20 @@ export class ReportsService implements OnModuleDestroy {
       ? `<img class="crest-img" src="${logo}" alt="" />`
       : `<div class="crest">${escapeHtml((school.name || 'S').slice(0, 2).toUpperCase())}</div>`;
 
-    const contact = [school.address, school.phone, school.email, school.website]
-      .filter(Boolean)
-      .join(' &nbsp;•&nbsp; ');
+    const contactLines = [
+      school.address,
+      [school.phone, school.email].filter(Boolean).join(' &nbsp;·&nbsp; '),
+      school.website,
+    ].filter(Boolean);
+
+    const addressee = (opts.addressee ?? ['TO WHOM IT MAY CONCERN'])
+      .map((line) => `<div>${escapeHtml(line)}</div>`)
+      .join('');
+
+    // The reference a receiving school or the district quotes back. Built from
+    // the student's number and today's date so two letters for the same
+    // student in the same year are still distinguishable.
+    const ref = `Ref: ${escapeHtml(opts.reference)}/${new Date().getFullYear()}`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
       *{ box-sizing:border-box; margin:0; padding:0; }
@@ -1619,32 +1724,50 @@ export class ReportsService implements OnModuleDestroy {
         font-family:Poppins,'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
         color:#1c2733; background:#fff; width:210mm;
       }
-      .sheet{ width:210mm; min-height:296.5mm; padding:14mm 16mm 12mm; display:flex; flex-direction:column; }
-      .sheet *{ line-height:1.45; }
-      .off{ display:flex; align-items:center; gap:14px; padding-bottom:10px; border-bottom:3px double ${navy}; }
-      .crest{ width:52px; height:52px; border-radius:50%; flex:0 0 52px; background:${navy}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; }
-      .crest-img{ width:52px; height:52px; object-fit:contain; flex:0 0 52px; }
+      .sheet{ width:210mm; min-height:296.5mm; padding:16mm 18mm 14mm; display:flex; flex-direction:column; }
+      .sheet *{ line-height:1.55; }
+
+      /* ── letterhead ───────────────────────────────────────────────────── */
+      .off{ display:flex; align-items:center; gap:16px; padding-bottom:12px; border-bottom:3px double ${navy}; }
+      .crest{ width:60px; height:60px; border-radius:50%; flex:0 0 60px; background:${navy}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:20px; }
+      .crest-img{ width:60px; height:60px; object-fit:contain; flex:0 0 60px; }
       .off-lines{ flex:1; }
-      .off-lines .school{ font-size:18px; font-weight:700; color:${navy}; }
+      .off-lines .school{ font-size:20px; font-weight:700; color:${navy}; letter-spacing:.01em; }
       .off-lines .motto{ font-size:11px; color:#5b6b7b; font-style:italic; }
-      .off-lines .addr{ font-size:10.5px; color:#5b6b7b; margin-top:2px; }
-      .doc-no{ text-align:right; font-size:10.5px; color:#5b6b7b; }
-      .doc-no b{ display:block; color:#1c2733; font-size:11.5px; }
-      .title-band{ margin:14px 0 16px; background:#eef4f9; border:1px solid rgba(21,37,54,.09); text-align:center; padding:8px 12px; border-radius:4px; }
-      .title-band .t{ font-size:15px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:${navy}; }
-      .title-band .s{ font-size:11px; color:#5b6b7b; margin-top:2px; }
+      .off-lines .addr{ font-size:10.5px; color:#5b6b7b; margin-top:3px; }
+      .off-lines .reg{ font-size:10px; color:#8394a4; margin-top:1px; }
+
+      /* ── reference line ───────────────────────────────────────────────── */
+      .refline{ display:flex; justify-content:space-between; font-size:11px; color:#41535f; margin-top:10px; }
+      .refline b{ font-weight:600; }
+
+      /* ── the letter itself ────────────────────────────────────────────── */
+      .addressee{ margin-top:18px; font-size:12px; color:#1c2733; }
+      .addressee div{ line-height:1.5; }
+      .subject{ margin:16px 0 4px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:${navy}; }
+      .subject-rule{ width:100%; border-bottom:1.5px solid ${navy}; margin-bottom:14px; }
+      .salutation{ font-size:12.5px; margin-bottom:10px; }
       .content{ flex:1; font-size:12.5px; }
       .content p{ margin-bottom:11px; text-align:justify; }
-      table.doc{ border-collapse:collapse; width:100%; font-size:11.5px; margin:10px 0; }
-      table.doc th{ background:#eef4f9; color:${navy}; text-align:left; padding:6px 8px; border:1px solid rgba(21,37,54,.12); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; }
-      table.doc td{ padding:6px 8px; border:1px solid rgba(21,37,54,.12); }
+      table.doc{ border-collapse:collapse; width:100%; font-size:11.5px; margin:12px 0 14px; }
+      table.doc th{ background:#eef4f9; color:${navy}; text-align:left; padding:7px 9px; border:1px solid rgba(21,37,54,.12); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+      table.doc td{ padding:7px 9px; border:1px solid rgba(21,37,54,.12); }
       table.doc tr:nth-child(even) td{ background:#fafcfd; }
-      .signoff{ margin-top:auto; padding-top:18px; display:flex; justify-content:space-between; align-items:flex-end; }
-      .sig-block{ text-align:center; font-size:11px; color:#5b6b7b; }
-      .sig-img{ height:42px; object-fit:contain; display:block; margin:0 auto 2px; }
-      .sig-line{ border-top:1px solid #1c2733; width:170px; padding-top:3px; margin-top:20px; }
-      .stamp-img{ height:82px; object-fit:contain; opacity:.9; }
-      .foot{ margin-top:14px; padding-top:8px; border-top:1px solid rgba(21,37,54,.12); font-size:9.5px; color:#5b6b7b; text-align:center; }
+
+      /* ── closing: a letter ends with a signature, not a footer ────────── */
+      .closing{ margin-top:20px; font-size:12.5px; }
+      .sign-area{ margin-top:6px; position:relative; display:inline-block; min-width:230px; padding-right:120px; }
+      .sig-img{ height:52px; object-fit:contain; display:block; margin-bottom:-6px; }
+      .sig-gap{ height:46px; }
+      .sign-rule{ border-top:1px solid #1c2733; width:230px; padding-top:4px; }
+      .sign-name{ font-size:12.5px; font-weight:600; }
+      .sign-role{ font-size:11px; color:#5b6b7b; }
+      /* Beside the signature, not on top of it: a wet stamp goes next to the
+         name, and overlapping the rule made the letter look damaged. */
+      .stamp-img{ position:absolute; right:0; bottom:2px; height:96px; object-fit:contain; opacity:.85; }
+      .stamp-placeholder{ position:absolute; right:6px; bottom:2px; width:92px; height:92px; border:1px dashed rgba(21,37,54,.28); border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:8.5px; letter-spacing:.08em; color:#a3b1bd; text-transform:uppercase; }
+
+      .foot{ margin-top:auto; padding-top:10px; border-top:1px solid rgba(21,37,54,.12); font-size:9px; color:#8394a4; display:flex; justify-content:space-between; }
     </style></head><body>
       <div class="sheet">
         <div class="off">
@@ -1652,37 +1775,85 @@ export class ReportsService implements OnModuleDestroy {
           <div class="off-lines">
             <div class="school">${school.name}</div>
             ${school.motto ? `<div class="motto">${school.motto}</div>` : ''}
-            ${contact ? `<div class="addr">${contact}</div>` : ''}
-          </div>
-          <div class="doc-no">
-            <b>${escapeHtml(opts.reference)}</b>
-            ${today}
+            ${contactLines.map((l: string) => `<div class="addr">${l}</div>`).join('')}
+            ${school.registrationNumber ? `<div class="reg">Registration No. ${school.registrationNumber}</div>` : ''}
           </div>
         </div>
 
-        <div class="title-band">
-          <div class="t">${escapeHtml(opts.title)}</div>
-          <div class="s">${escapeHtml(opts.subtitle)}</div>
+        <div class="refline">
+          <span><b>${ref}</b></span>
+          <span>${escapeHtml(school.address ? school.address.split(',').slice(-2).join(',').trim() : '')}${school.address ? ', ' : ''}${today}</span>
         </div>
+
+        <div class="addressee">${addressee}</div>
+
+        <div class="subject">RE: ${escapeHtml(opts.title)}${opts.subtitle ? ` — ${escapeHtml(opts.subtitle)}` : ''}</div>
+        <div class="subject-rule"></div>
+
+        <div class="salutation">${escapeHtml(opts.salutation ?? 'Dear Sir / Madam,')}</div>
 
         <div class="content">${opts.body}</div>
 
-        <div class="signoff">
-          <div class="sig-block">
-            ${signature ? `<img class="sig-img" src="${signature}" alt="" />` : ''}
-            <div class="sig-line">Head Teacher</div>
-          </div>
-          ${stamp ? `<img class="stamp-img" src="${stamp}" alt="" />` : ''}
-          <div class="sig-block">
-            <div class="sig-line">Date: ${today}</div>
+        <div class="closing">
+          <div>${escapeHtml(opts.closing ?? 'Yours faithfully,')}</div>
+          <div class="sign-area">
+            ${
+              signature
+                ? `<img class="sig-img" src="${signature}" alt="" />`
+                : '<div class="sig-gap"></div>'
+            }
+            <div class="sign-rule">
+              <div class="sign-name">${school.headTeacher || '&nbsp;'}</div>
+              <div class="sign-role">Head Teacher, ${school.name}</div>
+            </div>
+            ${
+              stamp
+                ? `<img class="stamp-img" src="${stamp}" alt="" />`
+                : '<div class="stamp-placeholder">School stamp</div>'
+            }
           </div>
         </div>
 
         <div class="foot">
-          Issued by ${school.name}${school.website ? ` &nbsp;•&nbsp; ${school.website}` : ''}
+          <span>${ref}</span>
+          <span>Issued ${today}${school.website ? ` &nbsp;·&nbsp; ${school.website}` : ''}</span>
         </div>
       </div>
     </body></html>`;
+  }
+
+  /**
+   * A student's particulars, as a sentence rather than a grid.
+   *
+   * These letters used to open with a four-cell table repeating the name,
+   * number, class and status the prose then said again. A letter a family
+   * carries to another school reads as a letter, so the particulars are woven
+   * into the first paragraph and only genuinely tabular records (results,
+   * incidents) keep a table.
+   */
+  private studentParticulars(student: any): string {
+    const name = `${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}`;
+    const parts = [
+      `<strong>${name}</strong>`,
+      `student number <strong>${escapeHtml(student.studentIdNumber)}</strong>`,
+    ];
+    if (student.dateOfBirth) {
+      // "a male student born 4 March 2010", not "born 4 March 2010, male" —
+      // this reads inside a sentence, not down a column of a form.
+      const article = student.gender
+        ? `a ${String(student.gender).toLowerCase()} student `
+        : '';
+      parts.push(
+        `${article}born ${new Date(student.dateOfBirth).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })}`,
+      );
+    } else if (student.gender) {
+      parts.push(`a ${String(student.gender).toLowerCase()} student`);
+    }
+    return parts.join(', ');
   }
 
   private renderLetterHtml(
@@ -1690,19 +1861,15 @@ export class ReportsService implements OnModuleDestroy {
     student: any,
     title: string,
     body: string,
+    opts: { addressee?: string[]; closing?: string } = {},
   ): string {
-    const details = `
-      <table class="doc">
-        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
-            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
-        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
-            <th>Status</th><td>${escapeHtml(String(student.status ?? '').toLowerCase())}</td></tr>
-      </table>`;
     return this.renderDocumentShell(school, {
       title,
       subtitle: `${student.user.firstName} ${student.user.lastName}`,
       reference: student.studentIdNumber,
-      body: `${details}<p>${body}</p>`,
+      body,
+      addressee: opts.addressee,
+      closing: opts.closing,
     });
   }
 
@@ -1711,29 +1878,59 @@ export class ReportsService implements OnModuleDestroy {
     student: any,
     incidents: any[],
   ): string {
+    const particulars = this.studentParticulars(student);
+    const className = escapeHtml(classDisplayName(student.classSection));
+    const deducted = incidents.reduce(
+      (sum, i) => sum + (i.pointsDeducted || 0),
+      0,
+    );
+
     const rows = incidents.length
       ? incidents
           .map(
             (i) =>
-              `<tr><td>${new Date(i.date).toLocaleDateString('en-GB')}</td><td>${escapeHtml(i.description)}</td><td>-${i.pointsDeducted}</td><td>${escapeHtml(i.actionTaken)}</td></tr>`,
+              `<tr><td>${new Date(i.date).toLocaleDateString('en-GB')}</td><td>${escapeHtml(i.description)}</td><td style="text-align:center">-${i.pointsDeducted}</td><td>${escapeHtml(i.actionTaken)}</td><td>${escapeHtml(
+                i.recordedBy
+                  ? `${i.recordedBy.firstName} ${i.recordedBy.lastName}`
+                  : '',
+              )}</td></tr>`,
           )
           .join('')
-      : `<tr><td colspan="4" style="text-align:center;color:#5b6b7b">No incidents recorded.</td></tr>`;
+      : `<tr><td colspan="5" style="text-align:center;color:#5b6b7b">No incidents have been recorded against this student.</td></tr>`;
+
+    const summary = incidents.length
+      ? `<p>${incidents.length} matter${incidents.length === 1 ? ' has' : 's have'} been
+         recorded, accounting for ${deducted} point${deducted === 1 ? '' : 's'}
+         deducted. Each is set out below with the date it occurred, the action
+         taken and the member of staff who recorded it.</p>`
+      : `<p>No disciplinary matter has been recorded against this student for
+         the whole of their time at this school, and their conduct mark stands
+         at the full starting figure.</p>`;
 
     const body = `
+      <p>This report sets out the conduct record held by ${school.name} for
+      ${particulars}, presently in <strong>${className}</strong>.</p>
+
+      <p>Conduct at this school is marked out of a starting allocation from
+      which points are deducted for recorded incidents.${
+        typeof student.disciplinePoints === 'number'
+          ? ` This student's standing is currently <strong>${student.disciplinePoints}</strong> points.`
+          : ''
+      }</p>
+
+      ${summary}
+
       <table class="doc">
-        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
-            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
-        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
-            <th>Conduct points</th><td>${student.disciplinePoints}</td></tr>
-      </table>
-      <table class="doc">
-        <thead><tr><th>Date</th><th>Incident</th><th>Points</th><th>Action taken</th></tr></thead>
+        <thead><tr><th>Date</th><th>Incident</th><th>Points</th><th>Action taken</th><th>Recorded by</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`;
+      </table>
+
+      <p>This report is issued from the school's own records and is accurate as
+      at the date above. It is provided in confidence and should be read
+      alongside the student's academic record rather than on its own.</p>`;
 
     return this.renderDocumentShell(school, {
-      title: 'Discipline Report',
+      title: 'Student Conduct Report',
       subtitle: `${student.user.firstName} ${student.user.lastName}`,
       reference: student.studentIdNumber,
       body,
@@ -1745,26 +1942,60 @@ export class ReportsService implements OnModuleDestroy {
     student: any,
     termResults: any[],
   ): string {
+    const particulars = this.studentParticulars(student);
+    const className = escapeHtml(classDisplayName(student.classSection));
+
     const rows = termResults.length
       ? termResults
           .map(
             (tr) =>
-              `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td>${tr.average?.toFixed(1) ?? '—'}%</td><td>${escapeHtml(tr.letterGrade ?? '') || '—'}</td><td>${tr.rank ?? '—'}</td></tr>`,
+              `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td style="text-align:center">${tr.average?.toFixed(1) ?? '—'}%</td><td style="text-align:center">${escapeHtml(tr.letterGrade ?? '') || '—'}</td><td style="text-align:center">${
+                tr.aggregate != null && tr.aggregateMax != null
+                  ? `${tr.aggregate}/${tr.aggregateMax}`
+                  : '—'
+              }</td><td style="text-align:center">${tr.rank ?? '—'}</td></tr>`,
           )
           .join('')
-      : `<tr><td colspan="5" style="text-align:center;color:#5b6b7b">No published results yet.</td></tr>`;
+      : `<tr><td colspan="6" style="text-align:center;color:#5b6b7b">No results have been published for this student yet.</td></tr>`;
+
+    const averages = termResults
+      .map((tr) => tr.average)
+      .filter((a): a is number => typeof a === 'number');
+    const overall = averages.length
+      ? averages.reduce((a, b) => a + b, 0) / averages.length
+      : null;
+
+    const years = new Set(
+      termResults.map((tr) => tr.term.academicYear.name as string),
+    );
 
     const body = `
+      <p>This transcript sets out the complete academic record held by
+      ${school.name} for ${particulars}, presently in
+      <strong>${className}</strong>.</p>
+
+      <p>It covers ${termResults.length} assessed term${termResults.length === 1 ? '' : 's'}
+      across ${years.size} academic year${years.size === 1 ? '' : 's'}. Each
+      term's average is the mean of the student's subject totals, where every
+      subject total is the weighted combination of its continuous assessments,
+      practical work and end-of-term examination.${
+        overall != null
+          ? ` Taken together, the student's cumulative average across the whole record is <strong>${overall.toFixed(1)}%</strong>.`
+          : ''
+      }</p>
+
       <table class="doc">
-        <tr><th>Student</th><td>${escapeHtml(student.user.firstName)} ${escapeHtml(student.user.lastName)}</td>
-            <th>Student number</th><td>${escapeHtml(student.studentIdNumber)}</td></tr>
-        <tr><th>Class</th><td>${escapeHtml(classDisplayName(student.classSection))}</td>
-            <th>Terms recorded</th><td>${termResults.length}</td></tr>
-      </table>
-      <table class="doc">
-        <thead><tr><th>Year</th><th>Term</th><th>Average</th><th>Grade</th><th>Position</th></tr></thead>
+        <thead><tr><th>Academic year</th><th>Term</th><th>Average</th><th>Grade</th><th>Aggregate</th><th>Position</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`;
+      </table>
+
+      <p>Position is the student's rank within their own class for that term.
+      Aggregate, where shown, is the points total counted for national
+      certification. Only results that have been published by the school appear
+      here.</p>
+
+      <p>This document is issued from the school's own records and is valid only
+      when it carries the school stamp and the signature of the undersigned.</p>`;
 
     return this.renderDocumentShell(school, {
       title: 'Academic Transcript',

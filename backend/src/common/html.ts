@@ -45,7 +45,13 @@ export function logoDataUri(
   logoUrl?: string | null,
   opts: {
     uploadDir?: string;
-    fallback?: string;
+    /**
+     * What to inline when the school has uploaded nothing. Markova's own mark
+     * for the crest, but `null` for anything that is not a crest: a school
+     * with no stamp and no signature had the house logo printed in both
+     * places, so every letter went out signed by a logo.
+     */
+    fallback?: string | null;
     exists?: (p: string) => boolean;
     read?: (p: string) => Buffer;
   } = {},
@@ -55,7 +61,9 @@ export function logoDataUri(
   const uploadDir =
     opts.uploadDir ?? join(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
   const fallback =
-    opts.fallback ?? join(process.cwd(), 'assets', 'logo-horizontal.png');
+    opts.fallback === undefined
+      ? join(process.cwd(), 'assets', 'logo-horizontal.png')
+      : opts.fallback;
 
   const candidates: string[] = [];
   // A remote logo is left to the page: inlining it would mean a network fetch
@@ -64,7 +72,7 @@ export function logoDataUri(
   if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
     candidates.push(join(uploadDir, logoUrl.replace(/^\/?uploads\//, '')));
   }
-  candidates.push(fallback);
+  if (fallback) candidates.push(fallback);
 
   for (const file of candidates) {
     try {
