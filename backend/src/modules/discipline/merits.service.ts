@@ -3,6 +3,7 @@ import { MeritCategory } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { AwardMeritDto, QueryMeritsDto } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 /**
  * The other half of behaviour.
@@ -340,6 +341,8 @@ export class MeritsService {
             type: 'SMS',
             title: 'Good news from school',
             message: `Dear ${link.parent.firstName}, ${link.student.user.firstName} ${link.student.user.lastName} was recognised at school: "${description}".${restored > 0 ? ` ${restored} conduct points restored, now ${newPoints}.` : ''}`,
+            relatedEntityType: NotificationSubject.MERIT,
+            relatedEntityId: studentId,
           },
         });
       } catch {

@@ -12,6 +12,7 @@ import {
   GradeSubmissionDto,
   QueryHomeworkDto,
 } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 @Injectable()
 export class HomeworkService {
@@ -270,6 +271,11 @@ export class HomeworkService {
             type: 'PUSH',
             title: 'Homework Graded',
             message: `Your homework "${submission.homework.title}" has been graded: ${finalMarks}${submission.homework.maxMarks ? `/${submission.homework.maxMarks}` : ''}`,
+            // What it is about, so the bell can open it. Without this the
+            // notice was a dead end: clicking it marked it read and nothing
+            // else.
+            relatedEntityType: NotificationSubject.HOMEWORK,
+            relatedEntityId: submission.homeworkId,
           },
         });
       } catch {

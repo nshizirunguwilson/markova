@@ -19,6 +19,7 @@ import {
   NfcScanDto,
   RegisterNfcCardDto,
 } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 @Injectable()
 export class AttendanceService {
@@ -733,6 +734,8 @@ export class AttendanceService {
             type: NotificationType.SMS,
             title,
             message,
+            relatedEntityType: NotificationSubject.ATTENDANCE,
+            relatedEntityId: studentId,
           });
         } catch {
           // Non-critical, don't fail the attendance operation
@@ -747,7 +750,8 @@ export class AttendanceService {
             type: NotificationType.EMAIL,
             title,
             message,
-            relatedEntityType: 'attendance',
+            relatedEntityType: NotificationSubject.ATTENDANCE,
+            relatedEntityId: studentId,
           });
         } catch {
           // Non-critical, don't fail the attendance operation
@@ -761,7 +765,7 @@ export class AttendanceService {
           type: NotificationType.PUSH,
           title,
           message,
-          relatedEntityType: 'attendance',
+          relatedEntityType: NotificationSubject.ATTENDANCE,
           relatedEntityId: studentId,
         });
       } catch {
@@ -803,7 +807,7 @@ export class AttendanceService {
             type: NotificationType.EMAIL,
             title: 'Chronic Absenteeism Alert',
             message,
-            relatedEntityType: 'attendance',
+            relatedEntityType: NotificationSubject.ATTENDANCE,
             relatedEntityId: student.studentId,
           });
           alertsSent++;

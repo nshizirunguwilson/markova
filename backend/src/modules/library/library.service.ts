@@ -15,6 +15,7 @@ import {
   ReturnDto,
   QueryBooksDto,
 } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 @Injectable()
 export class LibraryService {
@@ -328,7 +329,7 @@ export class LibraryService {
         title: 'Library Book Due Soon',
         message: `Your borrowed book <strong>"${loan.book.title}"</strong> is due on <strong>${dueDate}</strong>. Please return it on time to avoid penalties.`,
         type: NotificationType.EMAIL,
-        relatedEntityType: 'BOOK_LOAN',
+        relatedEntityType: NotificationSubject.BOOK_LOAN,
         relatedEntityId: loan.id,
       });
       sentCount++;

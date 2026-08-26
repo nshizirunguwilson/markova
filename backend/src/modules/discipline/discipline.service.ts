@@ -14,6 +14,7 @@ import {
   ReviewAppealDto,
   QueryIncidentsDto,
 } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 @Injectable()
 export class DisciplineService {
@@ -469,6 +470,8 @@ export class DisciplineService {
             type: 'SMS',
             title: 'Discipline Incident',
             message: `Dear ${link.parent.firstName}, ${link.student.user.firstName} ${link.student.user.lastName} received a discipline incident: "${description}". ${pointsDeducted} points deducted. Remaining: ${newPoints}.`,
+            relatedEntityType: NotificationSubject.DISCIPLINE,
+            relatedEntityId: studentId,
           },
         });
       } catch {

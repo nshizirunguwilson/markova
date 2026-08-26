@@ -24,9 +24,29 @@ import { renderWithProviders, signIn } from "@/test/harness";
 import { serve } from "@/test/page";
 import { useAuthStore } from "@/stores/auth-store";
 
+/**
+ * `type` is the channel a notice went out on — SMS, EMAIL, PUSH. It is NOT
+ * what the notice is about, and the bell used to try to route on it, which is
+ * why every branch was dead. `relatedEntityType` carries the subject.
+ */
 const notifications = [
-  { id: "n-1", title: "Marks published", body: "Term 1 is out", isRead: false, type: "MARKS" },
-  { id: "n-2", title: "Absent today", body: "Divine was absent", isRead: true, type: "ATTENDANCE" },
+  {
+    id: "n-1",
+    title: "Marks published",
+    body: "Term 1 is out",
+    isRead: false,
+    type: "PUSH",
+    relatedEntityType: "MARKS",
+  },
+  {
+    id: "n-2",
+    title: "Absent today",
+    body: "Divine was absent",
+    isRead: true,
+    type: "SMS",
+    relatedEntityType: "ATTENDANCE",
+    relatedEntityId: "student-1",
+  },
 ];
 
 function mount(role: "ADMIN" | "STUDENT" | "TEACHER" = "ADMIN") {
@@ -317,7 +337,11 @@ describe("Topbar notification routing", () => {
     h.router.push.mockClear();
     await tap(/Absent today/);
 
-    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher/attendance"));
+    await waitFor(() =>
+      expect(h.router.push).toHaveBeenCalledWith(
+        expect.stringContaining("/teacher/attendance"),
+      ),
+    );
   });
 
   it("marks it read as well as opening it", async () => {
@@ -336,19 +360,92 @@ describe("Topbar notification routing", () => {
     );
   });
 
-  // Messages are not a role page: everyone shares one inbox.
-  it("takes a message notification to the shared inbox", async () => {
+  // Each role has their own inbox in the sidebar, and the notification has to
+  // land in the same one.
+  it("takes a message notification to that role's inbox", async () => {
     serve(h.api, {
       "/notifications/unread": { count: 1 },
       "/notifications": [
-        { id: "n-3", title: "New message", body: "From Jean", isRead: false, type: "MESSAGE" },
+        {
+          id: "n-3",
+          title: "New message",
+          body: "From Jean",
+          isRead: false,
+          type: "PUSH",
+          relatedEntityType: "MESSAGE",
+        },
       ],
     });
     await openNotificationsWithMessage();
 
     h.router.push.mockClear();
     await tap(/New message/);
-    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/messages"));
+    await waitFor(() =>
+      expect(h.router.push).toHaveBeenCalledWith("/teacher/messages"),
+    );
+  });
+
+  /**
+   * The record the notice is about, not just the list it lives in. An
+   * attendance alert names the student it concerns.
+   */
+  it("carries the record's id through to the page", async () => {
+    await openNotifications();
+    h.router.push.mockClear();
+    await tap(/Absent today/);
+
+    await waitFor(() =>
+      expect(h.router.push).toHaveBeenCalledWith(
+        "/teacher/attendance?highlight=student-1",
+      ),
+    );
+  });
+
+  /**
+   * Everything raised before the subject column existed, and the whole demo
+   * seed, has nothing declared. Reading the title keeps those working rather
+   * than leaving half the bell inert.
+   */
+  it("works out where an older notice belongs from its title", async () => {
+    serve(h.api, {
+      "/notifications/unread": { count: 1 },
+      "/notifications": [
+        {
+          id: "n-4",
+          title: "Homework Graded",
+          body: "Your homework was graded",
+          isRead: false,
+          type: "PUSH",
+        },
+      ],
+    });
+    mount("TEACHER");
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const { act, fireEvent } = await import("@testing-library/react");
+    const bell = screen
+      .getAllByRole("button")
+      .find((b) => /notification/i.test(b.getAttribute("aria-label") ?? ""));
+    await act(async () => {
+      fireEvent.click(bell!);
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Homework Graded/)).toBeInTheDocument(),
+    );
+
+    h.router.push.mockClear();
+    await tap(/Homework Graded/);
+    await waitFor(() =>
+      expect(h.router.push).toHaveBeenCalledWith("/teacher/homework"),
+    );
+  });
+
+  // A row that opens nothing should not look like a row that does.
+  it("says which notices can be opened", async () => {
+    await openNotifications();
+    const openable = screen
+      .getByText(/Marks published/)
+      .closest("button")!;
+    expect(openable.getAttribute("aria-label")).toMatch(/open$/);
   });
 
   async function openNotificationsWithMessage() {

@@ -35,6 +35,7 @@ import {
   overallGrade,
   MAX_POINTS_PER_SUBJECT,
 } from '../src/common/grading';
+import { NotificationSubject } from '../src/common/notification-target';
 
 const prisma = new PrismaClient();
 
@@ -2964,17 +2965,23 @@ async function main() {
   // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
   // The bell is only useful if it has something in it. These are the notices a
   // school actually generates in a week.
+  // `subject` is what the notice is ABOUT, which is what the bell opens.
+  // `type` is only the channel it went out on, and routing off that was why
+  // clicking a notification never went anywhere.
   const notices: {
     userId: string;
     title: string;
     message: string;
     type: NotificationType;
+    subject?: string;
     daysAgo: number;
   }[] = [
-    { userId: admin.id, title: 'Term 2 marks are due', message: 'Nine teachers have not finished entering Term 2 marks. Reports print on Tuesday.', type: NotificationType.PUSH, daysAgo: 0 },
-    { userId: admin.id, title: 'Six books are overdue', message: 'Six library titles are past their return date, the oldest by 21 days.', type: NotificationType.EMAIL, daysAgo: 1 },
-    { userId: admin.id, title: 'Attendance below 90%', message: 'Senior 2 B attendance was 87% this week, the lowest in the school.', type: NotificationType.PUSH, daysAgo: 2 },
-    { userId: admin.id, title: 'A discipline appeal is waiting', message: 'A parent has appealed an incident and is waiting on a decision.', type: NotificationType.EMAIL, daysAgo: 3 },
+    { userId: admin.id, title: 'Term 2 marks are due', message: 'Nine teachers have not finished entering Term 2 marks. Reports print on Tuesday.', type: NotificationType.PUSH, subject: NotificationSubject.MARKS, daysAgo: 0 },
+    { userId: admin.id, title: 'Six books are overdue', message: 'Six library titles are past their return date, the oldest by 21 days.', type: NotificationType.EMAIL, subject: NotificationSubject.BOOK_LOAN, daysAgo: 1 },
+    { userId: admin.id, title: 'Attendance below 90%', message: 'Senior 2 B attendance was 87% this week, the lowest in the school.', type: NotificationType.PUSH, subject: NotificationSubject.ATTENDANCE, daysAgo: 2 },
+    { userId: admin.id, title: 'A discipline appeal is waiting', message: 'A parent has appealed an incident and is waiting on a decision.', type: NotificationType.EMAIL, subject: NotificationSubject.DISCIPLINE, daysAgo: 3 },
+    // Deliberately without one: a notice that is not about anything in
+    // particular should stay a plain notice rather than open a random page.
     { userId: admin.id, title: 'System Ready', message: 'Markova Academy system has been set up successfully.', type: NotificationType.EMAIL, daysAgo: 6 },
   ];
   for (const t of teacherUsers.slice(0, 6)) {
@@ -2983,6 +2990,7 @@ async function main() {
       title: 'Marks entry closes Friday',
       message: 'Please enter Term 2 marks for your classes before Friday.',
       type: NotificationType.PUSH,
+      subject: NotificationSubject.MARKS,
       daysAgo: rand(4),
     });
   }
@@ -2992,6 +3000,7 @@ async function main() {
       title: 'Report card published',
       message: "Your child's Term 2 report card is now available to view.",
       type: NotificationType.EMAIL,
+      subject: NotificationSubject.REPORT_CARD,
       daysAgo: rand(5),
     });
   }
@@ -3001,6 +3010,7 @@ async function main() {
       title: n.title,
       message: n.message,
       type: n.type,
+      relatedEntityType: n.subject ?? null,
       createdAt: minDate(addDays(today, -n.daysAgo), today),
     })),
   });
