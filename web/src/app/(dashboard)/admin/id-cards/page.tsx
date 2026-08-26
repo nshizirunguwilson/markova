@@ -49,6 +49,19 @@ export default function AdminIdCardsPage() {
   const [showPrint, setShowPrint] = useState(false);
   const [page, setPage] = useState(1);
 
+  /**
+   * Any change of filter starts again at the first page: staying on page 12
+   * of a narrower list shows an empty table.
+   *
+   * Reset where the filter changes rather than in an effect watching it — an
+   * effect that calls setState runs a second render every time, and the query
+   * below would fire once for the old page before the reset landed.
+   */
+  const changeFilter = (apply: () => void) => {
+    apply();
+    setPage(1);
+  };
+
   const { data: levels } = useClassLevels();
   const { data: sections } = useSections(levelId || undefined);
 
@@ -68,15 +81,18 @@ export default function AdminIdCardsPage() {
 
   // Debounced auto-search
   useEffect(() => {
-    const id = setTimeout(() => setSearch(searchInput.trim()), 350);
+    const id = setTimeout(() => {
+      setSearch((current) => {
+        const next = searchInput.trim();
+        // Only page back when the term actually changed, so a re-render with
+        // the same text does not knock the reader off page 3.
+        if (next !== current) setPage(1);
+        return next;
+      });
+    }, 350);
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  // Any change of filter starts again at the first page: staying on page 12
-  // of a narrower list shows an empty table.
-  useEffect(() => {
-    setPage(1);
-  }, [sectionId, status, search]);
 
   const items: any[] = data?.items || [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 25, totalPages: 1 };
@@ -158,7 +174,7 @@ export default function AdminIdCardsPage() {
             <select id="f-class-level" aria-label="Class level"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={levelId}
-              onChange={(e) => { setLevelId(e.target.value); setSectionId(""); }}
+              onChange={(e) => changeFilter(() => { setLevelId(e.target.value); setSectionId(""); })}
             >
               <option value="">All levels</option>
               {levels?.map((l: any) => (
@@ -171,7 +187,7 @@ export default function AdminIdCardsPage() {
             <select id="f-section" aria-label="Class section"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={sectionId}
-              onChange={(e) => setSectionId(e.target.value)}
+              onChange={(e) => changeFilter(() => setSectionId(e.target.value))}
               disabled={!levelId}
             >
               <option value="">All sections</option>
@@ -185,7 +201,7 @@ export default function AdminIdCardsPage() {
             <select id="f-card-status" aria-label="Status"
               className="rounded-lg border border-input px-3 py-2 text-sm"
               value={status}
-              onChange={(e) => setStatus(e.target.value as StatusFilter)}
+              onChange={(e) => changeFilter(() => setStatus(e.target.value as StatusFilter))}
             >
               <option value="all">All</option>
               <option value="issued">Has a card</option>

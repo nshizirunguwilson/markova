@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardTitle,
@@ -43,7 +43,7 @@ export default function AdminPromotionPage() {
 
   const [academicYearId, setAcademicYearId] = useState("");
   const [fromLevelId, setFromLevelId] = useState("");
-  const [toLevelId, setToLevelId] = useState("");
+  const [toLevelChoice, setToLevelId] = useState("");
   const [fromSectionId, setFromSectionId] = useState("");
   const [toSectionId, setToSectionId] = useState("");
   const [passThreshold, setPassThreshold] = useState("");
@@ -54,7 +54,6 @@ export default function AdminPromotionPage() {
   const [committed, setCommitted] = useState<any | null>(null);
 
   const { data: fromSections } = useSections(fromLevelId || undefined);
-  const { data: toSections } = useSections(toLevelId || undefined);
 
   const defaultThreshold = config?.map?.passThreshold;
 
@@ -78,11 +77,14 @@ export default function AdminPromotionPage() {
   const nextLevel = promotableLevels[0];
   const isFinalLevel = !!fromLevel && promotableLevels.length === 0;
 
-  // The next level up is the answer nine times in ten, so offer it already
-  // filled in; the admin can still pick a further one (S3 → Level 4, say).
-  useEffect(() => {
-    if (fromLevelId && !toLevelId && nextLevel) setToLevelId(nextLevel.id);
-  }, [fromLevelId, toLevelId, nextLevel]);
+  /**
+   * The destination, derived during render rather than synced in an effect
+   * (the same shape the marks page uses): the admin's explicit choice wins,
+   * otherwise the next level up — which is the answer nine times in ten.
+   * They can still pick a further one, Senior 3 to Level 4 say.
+   */
+  const toLevelId = toLevelChoice || nextLevel?.id || "";
+  const { data: toSections } = useSections(toLevelId || undefined);
 
   const handleLoad = () => {
     if (!fromSectionId || !academicYearId) return;
@@ -112,13 +114,14 @@ export default function AdminPromotionPage() {
   };
 
   // Changing the source level can leave a destination behind that is now at or
-  // below it. Clear it rather than letting a stale id go to the server.
+  // below it. Clearing the choice hands the field back to the derived default,
+  // which is always a level above the new source.
   const handleFromLevelChange = (id: string) => {
     setFromLevelId(id);
     setFromSectionId("");
     const from = ladder.find((l: any) => l.id === id);
-    const to = ladder.find((l: any) => l.id === toLevelId);
-    if (from && to && (to.order ?? 0) <= (from.order ?? 0)) {
+    const to = ladder.find((l: any) => l.id === toLevelChoice);
+    if (!from || !to || (to.order ?? 0) <= (from.order ?? 0)) {
       setToLevelId("");
       setToSectionId("");
     }
