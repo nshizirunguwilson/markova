@@ -885,6 +885,24 @@ describe('AcademicService', () => {
       });
     });
 
+    /**
+     * A subject's row on the admin page has to say whether anyone teaches it,
+     * whether it is on a timetable, and whether marks have been recorded
+     * against it — deleting one that has marks is refused, so the page needs
+     * to know before the button is pressed rather than after.
+     */
+    it('counts what each subject is being used for', async () => {
+      prisma.subject.findMany.mockResolvedValue([]);
+      await service.findAllSubjects();
+      const select =
+        prisma.subject.findMany.mock.calls[0][0].include._count.select;
+      expect(select).toMatchObject({
+        teacherSubjectClasses: true,
+        timetables: true,
+        marks: true,
+      });
+    });
+
     it('narrows the assignments three ways', async () => {
       prisma.teacherSubjectClass.findMany.mockResolvedValue([]);
       await service.findAllAssignments({

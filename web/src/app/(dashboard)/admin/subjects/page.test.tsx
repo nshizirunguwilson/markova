@@ -32,13 +32,57 @@ import SubjectsPage from "./page";
  * percentage on every report card wrong.
  */
 
+const trade = { id: "trade-1", code: "SWD", name: "Software Development", sector: "ICT" };
+const level = { id: "level-1", name: "Senior 1", order: 1, sections: [] };
+
 const subjects = [
-  { id: "subject-1", name: "Mathematics", code: "MATH", category: "SCIENCE", maxMarks: 100 },
-  { id: "subject-2", name: "Kinyarwanda", code: "KIN", category: "LANGUAGES", maxMarks: 50 },
+  {
+    id: "subject-1",
+    name: "Mathematics",
+    code: "MATH",
+    category: "SCIENCE",
+    maxMarks: 100,
+    scope: "O_CORE",
+    isActive: true,
+    tradeId: null,
+    trade: null,
+    classLevelId: null,
+    classLevel: null,
+    _count: { teacherSubjectClasses: 3, timetables: 6, marks: 240 },
+  },
+  {
+    id: "subject-2",
+    name: "Kinyarwanda",
+    code: "KIN",
+    category: "LANGUAGES",
+    maxMarks: 50,
+    scope: "O_ELECTIVE",
+    isActive: true,
+    tradeId: null,
+    trade: null,
+    classLevelId: "level-1",
+    classLevel: { id: "level-1", name: "Senior 1", stage: "O_LEVEL" },
+    _count: { teacherSubjectClasses: 1, timetables: 2, marks: 0 },
+  },
+  {
+    id: "subject-3",
+    name: "Backend Application Development",
+    category: "ICT",
+    maxMarks: 100,
+    scope: "A_SPECIFIC",
+    isActive: false,
+    tradeId: "trade-1",
+    trade,
+    classLevelId: null,
+    classLevel: null,
+    _count: { teacherSubjectClasses: 2, timetables: 4, marks: 0 },
+  },
 ];
 
 const routes = {
   "/academic/subjects": subjects,
+  "/academic/trades": [trade],
+  "/academic/class-levels": [level],
 };
 
 beforeEach(() => {
@@ -70,6 +114,138 @@ describe("the subject list", () => {
     expect(screen.getByText(/Kinyarwanda/)).toBeInTheDocument();
   });
 
+  /**
+   * The page used to show name, category and max marks and nothing else,
+   * which left out everything that decides what a mark is worth: the scope
+   * that sets the weighting and the grading scale, the trade a module belongs
+   * to, and whether it counts toward the aggregate a student is certified on.
+   */
+  it("names each subject's scope", async () => {
+    await mount();
+    const row = screen.getByText(/^Mathematics$/).closest("tr")!;
+    expect(row.textContent).toMatch(/O-Level core/);
+  });
+
+  it("says how the term mark is put together", async () => {
+    await mount();
+    const row = screen
+      .getByText(/Backend Application Development/)
+      .closest("tr")!;
+    expect(row.textContent).toMatch(/Practical 30%/);
+  });
+
+  it("says which subjects stay out of the aggregate", async () => {
+    await mount();
+    const elective = screen.getByText(/Kinyarwanda/).closest("tr")!;
+    const core = screen.getByText(/^Mathematics$/).closest("tr")!;
+    expect(elective.textContent).toMatch(/Outside the aggregate/);
+    expect(core.textContent).toMatch(/Counts toward the aggregate/);
+  });
+
+  it("names the trade a module belongs to", async () => {
+    await mount();
+    const row = screen
+      .getByText(/Backend Application Development/)
+      .closest("tr")!;
+    expect(row.textContent).toMatch(/SWD/);
+  });
+
+  it("says which level a subject is pinned to", async () => {
+    await mount();
+    expect(
+      screen.getByText(/Kinyarwanda/).closest("tr")!.textContent,
+    ).toMatch(/Senior 1/);
+    expect(
+      screen.getByText(/^Mathematics$/).closest("tr")!.textContent,
+    ).toMatch(/All levels/);
+  });
+
+  // A subject nobody teaches is one the timetable will never reach, and a
+  // subject with marks against it cannot be deleted at all.
+  it("says whether anyone is teaching it", async () => {
+    await mount();
+    const row = screen.getByText(/^Mathematics$/).closest("tr")!;
+    expect(row.textContent).toMatch(/3 teachers/);
+    expect(row.textContent).toMatch(/240 marks recorded/);
+  });
+
+  it("marks a deactivated subject as such", async () => {
+    await mount();
+    const row = screen
+      .getByText(/Backend Application Development/)
+      .closest("tr")!;
+    expect(row.textContent).toMatch(/Inactive/);
+  });
+
+  // The label appears on the summary card, in the filter and in the form, so
+  // the count is read off the card specifically.
+  it("counts the curriculum by scope", async () => {
+    await mount();
+    const card = screen
+      .getAllByText("Trade module")
+      .map((el) => el.parentElement)
+      .find((el) => /Practical 30%/.test(el?.textContent ?? ""));
+    expect(card?.textContent).toMatch(/Trade module1/);
+  });
+});
+
+describe("finding one subject among ninety", () => {
+  it("searches by name", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/search subjects/i), {
+        target: { value: "kinya" },
+      });
+    });
+    expect(screen.getByText(/Kinyarwanda/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Mathematics$/)).toBeNull();
+  });
+
+  it("searches by the trade code too", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/search subjects/i), {
+        target: { value: "swd" },
+      });
+    });
+    expect(screen.getByText(/Backend Application Development/)).toBeInTheDocument();
+    expect(screen.queryByText(/Kinyarwanda/)).toBeNull();
+  });
+
+  it("narrows to one scope", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/filter by scope/i), {
+        target: { value: "O_ELECTIVE" },
+      });
+    });
+    expect(screen.getByText(/Kinyarwanda/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Mathematics$/)).toBeNull();
+  });
+
+  it("narrows to one trade", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/filter by trade/i), {
+        target: { value: "trade-1" },
+      });
+    });
+    expect(screen.getByText(/Backend Application Development/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Mathematics$/)).toBeNull();
+  });
+
+  it("says so when nothing matches rather than showing an empty table", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/search subjects/i), {
+        target: { value: "astrophysics" },
+      });
+    });
+    expect(screen.getByText(/no subject matches that/i)).toBeInTheDocument();
+  });
+});
+
+describe("what the list has to survive", () => {
   it("shows what each is marked out of", async () => {
     await mount();
     const row = screen.getByText(/Kinyarwanda/).closest("tr")!;
@@ -218,10 +394,177 @@ describe("adding a subject", () => {
   });
 });
 
+/**
+ * Creating a subject.
+ *
+ * The form used to offer name, category and max marks. Scope was never asked
+ * for, so every subject was created as an O-Level core paper whatever it
+ * really was — and a trade module, which needs a trade, could not be created
+ * from this page at all.
+ */
+describe("what the form can actually set", () => {
+  async function openForm() {
+    await mount();
+    await click(button(/add subject/i));
+    return screen.findByRole("dialog");
+  }
+
+  it("offers every scope the school grades on", async () => {
+    const dialog = await openForm();
+    const select = within(dialog).getByLabelText(/^scope$/i) as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      "O_CORE",
+      "O_ELECTIVE",
+      "A_GENERAL",
+      "A_SPECIFIC",
+    ]);
+  });
+
+  // Choosing a scope silently changes how every mark against the subject is
+  // weighted, so the form says what it is choosing.
+  it("says what the chosen scope does to the marks", async () => {
+    const dialog = await openForm();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^scope$/i), {
+        target: { value: "A_SPECIFIC" },
+      });
+    });
+    expect(dialog.textContent).toMatch(/Practical 30%/);
+    expect(dialog.textContent).toMatch(/counted toward the aggregate/i);
+  });
+
+  it("keeps the trade shut unless the scope is a trade module", async () => {
+    const dialog = await openForm();
+    expect(within(dialog).getByLabelText(/^trade$/i)).toBeDisabled();
+
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^scope$/i), {
+        target: { value: "A_SPECIFIC" },
+      });
+    });
+    expect(within(dialog).getByLabelText(/^trade$/i)).not.toBeDisabled();
+  });
+
+  // The server refuses a trade module with no trade. Catching it here names
+  // the field instead of failing the whole save with a 400.
+  it("refuses to save a trade module with no trade", async () => {
+    const dialog = await openForm();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+        target: { value: "Database Development" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^scope$/i), {
+        target: { value: "A_SPECIFIC" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() =>
+      expect(dialog.textContent).toMatch(/has to belong to a trade/i),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("sends the scope, trade and level it was given", async () => {
+    const dialog = await openForm();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+        target: { value: "Database Development" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/^scope$/i), {
+        target: { value: "A_SPECIFIC" },
+      });
+    });
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^trade$/i), {
+        target: { value: "trade-1" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => {
+      const body = h.api.post.mock.calls[0]?.[1] as any;
+      expect(body.scope).toBe("A_SPECIFIC");
+      expect(body.tradeId).toBe("trade-1");
+    });
+  });
+
+  /**
+   * An unset relation goes as absent, not as "". The API validates these as
+   * uuids, so an empty string is a 400 on a field the admin never touched.
+   */
+  it("leaves an unset level out rather than sending an empty one", async () => {
+    const dialog = await openForm();
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+        target: { value: "Physics" },
+      });
+    });
+
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => {
+      const body = h.api.post.mock.calls[0]?.[1] as any;
+      expect(body).not.toHaveProperty("classLevelId");
+      expect(body).not.toHaveProperty("tradeId");
+    });
+  });
+
+  function save(dialog: HTMLElement) {
+    return within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(create|update)$/i.test((b.textContent ?? "").trim()));
+  }
+});
+
 describe("editing a subject", () => {
+  /**
+   * A subject with marks against it cannot be deleted, only deactivated, so
+   * the Active tick is the only way to retire one — and it only makes sense
+   * on something that already exists.
+   */
+  it("offers Active on an edit but not on a new subject", async () => {
+    await mount();
+    await click(button(/add subject/i));
+    let dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText(/^Active$/)).toBeNull();
+
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^cancel$/i.test((b.textContent ?? "").trim())),
+    );
+    await click(screen.getByRole("button", { name: /^edit mathematics$/i }));
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/^Active$/)).toBeInTheDocument();
+  });
+
+  it("opens a trade module with its trade already chosen", async () => {
+    await mount();
+    await click(
+      screen.getByRole("button", {
+        name: /^edit backend application development$/i,
+      }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      (within(dialog).getByLabelText(/^scope$/i) as HTMLSelectElement).value,
+    ).toBe("A_SPECIFIC");
+    expect(
+      (within(dialog).getByLabelText(/^trade$/i) as HTMLSelectElement).value,
+    ).toBe("trade-1");
+  });
+
   async function openEditor() {
     await mount();
-    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    // Each button names the subject it acts on, so a row's Edit is
+    // distinguishable from every other row's in a screen reader.
+    await click(screen.getAllByRole("button", { name: /^edit /i })[0]);
     return screen.findByRole("dialog");
   }
 
@@ -276,7 +619,7 @@ describe("removing a subject", () => {
   it("asks first", async () => {
     await mount();
     h.api.delete.mockClear();
-    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    await click(screen.getAllByRole("button", { name: /^delete /i })[0]);
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(h.api.delete).not.toHaveBeenCalled();
@@ -284,7 +627,7 @@ describe("removing a subject", () => {
 
   it("names the subject it is about to remove", async () => {
     await mount();
-    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    await click(screen.getAllByRole("button", { name: /^delete /i })[0]);
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toMatch(/Mathematics/);
@@ -292,7 +635,7 @@ describe("removing a subject", () => {
 
   it("deletes nothing when the ask is dismissed", async () => {
     await mount();
-    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    await click(screen.getAllByRole("button", { name: /^delete /i })[0]);
     const dialog = await screen.findByRole("dialog");
 
     h.api.delete.mockClear();
@@ -308,7 +651,8 @@ describe("removing a subject", () => {
 
   it("deletes it once confirmed", async () => {
     await mount();
-    await click(screen.getAllByRole("button", { name: /^delete$/i })[0]);
+    // Kinyarwanda: no marks recorded, so it can actually be removed.
+    await click(screen.getByRole("button", { name: /^delete kinyarwanda$/i }));
     const dialog = await screen.findByRole("dialog");
 
     h.api.delete.mockClear();
@@ -319,8 +663,26 @@ describe("removing a subject", () => {
     );
 
     await waitFor(() =>
-      expect(h.api.delete).toHaveBeenCalledWith("/academic/subjects/subject-1"),
+      expect(h.api.delete).toHaveBeenCalledWith("/academic/subjects/subject-2"),
     );
+  });
+
+  /**
+   * Subject → Mark is a cascade delete, so the server refuses to remove a
+   * subject that has marks against it. The page used to offer the button
+   * anyway and only reported the refusal after it was pressed on something
+   * irreversible-looking.
+   */
+  it("refuses up front to delete a subject that carries marks", async () => {
+    await mount();
+    await click(screen.getByRole("button", { name: /^delete mathematics$/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(dialog.textContent).toMatch(/240 marks have been recorded/);
+    const confirm = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^delete$/i.test((b.textContent ?? "").trim()));
+    expect(confirm).toBeDisabled();
   });
 });
 
@@ -339,7 +701,7 @@ describe("exporting the subjects", () => {
     await click(csv);
 
     await waitFor(() => expect(h.exportData).toHaveBeenCalled());
-    expect((h.exportData.mock.calls[0][1] as any).data).toHaveLength(2);
+    expect((h.exportData.mock.calls[0][1] as any).data).toHaveLength(3);
   });
 });
 
@@ -482,7 +844,9 @@ describe("a subject with only a name", () => {
     renderPage(SubjectsPage, { role: "ADMIN" });
     await screen.findByText("Entrepreneurship");
 
-    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    // Each button names the subject it acts on, so a row's Edit is
+    // distinguishable from every other row's in a screen reader.
+    await click(screen.getAllByRole("button", { name: /^edit /i })[0]);
 
     expect(await screen.findByLabelText("Name")).toHaveValue("Entrepreneurship");
     expect(screen.getByLabelText("Category")).toHaveValue("");

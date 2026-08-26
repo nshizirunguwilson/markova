@@ -409,6 +409,18 @@ export class AcademicService {
       include: {
         trade: { select: { id: true, code: true, name: true } },
         classLevel: { select: { id: true, name: true, stage: true } },
+        // What the subject is actually used for. Without these the subjects
+        // page could not say whether anyone teaches it, whether it appears on
+        // a timetable, or whether deleting it would take marks with it — and
+        // deleting one that has marks is refused, so the page has to be able
+        // to say so before the admin presses the button.
+        _count: {
+          select: {
+            teacherSubjectClasses: true,
+            timetables: true,
+            marks: true,
+          },
+        },
       },
       orderBy: [{ scope: 'asc' }, { name: 'asc' }],
     });
