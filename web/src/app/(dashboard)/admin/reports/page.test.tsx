@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 const h = vi.hoisted(() => {
@@ -723,7 +723,8 @@ describe("the opened report card", () => {
       fireEvent.click(print!);
     });
 
-    expect(window.open).toHaveBeenCalled();
+    expect(document.querySelector("iframe[srcdoc]")).not.toBeNull();
+    expect(window.open).not.toHaveBeenCalled();
     const refetched = h.api.get.mock.calls.some(([url]: any[]) =>
       String(url).includes("/html"),
     );
@@ -808,6 +809,24 @@ describe("generating a document for one student", () => {
  * must be able to keep it or print it without going back to the server.
  */
 describe("producing a document", () => {
+  /**
+   * The preview is the A4 sheet the PDF will be, scaled to the panel. It
+   * measures itself, and jsdom reports every element as zero wide, so it draws
+   * nothing until something gives it a width.
+   */
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 800,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 0,
+    });
+  });
   const html = "<html><body><h1>Transfer Letter</h1></body></html>";
 
   async function openDocumentsTab() {
@@ -935,13 +954,22 @@ describe("producing a document", () => {
 
       const download = screen
         .queryAllByRole("button")
-        .find((b) => /^download$/i.test((b.textContent ?? "").trim()));
+        .find((b) => /download pdf/i.test((b.textContent ?? "").trim()));
       expect(download).toBeTruthy();
+      h.api.post.mockResolvedValue({ data: new Blob(["%PDF-1.4"]) });
       await act(async () => {
         fireEvent.click(download!);
       });
 
-      expect(clicks[0]).toBe("Transfer Letter.html");
+      // A real PDF from the render endpoint, not the raw HTML saved under a
+      // .html name — that opened in a browser and printed at whatever size
+      // the browser felt like rather than A4.
+      await waitFor(() => expect(clicks[0]).toBe("Transfer Letter.pdf"));
+      const call = h.api.post.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/reports/document/pdf"),
+      );
+      expect(call).toBeTruthy();
+      expect((call![2] as any)?.responseType).toBe("blob");
     } finally {
       vi.mocked(document.createElement).mockRestore();
     }
@@ -970,7 +998,10 @@ describe("producing a document", () => {
       fireEvent.click(print!);
     });
 
-    expect(window.open).toHaveBeenCalled();
+    // Printed from this page. The old route opened a second tab and left it
+    // behind, and a popup blocker turned Print into a button that did nothing.
+    expect(document.querySelector("iframe[srcdoc]")).not.toBeNull();
+    expect(window.open).not.toHaveBeenCalled();
     expect(h.api.post).not.toHaveBeenCalled();
   });
 });
@@ -1392,6 +1423,24 @@ describe("a generated class with gaps in it", () => {
 });
 
 describe("a document that comes back as plain html", () => {
+  /**
+   * The preview is the A4 sheet the PDF will be, scaled to the panel. It
+   * measures itself, and jsdom reports every element as zero wide, so it draws
+   * nothing until something gives it a width.
+   */
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 800,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 0,
+    });
+  });
   async function openDocuments() {
     renderPage(ReportsPage, { role: "ADMIN" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
@@ -1457,16 +1506,19 @@ describe("a document that comes back as plain html", () => {
       return el;
     });
 
+    h.api.post.mockResolvedValue({ data: new Blob(["%PDF-1.4"]) });
     await act(async () => {
       fireEvent.click(download);
     });
+    await waitFor(() => expect(clicks.length).toBeGreaterThan(0));
     vi.mocked(document.createElement).mockRestore();
 
-    // No title in the payload, so it falls back rather than saving "undefined".
-    expect(clicks.at(-1)).toBe("Document.html");
+    // No title in the payload, so it falls back rather than saving
+    // "undefined.pdf".
+    expect(clicks.at(-1)).toBe("Document.pdf");
   });
 
-  it("prints it", async () => {
+  it("prints it from this page", async () => {
     if (!(await pickStudentAndGenerate(bare))) return;
 
     const print = screen
@@ -1476,14 +1528,15 @@ describe("a document that comes back as plain html", () => {
       fireEvent.click(print);
     });
 
-    expect(window.open).toHaveBeenCalled();
+    expect(document.querySelector("iframe[srcdoc]")).not.toBeNull();
+    expect(window.open).not.toHaveBeenCalled();
   });
 
-  it("does nothing when the browser blocks the print window", async () => {
+  // There is no popup to block any more, but the page still has to survive a
+  // browser that refuses the print frame.
+  it("keeps the preview when the browser refuses to print", async () => {
     if (!(await pickStudentAndGenerate(bare))) return;
 
-    // A pop-up blocker returns null from window.open. Reading .document off
-    // that is the classic white screen.
     vi.stubGlobal("open", vi.fn(() => null));
     const print = screen
       .queryAllByRole("button")

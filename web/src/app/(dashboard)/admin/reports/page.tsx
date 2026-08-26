@@ -30,7 +30,9 @@ import { StudentPicker } from "@/components/student-picker";
 import { A4Preview } from "@/components/a4-preview";
 import api from "@/lib/api";
 import { Check, FileText, Printer, Download, Users, Eye } from "lucide-react";
+import { printHtml } from "@/lib/print";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 
 // One student's line in the bulk roll call.
 type BulkItem = { status: "pending" | "active" | "done" | "failed"; error?: string };
@@ -86,6 +88,7 @@ export default function AdminReportsPage() {
   // backend/src/modules/reports/dto/index.ts. Sending the uppercase names was
   // rejected by validation, so every document type failed.
   const [docType, setDocType] = useState("transfer_letter");
+  const [docDownloading, setDocDownloading] = useState(false);
 
   const handleGenerateClassReports = () => {
     if (!sectionId || !termId) return toast.error("Select class and term");
@@ -117,13 +120,11 @@ export default function AdminReportsPage() {
     }
   };
 
+  // Prints from this page rather than a second tab. See lib/print.ts: the
+  // old window.open route left an orphan tab behind, and popup blockers made
+  // the Print button do nothing at all.
   const handlePrintReport = (html: string) => {
-    const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.print();
-    }
+    if (!printHtml(html)) toast.error("Your browser would not open the print dialog");
   };
 
   const handlePrintRow = async (studentId: string) => {
@@ -276,6 +277,34 @@ export default function AdminReportsPage() {
         onError: () => toast.error("Failed to generate"),
       }
     );
+  };
+
+  const documentHtml: string =
+    (generateDoc.data as any)?.html ?? (generateDoc.data as string) ?? "";
+
+  /**
+   * The letter as a real A4 PDF.
+   *
+   * "Download" used to save the raw HTML, which opens in a browser rather
+   * than a reader and prints at whatever size that browser chooses. The API
+   * renders the same sheet through Chrome at 210×297mm.
+   */
+  const handleDownloadDocument = async () => {
+    setDocDownloading(true);
+    try {
+      const res = await api.post(
+        "/reports/document/pdf",
+        { studentId: docStudentId, type: docType },
+        { responseType: "blob" },
+      );
+      const title = (generateDoc.data as any)?.title || "Document";
+      saveBlob(new Blob([res.data], { type: "application/pdf" }), `${title}.pdf`);
+      toast.success("Downloaded PDF");
+    } catch (e) {
+      toast.error(errorMessage(e, "Failed to download the document"));
+    } finally {
+      setDocDownloading(false);
+    }
   };
 
   useEffect(() => {
@@ -694,38 +723,36 @@ export default function AdminReportsPage() {
           </div>
 
           {generateDoc.data && (
-            <div className="mt-4 border rounded-lg p-4">
-              <div className="flex justify-end mb-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const html = (generateDoc.data as any).html || generateDoc.data;
-                    const blob = new Blob([html as string], { type: "text/html" });
-                    saveBlob(blob, `${(generateDoc.data as any).title || "Document"}.html`);
-                  }}
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const html = (generateDoc.data as any).html || generateDoc.data;
-                    handlePrintReport(html as string);
-                  }}
-                >
-                  <Printer className="w-4 h-4 mr-1" />
-                  Print
-                </Button>
+            <div className="mt-4 rounded-lg border border-border p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-foreground">
+                  {(generateDoc.data as any).title || "Document"}
+                  <span className="ml-2 text-xs font-normal text-muted">A4 · 210 × 297 mm</span>
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={docDownloading}
+                    onClick={handleDownloadDocument}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePrintReport(documentHtml)}
+                  >
+                    <Printer className="w-4 h-4 mr-1" />
+                    Print
+                  </Button>
+                </div>
               </div>
-              <iframe
-                srcDoc={(generateDoc.data as any).html || (generateDoc.data as string)}
-                title="Document preview"
-                className="w-full rounded-lg border border-border bg-surface"
-                style={{ minHeight: "70vh" }}
-              />
+              {/* The same A4 sheet the PDF is, scaled to fit — the old preview
+                  was a free-height iframe, so the letter was shown at a size it
+                  is never printed at. */}
+              <A4Preview html={documentHtml} title="Document preview" />
             </div>
           )}
         </Card>

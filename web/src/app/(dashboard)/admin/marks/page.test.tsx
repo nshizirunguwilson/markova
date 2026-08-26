@@ -67,9 +67,42 @@ beforeEach(() => {
   });
 });
 
+/**
+ * Pick a class, the way an admin has to.
+ *
+ * Nothing is loaded until a level and a section are both chosen: the page used
+ * to fall back to the first section in the school, so opening Marks showed a
+ * real class nobody had asked for under a "Select level..." placeholder.
+ */
+async function chooseClass() {
+  // Wait for the levels themselves, not just the empty select: firing change
+  // before the options land leaves the value unset and the page still empty.
+  await waitFor(() =>
+    expect(
+      within(screen.getByLabelText(/class level/i)).getByRole("option", {
+        name: /senior 1/i,
+      }),
+    ).toBeInTheDocument(),
+  );
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText(/class level/i), {
+      target: { value: "level-1" },
+    });
+  });
+  await waitFor(() =>
+    expect(screen.getByLabelText(/^section$/i)).not.toBeDisabled(),
+  );
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText(/^section$/i), {
+      target: { value: "section-1" },
+    });
+  });
+}
+
 async function mount(withResults: unknown[] = unpublished) {
   serve(h.api, { ...routes, "/marks/term-results/class": withResults });
   renderPage(MarksPage, { role: "ADMIN" });
+  await chooseClass();
   await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
 }
 
@@ -77,9 +110,7 @@ async function mount(withResults: unknown[] = unpublished) {
 async function mountEmpty() {
   serve(h.api, { ...routes, "/marks/term-results/class": [] });
   renderPage(MarksPage, { role: "ADMIN" });
-  await waitFor(() =>
-    expect(screen.getByLabelText(/class level/i)).toBeInTheDocument(),
-  );
+  await chooseClass();
 }
 
 async function click(el: Element | null | undefined) {
@@ -93,9 +124,15 @@ function button(name: RegExp) {
   return screen.queryAllByRole("button").find((b) => name.test((b.textContent ?? "").trim()));
 }
 
-/** The one control that publishes or unpublishes. */
+/**
+ * The one control that publishes or unpublishes.
+ *
+ * Named for what it does rather than "Hide": the card now says what the state
+ * IS above the button that changes it, because a published class reading
+ * "Unpublish" looked like it was reporting the opposite of the truth.
+ */
 function statusButton() {
-  return screen.getByRole("button", { name: /^hide$/i });
+  return screen.getByRole("button", { name: /(un)?publish results/i });
 }
 
 describe("a class's results", () => {

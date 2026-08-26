@@ -13,6 +13,7 @@ import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import { printHtml } from "@/lib/print";
 import { Download, Eye, FileText, Printer } from "lucide-react";
 
 export default function StudentReportsPage() {
@@ -46,12 +47,9 @@ export default function StudentReportsPage() {
     setBusy("");
     if (!html) return;
     setOfficialHtml(html);
-    const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.print();
-    }
+    // Prints from this page. A second tab left behind, or swallowed by a
+    // popup blocker, is not what a Print button should do.
+    if (!printHtml(html)) toast.error("Your browser would not open the print dialog");
   };
 
   const handleView = async () => {

@@ -154,7 +154,12 @@ describe("finding the right card", () => {
 });
 
 describe("printing the card", () => {
-  it("writes it into a new window", async () => {
+  /**
+   * A parent pressing Print gets the A4 sheet the school issues, printed from
+   * this page. It used to open a popup and write its own two-line summary —
+   * name, average, grade, rank — which looked nothing like the real card.
+   */
+  it("prints the school's own card from this page", async () => {
     mount();
     await screen.findByLabelText("Select Year");
     await chooseTerm();
@@ -168,7 +173,13 @@ describe("printing the card", () => {
       fireEvent.click(print);
     });
 
-    expect(window.open).toHaveBeenCalled();
+    await waitFor(() => {
+      const call = h.api.get.mock.calls.find(([url]: any[]) =>
+        String(url).includes("/html"),
+      );
+      expect(call).toBeTruthy();
+    });
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("does not take the page down when the pop-up is blocked", async () => {
