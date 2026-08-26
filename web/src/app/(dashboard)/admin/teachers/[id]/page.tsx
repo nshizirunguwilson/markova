@@ -97,7 +97,9 @@ export default function TeacherDetailPage() {
   const classes = useMemo(() => {
     const byClass = new Map<string, { section: any; subjects: string[]; students: number }>();
     for (const a of assignments) {
-      const key = a.classSection?.id ?? a.classSectionId;
+      // Nothing to group a row without a class by, and nothing to show for it
+      // either — the row would render as a blank class name.
+      const key = a.classSection?.id;
       if (!key) continue;
       const entry = byClass.get(key) ?? {
         section: a.classSection,

@@ -152,6 +152,42 @@ describe("who this teacher is", () => {
     expect(screen.getByText(/Head of Department — Sciences/)).toBeInTheDocument();
   });
 
+  // Every one of these is optional on the record, and a half-filled staff
+  // profile must not render "undefined" or a broken date.
+  it("draws dashes rather than undefined for a sparse record", async () => {
+    await mount({
+      id: "u-1",
+      role: "TEACHER",
+      firstName: "Aline",
+      lastName: "Uwase",
+      isActive: false,
+      createdAt: "2024-01-08T07:00:00.000Z",
+      teacher: {
+        id: "teacher-1",
+        employmentStatus: "PART_TIME",
+        roles: [],
+        teacherSubjectClasses: [],
+        timetables: [],
+      },
+    });
+    await screen.findByText(/Aline Uwase/);
+    expect(document.body.textContent).not.toMatch(/undefined|NaN/);
+    expect(screen.getByText("Never")).toBeInTheDocument();
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("shows where they live when the record says", async () => {
+    await mount({
+      ...teacher,
+      province: "Kigali City",
+      district: "Gasabo",
+      sector: "Kacyiru",
+    });
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByText(/Kigali City · Gasabo · Kacyiru/)).toBeInTheDocument();
+  });
+
   it("shows their own details, not just their teaching", async () => {
     await mount();
     await screen.findByText(/Aline Uwase/);
@@ -203,6 +239,69 @@ describe("what they teach", () => {
     expect(row?.textContent).toMatch(/Class teacher/);
   });
 
+  // The API returns an assignment with its class attached; one without has
+  // nothing to group by and nothing to name, so it is dropped rather than
+  // drawn as a blank row.
+  it("skips an assignment with no class on it", async () => {
+    await mount({
+      ...teacher,
+      teacher: {
+        ...teacher.teacher,
+        teacherSubjectClasses: [
+          assignment("a-1", "Mathematics", senior2B),
+          { id: "a-9", subject: { name: "Physics" }, classSection: null },
+        ],
+      },
+    });
+    await screen.findByText(/Aline Uwase/);
+    const rows = screen
+      .getAllByRole("row")
+      .filter((r) => /Mathematics|Physics/.test(r.textContent ?? ""));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("counts a class whose roll the API did not send as empty", async () => {
+    await mount({
+      ...teacher,
+      teacher: {
+        ...teacher.teacher,
+        teacherSubjectClasses: [
+          assignment("a-1", "Mathematics", {
+            id: "sec-x",
+            name: "C",
+            classLevel: { name: "Senior 3" },
+            trade: null,
+          }),
+        ],
+      },
+    });
+    await screen.findByText(/Aline Uwase/);
+    const row = screen
+      .getAllByRole("row")
+      .find((r) => /Senior 3 C/.test(r.textContent ?? ""));
+    expect(row?.textContent).toMatch(/—/);
+  });
+
+  // The same subject taught to the same class twice — two assignments in two
+  // academic years — is one badge, not two.
+  it("does not repeat a subject within a class", async () => {
+    await mount({
+      ...teacher,
+      teacher: {
+        ...teacher.teacher,
+        teacherSubjectClasses: [
+          assignment("a-1", "Mathematics", senior2B),
+          assignment("a-2", "Mathematics", senior2B),
+        ],
+      },
+    });
+    await screen.findByText(/Aline Uwase/);
+    const row = screen
+      .getAllByRole("row")
+      .find((r) => /Senior 2 B/.test(r.textContent ?? ""))!;
+    expect(within(row).getAllByText("Mathematics")).toHaveLength(1);
+  });
+
   it("says so plainly when nobody has given them a class", async () => {
     await mount({
       ...teacher,
@@ -238,6 +337,32 @@ describe("the class they are in", () => {
     await mount();
     await screen.findByText(/Aline Uwase/);
     expect(screen.getByText(/not scheduled to be teaching/i)).toBeInTheDocument();
+  });
+
+  // A period with no room booked reads as a lesson, not as "in undefined".
+  it("leaves the room out when none is booked", async () => {
+    await mount();
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByText(/Next: Physics/).textContent).not.toMatch(
+      /undefined/,
+    );
+    expect(screen.getByText(/Next: Physics/).textContent).not.toMatch(/ in /);
+  });
+
+  // Between the last lesson of the day and the end of it, there is neither a
+  // lesson in progress nor one coming.
+  it("says the day is done rather than going silent", async () => {
+    vi.setSystemTime(new Date("2026-08-26T12:00:00"));
+    await mount();
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByText(/nothing further on the timetable today/i))
+      .toBeInTheDocument();
+  });
+
+  it("marks the period in progress in the week below", async () => {
+    await mount();
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByText("Now")).toBeInTheDocument();
   });
 
   it("lays the week out day by day", async () => {
