@@ -2,13 +2,24 @@
    Source of truth: design/tokens.json
    Regenerate with: node scripts/sync-design-tokens.mjs */
 
+/* The school's own colours, overridable at runtime by BrandProvider. */
+:root {
+  --brand-primary: #1B4F72;
+  --brand-primary-light: #2E86C1;
+  --brand-primary-dark: #154360;
+  --brand-accent: #D6EAF8;
+  --brand-accent-light: #EBF5FB;
+  --brand-info: #1B4F72;
+  --brand-info-wash: #EBF5FB;
+}
+
 @theme inline {
   /* ── colour ─────────────────────────────────────────────────────────────── */
-  --color-primary: #1B4F72;
-  --color-primary-light: #2E86C1;
-  --color-primary-dark: #154360;
-  --color-accent: #D6EAF8;
-  --color-accent-light: #EBF5FB;
+  --color-primary: var(--brand-primary);
+  --color-primary-light: var(--brand-primary-light);
+  --color-primary-dark: var(--brand-primary-dark);
+  --color-accent: var(--brand-accent);
+  --color-accent-light: var(--brand-accent-light);
   --color-background: #F8FAFC;
   --color-surface: #FFFFFF;
   --color-surface-muted: #F1F5F9;
@@ -25,8 +36,8 @@
   --color-warning-wash: #FDF3E7;
   --color-danger: #C0392B;
   --color-danger-wash: #FBEBE9;
-  --color-info: #1B4F72;
-  --color-info-wash: #EBF5FB;
+  --color-info: var(--brand-info);
+  --color-info-wash: var(--brand-info-wash);
   --color-white: #FFFFFF;
   --color-black: #000000;
 
