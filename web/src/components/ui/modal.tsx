@@ -99,19 +99,24 @@ export function Modal({
 
   if (!isOpen) return null;
 
+  // Deliberately wider than the Tailwind name suggests. A "lg" form modal at
+  // max-w-lg took up a third of a laptop screen and made two-column fields
+  // stack for no reason; every size here is shifted up so a form modal reads
+  // as roughly two thirds of the viewport. `sm` stays narrow — it is the
+  // confirm dialog, and a wide "are you sure?" looks broken.
   const sizes = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    "2xl": "max-w-2xl",
-    "3xl": "max-w-3xl",
-    "4xl": "max-w-4xl",
-    "5xl": "max-w-5xl",
+    sm: "max-w-md",
+    md: "max-w-2xl",
+    lg: "max-w-3xl",
+    xl: "max-w-4xl",
+    "2xl": "max-w-5xl",
+    "3xl": "max-w-6xl",
+    "4xl": "max-w-7xl",
+    "5xl": "max-w-[88rem]",
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
@@ -123,7 +128,9 @@ export function Modal({
         aria-modal="true"
         onKeyDown={handleKeyDown}
         className={cn(
-          "relative z-10 w-full rounded-xl border border-border bg-surface p-6 shadow-modal",
+          // The wider sizes make tall content likely, so the sheet caps its
+          // own height and scrolls rather than running off the viewport.
+          "relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-surface p-6 shadow-modal",
           sizes[size]
         )}
       >
