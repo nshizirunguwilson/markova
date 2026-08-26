@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Check,
   Copy,
+  ImageIcon,
   Search,
   Sparkles,
   X,
@@ -27,6 +28,9 @@ import { copyText } from "@/lib/clipboard";
 
 // Real Rwandan mobiles: MTN 078/079, Airtel 072/073.
 const PHONE_RE = /^\+250(78|79|72|73)\d{7}$/;
+
+/** The API's own limit, checked here so it is caught before the account exists. */
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
  * Exported so the role rules can be checked directly. They are the difference
@@ -175,6 +179,10 @@ export function AddUserWizard({
   const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
+  // Object URL for the chosen file, so the admin sees the face they picked in
+  // the shape it will actually be shown in (round, on the profile and the ID
+  // card) rather than a filename.
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
 
   const {
@@ -334,10 +342,25 @@ export function AddUserWizard({
     setChildQuery("");
     setChildrenError(null);
     setDupWarning(null);
-    setPhoto(null);
+    choosePhoto(null);
     setShowPassword(false);
     onClose();
   };
+
+  const choosePhoto = (file: File | null) => {
+    setPhoto(file);
+    setPhotoPreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  // A blob URL is a document-lifetime handle. Revoking the one we are leaving
+  // behind keeps a wizard that is opened and closed all afternoon from holding
+  // every photo ever previewed in memory.
+  useEffect(
+    () => () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    },
+    [photoPreview],
+  );
 
   const next = async () => {
     const ok = await trigger(STEP_FIELDS[stepName] ?? []);
@@ -535,12 +558,49 @@ export function AddUserWizard({
                 </p>
               </div>
               <Field label="Photo (optional)" hint="Shown on the profile and the ID card">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-                  className="w-full rounded-lg border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
-                />
+                <div className="flex items-center gap-4">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-border bg-accent-light/50">
+                    {photoPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoPreview}
+                        alt="Selected photo"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon className="h-7 w-7 text-muted" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="file"
+                      // The API stores jpeg/png/gif/webp only. `image/*` also
+                      // offers HEIC and SVG, which were accepted here and then
+                      // refused by the server after the account was made.
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      aria-label="Photo"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        if (file && file.size > MAX_PHOTO_BYTES) {
+                          toast.error("Photo must be 5MB or smaller");
+                          e.target.value = "";
+                          return;
+                        }
+                        choosePhoto(file);
+                      }}
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+                    />
+                    {photo && (
+                      <button
+                        type="button"
+                        onClick={() => choosePhoto(null)}
+                        className="mt-1.5 text-xs font-medium text-danger hover:underline"
+                      >
+                        Remove photo
+                      </button>
+                    )}
+                  </div>
+                </div>
               </Field>
             </div>
           </>
