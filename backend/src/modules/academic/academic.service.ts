@@ -1008,9 +1008,35 @@ export class AcademicService {
       include: {
         yearResults: { where: { academicYearId: dto.academicYearId } },
         user: { select: { firstName: true, lastName: true } },
+        classSection: { include: { classLevel: true } },
       },
     });
     const byId = new Map(students.map((s) => [s.id, s]));
+
+    // A promotion moves a student UP the ladder. The six levels are ordered
+    // Senior 1-3 then TVET Level 3-5 (ClassLevel.order 1..6), and the UI used
+    // to let any level be chosen as the destination — so "Senior 2 → Senior 1"
+    // was a click away, and it silently demoted a whole class. Same level is
+    // refused too: repeating a year is a retention, not a promotion.
+    const destination = await this.prisma.classSection.findUnique({
+      where: { id: dto.toClassSectionId },
+      include: { classLevel: true },
+    });
+    if (!destination) {
+      throw new NotFoundException('Destination class not found');
+    }
+    for (const d of dto.decisions) {
+      if (d.decision !== 'PROMOTE') continue;
+      const from = byId.get(d.studentId)?.classSection?.classLevel;
+      if (!from) continue;
+      if (destination.classLevel.order <= from.order) {
+        throw new BadRequestException(
+          `Cannot promote from ${from.name} to ${destination.classLevel.name}. ` +
+            'A promotion has to move students to a higher level; to keep them ' +
+            'where they are, mark them Retain instead.',
+        );
+      }
+    }
 
     const promoted: string[] = [];
     const retained: string[] = [];
