@@ -69,12 +69,24 @@ export function useUpdateUser() {
       const res = await api.put(`/users/${id}`, data);
       return res.data;
     },
-    onSuccess: () => {
+    // The detail page reads ["user", id], not the ["users"] list. Refreshing
+    // only the list left the profile you had just edited showing the values
+    // you replaced until the page was reloaded, which reads as a save that
+    // did not happen.
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       toast.success("User updated successfully");
     },
+    // class-validator answers with an array of messages, which rendered as
+    // "field must be a string,field should not be empty" run together.
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Failed to update user");
+      const message = err.response?.data?.message;
+      toast.error(
+        (Array.isArray(message) ? message[0] : message) ||
+          "Failed to update user",
+      );
     },
   });
 }

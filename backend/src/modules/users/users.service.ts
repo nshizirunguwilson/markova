@@ -480,6 +480,38 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    // The same NIDA checks `create` runs. They were missing here, so an edit
+    // could save an ID whose birth year or gender digit contradicted the
+    // profile it was attached to, and a second user could be given an ID that
+    // already belonged to someone (which then failed as a unique-constraint
+    // 500 rather than a message anyone could act on).
+    //
+    // Demographics live in two places: a student's gender and date of birth
+    // are on Student, everyone else's are on User. Whichever this user has is
+    // what the ID is checked against, with anything the edit itself changes
+    // taking priority.
+    if (dto.nationalId) {
+      const currentGender = user.student ? user.student.gender : user.gender;
+      const currentDob = user.student
+        ? user.student.dateOfBirth
+        : user.dateOfBirth;
+      this.validateNationalId(
+        dto.nationalId,
+        dto.gender ?? currentGender,
+        dto.dateOfBirth ?? currentDob?.toISOString(),
+      );
+
+      const owner = await this.prisma.user.findFirst({
+        where: { nationalId: dto.nationalId, id: { not: id } },
+        select: { firstName: true, lastName: true },
+      });
+      if (owner) {
+        throw new ConflictException(
+          `National ID already registered to ${owner.firstName} ${owner.lastName}`,
+        );
+      }
+    }
+
     // Update base user fields
     await this.prisma.user.update({
       where: { id },

@@ -525,6 +525,97 @@ describe('UsersService', () => {
       await service.update('user-1', { isActive: false });
       expect(prisma.user.update.mock.calls[0][0].data.isActive).toBe(false);
     });
+
+    /**
+     * The NIDA number carries a birth year and a gender digit. `create` has
+     * always checked those; `update` did not, so a profile could be edited
+     * into a state where the ID contradicted the person it was on.
+     */
+    describe('the national ID it is being given', () => {
+      const asTeacherBorn = (gender: string, year: number) =>
+        prisma.user.findUnique.mockImplementation((args: any) =>
+          Promise.resolve(
+            args?.where?.id
+              ? {
+                  id: 'user-1',
+                  gender,
+                  dateOfBirth: new Date(`${year}-04-12`),
+                  student: null,
+                  teacher: { id: 'teacher-1' },
+                }
+              : null,
+          ),
+        );
+
+      it('refuses one whose birth year contradicts the date of birth', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await expect(
+          service.update('user-1', { nationalId: '1198580123456012' }),
+        ).rejects.toThrow(/does not match the date of birth/);
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it('refuses one whose gender digit contradicts the profile', async () => {
+        asTeacherBorn('FEMALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await expect(
+          service.update('user-1', { nationalId: '1199080123456012' }),
+        ).rejects.toThrow(/female IDs carry 7/);
+      });
+
+      // A student's demographics are on the Student record, so that is what
+      // the ID has to agree with for them.
+      it('checks a student against their own record, not the user row', async () => {
+        prisma.user.findUnique.mockImplementation((args: any) =>
+          Promise.resolve(
+            args?.where?.id
+              ? {
+                  id: 'user-1',
+                  gender: 'MALE',
+                  dateOfBirth: new Date('1990-04-12'),
+                  student: {
+                    id: 'student-1',
+                    gender: 'FEMALE',
+                    dateOfBirth: new Date('2008-04-12'),
+                  },
+                  teacher: null,
+                }
+              : null,
+          ),
+        );
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { nationalId: '1200870123456012' });
+        expect(prisma.user.update.mock.calls[0][0].data.nationalId).toBe(
+          '1200870123456012',
+        );
+      });
+
+      // Without this the duplicate surfaced as a unique-constraint 500 with
+      // nothing in it for the admin to act on.
+      it('names who already holds it rather than failing on the constraint', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue({
+          firstName: 'Aline',
+          lastName: 'Uwase',
+        });
+        await expect(
+          service.update('user-1', { nationalId: '1199080123456012' }),
+        ).rejects.toThrow(/already registered to Aline Uwase/);
+      });
+
+      it('lets someone keep the ID they already hold', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { nationalId: '1199080123456012' });
+        expect(prisma.user.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: { not: 'user-1' } }),
+          }),
+        );
+        expect(prisma.user.update).toHaveBeenCalled();
+      });
+    });
   });
 
   /**
@@ -568,7 +659,9 @@ describe('updating every field a student record carries', () => {
     firstName: 'Keza',
     lastName: 'Uwimana',
     isActive: true,
-    nationalId: '1201382901978078',
+    // 1 | 2012 | 7 | 2901978 | 0 | 78 — the birth year and the female digit
+    // both agree with the profile below, which update() now insists on.
+    nationalId: '1201272901978078',
     nationality: 'Rwandan',
     classSectionId: 'section-1',
     dateOfBirth: '2012-04-11',
@@ -650,7 +743,7 @@ describe('updating every field a student record carries', () => {
       firstName: 'Keza',
       lastName: 'Uwimana',
       isActive: true,
-      nationalId: '1201382901978078',
+      nationalId: '1201272901978078',
       nationality: 'Rwandan',
     });
   });

@@ -730,7 +730,14 @@ export function AddUserWizard({
               value={nationalId}
               onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
               onBlur={() => trigger("nationalId")}
-              error={errors.nationalId?.message ?? validateNid(nationalId)}
+              error={
+                errors.nationalId?.message ??
+                validateNid(
+                  nationalId,
+                  (gender || "") as "MALE" | "FEMALE" | "",
+                  dateOfBirth || undefined,
+                )
+              }
               label="National ID (optional)"
             />
           </>
@@ -807,7 +814,14 @@ export function AddUserWizard({
               value={nationalId}
               onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
               onBlur={() => trigger("nationalId")}
-              error={errors.nationalId?.message ?? validateNid(nationalId)}
+              error={
+                errors.nationalId?.message ??
+                validateNid(
+                  nationalId,
+                  (gender || "") as "MALE" | "FEMALE" | "",
+                  dateOfBirth || undefined,
+                )
+              }
               label="National ID (optional)"
             />
           </>
