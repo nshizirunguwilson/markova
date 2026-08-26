@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, Badge, Spinner, Input, Modal } from "@/components/ui";
 import {
   useConversations,
@@ -28,6 +29,7 @@ export default function MessagesPage() {
   const sendMessageRest = useSendMessage();
   const createConv = useCreateConversation();
   const chatStore = useChatStore();
+  const queryClient = useQueryClient();
 
   const [messageText, setMessageText] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
@@ -36,7 +38,15 @@ export default function MessagesPage() {
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const debouncedUserSearch = useDebounce(userSearch, 300);
-  const { data: usersData } = useContacts(debouncedUserSearch);
+  const { data: usersData, isPending: contactsPending } =
+    useContacts(debouncedUserSearch);
+  // True between the keystroke and the answer: either the 300ms debounce has
+  // not caught up yet, or the request for that term is still in the air.
+  // Deliberately not `isFetching`, which is also true for a background
+  // refetch — results already on screen should not blink away.
+  const searchingUsers =
+    userSearch.trim() !== debouncedUserSearch.trim() ||
+    (contactsPending && !usersData);
   const [showMembers, setShowMembers] = useState(false);
   const [pendingFile, setPendingFile] = useState<{
     fileUrl: string;
@@ -56,10 +66,18 @@ export default function MessagesPage() {
   // Mark as read when a conversation is open AND whenever a new incoming
   // message arrives while it's open (so the sender's ticks turn to "read"
   // even if the recipient never leaves the conversation).
+  //
+  // `status` is the sender's own tick and is not what tells us whether THIS
+  // user has read a message: a message can be READ because somebody else in
+  // the group opened it. `reads` is the per-user record, so that is what
+  // decides — without it, opening a group thread somebody else had already
+  // read left it unread for this user for good.
   useEffect(() => {
-    if (!selectedConv || !chatStore.connected) return;
+    if (!selectedConv || !chatStore.connected || !user?.id) return;
     const hasIncomingUnread = (messages || []).some(
-      (m: any) => m.sender?.id !== user?.id && m.status !== "READ"
+      (m: any) =>
+        m.sender?.id !== user.id &&
+        !(m.reads ?? []).some((r: any) => r.userId === user.id),
     );
     if (hasIncomingUnread) {
       chatStore.markRead(selectedConv);
@@ -114,7 +132,11 @@ export default function MessagesPage() {
     // where the attachment fields exist.
     if (chatStore.connected && !file) {
       try {
-        await chatStore.sendMessage(selectedConv, text);
+        const ack = await chatStore.sendMessage(selectedConv, text);
+        // The ack says whether a recipient was online to take it. Without
+        // this the message sat on one tick until something else refreshed the
+        // cache, even though the server had already marked it delivered.
+        chatStore.applyAck(queryClient, selectedConv, ack);
       } catch {
         // Fallback to REST
         sendMessageRest.mutate({ conversationId: selectedConv, content: text });
@@ -537,7 +559,13 @@ export default function MessagesPage() {
             {/* User dropdown list */}
             {userSearch.trim() && (
               <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-surface">
-                {usersData?.data?.filter((u: any) => u.id !== user?.id && !selectedUserIds.includes(u.id)).length === 0 ? (
+                {/* The query is debounced by 300ms, so between the keystroke
+                    and the answer this used to read "No users found" — which
+                    is a claim about the school's roll, not about the request
+                    still being in the air. */}
+                {searchingUsers ? (
+                  <p className="px-3 py-2 text-xs text-muted">Searching...</p>
+                ) : usersData?.data?.filter((u: any) => u.id !== user?.id && !selectedUserIds.includes(u.id)).length === 0 ? (
                   <p className="px-3 py-2 text-xs text-muted">No users found</p>
                 ) : (
                   usersData?.data

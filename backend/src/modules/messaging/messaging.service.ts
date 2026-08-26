@@ -13,6 +13,7 @@ import {
   PreviewAudienceDto,
   SendMessageDto,
 } from './dto';
+import { NotificationSubject } from '../../common/notification-target';
 
 @Injectable()
 export class MessagingService {
@@ -499,6 +500,10 @@ export class MessagingService {
         type: 'PUSH' as const,
         title: dto.title,
         message: dto.message.slice(0, 300),
+        // So the bell opens the announcement itself rather than just
+        // reporting that one exists.
+        relatedEntityType: NotificationSubject.ANNOUNCEMENT,
+        relatedEntityId: conversation.id,
       })),
     });
 

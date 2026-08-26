@@ -134,6 +134,67 @@ describe("typing indicators", () => {
     socket.fire("userTyping", { conversationId: "c-1", userId: "u-2", userName: "Keza" });
     expect(useChatStore.getState().getTypingUsers("c-1").size).toBe(2);
   });
+
+  /**
+   * The sender stops the indicator after five seconds of no keystrokes, but
+   * only while their socket is up. A tab closed mid-sentence sends no stop at
+   * all, and the notice then sat on screen for the rest of the session.
+   */
+  it("clears a notice nobody ever stopped", () => {
+    vi.useFakeTimers();
+    try {
+      connect();
+      socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+      expect(useChatStore.getState().getTypingUsers("c-1").size).toBe(1);
+
+      vi.advanceTimersByTime(7001);
+      expect(useChatStore.getState().getTypingUsers("c-1").size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A steady typist re-sends every few keystrokes, and each one has to push
+  // the expiry out or the indicator would flicker mid-sentence.
+  it("keeps it up while the keystrokes keep coming", () => {
+    vi.useFakeTimers();
+    try {
+      connect();
+      socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+      vi.advanceTimersByTime(5000);
+      socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+      vi.advanceTimersByTime(5000);
+      expect(useChatStore.getState().getTypingUsers("c-1").size).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears it the moment they go offline", () => {
+    connect();
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+    socket.fire("presenceChange", { userId: "u-1", isOnline: false });
+    expect(useChatStore.getState().getTypingUsers("c-1").size).toBe(0);
+  });
+
+  it("leaves the others typing when one goes offline", () => {
+    connect();
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "Divine" });
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-2", userName: "Keza" });
+    socket.fire("presenceChange", { userId: "u-1", isOnline: false });
+    expect([...useChatStore.getState().getTypingUsers("c-1").keys()]).toEqual(["u-2"]);
+  });
+
+  /**
+   * The gateway reads the name off the account now. It used to take it from
+   * the JWT, which carries `sub` and `role` and nothing else, so every
+   * recipient was shown a blank name followed by "is typing".
+   */
+  it("never renders a nameless someone as an empty string", () => {
+    connect();
+    socket.fire("userTyping", { conversationId: "c-1", userId: "u-1", userName: "" });
+    expect(useChatStore.getState().getTypingUsers("c-1").get("u-1")).toBe("Someone");
+  });
 });
 
 describe("outgoing events", () => {
@@ -231,6 +292,89 @@ describe("receipts on an open thread", () => {
   }
 
   const cached = () => queryClient.getQueryData(["messages", "c-1"]) as any[];
+
+  /**
+   * A read receipt has to record WHO read it, not only flip the tick. The
+   * messages page decides whether this user still has something unread from
+   * `reads`, so a receipt that only wrote `status` left the page asking the
+   * server to mark the same thread read on every re-render.
+   */
+  it("records who did the reading, not just the tick", () => {
+    connect();
+    threadInCache();
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-2",
+      messageIds: ["m-1"],
+    });
+    const [first] = cached();
+    expect(first.status).toBe("READ");
+    expect(first.reads).toEqual([
+      { userId: "u-2", readAt: expect.any(String) },
+    ]);
+  });
+
+  it("does not record the same reader twice", () => {
+    connect();
+    queryClient.setQueryData(
+      ["messages", "c-1"],
+      [{ id: "m-1", conversationId: "c-1", status: "READ", reads: [{ userId: "u-2", readAt: "x" }] }],
+    );
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-2",
+      messageIds: ["m-1"],
+    });
+    expect(cached()[0].reads).toHaveLength(1);
+  });
+
+  // A group thread: two people reading it are two records against the one
+  // message, and losing the first would make it unread again for them.
+  it("keeps an earlier reader when a second one arrives", () => {
+    connect();
+    queryClient.setQueryData(
+      ["messages", "c-1"],
+      [{ id: "m-1", conversationId: "c-1", status: "READ", reads: [{ userId: "u-2", readAt: "x" }] }],
+    );
+    socket.fire("messagesRead", {
+      conversationId: "c-1",
+      readBy: "u-3",
+      messageIds: ["m-1"],
+    });
+    expect(cached()[0].reads.map((r: any) => r.userId)).toEqual(["u-2", "u-3"]);
+  });
+
+  /**
+   * The ack the server returns says whether a recipient was online to take
+   * the message. Without applying it, a message the server had already marked
+   * delivered sat on one tick until something else refreshed the cache.
+   */
+  it("applies the send acknowledgement to the message it names", () => {
+    connect();
+    threadInCache();
+    useChatStore
+      .getState()
+      .applyAck(queryClient, "c-1", { messageId: "m-1", status: "DELIVERED" });
+    expect(cached()[0].status).toBe("DELIVERED");
+    expect(cached()[1].status).toBe("SENT");
+  });
+
+  it("ignores an acknowledgement that names nothing", () => {
+    connect();
+    threadInCache();
+    useChatStore.getState().applyAck(queryClient, "c-1", undefined);
+    useChatStore.getState().applyAck(queryClient, "c-1", { status: "SENT" });
+    expect(cached()[0].status).toBe("SENT");
+  });
+
+  it("survives an acknowledgement for a thread nothing has loaded", () => {
+    connect();
+    expect(() =>
+      useChatStore
+        .getState()
+        .applyAck(queryClient, "c-9", { messageId: "m-1", status: "DELIVERED" }),
+    ).not.toThrow();
+  });
 
   it("moves one message to delivered", () => {
     connect();

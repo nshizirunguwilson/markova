@@ -188,18 +188,59 @@ describe('MessagingGateway', () => {
       ).toBeInstanceOf(Date);
     });
 
-    it('tells the conversations they were in', async () => {
+    /**
+     * Addressed to the other participants' own rooms, not to `conv:<id>`.
+     * A conversation started after somebody connected is not in their room
+     * set, so presence — like read receipts and typing — went missing for
+     * exactly the threads people had just opened.
+     */
+    it('tells the people they share conversations with', async () => {
       messaging.getUserConversationIds.mockResolvedValue(['conv-1']);
+      messaging.getConversationParticipantIds.mockResolvedValue([
+        'user-1',
+        'user-2',
+      ]);
       await gateway.handleConnection(socket({ id: 'socket-1' }));
       to.mockClear();
       await gateway.handleDisconnect(
         socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
       );
-      expect(to).toHaveBeenCalledWith('conv:conv-1');
+      expect(to).toHaveBeenCalledWith(['user:user-2']);
       expect(emit).toHaveBeenCalledWith(
         'presenceChange',
         expect.objectContaining({ userId: 'user-1', isOnline: false }),
       );
+    });
+
+    // Somebody sharing four threads with this user is told once, not four
+    // times over.
+    it('tells each person once however many threads they share', async () => {
+      messaging.getUserConversationIds.mockResolvedValue([
+        'conv-1',
+        'conv-2',
+        'conv-3',
+      ]);
+      messaging.getConversationParticipantIds.mockResolvedValue([
+        'user-1',
+        'user-2',
+      ]);
+      await gateway.handleConnection(socket({ id: 'socket-1' }));
+      to.mockClear();
+      await gateway.handleDisconnect(
+        socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
+      );
+      expect(to).toHaveBeenCalledTimes(1);
+      expect(to).toHaveBeenCalledWith(['user:user-2']);
+    });
+
+    it('says nothing when they share no conversation with anyone', async () => {
+      messaging.getUserConversationIds.mockResolvedValue([]);
+      await gateway.handleConnection(socket({ id: 'socket-1' }));
+      to.mockClear();
+      await gateway.handleDisconnect(
+        socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
+      );
+      expect(to).not.toHaveBeenCalled();
     });
 
     it('lists who is online', async () => {
@@ -308,7 +349,7 @@ describe('MessagingGateway', () => {
       ]);
 
       const c = client();
-      await gateway.handleSendMessage(c, {
+      const ack = await gateway.handleSendMessage(c, {
         conversationId: 'conv-1',
         content: 'Muraho',
       });
@@ -316,10 +357,14 @@ describe('MessagingGateway', () => {
         'msg-1',
         'DELIVERED',
       );
-      expect(c.emit).toHaveBeenCalledWith('messageDelivered', {
+      // The sender's own room, not the single socket that sent it: with the
+      // dashboard open in two tabs, only one of them grew a second tick.
+      expect(to).toHaveBeenCalledWith('user:user-1');
+      expect(emit).toHaveBeenCalledWith('messageDelivered', {
         messageId: 'msg-1',
         conversationId: 'conv-1',
       });
+      expect(ack).toEqual({ messageId: 'msg-1', status: 'DELIVERED' });
     });
 
     it('does not mark it delivered when nobody else is connected', async () => {
@@ -347,7 +392,16 @@ describe('MessagingGateway', () => {
   });
 
   describe('read receipts', () => {
-    it('tells the thread which messages were read, and by whom', async () => {
+    /**
+     * The sender has to be told, and they are only in `conv:<id>` if the
+     * conversation already existed when they connected — so a read receipt on
+     * a thread somebody had just started never arrived at all.
+     */
+    it('tells every participant which messages were read, and by whom', async () => {
+      messaging.getConversationParticipantIds.mockResolvedValue([
+        'user-1',
+        'user-2',
+      ]);
       messaging.markAsRead.mockResolvedValue({
         count: 2,
         readMessageIds: ['m-1', 'm-2'],
@@ -356,7 +410,7 @@ describe('MessagingGateway', () => {
         socket({ data: { user: { sub: 'user-1' } } }),
         { conversationId: 'conv-1' },
       );
-      expect(to).toHaveBeenCalledWith('conv:conv-1');
+      expect(to).toHaveBeenCalledWith(['user:user-1', 'user:user-2']);
       expect(emit).toHaveBeenCalledWith('messagesRead', {
         conversationId: 'conv-1',
         readBy: 'user-1',
@@ -376,44 +430,69 @@ describe('MessagingGateway', () => {
     });
   });
 
+  /**
+   * Typing indicators.
+   *
+   * Both problems here were invisible from the server side. The name came off
+   * the JWT, which carries `sub` and `role` and nothing else, so every
+   * recipient saw a blank name; and the event went to `conv:<id>`, which a
+   * socket only joins at connection time.
+   */
   describe('typing', () => {
-    it('tells the others in the thread, not the typist', () => {
-      const roomEmit = jest.fn();
-      const client = socket({
-        data: { user: { sub: 'user-1', firstName: 'Divine', lastName: 'N' } },
-        to: jest.fn().mockReturnValue({ emit: roomEmit }),
-      });
+    const typist = () =>
+      socket({ data: { user: { sub: 'user-1' }, displayName: 'Divine N' } });
 
-      gateway.handleTyping(client, { conversationId: 'conv-1' });
-      expect(client.to).toHaveBeenCalledWith('conv:conv-1');
-      expect(roomEmit).toHaveBeenCalledWith('userTyping', {
+    beforeEach(() => {
+      messaging.getConversationParticipantIds.mockResolvedValue([
+        'user-1',
+        'user-2',
+      ]);
+    });
+
+    it('tells the others in the thread, not the typist', async () => {
+      await gateway.handleTyping(typist(), { conversationId: 'conv-1' });
+      expect(to).toHaveBeenCalledWith(['user:user-2']);
+      expect(emit).toHaveBeenCalledWith('userTyping', {
         conversationId: 'conv-1',
         userId: 'user-1',
         userName: 'Divine N',
       });
     });
 
-    it('copes with a token that carried no name', () => {
-      const roomEmit = jest.fn();
-      const client = socket({
-        data: { user: { sub: 'user-1' } },
-        to: jest.fn().mockReturnValue({ emit: roomEmit }),
+    // The name is read at connection off the record already loaded to
+    // authorise the socket, not out of the token.
+    it('carries the typist’s real name', async () => {
+      await gateway.handleConnection(socket({ id: 'socket-1' }));
+      const client = socket({ id: 'socket-1' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        isActive: true,
+        firstName: 'Divine',
+        lastName: 'Niyonkuru',
       });
-      gateway.handleTyping(client, { conversationId: 'conv-1' });
-      expect(roomEmit.mock.calls[0][1].userName).toBe('');
+      await gateway.handleConnection(client);
+      expect(client.data.displayName).toBe('Divine Niyonkuru');
     });
 
-    it('tells them when the typing stops', () => {
-      const roomEmit = jest.fn();
-      const client = socket({
-        data: { user: { sub: 'user-1' } },
-        to: jest.fn().mockReturnValue({ emit: roomEmit }),
-      });
-      gateway.handleStopTyping(client, { conversationId: 'conv-1' });
-      expect(roomEmit).toHaveBeenCalledWith('userStopTyping', {
+    it('copes with an account that has no name on it', async () => {
+      const client = socket({ data: { user: { sub: 'user-1' } } });
+      await gateway.handleTyping(client, { conversationId: 'conv-1' });
+      expect(emit.mock.calls[0][1].userName).toBe('');
+    });
+
+    it('tells them when the typing stops', async () => {
+      await gateway.handleStopTyping(typist(), { conversationId: 'conv-1' });
+      expect(to).toHaveBeenCalledWith(['user:user-2']);
+      expect(emit).toHaveBeenCalledWith('userStopTyping', {
         conversationId: 'conv-1',
         userId: 'user-1',
       });
+    });
+
+    it('says nothing into a thread with nobody else in it', async () => {
+      messaging.getConversationParticipantIds.mockResolvedValue(['user-1']);
+      await gateway.handleTyping(typist(), { conversationId: 'conv-1' });
+      expect(emit).not.toHaveBeenCalled();
     });
   });
 

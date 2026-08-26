@@ -103,7 +103,15 @@ export class MessagingController {
   async sendMessage(@Body() dto: SendMessageDto, @CurrentUser() user: any) {
     const message = await this.service.sendMessage(dto, user.id);
     await this.gateway.broadcastNewMessage(dto.conversationId, message);
-    return message;
+    // The socket carries text only, so anything with an attachment comes
+    // through here — and this path never checked delivery, leaving every
+    // message with a file on one tick until the recipient next reconnected.
+    const delivered = await this.gateway.markDeliveredIfOnline(
+      dto.conversationId,
+      message.id,
+      user.id,
+    );
+    return delivered ? { ...message, status: 'DELIVERED' } : message;
   }
 
   @Post('read')
