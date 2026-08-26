@@ -249,8 +249,18 @@ export class UsersService {
         isActive: true,
         forcePasswordChange: true,
         lastLoginAt: true,
+        lastSeenAt: true,
         createdAt: true,
         updatedAt: true,
+        // The profile page shows and edits all of these. They were absent
+        // from this select, so the National ID and Nationality fields opened
+        // empty for everybody and a staff member's own registration code —
+        // TCH-…, PAR-…, LIB-…, ADM-… — never appeared anywhere.
+        code: true,
+        nationalId: true,
+        nationality: true,
+        gender: true,
+        dateOfBirth: true,
         student: {
           include: {
             classSection: {
@@ -276,15 +286,37 @@ export class UsersService {
             roles: true,
             teacherSubjectClasses: {
               include: {
-                subject: { select: { name: true } },
+                subject: { select: { id: true, name: true, category: true } },
+                academicYear: {
+                  select: { id: true, name: true, isCurrent: true },
+                },
                 classSection: {
                   include: {
                     classLevel: { select: { name: true } },
                     trade: { select: { code: true, name: true } },
+                    _count: {
+                      select: { students: { where: { status: 'ACTIVE' } } },
+                    },
                   },
                 },
               },
+              orderBy: { subject: { name: 'asc' } },
             },
+            // The week they actually teach, which is what tells you where
+            // they are right now.
+            timetables: {
+              include: {
+                subject: { select: { name: true } },
+                classSection: {
+                  include: {
+                    classLevel: { select: { name: true } },
+                    trade: { select: { code: true } },
+                  },
+                },
+              },
+              orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+            },
+            _count: { select: { homeworks: true, marks: true } },
           },
         },
         parentStudents: {
@@ -309,7 +341,46 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    return this.withNamedRoleSections(user);
+  }
+
+  /**
+   * Names the class a special role is attached to.
+   *
+   * `TeacherRole.classSectionId` is a plain column rather than a relation in
+   * the schema, so "class teacher of Senior 2 B" could only ever be rendered
+   * as a uuid. Resolved here in one extra query rather than by adding a
+   * foreign key to a table that already has rows.
+   */
+  private async withNamedRoleSections<
+    T extends { teacher?: { roles?: { classSectionId: string | null }[] } | null },
+  >(user: T): Promise<T> {
+    const ids = (user.teacher?.roles ?? [])
+      .map((r) => r.classSectionId)
+      .filter((id): id is string => !!id);
+    if (ids.length === 0) return user;
+
+    const sections = await this.prisma.classSection.findMany({
+      where: { id: { in: ids } },
+      include: {
+        classLevel: { select: { name: true } },
+        trade: { select: { code: true, name: true } },
+      },
+    });
+    const byId = new Map(sections.map((s) => [s.id, s]));
+
+    return {
+      ...user,
+      teacher: {
+        ...user.teacher,
+        roles: (user.teacher?.roles ?? []).map((r) => ({
+          ...r,
+          classSection: r.classSectionId
+            ? (byId.get(r.classSectionId) ?? null)
+            : null,
+        })),
+      },
+    } as T;
   }
 
   // ─── CREATE USER ────────────────────────────────────────────────────────────

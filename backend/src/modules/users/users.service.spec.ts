@@ -637,6 +637,86 @@ describe('UsersService', () => {
       const select = prisma.user.findUnique.mock.calls[0][0].select;
       expect(select.student.include).toHaveProperty('parentStudents');
     });
+
+    /**
+     * The profile page shows and edits all of these. They were missing from
+     * the select, so National ID and Nationality opened empty for everybody
+     * however many times they had been saved, and a staff member's own
+     * registration code never appeared at all.
+     */
+    it.each([
+      'code',
+      'nationalId',
+      'nationality',
+      'gender',
+      'dateOfBirth',
+    ])('selects %s, which the profile page shows', async (field) => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      expect(prisma.user.findUnique.mock.calls[0][0].select[field]).toBe(true);
+    });
+
+    it('never selects the password hash even now', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      expect(
+        prisma.user.findUnique.mock.calls[0][0].select,
+      ).not.toHaveProperty('passwordHash');
+    });
+
+    // What a teacher's own page is made of: who they teach, when, and what
+    // they are class teacher of.
+    it('brings a teacher’s assignments, timetable and roles', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      const teacher = prisma.user.findUnique.mock.calls[0][0].select.teacher;
+      expect(teacher.include).toHaveProperty('teacherSubjectClasses');
+      expect(teacher.include).toHaveProperty('timetables');
+      expect(teacher.include).toHaveProperty('roles');
+    });
+
+    /**
+     * `TeacherRole.classSectionId` is a plain column, not a relation, so the
+     * class a special role belongs to could only ever be rendered as a uuid.
+     */
+    it('names the class a special role is attached to', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        teacher: {
+          id: 'teacher-1',
+          roles: [{ id: 'r-1', role: 'CLASS_TEACHER', classSectionId: 'sec-1' }],
+        },
+      });
+      prisma.classSection.findMany.mockResolvedValue([
+        { id: 'sec-1', name: 'B', classLevel: { name: 'Senior 2' }, trade: null },
+      ]);
+
+      const user: any = await service.findOne('user-1');
+      expect(user.teacher.roles[0].classSection.name).toBe('B');
+      expect(user.teacher.roles[0].classSection.classLevel.name).toBe(
+        'Senior 2',
+      );
+    });
+
+    it('leaves a school-wide role without a class rather than inventing one', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        teacher: {
+          id: 'teacher-1',
+          roles: [{ id: 'r-1', role: 'DOS', classSectionId: null }],
+        },
+      });
+
+      const user: any = await service.findOne('user-1');
+      expect(user.teacher.roles[0].classSection).toBeUndefined();
+      expect(prisma.classSection.findMany).not.toHaveBeenCalled();
+    });
+
+    it('costs no extra query for somebody who is not a teacher', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', teacher: null });
+      await service.findOne('user-1');
+      expect(prisma.classSection.findMany).not.toHaveBeenCalled();
+    });
   });
 });
 
