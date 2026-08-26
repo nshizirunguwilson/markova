@@ -53,10 +53,14 @@ export default function AdminMarksPage() {
   // explicit choice wins, otherwise fall back to the server default.
   const selectedTerm = selectedTermChoice || terms?.find((t: any) => t.isCurrent)?.id || "";
 
-  const { data: sections } = useSections(selectedLevel);
-  // Derived during render rather than synced in an effect: the user's
-  // explicit choice wins, otherwise fall back to the server default.
-  const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
+  const { data: allSections } = useSections(selectedLevel || undefined);
+  // `/academic/sections` with no level answers with every class in the school,
+  // and this page used to fall back to the first of them. Opening Marks
+  // therefore showed a real class the admin had never chosen — marks for
+  // someone else's roll, under a "Select level..." placeholder. Nothing is
+  // loaded now until a level and a section are both picked.
+  const sections = selectedLevel ? allSections : undefined;
+  const selectedSection = selectedLevel ? selectedSectionChoice : "";
   const { data: results, isLoading } = useTermResults(selectedSection, selectedTerm);
   const calculateResults = useCalculateTermResults();
   const publishResults = usePublishTermResults();
@@ -82,6 +86,8 @@ export default function AdminMarksPage() {
   };
 
   const isPublished = results?.length > 0 && results.every((r: any) => r.isPublished);
+  const partiallyPublished =
+    !isPublished && results?.length > 0 && results.some((r: any) => r.isPublished);
 
   return (
     <div className="space-y-6">
@@ -93,6 +99,7 @@ export default function AdminMarksPage() {
             <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
+            title="Re-reads every mark this class has for the selected term, works out each subject total, the average, the letter grade and the aggregate, then ranks the class. Run it after marks are entered or corrected."
             onClick={() => {
               if (selectedSection && selectedTerm) {
                 calculateResults.mutate({ classSectionId: selectedSection, termId: selectedTerm });
@@ -138,10 +145,11 @@ export default function AdminMarksPage() {
             <label htmlFor="f-section" className="mb-1 block text-sm font-medium text-foreground">Section</label>
             <select id="f-section"
               value={selectedSection}
+              disabled={!selectedLevel}
               onChange={(e) => setSelectedSection(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-muted"
              aria-label="Section">
-              <option value="">Select section...</option>
+              <option value="">{selectedLevel ? "Select section..." : "Pick a level first"}</option>
               {sections?.map((s: any) => (
                 <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
               ))}
@@ -207,8 +215,16 @@ export default function AdminMarksPage() {
           </Card>
           <Card>
             <p className="text-xs text-muted">Status</p>
-            <div className="mt-1">
-              <Button aria-label="Hide"
+            {/* The state, then the button that changes it. This card used to
+                show the button alone, so a fully published class read
+                "Unpublish" and looked like it was reporting the opposite of
+                what was true. */}
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {isPublished ? "Published" : partiallyPublished ? "Partly published" : "Draft"}
+            </p>
+            <div className="mt-2">
+              <Button
+                aria-label={isPublished ? "Unpublish results" : "Publish results"}
                 size="sm"
                 variant={isPublished ? "danger" : "primary"}
                 onClick={() => {
@@ -323,6 +339,13 @@ export default function AdminMarksPage() {
         <Card>
           <p className="text-center text-muted py-8">
             Select a class level, section, and term to view results.
+          </p>
+          <p className="mx-auto max-w-xl text-center text-xs text-muted">
+            <strong>Calculate Results</strong> re-reads every mark the class has
+            for the chosen term, works out each subject total, the average, the
+            letter grade and the aggregate, then ranks the class.
+            <strong> Publish</strong> is what makes those results visible to
+            students and parents.
           </p>
         </Card>
       )}
