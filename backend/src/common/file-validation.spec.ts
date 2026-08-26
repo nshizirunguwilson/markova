@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   fileFilterFor,
   filenameFor,
@@ -188,7 +189,28 @@ describe('file validation', () => {
         cb,
       );
       expect(cb).toHaveBeenCalledWith(expect.any(Error), '');
-      expect(cb.mock.calls[0][0].message).toBe('Only image files are allowed');
+      expect(cb.mock.calls[0][0].message).toContain(
+        'Only image files are allowed',
+      );
+    });
+
+    /**
+     * A plain Error is not an HttpException, so Nest's multer wrapper hands it
+     * through untouched and the client sees a bare 500 — indistinguishable
+     * from the server being down. Every refused logo read as "Failed to
+     * upload"; it has to say what was wrong with the file.
+     */
+    it('refuses with a 400 naming the type sent and the ones taken', () => {
+      const cb = jest.fn();
+      filenameFor('image', id, 'Only image files are allowed')(
+        null,
+        { mimetype: 'image/heic' },
+        cb,
+      );
+      const error = cb.mock.calls[0][0];
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toContain('image/heic');
+      expect(error.message).toContain('PNG');
     });
   });
 
@@ -211,9 +233,10 @@ describe('file validation', () => {
         cb,
       );
       expect(cb).toHaveBeenCalledWith(expect.any(Error), false);
-      expect(cb.mock.calls[0][0].message).toBe(
-        'That kind of file cannot be sent',
-      );
+      const error = cb.mock.calls[0][0];
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toContain('That kind of file cannot be sent');
+      expect(error.message).toContain('image/svg+xml');
     });
 
     it('is not fooled by a type that merely ends in an allowed word', () => {
