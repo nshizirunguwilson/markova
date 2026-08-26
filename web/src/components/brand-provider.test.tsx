@@ -108,6 +108,34 @@ describe("BrandProvider", () => {
     expect(read("--brand-accent-light")).toBe("");
   });
 
+  /**
+   * A fixed mix toward white does not hold across hues: the 86% that leaves a
+   * navy at 7:1 leaves a mid-green at 4.23:1, which is below AA and was
+   * showing up on badge text across every page once the brand colour started
+   * being applied at all.
+   */
+  it("derives washes the school's own colour still reads on", async () => {
+    serveBranding({ primaryColor: "#25741b" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-accent")).not.toBe(""));
+
+    const { contrastRatio } = await import("@/lib/brand-color");
+    for (const wash of ["--brand-accent", "--brand-accent-light"]) {
+      expect(contrastRatio("#25741b", read(wash))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  // Nothing paler than white exists, so a colour that only just reads on it
+  // cannot carry a wash. The designed neutrals stay rather than a failing pair
+  // being applied.
+  it("keeps the designed washes for a colour too weak to carry one", async () => {
+    serveBranding({ primaryColor: "#767676" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-primary")).toBe("#767676"));
+    expect(read("--brand-accent")).toBe("");
+    expect(read("--brand-accent-light")).toBe("");
+  });
+
   it("re-applies the colour when settings change it later", async () => {
     serveBranding({ primaryColor: "#1B4F72" });
     render(<BrandProvider><span>x</span></BrandProvider>);
