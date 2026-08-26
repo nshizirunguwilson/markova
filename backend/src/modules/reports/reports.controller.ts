@@ -123,6 +123,31 @@ export class ReportsController {
     return this.service.generateDocument(dto.studentId, dto.type);
   }
 
+  @Post('document/pdf')
+  @Roles('ADMIN')
+  // Rendering a letter launches a page in the shared Chrome instance, the same
+  // as a report card, so it gets the same budget rather than the app-wide one.
+  @Throttle({ default: { ttl: 60000, limit: 60 } })
+  @ApiOperation({ summary: 'Download a document as an A4 PDF' })
+  async generateDocumentPdf(
+    @Body() dto: GenerateDocumentDto,
+    @Res() res: express.Response,
+  ) {
+    const { pdf, title } = await this.service.generateDocumentPdf(
+      dto.studentId,
+      dto.type,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      // The title carries the student's name, so quotes and non-ASCII are
+      // both possible; strip what a header cannot hold rather than emitting a
+      // filename the browser will refuse.
+      'Content-Disposition': `attachment; filename="${title.replace(/[^\w \-.]/g, '')}.pdf"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
+  }
+
   // ── ID Cards ────────────────────────────────────────────────────────────
 
   @Get('id-card/:studentId')
