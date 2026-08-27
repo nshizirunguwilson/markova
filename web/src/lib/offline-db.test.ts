@@ -4,6 +4,7 @@ import { IDBFactory } from "fake-indexeddb";
 
 import {
   clearPendingMarks,
+  deletePendingMark,
   getPendingCount,
   getPendingMarks,
   savePendingMarks,
@@ -99,6 +100,55 @@ describe("clearing the queue after a successful sync", () => {
     await clearPendingMarks();
     await savePendingMarks(marks("student-9", 90));
     await expect(getPendingCount()).resolves.toBe(1);
+  });
+});
+
+/**
+ * Draining the queue one entry at a time.
+ *
+ * A sync where the third of five calls fails has to keep the third, fourth
+ * and fifth and drop the first two. Clearing the lot loses the failures;
+ * clearing none of it sends the successes a second time, overwriting a mark
+ * that was corrected on another device in between.
+ */
+describe("removing one entry at a time", () => {
+  it("takes out the entry named and leaves the rest", async () => {
+    await savePendingMarks(marks("student-1", 82));
+    await savePendingMarks(marks("student-2", 67));
+    const [first] = await getPendingMarks();
+
+    await deletePendingMark(first.id);
+
+    const left = await getPendingMarks();
+    expect(left).toHaveLength(1);
+    expect(left[0].entries[0].studentId).toBe("student-2");
+  });
+
+  it("brings the pending count down with it", async () => {
+    await savePendingMarks(marks("student-1", 82));
+    await savePendingMarks(marks("student-2", 67));
+    const [first] = await getPendingMarks();
+
+    await deletePendingMark(first.id);
+
+    await expect(getPendingCount()).resolves.toBe(1);
+  });
+
+  it("says nothing when the entry has already gone", async () => {
+    await savePendingMarks(marks("student-1", 82));
+    await expect(deletePendingMark(9999)).resolves.toBeUndefined();
+    await expect(getPendingCount()).resolves.toBe(1);
+  });
+
+  it("empties the queue when every entry is taken out", async () => {
+    await savePendingMarks(marks("student-1", 82));
+    await savePendingMarks(marks("student-2", 67));
+
+    for (const entry of await getPendingMarks()) {
+      await deletePendingMark(entry.id);
+    }
+
+    await expect(getPendingCount()).resolves.toBe(0);
   });
 });
 

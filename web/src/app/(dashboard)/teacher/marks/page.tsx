@@ -13,7 +13,7 @@ import { ClipboardList, Save, CheckCircle, AlertCircle, Wifi, WifiOff, Database 
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
-import { savePendingMarks, getPendingMarks, clearPendingMarks, getPendingCount } from "@/lib/offline-db";
+import { savePendingMarks, getPendingMarks, deletePendingMark, getPendingCount } from "@/lib/offline-db";
 import { PageHeader } from "@/components/layout/page-header";
 
 interface Assignment {
@@ -130,18 +130,25 @@ export default function TeacherMarksPage() {
 
       let successCount = 0;
       for (const entry of pending) {
-        const { id: _id, savedAt: _savedAt, ...payload } = entry;
+        const { id, savedAt: _savedAt, ...payload } = entry;
         try {
           await api.post("/marks/batch", payload);
+          // Dropped one at a time, as it lands. The queue used to be cleared
+          // in one go and only when every entry succeeded, so one failure
+          // among ten left the nine that had gone through queued to be sent
+          // again — overwriting anything corrected elsewhere in between.
+          await deletePendingMark(id);
           successCount++;
         } catch {
-          // Keep failed entries — they'll retry next time
+          // Left in the queue to be retried.
         }
       }
 
+      // Read back rather than assume: an entry saved while the loop was
+      // running is still waiting, and the badge has to say so.
+      setPendingCount(await getPendingCount().catch(() => 0));
+
       if (successCount === pending.length) {
-        await clearPendingMarks();
-        setPendingCount(0);
         toast.success(`All ${successCount} offline entries synced`);
       } else {
         toast.warning(`Synced ${successCount}/${pending.length} — retrying failed ones later`);
