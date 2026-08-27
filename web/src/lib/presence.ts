@@ -27,13 +27,18 @@ export function formatLastSeen(date: string | null | undefined, now: Date = new 
 export type DeliveryStatus = "SENT" | "DELIVERED" | "READ";
 
 /**
- * Which tick a message of this status gets. Named rather than returned as an
- * icon so it can be checked without rendering.
+ * What a message of this status says about itself.
+ *
+ * Words rather than ticks. One tick against two, and two grey against two
+ * blue, is a convention people learn from one particular app and then argue
+ * about — a parent looking at a message to the school should not have to know
+ * it. An unknown status reads as "Sent", which is the one thing that is
+ * certainly true of a message that exists.
  */
-export function deliveryTick(status: string | undefined): "one" | "two" | "two-read" {
-  if (status === "READ") return "two-read";
-  if (status === "DELIVERED") return "two";
-  return "one";
+export function deliveryLabel(status: string | undefined): "Sent" | "Delivered" | "Read" {
+  if (status === "READ") return "Read";
+  if (status === "DELIVERED") return "Delivered";
+  return "Sent";
 }
 
 /**
