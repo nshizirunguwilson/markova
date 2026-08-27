@@ -11,7 +11,7 @@ import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
-import { FileText, Printer } from "lucide-react";
+import { Clock, FileText, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
 import { PageHeader } from "@/components/layout/page-header";
@@ -27,7 +27,10 @@ export default function ParentReportsPage() {
 
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
-  const { data: report, isLoading } = useTermReport(selectedChild, termId);
+  const { data: report, isLoading, error } = useTermReport(selectedChild, termId);
+  // The school issues report cards after results are finalised, so the API
+  // refuses until then. A normal state, not a fault.
+  const notIssued = (error as any)?.response?.status === 403;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -62,8 +65,12 @@ export default function ParentReportsPage() {
       if (!printHtml(res.data)) {
         toast.error("Your browser would not open the print dialog");
       }
-    } catch {
-      toast.error("Could not load the official report card");
+    } catch (e: any) {
+      toast.error(
+        e?.response?.status === 403
+          ? "This report card has not been issued yet"
+          : "Could not load the official report card",
+      );
     } finally {
       setPrinting(false);
     }
@@ -94,6 +101,21 @@ export default function ParentReportsPage() {
       </div>
 
       {isLoading && <div className="text-center py-8"><Spinner /></div>}
+
+      {notIssued && !isLoading && (
+        <Card>
+          <div className="py-10 text-center">
+            <Clock className="mx-auto mb-3 h-8 w-8 text-muted opacity-50" />
+            <p className="font-medium text-foreground">
+              This report card has not been issued yet
+            </p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+              The school issues report cards once results have been finalised.
+              It will appear here as soon as it does.
+            </p>
+          </div>
+        </Card>
+      )}
 
       {report && (
         <Card className="p-6 space-y-4">
