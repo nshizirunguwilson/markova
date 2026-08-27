@@ -30,6 +30,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sectionLabel } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
 
 type Decision = "PROMOTE" | "RETAIN";
@@ -229,7 +230,7 @@ export default function AdminPromotionPage() {
                  aria-label="Select section">
                   <option value="">Select section</option>
                   {fromSections?.map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{sectionLabel(s)}</option>
                   ))}
                 </select>
               </div>
@@ -264,7 +265,7 @@ export default function AdminPromotionPage() {
                  aria-label="Select section">
                   <option value="">Select section</option>
                   {toSections?.map((s: any) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{sectionLabel(s)}</option>
                   ))}
                 </select>
                 {isFinalLevel ? (

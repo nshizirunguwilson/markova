@@ -41,7 +41,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { toLocalDateString, classDisplayName } from "@/lib/utils";
+import { toLocalDateString, classDisplayName, sectionLabel } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -278,7 +278,7 @@ export default function AdminHomeworkPage() {
              aria-label="All Sections">
               <option value="">All Sections</option>
               {filterSections?.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+                <option key={s.id} value={s.id}>{sectionLabel(s)}</option>
               ))}
             </select>
           )}
@@ -489,7 +489,7 @@ export default function AdminHomeworkPage() {
                aria-label="Section">
                 <option value="">Select section</option>
                 {modalSections?.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{sectionLabel(s)}</option>
                 ))}
               </select>
               {errors.classSectionId && <p className="mt-1 text-xs text-danger">{errors.classSectionId.message}</p>}

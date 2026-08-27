@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cn, toLocalDateString } from './utils';
+import { classDisplayName, cn, sectionLabel, toLocalDateString } from './utils';
 
 describe('toLocalDateString', () => {
   it('should format date as YYYY-MM-DD', () => {
@@ -38,5 +38,41 @@ describe('cn', () => {
 
   it('should handle empty inputs', () => {
     expect(cn()).toBe('');
+  });
+});
+
+/**
+ * A section's label inside a level that has already been chosen.
+ *
+ * Every A-Level level runs one section per trade, so a picker listing the
+ * bare name shows "A, A, A, A, B, B, B, B" — the software developers and the
+ * tourism students are indistinguishable, and an admin promoting a class has
+ * no way to tell which one they picked.
+ */
+describe("sectionLabel", () => {
+  it("puts the trade code before the section name", () => {
+    expect(sectionLabel({ name: "B", trade: { code: "TOR" } })).toBe("TOR B");
+  });
+
+  it("gives the bare name where there is no trade", () => {
+    expect(sectionLabel({ name: "A", trade: null })).toBe("A");
+    expect(sectionLabel({ name: "A" })).toBe("A");
+  });
+
+  // The level is deliberately left out: these lists always sit under a level
+  // picker, so repeating it would read "Level 5 TOR B" in a Level 5 dropdown.
+  it("leaves the level out, unlike classDisplayName", () => {
+    const section = { name: "B", classLevel: { name: "Level 5" }, trade: { code: "TOR" } };
+    expect(sectionLabel(section)).toBe("TOR B");
+    expect(classDisplayName(section)).toBe("Level 5 TOR B");
+  });
+
+  it("says nothing for a section that is not there", () => {
+    expect(sectionLabel(null)).toBe("");
+    expect(sectionLabel(undefined)).toBe("");
+  });
+
+  it("copes with a trade that carries no code", () => {
+    expect(sectionLabel({ name: "A", trade: { code: null } })).toBe("A");
   });
 });
