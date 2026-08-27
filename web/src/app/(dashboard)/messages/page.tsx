@@ -21,6 +21,13 @@ import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOf
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryTick, formatLastSeen } from "@/lib/presence";
 
+/**
+ * How far from the bottom of the thread still counts as "reading the latest".
+ * Roughly one message's worth, so a half-scrolled row does not stop the view
+ * following new arrivals.
+ */
+const NEAR_BOTTOM_PX = 120;
+
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
@@ -61,6 +68,7 @@ export default function MessagesPage() {
   );
   const [renameTo, setRenameTo] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Mark as read when a conversation is open AND whenever a new incoming
@@ -84,10 +92,6 @@ export default function MessagesPage() {
     }
   }, [selectedConv, chatStore.connected, messages, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // Memoize reversed messages to avoid re-computing every render
   const reversedMessages = useMemo(
@@ -98,6 +102,29 @@ export default function MessagesPage() {
   // Get typing users for current conversation
   const typingMap = selectedConv ? chatStore.getTypingUsers(selectedConv) : new Map();
   const typingNames = Array.from(typingMap.values());
+
+  /**
+   * Follow the bottom of the thread.
+   *
+   * The typing indicator is a row like any other, so it has to be a
+   * dependency here: without it the notice appears below the fold and the
+   * reader sees a sliver of it, or nothing. It only ever looked right for
+   * whoever was typing, because their own keystrokes were sending messages
+   * that moved the view.
+   *
+   * Somebody who has scrolled up to read is left where they are. Being
+   * yanked to the bottom because the other party started typing is worse
+   * than missing the notice.
+   */
+  useEffect(() => {
+    const list = messageListRef.current;
+    const nearBottom =
+      !list ||
+      list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, typingNames.length]);
 
   // Handle typing indicator
   const handleInputChange = useCallback(
@@ -359,7 +386,7 @@ export default function MessagesPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {reversedMessages.map((msg: any) => {
                 // A message whose sender has been deleted still has to draw, on the
                 // left, rather than taking the whole thread down.

@@ -1144,6 +1144,38 @@ describe("who is typing", () => {
     expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
   });
 
+  /**
+   * The notice is drawn under the last message, so the thread has to follow
+   * it down. Left out of the scroll effect it sat below the fold and only
+   * the person doing the typing ever saw it in full — their own keystrokes
+   * were sending messages, and those did move the view.
+   */
+  it("puts the notice inside the thread, above the point scrolled to", async () => {
+    await openWithTyping(["Aline"]);
+    const notice = await screen.findByText(/Aline is typing/);
+
+    const list = notice.closest(".overflow-y-auto");
+    expect(list).not.toBeNull();
+
+    // The last child is the anchor `scrollIntoView` is called on, so
+    // reaching it brings the notice with it.
+    const anchor = list!.lastElementChild!;
+    expect(anchor.textContent).toBe("");
+    expect(
+      notice.compareDocumentPosition(anchor) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("scrolls down when the notice appears", async () => {
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    await openWithTyping(["Aline"]);
+
+    expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+    expect(scrolled).toHaveBeenCalled();
+    scrolled.mockRestore();
+  });
+
   it("names two people in the plural", async () => {
     await openWithTyping(["Aline", "Jean"]);
     const line = await screen.findByText(/are typing/);
