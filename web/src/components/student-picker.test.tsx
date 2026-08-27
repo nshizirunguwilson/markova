@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 
+import { useState } from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -61,8 +62,32 @@ function serveStudents(all = [keza, divine]) {
   });
 }
 
+/**
+ * A parent that owns the value, the way every real caller does. The picker is
+ * controlled, so a harness that swallows the change and re-renders with the
+ * old value is testing something no page does.
+ */
+function Host({
+  onChange,
+  initial = "",
+}: {
+  onChange: (id: string) => void;
+  initial?: string;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <StudentPicker
+      value={value}
+      onChange={(id) => {
+        setValue(id);
+        onChange(id);
+      }}
+    />
+  );
+}
+
 function mount(onChange = vi.fn(), value = "") {
-  renderWithProviders(<StudentPicker value={value} onChange={onChange} />);
+  renderWithProviders(<Host onChange={onChange} initial={value} />);
   return onChange;
 }
 

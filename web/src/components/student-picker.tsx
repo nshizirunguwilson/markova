@@ -42,8 +42,10 @@ const MAX_RESULTS = 8;
 export function StudentPicker({ value, onChange, label = "Student" }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const [chosen, setChosen] = useState<Option | null>(null);
+  // The highlighted row is remembered against the search it belongs to, so a
+  // new set of results starts at the top without an effect having to reset it.
+  const [highlight, setHighlight] = useState({ search: "", index: 0 });
+  const [picked, setPicked] = useState<Option | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,21 +73,22 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
     [data],
   );
 
-  // The chosen student is remembered here rather than looked up again: the
-  // next search will not contain them, and a picker that forgets what it is
-  // set to reads as having lost the selection.
-  useEffect(() => {
-    if (!value) {
-      setChosen(null);
-      return;
-    }
-    const match = options.find((o) => o.studentId === value);
-    if (match) setChosen(match);
-  }, [value, options]);
+  // What was picked is kept rather than looked up again, because the next
+  // search will not contain them. A `value` that arrived from the parent —
+  // a form being reset, or a saved choice — is matched against the results
+  // instead.
+  const chosen: Option | null = !value
+    ? null
+    : picked?.studentId === value
+      ? picked
+      : (options.find((o) => o.studentId === value) ?? null);
 
-  useEffect(() => {
-    setActive(0);
-  }, [search]);
+  const active = highlight.search === search ? highlight.index : 0;
+  const setActive = (next: number | ((i: number) => number)) =>
+    setHighlight((h) => {
+      const from = h.search === search ? h.index : 0;
+      return { search, index: typeof next === "function" ? next(from) : next };
+    });
 
   // Clicking away closes the list without choosing anything.
   useEffect(() => {
@@ -98,14 +101,14 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
   }, [open]);
 
   const pick = (option: Option) => {
-    setChosen(option);
+    setPicked(option);
     onChange(option.studentId);
     setQuery("");
     setOpen(false);
   };
 
   const clear = () => {
-    setChosen(null);
+    setPicked(null);
     onChange("");
     setQuery("");
     setOpen(true);
