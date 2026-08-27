@@ -1,5 +1,6 @@
 import {
   Controller,
+  ForbiddenException,
   Get,
   Post,
   Body,
@@ -38,6 +39,30 @@ export class ReportsController {
 
   // ── Report Cards ────────────────────────────────────────────────────────
 
+  /**
+   * Ownership, then timing.
+   *
+   * Whose child it is has always been checked. Whether the school has issued
+   * the card was not — so a student could read their report card, as data, as
+   * HTML or as a PDF, before it was released. Staff are never gated: they
+   * have to read the thing before issuing it.
+   */
+  private async assertMayRead(
+    user: { id: string; role: string },
+    studentId: string,
+    termId: string,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    if (user.role !== 'STUDENT' && user.role !== 'PARENT') return;
+
+    const issued = await this.service.isReportCardIssued(studentId, termId);
+    if (!issued) {
+      throw new ForbiddenException(
+        'This report card has not been issued yet. It will appear here once the school releases it.',
+      );
+    }
+  }
+
   @Get('term/:studentId')
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
@@ -49,7 +74,7 @@ export class ReportsController {
     @Query('termId', ParseUUIDPipe) termId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayRead(user, studentId, termId);
     return this.service.getTermReportData(studentId, termId);
   }
 
@@ -64,7 +89,7 @@ export class ReportsController {
     @Query('termId', ParseUUIDPipe) termId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayRead(user, studentId, termId);
     return this.service.generateTermReportHtml(studentId, termId);
   }
 
@@ -80,7 +105,7 @@ export class ReportsController {
     @Res() res: express.Response,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayRead(user, studentId, termId);
     const pdf = await this.service.generateTermReportPdf(studentId, termId);
     res.set({
       'Content-Type': 'application/pdf',
