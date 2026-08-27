@@ -1655,3 +1655,124 @@ describe("a child who is already on the list", () => {
     expect(document.body.textContent).not.toMatch(/undefined/);
   }, 30000);
 });
+
+/**
+ * A student is added over four steps, in order.
+ *
+ * Every other test here walks the wizard by "click whatever Continue is
+ * there until the step I want appears", which cannot notice a step being
+ * skipped. This one names each step and insists on reaching it.
+ */
+describe("walking a student through every step in order", () => {
+  async function fill() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      for (const field of Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          'input:not([type="file"]):not([type="checkbox"])',
+        ),
+      )) {
+        if (field.disabled || field.readOnly) continue;
+        const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+        const type = field.getAttribute("type");
+        let value = "Ubwiza";
+        if (type === "number") value = "1";
+        else if (type === "date") value = "2010-04-11";
+        else if (name.includes("email")) value = "someone@markova.edu";
+        else if (name.includes("phone")) value = "+250788000001";
+        else if (name.includes("password")) value = "Umunyeshuri2026!";
+        else if (name.includes("nationalid")) value = "";
+        fireEvent.change(field, { target: { value } });
+      }
+      for (const select of Array.from(document.querySelectorAll("select"))) {
+        if (select.disabled) continue;
+        if ((select.getAttribute("name") ?? "") === "role") continue;
+        const option = Array.from(select.options).find((o) => o.value);
+        if (option) fireEvent.change(select, { target: { value: option.value } });
+      }
+    });
+  }
+
+  /** Is the wizard showing this step? Read from the step indicator. */
+  function atStep(name: string) {
+    return Array.from(document.querySelectorAll("span")).some(
+      (el) =>
+        el.textContent?.trim() === name &&
+        el.className.includes("text-foreground"),
+    );
+  }
+
+  /** Cascading selects only populate after their parent is chosen. */
+  async function fillAll() {
+    await fill();
+    await fill();
+  }
+
+  async function clickContinue() {
+    const { act, fireEvent } = await import("@testing-library/react");
+    const next = screen
+      .queryAllByRole("button")
+      .find((b) => /^continue$/i.test((b.textContent ?? "").trim()));
+    expect(next).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(next!);
+    });
+  }
+
+  it("reaches Family & health rather than finishing early", async () => {
+    h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    // 1 · Account
+    await fillAll();
+    await clickContinue();
+
+    // 2 · Academic — the label now reaches its control
+    await waitFor(() => expect(atStep("Academic")).toBe(true));
+    expect(screen.getByLabelText(/class level/i)).toBeInTheDocument();
+    await fillAll();
+    await clickContinue();
+
+    // 3 · Identity & residence
+    await waitFor(() => expect(atStep("Identity & residence")).toBe(true));
+    await fillAll();
+    await clickContinue();
+
+    // 4 · Family & health — the step that was being skipped
+    await waitFor(() => expect(atStep("Family & health")).toBe(true));
+
+    // And nothing was created on the way here.
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("treats Enter mid-wizard as Continue, not as Create", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+    await fillAll();
+    await clickContinue();
+    await waitFor(() => expect(atStep("Academic")).toBe(true));
+    await fillAll();
+    await clickContinue();
+    await waitFor(() => expect(atStep("Identity & residence")).toBe(true));
+    await fillAll();
+
+    const field = screen.getByLabelText(/nationality/i);
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter", code: "Enter" });
+      fireEvent.submit(field.closest("form")!);
+    });
+
+    // Enter moves on rather than creating a half-filled student.
+    expect(h.api.post).not.toHaveBeenCalled();
+    await waitFor(() => expect(atStep("Family & health")).toBe(true));
+});
+});
