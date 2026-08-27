@@ -2048,7 +2048,12 @@ describe("runs of messages from one person", () => {
   it("names the sender in a group, where there is more than one", async () => {
     await openWith(
       [at("m-1", "u-3", 0, "Muraho")],
-      { ...conversation, type: "GROUP", name: "Staff", participants: [{ user: other }, { user: second }] },
+      {
+        ...conversation,
+        type: "GROUP",
+        name: "Staff",
+        participants: [{ user: other }, { user: second }],
+      } as typeof conversation & { name: string },
       /Staff/,
     );
     await screen.findByText("Muraho");
