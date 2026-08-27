@@ -67,7 +67,7 @@ const routes = {
     {
       id: "m-1",
       conversationId: "conv-1",
-      senderId: "u-3",
+      senderUserId: "u-3",
       sender: other,
       content: "Muraho neza",
       createdAt: "2026-08-21T09:00:00Z",
@@ -550,7 +550,7 @@ describe("delivery ticks", () => {
         {
           id: "m-9",
           conversationId: "conv-1",
-          senderId: "user-1",
+          senderUserId: "user-1",
           sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
           content: "Mwaramutse",
           status,
@@ -567,10 +567,13 @@ describe("delivery ticks", () => {
     await waitFor(() => expect(screen.getByText(/Mwaramutse/)).toBeInTheDocument());
   }
 
-  /** The tick element rendered inside the message bubble. */
+  /**
+   * The tick element for the run the message belongs to. Ticks are drawn
+   * once under a run, on its timestamp line, rather than inside every bubble.
+   */
   function ticks() {
-    const bubble = screen.getByText(/Mwaramutse/).closest("div")!;
-    return bubble.querySelectorAll("svg.lucide-check, svg.lucide-check-check");
+    const run = screen.getByText(/Mwaramutse/).closest("div")!.parentElement!;
+    return run.querySelectorAll("svg.lucide-check, svg.lucide-check-check");
   }
 
   it("shows one tick on a message that has only been sent", async () => {
@@ -594,7 +597,7 @@ describe("delivery ticks", () => {
     await openThread();
     const marks = ticks();
     expect(marks.length).toBeGreaterThan(0);
-    expect(marks[0].getAttribute("class")).toMatch(/primary-light/);
+    expect(marks[0].getAttribute("class")).toMatch(/text-primary/);
   });
 
   it("falls back to one tick when there is no status at all", async () => {
@@ -776,7 +779,7 @@ describe("attachments", () => {
       {
         id: "m-2",
         conversationId: "conv-1",
-        senderId: "u-3",
+        senderUserId: "u-3",
         sender: other,
         content: "Here is the marking scheme",
         fileUrl: "/uploads/attachments/abc.pdf",
@@ -1253,7 +1256,7 @@ describe("threads with pieces missing", () => {
         {
           id: "m-file",
           conversationId: "conv-1",
-          senderId: "u-3",
+          senderUserId: "u-3",
           sender: other,
           content: "Here is the timetable",
           fileUrl: "/uploads/messaging/timetable.pdf",
@@ -1277,7 +1280,7 @@ describe("threads with pieces missing", () => {
         {
           id: "m-file",
           conversationId: "conv-1",
-          senderId: "u-3",
+          senderUserId: "u-3",
           sender: other,
           content: "",
           fileUrl: "/uploads/messaging/x",
@@ -1299,7 +1302,7 @@ describe("threads with pieces missing", () => {
         {
           id: "m-1",
           conversationId: "conv-1",
-          senderId: "u-3",
+          senderUserId: "u-3",
           sender: other,
           content: "Muraho",
           createdAt: "2026-08-21T09:00:00Z",
@@ -1307,7 +1310,7 @@ describe("threads with pieces missing", () => {
         {
           id: "m-2",
           conversationId: "conv-1",
-          senderId: "user-1",
+          senderUserId: "user-1",
           sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
           content: "Muraho neza",
           createdAt: "2026-08-21T09:01:00Z",
@@ -1515,7 +1518,7 @@ describe("people whose accounts are gone", () => {
         {
           id: "m-ghost",
           conversationId: "conv-1",
-          senderId: "u-gone",
+          senderUserId: "u-gone",
           sender: { id: "u-gone" },
           content: "Muraho",
           createdAt: "2026-08-21T09:00:00Z",
@@ -1537,7 +1540,7 @@ describe("people whose accounts are gone", () => {
         {
           id: "m-mine",
           conversationId: "conv-1",
-          senderId: "user-1",
+          senderUserId: "user-1",
           sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
           content: "Here it is",
           fileUrl: "/uploads/messaging/notes.pdf",
@@ -1552,7 +1555,7 @@ describe("people whose accounts are gone", () => {
 
     const link = await screen.findByRole("link", { name: /notes\.pdf/ });
     // Your own attachments sit on the tinted side of the bubble.
-    expect(link.className).toMatch(/white/);
+    expect(link.className).toMatch(/bg-black\/15/);
   });
 });
 
@@ -1901,26 +1904,51 @@ describe("how the inbox marks a thread", () => {
     ).toBeInTheDocument();
   });
 
-  it("sets an unread thread apart by more than weight", async () => {
+  /**
+   * "Where am I" and "what is waiting" are two questions, so they get two
+   * devices and can both be true at once. Selection changes the row's
+   * ground; unread is weight, a full-strength preview and a marker.
+   */
+  it("sets an unread thread apart by weight and a marker", async () => {
     await openInbox({ unreadCount: 2 });
-    const unread = row().className;
-    expect(unread).toContain("bg-accent-light");
-    expect(unread).toContain("border-primary");
+    const name = screen.getByText("Aline Uwase");
+    expect(name.className).toContain("font-semibold");
+    // The one place brand colour appears in this column.
+    expect(row().querySelector(".bg-primary")).not.toBeNull();
   });
 
-  it("leaves a read thread plain", async () => {
+  it("leaves a read thread quiet", async () => {
     await openInbox({ unreadCount: 0 });
-    const read = row().className;
-    expect(read).toContain("border-transparent");
-    expect(read).not.toContain("bg-accent-light");
+    const name = screen.getByText("Aline Uwase");
+    expect(name.className).toContain("font-medium");
+    expect(name.className).not.toContain("font-semibold");
     expect(screen.queryByText("0")).toBeNull();
+  });
+
+  it("marks the open thread without borrowing the unread signal", async () => {
+    await openInbox({ unreadCount: 0 });
+    await userEvent.setup().click(row());
+    await waitFor(() => expect(row()).toHaveAttribute("aria-current", "true"));
+    expect(row().className).toContain("bg-surface-muted");
+    // Selection must not light the unread marker.
+    expect(row().querySelector(".bg-primary")).toBeNull();
+  });
+
+  it("shows both at once on an unread thread that is open", async () => {
+    await openInbox({ unreadCount: 4 });
+    await userEvent.setup().click(row());
+    await waitFor(() => expect(row()).toHaveAttribute("aria-current", "true"));
+    expect(row().className).toContain("bg-surface-muted");
+    expect(screen.getByText("4")).toBeInTheDocument();
   });
 
   it("names the other person on their last message", async () => {
     await openInbox({
       lastMessage: {
+        senderUserId: "u-3",
         content: "Muraho",
-        sender: { id: "u-3", firstName: "Aline" },
+        createdAt: "2026-08-21T09:00:00Z",
+        sender: { firstName: "Aline", lastName: "Uwase" },
       },
     });
     expect(await screen.findByText(/Aline: Muraho/)).toBeInTheDocument();
@@ -1931,8 +1959,12 @@ describe("how the inbox marks a thread", () => {
   it("says You on a message the viewer sent", async () => {
     await openInbox({
       lastMessage: {
+        // `sender` is a two-field projection with no id; the id the API
+        // sends is `senderUserId`.
+        senderUserId: "user-1",
         content: "Murakoze",
-        sender: { id: "user-1", firstName: "Aline" },
+        createdAt: "2026-08-21T09:00:00Z",
+        sender: { firstName: "Aline", lastName: "Uwase" },
       },
     });
     expect(await screen.findByText(/You: Murakoze/)).toBeInTheDocument();

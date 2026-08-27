@@ -20,6 +20,7 @@ import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff, Paperclip, Users, X, Download } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryTick, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
+import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
 
 /**
  * How far from the bottom of the thread still counts as "reading the latest".
@@ -93,10 +94,12 @@ export default function MessagesPage() {
   }, [selectedConv, chatStore.connected, messages, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  // Memoize reversed messages to avoid re-computing every render
-  const reversedMessages = useMemo(
-    () => (messages ? [...messages].reverse() : []),
-    [messages]
+  // The endpoint returns newest first; a thread is read oldest first. Grouped
+  // here rather than in the markup so the rules can be checked on their own —
+  // see lib/messaging-view.ts.
+  const threadBlocks = useMemo(
+    () => groupThread(messages ? [...messages].reverse() : [], user?.id),
+    [messages, user?.id],
   );
 
   // Get typing users for current conversation
@@ -222,322 +225,433 @@ export default function MessagesPage() {
 
   // Message status ticks. The wording and the tick rules live in
   // @/lib/presence so they can be checked at each boundary on their own.
+  //
+  // These sit on the timestamp line under a run now, not inside the bubble,
+  // so they take the muted foreground rather than a white that only read on
+  // a dark brand fill.
   const MessageTicks = ({ msg }: { msg: any }) => {
-    if (msg.sender?.id !== user?.id) return null;
+    if (senderIdOf(msg) !== user?.id) return null;
 
     switch (deliveryTick(msg.status)) {
       case "two-read":
-        return <CheckCheck className="inline h-3.5 w-3.5 text-primary-light" />;
+        return (
+          <CheckCheck aria-label="Read" className="h-3.5 w-3.5 text-primary" />
+        );
       case "two":
-        return <CheckCheck className="inline h-3.5 w-3.5 text-white/50" />;
+        return (
+          <CheckCheck aria-label="Delivered" className="h-3.5 w-3.5 text-muted" />
+        );
       default:
-        return <Check className="inline h-3.5 w-3.5 text-white/50" />;
+        return <Check aria-label="Sent" className="h-3.5 w-3.5 text-muted" />;
     }
   };
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-0">
-      {/* WebSocket disconnect indicator */}
       {!chatStore.connected && (
-        <div className="flex items-center justify-center gap-2 bg-warning-wash border border-warning/30 rounded-lg px-4 py-2 mb-2 text-sm text-warning">
+        <div className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-warning/30 bg-warning-wash px-4 py-2 text-sm text-warning">
           <WifiOff className="h-4 w-4" />
           Reconnecting...
         </div>
       )}
 
-    <div className="flex flex-1 gap-0 md:gap-4 min-h-0">
-      {/* Conversation List */}
-      <div className={`${selectedConv ? "hidden md:block" : "block"} w-full md:w-80 flex-shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-3`}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-foreground">Messages</h2>
-          <Button aria-label="Add" size="sm" variant="ghost" onClick={() => setShowNewModal(true)}>
-            <Plus className="h-4 w-4" />
-          </Button>
+    {/*
+      One surface split by a rule, rather than two cards floating apart. A
+      messaging client is a single plane: the gap and the second set of
+      rounded edges made the inbox and the thread read as two unrelated
+      widgets that happened to sit side by side.
+    */}
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-surface">
+      {/*
+        The inbox column. One continuous list, not a stack of cards: a person
+        scans this for a name, and rounded tiles with their own edges give
+        every row a frame competing with the next one.
+
+        Selected and unread are two different questions — "where am I" and
+        "what is waiting" — so they get two different devices and can be true
+        at once. Selection is a quiet change of ground, because it is
+        permanent while you read. Unread is weight, full-strength preview
+        text, and a count.
+      */}
+      <div className={`${selectedConv ? "hidden md:flex" : "flex"} w-full flex-col border-border md:w-[19rem] md:flex-shrink-0 md:border-r`}>
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">Messages</h2>
+          <button
+            type="button"
+            aria-label="Add"
+            onClick={() => setShowNewModal(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            <Plus className="h-[18px] w-[18px]" />
+          </button>
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
+          <div className="flex justify-center py-10"><Spinner /></div>
         ) : conversations?.length > 0 ? (
-          <div className="space-y-1">
+          <div className="flex-1 overflow-y-auto pb-2">
             {conversations.map((conv: any) => {
               const otherUser = getOtherUser(conv);
               const isOtherOnline = otherUser ? chatStore.isOnline(otherUser.id) : false;
               const unread = conv.unreadCount > 0;
+              const active = selectedConv === conv.id;
+              const name = getConvName(conv);
 
               return (
                 <button
                   key={conv.id}
                   onClick={() => setSelectedConv(conv.id)}
-                  aria-label={
-                    unread
-                      ? `${getConvName(conv)}, ${conv.unreadCount} unread`
-                      : getConvName(conv)
-                  }
-                  // An unread thread is the reason to open this page at all, so
-                  // it carries a brand wash and a marker down its leading edge
-                  // rather than relying on weight alone — weight is a poor
-                  // signal in a column of names that are already bold.
-                  className={`w-full rounded-lg py-2.5 pr-3 text-left transition-colors border-l-[3px] pl-[9px] ${
-                    selectedConv === conv.id
-                      ? "border-primary bg-primary/10"
-                      : unread
-                        ? "border-primary bg-accent-light hover:bg-accent"
-                        : "border-transparent hover:bg-muted/10"
+                  aria-current={active ? "true" : undefined}
+                  aria-label={unread ? `${name}, ${conv.unreadCount} unread` : name}
+                  className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50 ${
+                    active ? "bg-surface-muted" : "hover:bg-surface-muted/60"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                          {getConvName(conv).charAt(0).toUpperCase()}
-                        </div>
-                        {conv.type === "ONE_ON_ONE" && (
-                          <span
-                            className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
-                              isOtherOnline ? "bg-success" : "bg-muted"
-                            }`}
-                          />
-                        )}
-                      </div>
+                  {/* The one place brand colour appears in this column, so it
+                      always means the same thing: something is waiting. */}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full ${
+                      unread ? "bg-primary" : "bg-transparent"
+                    }`}
+                  />
+
+                  <span className="relative mt-0.5 flex-shrink-0">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                      {name.charAt(0).toUpperCase()}
+                    </span>
+                    {/* Absent rather than grey when someone is away: a second
+                        grey dot on every row is noise, and it competes with
+                        the unread dot for the same glance. */}
+                    {conv.type === "ONE_ON_ONE" && isOtherOnline && (
                       <span
-                        className={`truncate max-w-[140px] text-sm ${
-                          unread
-                            ? "font-bold text-foreground"
-                            : "font-medium text-foreground"
+                        title="Online"
+                        className="absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full bg-success ring-2 ring-surface"
+                      />
+                    )}
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span
+                        className={`min-w-0 flex-1 truncate text-[0.875rem] leading-5 ${
+                          unread ? "font-semibold text-foreground" : "font-medium text-foreground"
                         }`}
                       >
-                        {getConvName(conv)}
+                        {name}
                       </span>
-                    </div>
-                    {unread && (
-                      // The school's colour, not danger red: an unread message
-                      // is not an error.
-                      <Badge variant="primary" className="ml-2 tabular-nums">
-                        {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
-                      </Badge>
-                    )}
-                  </div>
-                  {conv.lastMessage && (
-                    <p
-                      className={`mt-0.5 ml-10 truncate text-xs ${
-                        unread ? "font-medium text-foreground" : "text-muted"
-                      }`}
-                    >
-                      {lastMessagePrefix(conv.lastMessage, user?.id)}
-                      {conv.lastMessage.content}
-                    </p>
-                  )}
+                      {conv.lastMessage && (
+                        <span className="flex-shrink-0 text-[0.6875rem] tabular-nums text-muted">
+                          {clockTime(conv.lastMessage.createdAt)}
+                        </span>
+                      )}
+                    </span>
+
+                    <span className="mt-0.5 flex items-center gap-2">
+                      <span
+                        className={`min-w-0 flex-1 truncate text-[0.8125rem] leading-5 ${
+                          unread ? "text-foreground" : "text-muted"
+                        }`}
+                      >
+                        {conv.lastMessage ? (
+                          <>
+                            {lastMessagePrefix(conv.lastMessage, user?.id)}
+                            {conv.lastMessage.content}
+                          </>
+                        ) : (
+                          <span className="italic text-muted">No messages yet</span>
+                        )}
+                      </span>
+                      {unread && (
+                        <span className="flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[0.6875rem] font-semibold tabular-nums text-on-primary">
+                          {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </button>
               );
             })}
           </div>
         ) : (
-          <div className="text-center text-muted py-8">
-            <MessageSquare className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            <p className="text-sm font-medium">No conversations yet</p>
-            <p className="mt-1 text-xs">Start a new conversation using the + button above</p>
+          <div className="px-6 py-12 text-center">
+            <MessageSquare className="mx-auto mb-3 h-7 w-7 text-muted opacity-50" />
+            <p className="text-sm font-medium text-foreground">No conversations yet</p>
+            <p className="mt-1 text-xs text-muted">Start one with the + button above</p>
           </div>
         )}
       </div>
 
       {/* Chat Area */}
-      <div className={`${selectedConv ? "flex" : "hidden md:flex"} flex-1 flex-col rounded-xl border border-border bg-surface`}>
+      <div className={`${selectedConv ? "flex" : "hidden md:flex"} min-w-0 flex-1 flex-col`}>
         {selectedConv && selectedConversation ? (
           <>
-            {/* Header with online status */}
-            <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-3">
-                <button aria-label="Go back"
-                  onClick={() => setSelectedConv(null)}
-                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted/10"
-                >
-                  <ArrowLeft className="h-5 w-5 text-foreground" />
-                </button>
-                <div className="relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
-                    {getConvName(selectedConversation).charAt(0).toUpperCase()}
-                  </div>
-                  {(() => {
-                    const other = getOtherUser(selectedConversation);
-                    if (other && selectedConversation.type === "ONE_ON_ONE") {
-                      return (
-                        <span
-                          className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${
-                            chatStore.isOnline(other.id) ? "bg-success" : "bg-muted"
-                          }`}
-                        />
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div>
-                  <span className="font-medium text-foreground">{getConvName(selectedConversation)}</span>
-                  {(() => {
-                    const other = getOtherUser(selectedConversation);
-                    if (other && selectedConversation.type === "ONE_ON_ONE") {
-                      return (
-                        <p className="text-xs text-muted">
-                          {chatStore.isOnline(other.id)
-                            ? "online"
-                            : formatLastSeen(other.lastSeenAt)}
-                        </p>
-                      );
-                    }
-                    // Group: show online count
-                    const onlineCount = selectedConversation.participants?.filter(
-                      (p: any) => p.user.id !== user?.id && chatStore.isOnline(p.user.id)
-                    ).length || 0;
-                    return (
-                      <p className="text-xs text-muted">
-                        {selectedConversation.participants?.length} members{onlineCount > 0 ? `, ${onlineCount} online` : ""}
+            {/*
+              The header answers one question — who am I talking to, and are
+              they here. The conversation's type used to be printed beside the
+              name as the raw enum ("ONE ON _ONE"), which is a database value,
+              not a thing to tell a teacher.
+            */}
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+              <button
+                aria-label="Go back"
+                onClick={() => setSelectedConv(null)}
+                className="-ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface-muted hover:text-foreground md:hidden"
+              >
+                <ArrowLeft className="h-[18px] w-[18px]" />
+              </button>
+
+              {(() => {
+                const other = getOtherUser(selectedConversation);
+                const oneOnOne = selectedConversation.type === "ONE_ON_ONE";
+                const online = other ? chatStore.isOnline(other.id) : false;
+                const members = selectedConversation.participants?.length ?? 0;
+                const onlineCount =
+                  selectedConversation.participants?.filter(
+                    (p: any) => p.user?.id !== user?.id && chatStore.isOnline(p.user?.id),
+                  ).length ?? 0;
+
+                return (
+                  <>
+                    <span className="relative flex-shrink-0">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                        {getConvName(selectedConversation).charAt(0).toUpperCase()}
+                      </span>
+                      {oneOnOne && online && (
+                        <span className="absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full bg-success ring-2 ring-surface" />
+                      )}
+                    </span>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-[0.9rem] font-semibold leading-5 tracking-tight text-foreground">
+                        {getConvName(selectedConversation)}
                       </p>
-                    );
-                  })()}
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  {selectedConversation.type !== "ONE_ON_ONE" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      aria-label="Members"
-                      onClick={() => {
-                        setRenameTo(selectedConversation.name ?? "");
-                        setShowMembers(true);
-                      }}
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Badge>{selectedConversation.type.replace("_", " ")}</Badge>
-                </div>
+                      {oneOnOne && other ? (
+                        <p className={`text-[0.75rem] leading-4 ${online ? "text-success" : "text-muted"}`}>
+                          {online ? "Online" : formatLastSeen(other.lastSeenAt)}
+                        </p>
+                      ) : (
+                        <p className="text-[0.75rem] leading-4 text-muted">
+                          {members} {members === 1 ? "member" : "members"}
+                          {onlineCount > 0 && ` · ${onlineCount} online`}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <div className="ml-auto flex items-center gap-2">
+                {selectedConversation.type === "BROADCAST" && (
+                  <span className="rounded-md bg-surface-muted px-2 py-1 text-[0.6875rem] font-medium text-muted">
+                    Announcement
+                  </span>
+                )}
+                {selectedConversation.type !== "ONE_ON_ONE" && (
+                  <button
+                    type="button"
+                    aria-label="Members"
+                    onClick={() => {
+                      setRenameTo(selectedConversation.name ?? "");
+                      setShowMembers(true);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <Users className="h-[18px] w-[18px]" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Messages */}
-            <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-              {reversedMessages.map((msg: any) => {
-                // A message whose sender has been deleted still has to draw, on the
-                // left, rather than taking the whole thread down.
-                const isMe = msg.sender?.id === user?.id;
-                return (
-                  <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                      isMe ? "bg-primary text-white" : "bg-muted/10 text-foreground"
-                    }`}>
-                      {!isMe && (
-                        <p className="text-xs font-medium mb-0.5 opacity-70">
-                          {msg.sender?.firstName ?? ""} {msg.sender?.lastName ?? ""}
-                        </p>
-                      )}
-                      <p className="text-sm">{msg.content}</p>
-                      {msg.fileUrl && (
-                        <a
-                          href={msg.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`mt-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${
-                            isMe ? "bg-white/15" : "bg-surface"
-                          }`}
-                        >
-                          <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {msg.fileName ?? "Attachment"}
-                          </span>
-                          <Download className="ml-auto h-3.5 w-3.5 shrink-0" />
-                        </a>
-                      )}
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${isMe ? "text-white/60" : "text-muted"}`}>
-                        <span className="text-xs">
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                        <MessageTicks msg={msg} />
-                      </div>
-                    </div>
+            {/*
+              The thread. Consecutive messages from one person inside a few
+              minutes are one remark, so they are drawn as a run: the name
+              appears once at the top (and never in a one to one, where there
+              is only one possible sender), and the clock once at the bottom.
+              Repeating both on every bubble gave the least important thing on
+              screen the same rhythm as the words.
+            */}
+            <div ref={messageListRef} className="flex-1 overflow-y-auto px-4 py-5">
+              {threadBlocks.map((block) => (
+                <div key={block.key}>
+                  <div className="my-4 flex items-center gap-3 first:mt-0">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted">
+                      {block.day}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
                   </div>
-                );
-              })}
 
-              {/* Typing indicator */}
+                  {block.groups.map((group) => {
+                    const last = group.messages[group.messages.length - 1];
+                    const named =
+                      !group.mine && selectedConversation.type !== "ONE_ON_ONE";
+
+                    return (
+                      <div
+                        key={group.key}
+                        className={`mb-3 flex flex-col gap-0.5 ${
+                          group.mine ? "items-end" : "items-start"
+                        }`}
+                      >
+                        {named && (
+                          <span className="mb-0.5 px-1 text-[0.75rem] font-medium text-foreground-muted">
+                            {group.senderName}
+                          </span>
+                        )}
+
+                        {group.messages.map((msg: any, i) => {
+                          const isLastOfRun = i === group.messages.length - 1;
+                          // The run's closing corner is squared off, which is
+                          // what makes a stack of bubbles read as one block
+                          // pointing at its sender.
+                          const corner = group.mine
+                            ? isLastOfRun
+                              ? "rounded-2xl rounded-br-md"
+                              : "rounded-2xl"
+                            : isLastOfRun
+                              ? "rounded-2xl rounded-bl-md"
+                              : "rounded-2xl";
+
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`max-w-[min(34rem,78%)] px-3.5 py-2 ${corner} ${
+                                group.mine
+                                  ? "bg-primary text-on-primary"
+                                  : "bg-surface-muted text-foreground"
+                              }`}
+                            >
+                              {msg.content && (
+                                <p className="whitespace-pre-wrap break-words text-[0.875rem] leading-relaxed">
+                                  {msg.content}
+                                </p>
+                              )}
+                              {msg.fileUrl && (
+                                <a
+                                  href={msg.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[0.8125rem] ${
+                                    group.mine
+                                      ? "bg-black/15 hover:bg-black/25"
+                                      : "bg-surface hover:bg-background"
+                                  }`}
+                                >
+                                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="truncate">{msg.fileName ?? "Attachment"}</span>
+                                  <Download className="ml-auto h-3.5 w-3.5 shrink-0" />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        <span className="mt-0.5 flex items-center gap-1 px-1 text-[0.6875rem] tabular-nums text-muted">
+                          {clockTime(last.createdAt)}
+                          <MessageTicks msg={last} />
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
               {typingNames.length > 0 && (
-                <div className="flex justify-start">
-                  <div className="rounded-2xl bg-muted/10 px-4 py-2">
-                    <p className="text-xs text-muted italic">
-                      {typingNames.length === 1
-                        ? `${typingNames[0]} is typing`
-                        : `${typingNames.slice(0, 2).join(", ")} ${typingNames.length > 2 ? `and ${typingNames.length - 2} more ` : ""}are typing`}
-                      <span className="typing-dots">...</span>
-                    </p>
-                  </div>
+                // Chrome, not content: a bubble here would read as a message
+                // that never arrives.
+                <div className="flex items-center gap-1.5 px-1 py-1 text-[0.8125rem] text-muted">
+                  <span>
+                    {typingNames.length === 1
+                      ? `${typingNames[0]} is typing`
+                      : `${typingNames.slice(0, 2).join(", ")} ${typingNames.length > 2 ? `and ${typingNames.length - 2} more ` : ""}are typing`}
+                  </span>
+                  <span className="typing-dots" aria-hidden="true">...</span>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/*
+              One field, one focus ring. The attach and send controls sit
+              inside the same bordered container and on the same baseline as
+              the text, rather than as two loose circles either side of a pill
+              — three separate shapes for what is one action.
+            */}
             <div className="border-t border-border p-3">
-              {/* An announcement is not a thread. Showing a box that will be
-                  refused is worse than showing no box at all. */}
               {selectedConversation.type === "BROADCAST" &&
               selectedConversation.createdBy?.id !== user?.id ? (
-                <p className="py-2 text-center text-sm text-muted">
+                <p className="py-2 text-center text-[0.8125rem] text-muted">
                   This is an announcement from the school. Message the school
                   directly if you need to reply.
                 </p>
               ) : (
-              <>
-              {pendingFile && (
-                <div className="mb-2 flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                  <Paperclip className="h-4 w-4 text-muted" />
-                  <span className="truncate">{pendingFile.fileName}</span>
-                  <button
-                    type="button"
-                    aria-label="Remove the file"
-                    className="ml-auto text-muted hover:text-danger"
-                    onClick={() => setPendingFile(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <label
-                  htmlFor="m-attach"
-                  className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border hover:bg-muted/10"
-                >
-                  <Paperclip className="h-4 w-4 text-muted" />
-                  <span className="sr-only">Attach a file</span>
-                  <input
-                    id="m-attach"
-                    type="file"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const chosen = e.target.files?.[0];
-                      if (!chosen) return;
-                      uploadAttachment.mutate(chosen, {
-                        onSuccess: (res) =>
-                          setPendingFile({
-                            fileUrl: res.fileUrl,
-                            fileName: res.fileName,
-                          }),
-                      });
-                    }}
-                  />
-                </label>
-                <input
-                  type="text"
-                  value={messageText}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm focus:border-primary focus:outline-none"
-                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                 aria-label="Type a message..."/>
-                <Button aria-label="Send message" onClick={handleSend} className="rounded-full">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-              </>
+                <>
+                  {pendingFile && (
+                    <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-muted px-3 py-2 text-[0.8125rem]">
+                      <Paperclip className="h-4 w-4 flex-shrink-0 text-muted" />
+                      <span className="truncate text-foreground">{pendingFile.fileName}</span>
+                      <button
+                        type="button"
+                        aria-label="Remove the file"
+                        className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-danger"
+                        onClick={() => setPendingFile(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                    <label
+                      htmlFor="m-attach"
+                      className="flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                    >
+                      <Paperclip className="h-[18px] w-[18px]" />
+                      <span className="sr-only">Attach a file</span>
+                      <input
+                        id="m-attach"
+                        type="file"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const chosen = e.target.files?.[0];
+                          if (!chosen) return;
+                          uploadAttachment.mutate(chosen, {
+                            onSuccess: (res) =>
+                              setPendingFile({
+                                fileUrl: res.fileUrl,
+                                fileName: res.fileName,
+                              }),
+                          });
+                        }}
+                      />
+                    </label>
+
+                    <input
+                      type="text"
+                      value={messageText}
+                      onChange={(e) => handleInputChange(e.target.value)}
+                      placeholder="Type a message..."
+                      aria-label="Type a message..."
+                      onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                      className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1.5 text-[0.875rem] text-foreground placeholder:text-muted focus:outline-none"
+                    />
+
+                    {/* Dimmed until there is something to send, so the button
+                        says whether the action is available before it is
+                        pressed. */}
+                    <button
+                      type="button"
+                      aria-label="Send message"
+                      onClick={handleSend}
+                      disabled={!messageText.trim() && !pendingFile}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      <Send className="h-[16px] w-[16px]" />
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </>
