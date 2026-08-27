@@ -585,13 +585,14 @@ describe("group threads", () => {
 });
 
 /**
- * The ticks beside a message you sent.
+ * What a message you sent says about itself.
  *
- * They are the only feedback that a message left the phone, and they appear on
- * your own messages only. Someone else's message with ticks would read as if
- * you had sent it.
+ * Words, not ticks: one tick against two, and grey against blue, is a code
+ * borrowed from one particular app, and a parent messaging the school should
+ * not have to know it. It appears on your own messages only — the same line
+ * under someone else's would read as though you had sent it.
  */
-describe("delivery ticks", () => {
+describe("the state of a message you sent", () => {
   function serveMine(status: string | null) {
     serve(h.api, {
       ...routes,
@@ -617,54 +618,53 @@ describe("delivery ticks", () => {
   }
 
   /**
-   * The tick element for the run the message belongs to. Ticks are drawn
-   * once under a run, on its timestamp line, rather than inside every bubble.
+   * The state line for the run the message belongs to. Written once under a
+   * run, on its timestamp line, rather than inside every bubble.
    */
-  function ticks() {
+  function state() {
     const run = screen.getByText(/Mwaramutse/).closest("div")!.parentElement!;
-    return run.querySelectorAll("svg.lucide-check, svg.lucide-check-check");
+    return run.textContent ?? "";
   }
 
-  it("shows one tick on a message that has only been sent", async () => {
+  it("says Sent for a message that has only left", async () => {
     serveMine("SENT");
     await openThread();
-    const marks = ticks();
-    expect(marks.length).toBeGreaterThan(0);
-    expect(marks[0].classList.contains("lucide-check")).toBe(true);
+    expect(state()).toContain("Sent");
   });
 
-  it("shows two ticks once it has been delivered", async () => {
+  it("says Delivered once it has arrived", async () => {
     serveMine("DELIVERED");
     await openThread();
-    const marks = ticks();
-    expect(marks.length).toBeGreaterThan(0);
-    expect(marks[0].classList.contains("lucide-check-check")).toBe(true);
+    expect(state()).toContain("Delivered");
+    expect(state()).not.toContain("Read");
   });
 
-  it("marks a read message differently from a delivered one", async () => {
+  it("says Read, and sets it apart from Delivered", async () => {
     serveMine("READ");
     await openThread();
-    const marks = ticks();
-    expect(marks.length).toBeGreaterThan(0);
-    expect(marks[0].getAttribute("class")).toMatch(/text-primary/);
+    expect(state()).toContain("Read");
+    const word = screen.getByText("Read");
+    expect(word.className).toContain("text-primary");
   });
 
-  it("falls back to one tick when there is no status at all", async () => {
+  it("says Sent when there is no status at all", async () => {
     serveMine(null);
     await openThread();
-    expect(ticks().length).toBeGreaterThan(0);
+    expect(state()).toContain("Sent");
   });
 
-  // Someone else's message carries no ticks; they are yours, about yours.
-  it("puts no ticks on the other side's messages", async () => {
+  // Someone else's message carries no state line; it is yours, about yours.
+  it("says nothing about the other side's messages", async () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
     await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     await waitFor(() => expect(screen.getByText(/Muraho neza/)).toBeInTheDocument());
 
-    const bubble = screen.getByText(/Muraho neza/).closest("div")!;
-    expect(bubble.querySelectorAll("svg.lucide-check, svg.lucide-check-check")).toHaveLength(0);
+    const run = screen.getByText(/Muraho neza/).closest("div")!.parentElement!;
+    for (const word of ["Sent", "Delivered", "Read"]) {
+      expect(run.textContent).not.toContain(word);
+    }
   });
 });
 
@@ -813,162 +813,6 @@ describe("the edges of the inbox", () => {
     await waitFor(() => expect(h.api.post).not.toHaveBeenCalled());
   });
 });
-
-/**
- * Attachments.
- *
- * A teacher sending a marking scheme is the reason this exists, and what
- * matters is that the recipient is offered a name they recognise rather than
- * the uuid the file is stored under.
- */
-describe("attachments", () => {
-  const withAttachment = {
-    ...routes,
-    "/messaging/conversations/conv-1/messages": [
-      {
-        id: "m-2",
-        conversationId: "conv-1",
-        senderUserId: "u-3",
-        sender: other,
-        content: "Here is the marking scheme",
-        fileUrl: "/uploads/attachments/abc.pdf",
-        fileName: "Marking scheme.pdf",
-        createdAt: "2026-08-21T09:05:00Z",
-      },
-    ],
-    "/messaging/attachments": {
-      fileUrl: "/uploads/attachments/xyz.pdf",
-      fileName: "Trip letter.pdf",
-      size: 2048,
-    },
-  };
-
-  async function openThread(extra: Record<string, unknown> = {}) {
-    serve(h.api, { ...withAttachment, ...extra });
-    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await act(async () => {
-      fireEvent.click(screen.getByText(/Aline/));
-    });
-  }
-
-  // A uuid tells a person nothing about what they are being asked to open.
-  it("offers the file under the name it was sent with", async () => {
-    await openThread();
-    await waitFor(() =>
-      expect(screen.getByText("Marking scheme.pdf")).toBeInTheDocument(),
-    );
-    const link = screen.getByText("Marking scheme.pdf").closest("a")!;
-    expect(link).toHaveAttribute("href", "/uploads/attachments/abc.pdf");
-  });
-
-  it("says 'Attachment' rather than nothing when the name was lost", async () => {
-    await openThread({
-      "/messaging/conversations/conv-1/messages": [
-        {
-          id: "m-3",
-          conversationId: "conv-1",
-          sender: other,
-          content: "See this",
-          fileUrl: "/uploads/attachments/abc.pdf",
-          fileName: null,
-          createdAt: "2026-08-21T09:05:00Z",
-        },
-      ],
-    });
-    await waitFor(() =>
-      expect(screen.getByText("Attachment")).toBeInTheDocument(),
-    );
-  });
-
-  it("uploads a chosen file and shows it waiting to be sent", async () => {
-    await openThread();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText(/attach a file/i), {
-        target: {
-          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
-        },
-      });
-    });
-    await waitFor(() =>
-      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
-    );
-  });
-
-  // The socket carries text only, so anything with a file has to go over REST
-  // where the attachment fields exist.
-  it("sends a file over REST even when the socket is up", async () => {
-    h.chat.connected = true;
-    await openThread();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText(/attach a file/i), {
-        target: {
-          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
-        },
-      });
-    });
-    await waitFor(() =>
-      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText("Send message"));
-    });
-
-    await waitFor(() =>
-      expect(h.api.post).toHaveBeenCalledWith(
-        "/messaging/messages",
-        expect.objectContaining({
-          fileUrl: "/uploads/attachments/xyz.pdf",
-          fileName: "Trip letter.pdf",
-          contentType: "FILE",
-        }),
-      ),
-    );
-    expect(h.chat.sendMessage).not.toHaveBeenCalled();
-  });
-
-  // Requiring words alongside a file means people type "." to get past it.
-  it("sends a file with no words typed", async () => {
-    await openThread();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText(/attach a file/i), {
-        target: {
-          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
-        },
-      });
-    });
-    await waitFor(() =>
-      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText("Send message"));
-    });
-    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
-  });
-
-  it("can be taken off before sending", async () => {
-    await openThread();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText(/attach a file/i), {
-        target: {
-          files: [new File(["x"], "Trip letter.pdf", { type: "application/pdf" })],
-        },
-      });
-    });
-    await waitFor(() =>
-      expect(screen.getByText("Trip letter.pdf")).toBeInTheDocument(),
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText(/remove the file/i));
-    });
-    expect(screen.queryByText("Trip letter.pdf")).not.toBeInTheDocument();
-  });
-});
-
-/**
- * An announcement is not a thread. If four hundred parents could reply into
- * it, the first reply would reach all four hundred.
- */
 describe("announcements a person receives", () => {
   const announcement = {
     id: "conv-3",
@@ -1298,52 +1142,6 @@ describe("threads with pieces missing", () => {
     expect(await screen.findByText("Chat")).toBeInTheDocument();
   });
 
-  it("shows an attachment on a message sent by someone else", async () => {
-    serve(h.api, {
-      ...routes,
-      "/messaging/conversations/conv-1/messages": [
-        {
-          id: "m-file",
-          conversationId: "conv-1",
-          senderUserId: "u-3",
-          sender: other,
-          content: "Here is the timetable",
-          fileUrl: "/uploads/messaging/timetable.pdf",
-          fileName: "timetable.pdf",
-          createdAt: "2026-08-21T09:00:00Z",
-        },
-      ],
-    });
-    renderPage(MessagesPage, { role: "ADMIN" });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
-
-    const link = await screen.findByRole("link", { name: /timetable\.pdf/ });
-    expect(link).toHaveAttribute("href", "/uploads/messaging/timetable.pdf");
-  });
-
-  it("calls an attachment with no filename an attachment", async () => {
-    serve(h.api, {
-      ...routes,
-      "/messaging/conversations/conv-1/messages": [
-        {
-          id: "m-file",
-          conversationId: "conv-1",
-          senderUserId: "u-3",
-          sender: other,
-          content: "",
-          fileUrl: "/uploads/messaging/x",
-          createdAt: "2026-08-21T09:00:00Z",
-        },
-      ],
-    });
-    renderPage(MessagesPage, { role: "ADMIN" });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
-
-    expect(await screen.findByText("Attachment")).toBeInTheDocument();
-  });
-
   it("names the sender only on messages that are not yours", async () => {
     serve(h.api, {
       ...routes,
@@ -1531,31 +1329,6 @@ describe("people whose accounts are gone", () => {
     // The message itself survives, on the left, with a blank name above it.
     expect(await screen.findByText("Muraho")).toBeInTheDocument();
   });
-
-  it("shows your own attachment on your own side", async () => {
-    serve(h.api, {
-      ...routes,
-      "/messaging/conversations/conv-1/messages": [
-        {
-          id: "m-mine",
-          conversationId: "conv-1",
-          senderUserId: "user-1",
-          sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
-          content: "Here it is",
-          fileUrl: "/uploads/messaging/notes.pdf",
-          fileName: "notes.pdf",
-          createdAt: "2026-08-21T09:05:00Z",
-        },
-      ],
-    });
-    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
-
-    const link = await screen.findByRole("link", { name: /notes\.pdf/ });
-    // Your own attachments sit on the tinted side of the bubble.
-    expect(link.className).toMatch(/bg-black\/15/);
-  });
 });
 
 describe("a group whose member list is still loading", () => {
@@ -1589,84 +1362,6 @@ describe("a group whose member list is still loading", () => {
     );
   });
 });
-
-/**
- * A file sent on its own, and a member list with no names in it.
- *
- * Requiring words alongside an attachment means people type "." to get past
- * the check, so a file is a message by itself, and the filename becomes what
- * the thread shows. The member list is the other half: a group outlives the
- * accounts in it.
- */
-describe("sending a file with nothing typed", () => {
-  it("uses the filename as the message", async () => {
-    serve(h.api, {
-      ...routes,
-      "/messaging/attachments": {
-        fileUrl: "/uploads/messaging/trip-letter.pdf",
-        fileName: "trip-letter.pdf",
-      },
-    });
-    h.chat.connected = true;
-    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-
-    const user = userEvent.setup({ delay: null });
-    await user.click(screen.getByText(/Aline/));
-    await screen.findByPlaceholderText(/type a message/i);
-
-    const picker = document.querySelector<HTMLInputElement>("#m-attach");
-    if (!picker) return;
-    await user.upload(
-      picker,
-      new File(["x"], "trip-letter.pdf", { type: "application/pdf" }),
-    );
-
-    await waitFor(() =>
-      expect(screen.getByText("trip-letter.pdf")).toBeInTheDocument(),
-    );
-
-    h.api.post.mockClear();
-    const send = screen
-      .queryAllByRole("button")
-      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
-    await user.click(send);
-
-    await waitFor(() => {
-      const call = h.api.post.mock.calls.find(([url]: any[]) =>
-        String(url).includes("/messaging/messages"),
-      );
-      expect(call).toBeTruthy();
-      // A file with no words still carries something readable in the list.
-      expect((call![1] as any).content).toBe("trip-letter.pdf");
-      expect((call![1] as any).contentType).toBe("FILE");
-    });
-  });
-
-  it("attaches nothing when the picker is dismissed", async () => {
-    serve(h.api, routes);
-    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-
-    const user = userEvent.setup({ delay: null });
-    await user.click(screen.getByText(/Aline/));
-    await screen.findByPlaceholderText(/type a message/i);
-
-    const picker = document.querySelector<HTMLInputElement>("#m-attach");
-    if (!picker) return;
-    h.api.post.mockClear();
-    await act(async () => {
-      fireEvent.change(picker, { target: { files: [] } });
-    });
-
-    expect(
-      h.api.post.mock.calls.find(([url]: any[]) =>
-        String(url).includes("/messaging/attachments"),
-      ),
-    ).toBeUndefined();
-  });
-});
-
 describe("a group whose members have no names left", () => {
   const group = {
     id: "conv-2",
@@ -1814,57 +1509,6 @@ describe("the typing indicator timing out", () => {
     vi.useRealTimers();
   }, 20000);
 });
-
-describe("a file the upload named nothing", () => {
-  it("sends it without inventing a name", async () => {
-    serve(h.api, {
-      ...routes,
-      // The upload succeeded but carries no filename back.
-      "/messaging/attachments": { fileUrl: "/uploads/messaging/x" },
-    });
-    h.chat.connected = true;
-    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
-    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-
-    const user = userEvent.setup({ delay: null });
-    await user.click(screen.getByText(/Aline/));
-    await screen.findByPlaceholderText(/type a message/i);
-
-    const picker = document.querySelector<HTMLInputElement>("#m-attach");
-    if (!picker) return;
-    await user.upload(picker, new File(["x"], "x.pdf", { type: "application/pdf" }));
-
-    // The chip appears with nothing written on it, which is the whole point:
-    // there is no name to write.
-    await waitFor(() =>
-      expect(h.api.post).toHaveBeenCalledWith(
-        "/messaging/attachments",
-        expect.anything(),
-        expect.anything(),
-      ),
-    );
-
-    h.api.post.mockClear();
-    const send = screen
-      .queryAllByRole("button")
-      .find((b) => /send/i.test(b.getAttribute("aria-label") ?? b.textContent ?? ""))!;
-    await user.click(send);
-
-    await waitFor(() => {
-      const call = h.api.post.mock.calls.find(([url]: any[]) =>
-        String(url).includes("/messaging/messages"),
-      );
-      expect(call).toBeTruthy();
-      // Empty, not the word "undefined".
-      expect((call![1] as any).content).toBe("");
-    });
-  });
-});
-
-/**
- * The inbox column. An unread thread is the reason somebody opens this page,
- * so it has to be findable without reading every row.
- */
 describe("how the inbox marks a thread", () => {
   const withConv = (over: Record<string, unknown>) => ({
     ...routes,
@@ -2042,6 +1686,57 @@ describe("runs of messages from one person", () => {
     const last = screen.getByText("another").closest("div")!;
     expect(first.className).not.toContain("rounded-bl-md");
     expect(last.className).toContain("rounded-bl-md");
+  });
+
+  // Your own run is drawn the same way, mirrored: the squared corner is on
+  // the other side.
+  it("squares the closing corner of your own run on your side", async () => {
+    await openWith([
+      at("m-2", "user-1", 1, "and this"),
+      at("m-1", "user-1", 0, "I said this"),
+    ]);
+    await screen.findByText("I said this");
+    const first = screen.getByText("I said this").closest("div")!;
+    const last = screen.getByText("and this").closest("div")!;
+    expect(first.className).not.toContain("rounded-br-md");
+    expect(last.className).toContain("rounded-br-md");
+    expect(last.className).toContain("bg-primary");
+  });
+
+  it("states the message's fate once for the run, not per message", async () => {
+    await openWith([
+      { ...at("m-2", "user-1", 1, "and this"), status: "READ" },
+      { ...at("m-1", "user-1", 0, "I said this"), status: "READ" },
+    ]);
+    await screen.findByText("I said this");
+    expect(screen.getAllByText("Read")).toHaveLength(1);
+  });
+
+  /**
+   * Send is the one control that must not be pressable when it would do
+   * nothing: a blank message posted to a parent is worse than no button.
+   */
+  it("will not send until something has been typed", async () => {
+    await openWith([at("m-1", "u-3", 0, "Muraho")]);
+    await screen.findByText("Muraho");
+    const send = screen.getByRole("button", { name: /send message/i });
+    expect(send).toBeDisabled();
+
+    const box = screen.getByPlaceholderText(/type a message/i);
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(box, { target: { value: "  " } });
+    expect(send).toBeDisabled();
+
+    fireEvent.change(box, { target: { value: "Murakoze" } });
+    expect(send).toBeEnabled();
+  });
+
+  // The chat carries words. Attachments were removed from it deliberately.
+  it("offers no way to attach a file", async () => {
+    await openWith([at("m-1", "u-3", 0, "Muraho")]);
+    await screen.findByText("Muraho");
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+    expect(screen.queryByText(/attach/i)).toBeNull();
   });
 
   it("names the sender in a group, where there is more than one", async () => {
