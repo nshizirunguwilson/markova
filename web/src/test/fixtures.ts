@@ -76,9 +76,32 @@ export const teachers = [
  * backend/src/common/dto/pagination.dto.ts. Naming the array anything else here
  * makes list pages render an empty table in tests while passing, which is worse
  * than no fixture at all.
+ *
+ * Each row carries its `student` (or `teacher`) the way `GET /users` really
+ * returns it — the record id, the id number and the class, all nested. Rows
+ * that were the bare user made anything reading `user.student.id` render an
+ * empty picker while its tests passed.
  */
 export const paginatedUsers = {
-  data: [...students.map((s) => s.user), ...teachers.map((t) => t.user)],
+  data: [
+    ...students.map((s) => ({
+      ...s.user,
+      student: {
+        id: s.id,
+        studentIdNumber: s.studentIdNumber,
+        classSectionId: s.classSectionId,
+        status: "ACTIVE",
+        classSection: s.classSection,
+        parentStudents: [],
+      },
+      teacher: null,
+    })),
+    ...teachers.map((t) => ({
+      ...t.user,
+      student: null,
+      teacher: { id: t.id, qualification: t.qualification },
+    })),
+  ],
   meta: { total: 3, page: 1, limit: 20, totalPages: 1 },
 };
 
