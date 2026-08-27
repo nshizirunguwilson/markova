@@ -76,6 +76,17 @@ export class PublishTermResultsDto {
   @ApiProperty() @IsBoolean() isPublished: boolean;
 }
 
+/**
+ * Issuing the report card is its own act, separate from releasing the marks:
+ * a school lets marks out as soon as they are checked and issues the document
+ * later, after deliberation and once the comments are written.
+ */
+export class PublishReportCardsDto {
+  @ApiProperty() @IsUUID() classSectionId: string;
+  @ApiProperty() @IsUUID() termId: string;
+  @ApiProperty() @IsBoolean() isPublished: boolean;
+}
+
 export class QueryMarksDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() studentId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() subjectId?: string;

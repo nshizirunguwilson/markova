@@ -25,6 +25,7 @@ import {
   useTermResults,
   useCalculateTermResults,
   usePublishTermResults,
+  usePublishReportCards,
 } from "@/hooks/use-marks";
 import {
   ClipboardList,
@@ -32,6 +33,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileText,
 } from "lucide-react";
 import api from "@/lib/api";
 import { toLocalDateString } from "@/lib/utils";
@@ -64,6 +66,7 @@ export default function AdminMarksPage() {
   const { data: results, isLoading } = useTermResults(selectedSection, selectedTerm);
   const calculateResults = useCalculateTermResults();
   const publishResults = usePublishTermResults();
+  const publishReportCards = usePublishReportCards();
 
   const handleExportCSV = () => {
     if (!results?.length) return;
@@ -89,6 +92,29 @@ export default function AdminMarksPage() {
   const partiallyPublished =
     !isPublished && results?.length > 0 && results.some((r: any) => r.isPublished);
 
+  /**
+   * Issuing the report cards is a separate decision from releasing the marks,
+   * so it carries its own state. A school routinely lets marks out as soon as
+   * they are checked and issues the document later, after deliberation.
+   */
+  const cardsIssued =
+    results?.length > 0 && results.every((r: any) => r.reportCardPublished);
+  const cardsPartlyIssued =
+    !cardsIssued &&
+    results?.length > 0 &&
+    results.some((r: any) => r.reportCardPublished);
+
+  // The most recent calculation across the class. Recalculating unchanged
+  // marks produces identical numbers, so this is the only thing that tells
+  // an admin the button did anything.
+  const lastCalculated = results?.length
+    ? results
+        .map((r: any) => r.calculatedAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1)
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -99,7 +125,7 @@ export default function AdminMarksPage() {
             <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            title="Re-reads every mark this class has for the selected term, works out each subject total, the average, the letter grade and the aggregate, then ranks the class. Run it after marks are entered or corrected."
+            title="Re-reads every mark this class has for this term and works out each subject total, the average, the letter grade, the aggregate and the class position. Run it after marks are entered or corrected. It does not make anything visible to students."
             onClick={() => {
               if (selectedSection && selectedTerm) {
                 calculateResults.mutate({ classSectionId: selectedSection, termId: selectedTerm });
@@ -190,7 +216,7 @@ export default function AdminMarksPage() {
 
       {/* Summary Stats */}
       {results && results.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <Card>
             <p className="text-xs text-muted">Students</p>
             <p className="text-2xl font-bold text-foreground">{results.length}</p>
@@ -213,25 +239,26 @@ export default function AdminMarksPage() {
               {Math.min(...results.map((r: any) => r.average || 0)).toFixed(1)}%
             </p>
           </Card>
+          {/* Two separate decisions, so two separate controls. Releasing the
+              marks lets a family see the figures; issuing the report card
+              hands them the document, which a school does later, after
+              deliberation and once the comments are written. */}
           <Card>
-            <p className="text-xs text-muted">Status</p>
-            {/* The state, then the button that changes it. This card used to
-                show the button alone, so a fully published class read
-                "Unpublish" and looked like it was reporting the opposite of
-                what was true. */}
+            <p className="text-xs text-muted">Marks</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
               {isPublished ? "Published" : partiallyPublished ? "Partly published" : "Draft"}
             </p>
             <div className="mt-2">
               <Button
-                aria-label={isPublished ? "Unpublish results" : "Publish results"}
+                aria-label={isPublished ? "Unpublish marks" : "Publish marks"}
                 size="sm"
                 variant={isPublished ? "danger" : "primary"}
                 onClick={() => {
-                  const msg = isPublished
-                    ? 'Are you sure you want to unpublish these results? They will no longer be visible to students and parents.'
-                    : 'Are you sure you want to publish these results? All students and parents will be able to view them.';
-                  setConfirmMessage(msg);
+                  setConfirmMessage(
+                    isPublished
+                      ? "Take these marks back? Students and parents will stop seeing their subject breakdown, average and position — and any report cards you have issued for this class are withdrawn with them."
+                      : "Release these marks? Every student in the class and their parents will be able to see their subject breakdown, average and position.",
+                  );
                   setConfirmAction(() => () => publishResults.mutate({
                     classSectionId: selectedSection,
                     termId: selectedTerm,
@@ -248,7 +275,69 @@ export default function AdminMarksPage() {
               </Button>
             </div>
           </Card>
+          <Card>
+            <p className="text-xs text-muted">Report cards</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {cardsIssued ? "Issued" : cardsPartlyIssued ? "Partly issued" : "Not issued"}
+            </p>
+            <div className="mt-2">
+              <Button
+                aria-label={cardsIssued ? "Withdraw report cards" : "Issue report cards"}
+                size="sm"
+                variant={cardsIssued ? "danger" : "primary"}
+                disabled={!cardsIssued && !isPublished}
+                title={
+                  !cardsIssued && !isPublished
+                    ? "Publish the marks first — a report card carries them"
+                    : undefined
+                }
+                onClick={() => {
+                  setConfirmMessage(
+                    cardsIssued
+                      ? "Withdraw these report cards? Students and parents will no longer be able to open the document. Their marks stay published."
+                      : "Issue these report cards? Every student in the class and their parents will be able to open and print the full document.",
+                  );
+                  setConfirmAction(() => () => publishReportCards.mutate({
+                    classSectionId: selectedSection,
+                    termId: selectedTerm,
+                    isPublished: !cardsIssued,
+                  }));
+                }}
+                isLoading={publishReportCards.isPending}
+              >
+                {cardsIssued ? (
+                  <><EyeOff className="mr-1 h-3 w-3" /> Withdraw</>
+                ) : (
+                  <><FileText className="mr-1 h-3 w-3" /> Issue</>
+                )}
+              </Button>
+            </div>
+          </Card>
         </div>
+      )}
+
+      {/* What the two buttons above actually do. The page showed results the
+          moment a class was picked, so Calculate looked like it did nothing:
+          the figures were already worked out. Saying when, and saying plainly
+          that calculating is not publishing, is what was missing. */}
+      {results && results.length > 0 && (
+        <Card padding="sm">
+          <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-muted">
+              <strong className="text-foreground">Calculate Results</strong> works
+              out totals, grades and positions from the marks teachers have
+              entered. It changes nothing a family can see.{" "}
+              <strong className="text-foreground">Publish</strong> releases the
+              marks; <strong className="text-foreground">Issue</strong> hands
+              over the report card.
+            </p>
+            <p className="shrink-0 text-xs text-muted">
+              {lastCalculated
+                ? `Last worked out ${new Date(lastCalculated).toLocaleString()}`
+                : "Not worked out yet"}
+            </p>
+          </div>
+        </Card>
       )}
 
       {/* Results Table */}
@@ -340,13 +429,17 @@ export default function AdminMarksPage() {
           <p className="text-center text-muted py-8">
             Select a class level, section, and term to view results.
           </p>
-          <p className="mx-auto max-w-xl text-center text-xs text-muted">
-            <strong>Calculate Results</strong> re-reads every mark the class has
-            for the chosen term, works out each subject total, the average, the
-            letter grade and the aggregate, then ranks the class.
-            <strong> Publish</strong> is what makes those results visible to
-            students and parents.
-          </p>
+          <div className="mx-auto max-w-xl text-center text-xs text-muted">
+            <p className="mb-2 font-medium text-foreground">How a term’s results reach a family</p>
+            <p>
+              Teachers enter marks. <strong>Calculate Results</strong> turns
+              those into subject totals, averages, grades and class positions —
+              visible to staff only. <strong>Publish</strong> releases the marks
+              to students and parents. <strong>Issue</strong> then hands over the
+              report card itself, which most schools do later, after
+              deliberation.
+            </p>
+          </div>
         </Card>
       )}
 

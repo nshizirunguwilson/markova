@@ -1,4 +1,9 @@
-import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 /**
@@ -127,5 +132,74 @@ describe('HttpExceptionFilter', () => {
         undefined,
       );
     });
+  });
+});
+
+/**
+ * A unique-constraint clash reaching the filter.
+ *
+ * Services are expected to check first and refuse with a message naming the
+ * holder. When one forgets, Prisma's P2002 used to fall through as a raw 500
+ * reading "An unexpected error occurred" — which tells an admin nothing and
+ * looks like an outage rather than a duplicate they can fix.
+ */
+describe('a duplicate value that reached the filter', () => {
+  const run = (exception: unknown) => {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => ({ method: 'PUT', url: '/api/users/u-1' }),
+      }),
+    } as never;
+    new HttpExceptionFilter().catch(exception, host);
+    return { status, body: json.mock.calls[0]?.[0] };
+  };
+
+  it('answers 409 rather than 500', () => {
+    const { status, body } = run({ code: 'P2002', meta: { target: ['email'] } });
+    expect(status).toHaveBeenCalledWith(409);
+    expect(body.error).toBe('Conflict');
+  });
+
+  it('names the field that collided', () => {
+    const { body } = run({ code: 'P2002', meta: { target: ['email'] } });
+    expect(body.message).toMatch(/email is already taken/);
+  });
+
+  it('names every field of a composite clash', () => {
+    const { body } = run({
+      code: 'P2002',
+      meta: { target: ['name', 'trade_id'] },
+    });
+    expect(body.message).toMatch(/name and trade_id/);
+  });
+
+  // Prisma reports the target as a string on some connectors.
+  it('copes with a target given as a plain string', () => {
+    const { body } = run({ code: 'P2002', meta: { target: 'phone' } });
+    expect(body.message).toMatch(/phone is already taken/);
+  });
+
+  it('still answers when Prisma names no field at all', () => {
+    const { status, body } = run({ code: 'P2002' });
+    expect(status).toHaveBeenCalledWith(409);
+    expect(body.message).toMatch(/already taken/);
+  });
+
+  // Anything that is not P2002 keeps the old behaviour.
+  it('leaves an unrelated failure as a 500', () => {
+    const { status } = run(new Error('database is on fire'));
+    expect(status).toHaveBeenCalledWith(500);
+  });
+
+  // An explicit HttpException from a service must still win, so the message
+  // naming the holder is not replaced by the generic one.
+  it('lets a service’s own conflict message through untouched', () => {
+    const { body } = run(
+      new ConflictException('Email address a@b.c already belongs to Aline Uwase'),
+    );
+    expect(body.message).toMatch(/already belongs to Aline Uwase/);
   });
 });

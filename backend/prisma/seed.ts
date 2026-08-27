@@ -2097,6 +2097,8 @@ async function main() {
   for (const meta of sectionMetas) {
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
+    // The term in progress stays a draft; everything before it is finished.
+    const isCurrentResultTerm = term.id === currentTerm.id;
 
     for (const student of classStudents) {
       const rows = marksByStudentTerm.get(`${student.id}|${term.id}`) ?? [];
@@ -2140,7 +2142,18 @@ async function main() {
         letterGrade: overallGrade(average).letter,
         aggregate,
         aggregateMax,
-        isPublished: true,
+        calculatedAt: new Date(),
+        /**
+         * Past terms are finished business: marks out, report cards issued.
+         * The term in progress is left as a draft so the demo shows the
+         * pipeline honestly — an admin can work out the results, release the
+         * marks, then issue the cards, and watch a student's page change at
+         * each step. Publishing everything up front hid the whole flow.
+         */
+        isPublished: !isCurrentResultTerm,
+        publishedAt: isCurrentResultTerm ? null : new Date(),
+        reportCardPublished: !isCurrentResultTerm,
+        reportCardPublishedAt: isCurrentResultTerm ? null : new Date(),
       });
     }
 

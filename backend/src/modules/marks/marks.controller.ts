@@ -22,6 +22,7 @@ import {
   CalculateYearResultDto,
   UpdateTermResultCommentDto,
   PublishTermResultsDto,
+  PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
@@ -131,7 +132,8 @@ export class MarksController {
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
-    return this.service.getStudentTermResult(studentId, termId);
+    // The role decides whether unpublished figures come back at all.
+    return this.service.getStudentTermResult(studentId, termId, user.role);
   }
 
   @Put('term-results/:id/comment')
@@ -142,6 +144,15 @@ export class MarksController {
     @Body() dto: UpdateTermResultCommentDto,
   ) {
     return this.service.updateTermResultComment(id, dto);
+  }
+
+  @Post('report-cards/publish')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Issue or withdraw the report cards for a class',
+  })
+  publishReportCards(@Body() dto: PublishReportCardsDto) {
+    return this.service.publishReportCards(dto);
   }
 
   @Post('term-results/publish')
@@ -193,6 +204,14 @@ export class MarksController {
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
-    return this.service.getReportCardData(studentId, termId);
+    // A student or a parent sees the card only once the school has issued it,
+    // which is a separate decision from releasing the marks. Staff always see
+    // it: they have to read the thing before issuing it.
+    if (user.role === 'STUDENT' || user.role === 'PARENT') {
+      const issued = await this.service.isReportCardIssued(studentId, termId);
+      if (!issued) return { issued: false };
+    }
+    const card = await this.service.getReportCardData(studentId, termId);
+    return { issued: true, ...card };
   }
 }

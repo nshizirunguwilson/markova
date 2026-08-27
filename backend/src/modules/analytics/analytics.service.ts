@@ -375,7 +375,28 @@ export class AnalyticsService {
   // STUDENT PROFILE ANALYTICS (admin/teacher view: subjects × terms × year)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getStudentProfileAnalytics(studentId: string) {
+  /**
+   * The terms whose marks this student is allowed to see.
+   *
+   * Analytics reads raw marks rather than the calculated results, so it
+   * bypassed publication entirely: a student could open their own Analytics
+   * page and read subject scores the school had not released, days before
+   * they appeared anywhere else. Staff are unrestricted — checking figures
+   * before release is the point of a draft.
+   */
+  private async releasedTermIds(
+    studentId: string,
+    viewerRole?: string,
+  ): Promise<string[] | null> {
+    if (viewerRole !== 'STUDENT' && viewerRole !== 'PARENT') return null;
+    const published = await this.prisma.termResult.findMany({
+      where: { studentId, isPublished: true },
+      select: { termId: true },
+    });
+    return published.map((r) => r.termId);
+  }
+
+  async getStudentProfileAnalytics(studentId: string, viewerRole?: string) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
       include: {
@@ -392,9 +413,14 @@ export class AnalyticsService {
     });
     if (!student) throw new NotFoundException('Student not found');
 
+    const releasedTerms = await this.releasedTermIds(studentId, viewerRole);
+
     const [marks, ownResults, attendance] = await Promise.all([
       this.prisma.mark.findMany({
-        where: { studentId },
+        where: {
+          studentId,
+          ...(releasedTerms ? { termId: { in: releasedTerms } } : {}),
+        },
         include: {
           subject: { select: { name: true, scope: true } },
           assessmentType: { select: { name: true } },
@@ -645,12 +671,24 @@ export class AnalyticsService {
   // STUDENT ANALYTICS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getStudentAnalytics(studentId: string, termId: string) {
+  async getStudentAnalytics(
+    studentId: string,
+    termId: string,
+    viewerRole?: string,
+  ) {
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
       include: { classSection: true },
     });
     if (!student) return null;
+
+    // Nothing to analyse from a term the school has not released. Answering
+    // with an empty term rather than throwing keeps this an ordinary empty
+    // state on the page.
+    const releasedTerms = await this.releasedTermIds(studentId, viewerRole);
+    if (releasedTerms && !releasedTerms.includes(termId)) {
+      return { published: false, subjects: [], average: null, trend: [] };
+    }
 
     // Student's marks by subject
     const marks = await this.prisma.mark.findMany({

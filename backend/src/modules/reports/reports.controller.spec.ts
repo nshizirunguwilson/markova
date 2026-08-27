@@ -23,6 +23,7 @@ describe('ReportsController', () => {
     'getTermReportData',
     'generateTermReportHtml',
     'generateTermReportPdf',
+    'isReportCardIssued',
     'generateClassReportCards',
     'getYearReportData',
     'generateDocument',
@@ -47,6 +48,9 @@ describe('ReportsController', () => {
   beforeEach(async () => {
     clearMocks(service, ownership);
     service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF-1.4'));
+    // Issued by default so the route cases exercise the normal path; the
+    // gate has its own describe below.
+    service.isReportCardIssued.mockResolvedValue(true);
     service.generateDocumentPdf.mockResolvedValue({
       pdf: Buffer.from('%PDF-1.4'),
       title: 'Transfer Letter - Tracy Isaro',
@@ -310,5 +314,90 @@ describe('VerifyController', () => {
       calls: 'verifyCardByCode',
       withArgs: ['7HK2M9PQ'],
     });
+  });
+});
+
+/**
+ * A report card a student is not meant to have yet.
+ *
+ * Issuing the card is a separate decision from releasing the marks, and these
+ * three routes hand over the very same document — as data, as a page and as a
+ * PDF. Gating one and not the others would leave the other two as open doors.
+ */
+describe('a report card that has not been issued', () => {
+  const service = mockService([
+    'getTermReportData',
+    'generateTermReportHtml',
+    'generateTermReportPdf',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+
+  const res = () => ({ set: jest.fn(), end: jest.fn() });
+  const build = () =>
+    buildController(ReportsController, [
+      { token: ReportsService, name: 'service', mock: service },
+      { token: OwnershipService, name: 'ownership', mock: ownership },
+    ]);
+
+  beforeEach(() => {
+    clearMocks(service, ownership);
+    service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF'));
+    service.isReportCardIssued.mockResolvedValue(false);
+  });
+
+  it.each(['STUDENT', 'PARENT'])('refuses the data to %s', async (role) => {
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role }),
+    ).rejects.toThrow(/has not been issued yet/);
+    expect(service.getTermReportData).not.toHaveBeenCalled();
+  });
+
+  it.each(['STUDENT', 'PARENT'])('refuses the page to %s', async (role) => {
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReportHtml('student-1', 'term-1', { id: 'u-1', role }),
+    ).rejects.toThrow(/has not been issued yet/);
+    expect(service.generateTermReportHtml).not.toHaveBeenCalled();
+  });
+
+  // The PDF is the same document by another route, and the one most worth
+  // closing: it is the file that gets forwarded on.
+  it.each(['STUDENT', 'PARENT'])('refuses the PDF to %s', async (role) => {
+    const ctl: any = await build();
+    const r = res();
+    await expect(
+      ctl.getTermReportPdf('student-1', 'term-1', r, { id: 'u-1', role }),
+    ).rejects.toThrow(/has not been issued yet/);
+    expect(service.generateTermReportPdf).not.toHaveBeenCalled();
+    expect(r.end).not.toHaveBeenCalled();
+  });
+
+  it.each(['ADMIN', 'TEACHER'])('never gates %s', async (role) => {
+    const ctl: any = await build();
+    await ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role });
+    expect(service.isReportCardIssued).not.toHaveBeenCalled();
+    expect(service.getTermReportData).toHaveBeenCalled();
+  });
+
+  it('hands it over once the school has issued it', async () => {
+    service.isReportCardIssued.mockResolvedValue(true);
+    const ctl: any = await build();
+    await ctl.getTermReport('student-1', 'term-1', {
+      id: 'u-1',
+      role: 'STUDENT',
+    });
+    expect(service.getTermReportData).toHaveBeenCalled();
+  });
+
+  // Whose child it is stays the first question; the gate is about timing.
+  it('checks whose student it is before asking about issuing', async () => {
+    ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
+    ).rejects.toThrow();
+    expect(service.isReportCardIssued).not.toHaveBeenCalled();
   });
 });

@@ -89,9 +89,17 @@ export function useCalculateTermResults() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: Payload) => (await api.post("/marks/term-results/calculate", data)).data,
+    // Says what it did, not just that it ran. Recalculating an unchanged
+    // class produces identical numbers, so without a count the button looks
+    // like it does nothing at all.
     onSuccess: (data: Payload) => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
-      toast.success(`Calculated results for ${data.count} students`);
+      const n = Number(data?.count ?? 0);
+      toast.success(
+        n === 0
+          ? "No marks recorded for this class yet, so there was nothing to work out"
+          : `Worked out totals, grades and positions for ${n} student${n === 1 ? "" : "s"}`,
+      );
     },
     onError: (e: unknown) => toast.error(errorMessage(e, "Calculation failed")),
   });
@@ -114,6 +122,31 @@ export function usePublishTermResults() {
       );
     },
     onError: (e: unknown) => toast.error(errorMessage(e, "Publish failed")),
+  });
+}
+
+/**
+ * Issue or withdraw a class's report cards.
+ *
+ * Separate from publishing the marks: a school releases marks as soon as they
+ * are checked and issues the formal document later, after deliberation and
+ * once the head teacher's comments are written.
+ */
+export function usePublishReportCards() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Payload) =>
+      (await api.post("/marks/report-cards/publish", data)).data,
+    onSuccess: (_data: unknown, variables: Payload) => {
+      qc.invalidateQueries({ queryKey: ["term-results"] });
+      toast.success(
+        variables?.isPublished === false
+          ? "Report cards withdrawn — students and parents can no longer open them"
+          : "Report cards issued — students and parents can now open them",
+      );
+    },
+    onError: (e: unknown) =>
+      toast.error(errorMessage(e, "Could not change the report cards")),
   });
 }
 

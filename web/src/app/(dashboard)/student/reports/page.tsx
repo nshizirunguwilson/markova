@@ -14,7 +14,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
-import { Download, Eye, FileText, Printer } from "lucide-react";
+import { Clock, Download, Eye, FileText, Printer } from "lucide-react";
 
 export default function StudentReportsPage() {
   const { user } = useAuthStore();
@@ -24,7 +24,14 @@ export default function StudentReportsPage() {
 
   const { data: years } = useAcademicYears();
   const { data: terms } = useTerms(yearId);
-  const { data: report, isLoading } = useTermReport(studentId, termId);
+  const { data: report, isLoading, error } = useTermReport(studentId, termId);
+  /**
+   * Issuing the report card is a decision the school takes after the marks
+   * are out, so the API refuses it until then. That is a normal state, not a
+   * fault — this reads as "not issued yet" rather than an error the student
+   * has to interpret.
+   */
+  const notIssued = (error as any)?.response?.status === 403;
   const [officialHtml, setOfficialHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "view" | "print" | "download">("");
 
@@ -34,8 +41,12 @@ export default function StudentReportsPage() {
         params: { termId },
       });
       return res.data;
-    } catch {
-      toast.error("Could not load the official report card");
+    } catch (e: any) {
+      toast.error(
+        e?.response?.status === 403
+          ? "Your report card has not been issued yet"
+          : "Could not load the official report card",
+      );
       return null;
     }
   };
@@ -98,6 +109,21 @@ export default function StudentReportsPage() {
       </div>
 
       {isLoading && <div className="text-center py-8"><Spinner /></div>}
+
+      {notIssued && !isLoading && (
+        <Card>
+          <div className="py-10 text-center">
+            <Clock className="mx-auto mb-3 h-8 w-8 text-muted opacity-50" />
+            <p className="font-medium text-foreground">
+              Your report card for this term has not been issued yet
+            </p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+              The school issues report cards once results have been finalised.
+              It will appear here, ready to read and print, as soon as it does.
+            </p>
+          </div>
+        </Card>
+      )}
 
       {report && (
         <Card className="p-6 space-y-4">

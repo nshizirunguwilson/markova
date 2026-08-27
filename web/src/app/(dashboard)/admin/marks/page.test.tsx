@@ -132,7 +132,14 @@ function button(name: RegExp) {
  * "Unpublish" looked like it was reporting the opposite of the truth.
  */
 function statusButton() {
-  return screen.getByRole("button", { name: /(un)?publish results/i });
+  return screen.getByRole("button", { name: /(un)?publish marks/i });
+}
+
+/** Issuing the report card is a separate decision, so a separate control. */
+function reportCardButton() {
+  return screen.getByRole("button", {
+    name: /(issue|withdraw) report cards/i,
+  });
 }
 
 describe("a class's results", () => {
@@ -187,7 +194,7 @@ describe("publishing a class's results", () => {
     await click(statusButton());
 
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toMatch(/students and parents will be able to view/i);
+    expect(dialog.textContent).toMatch(/parents will be able to see/i);
   });
 
   it("publishes nothing when the ask is dismissed", async () => {
@@ -239,7 +246,7 @@ describe("taking published results back", () => {
     await click(statusButton());
 
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toMatch(/no longer be visible/i);
+    expect(dialog.textContent).toMatch(/stop seeing/i);
   });
 
   it("unpublishes rather than publishing again", async () => {
@@ -269,7 +276,64 @@ describe("taking published results back", () => {
     await click(statusButton());
 
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toMatch(/will be able to view/i);
+    expect(dialog.textContent).toMatch(/will be able to see/i);
+  });
+
+  /**
+   * Releasing marks and issuing the report card are two decisions, so the
+   * page carries two controls. A school routinely lets marks out as soon as
+   * they are checked and issues the document later, after deliberation.
+   */
+  describe("issuing the report cards", () => {
+    it("offers it as its own control", async () => {
+      await mount(published);
+      expect(reportCardButton()).toBeInTheDocument();
+    });
+
+    // The card carries the marks, so it cannot go out before them.
+    it("refuses to issue while the marks are still a draft", async () => {
+      await mount();
+      expect(reportCardButton()).toBeDisabled();
+    });
+
+    it("allows issuing once the marks are published", async () => {
+      await mount(published);
+      expect(reportCardButton()).not.toBeDisabled();
+    });
+
+    it("asks before issuing, and says what it means", async () => {
+      await mount(published);
+      await click(reportCardButton());
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog.textContent).toMatch(/open and print the full document/i);
+    });
+
+    it("issues the chosen class and term once confirmed", async () => {
+      await mount(published);
+      await click(reportCardButton());
+      h.api.post.mockClear();
+      await click(
+        screen.getAllByRole("button").find((b) => /^confirm$/i.test(b.textContent ?? "")),
+      );
+
+      await waitFor(() => {
+        const call = h.api.post.mock.calls.find(([url]: any[]) =>
+          String(url).includes("report-cards/publish"),
+        );
+        expect(call).toBeTruthy();
+        expect((call![1] as any).isPublished).toBe(true);
+      });
+    });
+
+    // Withdrawing the document leaves the marks alone — they are separate.
+    it("withdraws an issued card without touching the marks", async () => {
+      await mount(published.map((r: any) => ({ ...r, reportCardPublished: true })));
+      await click(reportCardButton());
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog.textContent).toMatch(/marks stay published/i);
+    });
   });
 });
 

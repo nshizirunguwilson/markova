@@ -1190,3 +1190,90 @@ describe('a profile assembled from thin records', () => {
     expect(profile.terms[0].classAverage).toBe(80);
   });
 });
+
+/**
+ * Analytics reads raw marks, not calculated results — so it walked straight
+ * past publication. A student could open their own Analytics page and read
+ * subject scores the school had not released, days before those scores
+ * appeared anywhere else in the app.
+ */
+describe('analytics a student may not see yet', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AnalyticsService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AnalyticsService(prisma, {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn(),
+    } as unknown as RedisService);
+    prisma.student.findUnique.mockResolvedValue({
+      id: 'student-1',
+      classSectionId: 'section-1',
+      disciplinePoints: 100,
+      classSection: {
+        id: 'section-1',
+        name: 'B',
+        classLevel: { name: 'Level 5', stage: 'A_LEVEL' },
+        trade: { code: 'TOR', name: 'Tourism' },
+      },
+      user: { firstName: 'Aidan', lastName: 'Cyusa' },
+    });
+    prisma.mark.findMany.mockResolvedValue([]);
+    prisma.termResult.findMany.mockResolvedValue([]);
+    prisma.attendance.findMany.mockResolvedValue([]);
+    prisma.termResult.findFirst.mockResolvedValue(null);
+    // The analytics walk on to compare the student against their classmates.
+    prisma.student.findMany.mockResolvedValue([]);
+    prisma.homeworkSubmission.findMany.mockResolvedValue([]);
+    prisma.disciplineIncident.findMany.mockResolvedValue([]);
+  });
+
+  it.each(['STUDENT', 'PARENT'])(
+    'gives %s nothing for a term that is not released',
+    async (role) => {
+      prisma.termResult.findMany.mockResolvedValue([]);
+      const out = await service.getStudentAnalytics(
+        'student-1',
+        'term-1',
+        role,
+      );
+      expect(out).toMatchObject({ published: false, subjects: [] });
+      expect(prisma.mark.findMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('gives a student the term once it is released', async () => {
+    prisma.termResult.findMany.mockResolvedValue([{ termId: 'term-1' }]);
+    await service.getStudentAnalytics('student-1', 'term-1', 'STUDENT');
+    expect(prisma.mark.findMany).toHaveBeenCalled();
+  });
+
+  // Staff read drafts deliberately: checking figures before release is the
+  // whole point of an unpublished result.
+  it.each(['ADMIN', 'TEACHER'])('never withholds from %s', async (role) => {
+    await service.getStudentAnalytics('student-1', 'term-1', role);
+    expect(prisma.mark.findMany).toHaveBeenCalled();
+  });
+
+  // The profile spans every term, so it filters rather than refusing.
+  it('narrows the profile to released terms for a student', async () => {
+    prisma.termResult.findMany.mockResolvedValue([{ termId: 'term-1' }]);
+    await service.getStudentProfileAnalytics('student-1', 'STUDENT');
+    const where = prisma.mark.findMany.mock.calls[0][0].where;
+    expect(where.termId).toEqual({ in: ['term-1'] });
+  });
+
+  it('leaves the profile unfiltered for staff', async () => {
+    await service.getStudentProfileAnalytics('student-1', 'ADMIN');
+    const where = prisma.mark.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('termId');
+  });
+
+  it('shows a student nothing when no term has been released', async () => {
+    prisma.termResult.findMany.mockResolvedValue([]);
+    await service.getStudentProfileAnalytics('student-1', 'PARENT');
+    const where = prisma.mark.findMany.mock.calls[0][0].where;
+    expect(where.termId).toEqual({ in: [] });
+  });
+});

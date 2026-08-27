@@ -2,6 +2,7 @@ import { MarksController } from './marks.controller';
 import { MarksService } from './marks.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
+  buildController,
   clearMocks,
   controllerHarness,
   mockService,
@@ -36,6 +37,7 @@ describe('MarksController', () => {
     'getYearResults',
     'getStudentYearResult',
     'getReportCardData',
+    'isReportCardIssued',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
 
@@ -45,6 +47,10 @@ describe('MarksController', () => {
 
   beforeEach(async () => {
     clearMocks(service, ownership);
+    // Issued by default, so the route cases exercise the normal path; the
+    // gate itself is checked in its own describe below.
+    service.isReportCardIssued.mockResolvedValue(true);
+    service.getReportCardData.mockResolvedValue({ school: {} });
     run = await controllerHarness(MarksController, [
       { token: MarksService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
@@ -112,7 +118,9 @@ describe('MarksController', () => {
       name: 'one student’s term result',
       call: (c) => c.getStudentTermResult('student-1', 'term-1', parent),
       calls: 'getStudentTermResult',
-      withArgs: ['student-1', 'term-1'],
+      // The viewer's role travels too: it decides whether unpublished
+      // figures come back at all.
+      withArgs: ['student-1', 'term-1', 'PARENT'],
     },
     {
       name: 'a class teacher’s comment',
@@ -201,5 +209,109 @@ describe('MarksController', () => {
       ).rejects.toThrow();
       expect(service.getReportCardData).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * What a student is allowed to see before the school has released it.
+ *
+ * The route always checked that the right family was asking. It never checked
+ * whether the school had published anything — so a term appeared on a
+ * student's page the moment a teacher typed the marks in, days before the
+ * school meant to release them.
+ */
+describe('results a student may not see yet', () => {
+  const service = mockService([
+    'getStudentTermResult',
+    'getReportCardData',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+
+  const build = () =>
+    buildController(MarksController, [
+      { token: MarksService, name: 'service', mock: service },
+      { token: OwnershipService, name: 'ownership', mock: ownership },
+    ]);
+
+  beforeEach(() => {
+    clearMocks(service, ownership);
+    service.getReportCardData.mockResolvedValue({ school: {} });
+  });
+
+  it.each(['STUDENT', 'PARENT'])(
+    'passes %s along so the service can withhold unpublished marks',
+    async (role) => {
+      const ctl: any = await build();
+      await ctl.getStudentTermResult('student-1', 'term-1', {
+        id: 'u-1',
+        role,
+      });
+      expect(service.getStudentTermResult).toHaveBeenCalledWith(
+        'student-1',
+        'term-1',
+        role,
+      );
+    },
+  );
+
+  // Staff read drafts on purpose: checking the figures before releasing them
+  // is the entire point of an unpublished result.
+  it.each(['ADMIN', 'TEACHER'])('lets %s read a draft', async (role) => {
+    const ctl: any = await build();
+    await ctl.getStudentTermResult('student-1', 'term-1', { id: 'u-1', role });
+    expect(service.getStudentTermResult).toHaveBeenCalledWith(
+      'student-1',
+      'term-1',
+      role,
+    );
+  });
+
+  it.each(['STUDENT', 'PARENT'])(
+    'withholds the report card from %s until it is issued',
+    async (role) => {
+      service.isReportCardIssued.mockResolvedValue(false);
+      const ctl: any = await build();
+
+      const out = await ctl.getReportCard('student-1', 'term-1', {
+        id: 'u-1',
+        role,
+      });
+
+      expect(out).toEqual({ issued: false });
+      expect(service.getReportCardData).not.toHaveBeenCalled();
+    },
+  );
+
+  it('hands over the card once it has been issued', async () => {
+    service.isReportCardIssued.mockResolvedValue(true);
+    const ctl: any = await build();
+
+    const out = await ctl.getReportCard('student-1', 'term-1', {
+      id: 'u-1',
+      role: 'STUDENT',
+    });
+
+    expect(out.issued).toBe(true);
+    expect(service.getReportCardData).toHaveBeenCalled();
+  });
+
+  // Staff never hit the gate: they have to read the card before issuing it.
+  it.each(['ADMIN', 'TEACHER'])('never gates the card for %s', async (role) => {
+    const ctl: any = await build();
+    await ctl.getReportCard('student-1', 'term-1', { id: 'u-1', role });
+    expect(service.isReportCardIssued).not.toHaveBeenCalled();
+    expect(service.getReportCardData).toHaveBeenCalled();
+  });
+
+  // Ownership is still the first question: the gate is about timing, not
+  // about whose child it is.
+  it('checks whose student it is before anything else', async () => {
+    ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('Forbidden'));
+    const ctl: any = await build();
+    await expect(
+      ctl.getReportCard('student-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
+    ).rejects.toThrow();
+    expect(service.isReportCardIssued).not.toHaveBeenCalled();
   });
 });

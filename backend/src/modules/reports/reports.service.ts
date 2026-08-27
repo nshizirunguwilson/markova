@@ -370,6 +370,22 @@ export class ReportsService implements OnModuleDestroy {
     return this.renderTermReportHtml(data, await this.verificationQr(data));
   }
 
+  /**
+   * Has the school issued this student's report card for this term?
+   *
+   * The marks module gates its own report card route on this, and these
+   * routes have to ask the same question: a student who cannot open the card
+   * on one page must not be able to fetch the very same document as HTML or
+   * PDF from another.
+   */
+  async isReportCardIssued(studentId: string, termId: string) {
+    const issued = await this.prisma.termResult.findFirst({
+      where: { studentId, termId, reportCardPublished: true },
+      select: { id: true },
+    });
+    return !!issued;
+  }
+
   async generateTermReportPdf(
     studentId: string,
     termId: string,

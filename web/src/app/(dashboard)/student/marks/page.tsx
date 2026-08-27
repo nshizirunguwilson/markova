@@ -5,7 +5,7 @@ import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, Clock, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function StudentMarksPage() {
@@ -23,6 +23,13 @@ export default function StudentMarksPage() {
   const { data, isLoading } = useStudentTermResult(studentId, selectedTerm);
   const result = data?.result;
   const marks = data?.marks || [];
+  /**
+   * The school releases marks when it is ready to, which is not the moment a
+   * teacher types them in. Until then the API withholds them and says so, and
+   * this reads as a normal "not out yet" rather than an empty page that looks
+   * like the marks were lost.
+   */
+  const notReleased = !!data && data.published === false;
 
   // Group marks by subject
   const subjectMap = useMemo(() => {
@@ -131,6 +138,19 @@ export default function StudentMarksPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </Card>
+          ) : notReleased ? (
+            <Card>
+              <div className="py-10 text-center">
+                <Clock className="mx-auto mb-3 h-8 w-8 text-muted opacity-50" />
+                <p className="font-medium text-foreground">
+                  Your results for this term have not been released yet
+                </p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                  Your teachers may still be entering or checking marks. They
+                  will appear here as soon as the school publishes them.
+                </p>
               </div>
             </Card>
           ) : selectedTerm ? (

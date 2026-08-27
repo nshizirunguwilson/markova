@@ -22,7 +22,31 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let error = 'Internal Server Error';
     let errors: string[] | undefined;
 
-    if (exception instanceof HttpException) {
+    /**
+     * A unique-constraint clash is the user's mistake, not the server's.
+     *
+     * Prisma raises P2002 when two rows collide on a unique column — a second
+     * account on one email, two students given one card number. Services are
+     * expected to check first and refuse with a message naming the holder,
+     * but any route that forgets used to return a raw 500 reading "An
+     * unexpected error occurred", which tells an admin nothing and looks like
+     * an outage. This is the backstop: the right status, and the field that
+     * actually collided.
+     */
+    const prisma = exception as { code?: string; meta?: { target?: unknown } };
+    if (!(exception instanceof HttpException) && prisma?.code === 'P2002') {
+      const target = prisma.meta?.target;
+      const fields = Array.isArray(target)
+        ? target.map(String)
+        : typeof target === 'string'
+          ? [target]
+          : [];
+      status = HttpStatus.CONFLICT;
+      error = 'Conflict';
+      message = fields.length
+        ? `That ${fields.join(' and ')} is already taken`
+        : 'That value is already taken';
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
       if (typeof exceptionResponse === 'string') {

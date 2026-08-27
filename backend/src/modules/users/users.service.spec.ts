@@ -616,6 +616,69 @@ describe('UsersService', () => {
         expect(prisma.user.update).toHaveBeenCalled();
       });
     });
+
+    /**
+     * Email and phone are unique and they are how people sign in.
+     *
+     * `create` has always refused a clash; `update` did not, so editing
+     * somebody onto an address another account held raised a raw Prisma
+     * unique-constraint error that reached the browser as "An unexpected
+     * error occurred" — with a 500 in the server log and nothing an admin
+     * could act on.
+     */
+    describe('an email or phone another account already holds', () => {
+      const asSomeoneElse = () =>
+        prisma.user.findFirst.mockResolvedValue({
+          firstName: 'Aline',
+          lastName: 'Uwase',
+        });
+
+      it('refuses a duplicate email and names who holds it', async () => {
+        asTeacher();
+        asSomeoneElse();
+        await expect(
+          service.update('user-1', { email: 'a.uwase@markova.edu' }),
+        ).rejects.toThrow(/already belongs to Aline Uwase/);
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it('refuses a duplicate phone and names who holds it', async () => {
+        asTeacher();
+        asSomeoneElse();
+        await expect(
+          service.update('user-1', { phone: '+250788100000' }),
+        ).rejects.toThrow(/already belongs to Aline Uwase/);
+      });
+
+      it('answers 409 rather than a server error', async () => {
+        asTeacher();
+        asSomeoneElse();
+        await expect(
+          service.update('user-1', { email: 'taken@markova.edu' }),
+        ).rejects.toBeInstanceOf(ConflictException);
+      });
+
+      // Saving a profile without touching the address must not trip over the
+      // account's own email.
+      it('lets someone keep the address they already have', async () => {
+        asTeacher();
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { email: 'their.own@markova.edu' });
+        expect(prisma.user.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: { not: 'user-1' } }),
+          }),
+        );
+        expect(prisma.user.update).toHaveBeenCalled();
+      });
+
+      it('checks nothing when neither was sent', async () => {
+        asTeacher();
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { firstName: 'Aline' });
+        expect(prisma.user.findFirst).not.toHaveBeenCalled();
+      });
+    });
   });
 
   /**

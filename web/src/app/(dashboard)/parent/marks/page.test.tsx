@@ -307,3 +307,43 @@ describe("a parent whose account carries no id", () => {
     ).toBe(false);
   });
 });
+
+/**
+ * Marks a school has not released.
+ *
+ * The API withholds them and says so. A parent landing on that should read a
+ * plain explanation, not an empty page that looks like their child's marks
+ * went missing.
+ */
+describe("results the school has not released", () => {
+  const single = parentWith({ id: "student-1", first: "Keza", last: "Uwimana" });
+  const withheld = { result: null, marks: [], published: false };
+
+  it("says so rather than showing an empty page", async () => {
+    mount(single, withheld);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/have not been released yet/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("explains why, so it does not read as a fault", async () => {
+    mount(single, withheld);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/still be entering or checking marks/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  // "No marks found" is a different statement: it means the term is empty,
+  // not that the school is holding the marks back.
+  it("does not confuse it with a term that has no marks", async () => {
+    mount(single, withheld);
+    await waitFor(() =>
+      expect(screen.getByText(/have not been released yet/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/no marks found/i)).toBeNull();
+  });
+});

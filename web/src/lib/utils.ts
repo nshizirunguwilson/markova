@@ -25,6 +25,26 @@ export function classDisplayName(
     .join(" ");
 }
 
+/**
+ * A section's name within a level that has already been chosen: "A" at
+ * O-Level, "SWD A" where the section belongs to a trade.
+ *
+ * Every A-Level level runs one section per trade, so a picker that lists the
+ * bare `name` shows "A, A, A, A, B, B, B, B" and there is no way to tell the
+ * software developers from the tourism students. The level itself is left out
+ * because these lists always sit under a level picker; use
+ * `classDisplayName` where the level is not already established.
+ */
+export function sectionLabel(
+  section:
+    | { name?: string | null; trade?: { code?: string | null } | null }
+    | null
+    | undefined,
+): string {
+  if (!section) return "";
+  return [section.trade?.code, section.name].filter(Boolean).join(" ");
+}
+
 /** Format a Date to YYYY-MM-DD using local timezone (avoids UTC shift from toISOString). */
 export function toLocalDateString(date: Date): string {
   const y = date.getFullYear();
