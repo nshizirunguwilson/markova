@@ -19,7 +19,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff, Paperclip, Users, X, Download } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { deliveryTick, formatLastSeen } from "@/lib/presence";
+import { deliveryTick, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 
 /**
  * How far from the bottom of the thread still counts as "reading the latest".
@@ -262,13 +262,27 @@ export default function MessagesPage() {
             {conversations.map((conv: any) => {
               const otherUser = getOtherUser(conv);
               const isOtherOnline = otherUser ? chatStore.isOnline(otherUser.id) : false;
+              const unread = conv.unreadCount > 0;
 
               return (
                 <button
                   key={conv.id}
                   onClick={() => setSelectedConv(conv.id)}
-                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
-                    selectedConv === conv.id ? "bg-primary/10" : "hover:bg-muted/10"
+                  aria-label={
+                    unread
+                      ? `${getConvName(conv)}, ${conv.unreadCount} unread`
+                      : getConvName(conv)
+                  }
+                  // An unread thread is the reason to open this page at all, so
+                  // it carries a brand wash and a marker down its leading edge
+                  // rather than relying on weight alone — weight is a poor
+                  // signal in a column of names that are already bold.
+                  className={`w-full rounded-lg py-2.5 pr-3 text-left transition-colors border-l-[3px] pl-[9px] ${
+                    selectedConv === conv.id
+                      ? "border-primary bg-primary/10"
+                      : unread
+                        ? "border-primary bg-accent-light hover:bg-accent"
+                        : "border-transparent hover:bg-muted/10"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -285,17 +299,32 @@ export default function MessagesPage() {
                           />
                         )}
                       </div>
-                      <span className="text-sm font-medium text-foreground truncate max-w-[140px]">
+                      <span
+                        className={`truncate max-w-[140px] text-sm ${
+                          unread
+                            ? "font-bold text-foreground"
+                            : "font-medium text-foreground"
+                        }`}
+                      >
                         {getConvName(conv)}
                       </span>
                     </div>
-                    {conv.unreadCount > 0 && (
-                      <Badge variant="danger" className="ml-2">{conv.unreadCount}</Badge>
+                    {unread && (
+                      // The school's colour, not danger red: an unread message
+                      // is not an error.
+                      <Badge variant="primary" className="ml-2 tabular-nums">
+                        {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
+                      </Badge>
                     )}
                   </div>
                   {conv.lastMessage && (
-                    <p className="mt-0.5 ml-10 text-xs text-muted truncate">
-                      {conv.lastMessage.sender?.firstName ?? "Someone"}: {conv.lastMessage.content}
+                    <p
+                      className={`mt-0.5 ml-10 truncate text-xs ${
+                        unread ? "font-medium text-foreground" : "text-muted"
+                      }`}
+                    >
+                      {lastMessagePrefix(conv.lastMessage, user?.id)}
+                      {conv.lastMessage.content}
                     </p>
                   )}
                 </button>

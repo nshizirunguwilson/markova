@@ -1820,3 +1820,83 @@ describe("a file the upload named nothing", () => {
     });
   });
 });
+
+/**
+ * The inbox column. An unread thread is the reason somebody opens this page,
+ * so it has to be findable without reading every row.
+ */
+describe("how the inbox marks a thread", () => {
+  const withConv = (over: Record<string, unknown>) => ({
+    ...routes,
+    "/messaging/conversations": [{ ...conversation, ...over }],
+  });
+
+  async function openInbox(over: Record<string, unknown>) {
+    serve(h.api, withConv(over));
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByRole("button", { name: /Aline/ });
+  }
+
+  function row() {
+    return screen.getByRole("button", { name: /Aline/ });
+  }
+
+  it("counts the unread messages in the school's own colour", async () => {
+    await openInbox({ unreadCount: 3 });
+    const badge = screen.getByText("3");
+    // Not danger red: an unread message is not an error.
+    expect(badge.className).toContain("bg-primary");
+    expect(badge.className).toContain("text-on-primary");
+    expect(badge.className).not.toContain("danger");
+  });
+
+  it("caps a runaway count rather than stretching the row", async () => {
+    await openInbox({ unreadCount: 214 });
+    expect(screen.getByText("99+")).toBeInTheDocument();
+    expect(screen.queryByText("214")).toBeNull();
+  });
+
+  it("says how many are unread to a screen reader", async () => {
+    await openInbox({ unreadCount: 3 });
+    expect(
+      screen.getByRole("button", { name: /Aline Uwase, 3 unread/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("sets an unread thread apart by more than weight", async () => {
+    await openInbox({ unreadCount: 2 });
+    const unread = row().className;
+    expect(unread).toContain("bg-accent-light");
+    expect(unread).toContain("border-primary");
+  });
+
+  it("leaves a read thread plain", async () => {
+    await openInbox({ unreadCount: 0 });
+    const read = row().className;
+    expect(read).toContain("border-transparent");
+    expect(read).not.toContain("bg-accent-light");
+    expect(screen.queryByText("0")).toBeNull();
+  });
+
+  it("names the other person on their last message", async () => {
+    await openInbox({
+      lastMessage: {
+        content: "Muraho",
+        sender: { id: "u-3", firstName: "Aline" },
+      },
+    });
+    expect(await screen.findByText(/Aline: Muraho/)).toBeInTheDocument();
+  });
+
+  // Your own name quoted back at you in your own inbox reads as somebody
+  // else talking about you.
+  it("says You on a message the viewer sent", async () => {
+    await openInbox({
+      lastMessage: {
+        content: "Murakoze",
+        sender: { id: "user-1", firstName: "Aline" },
+      },
+    });
+    expect(await screen.findByText(/You: Murakoze/)).toBeInTheDocument();
+  });
+});
