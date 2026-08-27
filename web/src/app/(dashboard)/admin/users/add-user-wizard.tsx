@@ -941,15 +941,29 @@ export function AddUserWizard({
             <Button type="button" variant="outline" onClick={closeAndReset}>
               Cancel
             </Button>
-            {!isLast ? (
-              <Button type="button" onClick={next}>
-                Continue
-              </Button>
-            ) : (
-              <Button type="submit" isLoading={createUser.isPending}>
-                Create User
-              </Button>
-            )}
+            {/*
+              One button that is never a submit button.
+
+              These were two: a `type="button"` Continue and a `type="submit"`
+              Create User, in the same place in the tree. React reuses the DOM
+              node between them and only swaps the props — so clicking
+              Continue on the second-to-last step ran `next`, React flushed
+              the step change synchronously, `type` became "submit" on the
+              very element being clicked, and the browser then submitted the
+              form it had just been handed. A student was created from the
+              Identity step and the wizard closed, without Family & health
+              ever being shown.
+
+              jsdom does not carry a click through to a form submission that
+              way, which is why the tests were happy throughout.
+            */}
+            <Button
+              type="button"
+              onClick={isLast ? () => void handleSubmit(onSubmit)() : next}
+              isLoading={isLast && createUser.isPending}
+            >
+              {isLast ? "Create User" : "Continue"}
+            </Button>
           </div>
         </div>
       </form>

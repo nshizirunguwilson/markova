@@ -138,6 +138,9 @@ export function Modal({
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             <button
+              // A <button> with no type is a submit button. Harmless while
+              // the dialog holds no form, and a trap the day one does.
+              type="button"
               onClick={onClose}
               aria-label="Close dialog"
               className="rounded-lg p-1 text-muted hover:bg-accent-light hover:text-foreground transition-colors"
