@@ -31,6 +31,7 @@ export function applyColor(hex: string) {
   root.style.setProperty("--brand-primary-light", palette.primaryLight);
   root.style.setProperty("--brand-primary-dark", palette.primaryDark);
   root.style.setProperty("--brand-info", palette.primary);
+  root.style.setProperty("--brand-on-primary", palette.onPrimary);
 
   // The default colour is left exactly as the designers specified it, so an
   // untouched install renders byte for byte as it always has.

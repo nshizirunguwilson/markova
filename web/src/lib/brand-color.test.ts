@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   MIN_TEXT_CONTRAST,
   MUTED_TEXT,
+  ON_PRIMARY_DARK,
+  ON_PRIMARY_LIGHT,
   brandPalette,
+  onPrimaryFor,
   contrastRatio,
   parseHex,
   shade,
@@ -197,5 +200,47 @@ describe("the palette a school's colour implies", () => {
     const p = brandPalette("#1B4F72");
     expect(p.primaryLight).toBe("#446f8b");
     expect(p.primaryDark).toBe("#16415d");
+  });
+});
+
+/**
+ * Text drawn on a solid fill of the school's own colour.
+ *
+ * A badge that reads white-on-navy is the common case, but a school is free
+ * to pick a bright yellow, and white on that is around 1.4:1.
+ */
+describe("choosing text for a solid brand fill", () => {
+  it("uses white on a dark colour", () => {
+    expect(onPrimaryFor("#1B4F72")).toBe(ON_PRIMARY_LIGHT);
+  });
+
+  it("uses near-black on a light colour", () => {
+    expect(onPrimaryFor("#F1C40F")).toBe(ON_PRIMARY_DARK);
+    expect(onPrimaryFor("#FFFFFF")).toBe(ON_PRIMARY_DARK);
+  });
+
+  it("always clears AA on the colour it was chosen for", () => {
+    for (const hex of [
+      "#1B4F72",
+      "#F1C40F",
+      "#2ECC71",
+      "#E74C3C",
+      "#000000",
+      "#FFFFFF",
+      // The hardest case there is: white and black are equally poor here.
+      "#767676",
+      "#808080",
+    ]) {
+      expect(contrastRatio(onPrimaryFor(hex), hex)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("falls back to white for a colour it cannot read", () => {
+    expect(onPrimaryFor("not-a-colour")).toBe(ON_PRIMARY_LIGHT);
+  });
+
+  it("is carried on the palette", () => {
+    expect(brandPalette("#F1C40F").onPrimary).toBe(ON_PRIMARY_DARK);
+    expect(brandPalette("#1B4F72").onPrimary).toBe(ON_PRIMARY_LIGHT);
   });
 });

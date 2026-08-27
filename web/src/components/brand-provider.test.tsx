@@ -58,6 +58,26 @@ describe("BrandProvider", () => {
     expect(read("--brand-primary-light")).not.toBe(read("--brand-primary-dark"));
   });
 
+  /**
+   * Solid brand fills (the unread badge in Messages) carry this as their text
+   * colour, so it has to follow the school's choice rather than assume white.
+   */
+  it("picks text that reads on the school's own colour", async () => {
+    serveBranding({ primaryColor: "#F1C40F" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() =>
+      expect(read("--brand-on-primary").toLowerCase()).toBe("#000000"),
+    );
+  });
+
+  it("uses white on a dark school colour", async () => {
+    serveBranding({ primaryColor: "#1B4F72" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() =>
+      expect(read("--brand-on-primary").toLowerCase()).toBe("#ffffff"),
+    );
+  });
+
   it("stores the school name for the rest of the shell", async () => {
     serveBranding({ schoolName: "Groupe Scolaire Kigali", primaryColor: "#1B4F72" });
     render(<BrandProvider><span>x</span></BrandProvider>);
