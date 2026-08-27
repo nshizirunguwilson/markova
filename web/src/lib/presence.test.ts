@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryTick, formatLastSeen } from "./presence";
+import { deliveryTick, formatLastSeen, lastMessagePrefix } from "./presence";
 
 const now = new Date("2026-08-22T12:00:00Z");
 const minutesAgo = (n: number) =>
@@ -72,5 +72,45 @@ describe("which tick a message gets", () => {
 
   it("treats anything unrecognised as sent", () => {
     expect(deliveryTick("QUEUED")).toBe("one");
+  });
+});
+
+/**
+ * The inbox line under each thread name. Seeing your own name quoted back at
+ * you in your own inbox reads as somebody else talking about you.
+ */
+describe("labelling the last message in a thread", () => {
+  const you = "me-1";
+
+  it("says You for a message the viewer sent", () => {
+    expect(
+      lastMessagePrefix({ sender: { id: you, firstName: "Wilson" } }, you),
+    ).toBe("You: ");
+  });
+
+  it("names anybody else", () => {
+    expect(
+      lastMessagePrefix({ sender: { id: "u-2", firstName: "Aline" } }, you),
+    ).toBe("Aline: ");
+  });
+
+  it("falls back when a sender has no name left", () => {
+    expect(lastMessagePrefix({ sender: { id: "u-2", firstName: "" } }, you)).toBe(
+      "Someone: ",
+    );
+    expect(lastMessagePrefix({ sender: { id: "u-2" } }, you)).toBe("Someone: ");
+  });
+
+  it("falls back when the sender is gone from the school", () => {
+    expect(lastMessagePrefix({ sender: null }, you)).toBe("Someone: ");
+    expect(lastMessagePrefix(null, you)).toBe("Someone: ");
+    expect(lastMessagePrefix(undefined, you)).toBe("Someone: ");
+  });
+
+  // Signed out mid-render: nobody is "you", so nobody gets called You.
+  it("names the sender when the viewer is unknown", () => {
+    expect(
+      lastMessagePrefix({ sender: { id: you, firstName: "Wilson" } }, undefined),
+    ).toBe("Wilson: ");
   });
 });

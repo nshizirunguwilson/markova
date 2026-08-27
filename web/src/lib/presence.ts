@@ -35,3 +35,22 @@ export function deliveryTick(status: string | undefined): "one" | "two" | "two-r
   if (status === "DELIVERED") return "two";
   return "one";
 }
+
+/**
+ * Who sent the last message in a thread, as the inbox line labels it.
+ *
+ * The viewer reads as "You", because seeing your own name quoted back at you
+ * in your own inbox is a small but constant jar — every other messaging app
+ * says "You". Anyone else is named, which is what makes a group thread
+ * readable at a glance.
+ */
+export function lastMessagePrefix(
+  message: { sender?: { id?: string; firstName?: string | null } | null } | null | undefined,
+  viewerId: string | undefined,
+): string {
+  const sender = message?.sender;
+  if (!sender) return "Someone: ";
+  if (viewerId && sender.id === viewerId) return "You: ";
+  const name = sender.firstName?.trim();
+  return `${name || "Someone"}: `;
+}
