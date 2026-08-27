@@ -452,6 +452,53 @@ test('welfare: the sidebar Dashboard link goes somewhere they may go', async (br
   await ctx.close();
 });
 
+/**
+ * The nurse recording a clinic visit has to find the student first, and the
+ * only route that searches students was ADMIN-only — so the "New visit" form
+ * had a student box that answered 403 on every keystroke.
+ */
+test('welfare: the nurse can find a student to record a visit against', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'NURSE');
+  const refused = [];
+  page.on('response', (r) => { if (r.status() === 403) refused.push(new URL(r.url()).pathname); });
+
+  await page.goto(`${WEB}/admin/health`, { waitUntil: 'networkidle', timeout: 60000 });
+  await page.getByRole('button', { name: /new visit/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+  await page.fill('#h-student', 'Rukundo');
+
+  await page.waitForFunction(
+    () => !(document.querySelector('[role="dialog"]')?.textContent || '').includes('Nobody by that name'),
+    null,
+    { timeout: 15000 },
+  );
+
+  const dialog = (await page.locator('[role="dialog"]').textContent()) || '';
+  assert(/STD-/.test(dialog), 'the picker should list students');
+  assert(refused.length === 0, `the nurse was refused ${[...new Set(refused)].join(', ')}`);
+  await ctx.close();
+});
+
+/**
+ * The catalogue said "No books found" over a library of 56: the endpoint
+ * answers `{ data, meta }` and the page read `.length` off the envelope. Its
+ * own header counted them correctly the whole time, from another endpoint, so
+ * the page contradicted itself.
+ */
+test('librarian: the catalogue lists the books it says it has', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'LIBRARIAN');
+  await page.goto(`${WEB}/librarian/books`, { waitUntil: 'networkidle', timeout: 60000 });
+  await page.waitForTimeout(1500);
+
+  const rows = await page.locator('tbody tr').count();
+  const body = (await page.locator('body').textContent()) || '';
+  assert(rows > 0, 'the catalogue should list books');
+  assert(!body.includes('No books found'), 'the catalogue claimed to be empty');
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter
