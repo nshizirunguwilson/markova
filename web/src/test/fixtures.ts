@@ -108,7 +108,58 @@ export const termResult = {
   teacherComment: "Strong term.",
   headmasterComment: null,
   isPublished: true,
+  reportCardPublished: true,
   subjects: [{ subjectId: "subject-1", subject, score: 82, grade: "A" }],
+};
+
+/**
+ * What `GET /reports/term/:studentId` actually answers with.
+ *
+ * Copied from a live response, not invented. The student and parent report
+ * pages were written against a shape nobody checked — `report.termName`,
+ * `report.average`, `s.subjectName` — and their tests carried fixtures shaped
+ * to match the pages rather than the API. So the tests passed while the real
+ * page rendered a card with no subject names and dashes where the average,
+ * grade and position should be.
+ *
+ * Anything reading this endpoint should build its fixture from here.
+ */
+export const termReport = {
+  school: { name: "Markova Academy", motto: "Excellence Through Knowledge", logoUrl: "/uploads/logo.png" },
+  student: {
+    name: "Divine Niyonkuru",
+    studentIdNumber: "STD-2026-001",
+    photoUrl: null,
+    class: "Senior 1 A",
+    stage: "O_LEVEL",
+    trade: null,
+    gender: "MALE",
+    dateOfBirth: "2010-04-12T00:00:00.000Z",
+    disciplinePoints: 100,
+  },
+  term: { name: "Term 1", academicYear: "2025-2026" },
+  classTeacher: "Aline Uwase",
+  attendance: { present: 58, total: 60 },
+  // `subject` carries the name — not `subjectName`, which is what the pages
+  // used to read and why every row rendered blank.
+  subjects: [
+    { subject: "Mathematics", scope: "O_CORE", assessments: [], average: 82, total: 82, grade: "A", points: 6, remark: "Excellent", competence: null },
+    { subject: "Kinyarwanda", scope: "O_CORE", assessments: [], average: 65, total: 65, grade: "B", points: 5, remark: "Very Good", competence: null },
+  ],
+  result: {
+    id: "tr-1",
+    average: 73.5,
+    letterGrade: "B",
+    rank: 3,
+    aggregate: 11,
+    aggregateMax: 54,
+    teacherComment: "Strong term.",
+    headmasterComment: null,
+    isPublished: true,
+    reportCardPublished: true,
+  },
+  classStats: { classAverage: 65.4, totalStudents: 29, rank: 3 },
+  verification: { code: "483920175566", url: "https://markova.edu/verify/483920175566" },
 };
 
 // The Book model counts copies as `quantity` and `availableCount` (see
