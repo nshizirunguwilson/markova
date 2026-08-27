@@ -31,13 +31,40 @@ const ACCOUNTS = {
   NURSE: { email: 'nurse@markova.edu', password: PASS },
 };
 
-async function apiLogin(role) {
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sign a role in, waiting out the throttle rather than falling over it.
+ *
+ * `/auth/login` allows ten attempts a minute. Running this suite twice in
+ * quick succession — or beside the accessibility audit, which signs in as
+ * every role of its own — spends that, and the throttled reply carries no
+ * `sessionId`. The old code posted `verify-otp` with `sessionId: undefined`
+ * anyway, so a rate limit was reported as "sessionId must be a string": an
+ * error that says nothing about what actually happened.
+ */
+async function apiLogin(role, attempt = 0) {
   const r1 = await fetch(`${API}/auth/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ACCOUNTS[role]),
   });
   const d1 = await r1.json();
   if (d1.accessToken) return d1;
+
+  if (!d1.sessionId) {
+    const throttled = r1.status === 429;
+    if (throttled && attempt < 3) {
+      // The window is a minute, so wait one out rather than hammering it.
+      await wait(20000);
+      return apiLogin(role, attempt + 1);
+    }
+    throw new Error(
+      throttled
+        ? `login for ${role} is rate limited; the suite is being run too often`
+        : `login for ${role} failed: ${JSON.stringify(d1)}`,
+    );
+  }
+
   const r2 = await fetch(`${API}/auth/verify-otp`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionId: d1.sessionId, otp: d1.devOtp }),
