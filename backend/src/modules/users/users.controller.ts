@@ -57,11 +57,29 @@ const photoStorage = diskStorage({
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  /**
+   * The directory. Administrators see all of it; the welfare staff see
+   * students and nothing else.
+   *
+   * A nurse recording a clinic visit has to find the student first, and the
+   * only way to do that was this route — which refused her, so the "New
+   * visit" form had a student box that could never be filled. Opening the
+   * whole directory to her instead would hand over every teacher's and
+   * parent's email and phone number, which is not hers to read.
+   *
+   * So the filter is imposed here rather than trusted from the query: a
+   * patron asking for `role=TEACHER` gets students, because the role is
+   * overwritten before the service sees it.
+   */
   @Get()
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'PATRON', 'MATRON', 'NURSE')
   @ApiOperation({ summary: 'List all users with filters and pagination' })
-  async findAll(@Query() query: QueryUserDto) {
-    return this.usersService.findAll(query);
+  async findAll(
+    @Query() query: QueryUserDto,
+    @CurrentUser() current: { role: string },
+  ) {
+    if (current.role === 'ADMIN') return this.usersService.findAll(query);
+    return this.usersService.findAll({ ...query, role: Role.STUDENT });
   }
 
   @Get(':id')
