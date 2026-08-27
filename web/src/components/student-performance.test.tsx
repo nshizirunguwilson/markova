@@ -38,8 +38,14 @@ const term = (yearName: string, termName: string, average: number, classAverage:
   letterGrade: "A",
   aggregate: 12,
   aggregateMax: 30,
-  attendanceRate: 95,
-  subjects: [{ subjectName: "Mathematics", score: average, letterGrade: "A" }],
+  attendancePct: 95,
+  // The endpoint names these `name`, `total`, `grade` and `points` — the
+  // component reads exactly those. The fixture used to say `subjectName` and
+  // `score`, so the chart was drawn from undefined values and the test still
+  // passed. Same trap the report card page fell into.
+  subjects: [
+    { name: "Mathematics", scope: "O_CORE", total: average, grade: "A", points: 6 },
+  ],
 });
 
 // Matches what /analytics/student/:id/profile actually returns: a flat student
