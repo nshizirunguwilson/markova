@@ -22,6 +22,19 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+
+// The people picker waits 300ms of real time before searching. This file runs
+// beside a hundred others, and under that load a 300ms timer is not a 300ms
+// wait — these tests were losing a four second race on it. The delay itself
+// is covered in hooks/use-debounce.test.ts; what belongs here is what the
+// picker does once the answer arrives.
+vi.mock("@/hooks/use-debounce", () => ({
+  useDebounce: <T,>(value: T) => value,
+}));
+
+// Typing is driven without userEvent's per-keystroke timer for the same
+// reason. `delay: null` is set at every setup() in this file.
+
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/messages",
@@ -88,6 +101,42 @@ beforeEach(() => {
   h.chat.connected = true;
 });
 
+/**
+ * Choose somebody from the results list.
+ *
+ * Everything is looked up again on each retry. The list re-renders as the
+ * debounced search settles and the modal's own node is replaced with it, so
+ * a dialog captured once and a button found in an earlier tick are both
+ * liable to be detached by the time they are used — the click then lands on
+ * a node that is no longer in the document and nothing happens.
+ */
+async function pickFromList(
+  user: ReturnType<typeof userEvent.setup>,
+  name: RegExp,
+) {
+  await waitFor(
+    async () => {
+      const found = within(screen.getByRole("dialog"))
+        .getAllByRole("button")
+        .find((b) => name.test(b.textContent ?? ""));
+      expect(found).toBeTruthy();
+      await user.click(found!);
+      // Chosen people leave the list and come back as a chip with a remove
+      // button, so this is what proves the click landed.
+      expect(chipCloses()).not.toHaveLength(0);
+    },
+    { timeout: 4000 },
+  );
+}
+
+/** The × buttons on the chosen-people chips. */
+function chipCloses() {
+  return within(screen.getByRole("dialog"))
+    .queryAllByRole("button")
+    .filter((b) => (b.textContent ?? "").trim() === "\u00d7");
+}
+
+
 describe("the conversation list", () => {
   it("lists the people the user is talking to", async () => {
     serve(h.api, routes);
@@ -116,7 +165,7 @@ describe("sending a message", () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     return screen.findByPlaceholderText(/type a message/i);
   }
 
@@ -128,14 +177,14 @@ describe("sending a message", () => {
   // An empty send would post a blank bubble into someone's thread.
   it("refuses to send an empty message", async () => {
     await openConversation();
-    await userEvent.setup().click(screen.getByRole("button", { name: /send message/i }));
+    await userEvent.setup({ delay: null }).click(screen.getByRole("button", { name: /send message/i }));
     expect(h.chat.sendMessage).not.toHaveBeenCalled();
     expect(h.api.post).not.toHaveBeenCalled();
   });
 
   it("sends what was typed", async () => {
     const box = await openConversation();
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.type(box, "Mwaramutse");
     await user.click(screen.getByRole("button", { name: /send message/i }));
     await waitFor(() => {
@@ -150,7 +199,7 @@ describe("sending a message", () => {
   it("falls back to the REST endpoint when the socket is down", async () => {
     h.chat.connected = false;
     const box = await openConversation();
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.type(box, "Mwaramutse");
     await user.click(screen.getByRole("button", { name: /send message/i }));
     await waitFor(() => expect(h.api.post).toHaveBeenCalled());
@@ -171,7 +220,7 @@ describe("starting a new conversation", () => {
           /new/i.test(b.textContent ?? ""),
       );
     expect(start).toBeTruthy();
-    await userEvent.setup().click(start!);
+    await userEvent.setup({ delay: null }).click(start!);
     return screen.findByRole("dialog");
   }
 
@@ -245,7 +294,7 @@ describe("starting a new conversation", () => {
           /^add$/i.test(b.getAttribute("aria-label") ?? "") ||
           /new/i.test(b.textContent ?? ""),
       );
-    await userEvent.setup().click(start!);
+    await userEvent.setup({ delay: null }).click(start!);
     await search("a");
 
     await waitFor(() =>
@@ -435,7 +484,7 @@ describe("typing in a thread", () => {
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Aline/));
     const box = await screen.findByPlaceholderText(/type a message/i);
     await user.type(box, "Mu");
@@ -453,7 +502,7 @@ describe("typing in a thread", () => {
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Aline/));
     const box = await screen.findByPlaceholderText(/type a message/i);
     await user.type(box, "Mwaramutse{Enter}");
@@ -469,7 +518,7 @@ describe("typing in a thread", () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
     await waitFor(() =>
       expect(
@@ -530,7 +579,7 @@ describe("group threads", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Group \(3\)/)).toBeInTheDocument());
 
-    await userEvent.setup().click(screen.getByText(/Group \(3\)/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Group \(3\)/));
     await waitFor(() => expect(document.body.textContent).toMatch(/online/i));
   });
 });
@@ -563,7 +612,7 @@ describe("delivery ticks", () => {
   async function openThread() {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     await waitFor(() => expect(screen.getByText(/Mwaramutse/)).toBeInTheDocument());
   }
 
@@ -611,7 +660,7 @@ describe("delivery ticks", () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     await waitFor(() => expect(screen.getByText(/Muraho neza/)).toBeInTheDocument());
 
     const bubble = screen.getByText(/Muraho neza/).closest("div")!;
@@ -627,7 +676,7 @@ describe("delivery ticks", () => {
  */
 describe("sending without a live socket", () => {
   async function typeAndSend() {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
     await user.click(screen.getByText(/Aline/));
@@ -689,7 +738,7 @@ describe("the edges of the inbox", () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     await screen.findByPlaceholderText(/type a message/i);
   }
 
@@ -750,7 +799,7 @@ describe("the edges of the inbox", () => {
           /^add$/i.test(b.getAttribute("aria-label") ?? "") ||
           /new/i.test(b.textContent ?? ""),
       );
-    await userEvent.setup().click(start!);
+    await userEvent.setup({ delay: null }).click(start!);
     const dialog = await screen.findByRole("dialog");
 
     h.api.post.mockClear();
@@ -1128,7 +1177,7 @@ describe("who is typing", () => {
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
     await screen.findByPlaceholderText(/type a message/i);
   }
 
@@ -1267,7 +1316,7 @@ describe("threads with pieces missing", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
     const link = await screen.findByRole("link", { name: /timetable\.pdf/ });
     expect(link).toHaveAttribute("href", "/uploads/messaging/timetable.pdf");
@@ -1290,7 +1339,7 @@ describe("threads with pieces missing", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
     expect(await screen.findByText("Attachment")).toBeInTheDocument();
   });
@@ -1319,7 +1368,7 @@ describe("threads with pieces missing", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getAllByText(/Aline/).length).toBeGreaterThan(0));
-    await userEvent.setup().click(screen.getAllByText(/Aline/)[0]);
+    await userEvent.setup({ delay: null }).click(screen.getAllByText(/Aline/)[0]);
 
     await screen.findByText("Muraho neza");
     // Your own bubble carries no name: you know who you are.
@@ -1333,7 +1382,7 @@ describe("choosing who a new conversation is with", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByRole("button", { name: "Add" }));
     await screen.findByRole("dialog");
     return user;
@@ -1361,20 +1410,7 @@ describe("choosing who a new conversation is with", () => {
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
 
     const row = await screen.findByRole("dialog");
-    // Debounced: the dialog reads "Searching..." until the answer lands.
-    const candidate = await waitFor(
-      () => {
-        const found = within(row)
-          .getAllByRole("button")
-          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
-        expect(found).toBeTruthy();
-        return found!;
-      },
-      // 300ms of debounce plus a request, and the whole file runs alongside
-      // a hundred others. The default second is not enough under that load.
-      { timeout: 4000 },
-    );
-    await user.click(candidate);
+    await pickFromList(user, /Aline Uwase/);
 
     // Chosen people move into a chip row above the search box.
     await waitFor(() =>
@@ -1384,40 +1420,13 @@ describe("choosing who a new conversation is with", () => {
 
   it("drops a person back out of the chip row", async () => {
     const user = await openPicker();
-    const dialog = screen.getByRole("dialog");
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
 
-    // The contact search is debounced, so the dialog says "Searching..." for a
-    // moment before the results land. Reading the list synchronously after
-    // typing is a race, and it was losing it about one run in four.
-    const candidate = await waitFor(
-      () => {
-        const found = within(dialog)
-          .getAllByRole("button")
-          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
-        expect(found).toBeTruthy();
-        return found!;
-      },
-      { timeout: 4000 },
-    );
-    await user.click(candidate);
+    await pickFromList(user, /Aline Uwase/);
 
-    const chipClose = await waitFor(() => {
-      const found = within(dialog)
-        .getAllByRole("button")
-        .find((b) => (b.textContent ?? "").trim() === "\u00d7");
-      expect(found).toBeTruthy();
-      return found!;
-    });
-    await user.click(chipClose);
+    await user.click(chipCloses()[0]);
 
-    await waitFor(() =>
-      expect(
-        within(dialog)
-          .queryAllByRole("button")
-          .some((b) => (b.textContent ?? "").trim() === "\u00d7"),
-      ).toBe(false),
-    );
+    await waitFor(() => expect(chipCloses()).toHaveLength(0));
   });
 
   it("sends nothing when Create is pressed with nobody chosen", async () => {
@@ -1467,7 +1476,7 @@ describe("people whose accounts are gone", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByRole("button", { name: "Add" }));
     await screen.findByRole("dialog");
     await user.type(screen.getByLabelText("Search users by name..."), "a");
@@ -1480,24 +1489,11 @@ describe("people whose accounts are gone", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByRole("button", { name: "Add" }));
-    const dialog = await screen.findByRole("dialog");
+    await screen.findByRole("dialog");
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
-
-    // Debounced, so the results are waited for rather than read the instant
-    // the last key goes in.
-    const candidate = await waitFor(
-      () => {
-        const found = within(dialog)
-          .getAllByRole("button")
-          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
-        expect(found).toBeTruthy();
-        return found!;
-      },
-      { timeout: 4000 },
-    );
-    await user.click(candidate);
+    await pickFromList(user, /Aline Uwase/);
 
     // The search moves on and no longer contains them; the chip must still
     // show something rather than going blank.
@@ -1506,7 +1502,10 @@ describe("people whose accounts are gone", () => {
     await user.type(screen.getByLabelText("Search users by name..."), "zzz");
 
     await waitFor(
-      () => expect(within(dialog).getByText("u-3")).toBeInTheDocument(),
+      () =>
+        expect(
+          within(screen.getByRole("dialog")).getByText("u-3"),
+        ).toBeInTheDocument(),
       { timeout: 4000 },
     );
   });
@@ -1527,7 +1526,7 @@ describe("people whose accounts are gone", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
     // The message itself survives, on the left, with a blank name above it.
     expect(await screen.findByText("Muraho")).toBeInTheDocument();
@@ -1551,7 +1550,7 @@ describe("people whose accounts are gone", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await userEvent.setup().click(screen.getByText(/Aline/));
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
     const link = await screen.findByRole("link", { name: /notes\.pdf/ });
     // Your own attachments sit on the tinted side of the bubble.
@@ -1580,7 +1579,7 @@ describe("a group whose member list is still loading", () => {
       expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
     );
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText("Senior 2 parents"));
     await user.click(await screen.findByLabelText("Members"));
 
@@ -1612,7 +1611,7 @@ describe("sending a file with nothing typed", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Aline/));
     await screen.findByPlaceholderText(/type a message/i);
 
@@ -1649,7 +1648,7 @@ describe("sending a file with nothing typed", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Aline/));
     await screen.findByPlaceholderText(/type a message/i);
 
@@ -1690,7 +1689,7 @@ describe("a group whose members have no names left", () => {
       expect(screen.getByText("Senior 2 parents")).toBeInTheDocument(),
     );
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText("Senior 2 parents"));
     await user.click(await screen.findByLabelText("Members"));
   }
@@ -1745,7 +1744,7 @@ describe("renaming a group that has no name yet", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Group \(2\)/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Group \(2\)/));
     await user.click(await screen.findByLabelText("Members"));
     return user;
@@ -1827,7 +1826,7 @@ describe("a file the upload named nothing", () => {
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
 
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     await user.click(screen.getByText(/Aline/));
     await screen.findByPlaceholderText(/type a message/i);
 
@@ -1927,7 +1926,7 @@ describe("how the inbox marks a thread", () => {
 
   it("marks the open thread without borrowing the unread signal", async () => {
     await openInbox({ unreadCount: 0 });
-    await userEvent.setup().click(row());
+    await userEvent.setup({ delay: null }).click(row());
     await waitFor(() => expect(row()).toHaveAttribute("aria-current", "true"));
     expect(row().className).toContain("bg-surface-muted");
     // Selection must not light the unread marker.
@@ -1936,7 +1935,7 @@ describe("how the inbox marks a thread", () => {
 
   it("shows both at once on an unread thread that is open", async () => {
     await openInbox({ unreadCount: 4 });
-    await userEvent.setup().click(row());
+    await userEvent.setup({ delay: null }).click(row());
     await waitFor(() => expect(row()).toHaveAttribute("aria-current", "true"));
     expect(row().className).toContain("bg-surface-muted");
     expect(screen.getByText("4")).toBeInTheDocument();
@@ -1999,7 +1998,7 @@ describe("runs of messages from one person", () => {
     });
     renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
     const row = await screen.findByRole("button", { name: open });
-    await userEvent.setup().click(row);
+    await userEvent.setup({ delay: null }).click(row);
   }
 
   /** Timestamps inside the thread, not the one on each inbox row. */
