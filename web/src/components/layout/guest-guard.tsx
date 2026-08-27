@@ -26,13 +26,13 @@ const ALWAYS_PUBLIC = ["/reset-password"];
 /**
  * Where a role lands after signing in.
  *
- * The boarding staff have no dashboard of their own; their work lives on the
- * pocket money and clinic pages under /admin, which the shell lets them
- * through to. Sending them to /patron would be a 404.
+ * A patron and a matron do the same job on opposite sides of the school, so
+ * they share /boarding; the nurse has /nurse. Both were sent straight to a
+ * working page before those dashboards existed.
  */
 function dashboardFor(role: string): string {
-  if (role === "PATRON" || role === "MATRON") return "/admin/pocket-money";
-  if (role === "NURSE") return "/admin/health";
+  if (role === "PATRON" || role === "MATRON") return "/boarding";
+  if (role === "NURSE") return "/nurse";
   return `/${role.toLowerCase()}`;
 }
 
