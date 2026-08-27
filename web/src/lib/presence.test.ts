@@ -78,39 +78,54 @@ describe("which tick a message gets", () => {
 /**
  * The inbox line under each thread name. Seeing your own name quoted back at
  * you in your own inbox reads as somebody else talking about you.
+ *
+ * The shapes below are what `GET /messaging/conversations` actually returns:
+ * the id lives on `senderUserId`, and `sender` is only `{ firstName,
+ * lastName }`. An earlier version of this compared `sender.id`, which does
+ * not exist, so every message was attributed by name and "You:" never once
+ * appeared on screen.
  */
 describe("labelling the last message in a thread", () => {
   const you = "me-1";
+  const from = (senderUserId: string, firstName: string | null) => ({
+    id: "msg-1",
+    conversationId: "conv-1",
+    senderUserId,
+    content: "Muraho",
+    sender: firstName === null ? null : { firstName, lastName: "Uwase" },
+  });
 
   it("says You for a message the viewer sent", () => {
-    expect(
-      lastMessagePrefix({ sender: { id: you, firstName: "Wilson" } }, you),
-    ).toBe("You: ");
+    expect(lastMessagePrefix(from(you, "Wilson"), you)).toBe("You: ");
   });
 
   it("names anybody else", () => {
-    expect(
-      lastMessagePrefix({ sender: { id: "u-2", firstName: "Aline" } }, you),
-    ).toBe("Aline: ");
+    expect(lastMessagePrefix(from("u-2", "Aline"), you)).toBe("Aline: ");
   });
 
   it("falls back when a sender has no name left", () => {
-    expect(lastMessagePrefix({ sender: { id: "u-2", firstName: "" } }, you)).toBe(
-      "Someone: ",
-    );
-    expect(lastMessagePrefix({ sender: { id: "u-2" } }, you)).toBe("Someone: ");
+    expect(lastMessagePrefix(from("u-2", ""), you)).toBe("Someone: ");
+    expect(lastMessagePrefix({ senderUserId: "u-2" }, you)).toBe("Someone: ");
   });
 
   it("falls back when the sender is gone from the school", () => {
-    expect(lastMessagePrefix({ sender: null }, you)).toBe("Someone: ");
+    expect(lastMessagePrefix(from("u-2", null), you)).toBe("Someone: ");
     expect(lastMessagePrefix(null, you)).toBe("Someone: ");
     expect(lastMessagePrefix(undefined, you)).toBe("Someone: ");
   });
 
   // Signed out mid-render: nobody is "you", so nobody gets called You.
   it("names the sender when the viewer is unknown", () => {
+    expect(lastMessagePrefix(from(you, "Wilson"), undefined)).toBe("Wilson: ");
+  });
+
+  // The trap this fell into: `sender` carries no id at all.
+  it("ignores an id that is not on the sender projection", () => {
     expect(
-      lastMessagePrefix({ sender: { id: you, firstName: "Wilson" } }, undefined),
-    ).toBe("Wilson: ");
+      lastMessagePrefix(
+        { senderUserId: you, sender: { firstName: "Wilson" } },
+        you,
+      ),
+    ).toBe("You: ");
   });
 });
