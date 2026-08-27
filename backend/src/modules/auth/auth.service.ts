@@ -187,15 +187,34 @@ export class AuthService {
       OTP_TTL_SECONDS,
     );
 
+    /**
+     * The code is already in Redis, so the session is valid whether or not
+     * the email ever arrives — which is why this is dispatched rather than
+     * awaited.
+     *
+     * Awaiting it made every sign-in wait on a round trip to the mail server,
+     * about two seconds against a configured SMTP host, and bought nothing:
+     * `sendEmailToAddress` swallows its own failures, so the caller could not
+     * learn whether the message was sent. The user simply watched a spinner
+     * for a result that was discarded. Failures are logged there, and the
+     * screen the user lands on offers a resend.
+     */
     if (user.email) {
-      await this.notificationsService.sendEmailToAddress(
-        user.email,
-        user.firstName,
-        'Your Markova Verification Code',
-        `<p style="font-size: 16px;">Your verification code is:</p>
+      void this.notificationsService
+        .sendEmailToAddress(
+          user.email,
+          user.firstName,
+          'Your Markova Verification Code',
+          `<p style="font-size: 16px;">Your verification code is:</p>
          <p style="font-size: 32px; font-weight: bold; color: #1B4F72; letter-spacing: 4px; text-align: center; margin: 20px 0;">${otp}</p>
          <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.</p>`,
-      );
+        )
+        .catch((error) =>
+          this.logger.error(
+            `Could not send the verification code to ${user.email}`,
+            error instanceof Error ? error.stack : undefined,
+          ),
+        );
     }
     this.logger.log(
       `OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`,

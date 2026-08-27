@@ -161,6 +161,68 @@ describe('AuthService', () => {
       expect(result).not.toHaveProperty('accessToken');
     });
 
+    /**
+     * Signing in must not wait on the mail server.
+     *
+     * The code is in Redis before the email is attempted, so the session is
+     * valid whether or not the message ever arrives — and the sender swallows
+     * its own failures, so awaiting it could not tell the caller anything.
+     * Against a configured SMTP host that await cost about two seconds on
+     * every single sign-in, with the user watching a spinner.
+     */
+    it('answers without waiting for the verification email', async () => {
+      const admin = makeUser({ role: 'ADMIN' });
+      mockPrisma.user.findFirst.mockResolvedValue(admin);
+
+      let deliver: () => void = () => {};
+      mockNotifications.sendEmailToAddress.mockReturnValue(
+        new Promise<void>((resolve) => {
+          deliver = resolve;
+        }),
+      );
+
+      // The mail never lands, and login still answers.
+      const result = await service.login({
+        email: admin.email,
+        password: TEST_PASSWORD,
+      });
+
+      expect(result).toHaveProperty('requiresOtp', true);
+      expect(result).toHaveProperty('sessionId');
+      deliver();
+    });
+
+    it('still sends the code, just not on the critical path', async () => {
+      const admin = makeUser({ role: 'ADMIN' });
+      mockPrisma.user.findFirst.mockResolvedValue(admin);
+
+      await service.login({ email: admin.email, password: TEST_PASSWORD });
+
+      expect(mockNotifications.sendEmailToAddress).toHaveBeenCalledWith(
+        admin.email,
+        admin.firstName,
+        expect.stringMatching(/verification code/i),
+        expect.any(String),
+      );
+    });
+
+    // A mail server that refuses the message must not take the sign-in with
+    // it: the code is already stored, and the next screen offers a resend.
+    it('signs the user in even when the email is rejected', async () => {
+      const admin = makeUser({ role: 'ADMIN' });
+      mockPrisma.user.findFirst.mockResolvedValue(admin);
+      mockNotifications.sendEmailToAddress.mockRejectedValue(
+        new Error('550 mailbox unavailable'),
+      );
+
+      const result = await service.login({
+        email: admin.email,
+        password: TEST_PASSWORD,
+      });
+
+      expect(result).toHaveProperty('requiresOtp', true);
+    });
+
     it('should return requiresOtp + sessionId for TEACHER role', async () => {
       const teacher = makeUser({ role: 'TEACHER' });
       mockPrisma.user.findFirst.mockResolvedValue(teacher);
