@@ -26,6 +26,7 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
+  LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
   PATRON: { email: 'patron@markova.edu', password: PASS },
   MATRON: { email: 'matron@markova.edu', password: PASS },
   NURSE: { email: 'nurse@markova.edu', password: PASS },
@@ -329,15 +330,46 @@ for (const [role, route, width] of RESP) {
 
 // Next.js dev compiles routes lazily on first request, which can exceed a
 // test's timeout on the very first hit. Pre-warm the routes the suite touches.
+/**
+ * Visit every route the suite touches, once, before any of it is timed.
+ *
+ * The dev server compiles a route the first time it is asked for, and that
+ * can take longer than a test's own navigation timeout — so a route nobody
+ * had warmed failed on the clock rather than on its behaviour, and passed on
+ * the next run because the first attempt had compiled it. Every route below
+ * appears in a test; add to it when you add one.
+ */
 async function prewarm(browser) {
   const ctx = await browser.newContext();
-  const page = await authedPage(ctx, 'ADMIN');
-  for (const r of ['/admin/subjects', '/admin/students', '/admin/attendance', '/login', '/this-route-does-not-exist-xyz']) {
-    await page.goto(`${WEB}${r}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
-    await page.waitForTimeout(300);
+
+  const asAdmin = await authedPage(ctx, 'ADMIN');
+  for (const r of [
+    '/admin', '/admin/subjects', '/admin/students', '/admin/attendance',
+    '/admin/settings', '/admin/users', '/admin/library', '/admin/health',
+    '/admin/pocket-money', '/admin/activities', '/admin/marks', '/admin/reports',
+    '/login', '/this-route-does-not-exist-xyz',
+  ]) {
+    await asAdmin.goto(`${WEB}${r}`, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
+    await asAdmin.waitForTimeout(200);
   }
-  const sp = await authedPage(ctx, 'STUDENT');
-  await sp.goto(`${WEB}/student/marks`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+
+  const asStudent = await authedPage(ctx, 'STUDENT');
+  for (const r of ['/student', '/student/marks']) {
+    await asStudent.goto(`${WEB}${r}`, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
+  }
+
+  // The welfare and library routes, which nothing else warms.
+  const asPatron = await authedPage(ctx, 'PATRON');
+  await asPatron.goto(`${WEB}/boarding`, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
+
+  const asNurse = await authedPage(ctx, 'NURSE');
+  await asNurse.goto(`${WEB}/nurse`, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
+
+  const asLibrarian = await authedPage(ctx, 'LIBRARIAN');
+  for (const r of ['/librarian', '/librarian/books', '/messages']) {
+    await asLibrarian.goto(`${WEB}${r}`, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
+  }
+
   await ctx.close();
 }
 
