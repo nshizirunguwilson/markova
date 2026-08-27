@@ -17,7 +17,7 @@ import {
   Figure,
   RepeatVisitors,
 } from "@/components/welfare/welfare-parts";
-import { useUpcomingActivities } from "@/hooks/use-activities";
+import { useUpcomingActivities, type Activity } from "@/hooks/use-activities";
 import { useClinicSummary, useClinicVisits } from "@/hooks/use-clinic";
 import { usePocketMoneyOverview } from "@/hooks/use-pocket-money";
 import { useAuthStore } from "@/stores/auth-store";
@@ -166,14 +166,14 @@ export default function BoardingDashboard() {
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {(activities ?? []).map((activity: Record<string, unknown>) => (
-                <li key={String(activity.id)} className="px-5 py-3.5">
+              {(activities ?? []).map((activity: Activity) => (
+                <li key={activity.id} className="px-5 py-3.5">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="truncate text-sm font-medium text-foreground">
-                      {String(activity.title ?? "Untitled")}
+                      {activity.title || "Untitled"}
                     </span>
                     <span className="flex-shrink-0 text-xs tabular-nums text-muted">
-                      {whenIs(String(activity.startsAt ?? ""))}
+                      {whenIs(activity.startsAt)}
                     </span>
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted">
