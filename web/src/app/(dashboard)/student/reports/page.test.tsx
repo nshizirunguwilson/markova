@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve, serveFailure } from "@/test/page";
-import { populatedRoutes, termResult } from "@/test/fixtures";
+import { populatedRoutes, termReport } from "@/test/fixtures";
 
 import StudentReportsPage from "./page";
 
@@ -34,10 +34,16 @@ import StudentReportsPage from "./page";
 
 const HTML = "<html><body><h1>Report</h1></body></html>";
 
+/**
+ * `termReport` is the real shape of `GET /reports/term/:studentId`, copied
+ * from a live response. Serving a TermResult row here instead — which is what
+ * this used to do — meant the page was tested against data the endpoint never
+ * returns, so a card rendering blank subject names still passed.
+ */
 const routes = {
   ...populatedRoutes,
-  "/reports/term/student-1": { ...termResult, html: HTML },
-  "/reports/term": { ...termResult, html: HTML },
+  "/reports/term/student-1": { ...termReport, html: HTML },
+  "/reports/term": { ...termReport, html: HTML },
 };
 
 const asStudent = { role: "STUDENT" as const, user: { id: "u-1", studentId: "student-1" } };
@@ -327,6 +333,62 @@ describe("opening and closing the official card", () => {
       expect(h.toast.error).toHaveBeenCalledWith(
         "Could not load the official report card",
       ),
+    );
+  });
+});
+
+/**
+ * What the card actually renders.
+ *
+ * The page was written against a shape the endpoint does not return —
+ * `report.termName`, a top-level `report.average`, `s.subjectName` — and its
+ * fixture was shaped to match the page rather than the API. Every assertion
+ * passed while the real card showed a dash for the average, a dash for the
+ * grade, a dash for the position, and a column of subject rows with no names.
+ *
+ * These read the values a student would actually be looking at.
+ */
+describe("the card a student reads", () => {
+  async function shown() {
+    await mount();
+    await chooseTerm();
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  }
+
+  it("names the student and the term", async () => {
+    await shown();
+    await waitFor(() =>
+      expect(screen.getByText(/Divine Niyonkuru — Term 1/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows the average, not a dash", async () => {
+    await shown();
+    await waitFor(() => expect(screen.getByText("73.5%")).toBeInTheDocument());
+  });
+
+  // "B" is both the overall grade and Kinyarwanda's, so this reads the card
+  // rather than the first match on the page.
+  it("shows the overall grade and the class position", async () => {
+    await shown();
+    await waitFor(() => expect(screen.getByText("#3")).toBeInTheDocument());
+    const grade = screen.getByText("Grade").closest("div");
+    expect(grade?.textContent).toMatch(/B/);
+  });
+
+  // The row that was rendering as a bare percentage with no subject beside it.
+  it("names every subject on the card", async () => {
+    await shown();
+    await waitFor(() =>
+      expect(screen.getByText("Mathematics")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Kinyarwanda")).toBeInTheDocument();
+  });
+
+  it("shows the teacher's comment", async () => {
+    await shown();
+    await waitFor(() =>
+      expect(screen.getByText("Strong term.")).toBeInTheDocument(),
     );
   });
 });

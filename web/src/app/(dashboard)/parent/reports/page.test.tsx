@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve } from "@/test/page";
-import { academicYear, populatedRoutes, term } from "@/test/fixtures";
+import { academicYear, populatedRoutes, term, termReport } from "@/test/fixtures";
 
 import ParentReportsPage from "./page";
 
@@ -31,13 +31,17 @@ import ParentReportsPage from "./page";
  * page that dies there takes the report with it.
  */
 
+/**
+ * The shape `GET /reports/term/:studentId` really answers with — taken from
+ * `termReport` in the shared fixtures, which was copied from a live response.
+ *
+ * The old fixture here was invented to match the page instead: `termName`,
+ * a top-level `average`, `student.user.firstName`. So this suite passed while
+ * the real page rendered dashes and blank subject rows.
+ */
 const report = {
-  termName: "Term 1",
-  average: 78.5,
-  letterGrade: "B",
-  rank: 4,
-  student: { user: { firstName: "Keza", lastName: "Uwimana" } },
-  subjects: [],
+  ...termReport,
+  student: { ...termReport.student, name: "Keza Uwimana" },
 };
 
 const parent = {
