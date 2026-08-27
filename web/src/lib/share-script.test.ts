@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error — a plain .mjs script, imported here for its two helpers.
-import { apiUrlFrom, mergeOrigins, readEnv, setEnv } from "../../../scripts/share.mjs";
+// A plain .mjs script, imported here for the helpers it exports. Getting
+// these wrong fails silently on somebody else's machine, which is the worst
+// place to find out — so they are tested here rather than left to a manual run.
+import {
+  apiUrlFrom,
+  mergeOrigins,
+  readEnv,
+  setEnv,
+} from "../../../scripts/share.mjs";
 
 /**
  * `scripts/share.mjs` points both halves of Markova at a forwarded address.
