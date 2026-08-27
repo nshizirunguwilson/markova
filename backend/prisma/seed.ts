@@ -662,6 +662,9 @@ async function main() {
     'aline.uwase@markova.edu',
     'student1@markova.edu',
     'librarian@markova.edu',
+    'patron@markova.edu',
+    'matron@markova.edu',
+    'nurse@markova.edu',
   ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
@@ -765,6 +768,79 @@ async function main() {
     },
   });
   console.log('  ✅ Librarian seeded');
+
+  // ─── BOARDING STAFF AND THE NURSE ───────────────────────────────────────────
+  //
+  // A patron, a matron and a nurse, seeded like the librarian so every fresh
+  // database has one of each. Their pages — pocket money, the sick bay, the
+  // activity register — were built and then never seen, because there was no
+  // account in any seed that could sign in and reach them.
+  //
+  // Three separate people rather than one account with three hats: a boys'
+  // patron and a girls' matron are two different members of staff in a
+  // Rwandan boarding school, and the nurse is a third.
+  const boardingStaff: {
+    email: string;
+    phone: string;
+    code: string;
+    role: Role;
+    gender: Gender;
+    firstName: string;
+    lastName: string;
+    born: string;
+  }[] = [
+    {
+      email: 'patron@markova.edu',
+      phone: '+250788000021',
+      code: `PAT-${new Date().getFullYear()}-001`,
+      role: Role.PATRON,
+      gender: Gender.MALE,
+      firstName: 'Emmanuel',
+      lastName: 'Habimana',
+      born: '1985-03-12',
+    },
+    {
+      email: 'matron@markova.edu',
+      phone: '+250788000022',
+      code: `MAT-${new Date().getFullYear()}-001`,
+      role: Role.MATRON,
+      gender: Gender.FEMALE,
+      firstName: 'Beatrice',
+      lastName: 'Mukamana',
+      born: '1983-11-05',
+    },
+    {
+      email: 'nurse@markova.edu',
+      phone: '+250788000023',
+      code: `NUR-${new Date().getFullYear()}-001`,
+      role: Role.NURSE,
+      gender: Gender.FEMALE,
+      firstName: 'Claudine',
+      lastName: 'Ingabire',
+      born: '1990-06-18',
+    },
+  ];
+
+  for (const person of boardingStaff) {
+    await prisma.user.create({
+      data: {
+        email: person.email,
+        phone: person.phone,
+        code: person.code,
+        gender: person.gender,
+        dateOfBirth: new Date(person.born),
+        nationalId: makeNid(person.gender, Number(person.born.slice(0, 4))),
+        nationality: 'Rwandan',
+        passwordHash,
+        role: person.role,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        isActive: true,
+        forcePasswordChange: false, // demo account
+      },
+    });
+  }
+  console.log('  ✅ Patron, matron and nurse seeded');
 
   // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
   // The official term windows as published by the Ministry of Education. The
