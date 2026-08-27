@@ -157,8 +157,17 @@ export class AcademicController {
 
   // ─── CLASS LEVELS ───────────────────────────────────────────────────────────
 
+  /**
+   * The school's own list of classes. Read-only, and not academic data —
+   * it is the vocabulary every page uses to filter by class.
+   *
+   * The boarding staff and the nurse need it for exactly that: the pocket
+   * money register and the activity list are both filtered by class, and
+   * without this their filters came back empty behind a "Forbidden resource"
+   * toast. Writing a class stays with the administrator below.
+   */
   @Get('class-levels')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN')
   @ApiOperation({ summary: 'List all class levels with sections' })
   findAllClassLevels() {
     return this.service.findAllClassLevels();
@@ -223,8 +232,9 @@ export class AcademicController {
 
   // ─── CLASS SECTIONS ─────────────────────────────────────────────────────────
 
+  /** As above: the vocabulary, not the marks. */
   @Get('sections')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN')
   @ApiOperation({ summary: 'List all class sections' })
   findAllSections(@Query('classLevelId') classLevelId?: string) {
     return this.service.findAllSections(classLevelId);
