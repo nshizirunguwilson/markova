@@ -31,7 +31,7 @@ import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
-import { Roles } from '../../common/decorators';
+import { Roles, ANY_ROLE } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
 import {
@@ -65,7 +65,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Get user by ID (own record for non-admins)' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -104,7 +104,7 @@ export class UsersController {
   }
 
   @Post(':id/photo')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @UseInterceptors(
     FileInterceptor('photo', {

@@ -20,7 +20,7 @@ import {
   CreateTicketDto,
   UpdateTicketStatusDto,
 } from './dto';
-import { Roles } from '../../common/decorators';
+import { Roles, ANY_ROLE } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 
 @ApiTags('Help')
@@ -33,7 +33,7 @@ export class HelpController {
   // ── FAQ ─────────────────────────────────────────────────────────────────────
 
   @Get('faqs')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Search FAQ articles' })
   findFaqs(@Query('search') search?: string) {
     return this.service.findAllFaqs(search);
@@ -70,7 +70,7 @@ export class HelpController {
   // ── Tickets ─────────────────────────────────────────────────────────────────
 
   @Post('tickets')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Submit support ticket' })
   createTicket(@Req() req: any, @Body() dto: CreateTicketDto) {
     return this.service.createTicket(req.user.id, dto);
@@ -84,7 +84,7 @@ export class HelpController {
   }
 
   @Get('tickets/mine')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'List my support tickets' })
   findMyTickets(@Req() req: any) {
     return this.service.findMyTickets(req.user.id);

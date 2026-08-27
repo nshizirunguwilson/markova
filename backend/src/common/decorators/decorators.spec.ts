@@ -1,4 +1,5 @@
-import { ROLES_KEY, Roles } from './roles.decorator';
+import { Role } from '@prisma/client';
+import { ROLES_KEY, Roles, ANY_ROLE } from './roles.decorator';
 import { CurrentUser } from './current-user.decorator';
 
 /**
@@ -79,5 +80,34 @@ describe('@Roles()', () => {
 
   it('uses the key the guard actually looks for', () => {
     expect(ROLES_KEY).toBe('roles');
+  });
+});
+
+/**
+ * Routes open to anyone signed in.
+ *
+ * These used to spell out the five roles that existed when they were written.
+ * Adding the patron, matron and nurse left all three signed in to a
+ * notification bell that answered 403 and a Messages link they could not
+ * open, because nobody thought to revisit four unrelated controllers.
+ */
+describe('ANY_ROLE', () => {
+  it('holds every role the schema defines', () => {
+    expect([...ANY_ROLE].sort()).toEqual([...Object.values(Role)].sort());
+  });
+
+  it('includes the boarding staff and the nurse', () => {
+    for (const role of [Role.PATRON, Role.MATRON, Role.NURSE]) {
+      expect(ANY_ROLE).toContain(role);
+    }
+  });
+
+  /**
+   * The point of the constant. A hand-written list is a list that will be
+   * out of date the next time somebody adds a role, and the failure is
+   * silent until that person tries to sign in.
+   */
+  it('grows with the enum rather than being maintained by hand', () => {
+    expect(ANY_ROLE).toHaveLength(Object.values(Role).length);
   });
 });
