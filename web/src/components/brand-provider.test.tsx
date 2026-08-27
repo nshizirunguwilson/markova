@@ -169,15 +169,19 @@ describe("BrandProvider", () => {
     }
   });
 
-  // Nothing paler than white exists, so a colour that only just reads on it
-  // cannot carry a wash. The designed neutrals stay rather than a failing pair
-  // being applied.
-  it("keeps the designed washes for a colour too weak to carry one", async () => {
+  /**
+   * A colour with no room for a readable wash is darkened until it has room,
+   * rather than being handed the designed neutrals — which are a pale blue,
+   * checked once against the designed navy. A school that chose green was
+   * getting green-on-blue at 3.7:1 on every sidebar item in the app.
+   */
+  it("gives even a weak colour washes of its own", async () => {
     serveBranding({ primaryColor: "#767676" });
     render(<BrandProvider><span>x</span></BrandProvider>);
-    await waitFor(() => expect(read("--brand-primary")).toBe("#767676"));
-    expect(read("--brand-accent")).toBe("");
-    expect(read("--brand-accent-light")).toBe("");
+    await waitFor(() => expect(read("--brand-accent")).not.toBe(""));
+    expect(
+      contrastRatio(read("--brand-primary"), read("--brand-accent")),
+    ).toBeGreaterThanOrEqual(4.5);
   });
 
   it("re-applies the colour when settings change it later", async () => {

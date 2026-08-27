@@ -171,15 +171,20 @@ describe("the palette a school's colour implies", () => {
   });
 
   /**
-   * A colour that only just reads on white has no room for two tints that
-   * both still hold AA. Offering none is what keeps the designed neutrals in
-   * place rather than shipping a pair that fails.
+   * A colour with no room for two readable tints is darkened until it has
+   * room, rather than being handed the designed neutrals.
+   *
+   * Those neutrals are a pale blue, checked once against the designed navy.
+   * Giving them to a school that chose green produced green-on-blue at
+   * 3.7:1 on every sidebar item and every avatar in the app.
    */
-  it("offers no wash for a colour too weak to carry one", () => {
+  it("darkens a weak colour until it can carry its own washes", () => {
     const p = brandPalette("#767676");
-    expect(p.accent).toBeNull();
-    expect(p.accentLight).toBeNull();
-    // The primary variants are still derived: buttons and the sidebar work.
+    expect(p.accent).not.toBeNull();
+    expect(p.accentLight).not.toBeNull();
+    expect(contrastRatio(p.primary, p.accent!)).toBeGreaterThanOrEqual(
+      MIN_TEXT_CONTRAST,
+    );
     expect(p.primaryLight).not.toBe(p.primaryDark);
   });
 
@@ -191,7 +196,9 @@ describe("the palette a school's colour implies", () => {
   it.each(COLOURS)("gives %s a lighter and a darker variant", (_name, hex) => {
     const p = brandPalette(hex);
     expect(p.primaryLight).not.toBe(p.primaryDark);
-    expect(p.primary).toBe(hex);
+    // The primary is the readable form of what the school chose, which for
+    // most colours is the hex itself.
+    expect(p.primary).toBe(readableAsText(hex));
   });
 
   // White text on the primary is the other pairing in the app: every button,

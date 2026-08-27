@@ -38,9 +38,6 @@ export const MUTED_TEXT = "#5F6E85";
  * off black and that midpoint drops below AA.
  */
 export const ON_PRIMARY_LIGHT = "#FFFFFF";
-
-/** The card surface brand-coloured text is read against. */
-export const SURFACE = "#FFFFFF";
 export const ON_PRIMARY_DARK = "#000000";
 
 export function parseHex(hex: string): [number, number, number] | null {
@@ -136,25 +133,32 @@ export interface BrandPalette {
 }
 
 /**
+ * How pale a wash gets. Brand text has to read on this, not just on white.
+ */
+const PALEST_WASH = 0.9;
+
+/**
  * The school's colour, darkened just far enough to be readable as text.
  *
  * `--color-primary` is not only a fill. It is the colour of every link, every
- * active label and every brand-coloured caption in the app, all of them on a
- * white surface. A school picking a mid-green like #2A8D50 gets 4.18:1 there,
- * which fails AA on every page at once — and the school has no way of knowing,
+ * active label and every brand-coloured caption in the app — and those sit on
+ * washes of the same colour as often as on plain white. A school picking a
+ * mid-green like #2A8D50 gets 4.18:1 on white and 3.7:1 on the wash, which
+ * fails AA on every page at once, and the school has no way of knowing
  * because the colour looks perfectly good.
  *
- * So the chosen colour is honoured as closely as WCAG allows rather than
- * literally: darkened in small steps until it clears the text ratio on the
- * surface it sits on. A colour that already passes is returned untouched, so
- * a school whose brand is a navy sees exactly the hex it typed.
+ * The test is therefore against the colour's own palest tint rather than
+ * against white: clear that and white is clear by definition, because the
+ * wash is the darker of the two. A colour that already passes is returned
+ * untouched, so a school whose brand is a navy sees exactly the hex it typed.
  */
-export function readableAsText(hex: string, on: string = SURFACE): string {
+export function readableAsText(hex: string): string {
   if (!parseHex(hex)) return hex;
   let candidate = hex;
   for (
     let step = 0;
-    step < 40 && contrastRatio(candidate, on) < MIN_TEXT_CONTRAST;
+    step < 40 &&
+    contrastRatio(candidate, shade(candidate, PALEST_WASH)) < MIN_TEXT_CONTRAST;
     step += 1
   ) {
     candidate = shade(candidate, -0.05);
