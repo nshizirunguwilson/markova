@@ -667,8 +667,22 @@ describe('MarksService', () => {
       });
       expect(prisma.termResult.updateMany).toHaveBeenCalledWith({
         where: { classSectionId: 'section-1', termId: 'term-1' },
-        data: { isPublished: true },
+        data: expect.objectContaining({ isPublished: true }),
       });
+    });
+
+    // When it was released, so the page can say so rather than only that it
+    // happened at some point.
+    it('records when the marks were released', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
+      await service.publishTermResults({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        isPublished: true,
+      });
+      expect(
+        prisma.termResult.updateMany.mock.calls[0][0].data.publishedAt,
+      ).toBeInstanceOf(Date);
     });
 
     it('can take a term back off view', async () => {
@@ -681,6 +695,101 @@ describe('MarksService', () => {
       expect(
         prisma.termResult.updateMany.mock.calls[0][0].data.isPublished,
       ).toBe(false);
+    });
+
+    /**
+     * The report card carries the marks, so withdrawing them has to withdraw
+     * it too — otherwise the document would keep publishing through the back
+     * door exactly the figures the school just took back.
+     */
+    it('withdraws the report card along with the marks', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
+      await service.publishTermResults({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        isPublished: false,
+      });
+      const data = prisma.termResult.updateMany.mock.calls[0][0].data;
+      expect(data.reportCardPublished).toBe(false);
+      expect(data.publishedAt).toBeNull();
+    });
+
+    // Releasing marks does not issue the card: that is a separate decision,
+    // taken after deliberation and once the comments are written.
+    it('does not issue the report card just by publishing marks', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
+      await service.publishTermResults({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        isPublished: true,
+      });
+      expect(
+        prisma.termResult.updateMany.mock.calls[0][0].data,
+      ).not.toHaveProperty('reportCardPublished');
+    });
+  });
+
+  /**
+   * Issuing the report card, which a school does after deliberation and once
+   * the head teacher's comments are written — routinely days after the marks
+   * themselves went out.
+   */
+  describe('issuing the report cards', () => {
+    it('issues them for a class whose marks are out', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
+
+      await service.publishReportCards({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        isPublished: true,
+      });
+
+      const data = prisma.termResult.updateMany.mock.calls[0][0].data;
+      expect(data.reportCardPublished).toBe(true);
+      expect(data.reportCardPublishedAt).toBeInstanceOf(Date);
+    });
+
+    // The card carries the marks. Issuing one while they are unpublished
+    // would put in front of a family exactly what the school held back.
+    it('refuses while any of the marks are still unpublished', async () => {
+      prisma.termResult.count.mockResolvedValue(4);
+
+      await expect(
+        service.publishReportCards({
+          classSectionId: 'section-1',
+          termId: 'term-1',
+          isPublished: true,
+        }),
+      ).rejects.toThrow(/Publish the marks first/);
+      expect(prisma.termResult.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('says how many are holding it up', async () => {
+      prisma.termResult.count.mockResolvedValue(4);
+      await expect(
+        service.publishReportCards({
+          classSectionId: 'section-1',
+          termId: 'term-1',
+          isPublished: true,
+        }),
+      ).rejects.toThrow(/4 of this class/);
+    });
+
+    // Withdrawing needs no such check: taking a document back is always safe.
+    it('withdraws them without asking about the marks', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
+
+      await service.publishReportCards({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        isPublished: false,
+      });
+
+      expect(prisma.termResult.count).not.toHaveBeenCalled();
+      const data = prisma.termResult.updateMany.mock.calls[0][0].data;
+      expect(data.reportCardPublished).toBe(false);
+      expect(data.reportCardPublishedAt).toBeNull();
     });
   });
 

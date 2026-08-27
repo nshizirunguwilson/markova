@@ -23,6 +23,7 @@ import {
   CalculateYearResultDto,
   UpdateTermResultCommentDto,
   PublishTermResultsDto,
+  PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
 
@@ -435,7 +436,36 @@ export class MarksService {
     });
   }
 
-  async getStudentTermResult(studentId: string, termId: string) {
+  /**
+   * One student's results for a term.
+   *
+   * `viewerRole` decides whether unpublished figures come back at all. Staff
+   * need to read them before releasing — that is the whole point of a draft —
+   * but a student or a parent must not, and until this argument existed they
+   * did: the route checked that the right family was asking and then handed
+   * over marks the school had not published. A term appeared on the student's
+   * page the moment a teacher typed it in.
+   *
+   * Answering "not published yet" rather than throwing keeps this a normal
+   * empty state on the page instead of an error the student has to decode.
+   */
+  async getStudentTermResult(
+    studentId: string,
+    termId: string,
+    viewerRole?: string,
+  ) {
+    const gated = viewerRole === 'STUDENT' || viewerRole === 'PARENT';
+
+    if (gated) {
+      const released = await this.prisma.termResult.findFirst({
+        where: { studentId, termId, isPublished: true },
+        select: { id: true },
+      });
+      if (!released) {
+        return { result: null, marks: [], published: false };
+      }
+    }
+
     const result = await this.prisma.termResult.findFirst({
       where: { studentId, termId },
       include: {
@@ -458,7 +488,7 @@ export class MarksService {
       orderBy: { subject: { name: 'asc' } },
     });
 
-    return { result, marks };
+    return { result, marks, published: result?.isPublished ?? false };
   }
 
   async updateTermResultComment(id: string, dto: UpdateTermResultCommentDto) {
@@ -478,10 +508,60 @@ export class MarksService {
     });
   }
 
+  /**
+   * Release the marks — the subject breakdown, average and position — to the
+   * students of a class and their parents.
+   *
+   * This is not the same act as issuing the report card. A school routinely
+   * lets marks out as soon as they have been checked and issues the formal
+   * document later, once deliberation is done and the comments are written.
+   * See `publishReportCards`.
+   */
   async publishTermResults(dto: PublishTermResultsDto) {
+    const now = new Date();
     return this.prisma.termResult.updateMany({
       where: { classSectionId: dto.classSectionId, termId: dto.termId },
-      data: { isPublished: dto.isPublished },
+      data: {
+        isPublished: dto.isPublished,
+        publishedAt: dto.isPublished ? now : null,
+        // Withdrawing the marks withdraws the report card with them: the
+        // document carries the marks, so leaving it out would publish through
+        // the back door exactly what was just taken back.
+        ...(dto.isPublished
+          ? {}
+          : { reportCardPublished: false, reportCardPublishedAt: null }),
+      },
+    });
+  }
+
+  /**
+   * Issue (or withdraw) the report cards for a class.
+   *
+   * Refused while the marks are unpublished, because the card carries them —
+   * issuing one would put in front of a family precisely the figures the
+   * school has not released.
+   */
+  async publishReportCards(dto: PublishReportCardsDto) {
+    const where = { classSectionId: dto.classSectionId, termId: dto.termId };
+
+    if (dto.isPublished) {
+      const unpublished = await this.prisma.termResult.count({
+        where: { ...where, isPublished: false },
+      });
+      if (unpublished > 0) {
+        throw new BadRequestException(
+          `Publish the marks first: ${unpublished} of this class's results are still unpublished, and a report card carries them.`,
+        );
+      }
+    }
+
+    const now = new Date();
+    return this.prisma.termResult.updateMany({
+      where,
+      data: {
+        reportCardPublished: dto.isPublished,
+        reportCardPublishedAt: dto.isPublished ? now : null,
+      },
     });
   }
 
@@ -642,6 +722,22 @@ export class MarksService {
   // ═══════════════════════════════════════════════════════════════════════════
   // REPORT CARD DATA
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Has this student's report card been issued for this term?
+   *
+   * Issuing the card is a separate act from releasing the marks (see
+   * `publishReportCards`), so it is asked separately. The controller gates on
+   * this before building the card, which keeps authorization where the
+   * ownership check already lives and leaves this method returning one shape.
+   */
+  async isReportCardIssued(studentId: string, termId: string) {
+    const issued = await this.prisma.termResult.findFirst({
+      where: { studentId, termId, reportCardPublished: true },
+      select: { id: true },
+    });
+    return !!issued;
+  }
 
   async getReportCardData(studentId: string, termId: string) {
     // Student info
