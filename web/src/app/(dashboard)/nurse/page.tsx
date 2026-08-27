@@ -3,6 +3,7 @@
 import {
   Ambulance,
   HeartPulse,
+  MessageSquare,
   Pill,
   Stethoscope,
 } from "lucide-react";
@@ -129,7 +130,7 @@ export default function NurseDashboard() {
             href="/messages"
             label="Messages"
             description="Reach a parent, a matron or the office"
-            icon={Ambulance}
+            icon={MessageSquare}
           />
         </div>
       </div>
