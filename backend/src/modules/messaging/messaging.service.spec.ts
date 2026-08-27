@@ -833,6 +833,32 @@ describe('MessagingService', () => {
       ]);
     });
 
+    it('lists everyone a person shares a conversation with', async () => {
+      mockPrisma.conversationParticipant.findMany
+        .mockResolvedValueOnce([{ conversationId: 'c-1' }])
+        .mockResolvedValueOnce([{ userId: 'user-2' }, { userId: 'user-3' }]);
+
+      await expect(
+        service.getConversationPartnerIds('user-1'),
+      ).resolves.toEqual(['user-2', 'user-3']);
+
+      expect(mockPrisma.conversationParticipant.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { conversationId: { in: ['c-1'] }, userId: { not: 'user-1' } },
+          distinct: ['userId'],
+        }),
+      );
+    });
+
+    it('finds nobody for a person in no conversation at all', async () => {
+      mockPrisma.conversationParticipant.findMany.mockResolvedValue([]);
+      await expect(service.getConversationPartnerIds('user-1')).resolves.toEqual(
+        [],
+      );
+      // The second query is skipped rather than run with an empty `in`.
+      expect(mockPrisma.conversationParticipant.findMany).toHaveBeenCalledTimes(1);
+    });
+
     it('lists who is in a conversation', async () => {
       mockPrisma.conversationParticipant.findMany.mockResolvedValue([
         { userId: 'user-1' },

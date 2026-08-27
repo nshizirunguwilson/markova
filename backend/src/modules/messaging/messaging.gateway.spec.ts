@@ -39,6 +39,7 @@ describe('MessagingGateway', () => {
     messaging = {
       getConversationParticipantIds: jest.fn().mockResolvedValue([]),
       getUserConversationIds: jest.fn().mockResolvedValue([]),
+      getConversationPartnerIds: jest.fn().mockResolvedValue([]),
       markDelivered: jest.fn().mockResolvedValue([]),
       sendMessage: jest.fn().mockResolvedValue({ id: 'msg-1' }),
       markAsRead: jest.fn().mockResolvedValue({ count: 0, readMessageIds: [] }),
@@ -123,10 +124,26 @@ describe('MessagingGateway', () => {
       expect(client.join).toHaveBeenCalledWith('conv:conv-2');
     });
 
-    it('tells the new socket who else is online', async () => {
+    it('tells the new socket which of its partners is online', async () => {
+      messaging.getConversationPartnerIds.mockResolvedValue(['user-2']);
+      await gateway.handleConnection(socket({ id: 'socket-2' }));
       const client = socket();
+      jwt.verify.mockReturnValue({ sub: 'user-2' });
       await gateway.handleConnection(client);
-      expect(client.emit).toHaveBeenCalledWith('onlineUsers', ['user-1']);
+      expect(client.emit).toHaveBeenCalledWith('onlineUsers', ['user-2']);
+    });
+
+    /**
+     * The list used to be every socket on the server, which told anyone who
+     * signed in who else in the school was at their desk.
+     */
+    it('leaves out somebody online who shares no conversation', async () => {
+      messaging.getConversationPartnerIds.mockResolvedValue([]);
+      await gateway.handleConnection(socket({ id: 'socket-2' }));
+      const client = socket();
+      jwt.verify.mockReturnValue({ sub: 'user-2' });
+      await gateway.handleConnection(client);
+      expect(client.emit).toHaveBeenCalledWith('onlineUsers', []);
     });
 
     /**
@@ -526,5 +543,90 @@ describe('MessagingGateway', () => {
       await gateway.broadcastNewMessage('conv-1', { id: 'msg-1' });
       expect(to).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * Two people in one conversation, connecting one after the other.
+ *
+ * The reported fault was one-sided: whoever connected second saw the first
+ * as online, but the first never saw the second appear. The second party
+ * learns the room's state from the `onlineUsers` list handed to them at
+ * connect; the first has only the `presenceChange` broadcast to go on.
+ */
+describe('MessagingGateway presence between two people', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let gateway: MessagingGateway;
+  let jwt: { verify: jest.Mock };
+  let messaging: Record<string, jest.Mock>;
+  let to: jest.Mock;
+  let emit: jest.Mock;
+
+  const socketFor = (userId: string) =>
+    ({
+      id: `socket-${userId}`,
+      handshake: { auth: { token: userId }, headers: {} },
+      data: {},
+      join: jest.fn(),
+      emit: jest.fn(),
+      to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+      disconnect: jest.fn(),
+    }) as any;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    emit = jest.fn();
+    to = jest.fn().mockReturnValue({ emit });
+    messaging = {
+      getConversationParticipantIds: jest
+        .fn()
+        .mockResolvedValue(['admin-1', 'student-1']),
+      getUserConversationIds: jest.fn().mockResolvedValue(['conv-1']),
+      getConversationPartnerIds: jest
+        .fn()
+        .mockImplementation((id: string) =>
+          Promise.resolve(['admin-1', 'student-1'].filter((p) => p !== id)),
+        ),
+      markDelivered: jest.fn().mockResolvedValue([]),
+    };
+    // The token is the user id in this harness.
+    jwt = { verify: jest.fn((token: string) => ({ sub: token })) };
+    gateway = new MessagingGateway(
+      jwt as unknown as JwtService,
+      { get: () => 'secret' } as unknown as ConfigService,
+      prisma,
+      messaging as unknown as MessagingService,
+    );
+    gateway.server = { to } as never;
+    prisma.user.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ id: where.id, isActive: true, firstName: 'A' }),
+    );
+    prisma.user.update.mockResolvedValue({});
+  });
+
+  it('tells the admin, already connected, that the student came online', async () => {
+    await gateway.handleConnection(socketFor('admin-1'));
+    to.mockClear();
+    emit.mockClear();
+
+    await gateway.handleConnection(socketFor('student-1'));
+
+    expect(to).toHaveBeenCalledWith(['user:admin-1']);
+    expect(emit).toHaveBeenCalledWith(
+      'presenceChange',
+      expect.objectContaining({ userId: 'student-1', isOnline: true }),
+    );
+  });
+
+  it('hands the student, connecting second, everyone already online', async () => {
+    await gateway.handleConnection(socketFor('admin-1'));
+    const student = socketFor('student-1');
+
+    await gateway.handleConnection(student);
+
+    expect(student.emit).toHaveBeenCalledWith(
+      'onlineUsers',
+      expect.arrayContaining(['admin-1']),
+    );
   });
 });

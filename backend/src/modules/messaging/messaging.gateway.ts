@@ -159,8 +159,15 @@ export class MessagingGateway
       // Broadcast online status to conversation partners
       await this.broadcastPresence(userId, true);
 
-      // Send current online users to the connecting client
-      const onlineList = Array.from(this.onlineUsers.keys());
+      // Send current online users to the connecting client.
+      //
+      // Only the people they share a conversation with. This list used to be
+      // every socket connected to the server, which both told a student who
+      // else in the school was at their desk and — because the corrections
+      // that follow (`presenceChange`) are limited to conversation partners —
+      // left a green dot next to a stranger lit until the page was reloaded.
+      const partners = await this.messagingService.getConversationPartnerIds(userId);
+      const onlineList = partners.filter((id) => this.onlineUsers.has(id));
       client.emit('onlineUsers', onlineList);
 
       // Mark undelivered messages as delivered
