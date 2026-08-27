@@ -11,6 +11,25 @@ import type {
 } from "./types";
 import { errorMessage } from "@/lib/errors";
 
+/**
+ * The rows out of a paginated response.
+ *
+ * The library endpoints answer `{ data, meta }` — the envelope from
+ * PaginatedResponse — and reading `.length` straight off that gives
+ * `undefined`, which every "no results" branch in the app treats as empty.
+ * The librarian's catalogue said "No books found" over a library of 56 for
+ * exactly that reason, while its own header counted them correctly from a
+ * different endpoint.
+ *
+ * Written once here so a page cannot get it wrong, and tolerant of a bare
+ * array so it keeps working if an endpoint is ever un-paginated.
+ */
+export function rowsOf<T = unknown>(response: unknown): T[] {
+  if (Array.isArray(response)) return response as T[];
+  const data = (response as { data?: unknown } | null | undefined)?.data;
+  return Array.isArray(data) ? (data as T[]) : [];
+}
+
 export function useBooks(params?: Record<string, string>) {
   const search = params ? new URLSearchParams(params).toString() : "";
   return useQuery({
