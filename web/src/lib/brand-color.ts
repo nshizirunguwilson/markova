@@ -38,6 +38,9 @@ export const MUTED_TEXT = "#5F6E85";
  * off black and that midpoint drops below AA.
  */
 export const ON_PRIMARY_LIGHT = "#FFFFFF";
+
+/** The card surface brand-coloured text is read against. */
+export const SURFACE = "#FFFFFF";
 export const ON_PRIMARY_DARK = "#000000";
 
 export function parseHex(hex: string): [number, number, number] | null {
@@ -132,6 +135,33 @@ export interface BrandPalette {
   accentLight: string | null;
 }
 
+/**
+ * The school's colour, darkened just far enough to be readable as text.
+ *
+ * `--color-primary` is not only a fill. It is the colour of every link, every
+ * active label and every brand-coloured caption in the app, all of them on a
+ * white surface. A school picking a mid-green like #2A8D50 gets 4.18:1 there,
+ * which fails AA on every page at once — and the school has no way of knowing,
+ * because the colour looks perfectly good.
+ *
+ * So the chosen colour is honoured as closely as WCAG allows rather than
+ * literally: darkened in small steps until it clears the text ratio on the
+ * surface it sits on. A colour that already passes is returned untouched, so
+ * a school whose brand is a navy sees exactly the hex it typed.
+ */
+export function readableAsText(hex: string, on: string = SURFACE): string {
+  if (!parseHex(hex)) return hex;
+  let candidate = hex;
+  for (
+    let step = 0;
+    step < 40 && contrastRatio(candidate, on) < MIN_TEXT_CONTRAST;
+    step += 1
+  ) {
+    candidate = shade(candidate, -0.05);
+  }
+  return candidate;
+}
+
 /** Whichever of white and near-black reads better on the given fill. */
 export function onPrimaryFor(hex: string): string {
   if (!parseHex(hex)) return ON_PRIMARY_LIGHT;
@@ -149,13 +179,18 @@ export function onPrimaryFor(hex: string): string {
  * on a hovered row.
  */
 export function brandPalette(hex: string): BrandPalette {
+  // Everything below is derived from the readable form, not the raw one, so
+  // the light and dark variants and the washes are all built on a colour that
+  // can actually carry text.
+  const readable = readableAsText(hex);
   const base = {
-    primary: hex,
-    primaryLight: shade(hex, 0.18),
-    primaryDark: shade(hex, -0.18),
-    onPrimary: onPrimaryFor(hex),
+    primary: readable,
+    primaryLight: shade(readable, 0.18),
+    primaryDark: shade(readable, -0.18),
+    onPrimary: onPrimaryFor(readable),
   };
   if (!parseHex(hex)) return { ...base, accent: null, accentLight: null };
+  hex = readable;
 
   // `accentLight` starts its walk further along, which makes it the paler of
   // the two whatever the hue.

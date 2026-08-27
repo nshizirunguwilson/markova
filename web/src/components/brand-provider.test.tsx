@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 
+import { contrastRatio } from "@/lib/brand-color";
 import { BrandProvider } from "./brand-provider";
 import { useBrandStore } from "@/stores/brand-store";
 
@@ -60,14 +61,37 @@ describe("BrandProvider", () => {
 
   /**
    * Solid brand fills (the unread badge in Messages) carry this as their text
-   * colour, so it has to follow the school's choice rather than assume white.
+   * colour, and it is chosen against the fill the palette actually paints —
+   * which for a bright colour is the darkened, readable form of it, not the
+   * raw hex the school typed.
    */
-  it("picks text that reads on the school's own colour", async () => {
+  it("picks text that reads on the fill it will be drawn on", async () => {
     serveBranding({ primaryColor: "#F1C40F" });
     render(<BrandProvider><span>x</span></BrandProvider>);
-    await waitFor(() =>
-      expect(read("--brand-on-primary").toLowerCase()).toBe("#000000"),
+    await waitFor(() => expect(read("--brand-on-primary")).not.toBe(""));
+    const fill = read("--brand-primary");
+    const text = read("--brand-on-primary");
+    expect(contrastRatio(text, fill)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /**
+   * `--brand-primary` is the colour of every link and label in the app, on a
+   * white card. A school choosing a mid-green would otherwise fail AA on
+   * every page at once, without ever being told.
+   */
+  it("keeps the school's colour readable as text on a card", async () => {
+    serveBranding({ primaryColor: "#2A8D50" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-primary")).not.toBe(""));
+    expect(contrastRatio(read("--brand-primary"), "#FFFFFF")).toBeGreaterThanOrEqual(
+      4.5,
     );
+  });
+
+  it("leaves a colour that already reads exactly as it was given", async () => {
+    serveBranding({ primaryColor: "#1B4F72" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-primary")).toBe("#1b4f72"));
   });
 
   it("uses white on a dark school colour", async () => {
