@@ -179,6 +179,15 @@ describe("the nurse's dashboard", () => {
     expect(asked.every((u) => u.includes("/clinic"))).toBe(true);
   });
 
+  // A school with no clinic records yet still has to render.
+  it("shows zeros rather than blanks on an empty summary", async () => {
+    serve(h.api, { "/clinic/visits": { data: [] }, "/clinic/summary": {} });
+    mount();
+    expect(await screen.findByText("The sick bay is empty.")).toBeInTheDocument();
+    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText("In the last 30 days")).toBeInTheDocument();
+  });
+
   it("holds together while the ward is still loading", async () => {
     serveNever(h.api);
     mount();

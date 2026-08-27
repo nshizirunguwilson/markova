@@ -156,6 +156,19 @@ describe("the sick bay list", () => {
     expect(screen.queryByText("Every bed is free")).toBeNull();
   });
 
+  it("treats a missing severity as minor", () => {
+    render(<SickBay visits={[visit({ severity: null })]} />);
+    expect(screen.getByText("Minor")).toBeInTheDocument();
+  });
+
+  it("can be pointed somewhere other than the clinic", () => {
+    render(<SickBay visits={[]} href="/nurse" />);
+    expect(screen.getByRole("link", { name: /the clinic/i })).toHaveAttribute(
+      "href",
+      "/nurse",
+    );
+  });
+
   it("points at the clinic where the work is done", () => {
     render(<SickBay visits={[]} />);
     expect(screen.getByRole("link", { name: /the clinic/i })).toHaveAttribute(

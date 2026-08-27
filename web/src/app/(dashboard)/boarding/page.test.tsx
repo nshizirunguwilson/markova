@@ -237,6 +237,86 @@ describe("the boarding dashboard", () => {
     }
   });
 
+  /**
+   * The API can answer thinly — a school with no clinic records yet, an
+   * activity nobody set a location for. A dashboard that only works on a full
+   * response is a dashboard that breaks on day one of a new school.
+   */
+  it("says none were referred out when none were", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/summary": { ...summary, referred: 0 },
+    });
+    mount();
+    expect(await screen.findByText("None referred out")).toBeInTheDocument();
+  });
+
+  it("says so when an activity has no location", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/upcoming": [
+        { ...activity, location: null, requiresConsent: false },
+      ],
+    });
+    mount();
+    expect(await screen.findByText("No location set")).toBeInTheDocument();
+  });
+
+  it("draws a school with no records at all rather than blanks", async () => {
+    serve(h.api, {
+      "/clinic/visits": { data: [] },
+      "/clinic/summary": {},
+      "/pocket-money/overview": {},
+      "/activities/upcoming": [],
+    });
+    mount();
+    expect(await screen.findByText(/All quiet/)).toBeInTheDocument();
+    expect(screen.getByText("RWF 0")).toBeInTheDocument();
+    expect(screen.getByText("Across 0 students")).toBeInTheDocument();
+    expect(screen.getByText("None on hold")).toBeInTheDocument();
+  });
+
+  it("uses the plural when several are resting", async () => {
+    serve(h.api, {
+      ...routes,
+      "/clinic/visits": {
+        data: [restingVisit, { ...restingVisit, id: "v-2" }],
+        meta: { total: 2 },
+      },
+    });
+    mount();
+    expect(
+      await screen.findByText("2 students are resting in the sick bay."),
+    ).toBeInTheDocument();
+  });
+
+  it("counts an account with no balance recorded as empty", async () => {
+    serve(h.api, {
+      ...routes,
+      "/pocket-money/overview": {
+        ...overview,
+        items: [{ studentId: "s-1", name: "Keza", hasAccount: true }],
+      },
+    });
+    mount();
+    expect(await screen.findByText("1 with nothing left")).toBeInTheDocument();
+  });
+
+  it("names an activity that was saved without a title", async () => {
+    serve(h.api, {
+      ...routes,
+      "/activities/upcoming": [{ ...activity, title: "" }],
+    });
+    mount();
+    expect(await screen.findByText("Untitled")).toBeInTheDocument();
+  });
+
+  it("survives an activities endpoint that answers with nothing", async () => {
+    serve(h.api, { ...routes, "/activities/upcoming": null });
+    mount();
+    expect(await screen.findByText("Nothing is scheduled yet.")).toBeInTheDocument();
+  });
+
   it("holds together while everything is still loading", async () => {
     serveNever(h.api);
     mount();
