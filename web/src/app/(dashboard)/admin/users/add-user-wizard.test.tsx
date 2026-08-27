@@ -1749,6 +1749,30 @@ describe("walking a student through every step in order", () => {
     expect(h.api.post).not.toHaveBeenCalled();
   });
 
+  /**
+   * A step that refuses to move in silence is indistinguishable from a dead
+   * button, and the check can fail on a field belonging to an earlier step —
+   * where there is nothing on screen to see.
+   */
+  it("focuses the field at fault rather than sitting there", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    // Nothing filled in at all, so Account cannot be left.
+    await clickContinue();
+
+    // The first field of the step that is at fault, in the order they read.
+    await act(async () => {});
+    expect(document.activeElement).toBe(screen.getByLabelText(/first name/i));
+    // The field carries the message, so the footer stays quiet.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(atStep("Account")).toBe(true);
+  });
+
   it("treats Enter mid-wizard as Continue, not as Create", async () => {
     const { act, fireEvent } = await import("@testing-library/react");
     h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });
