@@ -95,7 +95,7 @@ export class AnalyticsController {
   ) {
     // Students see only themselves, parents only their own children.
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
-    return this.service.getStudentProfileAnalytics(studentId);
+    return this.service.getStudentProfileAnalytics(studentId, user.role);
   }
 
   // ── Teacher ───────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export class AnalyticsController {
       req.user.role,
       studentId,
     );
-    return this.service.getStudentAnalytics(studentId, termId);
+    return this.service.getStudentAnalytics(studentId, termId, req.user?.role);
   }
 
   // ── Parent ────────────────────────────────────────────────────────────────

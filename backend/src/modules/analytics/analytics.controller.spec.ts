@@ -99,7 +99,7 @@ describe('AnalyticsController', () => {
       name: 'one student’s profile',
       call: (c) => c.getStudentProfile('student-1', parent),
       calls: 'getStudentProfileAnalytics',
-      withArgs: ['student-1'],
+      withArgs: ['student-1', 'PARENT'],
     },
     {
       // The teacher id, not the user id. The two are different rows and
@@ -119,7 +119,7 @@ describe('AnalyticsController', () => {
       call: (c) =>
         c.getStudentAnalytics('student-1', 'term-1', { user: parent }),
       calls: 'getStudentAnalytics',
-      withArgs: ['student-1', 'term-1'],
+      withArgs: ['student-1', 'term-1', 'PARENT'],
     },
     {
       name: 'a child’s trend across a year',
