@@ -6,7 +6,7 @@ import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
-import { BarChart3, Users } from "lucide-react";
+import { BarChart3, Clock, Users } from "lucide-react";
 import api from "@/lib/api";
 
 interface Child {
@@ -53,6 +53,9 @@ export default function ParentMarksPage() {
   const { data, isLoading } = useStudentTermResult(selectedChild, selectedTerm);
   const result = data?.result;
   const marks = data?.marks || [];
+  // The school releases marks when it is ready; until then the API withholds
+  // them and says so. A normal state for a parent to land on, not a fault.
+  const notReleased = !!data && data.published === false;
 
   const subjectMap = useMemo(() => {
     const map = new Map<string, { subject: string; assessments: any[]; average: number }>();
@@ -194,6 +197,19 @@ export default function ParentMarksPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </Card>
+          ) : notReleased ? (
+            <Card>
+              <div className="py-10 text-center">
+                <Clock className="mx-auto mb-3 h-8 w-8 text-muted opacity-50" />
+                <p className="font-medium text-foreground">
+                  These results have not been released yet
+                </p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                  Teachers may still be entering or checking marks. They will
+                  appear here as soon as the school publishes them.
+                </p>
               </div>
             </Card>
           ) : selectedTerm ? (

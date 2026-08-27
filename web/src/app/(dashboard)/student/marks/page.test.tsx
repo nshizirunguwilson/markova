@@ -218,3 +218,50 @@ describe("choosing which term to look at", () => {
     expect(screen.queryByText("No marks found for this term.")).toBeNull();
   });
 });
+
+/**
+ * Marks the school has not released yet.
+ *
+ * A term used to appear on this page the moment a teacher typed the marks in.
+ * The API withholds them now and says so, and the page has to read as "not
+ * out yet" rather than as an empty page that looks like the marks were lost.
+ */
+describe("results that are not out yet", () => {
+  const withheld = { result: null, marks: [], published: false };
+
+  it("says the results have not been released", async () => {
+    mount(withheld);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/have not been released yet/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("explains that teachers may still be checking them", async () => {
+    mount(withheld);
+    await waitFor(() =>
+      expect(
+        screen.getByText(/still be entering or checking marks/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  // No average, grade or position either: those are the marks by another name.
+  it("shows no average or position alongside it", async () => {
+    mount(withheld);
+    await waitFor(() =>
+      expect(screen.getByText(/have not been released yet/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/class rank/i)).toBeNull();
+  });
+
+  // "No marks found" means the term is empty; being withheld is different.
+  it("does not confuse it with a term that has no marks", async () => {
+    mount(withheld);
+    await waitFor(() =>
+      expect(screen.getByText(/have not been released yet/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/no marks found/i)).toBeNull();
+  });
+});
