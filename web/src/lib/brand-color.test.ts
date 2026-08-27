@@ -6,6 +6,7 @@ import {
   ON_PRIMARY_DARK,
   ON_PRIMARY_LIGHT,
   brandPalette,
+  readableAsText,
   onPrimaryFor,
   contrastRatio,
   parseHex,
@@ -170,15 +171,20 @@ describe("the palette a school's colour implies", () => {
   });
 
   /**
-   * A colour that only just reads on white has no room for two tints that
-   * both still hold AA. Offering none is what keeps the designed neutrals in
-   * place rather than shipping a pair that fails.
+   * A colour with no room for two readable tints is darkened until it has
+   * room, rather than being handed the designed neutrals.
+   *
+   * Those neutrals are a pale blue, checked once against the designed navy.
+   * Giving them to a school that chose green produced green-on-blue at
+   * 3.7:1 on every sidebar item and every avatar in the app.
    */
-  it("offers no wash for a colour too weak to carry one", () => {
+  it("darkens a weak colour until it can carry its own washes", () => {
     const p = brandPalette("#767676");
-    expect(p.accent).toBeNull();
-    expect(p.accentLight).toBeNull();
-    // The primary variants are still derived: buttons and the sidebar work.
+    expect(p.accent).not.toBeNull();
+    expect(p.accentLight).not.toBeNull();
+    expect(contrastRatio(p.primary, p.accent!)).toBeGreaterThanOrEqual(
+      MIN_TEXT_CONTRAST,
+    );
     expect(p.primaryLight).not.toBe(p.primaryDark);
   });
 
@@ -190,7 +196,9 @@ describe("the palette a school's colour implies", () => {
   it.each(COLOURS)("gives %s a lighter and a darker variant", (_name, hex) => {
     const p = brandPalette(hex);
     expect(p.primaryLight).not.toBe(p.primaryDark);
-    expect(p.primary).toBe(hex);
+    // The primary is the readable form of what the school chose, which for
+    // most colours is the hex itself.
+    expect(p.primary).toBe(readableAsText(hex));
   });
 
   // White text on the primary is the other pairing in the app: every button,
@@ -239,8 +247,59 @@ describe("choosing text for a solid brand fill", () => {
     expect(onPrimaryFor("not-a-colour")).toBe(ON_PRIMARY_LIGHT);
   });
 
-  it("is carried on the palette", () => {
-    expect(brandPalette("#F1C40F").onPrimary).toBe(ON_PRIMARY_DARK);
+  /**
+   * The palette derives everything from the readable form of the colour, so
+   * `onPrimary` is chosen against the fill that will actually be drawn — not
+   * against the raw hex the school typed.
+   */
+  it("is chosen against the fill the palette actually uses", () => {
+    const palette = brandPalette("#F1C40F");
+    expect(
+      contrastRatio(palette.onPrimary, palette.primary),
+    ).toBeGreaterThanOrEqual(4.5);
     expect(brandPalette("#1B4F72").onPrimary).toBe(ON_PRIMARY_LIGHT);
+  });
+});
+
+/**
+ * `--color-primary` is not only a fill. It is the colour of every link, every
+ * active label and every brand-coloured caption in the app, all on white. A
+ * school picking a mid-green gets 4.18:1 there and fails AA on every page at
+ * once, with no way of knowing — the colour looks perfectly good.
+ */
+describe("keeping the school's colour readable as text", () => {
+  it("leaves a colour that already passes exactly as it was typed", () => {
+    expect(readableAsText("#1B4F72")).toBe("#1B4F72");
+    expect(readableAsText("#000000")).toBe("#000000");
+  });
+
+  // The real case: the green this school chose.
+  it("darkens a colour that falls just short", () => {
+    const readable = readableAsText("#2A8D50");
+    expect(readable).not.toBe("#2A8D50");
+    expect(contrastRatio(readable, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("brings even the brightest colours up to the mark", () => {
+    for (const hex of ["#F1C40F", "#2ECC71", "#FFFFFF", "#F39C12", "#1ABC9C"]) {
+      expect(contrastRatio(readableAsText(hex), "#FFFFFF")).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    }
+  });
+
+  it("hands back anything it cannot read rather than mangling it", () => {
+    expect(readableAsText("not-a-colour")).toBe("not-a-colour");
+  });
+
+  /**
+   * The whole palette is built on the readable form, so a school whose colour
+   * had to be adjusted still gets a set that agrees with itself.
+   */
+  it("builds the rest of the palette on the readable colour", () => {
+    const palette = brandPalette("#2A8D50");
+    expect(contrastRatio(palette.primary, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+    expect(palette.primaryLight).not.toBe(palette.primary);
+    expect(palette.primaryDark).not.toBe(palette.primary);
   });
 });

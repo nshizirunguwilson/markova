@@ -220,17 +220,17 @@ describe("DashboardShell sidebar", () => {
 });
 
 /**
- * The welfare staff, who have no dashboard of their own.
+ * The welfare staff.
  *
- * PATRON, MATRON and NURSE work on pages that live under /admin. Sending them
- * to /patron or /nurse would be a 404, so their redirect is a special case,
- * and it is a case nobody hits until the first boarding school signs up.
+ * A patron and a matron do the same job on opposite sides of the school, so
+ * they share /boarding; the nurse has /nurse. Both used to be dropped
+ * straight onto a working page instead, because neither dashboard existed.
  */
 describe("DashboardShell and the welfare roles", () => {
   it.each([
-    ["PATRON", "/admin/pocket-money"],
-    ["MATRON", "/admin/pocket-money"],
-    ["NURSE", "/admin/health"],
+    ["PATRON", "/boarding"],
+    ["MATRON", "/boarding"],
+    ["NURSE", "/nurse"],
   ])("sends a %s to %s rather than to a page that does not exist", async (role, expected) => {
     h.pathname.current = "/teacher/marks";
     signIn(role as "ADMIN");
@@ -275,7 +275,43 @@ describe("DashboardShell and the welfare roles", () => {
     render(wrap(<DashboardShell><Child /></DashboardShell>));
 
     await waitFor(() =>
-      expect(h.router.replace).toHaveBeenCalledWith("/admin/pocket-money"),
+      expect(h.router.replace).toHaveBeenCalledWith("/boarding"),
+    );
+  });
+
+  it.each([
+    ["PATRON", "/boarding"],
+    ["MATRON", "/boarding"],
+    ["NURSE", "/nurse"],
+  ])("lets a %s onto %s, which is theirs", async (role, path) => {
+    h.pathname.current = path;
+    signIn(role as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  // Their homes are theirs alone: the boarding staff have no business on the
+  // nurse's ward, and nobody else belongs on either.
+  it.each([
+    ["NURSE", "/boarding", "/nurse"],
+    ["PATRON", "/nurse", "/boarding"],
+    ["STUDENT", "/boarding", "/student"],
+    ["TEACHER", "/nurse", "/teacher"],
+  ])("sends a %s away from %s", async (role, path, expected) => {
+    h.pathname.current = path;
+    signIn(role as "ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith(expected),
     );
   });
 

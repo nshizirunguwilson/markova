@@ -147,17 +147,17 @@ describe("GuestGuard exemptions", () => {
 });
 
 /**
- * The welfare roles, which have no dashboard of their own.
+ * The welfare roles.
  *
- * PATRON, MATRON and NURSE work on pages under /admin. Sending them to
- * /patron after signing in would land them on a 404 on their very first
- * screen.
+ * A patron and a matron share /boarding — the same job on opposite sides of
+ * the school — and the nurse has /nurse. Before those existed both were sent
+ * to a working page under /admin instead.
  */
 describe("GuestGuard and the welfare roles", () => {
   it.each([
-    ["PATRON", "/admin/pocket-money"],
-    ["MATRON", "/admin/pocket-money"],
-    ["NURSE", "/admin/health"],
+    ["PATRON", "/boarding"],
+    ["MATRON", "/boarding"],
+    ["NURSE", "/nurse"],
   ])("sends a %s to %s", async (role, path) => {
     signIn(role as "ADMIN");
     render(<GuestGuard><Child /></GuestGuard>);
@@ -173,7 +173,7 @@ describe("GuestGuard and the welfare roles", () => {
     render(<GuestGuard><Child /></GuestGuard>);
 
     await waitFor(() =>
-      expect(h.router.replace).toHaveBeenCalledWith("/admin/pocket-money"),
+      expect(h.router.replace).toHaveBeenCalledWith("/boarding"),
     );
   });
 });

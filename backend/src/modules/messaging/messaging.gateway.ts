@@ -15,7 +15,11 @@ import { MessagingService } from './messaging.service';
 
 @WebSocketGateway({
   cors: {
-    origin: (process.env.CORS_ORIGINS || 'http://localhost:3000')
+    // The same list the HTTP server uses, and the same default. This said
+    // `http://localhost:3000` — the API's own origin, which never opens a
+    // socket — so with CORS_ORIGINS unset the REST calls worked and the chat
+    // silently would not connect.
+    origin: (process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081')
       .split(',')
       .map((o) => o.trim())
       .filter(Boolean),

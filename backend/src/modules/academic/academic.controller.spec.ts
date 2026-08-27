@@ -1,3 +1,4 @@
+import { ROLES_KEY } from '../../common/decorators';
 import { AcademicController } from './academic.controller';
 import { AcademicService } from './academic.service';
 import {
@@ -443,4 +444,38 @@ describe('AcademicController', () => {
     expect(service.commitPromotion).not.toHaveBeenCalled();
     expect(service.promoteStudents).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * Who may read the school's list of classes.
+ *
+ * This is the vocabulary every page filters by, not academic data. The
+ * boarding staff and the nurse were left out of it, so the pocket money
+ * register and the activity list came back empty behind a "Forbidden
+ * resource" toast — a page that looked broken rather than restricted.
+ */
+describe('AcademicController class list access', () => {
+  const rolesOn = (method: string): string[] =>
+    Reflect.getMetadata(
+      ROLES_KEY,
+      AcademicController.prototype[method as keyof AcademicController],
+    ) ?? [];
+
+  it.each(['findAllClassLevels', 'findAllSections'])(
+    'lets the welfare staff read %s',
+    (method) => {
+      const roles = rolesOn(method);
+      for (const role of ['PATRON', 'MATRON', 'NURSE']) {
+        expect(roles).toContain(role);
+      }
+    },
+  );
+
+  // Reading the list is not the same as changing it.
+  it.each(['createClassLevel', 'createSection'])(
+    'keeps %s with the administrator',
+    (method) => {
+      expect(rolesOn(method)).toEqual(['ADMIN']);
+    },
+  );
 });

@@ -22,7 +22,19 @@ const ROLES_BY_PREFIX: Record<string, string[]> = {
   student: ["STUDENT"],
   parent: ["PARENT"],
   librarian: ["LIBRARIAN"],
+  // The boarding staff share one home: a patron and a matron do the same job
+  // on opposite sides of the school, and two identical routes would be two
+  // copies of one page.
+  boarding: ["PATRON", "MATRON"],
+  nurse: ["NURSE"],
 };
+
+/** Where a role lands when it has no business on the page it asked for. */
+export function homeFor(role: string): string {
+  if (role === "PATRON" || role === "MATRON") return "/boarding";
+  if (role === "NURSE") return "/nurse";
+  return `/${role.toLowerCase()}`;
+}
 
 /**
  * Pages under /admin that the boarding staff also need.
@@ -68,15 +80,7 @@ export function DashboardShell({
   // but a student should never even reach /admin/* by typing the URL.
   useEffect(() => {
     if (roleMismatch && user) {
-      // The boarding staff have no dashboard of their own; their work lives on
-      // the welfare pages, so /patron would be a 404.
-      const home =
-        user.role === "PATRON" || user.role === "MATRON"
-          ? "/admin/pocket-money"
-          : user.role === "NURSE"
-            ? "/admin/health"
-            : `/${user.role.toLowerCase()}`;
-      router.replace(home);
+      router.replace(homeFor(user.role));
     }
   }, [roleMismatch, user, router]);
 

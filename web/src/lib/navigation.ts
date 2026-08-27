@@ -222,7 +222,7 @@ const librarianNav: NavSection[] = [
  */
 const boardingNav: NavSection[] = [
   {
-    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+    items: [{ label: "Dashboard", href: "/boarding", icon: LayoutDashboard }],
   },
   {
     title: "Student welfare",
@@ -243,7 +243,7 @@ const boardingNav: NavSection[] = [
 
 const nurseNav: NavSection[] = [
   {
-    items: [{ label: "Dashboard", href: "/admin", icon: LayoutDashboard }],
+    items: [{ label: "Dashboard", href: "/nurse", icon: LayoutDashboard }],
   },
   {
     title: "Clinic",

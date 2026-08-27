@@ -32,7 +32,7 @@ import {
   SendMessageDto,
 } from './dto';
 import { fileFilterFor, filenameFor } from '../../common/file-validation';
-import { Roles } from '../../common/decorators';
+import { Roles, ANY_ROLE } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -64,7 +64,7 @@ export class MessagingController {
   ) {}
 
   @Post('conversations')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Create a conversation' })
   createConversation(
     @Body() dto: CreateConversationDto,
@@ -74,14 +74,14 @@ export class MessagingController {
   }
 
   @Get('conversations')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'List user conversations' })
   getConversations(@CurrentUser() user: any) {
     return this.service.getConversations(user.id);
   }
 
   @Get('conversations/:id/messages')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Get messages in a conversation' })
   getMessages(
     @Param('id', ParseUUIDPipe) id: string,
@@ -98,7 +98,7 @@ export class MessagingController {
   }
 
   @Post('messages')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Send a message' })
   async sendMessage(@Body() dto: SendMessageDto, @CurrentUser() user: any) {
     const message = await this.service.sendMessage(dto, user.id);
@@ -115,21 +115,21 @@ export class MessagingController {
   }
 
   @Post('read')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Mark conversation as read' })
   markAsRead(@Body() dto: MarkReadDto, @CurrentUser() user: any) {
     return this.service.markAsRead(dto.conversationId, user.id);
   }
 
   @Get('unread')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Get total unread count' })
   getUnreadCount(@CurrentUser() user: any) {
     return this.service.getUnreadCount(user.id);
   }
 
   @Get('contacts')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'LIBRARIAN')
+  @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'List users the current user can message' })
   getContacts(@CurrentUser() user: any, @Query('search') search?: string) {
     return this.service.getContacts(user.id, search);

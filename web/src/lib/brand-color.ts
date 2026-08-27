@@ -132,6 +132,40 @@ export interface BrandPalette {
   accentLight: string | null;
 }
 
+/**
+ * How pale a wash gets. Brand text has to read on this, not just on white.
+ */
+const PALEST_WASH = 0.9;
+
+/**
+ * The school's colour, darkened just far enough to be readable as text.
+ *
+ * `--color-primary` is not only a fill. It is the colour of every link, every
+ * active label and every brand-coloured caption in the app — and those sit on
+ * washes of the same colour as often as on plain white. A school picking a
+ * mid-green like #2A8D50 gets 4.18:1 on white and 3.7:1 on the wash, which
+ * fails AA on every page at once, and the school has no way of knowing
+ * because the colour looks perfectly good.
+ *
+ * The test is therefore against the colour's own palest tint rather than
+ * against white: clear that and white is clear by definition, because the
+ * wash is the darker of the two. A colour that already passes is returned
+ * untouched, so a school whose brand is a navy sees exactly the hex it typed.
+ */
+export function readableAsText(hex: string): string {
+  if (!parseHex(hex)) return hex;
+  let candidate = hex;
+  for (
+    let step = 0;
+    step < 40 &&
+    contrastRatio(candidate, shade(candidate, PALEST_WASH)) < MIN_TEXT_CONTRAST;
+    step += 1
+  ) {
+    candidate = shade(candidate, -0.05);
+  }
+  return candidate;
+}
+
 /** Whichever of white and near-black reads better on the given fill. */
 export function onPrimaryFor(hex: string): string {
   if (!parseHex(hex)) return ON_PRIMARY_LIGHT;
@@ -149,13 +183,18 @@ export function onPrimaryFor(hex: string): string {
  * on a hovered row.
  */
 export function brandPalette(hex: string): BrandPalette {
+  // Everything below is derived from the readable form, not the raw one, so
+  // the light and dark variants and the washes are all built on a colour that
+  // can actually carry text.
+  const readable = readableAsText(hex);
   const base = {
-    primary: hex,
-    primaryLight: shade(hex, 0.18),
-    primaryDark: shade(hex, -0.18),
-    onPrimary: onPrimaryFor(hex),
+    primary: readable,
+    primaryLight: shade(readable, 0.18),
+    primaryDark: shade(readable, -0.18),
+    onPrimary: onPrimaryFor(readable),
   };
   if (!parseHex(hex)) return { ...base, accent: null, accentLight: null };
+  hex = readable;
 
   // `accentLight` starts its walk further along, which makes it the paler of
   // the two whatever the hue.

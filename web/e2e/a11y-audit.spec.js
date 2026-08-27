@@ -37,6 +37,9 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
+  PATRON: { email: 'patron@markova.edu', password: PASS },
+  MATRON: { email: 'matron@markova.edu', password: PASS },
+  NURSE: { email: 'nurse@markova.edu', password: PASS },
 };
 
 const ROUTES = {
@@ -58,6 +61,12 @@ const ROUTES = {
     '/parent/activities', '/parent/analytics', '/parent/profile', '/help'],
   LIBRARIAN: ['/librarian', '/librarian/books', '/librarian/loans', '/librarian/messages',
     '/librarian/profile', '/help'],
+  // The boarding staff and the nurse: their own dashboards, plus the welfare
+  // pages under /admin the shell lets them through to.
+  PATRON: ['/boarding', '/admin/pocket-money', '/admin/health', '/admin/activities',
+    '/messages', '/help'],
+  MATRON: ['/boarding', '/admin/pocket-money', '/admin/health', '/messages', '/help'],
+  NURSE: ['/nurse', '/admin/health', '/messages', '/help'],
 };
 
 const PUBLIC_ROUTES = ['/login', '/forgot-password'];
