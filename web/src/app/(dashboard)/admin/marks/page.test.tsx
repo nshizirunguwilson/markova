@@ -32,20 +32,35 @@ import MarksPage from "./page";
  * have to say which way they are going.
  */
 
+/**
+ * A draft class: marks worked out but not released, and no report cards
+ * issued. Both flags are set explicitly — a class whose marks are a draft
+ * cannot have issued cards, since the card carries the marks.
+ */
 const unpublished = [
-  { ...termResult, id: "tr-1", isPublished: false, rank: 1, average: 82.4, letterGrade: "A" },
+  {
+    ...termResult,
+    id: "tr-1",
+    isPublished: false,
+    reportCardPublished: false,
+    rank: 1,
+    average: 82.4,
+    letterGrade: "A",
+  },
   {
     ...termResult,
     id: "tr-2",
     studentId: "student-2",
     student: students[1],
     isPublished: false,
+    reportCardPublished: false,
     rank: 2,
     average: 67.1,
     letterGrade: "B",
   },
 ];
 
+/** Marks released, report cards not yet issued — the middle stage. */
 const published = unpublished.map((r) => ({ ...r, isPublished: true }));
 
 const routes = {
