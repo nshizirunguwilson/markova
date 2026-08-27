@@ -43,14 +43,24 @@ export function deliveryTick(status: string | undefined): "one" | "two" | "two-r
  * in your own inbox is a small but constant jar — every other messaging app
  * says "You". Anyone else is named, which is what makes a group thread
  * readable at a glance.
+ *
+ * The id to compare is `senderUserId`. `sender` is a two-field projection of
+ * the user — `{ firstName, lastName }` and nothing else — so reading an id off
+ * it silently compares undefined and every message ends up attributed by name.
+ * Checked against a live `GET /messaging/conversations`.
  */
 export function lastMessagePrefix(
-  message: { sender?: { id?: string; firstName?: string | null } | null } | null | undefined,
+  message:
+    | {
+        senderUserId?: string | null;
+        sender?: { firstName?: string | null } | null;
+      }
+    | null
+    | undefined,
   viewerId: string | undefined,
 ): string {
-  const sender = message?.sender;
-  if (!sender) return "Someone: ";
-  if (viewerId && sender.id === viewerId) return "You: ";
-  const name = sender.firstName?.trim();
+  if (!message) return "Someone: ";
+  if (viewerId && message.senderUserId === viewerId) return "You: ";
+  const name = message.sender?.firstName?.trim();
   return `${name || "Someone"}: `;
 }

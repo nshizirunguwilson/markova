@@ -199,6 +199,8 @@ export function AddUserWizard({
     watch,
     reset,
     setValue,
+    setFocus,
+    getFieldState,
     trigger,
     formState: { errors },
   } = useForm<FormData>({
@@ -370,10 +372,26 @@ export function AddUserWizard({
     [photoPreview],
   );
 
+  /**
+   * Move to the next step, or put the cursor on what is stopping it.
+   *
+   * A step that refuses to advance in silence is indistinguishable from a
+   * dead button. The field at fault is on this step by construction — that
+   * is what was validated — so it is already showing its own message, and
+   * focusing it is what turns "nothing happened" into "this one".
+   *
+   * Read through `getFieldState` rather than the `errors` object: `errors`
+   * is the one captured when this render began, from before `trigger` ran,
+   * so it still describes the previous attempt.
+   */
   const next = async () => {
-    const ok = await trigger(STEP_FIELDS[stepName] ?? []);
-    if (!ok) return;
-    setStep((s) => s + 1);
+    const fields = STEP_FIELDS[stepName] ?? [];
+    if (await trigger(fields)) {
+      setStep((s) => s + 1);
+      return;
+    }
+    const firstBad = fields.find((f) => getFieldState(f).error);
+    if (firstBad) setFocus(firstBad);
   };
 
   /**

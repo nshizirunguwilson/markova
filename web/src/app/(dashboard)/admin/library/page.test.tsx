@@ -1500,14 +1500,22 @@ describe("the ISBN on a book", () => {
     serve(h.api, routes);
     renderPage(LibraryPage, { role: "ADMIN" });
     await user.click(await screen.findByRole("button", { name: /add book/i }));
-    await user.type(screen.getByLabelText("Title"), "Imbonezamubano");
-    await user.type(screen.getByLabelText("Author"), "Uwase Aline");
+    // Set outright rather than typed. Twenty-five keystrokes is twenty-five
+    // renders of this form, and beside a hundred other files that was slow
+    // enough to lose the race about one run in five. Nothing here is testing
+    // per-keystroke behaviour.
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Imbonezamubano" },
+    });
+    fireEvent.change(screen.getByLabelText("Author"), {
+      target: { value: "Uwase Aline" },
+    });
   }
 
   it("refuses one that is the wrong length", async () => {
     const user = userEvent.setup();
     await openNewBook(user);
-    await user.type(screen.getByLabelText("ISBN"), "12345");
+    fireEvent.change(screen.getByLabelText("ISBN"), { target: { value: "12345" } });
     await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
 
     expect(await screen.findByText("An ISBN is 10 or 13 digits")).toBeInTheDocument();
@@ -1516,7 +1524,9 @@ describe("the ISBN on a book", () => {
   it("accepts one written with hyphens", async () => {
     const user = userEvent.setup();
     await openNewBook(user);
-    await user.type(screen.getByLabelText("ISBN"), "978-3-16-148410-0");
+    fireEvent.change(screen.getByLabelText("ISBN"), {
+      target: { value: "978-3-16-148410-0" },
+    });
     await user.click(screen.getAllByRole("button", { name: "Add Book" }).at(-1)!);
 
     await waitFor(() =>
