@@ -1970,3 +1970,106 @@ describe("how the inbox marks a thread", () => {
     expect(await screen.findByText(/You: Murakoze/)).toBeInTheDocument();
   });
 });
+
+/**
+ * How a run of messages is drawn.
+ *
+ * Three messages sent in a row are one remark. Repeating the sender's name
+ * and the clock on each of them gives the least important thing on screen the
+ * same rhythm as the words, which is what made this read like a log file.
+ */
+describe("runs of messages from one person", () => {
+  const at = (id: string, senderUserId: string, minute: number, content: string) => ({
+    id,
+    conversationId: "conv-1",
+    senderUserId,
+    sender:
+      senderUserId === "user-1"
+        ? { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" }
+        : other,
+    content,
+    createdAt: `2026-08-21T09:0${minute}:00Z`,
+  });
+
+  async function openWith(messages: unknown[], conv = conversation, open = /Aline/) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [conv],
+      "/messaging/conversations/conv-1/messages": messages,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    const row = await screen.findByRole("button", { name: open });
+    await userEvent.setup().click(row);
+  }
+
+  /** Timestamps inside the thread, not the one on each inbox row. */
+  function threadStamps() {
+    const thread = document.querySelector(".overflow-y-auto.px-4");
+    return Array.from(thread?.querySelectorAll("span.tabular-nums") ?? []);
+  }
+
+  it("stamps the clock once on a run, not on every message", async () => {
+    // The endpoint answers newest first.
+    await openWith([
+      at("m-3", "u-3", 2, "and one more"),
+      at("m-2", "u-3", 1, "another"),
+      at("m-1", "u-3", 0, "Muraho"),
+    ]);
+    await screen.findByText("Muraho");
+    expect(screen.getByText("another")).toBeInTheDocument();
+
+    expect(threadStamps()).toHaveLength(1);
+  });
+
+  it("splits the run when the other person answers", async () => {
+    await openWith([
+      at("m-3", "u-3", 2, "and one more"),
+      at("m-2", "user-1", 1, "my reply"),
+      at("m-1", "u-3", 0, "Muraho"),
+    ]);
+    await screen.findByText("Muraho");
+    expect(threadStamps()).toHaveLength(3);
+  });
+
+  // Only the last bubble of a run gets the squared corner that points at
+  // its sender; the ones above it stay fully rounded.
+  it("squares only the closing corner of a run", async () => {
+    await openWith([
+      at("m-2", "u-3", 1, "another"),
+      at("m-1", "u-3", 0, "Muraho"),
+    ]);
+    await screen.findByText("Muraho");
+    const first = screen.getByText("Muraho").closest("div")!;
+    const last = screen.getByText("another").closest("div")!;
+    expect(first.className).not.toContain("rounded-bl-md");
+    expect(last.className).toContain("rounded-bl-md");
+  });
+
+  it("names the sender in a group, where there is more than one", async () => {
+    await openWith(
+      [at("m-1", "u-3", 0, "Muraho")],
+      { ...conversation, type: "GROUP", name: "Staff", participants: [{ user: other }, { user: second }] },
+      /Staff/,
+    );
+    await screen.findByText("Muraho");
+    // Once, above the run — not on the bubble.
+    expect(screen.getAllByText("Aline Uwase").length).toBeGreaterThan(0);
+  });
+
+  it("leaves the name off a one to one, where there is only one sender", async () => {
+    await openWith([at("m-1", "u-3", 0, "Muraho")]);
+    await screen.findByText("Muraho");
+    const thread = screen.getByText("Muraho").closest(".overflow-y-auto")!;
+    expect(thread.textContent).not.toContain("Aline Uwase");
+  });
+
+  it("separates the days rather than running them together", async () => {
+    await openWith([
+      { ...at("m-2", "u-3", 1, "today"), createdAt: new Date().toISOString() },
+      { ...at("m-1", "u-3", 0, "long ago"), createdAt: "2026-08-01T09:00:00Z" },
+    ]);
+    await screen.findByText("today");
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByText(/August/)).toBeInTheDocument();
+  });
+});

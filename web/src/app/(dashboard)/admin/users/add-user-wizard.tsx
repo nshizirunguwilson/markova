@@ -180,7 +180,6 @@ export function AddUserWizard({
   const { data: sections } = useSections(selectedLevel || undefined);
 
   const [step, setStep] = useState(0);
-  const [stepError, setStepError] = useState<string | null>(null);
   const [children, setChildren] = useState<ChildLink[]>([]);
   const [childQuery, setChildQuery] = useState("");
   const [childResults, setChildResults] = useState<any[]>([]);
@@ -201,6 +200,7 @@ export function AddUserWizard({
     reset,
     setValue,
     setFocus,
+    getFieldState,
     trigger,
     formState: { errors },
   } = useForm<FormData>({
@@ -373,35 +373,25 @@ export function AddUserWizard({
   );
 
   /**
-   * Move to the next step, or say why not.
+   * Move to the next step, or put the cursor on what is stopping it.
    *
    * A step that refuses to advance in silence is indistinguishable from a
-   * dead button. Where the field at fault is on screen it shows its own
-   * error, but the check can also fail on a field belonging to an earlier
-   * step, and then there is nothing at all to see — so the reason is named
-   * here as well, and the offending field is focused.
+   * dead button. The field at fault is on this step by construction — that
+   * is what was validated — so it is already showing its own message, and
+   * focusing it is what turns "nothing happened" into "this one".
+   *
+   * Read through `getFieldState` rather than the `errors` object: `errors`
+   * is the one captured when this render began, from before `trigger` ran,
+   * so it still describes the previous attempt.
    */
   const next = async () => {
     const fields = STEP_FIELDS[stepName] ?? [];
-    const ok = await trigger(fields.length > 0 ? fields : undefined);
-    if (ok) {
-      setStepError(null);
+    if (await trigger(fields)) {
       setStep((s) => s + 1);
       return;
     }
-    const firstBad = fields.find((f) => errors[f]);
-    if (firstBad) {
-      // The field is on screen and shows its own message. Saying the same
-      // sentence twice on one screen is worse than saying it once.
-      setStepError(null);
-      setFocus(firstBad);
-      return;
-    }
-    // Nothing on this step is at fault, so the reader has no way of knowing
-    // what stopped them without being told.
-    setStepError(
-      "Something earlier in this form still needs an answer. Step back to check.",
-    );
+    const firstBad = fields.find((f) => getFieldState(f).error);
+    if (firstBad) setFocus(firstBad);
   };
 
   /**
@@ -939,16 +929,10 @@ export function AddUserWizard({
         )}
 
         {/* ── Footer ── */}
-        {stepError && (
-          <p role="alert" className="rounded-lg bg-danger-wash px-3 py-2 text-sm text-danger">
-            {stepError}
-          </p>
-        )}
-
         <div className="flex items-center justify-between pt-2">
           <div>
             {step > 0 && (
-              <Button type="button" variant="ghost" onClick={() => { setStepError(null); setStep((s) => s - 1); }}>
+              <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)}>
                 Back
               </Button>
             )}
