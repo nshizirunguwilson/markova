@@ -26,6 +26,7 @@ describe('ReportsController', () => {
     'generateClassReportCards',
     'getYearReportData',
     'generateDocument',
+    'generateDocumentPdf',
     'generateIdCardData',
     'generateBulkIdCards',
     'getIdCardRegistry',
@@ -46,6 +47,10 @@ describe('ReportsController', () => {
   beforeEach(async () => {
     clearMocks(service, ownership);
     service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF-1.4'));
+    service.generateDocumentPdf.mockResolvedValue({
+      pdf: Buffer.from('%PDF-1.4'),
+      title: 'Transfer Letter - Tracy Isaro',
+    });
     service.exportDatasetCsv.mockResolvedValue({
       filename: 'students.csv',
       csv: 'a,b\n',
@@ -173,6 +178,48 @@ describe('ReportsController', () => {
         }),
       );
       expect(r.end).toHaveBeenCalledWith(Buffer.from('%PDF-1.4'));
+    });
+
+    /**
+     * The Documents tab used to "download" the raw HTML, which opened in a
+     * browser rather than a reader and printed at whatever size it felt like.
+     */
+    it('sends a document as a PDF named after it', async () => {
+      const ctl: any = await build();
+      const r = res();
+      await ctl.generateDocumentPdf(
+        { studentId: 'student-1', type: 'transfer_letter' },
+        r,
+      );
+      expect(service.generateDocumentPdf).toHaveBeenCalledWith(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(r.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'Content-Type': 'application/pdf',
+          'Content-Disposition':
+            'attachment; filename="Transfer Letter - Tracy Isaro.pdf"',
+        }),
+      );
+      expect(r.end).toHaveBeenCalledWith(Buffer.from('%PDF-1.4'));
+    });
+
+    // A student's name can carry anything; a Content-Disposition header
+    // cannot, and a browser refuses the whole download when it does.
+    it('strips from the filename what a header cannot hold', async () => {
+      service.generateDocumentPdf.mockResolvedValueOnce({
+        pdf: Buffer.from('%PDF-1.4'),
+        title: 'Transcript - "Ni/ Mukiza"',
+      });
+      const ctl: any = await build();
+      const r = res();
+      await ctl.generateDocumentPdf(
+        { studentId: 'student-1', type: 'transcript' },
+        r,
+      );
+      const disposition = r.set.mock.calls[0][0]['Content-Disposition'];
+      expect(disposition).toBe('attachment; filename="Transcript - Ni Mukiza.pdf"');
     });
 
     it('checks whose student before writing a byte of the PDF', async () => {

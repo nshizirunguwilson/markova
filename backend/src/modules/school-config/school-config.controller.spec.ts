@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { SchoolConfigController } from './school-config.controller';
 import { PublicConfigController } from './public-config.controller';
 import { SchoolConfigService } from './school-config.service';
@@ -129,6 +130,24 @@ describe('SchoolConfigController', () => {
       ]);
       await ctl.uploadStamp({ filename: 'abc.png' });
       expect(service.findByKey).toHaveBeenCalledWith('stamp_url');
+    });
+
+    /**
+     * Without this the handler dereferenced `file.filename` on undefined and
+     * the request came back as a bare 500 — the same thing the settings page
+     * shows when the API is down, so "Failed to upload logo" told an admin
+     * nothing about what to do next.
+     */
+    it.each([
+      ['the logo', 'uploadLogo'],
+      ['the stamp', 'uploadStamp'],
+      ['the signature', 'uploadSignature'],
+    ])('says %s arrived with no file rather than crashing', async (_n, method) => {
+      const ctl: any = await buildController(SchoolConfigController, [
+        { token: SchoolConfigService, name: 'service', mock: service },
+      ]);
+      await expect(ctl[method](undefined)).rejects.toThrow(BadRequestException);
+      expect(service.updateBrandingFile).not.toHaveBeenCalled();
     });
   });
 });

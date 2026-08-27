@@ -525,6 +525,97 @@ describe('UsersService', () => {
       await service.update('user-1', { isActive: false });
       expect(prisma.user.update.mock.calls[0][0].data.isActive).toBe(false);
     });
+
+    /**
+     * The NIDA number carries a birth year and a gender digit. `create` has
+     * always checked those; `update` did not, so a profile could be edited
+     * into a state where the ID contradicted the person it was on.
+     */
+    describe('the national ID it is being given', () => {
+      const asTeacherBorn = (gender: string, year: number) =>
+        prisma.user.findUnique.mockImplementation((args: any) =>
+          Promise.resolve(
+            args?.where?.id
+              ? {
+                  id: 'user-1',
+                  gender,
+                  dateOfBirth: new Date(`${year}-04-12`),
+                  student: null,
+                  teacher: { id: 'teacher-1' },
+                }
+              : null,
+          ),
+        );
+
+      it('refuses one whose birth year contradicts the date of birth', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await expect(
+          service.update('user-1', { nationalId: '1198580123456012' }),
+        ).rejects.toThrow(/does not match the date of birth/);
+        expect(prisma.user.update).not.toHaveBeenCalled();
+      });
+
+      it('refuses one whose gender digit contradicts the profile', async () => {
+        asTeacherBorn('FEMALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await expect(
+          service.update('user-1', { nationalId: '1199080123456012' }),
+        ).rejects.toThrow(/female IDs carry 7/);
+      });
+
+      // A student's demographics are on the Student record, so that is what
+      // the ID has to agree with for them.
+      it('checks a student against their own record, not the user row', async () => {
+        prisma.user.findUnique.mockImplementation((args: any) =>
+          Promise.resolve(
+            args?.where?.id
+              ? {
+                  id: 'user-1',
+                  gender: 'MALE',
+                  dateOfBirth: new Date('1990-04-12'),
+                  student: {
+                    id: 'student-1',
+                    gender: 'FEMALE',
+                    dateOfBirth: new Date('2008-04-12'),
+                  },
+                  teacher: null,
+                }
+              : null,
+          ),
+        );
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { nationalId: '1200870123456012' });
+        expect(prisma.user.update.mock.calls[0][0].data.nationalId).toBe(
+          '1200870123456012',
+        );
+      });
+
+      // Without this the duplicate surfaced as a unique-constraint 500 with
+      // nothing in it for the admin to act on.
+      it('names who already holds it rather than failing on the constraint', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue({
+          firstName: 'Aline',
+          lastName: 'Uwase',
+        });
+        await expect(
+          service.update('user-1', { nationalId: '1199080123456012' }),
+        ).rejects.toThrow(/already registered to Aline Uwase/);
+      });
+
+      it('lets someone keep the ID they already hold', async () => {
+        asTeacherBorn('MALE', 1990);
+        prisma.user.findFirst.mockResolvedValue(null);
+        await service.update('user-1', { nationalId: '1199080123456012' });
+        expect(prisma.user.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ id: { not: 'user-1' } }),
+          }),
+        );
+        expect(prisma.user.update).toHaveBeenCalled();
+      });
+    });
   });
 
   /**
@@ -545,6 +636,86 @@ describe('UsersService', () => {
       await service.findOne('user-1');
       const select = prisma.user.findUnique.mock.calls[0][0].select;
       expect(select.student.include).toHaveProperty('parentStudents');
+    });
+
+    /**
+     * The profile page shows and edits all of these. They were missing from
+     * the select, so National ID and Nationality opened empty for everybody
+     * however many times they had been saved, and a staff member's own
+     * registration code never appeared at all.
+     */
+    it.each([
+      'code',
+      'nationalId',
+      'nationality',
+      'gender',
+      'dateOfBirth',
+    ])('selects %s, which the profile page shows', async (field) => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      expect(prisma.user.findUnique.mock.calls[0][0].select[field]).toBe(true);
+    });
+
+    it('never selects the password hash even now', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      expect(
+        prisma.user.findUnique.mock.calls[0][0].select,
+      ).not.toHaveProperty('passwordHash');
+    });
+
+    // What a teacher's own page is made of: who they teach, when, and what
+    // they are class teacher of.
+    it('brings a teacher’s assignments, timetable and roles', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      await service.findOne('user-1');
+      const teacher = prisma.user.findUnique.mock.calls[0][0].select.teacher;
+      expect(teacher.include).toHaveProperty('teacherSubjectClasses');
+      expect(teacher.include).toHaveProperty('timetables');
+      expect(teacher.include).toHaveProperty('roles');
+    });
+
+    /**
+     * `TeacherRole.classSectionId` is a plain column, not a relation, so the
+     * class a special role belongs to could only ever be rendered as a uuid.
+     */
+    it('names the class a special role is attached to', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        teacher: {
+          id: 'teacher-1',
+          roles: [{ id: 'r-1', role: 'CLASS_TEACHER', classSectionId: 'sec-1' }],
+        },
+      });
+      prisma.classSection.findMany.mockResolvedValue([
+        { id: 'sec-1', name: 'B', classLevel: { name: 'Senior 2' }, trade: null },
+      ]);
+
+      const user: any = await service.findOne('user-1');
+      expect(user.teacher.roles[0].classSection.name).toBe('B');
+      expect(user.teacher.roles[0].classSection.classLevel.name).toBe(
+        'Senior 2',
+      );
+    });
+
+    it('leaves a school-wide role without a class rather than inventing one', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        teacher: {
+          id: 'teacher-1',
+          roles: [{ id: 'r-1', role: 'DOS', classSectionId: null }],
+        },
+      });
+
+      const user: any = await service.findOne('user-1');
+      expect(user.teacher.roles[0].classSection).toBeUndefined();
+      expect(prisma.classSection.findMany).not.toHaveBeenCalled();
+    });
+
+    it('costs no extra query for somebody who is not a teacher', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', teacher: null });
+      await service.findOne('user-1');
+      expect(prisma.classSection.findMany).not.toHaveBeenCalled();
     });
   });
 });
@@ -568,7 +739,9 @@ describe('updating every field a student record carries', () => {
     firstName: 'Keza',
     lastName: 'Uwimana',
     isActive: true,
-    nationalId: '1201382901978078',
+    // 1 | 2012 | 7 | 2901978 | 0 | 78 — the birth year and the female digit
+    // both agree with the profile below, which update() now insists on.
+    nationalId: '1201272901978078',
     nationality: 'Rwandan',
     classSectionId: 'section-1',
     dateOfBirth: '2012-04-11',
@@ -650,7 +823,7 @@ describe('updating every field a student record carries', () => {
       firstName: 'Keza',
       lastName: 'Uwimana',
       isActive: true,
-      nationalId: '1201382901978078',
+      nationalId: '1201272901978078',
       nationality: 'Rwandan',
     });
   });

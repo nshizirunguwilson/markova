@@ -14,12 +14,20 @@ describe('promotion', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: AcademicService;
 
+  // The six levels are ordered Senior 1-3 then Level 3-5, so `order` is what
+  // decides whether a move is a promotion at all.
+  const level = (name: string, order: number) => ({ id: `lvl-${order}`, name, order });
+  const SENIOR_1 = level('Senior 1', 1);
+  const SENIOR_2 = level('Senior 2', 2);
+  const SENIOR_3 = level('Senior 3', 3);
+
   const student = (over: Record<string, unknown> = {}) => ({
     id: 'student-1',
     studentIdNumber: 'STD-2026-001',
     disciplinePoints: 92,
     yearResults: [],
     user: { firstName: 'Divine', lastName: 'Niyonkuru' },
+    classSection: { id: 'section-1', classLevel: SENIOR_2 },
     ...over,
   });
 
@@ -30,6 +38,10 @@ describe('promotion', () => {
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.student.update.mockResolvedValue({});
     prisma.yearResult.update.mockResolvedValue({});
+    prisma.classSection.findUnique.mockResolvedValue({
+      id: 'section-2',
+      classLevel: SENIOR_3,
+    });
   });
 
   const preview = {
@@ -290,6 +302,55 @@ describe('promotion', () => {
       expect(result.retained).toBe(0);
     });
 
+    /**
+     * The ladder only goes one way. The destination list used to be every
+     * level in the school, so "Senior 2 → Senior 1" was a click away and it
+     * demoted a whole class without a word.
+     */
+    it('refuses a destination below the class they are in', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-0',
+        classLevel: SENIOR_1,
+      });
+      await expect(service.commitPromotion(commit)).rejects.toThrow(
+        /Cannot promote from Senior 2 to Senior 1/,
+      );
+      expect(prisma.student.update).not.toHaveBeenCalled();
+    });
+
+    // Repeating a year is a retention. Calling it a promotion would record
+    // isPromoted: true on a student who did not go anywhere.
+    it('refuses a destination at the same level', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-1b',
+        classLevel: SENIOR_2,
+      });
+      await expect(service.commitPromotion(commit)).rejects.toThrow(
+        /Cannot promote from Senior 2 to Senior 2/,
+      );
+    });
+
+    it('refuses a destination class that is not there', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(service.commitPromotion(commit)).rejects.toThrow(
+        /Destination class not found/,
+      );
+    });
+
+    // Only the promotions are checked: a retained student is not moving, so
+    // the direction of the destination says nothing about them.
+    it('allows a backwards destination when nobody is being promoted', async () => {
+      prisma.classSection.findUnique.mockResolvedValue({
+        id: 'section-0',
+        classLevel: SENIOR_1,
+      });
+      const result = await service.commitPromotion({
+        ...commit,
+        decisions: [{ studentId: 's-2', decision: 'RETAIN' as never }],
+      });
+      expect(result.retained).toBe(1);
+    });
+
     it('names who went up and who stayed', async () => {
       const result = await service.commitPromotion(commit);
       expect(result).toMatchObject({
@@ -436,12 +497,20 @@ describe('committing a decision for a student with no year result', () => {
     prisma.student.update.mockResolvedValue({});
     prisma.yearResult.update.mockResolvedValue({});
     prisma.yearResult.findFirst.mockResolvedValue(null);
+    prisma.classSection.findUnique.mockResolvedValue({
+      id: 'section-2',
+      classLevel: { id: 'lvl-3', name: 'Senior 3', order: 3 },
+    });
     prisma.student.findMany.mockResolvedValue([
       {
         id: 's-1',
         studentIdNumber: 'STD-2026-001',
         yearResults: [],
         user: { firstName: 'Keza', lastName: 'Uwimana' },
+        classSection: {
+          id: 'section-1',
+          classLevel: { id: 'lvl-2', name: 'Senior 2', order: 2 },
+        },
       },
     ]);
   });

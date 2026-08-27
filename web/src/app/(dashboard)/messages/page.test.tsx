@@ -1278,7 +1278,9 @@ describe("choosing who a new conversation is with", () => {
     const user = await openPicker({ "/messaging/contacts": { data: [] } });
     await user.type(screen.getByLabelText("Search users by name..."), "zzz");
 
-    expect(await screen.findByText("No users found")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No users found", undefined, { timeout: 4000 }),
+    ).toBeInTheDocument();
   });
 
   it("lists the people it found and puts one in the chip row", async () => {
@@ -1286,9 +1288,19 @@ describe("choosing who a new conversation is with", () => {
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
 
     const row = await screen.findByRole("dialog");
-    const candidate = within(row)
-      .getAllByRole("button")
-      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    // Debounced: the dialog reads "Searching..." until the answer lands.
+    const candidate = await waitFor(
+      () => {
+        const found = within(row)
+          .getAllByRole("button")
+          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
+        expect(found).toBeTruthy();
+        return found!;
+      },
+      // 300ms of debounce plus a request, and the whole file runs alongside
+      // a hundred others. The default second is not enough under that load.
+      { timeout: 4000 },
+    );
     await user.click(candidate);
 
     // Chosen people move into a chip row above the search box.
@@ -1302,9 +1314,19 @@ describe("choosing who a new conversation is with", () => {
     const dialog = screen.getByRole("dialog");
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
 
-    const candidate = within(dialog)
-      .getAllByRole("button")
-      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    // The contact search is debounced, so the dialog says "Searching..." for a
+    // moment before the results land. Reading the list synchronously after
+    // typing is a race, and it was losing it about one run in four.
+    const candidate = await waitFor(
+      () => {
+        const found = within(dialog)
+          .getAllByRole("button")
+          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
+        expect(found).toBeTruthy();
+        return found!;
+      },
+      { timeout: 4000 },
+    );
     await user.click(candidate);
 
     const chipClose = await waitFor(() => {
@@ -1390,9 +1412,18 @@ describe("people whose accounts are gone", () => {
     const dialog = await screen.findByRole("dialog");
     await user.type(screen.getByLabelText("Search users by name..."), "ali");
 
-    const candidate = within(dialog)
-      .getAllByRole("button")
-      .find((b) => /Aline Uwase/.test(b.textContent ?? ""))!;
+    // Debounced, so the results are waited for rather than read the instant
+    // the last key goes in.
+    const candidate = await waitFor(
+      () => {
+        const found = within(dialog)
+          .getAllByRole("button")
+          .find((b) => /Aline Uwase/.test(b.textContent ?? ""));
+        expect(found).toBeTruthy();
+        return found!;
+      },
+      { timeout: 4000 },
+    );
     await user.click(candidate);
 
     // The search moves on and no longer contains them; the chip must still
@@ -1401,8 +1432,9 @@ describe("people whose accounts are gone", () => {
     await user.clear(screen.getByLabelText("Search users by name..."));
     await user.type(screen.getByLabelText("Search users by name..."), "zzz");
 
-    await waitFor(() =>
-      expect(within(dialog).getByText("u-3")).toBeInTheDocument(),
+    await waitFor(
+      () => expect(within(dialog).getByText("u-3")).toBeInTheDocument(),
+      { timeout: 4000 },
     );
   });
 

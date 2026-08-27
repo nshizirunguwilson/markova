@@ -2,30 +2,51 @@
 
 import { useEffect } from "react";
 import { useBrandStore } from "@/stores/brand-store";
+import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
+import { brandPalette } from "@/lib/brand-color";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 
-// Mix a hex colour toward white (amount>0) or black (amount<0).
-function shade(hex: string, amount: number): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  let r = (n >> 16) & 0xff;
-  let g = (n >> 8) & 0xff;
-  let b = n & 0xff;
-  const t = amount < 0 ? 0 : 255;
-  const p = Math.abs(amount);
-  r = Math.round((t - r) * p + r);
-  g = Math.round((t - g) * p + g);
-  b = Math.round((t - b) * p + b);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-}
-
-function applyColor(hex: string) {
+/**
+ * Repaint the app in the school's colour.
+ *
+ * These are the `--brand-*` variables tokens.css declares on `:root` and the
+ * Tailwind theme resolves through. Setting `--color-primary` directly did
+ * nothing: the theme block is `@theme inline`, so every utility had the hex
+ * baked into it at build time and a saved brand colour never showed up
+ * anywhere.
+ *
+ * The washes are derived rather than fixed, or a school that chose maroon
+ * would keep Markova's blue sidebar highlight — but they are derived to hold
+ * WCAG AA rather than by a fixed mix, because the fixed mix that suits a navy
+ * leaves a mid-green's badge text at 4.23:1. When the colour cannot support a
+ * readable wash at all, the designed neutrals are left in place; see
+ * lib/brand-color.ts.
+ */
+export function applyColor(hex: string) {
   const root = document.documentElement;
-  root.style.setProperty("--color-primary", hex);
-  root.style.setProperty("--color-primary-light", shade(hex, 0.18));
-  root.style.setProperty("--color-primary-dark", shade(hex, -0.18));
+  const palette = brandPalette(hex);
+
+  root.style.setProperty("--brand-primary", palette.primary);
+  root.style.setProperty("--brand-primary-light", palette.primaryLight);
+  root.style.setProperty("--brand-primary-dark", palette.primaryDark);
+  root.style.setProperty("--brand-info", palette.primary);
+
+  // The default colour is left exactly as the designers specified it, so an
+  // untouched install renders byte for byte as it always has.
+  const isDefault =
+    hex.trim().toLowerCase() === DEFAULT_BRAND_COLOR.toLowerCase();
+
+  if (isDefault || !palette.accent || !palette.accentLight) {
+    root.style.removeProperty("--brand-accent");
+    root.style.removeProperty("--brand-accent-light");
+    root.style.removeProperty("--brand-info-wash");
+    return;
+  }
+
+  root.style.setProperty("--brand-accent", palette.accent);
+  root.style.setProperty("--brand-accent-light", palette.accentLight);
+  root.style.setProperty("--brand-info-wash", palette.accentLight);
 }
 
 /**

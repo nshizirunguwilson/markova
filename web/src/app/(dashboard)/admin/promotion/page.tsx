@@ -43,7 +43,7 @@ export default function AdminPromotionPage() {
 
   const [academicYearId, setAcademicYearId] = useState("");
   const [fromLevelId, setFromLevelId] = useState("");
-  const [toLevelId, setToLevelId] = useState("");
+  const [toLevelChoice, setToLevelId] = useState("");
   const [fromSectionId, setFromSectionId] = useState("");
   const [toSectionId, setToSectionId] = useState("");
   const [passThreshold, setPassThreshold] = useState("");
@@ -54,9 +54,37 @@ export default function AdminPromotionPage() {
   const [committed, setCommitted] = useState<any | null>(null);
 
   const { data: fromSections } = useSections(fromLevelId || undefined);
-  const { data: toSections } = useSections(toLevelId || undefined);
 
   const defaultThreshold = config?.map?.passThreshold;
+
+  /**
+   * The school's six levels in order: Senior 1-3 (O-Level) then Level 3-5
+   * (TVET / A-Level), which is ClassLevel.order 1..6. A promotion only ever
+   * moves a student up that ladder, so the destination list is every level
+   * above the source — "Senior 2 → Senior 1" used to be one click away.
+   */
+  const ladder = useMemo(
+    () =>
+      [...(levels || [])].sort(
+        (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0),
+      ),
+    [levels],
+  );
+  const fromLevel = ladder.find((l: any) => l.id === fromLevelId);
+  const promotableLevels = fromLevel
+    ? ladder.filter((l: any) => (l.order ?? 0) > (fromLevel.order ?? 0))
+    : ladder;
+  const nextLevel = promotableLevels[0];
+  const isFinalLevel = !!fromLevel && promotableLevels.length === 0;
+
+  /**
+   * The destination, derived during render rather than synced in an effect
+   * (the same shape the marks page uses): the admin's explicit choice wins,
+   * otherwise the next level up — which is the answer nine times in ten.
+   * They can still pick a further one, Senior 3 to Level 4 say.
+   */
+  const toLevelId = toLevelChoice || nextLevel?.id || "";
+  const { data: toSections } = useSections(toLevelId || undefined);
 
   const handleLoad = () => {
     if (!fromSectionId || !academicYearId) return;
@@ -83,6 +111,20 @@ export default function AdminPromotionPage() {
         },
       }
     );
+  };
+
+  // Changing the source level can leave a destination behind that is now at or
+  // below it. Clearing the choice hands the field back to the derived default,
+  // which is always a level above the new source.
+  const handleFromLevelChange = (id: string) => {
+    setFromLevelId(id);
+    setFromSectionId("");
+    const from = ladder.find((l: any) => l.id === id);
+    const to = ladder.find((l: any) => l.id === toLevelChoice);
+    if (!from || !to || (to.order ?? 0) <= (from.order ?? 0)) {
+      setToLevelId("");
+      setToSectionId("");
+    }
   };
 
   const setDecision = (studentId: string, d: Decision) =>
@@ -172,10 +214,10 @@ export default function AdminPromotionPage() {
                 <select
                   className="w-full rounded-lg border border-input px-3 py-2 text-sm"
                   value={fromLevelId}
-                  onChange={(e) => { setFromLevelId(e.target.value); setFromSectionId(""); }}
+                  onChange={(e) => handleFromLevelChange(e.target.value)}
                  aria-label="Select level">
                   <option value="">Select level</option>
-                  {levels?.map((l: any) => (
+                  {ladder.map((l: any) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
                 </select>
@@ -199,13 +241,19 @@ export default function AdminPromotionPage() {
               </h3>
               <div className="space-y-3">
                 <select
-                  className="w-full rounded-lg border border-input px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-input px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-muted"
                   value={toLevelId}
+                  disabled={isFinalLevel}
                   onChange={(e) => { setToLevelId(e.target.value); setToSectionId(""); }}
                  aria-label="Select level">
-                  <option value="">Select level</option>
-                  {levels?.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
+                  <option value="">
+                    {isFinalLevel ? "No level above this one" : "Select level"}
+                  </option>
+                  {promotableLevels.map((l: any) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                      {nextLevel && l.id === nextLevel.id ? " — next level" : ""}
+                    </option>
                   ))}
                 </select>
                 <select
@@ -219,6 +267,23 @@ export default function AdminPromotionPage() {
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
+                {isFinalLevel ? (
+                  <p className="text-xs text-warning">
+                    {fromLevel?.name} is the last level in the school. These
+                    students complete their studies rather than move up — mark
+                    the ones who did not finish as Retain.
+                  </p>
+                ) : fromLevel ? (
+                  <p className="text-xs text-muted">
+                    {fromLevel.name} → {nextLevel?.name}. Only levels above{" "}
+                    {fromLevel.name} can be chosen; keeping a student where they
+                    are is a Retain, not a promotion.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted">
+                    Pick the class they are coming from first.
+                  </p>
+                )}
               </div>
             </div>
           </div>

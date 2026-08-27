@@ -409,6 +409,18 @@ export class AcademicService {
       include: {
         trade: { select: { id: true, code: true, name: true } },
         classLevel: { select: { id: true, name: true, stage: true } },
+        // What the subject is actually used for. Without these the subjects
+        // page could not say whether anyone teaches it, whether it appears on
+        // a timetable, or whether deleting it would take marks with it — and
+        // deleting one that has marks is refused, so the page has to be able
+        // to say so before the admin presses the button.
+        _count: {
+          select: {
+            teacherSubjectClasses: true,
+            timetables: true,
+            marks: true,
+          },
+        },
       },
       orderBy: [{ scope: 'asc' }, { name: 'asc' }],
     });
@@ -1008,9 +1020,35 @@ export class AcademicService {
       include: {
         yearResults: { where: { academicYearId: dto.academicYearId } },
         user: { select: { firstName: true, lastName: true } },
+        classSection: { include: { classLevel: true } },
       },
     });
     const byId = new Map(students.map((s) => [s.id, s]));
+
+    // A promotion moves a student UP the ladder. The six levels are ordered
+    // Senior 1-3 then TVET Level 3-5 (ClassLevel.order 1..6), and the UI used
+    // to let any level be chosen as the destination — so "Senior 2 → Senior 1"
+    // was a click away, and it silently demoted a whole class. Same level is
+    // refused too: repeating a year is a retention, not a promotion.
+    const destination = await this.prisma.classSection.findUnique({
+      where: { id: dto.toClassSectionId },
+      include: { classLevel: true },
+    });
+    if (!destination) {
+      throw new NotFoundException('Destination class not found');
+    }
+    for (const d of dto.decisions) {
+      if (d.decision !== 'PROMOTE') continue;
+      const from = byId.get(d.studentId)?.classSection?.classLevel;
+      if (!from) continue;
+      if (destination.classLevel.order <= from.order) {
+        throw new BadRequestException(
+          `Cannot promote from ${from.name} to ${destination.classLevel.name}. ` +
+            'A promotion has to move students to a higher level; to keep them ' +
+            'where they are, mark them Retain instead.',
+        );
+      }
+    }
 
     const promoted: string[] = [];
     const retained: string[] = [];

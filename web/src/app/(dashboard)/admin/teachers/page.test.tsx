@@ -109,6 +109,24 @@ describe("the staff list", () => {
     expect(screen.getByText(/Eric/)).toBeInTheDocument();
   });
 
+  /**
+   * The list answers "who teaches what" and nothing else. Everything about
+   * one teacher — their classes, the class they are class teacher of, where
+   * they are this period, their own details — lives on their own page, and
+   * there was no way to reach it.
+   */
+  it("opens a teacher when their row is clicked", async () => {
+    await mount();
+    await click(screen.getByText(/Aline/).closest("tr"));
+    expect(h.router.push).toHaveBeenCalledWith("/admin/teachers/u-1");
+  });
+
+  it("offers the same thing as a button for the keyboard", async () => {
+    await mount();
+    await click(screen.getByLabelText(/view aline uwase/i));
+    expect(h.router.push).toHaveBeenCalledWith("/admin/teachers/u-1");
+  });
+
   it("asks only for teachers", async () => {
     await mount();
     expect(lastUserQuery().role).toBe("TEACHER");

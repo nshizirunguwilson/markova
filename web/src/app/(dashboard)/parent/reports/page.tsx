@@ -12,6 +12,8 @@ import { useTermReport } from "@/hooks/use-reports";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { FileText, Printer } from "lucide-react";
+import { toast } from "sonner";
+import { printHtml } from "@/lib/print";
 import { PageHeader } from "@/components/layout/page-header";
 
 interface Child { id: string; name: string; }
@@ -39,6 +41,33 @@ export default function ParentReportsPage() {
       if (kids.length > 0) setSelectedChild(kids[0].id);
     }).catch(() => {});
   }, [user?.id]);
+
+  const [printing, setPrinting] = useState(false);
+
+  /**
+   * Prints the A4 report card the school actually issues.
+   *
+   * This used to build its own two-line page in a popup — name, average,
+   * grade, rank — so a parent who pressed Print got something that looked
+   * nothing like the document their child's school hands out. It now prints
+   * the same sheet, from this page rather than a second tab.
+   */
+  const handlePrint = async () => {
+    if (!selectedChild || !termId) return;
+    setPrinting(true);
+    try {
+      const res = await api.get(`/reports/term/${selectedChild}/html`, {
+        params: { termId },
+      });
+      if (!printHtml(res.data)) {
+        toast.error("Your browser would not open the print dialog");
+      }
+    } catch {
+      toast.error("Could not load the official report card");
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -72,17 +101,7 @@ export default function ParentReportsPage() {
             <CardTitle>
               {report.student?.user?.firstName} {report.student?.user?.lastName} — {report.termName}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => {
-              const w = window.open("", "_blank");
-              if (w) {
-                w.document.write(`<html><head><title>Report Card</title></head><body>
-                  <h2>${report.student?.user?.firstName} ${report.student?.user?.lastName}</h2>
-                  <p>Average: ${report.average} | Grade: ${report.letterGrade} | Rank: ${report.rank}</p>
-                </body></html>`);
-                w.document.close();
-                w.print();
-              }
-            }}>
+            <Button variant="outline" size="sm" isLoading={printing} onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-1" /> Print
             </Button>
           </div>

@@ -67,6 +67,19 @@ const schema = z.object({
   qualification: z.enum(["A0", "A1", "A2"]).optional().or(z.literal("")),
   rssbNumber: z.string().optional().or(z.literal("")),
   hireDate: z.string().optional().or(z.literal("")),
+}).superRefine((v, ctx) => {
+  // The NIDA number encodes the birth year and a gender digit, so an ID that
+  // disagrees with the profile it is being attached to is a typo, not a
+  // record. This used to be shown as a hint the form was happy to save
+  // through; now it stops the save, the way the Add User wizard already does.
+  const nidError = validateNid(
+    v.nationalId || "",
+    (v.gender || "") as "MALE" | "FEMALE" | "",
+    v.dateOfBirth || undefined,
+  );
+  if (nidError) {
+    ctx.addIssue({ code: "custom", path: ["nationalId"], message: nidError });
+  }
 });
 
 type FormData = z.infer<typeof schema>;
@@ -122,6 +135,11 @@ export default function UserDetailPage() {
       : undefined,
   });
   const nid = watch("nationalId") || "";
+  // A student's gender and date of birth live on the Student record; everyone
+  // else's live on the User. `values` above already folds the two together,
+  // so watching the form is enough to check the ID against both.
+  const nidGender = (watch("gender") || "") as "MALE" | "FEMALE" | "";
+  const nidDob = watch("dateOfBirth") || undefined;
 
   const onSubmit = async (data: FormData) => {
     // Empty strings stay untouched rather than wiping stored values.
@@ -270,7 +288,10 @@ export default function UserDetailPage() {
                   <NationalIdInput
                     value={nid}
                     onChange={(d) => setValue("nationalId", d)}
-                    error={validateNid(nid)}
+                    error={
+                      errors.nationalId?.message ??
+                      validateNid(nid, nidGender, nidDob)
+                    }
                   />
                   <Input
                     id="nationality"

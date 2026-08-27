@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -59,6 +60,33 @@ export class SchoolConfigController {
     removeStoredFile(fileUrl, { existsSync, unlinkSync }, (p) =>
       join(process.cwd(), p),
     );
+  }
+
+  /**
+   * Stores one branding image against its config key.
+   *
+   * The three uploads were the same fifteen lines three times over, and each
+   * one dereferenced `file.filename` without checking there was a file — a
+   * request that arrived with the wrong field name (or none) crashed on a
+   * TypeError and came back as a bare 500, which the settings page could only
+   * report as "Failed to upload logo".
+   */
+  private async storeBrandingFile(
+    key: 'logo_url' | 'stamp_url' | 'signature_url',
+    file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException(
+        'No file was received. Choose an image and try again.',
+      );
+    }
+    validateUploadedImage(
+      join(process.cwd(), 'uploads/branding', file.filename),
+    );
+    const oldConfig = await this.configService.findByKey(key).catch(() => null);
+    this.deleteOldFile(oldConfig?.value);
+    const url = `/uploads/branding/${file.filename}`;
+    return this.configService.updateBrandingFile(key, url);
   }
 
   @Get()
@@ -123,15 +151,7 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school logo' })
   async uploadLogo(@UploadedFile() file: Express.Multer.File) {
-    validateUploadedImage(
-      join(process.cwd(), 'uploads/branding', file.filename),
-    );
-    const oldConfig = await this.configService
-      .findByKey('logo_url')
-      .catch(() => null);
-    this.deleteOldFile(oldConfig?.value);
-    const url = `/uploads/branding/${file.filename}`;
-    return this.configService.updateBrandingFile('logo_url', url);
+    return this.storeBrandingFile('logo_url', file);
   }
 
   @Post('upload/stamp')
@@ -147,15 +167,7 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload school stamp' })
   async uploadStamp(@UploadedFile() file: Express.Multer.File) {
-    validateUploadedImage(
-      join(process.cwd(), 'uploads/branding', file.filename),
-    );
-    const oldConfig = await this.configService
-      .findByKey('stamp_url')
-      .catch(() => null);
-    this.deleteOldFile(oldConfig?.value);
-    const url = `/uploads/branding/${file.filename}`;
-    return this.configService.updateBrandingFile('stamp_url', url);
+    return this.storeBrandingFile('stamp_url', file);
   }
 
   @Post('upload/signature')
@@ -171,14 +183,6 @@ export class SchoolConfigController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload headmaster signature' })
   async uploadSignature(@UploadedFile() file: Express.Multer.File) {
-    validateUploadedImage(
-      join(process.cwd(), 'uploads/branding', file.filename),
-    );
-    const oldConfig = await this.configService
-      .findByKey('signature_url')
-      .catch(() => null);
-    this.deleteOldFile(oldConfig?.value);
-    const url = `/uploads/branding/${file.filename}`;
-    return this.configService.updateBrandingFile('signature_url', url);
+    return this.storeBrandingFile('signature_url', file);
   }
 }

@@ -46,18 +46,62 @@ export class MessagingGateway
   ) {}
 
   /**
-   * Broadcast a newly-created message to each participant's personal user
-   * room. We use the user rooms (not conv:<id>) because a conversation
-   * created after a socket connected won't have that socket in conv:<id> yet,
-   * but every connected user is always in their own user:<id> room.
+   * Everyone in a conversation, addressed by their personal room.
+   *
+   * `conv:<id>` rooms are joined once, at connection time, so a conversation
+   * created after a socket connected does not contain that socket — which is
+   * why read receipts, typing and presence all went missing for exactly the
+   * conversations people had just started. A user's own `user:<id>` room is
+   * always current, so everything that has to reach a participant goes
+   * through here.
    */
-  async broadcastNewMessage(conversationId: string, message: unknown) {
-    const participantIds =
+  private async participantRooms(
+    conversationId: string,
+    exceptUserId?: string,
+  ): Promise<string[]> {
+    const ids =
       await this.messagingService.getConversationParticipantIds(conversationId);
-    const rooms = participantIds.map((id) => `user:${id}`);
+    return ids
+      .filter((id) => id !== exceptUserId)
+      .map((id) => `user:${id}`);
+  }
+
+  /** Broadcast a newly-created message to each participant. */
+  async broadcastNewMessage(conversationId: string, message: unknown) {
+    const rooms = await this.participantRooms(conversationId);
     if (rooms.length > 0) {
       this.server.to(rooms).emit('newMessage', message);
     }
+  }
+
+  /**
+   * Mark a message delivered to whoever is online, and tell the sender.
+   *
+   * Shared with the REST route: an attachment goes over HTTP rather than the
+   * socket (the socket carries text only), and that path never ran this at
+   * all — so a message with a file stayed on one tick until the recipient
+   * next reconnected.
+   */
+  async markDeliveredIfOnline(
+    conversationId: string,
+    messageId: string,
+    senderUserId: string,
+  ): Promise<boolean> {
+    const participantIds =
+      await this.messagingService.getConversationParticipantIds(conversationId);
+    const online = participantIds.some(
+      (id) => id !== senderUserId && this.onlineUsers.has(id),
+    );
+    if (!online) return false;
+
+    await this.messagingService.updateMessageStatus(messageId, 'DELIVERED');
+    // The sender's room, not the one socket that sent it: someone with the
+    // dashboard open in two tabs saw the second tick in only one of them.
+    this.server.to(`user:${senderUserId}`).emit('messageDelivered', {
+      messageId,
+      conversationId,
+    });
+    return true;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -88,6 +132,12 @@ export class MessagingGateway
       }
 
       client.data.user = payload;
+      // The JWT carries `sub` and `role` only (see AuthService.issueTokens),
+      // so the typing indicator's `${firstName} ${lastName}` was always the
+      // empty string and every recipient saw " is typing". The name is read
+      // once here, off the record already loaded to authorise the socket.
+      client.data.displayName =
+        `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
       const userId = payload.sub;
 
       // Track online status
@@ -197,26 +247,17 @@ export class MessagingGateway
     );
 
     await this.broadcastNewMessage(data.conversationId, message);
-
-    // Check which recipients are online and mark delivered
-    const participantIds =
-      await this.messagingService.getConversationParticipantIds(
-        data.conversationId,
-      );
-    const onlineRecipients = participantIds.filter(
-      (id) => id !== userId && this.onlineUsers.has(id),
+    const delivered = await this.markDeliveredIfOnline(
+      data.conversationId,
+      message.id,
+      userId,
     );
 
-    if (onlineRecipients.length > 0) {
-      await this.messagingService.updateMessageStatus(message.id, 'DELIVERED');
-      client.emit('messageDelivered', {
-        messageId: message.id,
-        conversationId: data.conversationId,
-      });
-    }
-
     // Ack back to sender
-    return { messageId: message.id, status: 'SENT' };
+    return {
+      messageId: message.id,
+      status: delivered ? 'DELIVERED' : 'SENT',
+    };
   }
 
   @SubscribeMessage('markRead')
@@ -231,13 +272,20 @@ export class MessagingGateway
       userId,
     );
 
-    // Notify senders their messages were read
+    // Notify senders their messages were read. Addressed to every
+    // participant's own room rather than the conversation room: the sender is
+    // only in `conv:<id>` if the conversation already existed when they
+    // connected, so read receipts silently never arrived for a thread that
+    // had just been started.
     if (result.readMessageIds && result.readMessageIds.length > 0) {
-      this.server.to(`conv:${data.conversationId}`).emit('messagesRead', {
-        conversationId: data.conversationId,
-        readBy: userId,
-        messageIds: result.readMessageIds,
-      });
+      const rooms = await this.participantRooms(data.conversationId);
+      if (rooms.length > 0) {
+        this.server.to(rooms).emit('messagesRead', {
+          conversationId: data.conversationId,
+          readBy: userId,
+          messageIds: result.readMessageIds,
+        });
+      }
     }
 
     return { count: result.count };
@@ -248,15 +296,18 @@ export class MessagingGateway
   // ═══════════════════════════════════════════════════════════════════════════
 
   @SubscribeMessage('typing')
-  handleTyping(
+  async handleTyping(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
     const userId = client.data.user.sub;
-    const userName =
-      `${client.data.user.firstName || ''} ${client.data.user.lastName || ''}`.trim();
+    // Read off the socket, where it was cached at connection. The JWT does
+    // not carry a name, so this used to be the empty string every time.
+    const userName = client.data.displayName || '';
 
-    client.to(`conv:${data.conversationId}`).emit('userTyping', {
+    const rooms = await this.participantRooms(data.conversationId, userId);
+    if (rooms.length === 0) return;
+    this.server.to(rooms).emit('userTyping', {
       conversationId: data.conversationId,
       userId,
       userName,
@@ -264,13 +315,15 @@ export class MessagingGateway
   }
 
   @SubscribeMessage('stopTyping')
-  handleStopTyping(
+  async handleStopTyping(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
     const userId = client.data.user.sub;
 
-    client.to(`conv:${data.conversationId}`).emit('userStopTyping', {
+    const rooms = await this.participantRooms(data.conversationId, userId);
+    if (rooms.length === 0) return;
+    this.server.to(rooms).emit('userStopTyping', {
       conversationId: data.conversationId,
       userId,
     });
@@ -297,16 +350,25 @@ export class MessagingGateway
     isOnline: boolean,
     lastSeen?: Date,
   ) {
-    // Get all conversation IDs for this user
     const convIds = await this.messagingService.getUserConversationIds(userId);
+    if (convIds.length === 0) return;
 
+    // Addressed to the people, not the conversation rooms — and de-duplicated,
+    // so somebody sharing four conversations with this user is told once
+    // rather than four times.
+    const rooms = new Set<string>();
     for (const convId of convIds) {
-      this.server.to(`conv:${convId}`).emit('presenceChange', {
-        userId,
-        isOnline,
-        lastSeenAt: lastSeen || new Date(),
-      });
+      for (const room of await this.participantRooms(convId, userId)) {
+        rooms.add(room);
+      }
     }
+    if (rooms.size === 0) return;
+
+    this.server.to([...rooms]).emit('presenceChange', {
+      userId,
+      isOnline,
+      lastSeenAt: lastSeen || new Date(),
+    });
   }
 
   isUserOnline(userId: string): boolean {

@@ -4,6 +4,16 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { QueryClient } from "@tanstack/react-query";
 
+/**
+ * How long a "typing" notice survives without being renewed.
+ *
+ * The sender stops it after five seconds of no keystrokes, but only if their
+ * socket is still up. A tab closed mid-sentence never sends the stop, and the
+ * indicator then sat there for the rest of the session. Slightly longer than
+ * the sender's own timer so a steady typist never flickers.
+ */
+const TYPING_TTL_MS = 7000;
+
 interface ChatState {
   socket: Socket | null;
   connected: boolean;
@@ -12,6 +22,11 @@ interface ChatState {
 
   connect: (token: string, queryClient: QueryClient, userId?: string) => void;
   disconnect: () => void;
+  applyAck: (
+    queryClient: QueryClient,
+    conversationId: string,
+    ack: { messageId?: string; status?: string } | undefined,
+  ) => void;
   sendMessage: (conversationId: string, content: string, contentType?: string) => Promise<any>;
   markRead: (conversationId: string) => void;
   startTyping: (conversationId: string) => void;
@@ -55,6 +70,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const existing = get().socket;
     if (existing?.connected) return;
 
+    // `<convId>:<userId>` -> the timer that will clear that typing notice.
+    const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const clearTyping = (conversationId: string, userId: string) => {
+      const key = `${conversationId}:${userId}`;
+      const timer = typingTimers.get(key);
+      if (timer) {
+        clearTimeout(timer);
+        typingTimers.delete(key);
+      }
+      set((state) => {
+        const next = new Map(state.typingUsers);
+        const convTyping = next.get(conversationId);
+        if (!convTyping?.has(userId)) return state;
+        const updated = new Map(convTyping);
+        updated.delete(userId);
+        if (updated.size === 0) next.delete(conversationId);
+        else next.set(conversationId, updated);
+        return { typingUsers: next };
+      });
+    };
+
     const socket = io(`${WS_URL}/chat`, {
       auth: { token },
       transports: ["websocket", "polling"],
@@ -86,6 +123,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         else next.delete(data.userId);
         return { onlineUsers: next };
       });
+      // Somebody who has gone offline is not still typing. Their tab may have
+      // closed mid-sentence, in which case no stopTyping was ever sent.
+      if (!data.isOnline) {
+        for (const convId of [...get().typingUsers.keys()]) {
+          clearTyping(convId, data.userId);
+        }
+      }
     });
 
     // New message
@@ -124,43 +168,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
     });
 
-    // Read receipt
+    // Read receipt. Both halves matter: `status` is the sender's tick, and
+    // `reads` is the per-person record the page uses to decide whether THIS
+    // user still has something unread. Updating only the tick left the page
+    // asking to mark the same messages read every time it re-rendered.
     socket.on("messagesRead", (data: { conversationId: string; readBy: string; messageIds: string[] }) => {
       queryClient.setQueryData(
         ["messages", data.conversationId],
         (old: any[] | undefined) => {
           if (!old) return old;
           const idSet = new Set(data.messageIds);
-          return old.map((m: any) =>
-            idSet.has(m.id) ? { ...m, status: "READ" } : m
-          );
+          const readAt = new Date().toISOString();
+          return old.map((m: any) => {
+            if (!idSet.has(m.id)) return m;
+            const reads = m.reads ?? [];
+            return {
+              ...m,
+              status: "READ",
+              reads: reads.some((r: any) => r.userId === data.readBy)
+                ? reads
+                : [...reads, { userId: data.readBy, readAt }],
+            };
+          });
         }
       );
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-messages"] });
     });
 
-    // Typing indicators
+    // Typing indicators. Each notice carries its own expiry, so one that is
+    // never followed by a stop clears itself instead of sitting there.
     socket.on("userTyping", (data: { conversationId: string; userId: string; userName: string }) => {
+      const key = `${data.conversationId}:${data.userId}`;
+      const existing = typingTimers.get(key);
+      if (existing) clearTimeout(existing);
+      typingTimers.set(
+        key,
+        setTimeout(() => clearTyping(data.conversationId, data.userId), TYPING_TTL_MS),
+      );
+
       set((state) => {
         const next = new Map(state.typingUsers);
-        if (!next.has(data.conversationId)) {
-          next.set(data.conversationId, new Map());
-        }
-        next.get(data.conversationId)!.set(data.userId, data.userName);
+        const convTyping = new Map(next.get(data.conversationId) ?? []);
+        // The gateway now sends a real name; older builds sent "". Falling
+        // back keeps the sentence readable either way.
+        convTyping.set(data.userId, data.userName || "Someone");
+        next.set(data.conversationId, convTyping);
         return { typingUsers: next };
       });
     });
 
     socket.on("userStopTyping", (data: { conversationId: string; userId: string }) => {
-      set((state) => {
-        const next = new Map(state.typingUsers);
-        const convTyping = next.get(data.conversationId);
-        if (convTyping) {
-          convTyping.delete(data.userId);
-          if (convTyping.size === 0) next.delete(data.conversationId);
-        }
-        return { typingUsers: next };
-      });
+      clearTyping(data.conversationId, data.userId);
     });
 
     // Handle reconnection — refresh token
@@ -182,22 +241,49 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  /**
+   * Everything the sender's own screen should show the instant they send.
+   *
+   * The message is echoed back over the socket, so the tick state that
+   * matters is the one the ack carries: without this a message the server had
+   * already delivered sat on one tick until something else invalidated the
+   * cache.
+   */
+  applyAck: (
+    queryClient: QueryClient,
+    conversationId: string,
+    ack: { messageId?: string; status?: string } | undefined,
+  ) => {
+    if (!ack?.messageId || !ack.status) return;
+    queryClient.setQueryData(
+      ["messages", conversationId],
+      (old: any[] | undefined) =>
+        old?.map((m: any) =>
+          m.id === ack.messageId ? { ...m, status: ack.status } : m,
+        ),
+    );
+  },
+
   sendMessage: async (conversationId: string, content: string, contentType?: string) => {
     const { socket } = get();
     if (!socket?.connected) throw new Error("Not connected");
 
     return new Promise((resolve, reject) => {
+      // Cleared once the ack lands, or a message sent every few seconds
+      // leaves a timer per send armed for the next ten seconds.
+      const timeout = setTimeout(
+        () => reject(new Error("Message send timeout")),
+        10000,
+      );
       socket.emit(
         "sendMessage",
         { conversationId, content, contentType },
         (response: any) => {
+          clearTimeout(timeout);
           if (response?.error) reject(new Error(response.error));
           else resolve(response);
         }
       );
-
-      // Timeout fallback
-      setTimeout(() => reject(new Error("Message send timeout")), 10000);
     });
   },
 

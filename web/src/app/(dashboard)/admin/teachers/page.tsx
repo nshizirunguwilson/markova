@@ -19,10 +19,12 @@ import {
 import { useUsers, type UserFilters } from "@/hooks/use-users";
 import { useAssignments, useAcademicYears } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
-import { Search, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Users, Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminTeachersPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState<UserFilters>({
     page: 1,
     limit: 20,
@@ -124,12 +126,13 @@ export default function AdminTeachersPage() {
                 <TableHead>Employment</TableHead>
                 <TableHead>Subjects & Classes</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Profile</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {teachers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12 text-center text-muted">
+                  <TableCell colSpan={6} className="py-12 text-center text-muted">
                     <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     No teachers found
                   </TableCell>
@@ -140,8 +143,16 @@ export default function AdminTeachersPage() {
                   // the User's. Passing user.id compared two different id
                   // spaces, so every teacher read "No assignments".
                   const teacherAssignments = getTeacherAssignments(user.teacher?.id);
+                  const open = () => router.push(`/admin/teachers/${user.id}`);
                   return (
-                    <TableRow key={user.id}>
+                    // The whole row opens the teacher, because that is what
+                    // anyone clicking a name expects; the button is there for
+                    // the keyboard and for anyone who wants to be told so.
+                    <TableRow
+                      key={user.id}
+                      className="cursor-pointer"
+                      onClick={open}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar
@@ -193,6 +204,19 @@ export default function AdminTeachersPage() {
                         <Badge variant={user.isActive ? "success" : "danger"}>
                           {user.isActive ? "Active" : "Inactive"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`View ${user.firstName} ${user.lastName}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            open();
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

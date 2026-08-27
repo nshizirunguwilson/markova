@@ -76,6 +76,147 @@ async function mount() {
   await waitFor(() => expect(document.body.textContent).not.toBe(""));
 }
 
+/**
+ * The ladder a promotion climbs.
+ *
+ * The school's six levels are Senior 1-3 then TVET Level 3-5, which is
+ * ClassLevel.order 1..6. The destination list used to be every level in the
+ * school, so "Senior 2 → Senior 1" was one click away and it demoted a whole
+ * class without a word.
+ */
+describe("which class a student can be promoted into", () => {
+  const level = (id: string, name: string, order: number) => ({
+    id,
+    name,
+    order,
+    stage: order <= 3 ? "O_LEVEL" : "A_LEVEL",
+    sections: [
+      { id: `${id}-a`, name: "A", classLevelId: id, trade: null, tradeId: null, _count: { students: 30 } },
+    ],
+  });
+
+  const ladder = [
+    level("lvl-1", "Senior 1", 1),
+    level("lvl-2", "Senior 2", 2),
+    level("lvl-3", "Senior 3", 3),
+    level("lvl-4", "Level 3", 4),
+    level("lvl-5", "Level 4", 5),
+    level("lvl-6", "Level 5", 6),
+  ];
+
+  async function mountLadder() {
+    // Deliberately shuffled: the page sorts by `order`, not by the order the
+    // API happened to answer in.
+    serve(h.api, {
+      ...routes,
+      "/academic/class-levels": [ladder[3], ladder[0], ladder[5], ladder[1], ladder[4], ladder[2]],
+    });
+    renderPage(PromotionPage, { role: "ADMIN" });
+    // Wait for the levels themselves: the selects render empty first.
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/Senior 3/),
+    );
+  }
+
+  const levelSelects = () =>
+    screen.getAllByLabelText(/select level|no level above/i) as HTMLSelectElement[];
+
+  async function chooseFrom(value: string) {
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.change(levelSelects()[0], { target: { value } });
+    });
+  }
+
+  it("lists the source levels in the order the school runs them", async () => {
+    await mountLadder();
+    expect(
+      Array.from(levelSelects()[0].options)
+        .map((o) => o.textContent?.trim())
+        .filter((t) => t !== "Select level"),
+    ).toEqual([
+      "Senior 1",
+      "Senior 2",
+      "Senior 3",
+      "Level 3",
+      "Level 4",
+      "Level 5",
+    ]);
+  });
+
+  it("offers only the levels above the one they are in", async () => {
+    await mountLadder();
+    await chooseFrom("lvl-2");
+
+    const options = Array.from(levelSelects()[1].options)
+      .map((o) => o.value)
+      .filter(Boolean);
+    expect(options).toEqual(["lvl-3", "lvl-4", "lvl-5", "lvl-6"]);
+    expect(options).not.toContain("lvl-1");
+    expect(options).not.toContain("lvl-2");
+  });
+
+  it("marks the next level up as the usual answer", async () => {
+    await mountLadder();
+    await chooseFrom("lvl-2");
+    expect(levelSelects()[1].textContent).toMatch(/Senior 3 — next level/);
+  });
+
+  // It is the answer nine times in ten, so it is offered already filled in.
+  it("fills the next level in without being asked", async () => {
+    await mountLadder();
+    await chooseFrom("lvl-2");
+    expect(levelSelects()[1].value).toBe("lvl-3");
+    expect(document.body.textContent).toMatch(/Senior 2 → Senior 3/);
+  });
+
+  // A destination chosen before the source moved up has to be let go of, or a
+  // level at or below the new source would be sent to the server.
+  it("drops a destination that the new source has caught up with", async () => {
+    await mountLadder();
+    const { act, fireEvent } = await import("@testing-library/react");
+    await chooseFrom("lvl-1");
+    await act(async () => {
+      fireEvent.change(levelSelects()[1], { target: { value: "lvl-2" } });
+    });
+    expect(levelSelects()[1].value).toBe("lvl-2");
+
+    await chooseFrom("lvl-3");
+    expect(levelSelects()[1].value).toBe("lvl-4");
+  });
+
+  it("keeps a destination that is still above the new source", async () => {
+    await mountLadder();
+    const { act, fireEvent } = await import("@testing-library/react");
+    await chooseFrom("lvl-1");
+    await act(async () => {
+      fireEvent.change(levelSelects()[1], { target: { value: "lvl-6" } });
+    });
+    await chooseFrom("lvl-2");
+    expect(levelSelects()[1].value).toBe("lvl-6");
+  });
+
+  /**
+   * Level 5 is the end of the school. Those students complete their studies
+   * rather than moving up, and offering a destination would be a lie.
+   */
+  it("shuts the destination on the last level in the school", async () => {
+    await mountLadder();
+    await chooseFrom("lvl-6");
+
+    expect(levelSelects()[1]).toBeDisabled();
+    expect(levelSelects()[1].textContent).toMatch(/No level above this one/);
+    expect(document.body.textContent).toMatch(/is the last level in the school/);
+  });
+
+  it("asks for the source class before saying anything about the destination", async () => {
+    await mountLadder();
+    expect(document.body.textContent).toMatch(
+      /Pick the class they are coming from first/,
+    );
+  });
+});
+
 describe("before anything is promoted", () => {
   it("renders the year and class pickers", async () => {
     await mount();

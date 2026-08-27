@@ -147,9 +147,27 @@ export function filenameFor(
     cb: (error: Error | null, filename: string) => void,
   ) => {
     const name = storedFilename(file.mimetype, kind, newId);
-    if (!name) return cb(new Error(refusal), '');
+    if (!name) return cb(refusalError(file.mimetype, refusal), '');
     cb(null, name);
   };
+}
+
+/**
+ * Why the file was turned away, in words someone can act on.
+ *
+ * A plain `Error` here is not an HttpException, so Nest's multer wrapper hands
+ * it straight through and the client gets a bare 500. Every refused upload
+ * therefore read as "Failed to upload logo" — the same message a server outage
+ * produces — when the real answer was "that is a HEIC and we take JPEG or PNG".
+ */
+function refusalError(mimetype: string, refusal: string): BadRequestException {
+  const accepted = Object.keys(EXTENSION_BY_MIME)
+    .map((m) => m.replace('image/', '').toUpperCase())
+    .filter((m, i, all) => all.indexOf(m) === i)
+    .join(', ');
+  return new BadRequestException(
+    `${refusal}. Received ${mimetype || 'an unknown file type'}; accepted: ${accepted}.`,
+  );
 }
 
 /**
@@ -168,7 +186,7 @@ export function fileFilterFor(kind: 'image' | 'attachment', refusal: string) {
       kind === 'image'
         ? isAllowedImageMime(file.mimetype)
         : isAllowedAttachmentMime(file.mimetype);
-    if (!allowed) return cb(new Error(refusal), false);
+    if (!allowed) return cb(refusalError(file.mimetype, refusal), false);
     cb(null, true);
   };
 }

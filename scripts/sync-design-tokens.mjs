@@ -43,9 +43,41 @@ const shadowEntries = Object.entries(tokens.shadow).filter(([k]) => !k.startsWit
 
 // ── web: Tailwind v4 @theme block ───────────────────────────────────────────
 
+/**
+ * The colours a school can change at runtime.
+ *
+ * `@theme inline` bakes each token's value straight into the utilities, so
+ * `bg-primary` compiled to a literal hex and re-setting `--color-primary` on
+ * the document did nothing — a school could save its brand colour and watch
+ * the dashboard stay Markova blue. These are emitted as a plain `:root` block
+ * and referenced from the theme, so what gets inlined is `var(--brand-*)` and
+ * BrandProvider can repaint the whole app by setting six variables.
+ *
+ * Everything else stays a literal: it is not brand, and a variable indirection
+ * per token costs paint time for nothing.
+ */
+const RUNTIME_COLORS = [
+  'primary',
+  'primaryLight',
+  'primaryDark',
+  'accent',
+  'accentLight',
+  'info',
+  'infoWash',
+];
+
 function buildWebCss() {
+  const runtime = RUNTIME_COLORS.filter((name) => tokens.color[name]);
+  const brandVars = runtime
+    .map((name) => `  --brand-${kebab(name)}: ${tokens.color[name].value};`)
+    .join('\n');
+
   const colors = colorEntries
-    .map(([name, t]) => `  --color-${kebab(name)}: ${t.value};`)
+    .map(([name, t]) =>
+      runtime.includes(name)
+        ? `  --color-${kebab(name)}: var(--brand-${kebab(name)});`
+        : `  --color-${kebab(name)}: ${t.value};`,
+    )
     .join('\n');
 
   const radii = radiusEntries
@@ -57,6 +89,11 @@ function buildWebCss() {
     .join('\n');
 
   return `${BANNER()}
+/* The school's own colours, overridable at runtime by BrandProvider. */
+:root {
+${brandVars}
+}
+
 @theme inline {
   /* ── colour ─────────────────────────────────────────────────────────────── */
 ${colors}

@@ -101,9 +101,17 @@ export function usePublishTermResults() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: Payload) => (await api.post("/marks/term-results/publish", data)).data,
-    onSuccess: () => {
+    // The same endpoint both publishes and withdraws, so the confirmation has
+    // to read back what was actually asked for. It said "Results published"
+    // either way, which is how unpublishing came to look like it did the
+    // opposite of what was pressed.
+    onSuccess: (_data: unknown, variables: Payload) => {
       qc.invalidateQueries({ queryKey: ["term-results"] });
-      toast.success("Results published");
+      toast.success(
+        variables?.isPublished === false
+          ? "Results unpublished — students and parents can no longer see them"
+          : "Results published — students and parents can now see them",
+      );
     },
     onError: (e: unknown) => toast.error(errorMessage(e, "Publish failed")),
   });

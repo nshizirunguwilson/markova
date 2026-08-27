@@ -7,6 +7,7 @@ import {
   LogOut,
   User,
   ChevronDown,
+  ChevronRight,
   Search,
   CheckCheck,
   X,
@@ -22,7 +23,9 @@ import {
   useNotifications,
   useMarkAllRead,
   useMarkRead,
+  type Notification,
 } from "@/hooks/use-notifications";
+import { notificationHref } from "@/lib/notification-target";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -130,20 +133,22 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
     router.push(href);
   };
 
-  const handleNotificationClick = (notif: { id: string; type?: string }) => {
-    markRead.mutate(notif.id);
+  /**
+   * Open a notification.
+   *
+   * This used to branch on `notif.type`, which is the channel the notice went
+   * out on — SMS, EMAIL or PUSH. Every branch tested it for words like
+   * "ATTENDANCE", so none could ever match and clicking a notification did
+   * nothing but mark it read. What a notice is about lives on
+   * `relatedEntityType`; `notificationHref` turns that plus the reader's role
+   * into a page, and answers null when there is nothing to open.
+   */
+  const handleNotificationClick = (notif: Notification) => {
+    if (!notif.isRead) markRead.mutate(notif.id);
     setNotifOpen(false);
 
-    const role = user?.role?.toLowerCase() || "admin";
-    const type = (notif.type || "").toUpperCase();
-
-    if (type.includes("ATTENDANCE")) {
-      router.push(`/${role}/attendance`);
-    } else if (type.includes("MARKS") || type.includes("RESULT")) {
-      router.push(`/${role}/marks`);
-    } else if (type.includes("MESSAGE")) {
-      router.push(`/messages`);
-    }
+    const href = notificationHref(notif, user?.role);
+    if (href) router.push(href);
   };
 
   const roleBadgeVariant: Record<string, "info" | "success" | "default" | "warning"> = {
@@ -271,38 +276,54 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
 
               <div className="max-h-80 overflow-y-auto">
                 {notifications && notifications.length > 0 ? (
-                  notifications.map((notif) => (
-                    <button
-                      key={notif.id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className={cn(
-                        "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left hover:bg-accent-light last:border-0",
-                        !notif.isRead && "bg-primary/5"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p
-                          className={cn(
-                            "text-sm",
-                            notif.isRead
-                              ? "text-foreground"
-                              : "font-medium text-foreground"
-                          )}
-                        >
-                          {notif.title}
-                        </p>
-                        {!notif.isRead && (
-                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                  notifications.map((notif) => {
+                    // Whether this one goes anywhere at all. A notice about
+                    // nothing in particular ("System Ready") stays a notice,
+                    // and saying so beats a row that looks clickable and
+                    // silently is not.
+                    const href = notificationHref(notif, user?.role);
+                    return (
+                      <button
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        aria-label={
+                          href ? `${notif.title} — open` : notif.title ?? ""
+                        }
+                        className={cn(
+                          "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left last:border-0",
+                          href ? "cursor-pointer hover:bg-accent-light" : "cursor-default",
+                          !notif.isRead && "bg-primary/5"
                         )}
-                      </div>
-                      <p className="line-clamp-2 text-xs text-muted">
-                        {notif.message}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted">
-                        {timeAgo(notif.createdAt)}
-                      </p>
-                    </button>
-                  ))
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={cn(
+                              "text-sm",
+                              notif.isRead
+                                ? "text-foreground"
+                                : "font-medium text-foreground"
+                            )}
+                          >
+                            {notif.title}
+                          </p>
+                          {!notif.isRead && (
+                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <p className="line-clamp-2 text-xs text-muted">
+                          {notif.message}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+                          <span>{timeAgo(notif.createdAt)}</span>
+                          {href && (
+                            <span className="flex items-center gap-0.5 text-primary">
+                              Open <ChevronRight className="h-3 w-3" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 ) : (
                   <div className="px-4 py-8 text-center text-sm text-muted">
                     No notifications

@@ -126,7 +126,12 @@ describe("what a student can do with it", () => {
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
   }
 
-  it("prints the school's own rendered original", async () => {
+  /**
+   * The card is printed from this page, not from a second tab. A popup was
+   * left behind after every print, and a blocker turned the button into a
+   * no-op with nothing to show for it.
+   */
+  it("prints the school's own rendered original without leaving the page", async () => {
     await ready();
     const print = button(/print/i);
     if (!print) return;
@@ -140,7 +145,10 @@ describe("what a student can do with it", () => {
       );
       expect(call).toBeTruthy();
     });
-    await waitFor(() => expect(window.open).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(document.querySelector("iframe[srcdoc]")).not.toBeNull(),
+    );
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("opens it to read", async () => {

@@ -37,13 +37,17 @@ describe('MessagingController', () => {
     'removeParticipant',
     'renameConversation',
   ]);
-  const gateway = mockService(['broadcastNewMessage']);
+  const gateway = mockService([
+    'broadcastNewMessage',
+    'markDeliveredIfOnline',
+  ]);
 
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
     clearMocks(service, gateway);
     service.sendMessage.mockResolvedValue({ id: 'msg-1' });
+    gateway.markDeliveredIfOnline.mockResolvedValue(false);
     service.broadcast.mockResolvedValue({
       conversation: { id: 'conv-9', messages: [{ id: 'msg-9' }] },
       recipients: 143,
@@ -157,6 +161,44 @@ describe('MessagingController', () => {
       expect(gateway.broadcastNewMessage).toHaveBeenCalledWith('conv-1', {
         id: 'msg-1',
       });
+    });
+
+    /**
+     * The socket carries text only, so anything with an attachment comes
+     * through here. This path never checked delivery at all, which left every
+     * message with a file on one tick until the recipient next reconnected.
+     */
+    it('marks it delivered when a recipient is online', async () => {
+      gateway.markDeliveredIfOnline.mockResolvedValue(true);
+      const ctl: any = await buildController(MessagingController, [
+        { token: MessagingService, name: 'service', mock: service },
+        { token: MessagingGateway, name: 'gateway', mock: gateway },
+      ]);
+
+      const sent = await ctl.sendMessage(
+        { conversationId: 'conv-1', content: 'Muraho' },
+        teacher,
+      );
+
+      expect(gateway.markDeliveredIfOnline).toHaveBeenCalledWith(
+        'conv-1',
+        'msg-1',
+        teacher.id,
+      );
+      expect(sent.status).toBe('DELIVERED');
+    });
+
+    it('leaves it on one tick when nobody else is connected', async () => {
+      const ctl: any = await buildController(MessagingController, [
+        { token: MessagingService, name: 'service', mock: service },
+        { token: MessagingGateway, name: 'gateway', mock: gateway },
+      ]);
+
+      const sent = await ctl.sendMessage(
+        { conversationId: 'conv-1', content: 'Muraho' },
+        teacher,
+      );
+      expect(sent.status).toBeUndefined();
     });
 
     it('pushes the announcement into the conversation it just created', async () => {

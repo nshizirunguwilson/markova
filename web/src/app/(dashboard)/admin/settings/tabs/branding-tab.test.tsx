@@ -58,13 +58,18 @@ async function mount() {
   await waitFor(() => expect(screen.getByLabelText(/^color$/i)).toBeInTheDocument());
 }
 
-/** The hidden file input beside one asset's Upload or Replace label. */
+/**
+ * The hidden file input for one asset.
+ *
+ * Each one carries its own label now ("Upload Logo"), so this no longer has
+ * to climb the DOM from a heading and hope the right wrapper comes back.
+ */
 function fileInputFor(type: RegExp) {
-  const label = screen
-    .getAllByText(type)
-    .map((el) => el.closest("div"))
-    .find(Boolean);
-  return label?.querySelector<HTMLInputElement>('input[type="file"]') ?? null;
+  return screen
+    .getAllByLabelText(/^upload /i)
+    .find((el) => type.test(el.getAttribute("aria-label") ?? "")) as
+    | HTMLInputElement
+    | undefined ?? null;
 }
 
 async function upload(input: HTMLInputElement | null, name = "logo.png") {
@@ -148,9 +153,25 @@ describe("the school colour", () => {
 describe("the school's assets", () => {
   it("offers all three", async () => {
     await mount();
-    expect(screen.getByText("logo")).toBeInTheDocument();
-    expect(screen.getByText("stamp")).toBeInTheDocument();
-    expect(screen.getByText("signature")).toBeInTheDocument();
+    expect(screen.getByText("Logo")).toBeInTheDocument();
+    expect(screen.getByText("Stamp")).toBeInTheDocument();
+    expect(screen.getByText("Signature")).toBeInTheDocument();
+  });
+
+  // Both are printed on every letter the school issues, and an admin who does
+  // not know that uploads neither.
+  it("says where each asset ends up", async () => {
+    await mount();
+    expect(screen.getByText(/beside the signature on every official document/i))
+      .toBeInTheDocument();
+    expect(screen.getByText(/head teacher's signature/i)).toBeInTheDocument();
+  });
+
+  it("says which file types the API actually takes", async () => {
+    await mount();
+    expect(fileInputFor(/logo/i)?.getAttribute("accept")).toBe(
+      "image/jpeg,image/png,image/gif,image/webp",
+    );
   });
 
   // "Replace" where one exists, "Upload" where none does, so the admin can see
@@ -172,7 +193,7 @@ describe("the school's assets", () => {
   it("uploads to the endpoint for that asset", async () => {
     await mount();
     h.api.post.mockClear();
-    await upload(fileInputFor(/^stamp$/), "stamp.png");
+    await upload(fileInputFor(/stamp/i), "stamp.png");
 
     await waitFor(() => {
       const call = h.api.post.mock.calls.find(([url]: any[]) =>
@@ -186,7 +207,7 @@ describe("the school's assets", () => {
   it("sends it as multipart, which is what the endpoint takes", async () => {
     await mount();
     h.api.post.mockClear();
-    await upload(fileInputFor(/^logo$/));
+    await upload(fileInputFor(/logo/i));
 
     await waitFor(() => {
       const call = h.api.post.mock.calls.find(([url]: any[]) =>
@@ -198,7 +219,7 @@ describe("the school's assets", () => {
 
   it("says so once the asset is in", async () => {
     await mount();
-    await upload(fileInputFor(/^logo$/));
+    await upload(fileInputFor(/logo/i));
 
     await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
   });
@@ -209,7 +230,7 @@ describe("the school's assets", () => {
     await mount();
     h.api.post.mockRejectedValue({ response: { status: 413 } });
     h.toast.error.mockClear();
-    await upload(fileInputFor(/^signature$/), "signature.png");
+    await upload(fileInputFor(/signature/i), "signature.png");
 
     await waitFor(() =>
       expect(h.toast.error).toHaveBeenCalledWith(expect.stringMatching(/signature/i)),
@@ -219,7 +240,7 @@ describe("the school's assets", () => {
   it("uploads nothing when the picker is dismissed", async () => {
     await mount();
     h.api.post.mockClear();
-    const input = fileInputFor(/^logo$/);
+    const input = fileInputFor(/logo/i);
     await act(async () => {
       fireEvent.change(input!, { target: { files: [] } });
     });
