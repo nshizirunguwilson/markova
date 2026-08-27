@@ -1773,6 +1773,72 @@ describe("walking a student through every step in order", () => {
     expect(atStep("Account")).toBe(true);
   });
 
+  /**
+   * The footer button must never be a submit button.
+   *
+   * Continue and Create User used to be two elements in the same place in the
+   * tree, so React reused one DOM node and swapped `type` between them. The
+   * click that advanced from Identity & residence therefore landed on a
+   * button that had become `type="submit"` by the time the browser looked at
+   * it, and the form went through: a student created from step three, and
+   * Family & health never seen.
+   *
+   * jsdom does not carry a click through to a submission that way, so no
+   * test could catch it by clicking. This asserts the property instead.
+   */
+  it("never puts a submit button in the footer", async () => {
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    for (const step of ["Account", "Academic", "Identity & residence", "Family & health"]) {
+      await waitFor(() => expect(atStep(step)).toBe(true));
+      const form = document.querySelector("form")!;
+      const submits = Array.from(
+        form.querySelectorAll<HTMLButtonElement>("button"),
+      ).filter((b) => b.type === "submit");
+      expect(submits.map((b) => b.textContent)).toEqual([]);
+
+      if (step === "Family & health") break;
+      await fillAll();
+      await clickContinue();
+    }
+  });
+
+  it("creates the user only from the last step", async () => {
+    h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    await fillAll();
+    await clickContinue();
+    await waitFor(() => expect(atStep("Academic")).toBe(true));
+    await fillAll();
+    await clickContinue();
+    await waitFor(() => expect(atStep("Identity & residence")).toBe(true));
+    await fillAll();
+
+    // The click that used to create a student and close the wizard.
+    await clickContinue();
+    await waitFor(() => expect(atStep("Family & health")).toBe(true));
+    expect(h.api.post).not.toHaveBeenCalled();
+
+    const create = screen
+      .queryAllByRole("button")
+      .find((b) => /create user/i.test(b.textContent ?? ""))!;
+    expect(create).toBeTruthy();
+    const { act, fireEvent } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(create);
+    });
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+  });
+
   it("treats Enter mid-wizard as Continue, not as Create", async () => {
     const { act, fireEvent } = await import("@testing-library/react");
     h.api.post.mockResolvedValue({ data: { id: "u-9", password: "Temp123!" } });

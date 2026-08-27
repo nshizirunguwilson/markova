@@ -13,13 +13,12 @@ import {
   useParticipants,
   useRemoveParticipant,
   useRenameConversation,
-  useUploadAttachment,
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, Check, CheckCheck, Circle, ArrowLeft, WifiOff, Paperclip, Users, X, Download } from "lucide-react";
+import { MessageSquare, Plus, Send, ArrowLeft, WifiOff, Users, X } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { deliveryTick, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
+import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
 
 /**
@@ -56,11 +55,6 @@ export default function MessagesPage() {
     userSearch.trim() !== debouncedUserSearch.trim() ||
     (contactsPending && !usersData);
   const [showMembers, setShowMembers] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{
-    fileUrl: string;
-    fileName: string;
-  } | null>(null);
-  const uploadAttachment = useUploadAttachment();
   const addParticipants = useAddParticipants();
   const removeParticipant = useRemoveParticipant();
   const renameConversation = useRenameConversation();
@@ -146,21 +140,15 @@ export default function MessagesPage() {
   );
 
   const handleSend = async () => {
-    // A file on its own is a message. Requiring words alongside it means
-    // people type "." to get past the check.
-    if ((!messageText.trim() && !pendingFile) || !selectedConv) return;
-    const text = messageText || pendingFile?.fileName || "";
-    const file = pendingFile;
+    if (!messageText.trim() || !selectedConv) return;
+    const text = messageText;
     setMessageText("");
-    setPendingFile(null);
 
     // Stop typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     chatStore.stopTyping(selectedConv);
 
-    // The socket carries text only, so anything with a file goes over REST
-    // where the attachment fields exist.
-    if (chatStore.connected && !file) {
+    if (chatStore.connected) {
       try {
         const ack = await chatStore.sendMessage(selectedConv, text);
         // The ack says whether a recipient was online to take it. Without
@@ -172,15 +160,7 @@ export default function MessagesPage() {
         sendMessageRest.mutate({ conversationId: selectedConv, content: text });
       }
     } else {
-      sendMessageRest.mutate({
-        conversationId: selectedConv,
-        content: text,
-        ...(file && {
-          contentType: "FILE",
-          fileUrl: file.fileUrl,
-          fileName: file.fileName,
-        }),
-      });
+      sendMessageRest.mutate({ conversationId: selectedConv, content: text });
     }
   };
 
@@ -223,27 +203,22 @@ export default function MessagesPage() {
     return null;
   };
 
-  // Message status ticks. The wording and the tick rules live in
-  // @/lib/presence so they can be checked at each boundary on their own.
-  //
-  // These sit on the timestamp line under a run now, not inside the bubble,
-  // so they take the muted foreground rather than a white that only read on
-  // a dark brand fill.
-  const MessageTicks = ({ msg }: { msg: any }) => {
+  /**
+   * What a message you sent says about itself, in words.
+   *
+   * Ticks were a convention borrowed from one particular app: one against
+   * two, and grey against blue, is a code a parent messaging the school
+   * should not have to have learned. The wording lives in @/lib/presence so
+   * it can be checked without rendering.
+   */
+  const MessageState = ({ msg }: { msg: any }) => {
     if (senderIdOf(msg) !== user?.id) return null;
-
-    switch (deliveryTick(msg.status)) {
-      case "two-read":
-        return (
-          <CheckCheck aria-label="Read" className="h-3.5 w-3.5 text-primary" />
-        );
-      case "two":
-        return (
-          <CheckCheck aria-label="Delivered" className="h-3.5 w-3.5 text-muted" />
-        );
-      default:
-        return <Check aria-label="Sent" className="h-3.5 w-3.5 text-muted" />;
-    }
+    const state = deliveryLabel(msg.status);
+    return (
+      <span className={state === "Read" ? "text-primary" : "text-muted"}>
+        {state}
+      </span>
+    );
   };
 
   return (
@@ -527,29 +502,14 @@ export default function MessagesPage() {
                                   {msg.content}
                                 </p>
                               )}
-                              {msg.fileUrl && (
-                                <a
-                                  href={msg.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[0.8125rem] ${
-                                    group.mine
-                                      ? "bg-black/15 hover:bg-black/25"
-                                      : "bg-surface hover:bg-background"
-                                  }`}
-                                >
-                                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="truncate">{msg.fileName ?? "Attachment"}</span>
-                                  <Download className="ml-auto h-3.5 w-3.5 shrink-0" />
-                                </a>
-                              )}
                             </div>
                           );
                         })}
 
                         <span className="mt-0.5 flex items-center gap-1 px-1 text-[0.6875rem] tabular-nums text-muted">
                           {clockTime(last.createdAt)}
-                          <MessageTicks msg={last} />
+                          {group.mine && <span aria-hidden="true">·</span>}
+                          <MessageState msg={last} />
                         </span>
                       </div>
                     );
@@ -588,46 +548,7 @@ export default function MessagesPage() {
                 </p>
               ) : (
                 <>
-                  {pendingFile && (
-                    <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-muted px-3 py-2 text-[0.8125rem]">
-                      <Paperclip className="h-4 w-4 flex-shrink-0 text-muted" />
-                      <span className="truncate text-foreground">{pendingFile.fileName}</span>
-                      <button
-                        type="button"
-                        aria-label="Remove the file"
-                        className="ml-auto flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-danger"
-                        onClick={() => setPendingFile(null)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
-                    <label
-                      htmlFor="m-attach"
-                      className="flex h-8 w-8 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
-                    >
-                      <Paperclip className="h-[18px] w-[18px]" />
-                      <span className="sr-only">Attach a file</span>
-                      <input
-                        id="m-attach"
-                        type="file"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const chosen = e.target.files?.[0];
-                          if (!chosen) return;
-                          uploadAttachment.mutate(chosen, {
-                            onSuccess: (res) =>
-                              setPendingFile({
-                                fileUrl: res.fileUrl,
-                                fileName: res.fileName,
-                              }),
-                          });
-                        }}
-                      />
-                    </label>
-
                     <input
                       type="text"
                       value={messageText}
@@ -645,7 +566,7 @@ export default function MessagesPage() {
                       type="button"
                       aria-label="Send message"
                       onClick={handleSend}
-                      disabled={!messageText.trim() && !pendingFile}
+                      disabled={!messageText.trim()}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <Send className="h-[16px] w-[16px]" />
@@ -662,7 +583,7 @@ export default function MessagesPage() {
               <p className="mt-2 text-muted">Select a conversation or start a new one</p>
               {chatStore.connected && (
                 <p className="mt-1 text-xs text-success flex items-center justify-center gap-1">
-                  <Circle className="h-2 w-2 fill-success" /> Connected
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" /> Connected
                 </p>
               )}
             </div>

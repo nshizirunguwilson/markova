@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryTick, formatLastSeen, lastMessagePrefix } from "./presence";
+import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "./presence";
 
 const now = new Date("2026-08-22T12:00:00Z");
 const minutesAgo = (n: number) =>
@@ -50,28 +50,33 @@ describe("saying when someone was last online", () => {
   });
 });
 
-describe("which tick a message gets", () => {
-  it("shows one tick for a message that has only been sent", () => {
-    expect(deliveryTick("SENT")).toBe("one");
+/**
+ * What a message you sent says about itself. Words, not ticks: one tick
+ * against two, and grey against blue, is a code borrowed from one particular
+ * app that a parent messaging the school should not have to know.
+ */
+describe("what a message says about itself", () => {
+  it("says Sent for a message that has only left", () => {
+    expect(deliveryLabel("SENT")).toBe("Sent");
   });
 
-  it("shows two ticks once it has been delivered", () => {
-    expect(deliveryTick("DELIVERED")).toBe("two");
+  it("says Delivered once it has arrived", () => {
+    expect(deliveryLabel("DELIVERED")).toBe("Delivered");
   });
 
-  it("shows read ticks once it has been read", () => {
-    expect(deliveryTick("READ")).toBe("two-read");
+  it("says Read once it has been read", () => {
+    expect(deliveryLabel("READ")).toBe("Read");
   });
 
   // An older message from before delivery receipts existed has no status, and
-  // it did leave, so one tick is the honest answer.
+  // it did leave, so Sent is the one thing certainly true of it.
   it("treats a missing status as sent", () => {
-    expect(deliveryTick(undefined)).toBe("one");
-    expect(deliveryTick("")).toBe("one");
+    expect(deliveryLabel(undefined)).toBe("Sent");
+    expect(deliveryLabel("")).toBe("Sent");
   });
 
   it("treats anything unrecognised as sent", () => {
-    expect(deliveryTick("QUEUED")).toBe("one");
+    expect(deliveryLabel("QUEUED")).toBe("Sent");
   });
 });
 

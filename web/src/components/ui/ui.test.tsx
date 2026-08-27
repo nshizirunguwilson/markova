@@ -387,10 +387,21 @@ describe("Modal keyboard handling", () => {
     </Modal>
   );
 
-  it("wraps forward from the last control to the first", async () => {
-    render(withThreeButtons());
+  /**
+   * The dialog moves focus to its first control on open, on the next frame.
+   * Taking focus before that has happened means the autofocus lands in the
+   * middle of the test and Tab starts from somewhere else — so wait for it.
+   */
+  async function settledDialog() {
     const dialog = screen.getByRole("dialog");
     const focusable = Array.from(dialog.querySelectorAll("button"));
+    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+    return focusable;
+  }
+
+  it("wraps forward from the last control to the first", async () => {
+    render(withThreeButtons());
+    const focusable = await settledDialog();
     const last = focusable[focusable.length - 1];
     last.focus();
 
@@ -401,11 +412,7 @@ describe("Modal keyboard handling", () => {
 
   it("wraps backward from the first control to the last", async () => {
     render(withThreeButtons());
-    const dialog = screen.getByRole("dialog");
-    const focusable = Array.from(dialog.querySelectorAll("button"));
-    // The modal focuses its first control on the next animation frame. Moving
-    // focus before that lands means the autofocus undoes what the trap did.
-    await waitFor(() => expect(document.activeElement).toBe(focusable[0]));
+    const focusable = await settledDialog();
 
     await userEvent.setup().keyboard("{Shift>}{Tab}{/Shift}");
 
