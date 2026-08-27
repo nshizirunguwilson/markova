@@ -303,6 +303,82 @@ async function prewarm(browser) {
   await ctx.close();
 }
 
+// ── MULTI-STEP FORMS ─────────────────────────────────────────────────────────
+
+/**
+ * The Add User wizard must walk all four student steps and create nobody
+ * until the last one.
+ *
+ * This lives here rather than in the unit suite because the bug it guards
+ * against cannot be reproduced in jsdom. Continue and Create User were one
+ * DOM node whose `type` React swapped between renders, so the click that
+ * advanced a step turned the element under the cursor into a submit button
+ * and the browser posted the form. Only a real browser carries a click
+ * through to a submission that way.
+ */
+test('form: Add User wizard reaches every student step without creating anyone', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADMIN');
+
+  const posts = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/users(\?|$)/.test(r.url())) posts.push(r.url());
+  });
+
+  await page.goto(`${WEB}/admin/users`, { waitUntil: 'networkidle', timeout: 60000 });
+  await page.getByRole('button', { name: /add user/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+
+  // The rail marks the step you are on.
+  const stepNow = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('span'))
+      .filter((e) => e.className.includes('text-foreground') && e.className.includes('text-xs'))
+      .map((e) => e.textContent.trim())
+      .join('|'));
+
+  const advance = async () => {
+    await page.getByRole('button', { name: /^continue$/i }).click();
+    await page.waitForTimeout(400);
+  };
+
+  await page.selectOption('[role="dialog"] select', 'STUDENT');
+
+  // Account
+  await page.fill('#firstName', 'Keza');
+  await page.fill('#lastName', 'Mutesi');
+  await page.fill('#email', `k.mutesi.${Date.now()}@markova.edu`);
+  await page.fill('#password', 'Umunyeshuri2026!');
+  await advance();
+  assert((await stepNow()).includes('Academic'), 'Account should lead to Academic');
+
+  // Academic — the class list only loads once a level is chosen.
+  const selects = page.locator('[role="dialog"] select');
+  await selects.nth(0).selectOption(await selects.nth(0).evaluate((s) => s.options[1] && s.options[1].value));
+  await page.waitForTimeout(600);
+  await selects.nth(1).selectOption(await selects.nth(1).evaluate((s) => s.options[1] && s.options[1].value));
+  await selects.nth(2).selectOption('FEMALE').catch(() => {});
+  await page.fill('#dateOfBirth', '2010-04-11').catch(() => {});
+  await advance();
+  assert((await stepNow()).includes('Identity'), 'Academic should lead to Identity & residence');
+
+  // Identity & residence — the step the wizard used to submit from.
+  await page.fill('#nationality', 'Rwandan').catch(() => {});
+  await advance();
+  assert(
+    (await stepNow()).includes('Family & health'),
+    'Identity & residence should lead to Family & health',
+  );
+
+  assert(posts.length === 0, `nothing should be created before the last step (saw ${posts.length})`);
+  assert(await page.locator('[role="dialog"]').count() === 1, 'the wizard should still be open');
+
+  // And no submit button anywhere in the form, on any step.
+  const submits = await page.locator('[role="dialog"] form button[type="submit"]').count();
+  assert(submits === 0, `the wizard form should hold no submit button (found ${submits})`);
+
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter
