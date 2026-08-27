@@ -113,7 +113,7 @@ async function login(role, attempt = 0) {
 }
 
 async function scan(page, url) {
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForTimeout(500);
   const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   return result.violations;
