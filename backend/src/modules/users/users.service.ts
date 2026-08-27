@@ -583,6 +583,32 @@ export class UsersService {
       }
     }
 
+    /**
+     * Email and phone are unique columns and they are how people sign in, so
+     * a clash has to be refused before the write rather than by the database.
+     * `create` has always checked them; `update` did not, so editing somebody
+     * onto an address another account already held raised a raw Prisma
+     * unique-constraint error and surfaced as "An unexpected error occurred".
+     *
+     * Naming the holder is the difference between a dead end and a fix: the
+     * admin can go and look at that account.
+     */
+    for (const [field, value, label] of [
+      ['email', dto.email, 'Email address'],
+      ['phone', dto.phone, 'Phone number'],
+    ] as const) {
+      if (!value) continue;
+      const holder = await this.prisma.user.findFirst({
+        where: { [field]: value, id: { not: id } },
+        select: { firstName: true, lastName: true },
+      });
+      if (holder) {
+        throw new ConflictException(
+          `${label} ${value} already belongs to ${holder.firstName} ${holder.lastName}`,
+        );
+      }
+    }
+
     // Update base user fields
     await this.prisma.user.update({
       where: { id },
