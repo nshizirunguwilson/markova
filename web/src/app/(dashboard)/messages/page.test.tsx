@@ -1167,6 +1167,44 @@ describe("who is typing", () => {
     ).toBeTruthy();
   });
 
+  /**
+   * Somebody who has scrolled up to read older messages is left where they
+   * are. Being yanked to the bottom because the other party started typing
+   * loses their place, which is worse than missing the notice.
+   */
+  it("leaves a reader who has scrolled up where they are", async () => {
+    const metrics = (name: string, value: number) => {
+      const original = Object.getOwnPropertyDescriptor(
+        Element.prototype,
+        name,
+      );
+      Object.defineProperty(Element.prototype, name, {
+        configurable: true,
+        get: () => value,
+      });
+      return () => {
+        if (original) Object.defineProperty(Element.prototype, name, original);
+        else delete (Element.prototype as unknown as Record<string, unknown>)[name];
+      };
+    };
+    // A long thread, parked near the top of it.
+    const restore = [
+      metrics("scrollHeight", 4000),
+      metrics("clientHeight", 500),
+      metrics("scrollTop", 0),
+    ];
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    try {
+      await openWithTyping(["Aline"]);
+      expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+      expect(scrolled).not.toHaveBeenCalled();
+    } finally {
+      scrolled.mockRestore();
+      restore.forEach((undo) => undo());
+    }
+  });
+
   it("scrolls down when the notice appears", async () => {
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
     await openWithTyping(["Aline"]);

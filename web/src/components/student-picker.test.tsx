@@ -100,10 +100,15 @@ describe("picking a student by searching", () => {
   it("narrows the list as the name is typed", async () => {
     mount();
     await userEvent.setup().type(box(), "Keza");
-    await waitFor(() =>
-      expect(screen.queryByRole("option", { name: /Divine/ })).toBeNull(),
-    );
-    expect(screen.getByRole("option", { name: /Keza/ })).toBeInTheDocument();
+    // Wait for the list to settle on the filtered result rather than on the
+    // empty moment between the debounce firing and the response landing.
+    await waitFor(() => {
+      const names = screen
+        .queryAllByRole("option")
+        .map((o) => o.textContent ?? "");
+      expect(names).toHaveLength(1);
+      expect(names[0]).toContain("Keza");
+    });
   });
 
   it("finds a student by their id number", async () => {
@@ -197,6 +202,91 @@ describe("picking a student by searching", () => {
     const url = h.api.get.mock.calls.at(-1)?.[0] as string;
     expect(url).toContain("role=STUDENT");
     expect(url).toContain("studentStatus=ACTIVE");
+  });
+
+  it("falls back when a row has lost its name or id number", async () => {
+    serveStudents([
+      {
+        ...keza,
+        firstName: "",
+        lastName: "",
+        student: { ...keza.student, studentIdNumber: null },
+      } as never,
+    ]);
+    mount();
+    fireEvent.focus(box());
+    expect(await screen.findByRole("option", { name: /Unnamed/ })).toBeInTheDocument();
+  });
+
+  it("survives a response with no rows at all", async () => {
+    h.api.get.mockResolvedValue({ data: {} });
+    mount();
+    fireEvent.focus(box());
+    expect(await screen.findByText(/No active students/)).toBeInTheDocument();
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
+  it("shows a tick beside the student already chosen", async () => {
+    mount(vi.fn(), "student-1");
+    fireEvent.focus(box());
+    // The selection arrived as a prop, so the picker names it without a click.
+    await waitFor(() => expect(screen.getByText(/Keza Mutesi/)).toBeInTheDocument());
+  });
+
+  it("opens on the first arrow key rather than moving a hidden list", async () => {
+    const onChange = mount();
+    const input = box();
+    await waitFor(() => expect(h.api.get).toHaveBeenCalled());
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    expect(await screen.findByRole("option", { name: /Keza/ })).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores the arrow keys while nothing matches", async () => {
+    const onChange = mount();
+    const input = box();
+    await userEvent.setup().type(input, "Nobody");
+    await screen.findByText(/No student matches/);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores Enter before the list has been opened", async () => {
+    const onChange = mount();
+    const input = box();
+    await waitFor(() => expect(h.api.get).toHaveBeenCalled());
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("leaves other keys to the input", async () => {
+    mount();
+    const input = box();
+    fireEvent.focus(input);
+    await screen.findByRole("option", { name: /Keza/ });
+
+    fireEvent.keyDown(input, { key: "Tab" });
+
+    expect(screen.getByRole("option", { name: /Keza/ })).toBeInTheDocument();
+  });
+
+  it("stays open when the click lands inside it", async () => {
+    mount();
+    fireEvent.focus(box());
+    const option = await screen.findByRole("option", { name: /Keza/ });
+
+    fireEvent.mouseDown(option);
+
+    expect(screen.getByRole("option", { name: /Keza/ })).toBeInTheDocument();
   });
 
   it("leaves out a row with no student record behind it", async () => {
