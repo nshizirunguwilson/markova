@@ -559,7 +559,24 @@ model TermResult {
   rank              Int?
   teacherComment    String? @map("teacher_comment")
   headmasterComment String? @map("headmaster_comment")
-  isPublished       Boolean @default(false) @map("is_published")
+
+  /// When the figures above were last worked out from the recorded marks.
+  /// Recalculating an unchanged class produces identical numbers, so without
+  /// this there is no way to tell that the calculation ran at all.
+  calculatedAt DateTime? @map("calculated_at")
+
+  /// Marks released: the student and their parents may see the subject
+  /// breakdown, the average and the position.
+  isPublished Boolean   @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+
+  /// The report card issued, which is a separate act. A school routinely
+  /// releases marks as soon as they are checked, then issues the formal
+  /// document later — after deliberation, and once the head teacher's
+  /// comments are written. Marks must be published first: a report card
+  /// carries them, so issuing one without them is a contradiction.
+  reportCardPublished   Boolean   @default(false) @map("report_card_published")
+  reportCardPublishedAt DateTime? @map("report_card_published_at")
 
   student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classSection ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
