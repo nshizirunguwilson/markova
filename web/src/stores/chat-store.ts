@@ -69,6 +69,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connect: (token: string, queryClient: QueryClient, userId?: string) => {
     const existing = get().socket;
     if (existing?.connected) return;
+    // A socket that exists but is not connected is still trying to reconnect,
+    // and its handlers still write to this store. Leaving it in place while
+    // opening a second one gives the user two sockets, so the server keeps
+    // counting them as online after the real tab has gone.
+    if (existing) existing.removeAllListeners(), existing.disconnect();
 
     // `<convId>:<userId>` -> the timer that will clear that typing notice.
     const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -107,7 +112,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     socket.on("disconnect", () => {
-      set({ connected: false });
+      // Nobody is known to be online while we are not connected. Holding the
+      // last set means a tab whose socket has quietly died goes on showing
+      // green dots and "Online" for people the server has since marked away,
+      // which is worse than showing nothing: it is confidently wrong.
+      set({ connected: false, onlineUsers: new Set(), typingUsers: new Map() });
     });
 
     // Online users list on connect
