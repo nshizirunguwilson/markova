@@ -121,7 +121,7 @@ export default function ParentReportsPage() {
         <Card className="p-6 space-y-4">
           <div className="flex justify-between items-center">
             <CardTitle>
-              {report.student?.user?.firstName} {report.student?.user?.lastName} — {report.termName}
+              {report.student?.name} — {report.term?.name}
             </CardTitle>
             <Button variant="outline" size="sm" isLoading={printing} onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-1" /> Print
@@ -131,22 +131,22 @@ export default function ParentReportsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Average</p>
-              <p className="text-xl font-bold text-primary">{report.average ?? "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.average != null ? `${report.result.average.toFixed(1)}%` : "—"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Grade</p>
-              <p className="text-xl font-bold text-primary">{report.letterGrade ?? "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.letterGrade ?? "—"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Rank</p>
-              <p className="text-xl font-bold text-primary">{report.rank ?? "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.classStats?.rank ? `#${report.classStats.rank}` : "—"}</p>
             </Card>
           </div>
 
           <div className="space-y-2">
             {report.subjects?.map((s: any, i: number) => (
               <div key={i} className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">{s.subjectName}</span>
+                <span className="font-medium">{s.subject}</span>
                 <div className="flex gap-4 text-sm">
                   <span>{s.average}%</span>
                   <span className="font-medium text-primary">{s.grade}</span>
