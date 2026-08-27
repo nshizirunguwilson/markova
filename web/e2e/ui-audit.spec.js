@@ -190,8 +190,19 @@ for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
     const ctx = await browser.newContext();
     const page = await authedPage(ctx, role);
-    await page.goto(`${WEB}${route}`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+
+    // Not `networkidle`: the whole point of these routes is that the shell
+    // bounces the visitor off them, and a page that redirects and refetches
+    // on arrival may never go quiet on a dev server. What is being asserted
+    // is that the path changed, so wait for that instead of for silence.
+    await page.goto(`${WEB}${route}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+    await page
+      .waitForFunction((r) => window.location.pathname !== r, route, { timeout: 15000 })
+      .catch(() => {});
+
     const path = new URL(page.url()).pathname;
     assert(path !== route, `${role} reached ${route} (no role guard)`);
     await ctx.close();
