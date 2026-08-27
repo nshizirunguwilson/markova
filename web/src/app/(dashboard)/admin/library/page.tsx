@@ -21,6 +21,7 @@ import {
 } from "@/components/ui";
 import {
   useBooks,
+  rowsOf,
   useCreateBook,
   useUpdateBook,
   useDeleteBook,
@@ -84,12 +85,12 @@ export default function AdminLibraryPage() {
   const { data: booksResponse, isLoading: loadingBooks } = useBooks(
     searchQuery ? { search: searchQuery } : undefined
   );
-  const books = Array.isArray(booksResponse) ? booksResponse : (booksResponse?.data ?? []);
+  const books = rowsOf<any>(booksResponse);
   const booksMeta = booksResponse?.meta;
   const { data: loansResponse, isLoading: loadingLoans } = useActiveLoans();
-  const activeLoans = Array.isArray(loansResponse) ? loansResponse : (loansResponse?.data ?? []);
+  const activeLoans = rowsOf<any>(loansResponse);
   const { data: overdueResponse, isLoading: loadingOverdue } = useOverdueLoans();
-  const overdueLoans = Array.isArray(overdueResponse) ? overdueResponse : (overdueResponse?.data ?? []);
+  const overdueLoans = rowsOf<any>(overdueResponse);
   const { data: analytics, isLoading: loadingAnalytics } = useLibraryAnalytics();
 
   const createBook = useCreateBook();

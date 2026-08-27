@@ -1,3 +1,4 @@
+import { Role } from '@prisma/client';
 import { ForbiddenException } from '@nestjs/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -48,7 +49,7 @@ describe('UsersController', () => {
   const cases: RouteCase[] = [
     {
       name: 'the roll, filtered',
-      call: (c) => c.findAll({ role: 'STUDENT', page: 2 }),
+      call: (c) => c.findAll({ role: 'STUDENT', page: 2 }, admin),
       calls: 'findAll',
       withArgs: [{ role: 'STUDENT', page: 2 }],
     },
@@ -185,5 +186,55 @@ describe('UsersController', () => {
       );
       expect(res.send).toHaveBeenCalledWith('firstName,lastName\n');
     });
+  });
+});
+
+/**
+ * Who may read the directory.
+ *
+ * A nurse recording a clinic visit has to find the student first, and this
+ * route was the only way to do it — so the "New visit" form had a student box
+ * that answered 403 on every keystroke. Opening the directory to her outright
+ * would hand over every teacher's and parent's email and phone.
+ */
+describe('UsersController and the welfare staff', () => {
+  let service: { findAll: jest.Mock };
+  let controller: UsersController;
+
+  beforeEach(() => {
+    service = { findAll: jest.fn().mockResolvedValue({ data: [], meta: {} }) };
+    controller = new UsersController(service as never);
+  });
+
+  it.each(['PATRON', 'MATRON', 'NURSE'])(
+    'gives a %s students and nothing else',
+    async (role) => {
+      await controller.findAll({ role: 'TEACHER' } as never, {
+        id: 'u-1',
+        role,
+      });
+      // The role they asked for is overwritten, not merely defaulted.
+      expect(service.findAll).toHaveBeenCalledWith(
+        expect.objectContaining({ role: Role.STUDENT }),
+      );
+    },
+  );
+
+  it('keeps the rest of the query they sent', async () => {
+    await controller.findAll(
+      { search: 'Keza', limit: 10 } as never,
+      { id: 'u-1', role: 'NURSE' },
+    );
+    expect(service.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'Keza', limit: 10, role: Role.STUDENT }),
+    );
+  });
+
+  it('leaves an administrator asking for whatever they asked for', async () => {
+    await controller.findAll({ role: 'TEACHER' } as never, {
+      id: 'u-1',
+      role: 'ADMIN',
+    });
+    expect(service.findAll).toHaveBeenCalledWith({ role: 'TEACHER' });
   });
 });

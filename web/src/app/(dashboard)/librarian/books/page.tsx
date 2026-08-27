@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import {
   useBooks,
+  rowsOf,
   useCreateBook,
   useDeleteBook,
   useCheckout,
@@ -28,7 +29,13 @@ import { Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from
 export default function LibrarianBooksPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
-  const { data: books, isLoading } = useBooks({ ...(search && { search }), ...(category && { category }) });
+  const { data: booksResponse, isLoading } = useBooks({
+    ...(search && { search }),
+    ...(category && { category }),
+  });
+  // The endpoint answers `{ data, meta }`; reading `.length` off the envelope
+  // gave undefined, so this page said "No books found" over a full library.
+  const books = rowsOf<Record<string, unknown>>(booksResponse);
   const { data: analytics } = useLibraryAnalytics();
   const createBook = useCreateBook();
   const deleteBook = useDeleteBook();
@@ -124,7 +131,7 @@ export default function LibrarianBooksPage() {
       {/* Books Table */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-      ) : books?.length > 0 ? (
+      ) : books.length > 0 ? (
         <Card>
           <div className="overflow-x-auto">
           <Table>

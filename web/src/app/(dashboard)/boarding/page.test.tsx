@@ -72,7 +72,15 @@ const activity = {
   title: "Visit to the Kigali Genocide Memorial",
   description: null,
   location: "Gisozi",
-  startsAt: new Date(Date.now() + 26 * 3600_000).toISOString(),
+  // Tomorrow at 9am local, computed as a calendar day rather than "+26
+  // hours" — which lands two days out when the suite runs late in the
+  // evening, and made this pass or fail depending on the clock.
+  startsAt: (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return d.toISOString();
+  })(),
   endsAt: null,
   audience: "LEVELS",
   requiresConsent: true,

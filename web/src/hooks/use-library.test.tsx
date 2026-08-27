@@ -85,3 +85,38 @@ describe("checkout and return survive a thin response", () => {
     expect(result.current.isSuccess).toBe(true);
   });
 });
+
+/**
+ * Pulling the rows out of a paginated answer.
+ *
+ * The library endpoints send `{ data, meta }`, and reading `.length` straight
+ * off that envelope gives `undefined` — which every "no results" branch in
+ * the app treats as empty. That is how the librarian's catalogue came to say
+ * "No books found" over a library of 56, while its own header counted them
+ * correctly from a different endpoint.
+ */
+describe("reading the rows out of a response", () => {
+  it("takes the data out of an envelope", () => {
+    expect(library.rowsOf({ data: [1, 2], meta: { total: 2 } })).toEqual([1, 2]);
+  });
+
+  it("passes a bare array straight through", () => {
+    expect(library.rowsOf([1, 2])).toEqual([1, 2]);
+  });
+
+  it("gives an empty list for an empty page", () => {
+    expect(library.rowsOf({ data: [], meta: { total: 0 } })).toEqual([]);
+  });
+
+  // Everything below is what a page gets mid-flight, or from an endpoint
+  // answering something unexpected. All of it has to read as "nothing yet"
+  // rather than throwing on `.map`.
+  it("gives an empty list rather than throwing", () => {
+    expect(library.rowsOf(undefined)).toEqual([]);
+    expect(library.rowsOf(null)).toEqual([]);
+    expect(library.rowsOf({})).toEqual([]);
+    expect(library.rowsOf({ data: null })).toEqual([]);
+    expect(library.rowsOf({ data: "not a list" })).toEqual([]);
+    expect(library.rowsOf("a string")).toEqual([]);
+  });
+});

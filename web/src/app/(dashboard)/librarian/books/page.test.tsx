@@ -43,7 +43,13 @@ const outOfStock = {
 };
 
 const routes = {
-  "/library/books": [book, outOfStock],
+  // `{ data, meta }` — the envelope PaginatedResponse actually sends. A bare
+  // array here is what let this page ship saying "No books found" over a
+  // library of 56 while every test passed.
+  "/library/books": {
+    data: [book, outOfStock],
+    meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
+  },
   "/library/analytics": {
     totalBooks: 2,
     activeLoans: 4,
@@ -467,5 +473,38 @@ describe("removing a book", () => {
     );
 
     await waitFor(() => expect(h.api.delete).toHaveBeenCalledWith("/library/books/book-1"));
+  });
+});
+
+/**
+ * The catalogue said "No books found" over a library of 56.
+ *
+ * `/library/books` answers `{ data, meta }`, and this page read `.length`
+ * straight off that envelope — `undefined`, which the empty branch treats as
+ * nothing. Its own header counted the books correctly the whole time, from a
+ * different endpoint, so the page contradicted itself.
+ */
+describe("the catalogue against the envelope the API really sends", () => {
+  it("lists the books inside a paginated response", async () => {
+    serve(h.api, routes);
+    renderPage(BooksPage, { role: "LIBRARIAN" });
+    expect(await screen.findByText(book.title)).toBeInTheDocument();
+    expect(screen.queryByText("No books found")).toBeNull();
+  });
+
+  it("still says so when the library really is empty", async () => {
+    serve(h.api, {
+      ...routes,
+      "/library/books": { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } },
+    });
+    renderPage(BooksPage, { role: "LIBRARIAN" });
+    expect(await screen.findByText("No books found")).toBeInTheDocument();
+  });
+
+  // Tolerant of a bare array too, so an un-paginated endpoint keeps working.
+  it("copes with a bare array", async () => {
+    serve(h.api, { ...routes, "/library/books": [book] });
+    renderPage(BooksPage, { role: "LIBRARIAN" });
+    expect(await screen.findByText(book.title)).toBeInTheDocument();
   });
 });

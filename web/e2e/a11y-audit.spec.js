@@ -73,7 +73,15 @@ const PUBLIC_ROUTES = ['/login', '/forgot-password'];
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-async function login(role) {
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * `/auth/login` allows ten attempts a minute. This audit signs in as eight
+ * roles, so running it beside the browser suite spends that window — and a
+ * throttled reply carries no `sessionId`, which used to surface as
+ * "sessionId must be a string" rather than as the rate limit it is.
+ */
+async function login(role, attempt = 0) {
   const first = await fetch(`${API}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -81,6 +89,17 @@ async function login(role) {
   });
   const data = await first.json();
   if (data.accessToken) return data;
+  if (!data.sessionId) {
+    if (first.status === 429 && attempt < 3) {
+      await wait(20000);
+      return login(role, attempt + 1);
+    }
+    throw new Error(
+      first.status === 429
+        ? `login for ${role} is rate limited; the audit is being run too often`
+        : `login for ${role} failed: ${JSON.stringify(data)}`,
+    );
+  }
   const second = await fetch(`${API}/auth/verify-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -94,7 +113,7 @@ async function login(role) {
 }
 
 async function scan(page, url) {
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 45000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForTimeout(500);
   const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   return result.violations;

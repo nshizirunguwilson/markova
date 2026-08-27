@@ -26,18 +26,46 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
+  LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
   PATRON: { email: 'patron@markova.edu', password: PASS },
   MATRON: { email: 'matron@markova.edu', password: PASS },
   NURSE: { email: 'nurse@markova.edu', password: PASS },
 };
 
-async function apiLogin(role) {
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sign a role in, waiting out the throttle rather than falling over it.
+ *
+ * `/auth/login` allows ten attempts a minute. Running this suite twice in
+ * quick succession — or beside the accessibility audit, which signs in as
+ * every role of its own — spends that, and the throttled reply carries no
+ * `sessionId`. The old code posted `verify-otp` with `sessionId: undefined`
+ * anyway, so a rate limit was reported as "sessionId must be a string": an
+ * error that says nothing about what actually happened.
+ */
+async function apiLogin(role, attempt = 0) {
   const r1 = await fetch(`${API}/auth/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ACCOUNTS[role]),
   });
   const d1 = await r1.json();
   if (d1.accessToken) return d1;
+
+  if (!d1.sessionId) {
+    const throttled = r1.status === 429;
+    if (throttled && attempt < 3) {
+      // The window is a minute, so wait one out rather than hammering it.
+      await wait(20000);
+      return apiLogin(role, attempt + 1);
+    }
+    throw new Error(
+      throttled
+        ? `login for ${role} is rate limited; the suite is being run too often`
+        : `login for ${role} failed: ${JSON.stringify(d1)}`,
+    );
+  }
+
   const r2 = await fetch(`${API}/auth/verify-otp`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionId: d1.sessionId, otp: d1.devOtp }),
@@ -67,6 +95,46 @@ async function authedPage(ctx, role) {
   return page;
 }
 
+
+/**
+ * Go to a page and wait for it to be usable.
+ *
+ * Deliberately not `networkidle`. Every authenticated page in this app opens
+ * a socket.io connection and keeps it open, so the network never goes quiet —
+ * and `networkidle` waits for exactly that. It settles often enough to look
+ * fine and fails under load, which is how this suite came to report a
+ * different set of failures on every run, none of them about the code.
+ *
+ * Waiting for the document and then for the app to have painted something is
+ * both faster and true: each test does its own waiting for whatever it is
+ * actually asserting.
+ */
+async function visit(page, route, timeout = 60000) {
+  await page.goto(`${WEB}${route}`, { waitUntil: 'domcontentloaded', timeout });
+  await settled(page);
+}
+
+/**
+ * Wait until the page has finished fetching what it renders.
+ *
+ * `domcontentloaded` fires before React has asked for anything, so a test
+ * reading a table straight after it sees an empty one. The pages here show a
+ * spinner while their queries are in flight and remove it when the data
+ * lands, so its absence — over a body that has painted something — is the
+ * signal that the page is ready to be read.
+ */
+async function settled(page) {
+  await page
+    .waitForFunction(
+      () =>
+        (document.body?.innerText || '').trim().length > 0 &&
+        document.querySelectorAll('.animate-spin').length === 0,
+      null,
+      { timeout: 30000 },
+    )
+    .catch(() => {});
+}
+
 // ── tiny test harness ────────────────────────────────────────────────────────
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -76,11 +144,11 @@ function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed
 test('auth: valid login (student, no OTP) reaches dashboard', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${WEB}/login`, { waitUntil: 'networkidle' });
+  await visit(page, `/login`);
   await page.fill('#identifier', ACCOUNTS.STUDENT.email);
   await page.fill('#password', PASS);
   await page.click('button:has-text("Sign In")');
-  await page.waitForURL('**/student', { timeout: 15000 });
+  await page.waitForURL('**/student', { timeout: 45000 });
   assert(new URL(page.url()).pathname === '/student', 'did not land on /student');
   await ctx.close();
 });
@@ -88,7 +156,7 @@ test('auth: valid login (student, no OTP) reaches dashboard', async (browser) =>
 test('auth: invalid password shows error and stays on /login', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${WEB}/login`, { waitUntil: 'networkidle' });
+  await visit(page, `/login`);
   await page.fill('#identifier', ACCOUNTS.STUDENT.email);
   await page.fill('#password', 'WrongPassword1!');
   await page.click('button:has-text("Sign In")');
@@ -100,7 +168,7 @@ test('auth: invalid password shows error and stays on /login', async (browser) =
 test('auth: password show/hide toggle reveals the password', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${WEB}/login`, { waitUntil: 'networkidle' });
+  await visit(page, `/login`);
   await page.fill('#password', 'secret123');
   assert((await page.getAttribute('#password', 'type')) === 'password', 'should start masked');
   await page.click('button[aria-label="Show password"]');
@@ -111,7 +179,7 @@ test('auth: password show/hide toggle reveals the password', async (browser) => 
 test('auth: protected route while logged out redirects to /login', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${WEB}/admin/users`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/users`);
   await page.waitForTimeout(1500);
   assert(new URL(page.url()).pathname === '/login', `expected /login, got ${new URL(page.url()).pathname}`);
   await ctx.close();
@@ -120,7 +188,7 @@ test('auth: protected route while logged out redirects to /login', async (browse
 test('auth: after logout, back button does not show an authenticated page', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'STUDENT');
-  await page.goto(`${WEB}/student`, { waitUntil: 'networkidle' });
+  await visit(page, `/student`);
   await page.waitForTimeout(1000);
   // Real logout: user menu → Sign Out → confirm (this also clears the auth store)
   await page.locator('header button').filter({ hasText: /STUDENT/ }).first().click();
@@ -128,7 +196,7 @@ test('auth: after logout, back button does not show an authenticated page', asyn
   await page.click('button:has-text("Sign Out")');
   await page.click('[role=dialog] button:has-text("Sign Out")');
   await page.waitForURL('**/login', { timeout: 8000 });
-  await page.goBack({ waitUntil: 'networkidle' }).catch(() => {});
+  await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
   await page.waitForTimeout(2000);
   const txt = await page.evaluate(() => document.body.innerText);
   assert(!/my marks|homework|attendance dashboard/i.test(txt),
@@ -162,8 +230,19 @@ for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
     const ctx = await browser.newContext();
     const page = await authedPage(ctx, role);
-    await page.goto(`${WEB}${route}`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+
+    // Not `networkidle`: the whole point of these routes is that the shell
+    // bounces the visitor off them, and a page that redirects and refetches
+    // on arrival may never go quiet on a dev server. What is being asserted
+    // is that the path changed, so wait for that instead of for silence.
+    await page.goto(`${WEB}${route}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+    await page
+      .waitForFunction((r) => window.location.pathname !== r, route, { timeout: 15000 })
+      .catch(() => {});
+
     const path = new URL(page.url()).pathname;
     assert(path !== route, `${role} reached ${route} (no role guard)`);
     await ctx.close();
@@ -176,7 +255,7 @@ test('nav: garbage URL shows a not-found page, not a crash', async (browser) => 
   const page = await authedPage(ctx, 'ADMIN');
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto(`${WEB}/this-route-does-not-exist-xyz`, { waitUntil: 'networkidle' });
+  await visit(page, `/this-route-does-not-exist-xyz`);
   const body = (await page.evaluate(() => document.body.innerText)).toLowerCase();
   assert(/not found|404|doesn.t exist|go back|home/.test(body), 'no not-found content');
   assert(errs.length === 0, 'uncaught error on 404 page: ' + errs[0]);
@@ -187,7 +266,7 @@ test('nav: garbage URL shows a not-found page, not a crash', async (browser) => 
 test('form: Add Subject empty submit shows validation error', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
-  await page.goto(`${WEB}/admin/subjects`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/subjects`);
   await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
@@ -201,7 +280,7 @@ test('form: create subject persists and appears after reload (no duplicate on do
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
   const name = `ZZ Audit ${Date.now()}`;
-  await page.goto(`${WEB}/admin/subjects`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/subjects`);
   await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
@@ -211,8 +290,28 @@ test('form: create subject persists and appears after reload (no duplicate on do
   await create.click();
   await create.click({ timeout: 500 }).catch(() => {});
   await page.waitForTimeout(1500);
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(800);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await settled(page);
+
+  // Search for it rather than expecting it on the first page. The list pages
+  // in the browser and this name sorts last, so as the school's subject list
+  // grew the new row moved off page one — and the test began reporting a
+  // successful create as a failed one.
+  await page
+    .locator('input[placeholder*="Search subjects"]')
+    .first()
+    .fill(name)
+    .catch(() => {});
+
+  // Wait for the row itself rather than for a fixed pause: the table is
+  // fetched after the reload, and counting before it lands reads zero.
+  await page
+    .waitForFunction(
+      (n) => (document.querySelector('table')?.innerText || '').includes(n),
+      name,
+      { timeout: 30000 },
+    )
+    .catch(() => {});
   const count = await page.locator(`td:has-text("${name}")`).count();
   assert(count === 1, `expected exactly 1 "${name}" row after reload, got ${count}`);
   // cleanup: delete it
@@ -228,28 +327,30 @@ test('form: create subject persists and appears after reload (no duplicate on do
 test('table: student search filters, no-match shows empty state, clear restores', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
-  await page.goto(`${WEB}/admin/students`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/students`);
   await page.waitForSelector('table tbody tr', { timeout: 45000 });
   const initial = await page.locator('table tbody tr').count();
   const search = page.locator('input[placeholder*="Search by name"]').first();
+  // The search is debounced and then queries 1,334 students, so these waits
+  // are for a round trip rather than for a re-render.
   // matching term filters down
   await search.fill('uwase');
   await page.waitForFunction(() => {
     const t = document.querySelector('table tbody')?.innerText || '';
     return /uwase/i.test(t);
-  }, null, { timeout: 8000 }).catch(() => {});
+  }, null, { timeout: 30000 }).catch(() => {});
   // no-match shows the empty state
   await search.fill('zzzznomatchqwerty');
   await page.waitForFunction(
     () => /no students found/i.test(document.body.innerText),
-    null, { timeout: 8000 },
+    null, { timeout: 30000 },
   );
   assert(await page.locator('text=No students found').count() > 0, 'no empty state on no-match');
   // clearing restores the full list
   await search.fill('');
   await page.waitForFunction(
     (n) => (document.querySelectorAll('table tbody tr').length === n),
-    initial, { timeout: 8000 },
+    initial, { timeout: 30000 },
   ).catch(() => {});
   const restored = await page.locator('table tbody tr').count();
   assert(restored === initial, `clearing search should restore rows (${initial} -> ${restored})`);
@@ -260,7 +361,7 @@ test('table: student search filters, no-match shows empty state, clear restores'
 test('modal: Escape closes the Add Subject modal', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
-  await page.goto(`${WEB}/admin/subjects`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/subjects`);
   await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
@@ -273,7 +374,7 @@ test('modal: Escape closes the Add Subject modal', async (browser) => {
 test('modal: Cancel button closes the modal', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
-  await page.goto(`${WEB}/admin/subjects`, { waitUntil: 'networkidle' });
+  await visit(page, `/admin/subjects`);
   await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
@@ -292,7 +393,7 @@ for (const [role, route, width] of RESP) {
   test(`responsive: ${route} has no horizontal overflow at ${width}px`, async (browser) => {
     const ctx = await browser.newContext({ viewport: { width, height: 900 } });
     const page = await authedPage(ctx, role);
-    await page.goto(`${WEB}${route}`, { waitUntil: 'networkidle' });
+    await visit(page, `${route}`);
     await page.waitForTimeout(800);
     const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     assert(m.sw - m.cw <= 2, `overflow +${m.sw - m.cw}px (${m.sw}>${m.cw})`);
@@ -302,15 +403,46 @@ for (const [role, route, width] of RESP) {
 
 // Next.js dev compiles routes lazily on first request, which can exceed a
 // test's timeout on the very first hit. Pre-warm the routes the suite touches.
+/**
+ * Visit every route the suite touches, once, before any of it is timed.
+ *
+ * The dev server compiles a route the first time it is asked for, and that
+ * can take longer than a test's own navigation timeout — so a route nobody
+ * had warmed failed on the clock rather than on its behaviour, and passed on
+ * the next run because the first attempt had compiled it. Every route below
+ * appears in a test; add to it when you add one.
+ */
 async function prewarm(browser) {
   const ctx = await browser.newContext();
-  const page = await authedPage(ctx, 'ADMIN');
-  for (const r of ['/admin/subjects', '/admin/students', '/admin/attendance', '/login', '/this-route-does-not-exist-xyz']) {
-    await page.goto(`${WEB}${r}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
-    await page.waitForTimeout(300);
+
+  const asAdmin = await authedPage(ctx, 'ADMIN');
+  for (const r of [
+    '/admin', '/admin/subjects', '/admin/students', '/admin/attendance',
+    '/admin/settings', '/admin/users', '/admin/library', '/admin/health',
+    '/admin/pocket-money', '/admin/activities', '/admin/marks', '/admin/reports',
+    '/login', '/this-route-does-not-exist-xyz',
+  ]) {
+    await visit(asAdmin, `${r}`, 90000).catch(() => {});
+    await asAdmin.waitForTimeout(200);
   }
-  const sp = await authedPage(ctx, 'STUDENT');
-  await sp.goto(`${WEB}/student/marks`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+
+  const asStudent = await authedPage(ctx, 'STUDENT');
+  for (const r of ['/student', '/student/marks']) {
+    await visit(asStudent, `${r}`, 90000).catch(() => {});
+  }
+
+  // The welfare and library routes, which nothing else warms.
+  const asPatron = await authedPage(ctx, 'PATRON');
+  await visit(asPatron, `/boarding`, 90000).catch(() => {});
+
+  const asNurse = await authedPage(ctx, 'NURSE');
+  await visit(asNurse, `/nurse`, 90000).catch(() => {});
+
+  const asLibrarian = await authedPage(ctx, 'LIBRARIAN');
+  for (const r of ['/librarian', '/librarian/books', '/messages']) {
+    await visit(asLibrarian, `${r}`, 90000).catch(() => {});
+  }
+
   await ctx.close();
 }
 
@@ -336,7 +468,7 @@ test('form: Add User wizard reaches every student step without creating anyone',
     if (r.method() === 'POST' && /\/users(\?|$)/.test(r.url())) posts.push(r.url());
   });
 
-  await page.goto(`${WEB}/admin/users`, { waitUntil: 'networkidle', timeout: 60000 });
+  await visit(page, `/admin/users`, 60000);
   await page.getByRole('button', { name: /add user/i }).first().click();
   await page.waitForSelector('[role="dialog"]');
 
@@ -364,9 +496,47 @@ test('form: Add User wizard reaches every student step without creating anyone',
 
   // Academic — the class list only loads once a level is chosen.
   const selects = page.locator('[role="dialog"] select');
-  await selects.nth(0).selectOption(await selects.nth(0).evaluate((s) => s.options[1] && s.options[1].value));
-  await page.waitForTimeout(600);
-  await selects.nth(1).selectOption(await selects.nth(1).evaluate((s) => s.options[1] && s.options[1].value));
+
+  // The levels arrive from the API after the step renders, and the classes
+  // only after a level is chosen — and not every level has a class in it.
+  // Waiting on a fixed level is therefore a wait that can never finish, so
+  // each is tried until one yields classes.
+  const optionCount = (i) =>
+    page.evaluate(
+      (n) => document.querySelectorAll('[role="dialog"] select')[n]?.options.length ?? 0,
+      i,
+    );
+
+  await page.waitForFunction(
+    () => (document.querySelectorAll('[role="dialog"] select')[0]?.options.length ?? 0) > 1,
+    null,
+    { timeout: 45000 },
+  );
+
+  const levels = await selects.nth(0).evaluate((el) =>
+    Array.from(el.options).map((o) => o.value).filter(Boolean),
+  );
+
+  let chosen = null;
+  for (const level of levels) {
+    await selects.nth(0).selectOption(level);
+    await page
+      .waitForFunction(
+        () => (document.querySelectorAll('[role="dialog"] select')[1]?.options.length ?? 0) > 1,
+        null,
+        { timeout: 15000 },
+      )
+      .catch(() => {});
+    if ((await optionCount(1)) > 1) {
+      chosen = level;
+      break;
+    }
+  }
+  assert(chosen, 'no class level in this school has a class in it');
+
+  await selects
+    .nth(1)
+    .selectOption(await selects.nth(1).evaluate((el) => el.options[1].value));
   await selects.nth(2).selectOption('FEMALE').catch(() => {});
   await page.fill('#dateOfBirth', '2010-04-11').catch(() => {});
   await advance();
@@ -412,7 +582,7 @@ for (const [role, home, greeting] of [
       if (r.status() === 403) refused.push(new URL(r.url()).pathname);
     });
 
-    await page.goto(`${WEB}${home}`, { waitUntil: 'networkidle', timeout: 60000 });
+    await visit(page, `${home}`, 60000);
     await page.waitForTimeout(1500);
 
     assert(new URL(page.url()).pathname === home, `${role} did not stay on ${home}`);
@@ -440,15 +610,64 @@ for (const [role, home, greeting] of [
 test('welfare: the sidebar Dashboard link goes somewhere they may go', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'MATRON');
-  await page.goto(`${WEB}/boarding`, { waitUntil: 'networkidle', timeout: 60000 });
+  await visit(page, `/boarding`, 60000);
   await page.waitForTimeout(1200);
 
-  await page.getByRole('link', { name: /^dashboard$/i }).first().click();
+  const dashboard = page.getByRole('link', { name: /dashboard/i }).first();
+  await dashboard.waitFor({ state: 'visible', timeout: 30000 });
+  await dashboard.click();
   await page.waitForTimeout(1500);
   assert(
     new URL(page.url()).pathname === '/boarding',
     `Dashboard sent a matron to ${new URL(page.url()).pathname}`,
   );
+  await ctx.close();
+});
+
+/**
+ * The nurse recording a clinic visit has to find the student first, and the
+ * only route that searches students was ADMIN-only — so the "New visit" form
+ * had a student box that answered 403 on every keystroke.
+ */
+test('welfare: the nurse can find a student to record a visit against', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'NURSE');
+  const refused = [];
+  page.on('response', (r) => { if (r.status() === 403) refused.push(new URL(r.url()).pathname); });
+
+  await visit(page, `/admin/health`, 60000);
+  await page.getByRole('button', { name: /new visit/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+  await page.fill('#h-student', 'Rukundo');
+
+  await page.waitForFunction(
+    () => !(document.querySelector('[role="dialog"]')?.textContent || '').includes('Nobody by that name'),
+    null,
+    { timeout: 15000 },
+  );
+
+  const dialog = (await page.locator('[role="dialog"]').textContent()) || '';
+  assert(/STD-/.test(dialog), 'the picker should list students');
+  assert(refused.length === 0, `the nurse was refused ${[...new Set(refused)].join(', ')}`);
+  await ctx.close();
+});
+
+/**
+ * The catalogue said "No books found" over a library of 56: the endpoint
+ * answers `{ data, meta }` and the page read `.length` off the envelope. Its
+ * own header counted them correctly the whole time, from another endpoint, so
+ * the page contradicted itself.
+ */
+test('librarian: the catalogue lists the books it says it has', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'LIBRARIAN');
+  await visit(page, `/librarian/books`, 60000);
+  await page.waitForTimeout(1500);
+
+  const rows = await page.locator('tbody tr').count();
+  const body = (await page.locator('body').textContent()) || '';
+  assert(rows > 0, 'the catalogue should list books');
+  assert(!body.includes('No books found'), 'the catalogue claimed to be empty');
   await ctx.close();
 });
 
