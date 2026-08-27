@@ -26,6 +26,9 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
+  PATRON: { email: 'patron@markova.edu', password: PASS },
+  MATRON: { email: 'matron@markova.edu', password: PASS },
+  NURSE: { email: 'nurse@markova.edu', password: PASS },
 };
 
 async function apiLogin(role) {
@@ -146,6 +149,14 @@ const RBAC = [
   ['PARENT', '/admin/activities'], ['PARENT', '/admin/announcements'],
   ['TEACHER', '/admin/health'], ['TEACHER', '/admin/pocket-money'],
   ['STUDENT', '/parent/health'], ['STUDENT', '/parent/pocket-money'],
+  // The welfare staff have homes of their own now, and those homes are theirs
+  // alone. A patron has no business on the nurse's ward, and neither of them
+  // belongs anywhere else under /admin.
+  ['PATRON', '/admin/users'], ['PATRON', '/admin/marks'], ['PATRON', '/nurse'],
+  ['MATRON', '/admin/settings'], ['MATRON', '/admin/reports'],
+  ['NURSE', '/boarding'], ['NURSE', '/admin/pocket-money'], ['NURSE', '/admin/users'],
+  ['STUDENT', '/boarding'], ['STUDENT', '/nurse'],
+  ['TEACHER', '/boarding'], ['TEACHER', '/nurse'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
@@ -376,6 +387,68 @@ test('form: Add User wizard reaches every student step without creating anyone',
   const submits = await page.locator('[role="dialog"] form button[type="submit"]').count();
   assert(submits === 0, `the wizard form should hold no submit button (found ${submits})`);
 
+  await ctx.close();
+});
+
+// ── THE WELFARE STAFF ────────────────────────────────────────────────────────
+
+/**
+ * The boarding staff and the nurse, signing in and finding their own work.
+ *
+ * Their roles existed for four days with the pages built and no account in
+ * any seed that could reach them, so nobody had ever seen these screens.
+ */
+for (const [role, home, greeting] of [
+  ['PATRON', '/boarding', 'Emmanuel'],
+  ['MATRON', '/boarding', 'Beatrice'],
+  ['NURSE', '/nurse', 'Claudine'],
+]) {
+  test(`welfare: ${role} lands on ${home} and it works`, async (browser) => {
+    const ctx = await browser.newContext();
+    const page = await authedPage(ctx, role);
+
+    const refused = [];
+    page.on('response', (r) => {
+      if (r.status() === 403) refused.push(new URL(r.url()).pathname);
+    });
+
+    await page.goto(`${WEB}${home}`, { waitUntil: 'networkidle', timeout: 60000 });
+    await page.waitForTimeout(1500);
+
+    assert(new URL(page.url()).pathname === home, `${role} did not stay on ${home}`);
+
+    const heading = (await page.locator('h1').first().textContent()) || '';
+    assert(heading.includes(greeting), `${home} should greet ${greeting}, said "${heading}"`);
+
+    const body = (await page.locator('body').textContent()) || '';
+    assert(
+      /sick bay|Every bed is free/i.test(body),
+      `${home} should show the sick bay`,
+    );
+
+    // Nothing on their own dashboard may be refused to them.
+    assert(refused.length === 0, `${role} was refused ${[...new Set(refused)].join(', ')}`);
+
+    await ctx.close();
+  });
+}
+
+/**
+ * Their Dashboard link used to point at /admin, which the shell bounces them
+ * straight back out of — an unclickable item on the first row of the sidebar.
+ */
+test('welfare: the sidebar Dashboard link goes somewhere they may go', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'MATRON');
+  await page.goto(`${WEB}/boarding`, { waitUntil: 'networkidle', timeout: 60000 });
+  await page.waitForTimeout(1200);
+
+  await page.getByRole('link', { name: /^dashboard$/i }).first().click();
+  await page.waitForTimeout(1500);
+  assert(
+    new URL(page.url()).pathname === '/boarding',
+    `Dashboard sent a matron to ${new URL(page.url()).pathname}`,
+  );
   await ctx.close();
 });
 
