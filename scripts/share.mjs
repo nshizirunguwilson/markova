@@ -64,6 +64,27 @@ export function apiUrlFrom(webUrl) {
   return null;
 }
 
+/** The value a key already has in an env file, or "" when it has none. */
+export function readEnv(contents, key) {
+  const match = new RegExp(`^${key}=(.*)$`, "m").exec(contents);
+  return match ? match[1].trim() : "";
+}
+
+/**
+ * The origins the API should answer, with the forwarded one added.
+ *
+ * Added, not substituted: whatever is already in the file is there because
+ * somebody put it there — a phone on the LAN, a second machine — and losing
+ * it while sharing would break their setup silently.
+ */
+export function mergeOrigins(existing, ...wanted) {
+  const seen = [
+    ...existing.split(",").map((o) => o.trim()).filter(Boolean),
+    ...wanted.filter(Boolean),
+  ];
+  return [...new Set(seen)].join(",");
+}
+
 /** Set one key in an env file, leaving every other line untouched. */
 export function setEnv(contents, key, value) {
   const line = `${key}=${value}`;
@@ -114,12 +135,18 @@ function main() {
     process.exit(1);
   }
 
-  // The web origin has to be allowed by the API, and localhost kept so the
-  // machine running all this can still use it.
-  const origins = [...new Set([LOCAL_WEB, "http://localhost:8081", webOrigin])].join(",");
+  // The web origin has to be allowed by the API. Localhost is kept so this
+  // machine still works, and so is anything already configured.
+  const apiEnv = readOrEmpty(API_ENV);
+  const origins = mergeOrigins(
+    readEnv(apiEnv, "CORS_ORIGINS"),
+    LOCAL_WEB,
+    "http://localhost:8081",
+    local ? "" : webOrigin,
+  );
 
   writeFileSync(WEB_ENV, setEnv(readOrEmpty(WEB_ENV), "NEXT_PUBLIC_API_URL", apiUrl));
-  writeFileSync(API_ENV, setEnv(readOrEmpty(API_ENV), "CORS_ORIGINS", origins));
+  writeFileSync(API_ENV, setEnv(apiEnv, "CORS_ORIGINS", origins));
 
   console.log(local ? "Back to localhost.\n" : "Sharing.\n");
   console.log(`  web/.env.local  NEXT_PUBLIC_API_URL = ${apiUrl}`);

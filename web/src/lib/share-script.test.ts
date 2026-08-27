@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 // @ts-expect-error — a plain .mjs script, imported here for its two helpers.
-import { apiUrlFrom, setEnv } from "../../../scripts/share.mjs";
+import { apiUrlFrom, mergeOrigins, readEnv, setEnv } from "../../../scripts/share.mjs";
 
 /**
  * `scripts/share.mjs` points both halves of Markova at a forwarded address.
@@ -90,5 +90,41 @@ describe("writing one setting into an env file", () => {
     const after = setEnv(before, "CORS_ORIGINS", "new");
     expect(after).toContain("CORS_ORIGINS_EXTRA=keep");
     expect(after).toContain("CORS_ORIGINS=new");
+  });
+});
+
+/**
+ * The list of origins the API answers.
+ *
+ * Added to, not replaced: whatever is already in the file is there because
+ * somebody put it there — a phone on the LAN, a second machine — and dropping
+ * it while sharing would break their setup silently, on the day they are
+ * least able to debug it.
+ */
+describe("adding the forwarded origin to the API's list", () => {
+  it("keeps what was already configured", () => {
+    expect(
+      mergeOrigins("http://localhost:3000,http://localhost:3001", "https://tunnel"),
+    ).toBe("http://localhost:3000,http://localhost:3001,https://tunnel");
+  });
+
+  it("adds nothing twice", () => {
+    expect(mergeOrigins("https://tunnel", "https://tunnel")).toBe("https://tunnel");
+  });
+
+  it("copes with an empty list", () => {
+    expect(mergeOrigins("", "http://localhost:3001")).toBe("http://localhost:3001");
+  });
+
+  it("ignores blanks and stray spaces", () => {
+    expect(mergeOrigins(" a , , b ", "", "c")).toBe("a,b,c");
+  });
+
+  it("reads a value back out of a file", () => {
+    expect(readEnv("A=1\nCORS_ORIGINS=x,y\nB=2\n", "CORS_ORIGINS")).toBe("x,y");
+  });
+
+  it("gives nothing back for a key that is not there", () => {
+    expect(readEnv("A=1\n", "CORS_ORIGINS")).toBe("");
   });
 });
