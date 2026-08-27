@@ -110,6 +110,40 @@ describe("presence", () => {
     socket.fire("presenceChange", { userId: "u-9", isOnline: false });
     expect(useChatStore.getState().isOnline("u-9")).toBe(false);
   });
+
+  /**
+   * A tab whose socket has quietly died hears nothing more, so the last list
+   * it received stays on screen. That is how one side of a conversation goes
+   * on showing "Online" for somebody the other side is already being told
+   * has left.
+   */
+  it("knows nobody is online once the connection drops", () => {
+    connect();
+    socket.fire("onlineUsers", ["u-1", "u-2"]);
+    socket.fire("userTyping", {
+      conversationId: "c-1",
+      userId: "u-1",
+      userName: "A",
+    });
+
+    socket.fire("disconnect");
+
+    expect(useChatStore.getState().isOnline("u-1")).toBe(false);
+    expect(useChatStore.getState().isOnline("u-2")).toBe(false);
+    expect(useChatStore.getState().typingUsers.size).toBe(0);
+    expect(useChatStore.getState().connected).toBe(false);
+  });
+
+  it("takes the list again when it comes back", () => {
+    connect();
+    socket.fire("onlineUsers", ["u-1"]);
+    socket.fire("disconnect");
+
+    socket.fire("onlineUsers", ["u-2"]);
+
+    expect(useChatStore.getState().isOnline("u-1")).toBe(false);
+    expect(useChatStore.getState().isOnline("u-2")).toBe(true);
+  });
 });
 
 describe("typing indicators", () => {

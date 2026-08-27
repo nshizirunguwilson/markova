@@ -116,6 +116,72 @@ export async function chooseCascadingFilters(maxDepth = 4) {
 }
 
 /**
+ * A value for one field, chosen from what the field itself declares.
+ *
+ * The literals below are literals, but which one a field gets is decided by
+ * its `type` and its name, and then trimmed to the `min`, `max` and
+ * `maxLength` the form actually asks for. A form that caps a mark at 20 was
+ * previously handed 100 and refused to submit, which looked from the outside
+ * exactly like the submit handler being broken.
+ */
+function valueFor(field: HTMLInputElement | HTMLTextAreaElement): string {
+  const type = field.getAttribute("type");
+  const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
+
+  // A field filled with the wrong kind of value fails validation and the
+  // form never reaches its submit handler, which is the code worth reaching.
+  let value = "Ubwiza";
+  if (type === "number") value = "1";
+  else if (type === "date") value = "2026-09-01";
+  else if (type === "time") value = "08:00";
+  else if (type === "email" || name.includes("email")) value = "someone@markova.edu";
+  else if (name.includes("phone")) value = "+250788000001";
+  else if (name.includes("password")) value = "Umunyeshuri2026!";
+  else if (name.includes("nationalid") || name.includes("national-id")) value = "";
+  else if (name.includes("isbn")) value = "978-1-234-56789-0";
+  // A trade code, which is the only free-text "code" field on any form.
+  // Identifiers like STD-/TCH- are issued by the server, never typed.
+  else if (name.includes("code")) value = "SWD";
+
+  // Now bend it to the field's own limits rather than hoping the literal fits.
+  const min = field.getAttribute("min");
+  const max = field.getAttribute("max");
+  if (type === "number") {
+    const n = Number(value);
+    const low = min === null ? n : Math.max(n, Number(min));
+    value = String(max === null ? low : Math.min(low, Number(max)));
+  } else if (type === "date") {
+    if (min && value < min) value = min;
+    if (max && value > max) value = max;
+  }
+
+  const maxLength = field.getAttribute("maxlength");
+  if (maxLength && value.length > Number(maxLength)) {
+    value = value.slice(0, Number(maxLength));
+  }
+  const minLength = field.getAttribute("minlength");
+  if (minLength && value.length < Number(minLength)) {
+    value = value.padEnd(Number(minLength), "a");
+  }
+
+  return value;
+}
+
+/**
+ * Fields the browser itself still considers invalid.
+ *
+ * `fillEverything` guesses a value from each field's name, and a field named
+ * something it does not recognise quietly gets the generic string. Without
+ * this the caller sees a healthy count of fields touched, clicks submit, and
+ * reads the form's refusal to submit as a bug in the page.
+ */
+export function invalidFields(): string[] {
+  return textFields()
+    .filter((f) => typeof f.checkValidity === "function" && !f.checkValidity())
+    .map((f) => f.getAttribute("name") || f.id || f.getAttribute("type") || "?");
+}
+
+/**
  * Fills every text field and picks a value in every select, then reports how
  * many it touched. Forms only reach their submit handler once they validate, so
  * this is what makes the submit worth clicking.
@@ -124,24 +190,7 @@ export async function fillEverything(): Promise<number> {
   let touched = 0;
 
   for (const field of textFields()) {
-    const type = field.getAttribute("type");
-    const name = `${field.getAttribute("name") ?? ""} ${field.id}`.toLowerCase();
-
-    // A field filled with the wrong kind of value fails validation and the
-    // form never reaches its submit handler, which is the code worth reaching.
-    let value = "Ubwiza";
-    if (type === "number") value = "1";
-    else if (type === "date") value = "2026-09-01";
-    else if (type === "time") value = "08:00";
-    else if (type === "email" || name.includes("email")) value = "someone@markova.edu";
-    else if (name.includes("phone")) value = "+250788000001";
-    else if (name.includes("password")) value = "Umunyeshuri2026!";
-    else if (name.includes("nationalid") || name.includes("national-id")) value = "";
-    else if (name.includes("isbn")) value = "978-1-234-56789-0";
-    // A trade code, which is the only free-text "code" field on any form.
-    // Identifiers like STD-/TCH- are issued by the server, never typed.
-    else if (name.includes("code")) value = "SWD";
-
+    const value = valueFor(field);
     await act(async () => {
       fireEvent.change(field, { target: { value } });
     });

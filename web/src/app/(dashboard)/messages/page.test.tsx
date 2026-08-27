@@ -1144,6 +1144,76 @@ describe("who is typing", () => {
     expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
   });
 
+  /**
+   * The notice is drawn under the last message, so the thread has to follow
+   * it down. Left out of the scroll effect it sat below the fold and only
+   * the person doing the typing ever saw it in full — their own keystrokes
+   * were sending messages, and those did move the view.
+   */
+  it("puts the notice inside the thread, above the point scrolled to", async () => {
+    await openWithTyping(["Aline"]);
+    const notice = await screen.findByText(/Aline is typing/);
+
+    const list = notice.closest(".overflow-y-auto");
+    expect(list).not.toBeNull();
+
+    // The last child is the anchor `scrollIntoView` is called on, so
+    // reaching it brings the notice with it.
+    const anchor = list!.lastElementChild!;
+    expect(anchor.textContent).toBe("");
+    expect(
+      notice.compareDocumentPosition(anchor) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  /**
+   * Somebody who has scrolled up to read older messages is left where they
+   * are. Being yanked to the bottom because the other party started typing
+   * loses their place, which is worse than missing the notice.
+   */
+  it("leaves a reader who has scrolled up where they are", async () => {
+    const metrics = (name: string, value: number) => {
+      const original = Object.getOwnPropertyDescriptor(
+        Element.prototype,
+        name,
+      );
+      Object.defineProperty(Element.prototype, name, {
+        configurable: true,
+        get: () => value,
+      });
+      return () => {
+        if (original) Object.defineProperty(Element.prototype, name, original);
+        else delete (Element.prototype as unknown as Record<string, unknown>)[name];
+      };
+    };
+    // A long thread, parked near the top of it.
+    const restore = [
+      metrics("scrollHeight", 4000),
+      metrics("clientHeight", 500),
+      metrics("scrollTop", 0),
+    ];
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    try {
+      await openWithTyping(["Aline"]);
+      expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+      expect(scrolled).not.toHaveBeenCalled();
+    } finally {
+      scrolled.mockRestore();
+      restore.forEach((undo) => undo());
+    }
+  });
+
+  it("scrolls down when the notice appears", async () => {
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    await openWithTyping(["Aline"]);
+
+    expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
+    expect(scrolled).toHaveBeenCalled();
+    scrolled.mockRestore();
+  });
+
   it("names two people in the plural", async () => {
     await openWithTyping(["Aline", "Jean"]);
     const line = await screen.findByText(/are typing/);
@@ -1786,5 +1856,85 @@ describe("a file the upload named nothing", () => {
       // Empty, not the word "undefined".
       expect((call![1] as any).content).toBe("");
     });
+  });
+});
+
+/**
+ * The inbox column. An unread thread is the reason somebody opens this page,
+ * so it has to be findable without reading every row.
+ */
+describe("how the inbox marks a thread", () => {
+  const withConv = (over: Record<string, unknown>) => ({
+    ...routes,
+    "/messaging/conversations": [{ ...conversation, ...over }],
+  });
+
+  async function openInbox(over: Record<string, unknown>) {
+    serve(h.api, withConv(over));
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByRole("button", { name: /Aline/ });
+  }
+
+  function row() {
+    return screen.getByRole("button", { name: /Aline/ });
+  }
+
+  it("counts the unread messages in the school's own colour", async () => {
+    await openInbox({ unreadCount: 3 });
+    const badge = screen.getByText("3");
+    // Not danger red: an unread message is not an error.
+    expect(badge.className).toContain("bg-primary");
+    expect(badge.className).toContain("text-on-primary");
+    expect(badge.className).not.toContain("danger");
+  });
+
+  it("caps a runaway count rather than stretching the row", async () => {
+    await openInbox({ unreadCount: 214 });
+    expect(screen.getByText("99+")).toBeInTheDocument();
+    expect(screen.queryByText("214")).toBeNull();
+  });
+
+  it("says how many are unread to a screen reader", async () => {
+    await openInbox({ unreadCount: 3 });
+    expect(
+      screen.getByRole("button", { name: /Aline Uwase, 3 unread/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("sets an unread thread apart by more than weight", async () => {
+    await openInbox({ unreadCount: 2 });
+    const unread = row().className;
+    expect(unread).toContain("bg-accent-light");
+    expect(unread).toContain("border-primary");
+  });
+
+  it("leaves a read thread plain", async () => {
+    await openInbox({ unreadCount: 0 });
+    const read = row().className;
+    expect(read).toContain("border-transparent");
+    expect(read).not.toContain("bg-accent-light");
+    expect(screen.queryByText("0")).toBeNull();
+  });
+
+  it("names the other person on their last message", async () => {
+    await openInbox({
+      lastMessage: {
+        content: "Muraho",
+        sender: { id: "u-3", firstName: "Aline" },
+      },
+    });
+    expect(await screen.findByText(/Aline: Muraho/)).toBeInTheDocument();
+  });
+
+  // Your own name quoted back at you in your own inbox reads as somebody
+  // else talking about you.
+  it("says You on a message the viewer sent", async () => {
+    await openInbox({
+      lastMessage: {
+        content: "Murakoze",
+        sender: { id: "user-1", firstName: "Aline" },
+      },
+    });
+    expect(await screen.findByText(/You: Murakoze/)).toBeInTheDocument();
   });
 });

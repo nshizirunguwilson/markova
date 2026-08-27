@@ -172,8 +172,9 @@ describe("recording an incident", () => {
     const dialog = await openForm();
     const action = within(dialog)
       .getAllByRole("combobox")
+      .filter((el): el is HTMLSelectElement => el.tagName === "SELECT")
       .find((el) =>
-        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "SUSPENSION"),
+        Array.from(el.options).some((o) => o.value === "SUSPENSION"),
       ) as HTMLSelectElement;
     expect(action.value).toBe("VERBAL_WARNING");
   });
@@ -205,8 +206,9 @@ describe("recording an incident", () => {
 
     const action = within(dialog)
       .getAllByRole("combobox")
+      .filter((el): el is HTMLSelectElement => el.tagName === "SELECT")
       .find((el) =>
-        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "DETENTION"),
+        Array.from(el.options).some((o) => o.value === "DETENTION"),
       )!;
     await act(async () => {
       fireEvent.change(action, { target: { value: "DETENTION" } });

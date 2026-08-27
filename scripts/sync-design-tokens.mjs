@@ -60,6 +60,7 @@ const RUNTIME_COLORS = [
   'primary',
   'primaryLight',
   'primaryDark',
+  'onPrimary',
   'accent',
   'accentLight',
   'info',

@@ -9,7 +9,7 @@ const h = vi.hoisted(() => {
     offline: {
       save: vi.fn<(payload: unknown) => Promise<void>>(),
       get: vi.fn<() => Promise<unknown[]>>(),
-      clear: vi.fn<() => Promise<void>>(),
+      remove: vi.fn<(id: number) => Promise<void>>(),
       count: vi.fn<() => Promise<number>>(),
     },
   };
@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/offline-db", () => ({
   savePendingMarks: h.offline.save,
   getPendingMarks: h.offline.get,
-  clearPendingMarks: h.offline.clear,
+  deletePendingMark: h.offline.remove,
   getPendingCount: h.offline.count,
 }));
 
@@ -70,7 +70,7 @@ beforeEach(() => {
   for (const m of Object.values(h.toast)) m.mockReset();
   h.offline.save.mockReset().mockResolvedValue(undefined);
   h.offline.get.mockReset().mockResolvedValue([]);
-  h.offline.clear.mockReset().mockResolvedValue(undefined);
+  h.offline.remove.mockReset().mockResolvedValue(undefined);
   h.offline.count.mockReset().mockResolvedValue(0);
   setOnline(true);
   serve(h.api, routes);
@@ -263,7 +263,7 @@ describe("entering marks while offline", () => {
     }, { timeout: 5000 });
   }, 20000);
 
-  it("clears the queue once everything has been sent", async () => {
+  it("takes each entry out of the queue once it has been sent", async () => {
     h.offline.get.mockResolvedValue([
       { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
     ]);
@@ -275,14 +275,17 @@ describe("entering marks while offline", () => {
       fireEvent(window, new Event("online"));
     });
 
-    await waitFor(() => expect(h.offline.clear).toHaveBeenCalled(), {
+    await waitFor(() => expect(h.offline.remove).toHaveBeenCalledWith(1), {
       timeout: 5000,
     });
   }, 20000);
 
-  // A partial sync must keep what did not go, or the failed half is lost for
-  // good on the next attempt.
-  it("keeps the queue when only some entries went through", async () => {
+  /**
+   * A partial sync must keep what did not go, or the failed half is lost for
+   * good — and must drop what did, or those marks are posted a second time on
+   * the next attempt, overwriting anything corrected in between.
+   */
+  it("keeps only what failed when some entries went through", async () => {
     h.offline.get.mockResolvedValue([
       { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
       { id: 2, savedAt: 2, classSectionId: "section-1", termId: "term-1", entries: [] },
@@ -297,14 +300,41 @@ describe("entering marks while offline", () => {
       fireEvent(window, new Event("online"));
     });
 
-    await waitFor(
-      () =>
-        expect(
-          h.toast.warning.mock.calls.length + h.api.post.mock.calls.length,
-        ).toBeGreaterThan(0),
-      { timeout: 5000 },
+    await waitFor(() => expect(h.toast.warning).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+    // The first went through and is gone; the second failed and stays.
+    expect(h.offline.remove).toHaveBeenCalledWith(1);
+    expect(h.offline.remove).not.toHaveBeenCalledWith(2);
+  }, 20000);
+
+  /**
+   * The badge is read back from the queue rather than assumed to be zero: an
+   * entry saved while the sync was running is still waiting, and a badge
+   * that says otherwise sends the teacher home believing marks went in.
+   */
+  it("re-reads how many are still waiting after a partial sync", async () => {
+    h.offline.get.mockResolvedValue([
+      { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },
+      { id: 2, savedAt: 2, classSectionId: "section-1", termId: "term-1", entries: [] },
+    ]);
+    h.offline.count.mockResolvedValue(2);
+    h.api.post
+      .mockResolvedValueOnce({ data: { saved: 1 } })
+      .mockRejectedValue({ response: { status: 500 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => expect(h.toast.warning).toHaveBeenCalled(), {
+      timeout: 5000,
+    });
+    // Once on mount, and again after the sync rather than assuming zero.
+    await waitFor(() =>
+      expect(h.offline.count.mock.calls.length).toBeGreaterThan(1),
     );
-    expect(h.offline.clear).not.toHaveBeenCalled();
   }, 20000);
 
   it("does nothing when the queue is empty", async () => {
@@ -315,7 +345,8 @@ describe("entering marks while offline", () => {
       fireEvent(window, new Event("online"));
     });
     await new Promise((r) => setTimeout(r, 200));
-    expect(h.offline.clear).not.toHaveBeenCalled();
+    expect(h.offline.remove).not.toHaveBeenCalled();
+    expect(h.api.post).not.toHaveBeenCalled();
   }, 20000);
 });
 

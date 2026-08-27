@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import type { HTMLAttributes } from "react";
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "success" | "warning" | "danger" | "info";
+  variant?: "default" | "primary" | "success" | "warning" | "danger" | "info";
 }
 
 export function Badge({
@@ -13,6 +13,8 @@ export function Badge({
 }: BadgeProps) {
   const variants = {
     default: "bg-accent text-primary",
+    // A solid fill in the school's own colour, with text picked to read on it.
+    primary: "bg-primary text-on-primary",
     success: "bg-success-wash text-success",
     warning: "bg-warning-wash text-warning",
     danger: "bg-danger-wash text-danger",

@@ -355,8 +355,9 @@ describe("recording an incident", () => {
     const dialog = await openForm();
     const action = within(dialog)
       .getAllByRole("combobox")
+      .filter((el): el is HTMLSelectElement => el.tagName === "SELECT")
       .find((el) =>
-        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "SUSPENSION"),
+        Array.from(el.options).some((o) => o.value === "SUSPENSION"),
       ) as HTMLSelectElement;
     expect(action.value).toBe("VERBAL_WARNING");
   });
@@ -392,8 +393,9 @@ describe("recording an incident", () => {
 
     const action = within(dialog)
       .getAllByRole("combobox")
+      .filter((el): el is HTMLSelectElement => el.tagName === "SELECT")
       .find((el) =>
-        Array.from((el as HTMLSelectElement).options).some((o) => o.value === "SUSPENSION"),
+        Array.from(el.options).some((o) => o.value === "SUSPENSION"),
       )!;
     await act(async () => {
       fireEvent.change(action, { target: { value: "SUSPENSION" } });
@@ -656,39 +658,19 @@ describe("merits", () => {
   });
 
   /**
-   * Picking the student is three dependent dropdowns, and the button stays
-   * disabled until the last of them has an answer.
+   * Picking the student is one search box: type, then choose from the list.
+   * The button stays disabled until something has been chosen.
    */
   async function pickStudent() {
+    const box = screen.getByRole("combobox", { name: /student/i });
     await act(async () => {
-      fireEvent.change(screen.getByLabelText(/level…/i), {
-        target: { value: "level-1" },
-      });
+      fireEvent.focus(box);
     });
-    await waitFor(() =>
-      expect(
-        screen.getByLabelText(/section…/i).querySelectorAll("option").length,
-      ).toBeGreaterThan(1),
-    );
+    const option = await screen.findByRole("option", { name: /Keza/i });
     await act(async () => {
-      fireEvent.change(screen.getByLabelText(/section…/i), {
-        target: { value: "section-1" },
-      });
+      fireEvent.click(option);
     });
-    await waitFor(() =>
-      expect(
-        screen.getByLabelText(/student…/i).querySelectorAll("option").length,
-      ).toBeGreaterThan(1),
-    );
-    const option = screen
-      .getByLabelText(/student…/i)
-      .querySelectorAll("option")[1] as HTMLOptionElement;
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText(/student…/i), {
-        target: { value: option.value },
-      });
-    });
-    return option.value;
+    return option;
   }
 
   it("records it against the student, the reason and the term", async () => {

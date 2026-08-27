@@ -332,6 +332,24 @@ export class MessagingService {
     return participants.map((p) => p.conversationId);
   }
 
+  /**
+   * Everyone this user shares a conversation with.
+   *
+   * Presence is only ever reported between people who share a conversation,
+   * so this is the whole audience for one user's online state — and equally,
+   * the only presence that user is entitled to be told about.
+   */
+  async getConversationPartnerIds(userId: string): Promise<string[]> {
+    const convIds = await this.getUserConversationIds(userId);
+    if (convIds.length === 0) return [];
+    const participants = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId: { in: convIds }, userId: { not: userId } },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    return participants.map((p) => p.userId);
+  }
+
   async getConversationParticipantIds(
     conversationId: string,
   ): Promise<string[]> {

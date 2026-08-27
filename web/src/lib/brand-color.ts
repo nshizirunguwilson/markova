@@ -28,6 +28,18 @@ export const MIN_NON_TEXT_CONTRAST = 3;
  */
 export const MUTED_TEXT = "#5F6E85";
 
+/**
+ * The two candidates for text drawn on a solid brand fill.
+ *
+ * Both ends are pure. A softer near-black reads better against a navy, but
+ * these two have to cover *every* colour a school might pick, and the hardest
+ * case is a mid-grey around #767676 where white and black are equally poor.
+ * White and pure black meet there at 4.58:1; move the dark end even slightly
+ * off black and that midpoint drops below AA.
+ */
+export const ON_PRIMARY_LIGHT = "#FFFFFF";
+export const ON_PRIMARY_DARK = "#000000";
+
 export function parseHex(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return null;
@@ -100,6 +112,15 @@ export interface BrandPalette {
   primaryLight: string;
   primaryDark: string;
   /**
+   * Text and icons drawn *on top of* a solid `primary` fill.
+   *
+   * White is right for the navies and greens most schools choose, but a
+   * school that picks a bright yellow or lime gets white text at around 1.5:1
+   * on its own badges. Whichever of white and near-black reads better on the
+   * colour is used, so a solid brand fill is always legible.
+   */
+  onPrimary: string;
+  /**
    * Badge and sidebar-highlight background, and the palest surface below it.
    *
    * Null when the school's colour cannot support them: a colour that only
@@ -109,6 +130,15 @@ export interface BrandPalette {
    */
   accent: string | null;
   accentLight: string | null;
+}
+
+/** Whichever of white and near-black reads better on the given fill. */
+export function onPrimaryFor(hex: string): string {
+  if (!parseHex(hex)) return ON_PRIMARY_LIGHT;
+  return contrastRatio(ON_PRIMARY_LIGHT, hex) >=
+    contrastRatio(ON_PRIMARY_DARK, hex)
+    ? ON_PRIMARY_LIGHT
+    : ON_PRIMARY_DARK;
 }
 
 /**
@@ -123,6 +153,7 @@ export function brandPalette(hex: string): BrandPalette {
     primary: hex,
     primaryLight: shade(hex, 0.18),
     primaryDark: shade(hex, -0.18),
+    onPrimary: onPrimaryFor(hex),
   };
   if (!parseHex(hex)) return { ...base, accent: null, accentLight: null };
 

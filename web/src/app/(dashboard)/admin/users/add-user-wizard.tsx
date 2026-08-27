@@ -152,8 +152,16 @@ const selectCls =
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-foreground">{label}</label>
-      {children}
+      {/*
+        The control is nested inside the label so the two are associated
+        without every caller having to invent an id. A bare sibling <label>
+        announces nothing to a screen reader and does not focus its field
+        when clicked.
+      */}
+      <label className="block text-sm font-medium text-foreground">
+        <span className="mb-1.5 block">{label}</span>
+        {children}
+      </label>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   );
@@ -368,6 +376,21 @@ export function AddUserWizard({
     setStep((s) => s + 1);
   };
 
+  /**
+   * Enter in any text field submits the form, and the browser does that no
+   * matter which step is on screen. Left alone it runs `onSubmit` from step
+   * two and creates a half-filled user, so a submit that arrives before the
+   * last step is treated as a press of Continue instead.
+   */
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!isLast) {
+      e.preventDefault();
+      void next();
+      return;
+    }
+    void handleSubmit(onSubmit)(e);
+  };
+
   const onSubmit = async (data: FormData) => {
     if (data.role === "PARENT" && children.length === 0) {
       setChildrenError("Link at least one child, otherwise this parent sees nothing");
@@ -464,7 +487,7 @@ export function AddUserWizard({
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={submit} className="space-y-4">
         {/* ── Account ── */}
         {stepName === "Account" && (
           <>
