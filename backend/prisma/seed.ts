@@ -665,14 +665,40 @@ async function main() {
   ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
+
+  /**
+   * The three branding images the school ships with.
+   *
+   * Each is committed under `assets/` and copied into `uploads/`, which is
+   * gitignored and therefore rebuilt on every fresh clone. The config value is
+   * only set when the copy actually happened: a key pointing at a file that is
+   * not on disk would render a blank crest or a missing stamp, whereas an
+   * empty value is understood everywhere as "the school has not supplied one"
+   * and draws the placeholder instead.
+   */
+  const uploadsDir = join(process.cwd(), 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+
+  const installAsset = (assetName: string, uploadName: string): string => {
+    const src = join(process.cwd(), 'assets', assetName);
+    if (!existsSync(src)) return '';
+    copyFileSync(src, join(uploadsDir, uploadName));
+    return `/uploads/${uploadName}`;
+  };
+
   const configs = [
     { key: 'school_name', value: 'Markova Academy' },
     { key: 'school_motto', value: 'Excellence Through Knowledge' },
-    { key: 'logo_url', value: '/uploads/logo.png' },
-    // No stamp or signature images ship with the demo; empty means the
-    // school has not uploaded them yet, so nothing requests missing files.
-    { key: 'stamp_url', value: '' },
-    { key: 'signature_url', value: '' },
+    // The mark-only logo: the UI prints the school name as text wherever it is
+    // needed, so the logo itself stays clean.
+    { key: 'logo_url', value: installAsset('logo-mark.png', 'logo.png') },
+    // Printed on every official document — the stamp beside the head
+    // teacher's signature, at the foot of the letter.
+    { key: 'stamp_url', value: installAsset('stamp.png', 'stamp.png') },
+    {
+      key: 'signature_url',
+      value: installAsset('signature.png', 'signature.png'),
+    },
     { key: 'primary_color', value: '#1B4F72' },
     { key: 'starting_discipline_points', value: '100' },
     { key: 'borrowing_limit', value: '3' },
@@ -688,16 +714,6 @@ async function main() {
     { key: 'registration_number', value: 'REB/2015/0142' },
     { key: 'email_provider', value: 'smtp' },
   ];
-  // logo_url must point at a real file: copy the bundled mark into uploads.
-  const uploadsDir = join(process.cwd(), 'uploads');
-  mkdirSync(uploadsDir, { recursive: true });
-  // The mark-only version: the UI prints the school name as text wherever
-  // it is needed, so the logo itself stays clean.
-  const logoSrc = join(process.cwd(), 'assets', 'logo-mark.png');
-  if (existsSync(logoSrc)) {
-    copyFileSync(logoSrc, join(uploadsDir, 'logo.png'));
-  }
-
   for (const config of configs) {
     await prisma.schoolConfig.upsert({
       where: { key: config.key },
