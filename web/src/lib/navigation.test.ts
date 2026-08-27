@@ -48,6 +48,48 @@ describe("getNavigation", () => {
     }
   });
 
+  /**
+   * The welfare staff. Their Dashboard link pointed at /admin, which the
+   * shell bounces them straight back out of — a menu item that could not be
+   * clicked, on the first row of the sidebar.
+   */
+  it.each([
+    ["PATRON", "/boarding"],
+    ["MATRON", "/boarding"],
+    ["NURSE", "/nurse"],
+  ])("gives a %s a Dashboard link to %s", (role, href) => {
+    const dashboard = getNavigation(role as Role)
+      .flatMap((s) => s.items)
+      .find((i) => i.label === "Dashboard");
+    expect(dashboard?.href).toBe(href);
+  });
+
+  it("gives the patron and the matron the same menu", () => {
+    expect(getNavigation("PATRON" as Role)).toEqual(getNavigation("MATRON" as Role));
+  });
+
+  // Deliberately narrow: they handle money, welfare and health, and nothing
+  // academic. A matron has no business reading marks.
+  it.each(["PATRON", "MATRON", "NURSE"])(
+    "keeps anything academic out of the %s menu",
+    (role) => {
+      const hrefs = getNavigation(role as Role).flatMap((s) =>
+        s.items.map((i) => i.href),
+      );
+      for (const forbidden of ["/marks", "/reports", "/students", "/users", "/subjects", "/promotion"]) {
+        expect(hrefs.some((h) => h.includes(forbidden))).toBe(false);
+      }
+    },
+  );
+
+  it("gives the nurse the clinic and nothing else to run", () => {
+    const hrefs = getNavigation("NURSE" as Role).flatMap((s) =>
+      s.items.map((i) => i.href),
+    );
+    expect(hrefs).toContain("/admin/health");
+    expect(hrefs).not.toContain("/admin/pocket-money");
+  });
+
   it("falls back to the admin menu for an unknown role", () => {
     expect(getNavigation("NOPE" as Role)).toEqual(getNavigation("ADMIN"));
   });
