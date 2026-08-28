@@ -3085,3 +3085,80 @@ describe("replying to one message out of several", () => {
     expect(labels.some((l) => l?.includes("and the second thing"))).toBe(true);
   });
 });
+
+/**
+ * Scrolling up in a long thread leaves the newest message off screen, and
+ * dragging back down by hand is a poor way to return to it.
+ */
+describe("getting back to the newest message", () => {
+  async function openLongThread() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    await screen.findByText(/Muraho neza/);
+
+    // jsdom lays nothing out, so the thread's size is stated.
+    const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+    const say = (scrollHeight: number, clientHeight: number, scrollTop: number) => {
+      for (const [prop, value] of [
+        ["scrollHeight", scrollHeight],
+        ["clientHeight", clientHeight],
+      ] as const) {
+        Object.defineProperty(list, prop, { value, configurable: true });
+      }
+      list.scrollTop = scrollTop;
+      fireEvent.scroll(list);
+    };
+    return { list, say };
+  }
+
+  it("offers nothing while the newest message is in view", async () => {
+    const { say } = await openLongThread();
+    act(() => say(1000, 600, 400));
+    expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
+  });
+
+  // A whole screen up, not a nudge: a button that appears the moment you
+  // touch the wheel is a button that flickers.
+  it("appears once a whole screen has been scrolled past", async () => {
+    const { say } = await openLongThread();
+    act(() => say(4000, 600, 0));
+    expect(
+      await screen.findByRole("button", { name: /jump to the newest/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not appear for a small nudge upward", async () => {
+    const { say } = await openLongThread();
+    act(() => say(1000, 600, 380));
+    expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
+  });
+
+  it("goes back to the bottom when pressed", async () => {
+    const { list, say } = await openLongThread();
+    const scrollTo = vi.fn();
+    Object.defineProperty(list, "scrollTo", { value: scrollTo, configurable: true });
+    act(() => say(4000, 600, 0));
+
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /jump to the newest/i }));
+
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ top: 4000, behavior: "smooth" }),
+    );
+  });
+
+  /*
+    Over the thread rather than inside it: a child of the scrolling element
+    scrolls away with the messages, which is the one place it must not be.
+  */
+  it("sits outside the scrolling element", async () => {
+    const { list, say } = await openLongThread();
+    act(() => say(4000, 600, 0));
+
+    const button = screen.getByRole("button", { name: /jump to the newest/i });
+    expect(list.contains(button)).toBe(false);
+  });
+});
