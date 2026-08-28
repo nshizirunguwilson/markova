@@ -614,7 +614,6 @@ export default function MessagesPage() {
                     {conv.type === "ONE_ON_ONE" && otherUser ? (
                       <Avatar
                         src={otherUser.photoUrl}
-                        seed={otherUser.id}
                         alt=""
                         size="sm"
                         className="h-9 w-9"
@@ -743,7 +742,6 @@ export default function MessagesPage() {
                       {oneOnOne && other ? (
                         <Avatar
                           src={other.photoUrl}
-                          seed={other.id}
                           alt=""
                           size="sm"
                           className="h-9 w-9"

@@ -199,7 +199,6 @@ export default function AdminStudentsPage() {
                       <div className="flex items-center gap-3">
                         <Avatar
                           src={user.photoUrl}
-                          seed={user.id}
                           fallback={`${user.firstName[0]}${user.lastName[0]}`}
                           size="sm"
                         />

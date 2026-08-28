@@ -1024,33 +1024,6 @@ test('search: Cmd+K puts the cursor in the page search', async (browser) => {
 });
 
 /**
- * A face for everyone. The register is fourteen hundred rows, and a wall of
- * two-letter initials is not something anybody can read down.
- */
-test('avatars: a student with no photograph still has a face', async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await authedPage(ctx, 'ADMIN');
-  await visit(page, '/admin/students');
-  await page.waitForTimeout(1500);
-
-  const state = await page.evaluate(() => {
-    const imgs = [...document.querySelectorAll('img')];
-    const drawn = imgs.filter((i) => (i.getAttribute('src') ?? '').startsWith('data:image/svg'));
-    return {
-      drawn: drawn.length,
-      // Two different people must not share one face.
-      distinct: new Set(drawn.map((i) => i.getAttribute('src'))).size,
-      rendered: drawn.filter((i) => i.getBoundingClientRect().width > 0).length,
-    };
-  });
-
-  assert(state.drawn > 0, 'nobody in the register has a drawn face');
-  assert(state.rendered > 0, 'the faces are in the page but none of them is drawn');
-  assert(state.distinct > 1, 'every student has been given the same face');
-  await ctx.close();
-});
-
-/**
  * The quietest of the three ways of being told a message arrived: a number
  * beside Messages that is there when you next look at the sidebar.
  */

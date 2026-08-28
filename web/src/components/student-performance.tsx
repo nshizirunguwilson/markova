@@ -325,7 +325,6 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         <div className="flex flex-wrap items-center gap-4">
           <Avatar
             src={s?.photoUrl}
-            seed={s?.id}
             fallback={(s?.name ?? "").split(" ").filter(Boolean).map((w: string) => w[0]).slice(0, 2).join("")}
             size="lg"
           />
