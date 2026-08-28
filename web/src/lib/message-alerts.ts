@@ -32,23 +32,24 @@ export interface IncomingMessage {
 /**
  * Should this message put a notice on the screen?
  *
- * No for your own messages, which you just sent. No while you are looking at
- * the very thread it landed in, where you can already see it — a notice for a
- * message visible two inches away is noise, and it is the thing that makes
- * people turn notifications off altogether.
+ * No for your own messages, which you just sent. And no anywhere on the chat
+ * page at all — not merely in the thread it landed in.
+ *
+ * That is wider than it first looks, and deliberately so: on the chat page
+ * the inbox on the left already moves the conversation to the top, bolds it
+ * and counts it. A notice in the corner saying the same thing is the app
+ * telling you something you are looking straight at, and that is what makes
+ * people turn notifications off for good.
  */
 export function shouldAnnounce({
   message,
   myUserId,
   pathname,
-  openConversationId,
 }: {
   message: IncomingMessage;
   myUserId?: string | null;
   /** Where in the app the person currently is. */
   pathname?: string | null;
-  /** The thread open on screen, when one is. */
-  openConversationId?: string | null;
 }): boolean {
   if (!message?.id) return false;
 
@@ -58,10 +59,8 @@ export function shouldAnnounce({
   const from = message.senderUserId ?? message.sender?.id ?? null;
   if (myUserId && from === myUserId) return false;
 
-  const onMessages = (pathname ?? "").includes("/messages");
-  if (onMessages && openConversationId === message.conversationId) return false;
-
-  return true;
+  // Anywhere under the chat page, whichever thread happens to be open.
+  return !(pathname ?? "").includes("/messages");
 }
 
 /** Who it is from. */
@@ -73,17 +72,17 @@ export function alertTitle(message: IncomingMessage): string {
 }
 
 /**
- * What it says, short enough for a corner of the screen.
+ * What it says: that a message arrived, and nothing about what is in it.
  *
- * A file says what kind of thing it is rather than its stored name: "Photo"
- * tells somebody more at a glance than "a1b2c3.jpg" does.
+ * A notice is read by whoever is looking at the screen, which in a school is
+ * not always the person the message is for — a laptop on a desk in a staff
+ * room, a screen shared in a meeting, a parent's phone handed to a child. A
+ * message about a child's discipline record or a parent's fees has no
+ * business appearing in the corner of any of them.
+ *
+ * The name is enough to decide whether to open it, and opening it is one
+ * click away. Anything more is detail the notice does not need to carry.
  */
-export function alertBody(message: IncomingMessage, limit = 90): string {
-  const kind = message.contentType ?? "TEXT";
-  if (kind === "VOICE") return "Voice note";
-
-  const text = (message.content ?? "").trim();
-  if (kind === "FILE") return text || "Attachment";
-  if (!text) return "New message";
-  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+export function alertBody(): string {
+  return "sent a message";
 }

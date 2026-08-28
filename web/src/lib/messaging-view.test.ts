@@ -91,8 +91,8 @@ describe("grouping a thread the way it is read", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, "2026-08-27T10:01:00"),
-        msg("m-3", her, "2026-08-27T10:02:00"),
+        msg("m-2", her, "2026-08-27T10:00:20"),
+        msg("m-3", her, "2026-08-27T10:00:45"),
       ],
       me,
       now,
@@ -128,16 +128,63 @@ describe("grouping a thread the way it is read", () => {
     expect(blocks[0].groups).toHaveLength(2);
   });
 
-  it("keeps a run together right up to the edge of the window", () => {
+  it("keeps a run together right up to the edge of the minute", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, new Date(Date.parse("2026-08-27T10:00:00") + GROUP_WINDOW_MS).toISOString()),
+        msg("m-2", her, "2026-08-27T10:00:59"),
       ],
       me,
       now,
     );
     expect(blocks[0].groups).toHaveLength(1);
+  });
+
+  /**
+   * A run carries one clock reading, and it has to be true of every message
+   * under it. Five minutes of grouping meant three messages at 10:00, 10:02
+   * and 10:04 sat under a single "10:04" — wrong for two of the three, with
+   * nothing on screen to say so.
+   */
+  it("breaks the run when the clock reading changes", () => {
+    const blocks = groupThread(
+      [
+        msg("m-1", her, "2026-08-27T10:00:30"),
+        msg("m-2", her, "2026-08-27T10:01:10"),
+      ],
+      me,
+      now,
+    );
+    expect(blocks[0].groups).toHaveLength(2);
+  });
+
+  // Even seconds apart, if they fall either side of the boundary. That split
+  // is cosmetic; the alternative was a timestamp that lied.
+  it("breaks across a minute boundary even seconds apart", () => {
+    const blocks = groupThread(
+      [
+        msg("m-1", her, "2026-08-27T10:00:58"),
+        msg("m-2", her, "2026-08-27T10:01:02"),
+      ],
+      me,
+      now,
+    );
+    expect(blocks[0].groups).toHaveLength(2);
+  });
+
+  // Which means every group's label is right for everything it covers.
+  it("gives each run a label true of every message in it", () => {
+    const blocks = groupThread(
+      [
+        msg("m-1", her, "2026-08-27T10:00:05"),
+        msg("m-2", her, "2026-08-27T10:00:50"),
+      ],
+      me,
+      now,
+    );
+    const group = blocks[0].groups[0];
+    const labels = group.messages.map((m) => clockTime(m.createdAt));
+    expect(new Set(labels).size).toBe(1);
   });
 
   it("starts a new day rather than running across midnight", () => {
@@ -185,7 +232,7 @@ describe("grouping a thread the way it is read", () => {
     const blocks = groupThread(
       [
         { id: "m-1", createdAt: "2026-08-27T10:00:00" },
-        { id: "m-2", createdAt: "2026-08-27T10:01:00" },
+        { id: "m-2", createdAt: "2026-08-27T10:00:30" },
       ],
       me,
       now,
@@ -211,5 +258,42 @@ describe("grouping a thread the way it is read", () => {
 
   it("has nothing to show for an empty thread", () => {
     expect(groupThread([], me, now)).toEqual([]);
+  });
+});
+
+/**
+ * Twenty-four hour, everywhere. Rwandan schools write timetables, registers
+ * and letters on a 24 hour clock; a chat saying "8:20 PM" beside a register
+ * saying "20:20" makes somebody do the conversion in their head.
+ */
+describe("the clock on a message", () => {
+  it("writes the afternoon in twenty-four hour time", () => {
+    expect(clockTime("2026-08-27T20:20:00")).toBe("20:20");
+  });
+
+  it("writes the morning with a leading zero", () => {
+    expect(clockTime("2026-08-27T08:05:00")).toBe("08:05");
+  });
+
+  // `hour12: false` renders this as "24:00" in some locales, which is why
+  // the hour cycle is named explicitly instead.
+  it("writes midnight as 00, not 24", () => {
+    expect(clockTime("2026-08-27T00:38:00")).toBe("00:38");
+  });
+
+  it("never carries an am or pm", () => {
+    for (const t of ["00:00", "09:30", "12:00", "13:45", "23:59"]) {
+      expect(clockTime(`2026-08-27T${t}:00`)).not.toMatch(/[ap]\.?m/i);
+    }
+  });
+
+  // Seconds are noise in a conversation, and the grouping already makes the
+  // minute an honest label.
+  it("shows no seconds", () => {
+    expect(clockTime("2026-08-27T14:07:33")).toBe("14:07");
+  });
+
+  it("says nothing for a date it cannot read", () => {
+    expect(clockTime("not a date")).toBe("");
   });
 });

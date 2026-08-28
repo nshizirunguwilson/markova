@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    searchParams: { current: new URLSearchParams() },
     chat: {
       connected: true,
       sendMessage: fn(),
@@ -38,7 +39,7 @@ vi.mock("@/hooks/use-debounce", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/messages",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => h.searchParams.current,
 }));
 vi.mock("@/stores/chat-store", () => ({
   useChatStore: (selector?: (s: unknown) => unknown) =>
@@ -1729,7 +1730,12 @@ describe("runs of messages from one person", () => {
         ? { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" }
         : other,
     content,
-    createdAt: `2026-08-21T09:0${minute}:00Z`,
+    /*
+      Seconds apart inside one minute, because that is what a run is now: a
+      run carries one clock reading, so it can only hold messages that read
+      the same on the clock.
+    */
+    createdAt: `2026-08-21T09:00:${String(minute * 10).padStart(2, "0")}Z`,
   });
 
   async function openWith(messages: unknown[], conv = conversation, open = /Aline/) {
@@ -1936,7 +1942,12 @@ describe("a message arriving while you watch", () => {
     senderUserId,
     sender: { id: senderUserId, firstName: "Aline", lastName: "Uwase" },
     content,
-    createdAt: `2026-08-21T09:0${minute}:00Z`,
+    /*
+      Seconds apart inside one minute, because that is what a run is now: a
+      run carries one clock reading, so it can only hold messages that read
+      the same on the clock.
+    */
+    createdAt: `2026-08-21T09:00:${String(minute * 10).padStart(2, "0")}Z`,
   });
 
   async function openThread(messages: unknown[]) {
@@ -3211,5 +3222,99 @@ describe("getting back to the newest message", () => {
     expect(button.className).toContain("bottom-4");
     expect(button.className).toContain("right-4");
     expect(button.className).not.toContain("top-3");
+  });
+});
+
+/**
+ * Somebody who clicks a conversation has already decided to write in it, and
+ * somebody who presses reply has already decided to answer. Making either of
+ * them click a second time to start typing is a step that exists for no
+ * reason.
+ */
+describe("where the cursor lands", () => {
+  it("puts it in the field when a thread is opened", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    const field = await screen.findByPlaceholderText(/type a message/i);
+    await waitFor(() => expect(field).toHaveFocus());
+  });
+
+  it("puts it in the field when a message is answered", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByText(/Muraho neza/);
+
+    const field = screen.getByPlaceholderText(/type a message/i);
+    field.blur();
+    await user.click(screen.getAllByRole("button", { name: /^Reply to/i })[0]);
+
+    await waitFor(() => expect(field).toHaveFocus());
+  });
+
+  /*
+    The row around the field already draws a ring on focus-within, and the
+    app-wide `:focus-visible` rule was adding a second inside it. A bare
+    `focus:` variant never reaches that rule.
+  */
+  it("leaves the ring to the row, not the field", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    const field = await screen.findByPlaceholderText(/type a message/i);
+    expect(field.className).toContain("focus-visible:outline-none");
+  });
+});
+
+/**
+ * Answering a message means scrolling up to find it. Without this you send
+ * from up there and never see your own message land.
+ */
+describe("after sending", () => {
+  it("goes back to the newest message", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByText(/Muraho neza/);
+
+    const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+    const scrollTo = vi.fn();
+    Object.defineProperty(list, "scrollTo", { value: scrollTo, configurable: true });
+    Object.defineProperty(list, "scrollHeight", { value: 4000, configurable: true });
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), "Mwaramutse");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() =>
+      expect(scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 4000, behavior: "smooth" }),
+      ),
+    );
+  });
+});
+
+/**
+ * A notice about a new message opens this page with the thread it came from
+ * named in the URL, so the reader is not made to search for the person they
+ * were just told about.
+ */
+describe("arriving from a notification", () => {
+  it("opens the thread named in the URL", async () => {
+    h.searchParams.current = new URLSearchParams("conversation=conv-1");
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+
+    // The thread opens without anybody clicking the inbox.
+    expect(await screen.findByText(/Muraho neza/)).toBeInTheDocument();
+    h.searchParams.current = new URLSearchParams();
   });
 });

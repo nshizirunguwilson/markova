@@ -32,28 +32,40 @@ describe("whether to say a message arrived", () => {
     ).toBe(true);
   });
 
-  // A notice for a message visible two inches away is noise, and it is the
-  // thing that makes people turn notifications off altogether.
-  it("says nothing while you are looking at that very thread", () => {
+  /*
+    Nothing at all on the chat page, whichever thread is open. The inbox on
+    the left already moves the conversation to the top, bolds it and counts
+    it; a notice saying the same thing is the app telling you something you
+    are looking straight at.
+  */
+  it("says nothing anywhere on the chat page", () => {
     expect(
       shouldAnnounce({
         message: arriving(),
         myUserId: "u-1",
         pathname: "/messages",
-        openConversationId: "conv-1",
       }),
     ).toBe(false);
   });
 
-  it("still says so for a different thread on the chat page", () => {
+  it("says nothing even for a thread you do not have open", () => {
     expect(
       shouldAnnounce({
         message: arriving({ conversationId: "conv-2" }),
         myUserId: "u-1",
         pathname: "/messages",
-        openConversationId: "conv-1",
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("says nothing on a role-prefixed chat page either", () => {
+    expect(
+      shouldAnnounce({
+        message: arriving(),
+        myUserId: "u-1",
+        pathname: "/admin/messages",
+      }),
+    ).toBe(false);
   });
 
   it("never says so for your own message", () => {
@@ -132,42 +144,25 @@ describe("what the notice says", () => {
     expect(alertTitle(arriving({ sender: { firstName: "Aline" } }))).toBe("Aline");
   });
 
-  it("repeats a short message in full", () => {
-    expect(alertBody(arriving())).toBe("Muraho neza");
+  /**
+   * A notice is read by whoever is looking at the screen, which in a school
+   * is not always the person the message is for — a laptop on a desk in a
+   * staff room, a screen shared in a meeting, a phone handed to a child. A
+   * message about a child's discipline record has no business appearing in
+   * the corner of any of them.
+   */
+  it("says only that a message arrived", () => {
+    expect(alertBody()).toBe("sent a message");
   });
 
-  it("cuts a long one to fit a corner of the screen", () => {
-    const body = alertBody(arriving({ content: "a".repeat(200) }), 30);
-    expect(body).toHaveLength(30);
-    expect(body.endsWith("…")).toBe(true);
-  });
-
-  // "Voice note" tells somebody more at a glance than a stored filename does.
-  it("says what a voice note is rather than naming the file", () => {
-    expect(
-      alertBody(arriving({ contentType: "VOICE", content: "voice-note-1.weba" })),
-    ).toBe("Voice note");
-  });
-
-  it("names an attachment by what the sender called it", () => {
-    expect(
-      alertBody(arriving({ contentType: "FILE", content: "Term 1 marks.pdf" })),
-    ).toBe("Term 1 marks.pdf");
-  });
-
-  it("says something rather than nothing for an empty message", () => {
-    expect(alertBody(arriving({ content: "" }))).toBe("New message");
-    expect(alertBody(arriving({ content: null }))).toBe("New message");
-  });
-
-  // A message with no kind at all is words, which is what the API defaults to.
-  it("treats a message with no stated kind as words", () => {
-    expect(alertBody(arriving({ contentType: null }))).toBe("Muraho neza");
-  });
-
-  it("falls back to the word Attachment for a file with no name", () => {
-    expect(alertBody(arriving({ contentType: "FILE", content: "" }))).toBe(
-      "Attachment",
-    );
+  it("gives nothing away, whatever the message held", () => {
+    const secrets = [
+      arriving({ content: "Divine is being suspended on Monday" }),
+      arriving({ contentType: "FILE", content: "Term 1 marks.pdf" }),
+      arriving({ contentType: "VOICE", content: "voice-note-1.weba" }),
+    ];
+    for (const message of secrets) {
+      expect(alertBody()).not.toContain(message.content!.slice(0, 8));
+    }
   });
 });
