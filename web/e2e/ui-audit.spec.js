@@ -671,6 +671,83 @@ test('librarian: the catalogue lists the books it says it has', async (browser) 
   await ctx.close();
 });
 
+// ── MOTION ───────────────────────────────────────────────────────────────────
+
+/**
+ * The animations are real, and they come from the design tokens.
+ *
+ * Class names are cheap to assert and prove nothing: a typo in a keyframe
+ * name, a token that never reached the stylesheet, or a rule the cascade
+ * dropped all leave the markup looking correct and the app looking static.
+ * This asks the browser what it computed.
+ */
+test('motion: the design tokens reach the browser and drive the animations', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, `/admin/users`);
+
+  const tokens = await page.evaluate(() => {
+    const s = getComputedStyle(document.documentElement);
+    return {
+      quick: s.getPropertyValue('--duration-quick').trim(),
+      enter: s.getPropertyValue('--ease-enter').trim(),
+    };
+  });
+  assert(tokens.quick !== '', 'the duration tokens never reached the stylesheet');
+  assert(/cubic-bezier/.test(tokens.enter), 'the easing tokens never reached the stylesheet');
+
+  const main = await page.evaluate(() => {
+    const cs = getComputedStyle(document.querySelector('#main-content'));
+    return { name: cs.animationName, duration: cs.animationDuration };
+  });
+  assert(main.name === 'fade-in', `the page region should fade in, got ${main.name}`);
+  assert(main.duration !== '0s', 'the page fade has no duration');
+
+  await page.getByRole('button', { name: /add user/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+
+  const dialog = await page.evaluate(() => {
+    const panel = getComputedStyle(document.querySelector('[role="dialog"]'));
+    const step = document.querySelector('[class*="motion-step-"]');
+    return {
+      panel: panel.animationName,
+      step: step ? getComputedStyle(step).animationName : 'missing',
+    };
+  });
+  assert(dialog.panel === 'panel-in', `the dialog should rise, got ${dialog.panel}`);
+  assert(
+    dialog.step.startsWith('slide-from-'),
+    `the wizard step should slide, got ${dialog.step}`,
+  );
+
+  await ctx.close();
+});
+
+/**
+ * And every one of them stops for somebody who has asked it to.
+ *
+ * The global `prefers-reduced-motion` rule is the whole accessibility story
+ * for this feature, so it is worth asserting rather than assuming — it is one
+ * `!important` away from silently not applying.
+ */
+test('motion: everything collapses for a reader who asked for less', async (browser) => {
+  const ctx = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, `/admin/users`);
+
+  const durations = await page.evaluate(() => {
+    const main = getComputedStyle(document.querySelector('#main-content')).animationDuration;
+    return { main };
+  });
+  // The rule clamps to 0.01ms, which the browser reports as 1e-05s.
+  assert(
+    parseFloat(durations.main) < 0.001,
+    `the page fade should be off, ran for ${durations.main}`,
+  );
+
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter
