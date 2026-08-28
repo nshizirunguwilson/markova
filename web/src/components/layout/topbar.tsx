@@ -342,6 +342,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           >
             <Avatar
               src={user?.photoUrl}
+              seed={user?.id}
               fallback={
                 user ? `${user.firstName[0]}${user.lastName[0]}` : undefined
               }

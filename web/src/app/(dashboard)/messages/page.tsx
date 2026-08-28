@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button, Badge, Spinner, Input, Modal } from "@/components/ui";
+import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
 import {
   useConversations,
   useMessages,
@@ -408,9 +408,21 @@ export default function MessagesPage() {
                   />
 
                   <span className="relative mt-0.5 flex-shrink-0">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
-                      {name.charAt(0).toUpperCase()}
-                    </span>
+                    {/* A person gets their face; a group gets its initial,
+                        because a group is not somebody. */}
+                    {conv.type === "ONE_ON_ONE" && otherUser ? (
+                      <Avatar
+                        src={otherUser.photoUrl}
+                        seed={otherUser.id}
+                        alt=""
+                        size="sm"
+                        className="h-9 w-9"
+                      />
+                    ) : (
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
                     {/* Absent rather than grey when someone is away: a second
                         grey dot on every row is noise, and it competes with
                         the unread dot for the same glance. */}
@@ -527,9 +539,19 @@ export default function MessagesPage() {
                 return (
                   <>
                     <span className="relative flex-shrink-0">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
-                        {getConvName(selectedConversation).charAt(0).toUpperCase()}
-                      </span>
+                      {oneOnOne && other ? (
+                        <Avatar
+                          src={other.photoUrl}
+                          seed={other.id}
+                          alt=""
+                          size="sm"
+                          className="h-9 w-9"
+                        />
+                      ) : (
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                          {getConvName(selectedConversation).charAt(0).toUpperCase()}
+                        </span>
+                      )}
                       {oneOnOne && online && (
                         <span className="absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full bg-success ring-2 ring-surface" />
                       )}
