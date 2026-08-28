@@ -3161,4 +3161,16 @@ describe("getting back to the newest message", () => {
     const button = screen.getByRole("button", { name: /jump to the newest/i });
     expect(list.contains(button)).toBe(false);
   });
+
+  // Bottom-right, just above the composer: it is where you are going, and out
+  // of the way of the messages you are reading on the way there.
+  it("sits at the bottom right, not the top", async () => {
+    const { say } = await openLongThread();
+    act(() => say(4000, 600, 0));
+
+    const button = screen.getByRole("button", { name: /jump to the newest/i });
+    expect(button.className).toContain("bottom-4");
+    expect(button.className).toContain("right-4");
+    expect(button.className).not.toContain("top-3");
+  });
 });
