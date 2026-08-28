@@ -31,6 +31,72 @@ export function setBrowserAlertsWanted(on: boolean): void {
   } catch {
     /* nothing to be done, and nothing worth failing over */
   }
+  notifyStandingChanged();
+}
+
+/**
+ * Whether the browser will raise notifications, as a store a component can
+ * subscribe to.
+ *
+ * A store rather than state in the toggle itself, for two reasons. It reads
+ * `Notification` and `localStorage`, which do not exist on the server, so a
+ * component needs a snapshot that is honest in both places without a second
+ * render to correct itself. And two toggles on one page must agree: they are
+ * looking at the same browser.
+ */
+export interface AlertStanding {
+  /** Turned on here, by this person, in this browser. */
+  on: boolean;
+  /** The browser can raise notifications at all. */
+  possible: boolean;
+  /** The browser is blocking them, and cannot be asked again. */
+  refused: boolean;
+}
+
+/** What the server renders: nothing to offer, because it cannot know. */
+export const SERVER_ALERT_STANDING: AlertStanding = {
+  on: false,
+  possible: false,
+  refused: false,
+};
+
+const listeners = new Set<() => void>();
+
+/*
+  `useSyncExternalStore` compares snapshots by identity and re-renders forever
+  if a fresh object comes back each time, so the last one is held and replaced
+  only when something has actually changed.
+*/
+let held: AlertStanding | null = null;
+
+function readStanding(): AlertStanding {
+  const canAsk = typeof Notification !== "undefined";
+  return {
+    possible: canAsk,
+    refused: canAsk && Notification.permission === "denied",
+    on: canAsk && Notification.permission === "granted" && browserAlertsWanted(),
+  };
+}
+
+export function alertStanding(): AlertStanding {
+  if (!held) held = readStanding();
+  return held;
+}
+
+export function subscribeToAlertStanding(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * Something changed the standing — the preference was written, or permission
+ * was asked for. Drops the held snapshot and tells everyone looking.
+ */
+export function notifyStandingChanged(): void {
+  held = null;
+  for (const listener of listeners) listener();
 }
 
 /**
@@ -55,11 +121,17 @@ export function useMessageAlerts() {
     watcher is registered once. Re-registering on every navigation would drop
     a message arriving in the gap between the old handler leaving and the new
     one arriving.
+
+    Written in an effect rather than during render: a render can be thrown
+    away and run again, and a ref written during one keeps whatever the
+    discarded attempt put there.
   */
   const where = useRef(pathname);
-  where.current = pathname;
   const me = useRef(user?.id);
-  me.current = user?.id;
+  useEffect(() => {
+    where.current = pathname;
+    me.current = user?.id;
+  }, [pathname, user?.id]);
 
   useEffect(() => {
     return onNewMessage((raw) => {

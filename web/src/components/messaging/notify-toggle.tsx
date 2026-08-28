@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  browserAlertsWanted,
+  SERVER_ALERT_STANDING,
+  alertStanding,
+  notifyStandingChanged,
   setBrowserAlertsWanted,
+  subscribeToAlertStanding,
 } from "@/hooks/use-message-alerts";
 
 /**
@@ -21,28 +24,25 @@ import {
  * has the thought. What it controls is what happens when they are *not* here.
  */
 export function NotifyToggle() {
-  // Read after mount: `localStorage` and `Notification` do not exist while
-  // the page is being rendered on the server, and reading them during render
-  // makes the first client paint disagree with it.
-  const [on, setOn] = useState(false);
-  const [possible, setPossible] = useState(false);
-  const [refused, setRefused] = useState(false);
+  /*
+    What the browser will actually do, read through `useSyncExternalStore`.
 
-  useEffect(() => {
-    const canAsk = typeof Notification !== "undefined";
-    setPossible(canAsk);
-    setRefused(canAsk && Notification.permission === "denied");
-    setOn(
-      canAsk && Notification.permission === "granted" && browserAlertsWanted(),
-    );
-  }, []);
+    `Notification` and `localStorage` do not exist on the server, so the
+    answer has to be "cannot" there and the real one on the client. This is
+    the hook that says exactly that: no effect, no second render to correct
+    itself, and no first paint that disagrees with the markup it hydrated.
+  */
+  const { on, possible, refused } = useSyncExternalStore(
+    subscribeToAlertStanding,
+    alertStanding,
+    () => SERVER_ALERT_STANDING,
+  );
 
   if (!possible) return null;
 
   const toggle = async () => {
     if (on) {
       setBrowserAlertsWanted(false);
-      setOn(false);
       toast.success("Notifications turned off");
       return;
     }
@@ -59,7 +59,9 @@ export function NotifyToggle() {
     }
 
     if (!allowed) {
-      setRefused(Notification.permission === "denied");
+      // Asking may have turned "default" into "denied", which changes what
+      // this button should say.
+      notifyStandingChanged();
       toast.error(
         "Your browser is blocking notifications for this site. Allow them in its settings to turn this on.",
       );
@@ -67,7 +69,6 @@ export function NotifyToggle() {
     }
 
     setBrowserAlertsWanted(true);
-    setOn(true);
     toast.success("You will be told about new messages in other tabs");
   };
 

@@ -8,21 +8,38 @@ const h = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: h.toast }));
 
 import { NotifyToggle } from "./notify-toggle";
-import { BROWSER_ALERTS_KEY } from "@/hooks/use-message-alerts";
+import {
+  BROWSER_ALERTS_KEY,
+  notifyStandingChanged,
+} from "@/hooks/use-message-alerts";
 
+/**
+ * A stand-in for the browser's Notification.
+ *
+ * `requestPermission` moves `permission` to whatever the person chose, the
+ * way a real browser does. Without that the component would be tested against
+ * a browser that grants permission and then goes on reporting it was never
+ * granted, which is not a state that exists.
+ */
 function stubNotification(permission: NotificationPermission, ask = permission) {
-  const request = vi.fn(async () => ask);
-  vi.stubGlobal(
-    "Notification",
-    Object.assign(vi.fn(), { permission, requestPermission: request }),
-  );
-  return request;
+  const api = Object.assign(vi.fn(), {
+    permission,
+    requestPermission: vi.fn(async () => {
+      api.permission = ask;
+      return ask;
+    }),
+  });
+  vi.stubGlobal("Notification", api);
+  return api.requestPermission;
 }
 
 beforeEach(() => {
   localStorage.clear();
   h.toast.success.mockReset();
   h.toast.error.mockReset();
+  // The standing is a store shared by every toggle on the page, so it has to
+  // be dropped between tests along with the browser it was read from.
+  notifyStandingChanged();
 });
 
 afterEach(() => {

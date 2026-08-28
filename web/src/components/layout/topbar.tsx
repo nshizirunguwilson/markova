@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -47,6 +53,9 @@ function timeAgo(dateStr: string): string {
 interface TopbarProps {
   onToggleSidebar?: () => void;
 }
+
+/** Nothing to subscribe to: whether this is a Mac does not change. */
+const subscribeToNothing = () => () => {};
 
 export function Topbar({ onToggleSidebar }: TopbarProps) {
   const router = useRouter();
@@ -140,13 +149,19 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   }, []);
 
   /*
-    Mac writes it ⌘K and everybody else Ctrl K. Read once on mount rather than
-    while rendering, so the server and the first client render agree.
+    Mac writes it ⌘K and everybody else Ctrl K.
+
+    Through `useSyncExternalStore` rather than an effect that sets state: the
+    server has no navigator, so the answer has to be "no" there and the real
+    one on the client, and this is the hook that says exactly that without a
+    second render to correct itself. Nothing ever changes, so there is nothing
+    to subscribe to.
   */
-  const [onAMac, setOnAMac] = useState(false);
-  useEffect(() => {
-    setOnAMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
-  }, []);
+  const onAMac = useSyncExternalStore(
+    subscribeToNothing,
+    () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
+    () => false,
+  );
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
