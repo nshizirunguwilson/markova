@@ -139,7 +139,23 @@ body {
 
 .bubble {
   position: relative;
-  border-radius: 18px;
+  /*
+    Sixteen, not eighteen, and it is arithmetic rather than taste: a corner
+    nested inside another looks right when the gap between the two curves
+    stays constant all the way round, which means
+
+        outer radius = inner radius + the padding between them
+
+    A photograph or a file row inside a bubble is 8px, and the bubble pads it
+    by 8px on every side, so the bubble wants 16. At 18 the outer curve ran
+    ahead of the inner one and the corner read as too round for what it held.
+
+    This only works because the padding is now equal on both axes. It used to
+    be 14px across and 8px down, which wanted 22 and 16 at the same time — no
+    single radius could sit concentric with the thing inside it, and that is
+    what looked wrong.
+  */
+  border-radius: 16px;
 }
 
 .bubble-tail-start,
@@ -189,3 +205,4 @@ body {
 .motion-flash {
   animation: flash 1.2s var(--ease-standard) both;
 }
+

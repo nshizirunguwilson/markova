@@ -1246,6 +1246,60 @@ test('reports: a report card carries discipline as a row, above the subjects', a
   await ctx.close();
 });
 
+/**
+ * A corner nested inside another looks right when the gap between the two
+ * curves stays constant, which means outer = inner + padding. It cannot hold
+ * on both axes unless the padding is equal on both axes, which is why these
+ * two are checked together.
+ */
+test('chat: a bubble sits concentric with what it holds', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(1500);
+
+  const geo = await page.evaluate(() => {
+    const px = (v) => parseFloat(v);
+    const bubble = [...document.querySelectorAll('.bubble')].find((b) => b.querySelector('figure'))
+      || document.querySelector('.bubble');
+    if (!bubble) return null;
+    const s = getComputedStyle(bubble);
+    const inner = bubble.querySelector('figure');
+    return {
+      padding: {
+        top: px(s.paddingTop), right: px(s.paddingRight),
+        bottom: px(s.paddingBottom), left: px(s.paddingLeft),
+      },
+      outer: px(s.borderBottomLeftRadius),
+      inner: inner ? px(getComputedStyle(inner).borderTopLeftRadius) : null,
+    };
+  });
+
+  assert(geo, 'no bubbles rendered');
+
+  const { top, right, bottom, left } = geo.padding;
+  assert(
+    top === right && right === bottom && bottom === left,
+    `the bubble's padding is ${top}/${right}/${bottom}/${left}, not equal on both axes`,
+  );
+
+  if (geo.inner !== null) {
+    const wanted = geo.inner + top;
+    assert(
+      Math.abs(geo.outer - wanted) <= 1,
+      `outer radius is ${geo.outer}px; inner ${geo.inner}px plus ${top}px of padding wants ${wanted}px`,
+    );
+  }
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

@@ -923,7 +923,7 @@ export default function MessagesPage() {
                             >
                             <div
                               id={`msg-${msg.id}`}
-                              className={`max-w-[min(34rem,78%)] px-3.5 py-2 ${corner} ${
+                              className={`max-w-[min(34rem,78%)] p-2 ${corner} ${
                                 group.mine
                                   ? "bg-primary text-on-primary"
                                   : "bg-surface-muted text-foreground"

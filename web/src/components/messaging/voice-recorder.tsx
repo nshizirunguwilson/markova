@@ -34,6 +34,7 @@ export function VoiceRecorder({
   onStart,
   onCancel,
   disabled,
+  hidden,
 }: {
   /** A finished recording, ready to be sent as a message. */
   onRecorded: (file: File, seconds: number) => void;
@@ -41,6 +42,14 @@ export function VoiceRecorder({
   onStart?: () => void;
   onCancel: () => void;
   disabled?: boolean;
+  /**
+   * Stand down: there is something to send, so Send has the end of the row.
+   *
+   * Hidden rather than unmounted, so a recording already running is not torn
+   * out from under somebody who starts typing mid-sentence — the recorder
+   * still owns the row until it is sent or thrown away.
+   */
+  hidden?: boolean;
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -204,6 +213,9 @@ export function VoiceRecorder({
     }
     onCancel();
   };
+
+  // Nothing recording and Send has the row: show nothing at all.
+  if (!recording && hidden) return null;
 
   if (!recording) {
     return (
