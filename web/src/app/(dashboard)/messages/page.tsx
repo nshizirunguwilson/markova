@@ -851,7 +851,10 @@ export default function MessagesPage() {
                 onClick={jumpToBottom}
                 aria-label="Jump to the newest message"
                 title="Jump to the newest message"
-                className="motion-fade-in absolute right-4 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-popover transition-colors hover:bg-surface-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                /* Bottom-right, just above the composer: it is where you are
+                   going, and it is out of the way of the messages you are
+                   reading on the way there. */
+                className="motion-fade-in absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-popover transition-colors hover:bg-surface-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
                 <ChevronDown className="h-5 w-5" />
               </button>

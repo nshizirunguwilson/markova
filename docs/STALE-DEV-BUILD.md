@@ -1,13 +1,29 @@
 # When a change doesn't show up
 
 The dev server sometimes serves assets built before your change, and keeps
-doing it across a restart. It has happened twice: once with JavaScript, once
-with CSS. Both times the code on disk was correct and the browser was being
-handed something older.
+doing it across a restart. It has happened three times now: once with
+JavaScript and twice with CSS. Every time the code on disk was correct and the
+browser was being handed something older.
 
 It is worth knowing because a wedged build is indistinguishable from a broken
 feature. You test, nothing happens, and every instinct says the change is
 wrong.
+
+## The shape it takes with CSS
+
+The third time was the confusing one, because it was **partial**. The
+Tailwind-generated utilities were current — classes added the same hour were
+in the stylesheet — while the hand-written rules in `globals.css` were a
+round behind. So the page looked *almost* right, and the one thing that had
+changed was the one thing missing.
+
+It also survived a restart and a `touch` of the file. What eventually rebuilt
+it was a second `touch` a few seconds later; what would have fixed it in one
+step is the command below.
+
+The symptom to watch for: a change you can see in the source, cannot see in
+the browser, and cannot explain. Check what is served before you go looking
+for a bug in the code.
 
 ## The one command
 
@@ -33,6 +49,16 @@ curl -s "http://localhost:3001$CSS" | grep -c "the-class-you-added"
 `0` means the server never built your change — no amount of reloading the
 browser will help, because the bytes it is being handed are old. Anything
 above `0` means the CSS is fine and the problem is elsewhere.
+
+For a rule you cannot grep for by class name — a pseudo-element, say — ask the
+browser what it computed instead. `web/e2e/ui-audit.spec.js` does this for the
+message bubbles, which is why a stale stylesheet now fails the audit rather
+than waiting to be noticed:
+
+```js
+const before = getComputedStyle(el, '::before');
+// content: "none" means the rule never reached the browser at all.
+```
 
 The same trick works for JavaScript:
 
