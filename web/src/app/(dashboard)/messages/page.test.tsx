@@ -1775,11 +1775,10 @@ describe("runs of messages from one person", () => {
    * one person do not need four arrows.
    */
   /**
-   * The squared corner closes a run rather than opening it: it sits at the
-   * bottom of the bubble, nearest the speaker, so it belongs on the last one.
-   * Four bubbles from one person do not need four of them.
+   * The tail opens a run and points at whoever said it. Four bubbles from one
+   * person do not need four arrows pointing at the same place.
    */
-  it("squares one corner of a run, on its last bubble", async () => {
+  it("gives the run one tail, on its first bubble", async () => {
     await openWith([
       at("m-2", "u-3", 1, "another"),
       at("m-1", "u-3", 0, "Muraho"),
@@ -1787,13 +1786,13 @@ describe("runs of messages from one person", () => {
     await screen.findByText("Muraho");
     const first = screen.getByText("Muraho").closest("div")!;
     const last = screen.getByText("another").closest("div")!;
-    expect(last.className).toContain("bubble-tail-start");
-    expect(first.className).not.toContain("bubble-tail");
-    expect(first.className).toContain("bubble");
+    expect(first.className).toContain("bubble-tail-start");
+    expect(last.className).not.toContain("bubble-tail");
+    expect(last.className).toContain("bubble");
   });
 
-  // Your own run is the same shape mirrored: squared on the other side.
-  it("squares your own run on your side", async () => {
+  // Your own run is the same shape mirrored: the tail points the other way.
+  it("points your own tail at your side", async () => {
     await openWith([
       at("m-2", "user-1", 1, "and this"),
       at("m-1", "user-1", 0, "I said this"),
@@ -1801,8 +1800,8 @@ describe("runs of messages from one person", () => {
     await screen.findByText("I said this");
     const first = screen.getByText("I said this").closest("div")!;
     const last = screen.getByText("and this").closest("div")!;
-    expect(last.className).toContain("bubble-tail-end");
-    expect(first.className).not.toContain("bubble-tail");
+    expect(first.className).toContain("bubble-tail-end");
+    expect(last.className).not.toContain("bubble-tail");
     expect(first.className).toContain("bg-primary");
   });
 

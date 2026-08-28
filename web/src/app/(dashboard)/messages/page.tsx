@@ -841,15 +841,12 @@ export default function MessagesPage() {
                         )}
 
                         {group.messages.map((msg: any, i) => {
-                          /*
-                            The squared corner closes a run rather than opening
-                            it: it sits at the bottom, nearest the speaker, so
-                            it belongs on the last bubble. Four bubbles from one
-                            person do not need four of them.
-                          */
-                          const endsRun = i === group.messages.length - 1;
+                          // The tail opens a run and points at whoever said it.
+                          // Four bubbles from one person do not need four
+                          // arrows pointing at the same place.
+                          const opensRun = i === 0;
                           const corner = `bubble ${
-                            endsRun
+                            opensRun
                               ? group.mine
                                 ? "bubble-tail-end"
                                 : "bubble-tail-start"

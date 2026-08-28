@@ -1058,7 +1058,7 @@ test('messages: the sidebar says how many are waiting', async (browser) => {
  * Generously rounded, with one corner squared off on the speaker's side.
  * That single square corner is what the eye reads as "which side said this".
  */
-test('chat: bubbles are rounded, with one corner squared per run', async (browser) => {
+test('chat: bubbles are rounded and carry one arrow per run', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, '/admin/messages');
@@ -1094,14 +1094,27 @@ test('chat: bubbles are rounded, with one corner squared per run', async (browse
   assert(shape, 'no bubbles rendered');
   for (const b of shape.all) {
     // Rounded: the complaint was that they had gone square.
-    assert(b.tl >= 12 && b.tr >= 12, `a bubble's top corners are ${b.tl}/${b.tr}px, not rounded`);
+    assert(b.bl >= 12 && b.br >= 12, `a bubble's bottom corners are ${b.bl}/${b.br}px, not rounded`);
     if (b.squared) {
-      const squaredCorner = Math.min(b.bl, b.br);
-      assert(squaredCorner <= 8, `the squared corner is ${squaredCorner}px, which is not squared`);
+      // The corner the tail grows out of is squared so the triangle meets it.
+      const tailCorner = Math.min(b.tl, b.tr);
+      assert(tailCorner <= 4, `the tail's corner is ${tailCorner}px, so the arrow will not meet it`);
+    } else {
+      assert(b.tl >= 12 && b.tr >= 12, `a tailless bubble has a square top corner`);
     }
   }
-  assert(shape.squaredCount > 0, 'no bubble carries the squared corner');
-  assert(shape.squaredCount <= shape.total, 'more squared corners than bubbles');
+  assert(shape.squaredCount > 0, 'no bubble carries a tail');
+  assert(shape.squaredCount <= shape.total, 'more tails than bubbles');
+
+  // The arrow itself, drawn as a triangle off that corner.
+  const arrow = await page.evaluate(() => {
+    const tailed = document.querySelector('.bubble-tail-start, .bubble-tail-end');
+    if (!tailed) return null;
+    const before = getComputedStyle(tailed, '::before');
+    return { content: before.content, clip: before.clipPath, width: before.width };
+  });
+  assert(arrow, 'no tailed bubble to inspect');
+  assert(arrow.clip && arrow.clip !== 'none', 'the tail has no triangle clip-path');
   await ctx.close();
 });
 
