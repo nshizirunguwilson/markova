@@ -25,7 +25,11 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK } from '../src/common/conduct';
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import {
+  installBrandingAsset,
+  shouldWriteConfig,
+} from '../src/common/branding-install';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
 import { buildStudentId, studentIdSecret } from '../src/common/student-id';
@@ -683,11 +687,22 @@ async function main() {
   const uploadsDir = join(process.cwd(), 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
 
+  /*
+    Installs a shipped image only where doing so cannot destroy one the school
+    chose for itself. This used to be a bare copyFileSync on every run, which
+    meant a school that had put its own stamp at uploads/stamp.png lost it the
+    next time anyone reseeded — silently, with no copy kept. See
+    src/common/branding-install.ts.
+  */
+  const kept: string[] = [];
   const installAsset = (assetName: string, uploadName: string): string => {
-    const src = join(process.cwd(), 'assets', assetName);
-    if (!existsSync(src)) return '';
-    copyFileSync(src, join(uploadsDir, uploadName));
-    return `/uploads/${uploadName}`;
+    const { outcome, url } = installBrandingAsset(
+      join(process.cwd(), 'assets', assetName),
+      join(uploadsDir, uploadName),
+      `/uploads/${uploadName}`,
+    );
+    if (outcome === 'kept-existing') kept.push(uploadName);
+    return url;
   };
 
   const configs = [
@@ -721,6 +736,13 @@ async function main() {
     { key: 'email_provider', value: 'smtp' },
   ];
   for (const config of configs) {
+    // Branding a school has already set is its own; reseeding rebuilds demo
+    // records, it does not revert a school's identity to the demo's.
+    const existing = await prisma.schoolConfig.findUnique({
+      where: { key: config.key },
+    });
+    if (!shouldWriteConfig(config.key, existing?.value)) continue;
+
     await prisma.schoolConfig.upsert({
       where: { key: config.key },
       update: { value: config.value },
@@ -728,6 +750,11 @@ async function main() {
     });
   }
   console.log('  ✅ SchoolConfig seeded');
+  if (kept.length > 0) {
+    console.log(
+      `     ↳ kept the school's own ${kept.join(', ')} (not overwritten)`,
+    );
+  }
 
   // Hash once — bcrypt is the slowest single thing in this script.
   const passwordHash = await bcrypt.hash('Password123!', 10);
