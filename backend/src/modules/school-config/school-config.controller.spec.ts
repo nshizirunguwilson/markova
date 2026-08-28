@@ -112,8 +112,9 @@ describe('SchoolConfigController', () => {
       });
     });
 
-    // Replacing a logo should not leave the old file on disk forever, but a
-    // missing previous value must not stop the new one being saved either.
+    // The file a replacement takes over from is moved aside rather than
+    // deleted, but a missing previous value must not stop the new one being
+    // saved either.
     it('saves the new file even when there was no old one to remove', async () => {
       service.findByKey.mockRejectedValueOnce(new Error('Not found'));
       await run({

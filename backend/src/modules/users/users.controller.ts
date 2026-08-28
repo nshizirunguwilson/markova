@@ -25,7 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { join } from 'path';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, renameSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -37,7 +37,7 @@ import { RolesGuard } from '../../common/guards';
 import {
   fileFilterFor,
   filenameFor,
-  removeStoredFile,
+  retireStoredFile,
   validateUploadedImage,
 } from '../../common/file-validation';
 
@@ -146,11 +146,15 @@ export class UsersController {
       throw new Error('Photo file is required');
     }
     validateUploadedImage(join(process.cwd(), 'uploads/photos', file.filename));
-    // The photo being replaced should not sit on disk forever, but a missing
-    // old file must never stop the new one being saved.
+    // The photo being replaced is moved aside rather than deleted: somebody
+    // uploading over the wrong person's record should not destroy the only
+    // copy of their photograph. A missing old file must never stop the new
+    // one being saved either.
     const user = await this.usersService.findOne(id);
-    removeStoredFile(user.photoUrl, { existsSync, unlinkSync }, (p) =>
-      join(process.cwd(), p),
+    retireStoredFile(
+      user.photoUrl,
+      { existsSync, mkdirSync, renameSync },
+      (p) => join(process.cwd(), p),
     );
     const photoUrl = `/uploads/photos/${file.filename}`;
     return this.usersService.updatePhoto(id, photoUrl);

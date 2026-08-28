@@ -351,3 +351,52 @@ export function validateUploadedAttachment(
     );
   }
 }
+
+/**
+ * Moves aside the file a replacement is taking over from, instead of deleting
+ * it.
+ *
+ * Replacing a school's stamp used to unlink the old one on the spot. That is
+ * fine right up until somebody replaces the wrong thing, or replaces the
+ * right thing and then wants it back — at which point the only copy of a mark
+ * a school had drawn once and used for years is gone, with no undo, no
+ * warning and nothing in the trash. Recovering one from a browser cache is
+ * not a plan.
+ *
+ * So the old file is retired into `uploads/replaced/` under a name that says
+ * when it was retired and what it was. Nothing reads that folder; it exists
+ * to be dug through on the day somebody needs it. A school that wants the
+ * disk back can empty it, which is a decision rather than an accident.
+ *
+ * Best effort, exactly like the deletion it replaces: a file that cannot be
+ * moved must never stop the new one being saved.
+ */
+export function retireStoredFile(
+  fileUrl: string | null | undefined,
+  fs: {
+    existsSync: (p: string) => boolean;
+    mkdirSync: (p: string, o?: { recursive?: boolean }) => void;
+    renameSync: (from: string, to: string) => void;
+  },
+  resolve: (p: string) => string,
+  now: () => Date = () => new Date(),
+): string | null {
+  if (!fileUrl) return null;
+  try {
+    const from = resolve(fileUrl);
+    if (!fs.existsSync(from)) return null;
+
+    const attic = resolve('/uploads/replaced');
+    fs.mkdirSync(attic, { recursive: true });
+
+    // 2026-08-28T19-41-07 — sortable, and legal in a filename.
+    const when = now().toISOString().slice(0, 19).replace(/[:]/g, '-');
+    const name = from.split('/').pop() || 'file';
+    const to = `${attic}/${when}-${name}`;
+
+    fs.renameSync(from, to);
+    return to;
+  } catch {
+    return null;
+  }
+}
