@@ -23,3 +23,18 @@ export const monoFont = {
 
 /** What a school is themed with until its own colour loads. */
 export const brandDefault = '#1B4F72';
+
+/** How long a transition runs, in milliseconds. Same values as the web. */
+export const duration = {
+  instant: 100,
+  quick: 150,
+  settle: 200,
+  deliberate: 250,
+} as const;
+
+/** The curves those durations run on, as cubic-bezier control points. */
+export const easing = {
+  enter: [0.16, 1, 0.3, 1] as const,
+  exit: [0.7, 0, 0.84, 0] as const,
+  standard: [0.4, 0, 0.2, 1] as const,
+} as const;

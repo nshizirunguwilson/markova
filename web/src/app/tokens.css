@@ -65,6 +65,15 @@
   --shadow-popover: 0 6px 16px -4px rgb(16 24 40 / 0.1), 0 16px 36px -8px rgb(16 24 40 / 0.12);
   --shadow-modal: 0 12px 28px -8px rgb(16 24 40 / 0.12), 0 32px 64px -16px rgb(16 24 40 / 0.16);
 
+  /* ── motion (same milliseconds as mobile's duration.*) ──────────────────── */
+  --duration-instant: 100ms;
+  --duration-quick: 150ms;
+  --duration-settle: 200ms;
+  --duration-deliberate: 250ms;
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
   --color-chart-1: #1B4F72;
   --color-chart-2: #2E86C1;

@@ -41,6 +41,20 @@ const chartSeries = tokens.chartSeries.values;
 const chartCategorical = tokens.chartCategorical.values;
 const shadowEntries = Object.entries(tokens.shadow).filter(([k]) => !k.startsWith('$'));
 
+/**
+ * Motion, split into the two things it is made of.
+ *
+ * Durations become `--duration-*` so `duration-quick` reads in a class name;
+ * easings become `--ease-*` for `ease-enter`. Both are plain numbers and
+ * strings in the token file, so the split is by type rather than by a second
+ * nesting level nobody would remember to keep tidy.
+ */
+const motionEntries = Object.entries(tokens.motion ?? {}).filter(
+  ([k]) => !k.startsWith('$'),
+);
+const durationEntries = motionEntries.filter(([, v]) => typeof v === 'number');
+const easingEntries = motionEntries.filter(([, v]) => typeof v === 'string');
+
 // ── web: Tailwind v4 @theme block ───────────────────────────────────────────
 
 /**
@@ -108,6 +122,10 @@ ${sizes}
   /* ── elevation ──────────────────────────────────────────────────────────── */
 ${shadowEntries.map(([name, v]) => `  --shadow-${name}: ${v};`).join('\n')}
 
+  /* ── motion (same milliseconds as mobile's duration.*) ──────────────────── */
+${durationEntries.map(([name, ms]) => `  --duration-${name}: ${ms}ms;`).join('\n')}
+${easingEntries.map(([name, curve]) => `  --ease-${name}: ${curve};`).join('\n')}
+
   /* ── chart palettes (also exported from web/src/lib/chart-colors.ts) ────── */
 ${chartSeries.map((c, i) => `  --color-chart-${i + 1}: ${c};`).join('\n')}
 ${chartCategorical.map((c, i) => `  --color-category-${i + 1}: ${c};`).join('\n')}
@@ -155,7 +173,23 @@ function buildMobileTs() {
     monoWeights.map((w) => entry(mono, w)).join('\n') +
     `\n} as const;\n` +
     `\n/** What a school is themed with until its own colour loads. */\n` +
-    `export const brandDefault = '${tokens.color.primary.value}';\n`
+    `export const brandDefault = '${tokens.color.primary.value}';\n` +
+    `\n/** How long a transition runs, in milliseconds. Same values as the web. */\n` +
+    `export const duration = {\n` +
+    durationEntries.map(([name, ms]) => `  ${name}: ${ms},`).join('\n') +
+    `\n} as const;\n` +
+    `\n/** The curves those durations run on, as cubic-bezier control points. */\n` +
+    `export const easing = {\n` +
+    easingEntries
+      .map(([name, curve]) => {
+        // Only what is inside the parentheses: matching numbers across the
+        // whole string picks up the hyphen in "cubic-bezier" as well.
+        const inside = curve.slice(curve.indexOf('(') + 1, curve.lastIndexOf(')'));
+        const points = inside.split(',').map((n) => n.trim()).join(', ');
+        return `  ${name}: [${points}] as const,`;
+      })
+      .join('\n') +
+    `\n} as const;\n`
   );
 }
 
