@@ -1786,6 +1786,55 @@ describe("walking a student through every step in order", () => {
    * jsdom does not carry a click through to a submission that way, so no
    * test could catch it by clicking. This asserts the property instead.
    */
+  /**
+   * Continue and Back look identical without this: the fields simply become
+   * different fields. On a four-step form the direction of travel is the one
+   * thing worth saying, so the incoming step slides in from the side it came
+   * from.
+   */
+  it("slides a step in from the direction it came from", async () => {
+    const { act, fireEvent } = await import("@testing-library/react");
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    const stepPane = () => document.querySelector('[class*="motion-step-"]')!;
+    expect(stepPane().className).toContain("motion-step-forward");
+
+    await fillAll();
+    await clickContinue();
+    await waitFor(() => expect(atStep("Academic")).toBe(true));
+    expect(stepPane().className).toContain("motion-step-forward");
+
+    const back = screen
+      .queryAllByRole("button")
+      .find((b) => /^back$/i.test((b.textContent ?? "").trim()))!;
+    await act(async () => {
+      fireEvent.click(back);
+    });
+
+    await waitFor(() => expect(atStep("Account")).toBe(true));
+    expect(stepPane().className).toContain("motion-step-back");
+  });
+
+  // The buttons stay put while the fields move; that is what makes it read as
+  // the content changing rather than the dialog lurching.
+  it("leaves the footer outside the moving part", async () => {
+    open();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument(),
+    );
+    await chooseRole("STUDENT");
+
+    const pane = document.querySelector('[class*="motion-step-"]')!;
+    const continueButton = screen
+      .queryAllByRole("button")
+      .find((b) => /^continue$/i.test((b.textContent ?? "").trim()))!;
+    expect(pane.contains(continueButton)).toBe(false);
+  });
+
   it("never puts a submit button in the footer", async () => {
     open();
     await waitFor(() =>

@@ -313,7 +313,7 @@ export default function TeacherMarksPage() {
           </div>
           <div className="h-2 w-full rounded-full bg-muted/20">
             <div
-              className="h-2 rounded-full bg-primary transition-all"
+              className="h-2 rounded-full bg-primary motion-bar"
               style={{ width: `${Math.round((gradedCount / Math.max(completion.total, 1)) * 100)}%` }}
             />
           </div>

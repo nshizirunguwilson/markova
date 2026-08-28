@@ -57,7 +57,7 @@ export default function StudentDisciplinePage() {
                 </p>
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
-                    className={`h-3 rounded-full transition-all ${
+                    className={`h-3 rounded-full motion-bar ${
                       (data.student?.percentage ?? 0) >= 80 ? "bg-success" :
                       (data.student?.percentage ?? 0) >= 50 ? "bg-warning" :
                       "bg-danger"

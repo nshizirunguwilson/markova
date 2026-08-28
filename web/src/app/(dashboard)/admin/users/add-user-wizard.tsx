@@ -180,6 +180,10 @@ export function AddUserWizard({
   const { data: sections } = useSections(selectedLevel || undefined);
 
   const [step, setStep] = useState(0);
+  // Which way the last step change went, so the incoming step can slide in
+  // from the side it came from. Forward and Back look identical otherwise,
+  // and on a four-step form that is the one thing worth saying.
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [children, setChildren] = useState<ChildLink[]>([]);
   const [childQuery, setChildQuery] = useState("");
   const [childResults, setChildResults] = useState<any[]>([]);
@@ -387,6 +391,7 @@ export function AddUserWizard({
   const next = async () => {
     const fields = STEP_FIELDS[stepName] ?? [];
     if (await trigger(fields)) {
+      setDirection("forward");
       setStep((s) => s + 1);
       return;
     }
@@ -506,433 +511,454 @@ export function AddUserWizard({
       )}
 
       <form onSubmit={submit} className="space-y-4">
-        {/* ── Account ── */}
-        {stepName === "Account" && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                id="firstName"
-                label={<>First Name <span className="text-danger">*</span></>}
-                error={errors.firstName?.message}
-                {...register("firstName")}
-              />
-              <Input
-                id="lastName"
-                label={<>Last Name <span className="text-danger">*</span></>}
-                error={errors.lastName?.message}
-                {...register("lastName")}
-              />
-            </div>
-            {dupWarning && (
-              <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                {dupWarning}
-              </p>
-            )}
-            <Field label="User type">
-              <select {...register("role")} className={selectCls} disabled={step > 0}>
-                <option value="STUDENT">Student</option>
-                <option value="TEACHER">Teacher</option>
-                <option value="PARENT">Parent</option>
-                <option value="ADMIN">Admin</option>
-                <option value="LIBRARIAN">Librarian</option>
-              </select>
-            </Field>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Input
-                      id="email"
-                      label={
-                        role === "PARENT" ? (
-                          "Email (optional)"
-                        ) : role === "STUDENT" ? (
-                          "Email"
-                        ) : (
-                          <>Email <span className="text-danger">*</span></>
-                        )
-                      }
-                      type="email"
-                      placeholder="name@markova.edu"
-                      error={errors.email?.message}
-                      {...register("email")}
-                    />
-                  </div>
-                  <Button type="button" variant="outline" size="sm" className="mb-0.5" onClick={handleSuggestEmail} disabled={checkingEmail}>
-                    {checkingEmail ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-                    <span className="ml-1">Suggest</span>
-                  </Button>
-                </div>
-                <p className="mt-1 text-xs text-muted">School style: k.ineza@markova.edu, checked for availability</p>
-              </div>
-              <Input
-                id="phone"
-                label={role === "PARENT" ? <>Phone <span className="text-danger">*</span></> : "Phone"}
-                placeholder="+2507XXXXXXXX"
-                error={errors.phone?.message}
-                {...register("phone")}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Input
-                      id="password"
-                      label={<>Password <span className="text-danger">*</span></>}
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Min 8 characters"
-                      error={errors.password?.message}
-                      {...register("password")}
-                    />
-                  </div>
-                  <Button type="button" variant="outline" size="sm" className="mb-0.5" onClick={handleGeneratePassword}>
-                    Generate
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" className="mb-0.5" onClick={copyPassword} aria-label="Copy password">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="mt-1 text-xs text-muted">
-                  They will be asked to change it on first login
-                </p>
-              </div>
-              <Field label="Photo (optional)" hint="Shown on the profile and the ID card">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-border bg-accent-light/50">
-                    {photoPreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photoPreview}
-                        alt="Selected photo"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon className="h-7 w-7 text-muted" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <input
-                      type="file"
-                      // The API stores jpeg/png/gif/webp only. `image/*` also
-                      // offers HEIC and SVG, which were accepted here and then
-                      // refused by the server after the account was made.
-                      accept="image/jpeg,image/png,image/gif,image/webp"
-                      aria-label="Photo"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        if (file && file.size > MAX_PHOTO_BYTES) {
-                          toast.error("Photo must be 5MB or smaller");
-                          e.target.value = "";
-                          return;
-                        }
-                        choosePhoto(file);
-                      }}
-                      className="w-full rounded-lg border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
-                    />
-                    {photo && (
-                      <button
-                        type="button"
-                        onClick={() => choosePhoto(null)}
-                        className="mt-1.5 text-xs font-medium text-danger hover:underline"
-                      >
-                        Remove photo
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </Field>
-            </div>
-          </>
-        )}
+        {/*
+          The step that is on screen, re-mounted on every change so the
+          animation replays — and sliding in from the side it came from, so
+          Continue and Back look like the different things they are.
 
-        {/* ── Student: Academic ── */}
-        {stepName === "Academic" && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Class Level *">
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => {
-                    setSelectedLevel(e.target.value);
-                    setValue("classSectionId", "");
-                  }}
-                  className={selectCls}
-                >
-                  <option value="">Select level...</option>
-                  {classLevels?.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
+          The footer sits outside: its buttons stay put while the fields
+          move, which is what makes the movement read as the content
+          changing rather than the whole dialog lurching.
+        */}
+        <div
+          key={step}
+          className={direction === "forward" ? "motion-step-forward" : "motion-step-back"}
+        >
+          {/* ── Account ── */}
+          {stepName === "Account" && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  id="firstName"
+                  label={<>First Name <span className="text-danger">*</span></>}
+                  error={errors.firstName?.message}
+                  {...register("firstName")}
+                />
+                <Input
+                  id="lastName"
+                  label={<>Last Name <span className="text-danger">*</span></>}
+                  error={errors.lastName?.message}
+                  {...register("lastName")}
+                />
+              </div>
+              {dupWarning && (
+                <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  {dupWarning}
+                </p>
+              )}
+              <Field label="User type">
+                <select {...register("role")} className={selectCls} disabled={step > 0}>
+                  <option value="STUDENT">Student</option>
+                  <option value="TEACHER">Teacher</option>
+                  <option value="PARENT">Parent</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="LIBRARIAN">Librarian</option>
                 </select>
               </Field>
-              <div>
-                <Field label="Class *">
-                  <select {...register("classSectionId")} disabled={!selectedLevel} className={`${selectCls} disabled:bg-muted/10 disabled:text-muted`}>
-                    <option value="">{selectedLevel ? "Select class..." : "Pick a level first"}</option>
-                    {sections?.map((s: any) => (
-                      <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="email"
+                        label={
+                          role === "PARENT" ? (
+                            "Email (optional)"
+                          ) : role === "STUDENT" ? (
+                            "Email"
+                          ) : (
+                            <>Email <span className="text-danger">*</span></>
+                          )
+                        }
+                        type="email"
+                        placeholder="name@markova.edu"
+                        error={errors.email?.message}
+                        {...register("email")}
+                      />
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="mb-0.5" onClick={handleSuggestEmail} disabled={checkingEmail}>
+                      {checkingEmail ? <Spinner className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                      <span className="ml-1">Suggest</span>
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">School style: k.ineza@markova.edu, checked for availability</p>
+                </div>
+                <Input
+                  id="phone"
+                  label={role === "PARENT" ? <>Phone <span className="text-danger">*</span></> : "Phone"}
+                  placeholder="+2507XXXXXXXX"
+                  error={errors.phone?.message}
+                  {...register("phone")}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id="password"
+                        label={<>Password <span className="text-danger">*</span></>}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Min 8 characters"
+                        error={errors.password?.message}
+                        {...register("password")}
+                      />
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="mb-0.5" onClick={handleGeneratePassword}>
+                      Generate
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="mb-0.5" onClick={copyPassword} aria-label="Copy password">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    They will be asked to change it on first login
+                  </p>
+                </div>
+                <Field label="Photo (optional)" hint="Shown on the profile and the ID card">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-border bg-accent-light/50">
+                      {photoPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={photoPreview}
+                          alt="Selected photo"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="h-7 w-7 text-muted" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <input
+                        type="file"
+                        // The API stores jpeg/png/gif/webp only. `image/*` also
+                        // offers HEIC and SVG, which were accepted here and then
+                        // refused by the server after the account was made.
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        aria-label="Photo"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          if (file && file.size > MAX_PHOTO_BYTES) {
+                            toast.error("Photo must be 5MB or smaller");
+                            e.target.value = "";
+                            return;
+                          }
+                          choosePhoto(file);
+                        }}
+                        className="w-full rounded-lg border border-border px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+                      />
+                      {photo && (
+                        <button
+                          type="button"
+                          onClick={() => choosePhoto(null)}
+                          className="mt-1.5 text-xs font-medium text-danger hover:underline"
+                        >
+                          Remove photo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </Field>
+              </div>
+            </>
+          )}
+
+          {/* ── Student: Academic ── */}
+          {stepName === "Academic" && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Class Level *">
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => {
+                      setSelectedLevel(e.target.value);
+                      setValue("classSectionId", "");
+                    }}
+                    className={selectCls}
+                  >
+                    <option value="">Select level...</option>
+                    {classLevels?.map((l: any) => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
                     ))}
                   </select>
                 </Field>
-                {errors.classSectionId && (
-                  <p className="mt-1 text-sm text-danger">{errors.classSectionId.message}</p>
-                )}
+                <div>
+                  <Field label="Class *">
+                    <select {...register("classSectionId")} disabled={!selectedLevel} className={`${selectCls} disabled:bg-muted/10 disabled:text-muted`}>
+                      <option value="">{selectedLevel ? "Select class..." : "Pick a level first"}</option>
+                      {sections?.map((s: any) => (
+                        <option key={s.id} value={s.id}>{[s.trade?.code, s.name].filter(Boolean).join(" ")}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  {errors.classSectionId && (
+                    <p className="mt-1 text-sm text-danger">{errors.classSectionId.message}</p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Gender">
-                <select {...register("gender")} className={selectCls}>
-                  <option value="">Select...</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </select>
-              </Field>
-              <div>
-                <Input id="dateOfBirth" label="Date of Birth" type="date" {...register("dateOfBirth")} />
-                {studentAge !== null && (studentAge < 10 || studentAge > 25) && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-warning">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    {studentAge} years old is unusual for secondary school; double-check the date
-                  </p>
-                )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Gender">
+                  <select {...register("gender")} className={selectCls}>
+                    <option value="">Select...</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                  </select>
+                </Field>
+                <div>
+                  <Input id="dateOfBirth" label="Date of Birth" type="date" {...register("dateOfBirth")} />
+                  {studentAge !== null && (studentAge < 10 || studentAge > 25) && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-warning">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {studentAge} years old is unusual for secondary school; double-check the date
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  id="enrollmentDate"
+                  label="Enrollment Date"
+                  type="date"
+                  {...register("enrollmentDate")}
+                />
+                <Field label="Boarding">
+                  <select {...register("boarding")} className={selectCls}>
+                    <option value="DAY">Day student</option>
+                    <option value="BOARDER">Boarder</option>
+                  </select>
+                </Field>
+              </div>
               <Input
-                id="enrollmentDate"
-                label="Enrollment Date"
-                type="date"
-                {...register("enrollmentDate")}
+                id="previousSchool"
+                label="Previous School"
+                placeholder="For transfers, e.g. GS Kacyiru"
+                {...register("previousSchool")}
               />
-              <Field label="Boarding">
-                <select {...register("boarding")} className={selectCls}>
-                  <option value="DAY">Day student</option>
-                  <option value="BOARDER">Boarder</option>
-                </select>
-              </Field>
-            </div>
-            <Input
-              id="previousSchool"
-              label="Previous School"
-              placeholder="For transfers, e.g. GS Kacyiru"
-              {...register("previousSchool")}
-            />
-          </>
-        )}
+            </>
+          )}
 
-        {/* ── Student: Identity & residence ── */}
-        {stepName === "Identity & residence" && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* ── Student: Identity & residence ── */}
+          {stepName === "Identity & residence" && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <NationalIdInput
+                  value={nationalId}
+                  onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
+                  onBlur={() => trigger("nationalId")}
+                  error={errors.nationalId?.message ?? validateNid(nationalId, (gender || "") as any, dateOfBirth || undefined)}
+                  label="National ID (optional)"
+                />
+                <Input id="nationality" label="Nationality" {...register("nationality")} />
+              </div>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                <Input id="province" label="Province" placeholder="Kigali City" {...register("province")} />
+                <Input id="district" label="District" placeholder="Gasabo" {...register("district")} />
+                <Input id="sector" label="Sector" placeholder="Kacyiru" {...register("sector")} />
+                <Input id="cell" label="Cell" {...register("cell")} />
+                <Input id="village" label="Village" {...register("village")} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Disability / special needs">
+                  <select {...register("disability")} className={selectCls}>
+                    <option value="">None</option>
+                    <option value="Visual impairment">Visual impairment</option>
+                    <option value="Hearing impairment">Hearing impairment</option>
+                    <option value="Physical disability">Physical disability</option>
+                    <option value="Learning difficulty">Learning difficulty</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </Field>
+                <Input id="religion" label="Religion" placeholder="Optional" {...register("religion")} />
+                <Input
+                  id="insuranceNumber"
+                  label="Insurance (Mutuelle) No"
+                  placeholder="Optional"
+                  {...register("insuranceNumber")}
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── Student: Family & health ── */}
+          {stepName === "Family & health" && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input id="fatherName" label="Father's Names" placeholder="As on records" {...register("fatherName")} />
+                <Input id="motherName" label="Mother's Names" placeholder="As on records" {...register("motherName")} />
+              </div>
+              <p className="text-xs text-muted">
+                Parent login accounts are created separately under the Parent type and linked to this student there.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Blood Type">
+                  <select {...register("bloodType")} className={selectCls}>
+                    <option value="">Unknown</option>
+                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Input id="allergies" label="Allergies" placeholder="e.g. penicillin" {...register("allergies")} />
+                <Input
+                  id="medicalConditions"
+                  label="Medical Conditions"
+                  placeholder="e.g. asthma"
+                  {...register("medicalConditions")}
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── Teacher: Employment ── */}
+          {stepName === "Employment" && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Employment Status">
+                  <select {...register("employmentStatus")} className={selectCls}>
+                    <option value="FULL_TIME">Full Time</option>
+                    <option value="PART_TIME">Part Time</option>
+                    <option value="CONTRACT">Contract</option>
+                  </select>
+                </Field>
+                <Field label="Qualification">
+                  <select {...register("qualification")} className={selectCls}>
+                    <option value="">Select...</option>
+                    <option value="A0">A0 — Bachelor&apos;s degree</option>
+                    <option value="A1">A1 — Diploma</option>
+                    <option value="A2">A2 — Secondary certificate</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input id="hireDate" label="Hire Date" type="date" {...register("hireDate")} />
+                <Input id="rssbNumber" label="RSSB Number" placeholder="Optional" {...register("rssbNumber")} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Gender">
+                  <select {...register("gender")} className={selectCls}>
+                    <option value="">Select...</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                  </select>
+                </Field>
+                <Input id="dateOfBirth" label="Date of Birth" type="date" {...register("dateOfBirth")} />
+              </div>
               <NationalIdInput
                 value={nationalId}
                 onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
                 onBlur={() => trigger("nationalId")}
-                error={errors.nationalId?.message ?? validateNid(nationalId, (gender || "") as any, dateOfBirth || undefined)}
+                error={
+                  errors.nationalId?.message ??
+                  validateNid(
+                    nationalId,
+                    (gender || "") as "MALE" | "FEMALE" | "",
+                    dateOfBirth || undefined,
+                  )
+                }
                 label="National ID (optional)"
               />
-              <Input id="nationality" label="Nationality" {...register("nationality")} />
-            </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              <Input id="province" label="Province" placeholder="Kigali City" {...register("province")} />
-              <Input id="district" label="District" placeholder="Gasabo" {...register("district")} />
-              <Input id="sector" label="Sector" placeholder="Kacyiru" {...register("sector")} />
-              <Input id="cell" label="Cell" {...register("cell")} />
-              <Input id="village" label="Village" {...register("village")} />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Disability / special needs">
-                <select {...register("disability")} className={selectCls}>
-                  <option value="">None</option>
-                  <option value="Visual impairment">Visual impairment</option>
-                  <option value="Hearing impairment">Hearing impairment</option>
-                  <option value="Physical disability">Physical disability</option>
-                  <option value="Learning difficulty">Learning difficulty</option>
-                  <option value="Other">Other</option>
-                </select>
-              </Field>
-              <Input id="religion" label="Religion" placeholder="Optional" {...register("religion")} />
-              <Input
-                id="insuranceNumber"
-                label="Insurance (Mutuelle) No"
-                placeholder="Optional"
-                {...register("insuranceNumber")}
-              />
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {/* ── Student: Family & health ── */}
-        {stepName === "Family & health" && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input id="fatherName" label="Father's Names" placeholder="As on records" {...register("fatherName")} />
-              <Input id="motherName" label="Mother's Names" placeholder="As on records" {...register("motherName")} />
-            </div>
-            <p className="text-xs text-muted">
-              Parent login accounts are created separately under the Parent type and linked to this student there.
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Blood Type">
-                <select {...register("bloodType")} className={selectCls}>
-                  <option value="">Unknown</option>
-                  {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
+          {/* ── Parent: Children ── */}
+          {stepName === "Children" && (
+            <>
+              <Field label="Find their children *" hint="Search by name or student code, then add each child">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    value={childQuery}
+                    onChange={(e) => setChildQuery(e.target.value)}
+                    placeholder="e.g. Keza or STD-2026-0042"
+                    className="w-full rounded-lg border border-border bg-surface py-2.5 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
               </Field>
-              <Input id="allergies" label="Allergies" placeholder="e.g. penicillin" {...register("allergies")} />
-              <Input
-                id="medicalConditions"
-                label="Medical Conditions"
-                placeholder="e.g. asthma"
-                {...register("medicalConditions")}
-              />
-            </div>
-          </>
-        )}
-
-        {/* ── Teacher: Employment ── */}
-        {stepName === "Employment" && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Employment Status">
-                <select {...register("employmentStatus")} className={selectCls}>
-                  <option value="FULL_TIME">Full Time</option>
-                  <option value="PART_TIME">Part Time</option>
-                  <option value="CONTRACT">Contract</option>
-                </select>
-              </Field>
-              <Field label="Qualification">
-                <select {...register("qualification")} className={selectCls}>
-                  <option value="">Select...</option>
-                  <option value="A0">A0 — Bachelor&apos;s degree</option>
-                  <option value="A1">A1 — Diploma</option>
-                  <option value="A2">A2 — Secondary certificate</option>
-                </select>
-              </Field>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input id="hireDate" label="Hire Date" type="date" {...register("hireDate")} />
-              <Input id="rssbNumber" label="RSSB Number" placeholder="Optional" {...register("rssbNumber")} />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Gender">
-                <select {...register("gender")} className={selectCls}>
-                  <option value="">Select...</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                </select>
-              </Field>
-              <Input id="dateOfBirth" label="Date of Birth" type="date" {...register("dateOfBirth")} />
-            </div>
-            <NationalIdInput
-              value={nationalId}
-              onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
-              onBlur={() => trigger("nationalId")}
-              error={
-                errors.nationalId?.message ??
-                validateNid(
-                  nationalId,
-                  (gender || "") as "MALE" | "FEMALE" | "",
-                  dateOfBirth || undefined,
-                )
-              }
-              label="National ID (optional)"
-            />
-          </>
-        )}
-
-        {/* ── Parent: Children ── */}
-        {stepName === "Children" && (
-          <>
-            <Field label="Find their children *" hint="Search by name or student code, then add each child">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                <input
-                  value={childQuery}
-                  onChange={(e) => setChildQuery(e.target.value)}
-                  placeholder="e.g. Keza or STD-2026-0042"
-                  className="w-full rounded-lg border border-border bg-surface py-2.5 pl-10 pr-4 text-sm placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
-            </Field>
-            {childResults.length > 0 && (
-              <div className="max-h-44 overflow-y-auto rounded-lg border border-border">
-                {childResults.map((u: any) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => addChild(u)}
-                    className="flex w-full items-baseline justify-between px-3 py-2 text-left text-sm hover:bg-accent-light"
-                  >
-                    <span className="font-medium">{u.firstName} {u.lastName}</span>
-                    <span className="text-xs text-muted">
-                      {u.student?.studentIdNumber} · {[u.student?.classSection?.classLevel?.name, u.student?.classSection?.trade?.code, u.student?.classSection?.name].filter(Boolean).join(" ")}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {children.length > 0 && (
-              <ul className="space-y-2">
-                {children.map((c) => (
-                  <li key={c.studentId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{c.name}</p>
-                      <p className="text-xs text-muted">{c.code} · {c.className}</p>
-                    </div>
-                    <select
-                      value={c.relationship}
-                      onChange={(e) =>
-                        setChildren((list) =>
-                          list.map((x) =>
-                            x.studentId === c.studentId ? { ...x, relationship: e.target.value } : x,
-                          ),
-                        )
-                      }
-                      className="rounded-lg border border-border px-2 py-1.5 text-sm"
-                    >
-                      <option value="Father">Father</option>
-                      <option value="Mother">Mother</option>
-                      <option value="Guardian">Guardian</option>
-                    </select>
+              {childResults.length > 0 && (
+                <div className="max-h-44 overflow-y-auto rounded-lg border border-border">
+                  {childResults.map((u: any) => (
                     <button
+                      key={u.id}
                       type="button"
-                      onClick={() => setChildren((list) => list.filter((x) => x.studentId !== c.studentId))}
-                      aria-label={`Remove ${c.name}`}
-                      className="rounded p-1 text-muted hover:bg-accent-light hover:text-danger"
+                      onClick={() => addChild(u)}
+                      className="flex w-full items-baseline justify-between px-3 py-2 text-left text-sm hover:bg-accent-light"
                     >
-                      <X className="h-4 w-4" />
+                      <span className="font-medium">{u.firstName} {u.lastName}</span>
+                      <span className="text-xs text-muted">
+                        {u.student?.studentIdNumber} · {[u.student?.classSection?.classLevel?.name, u.student?.classSection?.trade?.code, u.student?.classSection?.name].filter(Boolean).join(" ")}
+                      </span>
                     </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {childrenError && <p className="text-sm text-danger">{childrenError}</p>}
-            <NationalIdInput
-              value={nationalId}
-              onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
-              onBlur={() => trigger("nationalId")}
-              error={
-                errors.nationalId?.message ??
-                validateNid(
-                  nationalId,
-                  (gender || "") as "MALE" | "FEMALE" | "",
-                  dateOfBirth || undefined,
-                )
-              }
-              label="National ID (optional)"
-            />
-          </>
-        )}
+                  ))}
+                </div>
+              )}
+              {children.length > 0 && (
+                <ul className="space-y-2">
+                  {children.map((c) => (
+                    <li key={c.studentId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{c.name}</p>
+                        <p className="text-xs text-muted">{c.code} · {c.className}</p>
+                      </div>
+                      <select
+                        value={c.relationship}
+                        onChange={(e) =>
+                          setChildren((list) =>
+                            list.map((x) =>
+                              x.studentId === c.studentId ? { ...x, relationship: e.target.value } : x,
+                            ),
+                          )
+                        }
+                        className="rounded-lg border border-border px-2 py-1.5 text-sm"
+                      >
+                        <option value="Father">Father</option>
+                        <option value="Mother">Mother</option>
+                        <option value="Guardian">Guardian</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setChildren((list) => list.filter((x) => x.studentId !== c.studentId))}
+                        aria-label={`Remove ${c.name}`}
+                        className="rounded p-1 text-muted hover:bg-accent-light hover:text-danger"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {childrenError && <p className="text-sm text-danger">{childrenError}</p>}
+              <NationalIdInput
+                value={nationalId}
+                onChange={(d) => setValue("nationalId", d, { shouldValidate: false })}
+                onBlur={() => trigger("nationalId")}
+                error={
+                  errors.nationalId?.message ??
+                  validateNid(
+                    nationalId,
+                    (gender || "") as "MALE" | "FEMALE" | "",
+                    dateOfBirth || undefined,
+                  )
+                }
+                label="National ID (optional)"
+              />
+            </>
+          )}
+        </div>
 
         {/* ── Footer ── */}
         <div className="flex items-center justify-between pt-2">
           <div>
             {step > 0 && (
-              <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setDirection("back");
+                  setStep((s) => s - 1);
+                }}
+              >
                 Back
               </Button>
             )}

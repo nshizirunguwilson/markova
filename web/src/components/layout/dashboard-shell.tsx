@@ -148,7 +148,25 @@ export function DashboardShell({
       )}
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       <Topbar onToggleSidebar={toggleSidebar} />
-      <main id="main-content" className="ml-0 md:ml-60 mt-16 p-6">{children}</main>
+      {/*
+        Keyed on the path so each page fades in as it arrives.
+
+        Opacity only, and only 150ms: the content is in the document from the
+        first frame, so nothing is delayed and nothing moves — a reader's eye
+        does not have to track anything. That is the difference between this
+        and a sliding route transition, which does make an app people use all
+        day feel slower.
+
+        It also softens the moment a page swaps its spinner for data, which is
+        the most-seen transition in the whole app and was a hard cut.
+      */}
+      <main
+        key={pathname}
+        id="main-content"
+        className="motion-fade-in ml-0 md:ml-60 mt-16 p-6"
+      >
+        {children}
+      </main>
     </div>
   );
 }

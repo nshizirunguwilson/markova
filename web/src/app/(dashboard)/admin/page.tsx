@@ -288,7 +288,7 @@ export default function AdminDashboard() {
             </div>
             <div className="h-2 rounded-full bg-surface-muted">
               <div
-                className="h-2 rounded-full bg-cyan-500 transition-all"
+                className="h-2 rounded-full bg-cyan-500 motion-bar"
                 style={{ width: `${attendanceRate}%` }}
               />
             </div>

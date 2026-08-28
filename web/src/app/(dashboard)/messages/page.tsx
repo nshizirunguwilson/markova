@@ -91,10 +91,33 @@ export default function MessagesPage() {
   // The endpoint returns newest first; a thread is read oldest first. Grouped
   // here rather than in the markup so the rules can be checked on their own —
   // see lib/messaging-view.ts.
+  /**
+   * The id of the newest message the last render knew about.
+   *
+   * Only a message that arrives while you are looking at the thread rises in.
+   * Animating every group on open would be a staggered list entrance — a
+   * hundred bubbles fading up on a thread you scrolled back through, which
+   * delays reading and reads as the page loading twice.
+   */
+  const newestSeen = useRef<string | null>(null);
+
   const threadBlocks = useMemo(
     () => groupThread(messages ? [...messages].reverse() : [], user?.id),
     [messages, user?.id],
   );
+
+  // The endpoint answers newest first, so the newest is the first row.
+  const newestMessageId: string | null = messages?.[0]?.id ?? null;
+
+  useEffect(() => {
+    newestSeen.current = newestMessageId;
+  }, [newestMessageId]);
+
+  // Opening another thread is not an arrival: everything in it is new to the
+  // reader, and animating all of it would be a staggered entrance.
+  useEffect(() => {
+    newestSeen.current = null;
+  }, [selectedConv]);
 
   // Get typing users for current conversation
   const typingMap = selectedConv ? chatStore.getTypingUsers(selectedConv) : new Map();
@@ -461,11 +484,17 @@ export default function MessagesPage() {
                     const last = group.messages[group.messages.length - 1];
                     const named =
                       !group.mine && selectedConversation.type !== "ONE_ON_ONE";
+                    const isNewArrival =
+                      last.id === newestMessageId &&
+                      newestSeen.current !== null &&
+                      newestSeen.current !== newestMessageId;
 
                     return (
                       <div
                         key={group.key}
                         className={`mb-3 flex flex-col gap-0.5 ${
+                          isNewArrival ? "motion-rise-in " : ""
+                        }${
                           group.mine ? "items-end" : "items-start"
                         }`}
                       >
