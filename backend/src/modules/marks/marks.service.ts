@@ -649,10 +649,7 @@ export class MarksService {
         );
         const conductTotal = termConducts.reduce((sum, m) => sum + m, 0);
         const conductOutOf = terms.length * startingPoints;
-        const disciplineAverage = conductPercentage(
-          conductTotal,
-          conductOutOf,
-        );
+        const disciplineAverage = conductPercentage(conductTotal, conductOutOf);
 
         const letterGrade =
           yearlyAverage !== null ? overallGrade(yearlyAverage).letter : null;

@@ -272,9 +272,7 @@ export class MessagingController {
     // kind, the file goes back off disk before anything can point at it.
     if (file.size > maxBytesFor(file.mimetype)) {
       removeStoredFile(file.path, fsModule, (p) => p);
-      throw new BadRequestException(
-        tooLargeMessage(file.mimetype, file.size),
-      );
+      throw new BadRequestException(tooLargeMessage(file.mimetype, file.size));
     }
 
     // And it has to be what it said it was. The declared type decided the

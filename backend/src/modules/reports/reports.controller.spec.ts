@@ -223,7 +223,9 @@ describe('ReportsController', () => {
         r,
       );
       const disposition = r.set.mock.calls[0][0]['Content-Disposition'];
-      expect(disposition).toBe('attachment; filename="Transcript - Ni Mukiza.pdf"');
+      expect(disposition).toBe(
+        'attachment; filename="Transcript - Ni Mukiza.pdf"',
+      );
     });
 
     it('checks whose student before writing a byte of the PDF', async () => {

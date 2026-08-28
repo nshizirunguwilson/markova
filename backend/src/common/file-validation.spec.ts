@@ -344,13 +344,15 @@ describe('file validation', () => {
       expect(attachmentMatchesType(Buffer.from('Muraho'), 'text/plain')).toBe(
         true,
       );
-      expect(attachmentMatchesType(Buffer.from('a,b,c'), 'text/csv')).toBe(true);
+      expect(attachmentMatchesType(Buffer.from('a,b,c'), 'text/csv')).toBe(
+        true,
+      );
     });
 
     it('refuses a file too short to carry its own marker', () => {
-      expect(attachmentMatchesType(Buffer.from([0x25]), 'application/pdf')).toBe(
-        false,
-      );
+      expect(
+        attachmentMatchesType(Buffer.from([0x25]), 'application/pdf'),
+      ).toBe(false);
     });
   });
 
@@ -406,7 +408,9 @@ describe('file validation', () => {
     // Only the parameters come off; the type itself is still matched exactly.
     it('does not let an unaccepted type through on its parameters', () => {
       expect(isAllowedAttachmentMime('text/html;charset=utf-8')).toBe(false);
-      expect(isAllowedAttachmentMime('image/svg+xml;charset=utf-8')).toBe(false);
+      expect(isAllowedAttachmentMime('image/svg+xml;charset=utf-8')).toBe(
+        false,
+      );
     });
 
     it('applies to images too', () => {

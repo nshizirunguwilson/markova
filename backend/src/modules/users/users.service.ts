@@ -354,7 +354,9 @@ export class UsersService {
    * foreign key to a table that already has rows.
    */
   private async withNamedRoleSections<
-    T extends { teacher?: { roles?: { classSectionId: string | null }[] } | null },
+    T extends {
+      teacher?: { roles?: { classSectionId: string | null }[] } | null;
+    },
   >(user: T): Promise<T> {
     const ids = (user.teacher?.roles ?? [])
       .map((r) => r.classSectionId)
@@ -381,7 +383,7 @@ export class UsersService {
             : null,
         })),
       },
-    } as T;
+    };
   }
 
   // ─── CREATE USER ────────────────────────────────────────────────────────────

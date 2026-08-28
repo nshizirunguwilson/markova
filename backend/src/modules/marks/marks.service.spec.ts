@@ -628,7 +628,7 @@ describe('MarksService', () => {
     });
 
     // Merits put points back, capped at a clean sheet.
-    it('lets merits earned in a term restore that term\'s mark', async () => {
+    it("lets merits earned in a term restore that term's mark", async () => {
       prisma.termResult.findMany.mockResolvedValue([{ average: 80 }]);
       prisma.disciplineIncident.aggregate.mockResolvedValue({
         _sum: { pointsDeducted: 8 },

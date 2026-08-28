@@ -142,13 +142,18 @@ describe('SchoolConfigController', () => {
       ['the logo', 'uploadLogo'],
       ['the stamp', 'uploadStamp'],
       ['the signature', 'uploadSignature'],
-    ])('says %s arrived with no file rather than crashing', async (_n, method) => {
-      const ctl: any = await buildController(SchoolConfigController, [
-        { token: SchoolConfigService, name: 'service', mock: service },
-      ]);
-      await expect(ctl[method](undefined)).rejects.toThrow(BadRequestException);
-      expect(service.updateBrandingFile).not.toHaveBeenCalled();
-    });
+    ])(
+      'says %s arrived with no file rather than crashing',
+      async (_n, method) => {
+        const ctl: any = await buildController(SchoolConfigController, [
+          { token: SchoolConfigService, name: 'service', mock: service },
+        ]);
+        await expect(ctl[method](undefined)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(service.updateBrandingFile).not.toHaveBeenCalled();
+      },
+    );
   });
 });
 

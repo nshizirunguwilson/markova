@@ -16,7 +16,11 @@ describe('promotion', () => {
 
   // The six levels are ordered Senior 1-3 then Level 3-5, so `order` is what
   // decides whether a move is a promotion at all.
-  const level = (name: string, order: number) => ({ id: `lvl-${order}`, name, order });
+  const level = (name: string, order: number) => ({
+    id: `lvl-${order}`,
+    name,
+    order,
+  });
   const SENIOR_1 = level('Senior 1', 1);
   const SENIOR_2 = level('Senior 2', 2);
   const SENIOR_3 = level('Senior 3', 3);

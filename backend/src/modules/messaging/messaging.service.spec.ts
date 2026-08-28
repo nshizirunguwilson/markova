@@ -736,7 +736,14 @@ describe('MessagingService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT' });
       await service.getContacts('user-1');
       const staff = askedFor().AND[0].role.in;
-      for (const role of ['ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE']) {
+      for (const role of [
+        'ADMIN',
+        'TEACHER',
+        'LIBRARIAN',
+        'PATRON',
+        'MATRON',
+        'NURSE',
+      ]) {
         expect(staff).toContain(role);
       }
     });
@@ -906,7 +913,9 @@ describe('MessagingService', () => {
         service.getConversationPartnerIds('user-1'),
       ).resolves.toEqual(['user-2', 'user-3']);
 
-      expect(mockPrisma.conversationParticipant.findMany).toHaveBeenLastCalledWith(
+      expect(
+        mockPrisma.conversationParticipant.findMany,
+      ).toHaveBeenLastCalledWith(
         expect.objectContaining({
           where: { conversationId: { in: ['c-1'] }, userId: { not: 'user-1' } },
           distinct: ['userId'],
@@ -916,11 +925,13 @@ describe('MessagingService', () => {
 
     it('finds nobody for a person in no conversation at all', async () => {
       mockPrisma.conversationParticipant.findMany.mockResolvedValue([]);
-      await expect(service.getConversationPartnerIds('user-1')).resolves.toEqual(
-        [],
-      );
+      await expect(
+        service.getConversationPartnerIds('user-1'),
+      ).resolves.toEqual([]);
       // The second query is skipped rather than run with an empty `in`.
-      expect(mockPrisma.conversationParticipant.findMany).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.conversationParticipant.findMany).toHaveBeenCalledTimes(
+        1,
+      );
     });
 
     it('lists who is in a conversation', async () => {
@@ -1055,9 +1066,9 @@ describe('MessagingService and the class group', () => {
     const data = mockPrisma.conversation.create.mock.calls[0][0].data;
     expect(data.type).toBe('GROUP');
     expect(data.classSectionId).toBe('section-1');
-    expect(data.participants.create.map((p: { userId: string }) => p.userId)).toEqual(
-      expect.arrayContaining(['u-student-1', 'u-student-2']),
-    );
+    expect(
+      data.participants.create.map((p: { userId: string }) => p.userId),
+    ).toEqual(expect.arrayContaining(['u-student-1', 'u-student-2']));
   });
 
   it('names it after the class, as the school says it', async () => {
@@ -1091,25 +1102,30 @@ describe('MessagingService and the class group', () => {
       teacher: { userId: 'u-teacher' },
     });
     await service.ensureClassGroup('section-1');
-    const members = mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
-      (p: { userId: string }) => p.userId,
-    );
+    const members =
+      mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
+        (p: { userId: string }) => p.userId,
+      );
     expect(members).toContain('u-teacher');
     expect(members).not.toContain('u-admin');
   });
 
   it('falls to the administrator when the class has no teacher', async () => {
     await service.ensureClassGroup('section-1');
-    const members = mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
-      (p: { userId: string }) => p.userId,
-    );
+    const members =
+      mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
+        (p: { userId: string }) => p.userId,
+      );
     expect(members).toContain('u-admin');
   });
 
   it('asks only for students who are still in the class', async () => {
     await service.ensureClassGroup('section-1');
     expect(mockPrisma.student.findMany.mock.calls[0][0].where).toEqual(
-      expect.objectContaining({ classSectionId: 'section-1', status: 'ACTIVE' }),
+      expect.objectContaining({
+        classSectionId: 'section-1',
+        status: 'ACTIVE',
+      }),
     );
   });
 
@@ -1128,8 +1144,12 @@ describe('MessagingService and the class group', () => {
 
     expect(id).toBe('conv-1');
     expect(mockPrisma.conversation.create).not.toHaveBeenCalled();
-    expect(mockPrisma.conversationParticipant.createMany).not.toHaveBeenCalled();
-    expect(mockPrisma.conversationParticipant.deleteMany).not.toHaveBeenCalled();
+    expect(
+      mockPrisma.conversationParticipant.createMany,
+    ).not.toHaveBeenCalled();
+    expect(
+      mockPrisma.conversationParticipant.deleteMany,
+    ).not.toHaveBeenCalled();
   });
 
   it('adds a student who has since joined the class', async () => {
@@ -1249,7 +1269,10 @@ describe('MessagingService listing a class group into existence', () => {
       role: 'TEACHER',
       student: null,
       teacher: {
-        roles: [{ classSectionId: 'section-1' }, { classSectionId: 'section-2' }],
+        roles: [
+          { classSectionId: 'section-1' },
+          { classSectionId: 'section-2' },
+        ],
       },
     });
 
@@ -1264,7 +1287,10 @@ describe('MessagingService listing a class group into existence', () => {
       role: 'TEACHER',
       student: null,
       teacher: {
-        roles: [{ classSectionId: 'section-1' }, { classSectionId: 'section-1' }],
+        roles: [
+          { classSectionId: 'section-1' },
+          { classSectionId: 'section-1' },
+        ],
       },
     });
 
@@ -1346,15 +1372,17 @@ describe('MessagingService replying to a message', () => {
   it('stores which message a reply answers', async () => {
     mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
 
-    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+    await service.sendMessage(send({ replyToId: 'm-1' }), 'u-1');
 
-    expect(mockPrisma.message.create.mock.calls[0][0].data.replyToId).toBe('m-1');
+    expect(mockPrisma.message.create.mock.calls[0][0].data.replyToId).toBe(
+      'm-1',
+    );
   });
 
   it('looks for the original inside this conversation only', async () => {
     mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
 
-    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+    await service.sendMessage(send({ replyToId: 'm-1' }), 'u-1');
 
     expect(mockPrisma.message.findFirst.mock.calls[0][0].where).toEqual({
       id: 'm-1',
@@ -1373,16 +1401,18 @@ describe('MessagingService replying to a message', () => {
   });
 
   it('leaves an ordinary message alone', async () => {
-    await service.sendMessage(send() as never, 'u-1');
+    await service.sendMessage(send(), 'u-1');
 
     expect(mockPrisma.message.findFirst).not.toHaveBeenCalled();
-    expect(mockPrisma.message.create.mock.calls[0][0].data.replyToId).toBeUndefined();
+    expect(
+      mockPrisma.message.create.mock.calls[0][0].data.replyToId,
+    ).toBeUndefined();
   });
 
   it('sends back what the quote needs to draw', async () => {
     mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
 
-    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+    await service.sendMessage(send({ replyToId: 'm-1' }), 'u-1');
 
     const included = mockPrisma.message.create.mock.calls[0][0].include;
     expect(included.replyTo.select).toEqual(

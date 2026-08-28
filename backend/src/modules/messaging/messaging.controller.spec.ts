@@ -40,10 +40,7 @@ describe('MessagingController', () => {
     'removeParticipant',
     'renameConversation',
   ]);
-  const gateway = mockService([
-    'broadcastNewMessage',
-    'markDeliveredIfOnline',
-  ]);
+  const gateway = mockService(['broadcastNewMessage', 'markDeliveredIfOnline']);
 
   let run: (c: RouteCase) => Promise<void>;
 
@@ -243,7 +240,12 @@ describe('MessagingController', () => {
       was.
     */
     const written: string[] = [];
-    const writeUpload = (name: string, bytes: number[], type: string, size?: number) => {
+    const writeUpload = (
+      name: string,
+      bytes: number[],
+      type: string,
+      size?: number,
+    ) => {
       const path = join(tmpdir(), `markova-test-${Date.now()}-${name}`);
       writeFileSync(path, Buffer.from(bytes));
       written.push(path);

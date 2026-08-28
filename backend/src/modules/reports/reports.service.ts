@@ -522,9 +522,15 @@ export class ReportsService implements OnModuleDestroy {
           quoting the reference above.</p>`;
         return {
           title: `Transfer Letter - ${student.user.firstName} ${student.user.lastName}`,
-          html: this.renderLetterHtml(school, student, 'Transfer Letter', body, {
-            addressee: ['THE HEAD TEACHER', 'RECEIVING INSTITUTION'],
-          }),
+          html: this.renderLetterHtml(
+            school,
+            student,
+            'Transfer Letter',
+            body,
+            {
+              addressee: ['THE HEAD TEACHER', 'RECEIVING INSTITUTION'],
+            },
+          ),
         };
       }
       case 'enrollment_confirmation': {
@@ -1948,11 +1954,14 @@ export class ReportsService implements OnModuleDestroy {
         ? `a ${String(student.gender).toLowerCase()} student `
         : '';
       parts.push(
-        `${article}born ${new Date(student.dateOfBirth).toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })}`,
+        `${article}born ${new Date(student.dateOfBirth).toLocaleDateString(
+          'en-GB',
+          {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          },
+        )}`,
       );
     } else if (student.gender) {
       parts.push(`a ${String(student.gender).toLowerCase()} student`);

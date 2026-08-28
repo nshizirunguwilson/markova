@@ -158,7 +158,10 @@ describe('a duplicate value that reached the filter', () => {
   };
 
   it('answers 409 rather than 500', () => {
-    const { status, body } = run({ code: 'P2002', meta: { target: ['email'] } });
+    const { status, body } = run({
+      code: 'P2002',
+      meta: { target: ['email'] },
+    });
     expect(status).toHaveBeenCalledWith(409);
     expect(body.error).toBe('Conflict');
   });
@@ -198,7 +201,9 @@ describe('a duplicate value that reached the filter', () => {
   // naming the holder is not replaced by the generic one.
   it('lets a service’s own conflict message through untouched', () => {
     const { body } = run(
-      new ConflictException('Email address a@b.c already belongs to Aline Uwase'),
+      new ConflictException(
+        'Email address a@b.c already belongs to Aline Uwase',
+      ),
     );
     expect(body.message).toMatch(/already belongs to Aline Uwase/);
   });

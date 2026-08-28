@@ -259,40 +259,39 @@ export function removeStoredFile(
  * `at` is where the marker sits: MP4 and QuickTime carry a four-byte length
  * first and only then `ftyp`, which is why they are checked at offset 4.
  */
-const ATTACHMENT_SIGNATURES: Record<
-  string,
-  { at: number; bytes: number[] }[]
-> = {
-  'application/pdf': [{ at: 0, bytes: [0x25, 0x50, 0x44, 0x46] }], // %PDF
-  // The modern Office formats are zip archives; the old ones are OLE2.
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
-    { at: 0, bytes: [0x50, 0x4b] },
-  ],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
-    { at: 0, bytes: [0x50, 0x4b] },
-  ],
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
-    { at: 0, bytes: [0x50, 0x4b] },
-  ],
-  'application/msword': [{ at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] }],
-  'application/vnd.ms-excel': [{ at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] }],
-  'application/vnd.ms-powerpoint': [{ at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] }],
-  // MP3 is either an ID3 tag or a bare frame header.
-  'audio/mpeg': [
-    { at: 0, bytes: [0x49, 0x44, 0x33] },
-    { at: 0, bytes: [0xff, 0xfb] },
-    { at: 0, bytes: [0xff, 0xf3] },
-    { at: 0, bytes: [0xff, 0xf2] },
-  ],
-  'audio/mp4': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }], // ....ftyp
-  'audio/ogg': [{ at: 0, bytes: [0x4f, 0x67, 0x67, 0x53] }], // OggS
-  'video/ogg': [{ at: 0, bytes: [0x4f, 0x67, 0x67, 0x53] }],
-  // WebM is a Matroska container, and so is the audio the browser records.
-  'audio/webm': [{ at: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }],
-  'video/webm': [{ at: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }],
-  'video/mp4': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
-  'video/quicktime': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
-};
+const ATTACHMENT_SIGNATURES: Record<string, { at: number; bytes: number[] }[]> =
+  {
+    'application/pdf': [{ at: 0, bytes: [0x25, 0x50, 0x44, 0x46] }], // %PDF
+    // The modern Office formats are zip archives; the old ones are OLE2.
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+      { at: 0, bytes: [0x50, 0x4b] },
+    ],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+      { at: 0, bytes: [0x50, 0x4b] },
+    ],
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+      [{ at: 0, bytes: [0x50, 0x4b] }],
+    'application/msword': [{ at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] }],
+    'application/vnd.ms-excel': [{ at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] }],
+    'application/vnd.ms-powerpoint': [
+      { at: 0, bytes: [0xd0, 0xcf, 0x11, 0xe0] },
+    ],
+    // MP3 is either an ID3 tag or a bare frame header.
+    'audio/mpeg': [
+      { at: 0, bytes: [0x49, 0x44, 0x33] },
+      { at: 0, bytes: [0xff, 0xfb] },
+      { at: 0, bytes: [0xff, 0xf3] },
+      { at: 0, bytes: [0xff, 0xf2] },
+    ],
+    'audio/mp4': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }], // ....ftyp
+    'audio/ogg': [{ at: 0, bytes: [0x4f, 0x67, 0x67, 0x53] }], // OggS
+    'video/ogg': [{ at: 0, bytes: [0x4f, 0x67, 0x67, 0x53] }],
+    // WebM is a Matroska container, and so is the audio the browser records.
+    'audio/webm': [{ at: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }],
+    'video/webm': [{ at: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }],
+    'video/mp4': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
+    'video/quicktime': [{ at: 4, bytes: [0x66, 0x74, 0x79, 0x70] }],
+  };
 
 /**
  * Do these bytes look like the type they claim to be?
