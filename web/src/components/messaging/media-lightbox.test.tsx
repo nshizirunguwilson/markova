@@ -52,6 +52,14 @@ describe("opening a picture large", () => {
       expect(onClose).toHaveBeenCalled();
     });
 
+    // Every other key belongs to whatever has focus.
+    it("ignores keys that are not Escape", async () => {
+      const onClose = vi.fn();
+      render(<MediaLightbox src="/uploads/a.jpg" kind="image" onClose={onClose} />);
+      await userEvent.setup().keyboard("a{ArrowLeft}x");
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
     // The gesture people try first.
     it("closes when the ground around it is clicked", async () => {
       const onClose = vi.fn();

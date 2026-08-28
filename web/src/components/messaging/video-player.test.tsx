@@ -130,3 +130,99 @@ describe("a video with controls of our own", () => {
     expect(screen.queryByRole("button", { name: /open video larger/i })).toBeNull();
   });
 });
+
+/**
+ * The controls linger while a clip is paused and get out of the way while it
+ * is running. They are never hidden on a stopped clip: there would be no way
+ * to get them back other than guessing where they were.
+ */
+describe("when the controls show themselves", () => {
+  it("keeps them up while the clip is not running", async () => {
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" />);
+    const bar = container.querySelector(".absolute.inset-x-0.bottom-0")!;
+    expect(bar.className).toContain("opacity-100");
+
+    // Moving off a paused clip must not take them away.
+    fireEvent.mouseLeave(container.firstElementChild!);
+    expect(bar.className).toContain("opacity-100");
+  });
+
+  it("lets them fade once it is playing and the pointer leaves", async () => {
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" />);
+    const video = clip();
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    act(() => {
+      video.dispatchEvent(new Event("play"));
+    });
+
+    act(() => {
+      fireEvent.mouseLeave(container.firstElementChild!);
+    });
+
+    const bar = container.querySelector(".absolute.inset-x-0.bottom-0")!;
+    expect(bar.className).toContain("opacity-0");
+  });
+
+  it("brings them back when the pointer moves over it", async () => {
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" />);
+    const video = clip();
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    act(() => {
+      video.dispatchEvent(new Event("play"));
+      fireEvent.mouseLeave(container.firstElementChild!);
+    });
+
+    act(() => {
+      fireEvent.mouseMove(container.firstElementChild!);
+    });
+
+    const bar = container.querySelector(".absolute.inset-x-0.bottom-0")!;
+    expect(bar.className).toContain("opacity-100");
+  });
+
+  // Pausing and ending both stop the clip, and both must leave the controls
+  // where somebody can reach them.
+  it.each([["pause"], ["ended"]])("shows them again on %s", (event) => {
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" />);
+    const video = clip();
+    act(() => {
+      video.dispatchEvent(new Event("play"));
+      video.dispatchEvent(new Event(event));
+    });
+
+    const bar = container.querySelector(".absolute.inset-x-0.bottom-0")!;
+    expect(bar.className).toContain("opacity-100");
+    expect(screen.getByRole("button", { name: /play video/i })).toBeInTheDocument();
+  });
+
+  // The timer fires against whatever the clip is doing then, not what it was
+  // doing when the pointer moved.
+  it("hides them a moment after the pointer stops moving", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" />);
+    const video = clip();
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    act(() => {
+      video.dispatchEvent(new Event("play"));
+      fireEvent.mouseMove(container.firstElementChild!);
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+
+    const bar = container.querySelector(".absolute.inset-x-0.bottom-0")!;
+    expect(bar.className).toContain("opacity-0");
+    vi.useRealTimers();
+  });
+});
+
+// Clicking the picture itself is how people play and pause a clip.
+describe("clicking the clip", () => {
+  it("plays it", async () => {
+    render(<VideoPlayer src="/uploads/a.mp4" />);
+    const { play } = stub(clip());
+    fireEvent.click(clip());
+    expect(play).toHaveBeenCalled();
+  });
+});

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { MessageAttachment } from "./message-attachment";
 
@@ -168,5 +169,38 @@ describe("a file inside a message", () => {
     const theirs = container.querySelector("a")!.className;
     rerender(<MessageAttachment fileUrl="/uploads/a.pdf" fileName="a.pdf" mine />);
     expect(container.querySelector("a")!.className).not.toBe(theirs);
+  });
+});
+
+/**
+ * A photograph in a conversation is something you glance at and come back
+ * from, so it opens large in place rather than in a new tab.
+ */
+describe("opening media large from a bubble", () => {
+  it("opens a photograph", async () => {
+    render(
+      <MessageAttachment
+        fileUrl="/uploads/attachments/a1.jpg"
+        fileName="sports day.jpg"
+      />,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: /open sports day/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes it again", async () => {
+    render(<MessageAttachment fileUrl="/uploads/attachments/a1.jpg" fileName="a.jpg" />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /open a\.jpg/i }));
+    await user.click(await screen.findByRole("button", { name: /close/i }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens a clip from its expand control", async () => {
+    render(<MessageAttachment fileUrl="/uploads/attachments/a1.mp4" fileName="demo.mp4" />);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /open video larger/i }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
