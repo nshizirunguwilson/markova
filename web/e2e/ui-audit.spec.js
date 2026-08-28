@@ -748,6 +748,43 @@ test('motion: everything collapses for a reader who asked for less', async (brow
   await ctx.close();
 });
 
+/**
+ * A dialog covers the whole application, not just the column it was opened
+ * from.
+ *
+ * It used to be rendered where it was written — inside `<main>` — which was
+ * fine until something above it created a stacking context. The page fade
+ * animates opacity, which creates one, and the dialog was trapped: the
+ * sidebar painted over its left edge and the backdrop dimmed only the middle
+ * of the screen. Every unit test still passed, because in jsdom nothing
+ * paints.
+ */
+test('modal: the backdrop covers the sidebar, not just the content', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, `/admin/users`);
+
+  await page.getByRole('button', { name: /bulk import/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+  await page.waitForTimeout(500);
+
+  const facts = await page.evaluate(() => {
+    const main = document.querySelector('#main-content');
+    const dialog = document.querySelector('[role="dialog"]');
+    // A point well inside the sidebar.
+    const over = document.elementFromPoint(120, 400);
+    return {
+      escapedMain: !main.contains(dialog),
+      onTopOfSidebar: (over?.className || '').includes('inset-0'),
+    };
+  });
+
+  assert(facts.escapedMain, 'the dialog is still inside <main> and can be trapped');
+  assert(facts.onTopOfSidebar, 'the sidebar paints over the backdrop');
+
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

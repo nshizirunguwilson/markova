@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -97,7 +98,12 @@ export function Modal({
     }
   }, []);
 
-  if (!isOpen) return null;
+  // Mounted before portalling: `document` does not exist while this renders
+  // on the server, and reaching for it there would take the page down.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!isOpen || !mounted) return null;
 
   // Deliberately wider than the Tailwind name suggests. A "lg" form modal at
   // max-w-lg took up a third of a laptop screen and made two-column fields
@@ -115,15 +121,33 @@ export function Modal({
     "5xl": "max-w-[88rem]",
   };
 
-  return (
+  /*
+    Rendered into <body>, not where it is written.
+
+    A dialog is visually a sibling of the whole app, and it was a descendant
+    of <main>. That worked only for as long as nothing above it created a
+    stacking context — and then something did: the page fade animates
+    opacity, which creates one. The dialog was trapped inside it, so the
+    sidebar (a sibling of <main>, at z-40) painted straight over the top of
+    it and the backdrop dimmed only the content column.
+
+    Portalling makes the dialog immune to whatever any ancestor does, which
+    is the property it needed all along rather than a fix for one animation.
+  */
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/*
         The backdrop fades and the panel rises. A dialog that simply exists on
         the next frame reads as a jump cut — the eye has to find it, because
         nothing told it where it came from.
+
+        A plain dim rather than a blur. Blurring a whole page of dense text
+        turns it into grey mush that the eye keeps trying to resolve, and it
+        costs a full-screen filter pass on every frame of the fade. Dimming
+        pushes the page back without destroying it, which is the actual job.
       */}
       <div
-        className="motion-fade-in fixed inset-0 bg-black/40 backdrop-blur-sm"
+        className="motion-fade-in fixed inset-0 bg-black/50"
         onClick={onClose}
       />
       <div
@@ -156,6 +180,7 @@ export function Modal({
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
