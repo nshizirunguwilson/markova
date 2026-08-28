@@ -210,7 +210,6 @@ describe('UsersController and the welfare staff', () => {
     'gives a %s students and nothing else',
     async (role) => {
       await controller.findAll({ role: 'TEACHER' } as never, {
-        id: 'u-1',
         role,
       });
       // The role they asked for is overwritten, not merely defaulted.
@@ -223,7 +222,7 @@ describe('UsersController and the welfare staff', () => {
   it('keeps the rest of the query they sent', async () => {
     await controller.findAll(
       { search: 'Keza', limit: 10 } as never,
-      { id: 'u-1', role: 'NURSE' },
+      { role: 'NURSE' },
     );
     expect(service.findAll).toHaveBeenCalledWith(
       expect.objectContaining({ search: 'Keza', limit: 10, role: Role.STUDENT }),
@@ -231,10 +230,7 @@ describe('UsersController and the welfare staff', () => {
   });
 
   it('leaves an administrator asking for whatever they asked for', async () => {
-    await controller.findAll({ role: 'TEACHER' } as never, {
-      id: 'u-1',
-      role: 'ADMIN',
-    });
+    await controller.findAll({ role: 'TEACHER' } as never, { role: 'ADMIN' });
     expect(service.findAll).toHaveBeenCalledWith({ role: 'TEACHER' });
   });
 });

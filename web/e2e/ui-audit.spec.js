@@ -830,6 +830,99 @@ test('messages: opening a thread lands on the last message', async (browser) => 
   await ctx.close();
 });
 
+// ── STUDENT MESSAGING ────────────────────────────────────────────────────────
+
+/**
+ * A student could only ever write to the staff.
+ *
+ * Not being able to message the person at the next desk is the complaint;
+ * being able to search fourteen hundred children by name would be a different
+ * problem. So a student reaches their own class and the staff, and these
+ * assert both halves of that line.
+ */
+test('messaging: a student can reach their classmates and the staff', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'STUDENT');
+  await visit(page, `/student/messages`);
+
+  const contacts = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/messaging/contacts`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    });
+    const body = await res.json();
+    return (body.data || []).map((c) => c.role);
+  }, API);
+
+  assert(contacts.length > 0, 'the student can reach nobody at all');
+  assert(contacts.includes('STUDENT'), 'the student cannot reach a single classmate');
+  assert(
+    contacts.some((r) => r !== 'STUDENT'),
+    'the student can no longer reach the staff',
+  );
+  assert(!contacts.includes('PARENT'), "a student can reach somebody else's parent");
+
+  await ctx.close();
+});
+
+/**
+ * The group a class already has.
+ *
+ * Nobody creates it and nobody is invited to it — it is made sure of when a
+ * student's conversations are listed, which is the moment they would notice
+ * it missing.
+ */
+test('messaging: a student has their class group without anyone making it', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'STUDENT');
+  await visit(page, `/student/messages`);
+  await page.waitForTimeout(1500);
+
+  const group = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/messaging/conversations`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    });
+    const body = await res.json();
+    const list = body.data || body;
+    const classGroup = (list || []).find((c) => c.classSectionId);
+    return classGroup
+      ? { name: classGroup.name, members: classGroup.participants.length, type: classGroup.type }
+      : null;
+  }, API);
+
+  assert(group, 'the student has no class group');
+  assert(group.type === 'GROUP', `the class chat should be a group, was ${group.type}`);
+  assert(group.name, 'the class group has no name');
+  // The class, plus the adult who answers for it.
+  assert(group.members >= 2, `the class group has only ${group.members} in it`);
+
+  await ctx.close();
+});
+
+/**
+ * The school-wide announcement tool stays where it was. A student sending to
+ * four hundred families is not a feature.
+ */
+test('messaging: a student cannot broadcast to the school', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'STUDENT');
+  await visit(page, `/student/messages`);
+
+  const status = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/messaging/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${localStorage.getItem('access_token')}`,
+      },
+      body: JSON.stringify({ audience: 'ALL_PARENTS', content: 'hello' }),
+    });
+    return res.status;
+  }, API);
+
+  assert(status === 403, `a student reached the school-wide broadcast (${status})`);
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

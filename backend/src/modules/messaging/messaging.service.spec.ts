@@ -715,22 +715,75 @@ describe('MessagingService', () => {
       expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
 
-    it.each(['STUDENT', 'PARENT'])('holds a %s to staff only', async (role) => {
-      mockPrisma.user.findUnique.mockResolvedValue({ role });
+    /** The `where` the roll was actually queried with. */
+    const askedFor = () => mockPrisma.user.findMany.mock.calls[0][0].where;
+
+    it('holds a PARENT to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT' });
       await service.getContacts('user-1');
-      expect(mockPrisma.user.findMany.mock.calls[0][0].where.role).toEqual({
-        in: ['ADMIN', 'TEACHER', 'LIBRARIAN'],
+      const clause = askedFor().AND[0];
+      expect(clause.role.in).toContain('ADMIN');
+      expect(clause.role.in).not.toContain('STUDENT');
+      expect(clause.role.in).not.toContain('PARENT');
+    });
+
+    /**
+     * The staff list used to be written out by hand, and had already gone
+     * stale twice: a student could not message the nurse or the matron
+     * because nobody revisited it when those roles were added.
+     */
+    it('counts every role that works for the school as staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT' });
+      await service.getContacts('user-1');
+      const staff = askedFor().AND[0].role.in;
+      for (const role of ['ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE']) {
+        expect(staff).toContain(role);
+      }
+    });
+
+    /**
+     * Being unable to message the person at the next desk is the complaint.
+     * Being able to search fourteen hundred children by name is a different
+     * problem, so a student reaches their own class and the staff.
+     */
+    it('lets a student reach their classmates as well as the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1');
+      const [staffOrClassmates] = askedFor().AND[0].OR;
+      expect(staffOrClassmates.role.in).toContain('TEACHER');
+      expect(askedFor().AND[0].OR[1]).toEqual({
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
       });
     });
 
-    it.each(['ADMIN', 'TEACHER', 'LIBRARIAN'])(
+    it('holds a student with no class to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: null, status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1');
+      expect(askedFor().AND[0]).not.toHaveProperty('OR');
+    });
+
+    // A student who has left keeps no reach into the class they left.
+    it('holds a student who has left to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'TRANSFERRED' },
+      });
+      await service.getContacts('user-1');
+      expect(askedFor().AND[0]).not.toHaveProperty('OR');
+    });
+
+    it.each(['ADMIN', 'TEACHER', 'LIBRARIAN', 'NURSE', 'MATRON'])(
       'lets a %s write to anybody',
       async (role) => {
         mockPrisma.user.findUnique.mockResolvedValue({ role });
         await service.getContacts('user-1');
-        expect(
-          mockPrisma.user.findMany.mock.calls[0][0].where,
-        ).not.toHaveProperty('role');
+        expect(askedFor()).not.toHaveProperty('AND');
       },
     );
 
@@ -753,11 +806,22 @@ describe('MessagingService', () => {
     it('searches the name and the address', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
       await service.getContacts('user-1', 'Aline');
-      const or = JSON.stringify(
-        mockPrisma.user.findMany.mock.calls[0][0].where.OR,
-      );
-      expect(or).toContain('firstName');
-      expect(or).toContain('email');
+      // The search is one clause among the rules, not a replacement for them:
+      // narrowing by name must never widen who is reachable.
+      const asked = JSON.stringify(askedFor().AND);
+      expect(asked).toContain('firstName');
+      expect(asked).toContain('email');
+    });
+
+    it('keeps a student inside their class while searching', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1', 'Aline');
+      const [rules, search] = askedFor().AND;
+      expect(rules).toHaveProperty('OR');
+      expect(JSON.stringify(search)).toContain('firstName');
     });
 
     it('ignores a search of nothing but spaces', async () => {
@@ -934,5 +998,309 @@ describe('MessagingService', () => {
       );
       expect(result.recipients).toBe(1);
     });
+  });
+});
+
+/**
+ * The group a class already has.
+ *
+ * Not something a teacher has to remember to create, and not something that
+ * goes stale: a student who joined the class last week belongs in it, and one
+ * who has left does not. Reconciling on read means it is right whenever
+ * somebody looks, without a nightly job for anyone to forget to run.
+ */
+describe('MessagingService and the class group', () => {
+  /** Only the models the class group touches. */
+  const build = () => ({
+    classSection: { findUnique: jest.fn() },
+    student: { findMany: jest.fn() },
+    teacherRole: { findFirst: jest.fn() },
+    user: { findFirst: jest.fn(), findUnique: jest.fn() },
+    conversation: { create: jest.fn(), update: jest.fn() },
+    conversationParticipant: {
+      findMany: jest.fn(),
+      createMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+  });
+
+  let mockPrisma: ReturnType<typeof build>;
+  let service: MessagingService;
+
+  const section = {
+    id: 'section-1',
+    name: 'A',
+    classLevel: { name: 'Senior 2' },
+    trade: null,
+    groupChat: null as { id: string; name: string } | null,
+  };
+
+  beforeEach(() => {
+    mockPrisma = build();
+    service = new MessagingService(mockPrisma as never);
+    mockPrisma.classSection.findUnique.mockResolvedValue(section);
+    mockPrisma.student.findMany.mockResolvedValue([
+      { userId: 'u-student-1' },
+      { userId: 'u-student-2' },
+    ]);
+    mockPrisma.teacherRole.findFirst.mockResolvedValue(null);
+    mockPrisma.user.findFirst.mockResolvedValue({ id: 'u-admin' });
+    mockPrisma.conversation.create.mockResolvedValue({ id: 'conv-new' });
+    mockPrisma.conversationParticipant.findMany.mockResolvedValue([]);
+  });
+
+  it('creates the group with the class in it', async () => {
+    await service.ensureClassGroup('section-1');
+
+    const data = mockPrisma.conversation.create.mock.calls[0][0].data;
+    expect(data.type).toBe('GROUP');
+    expect(data.classSectionId).toBe('section-1');
+    expect(data.participants.create.map((p: { userId: string }) => p.userId)).toEqual(
+      expect.arrayContaining(['u-student-1', 'u-student-2']),
+    );
+  });
+
+  it('names it after the class, as the school says it', async () => {
+    await service.ensureClassGroup('section-1');
+    expect(mockPrisma.conversation.create.mock.calls[0][0].data.name).toBe(
+      'Senior 2 A',
+    );
+  });
+
+  it('names a trade class by its trade', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue({
+      ...section,
+      classLevel: { name: 'Level 4' },
+      trade: { code: 'SWD' },
+      name: 'B',
+    });
+    await service.ensureClassGroup('section-1');
+    expect(mockPrisma.conversation.create.mock.calls[0][0].data.name).toBe(
+      'Level 4 SWD B',
+    );
+  });
+
+  /**
+   * A room of thirty children with an adult responsible for it. The class
+   * teacher where there is one; the administrator where there is not,
+   * because a class group with no adult in it is not a room a school would
+   * allow.
+   */
+  it('puts the class teacher in it', async () => {
+    mockPrisma.teacherRole.findFirst.mockResolvedValue({
+      teacher: { userId: 'u-teacher' },
+    });
+    await service.ensureClassGroup('section-1');
+    const members = mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
+      (p: { userId: string }) => p.userId,
+    );
+    expect(members).toContain('u-teacher');
+    expect(members).not.toContain('u-admin');
+  });
+
+  it('falls to the administrator when the class has no teacher', async () => {
+    await service.ensureClassGroup('section-1');
+    const members = mockPrisma.conversation.create.mock.calls[0][0].data.participants.create.map(
+      (p: { userId: string }) => p.userId,
+    );
+    expect(members).toContain('u-admin');
+  });
+
+  it('asks only for students who are still in the class', async () => {
+    await service.ensureClassGroup('section-1');
+    expect(mockPrisma.student.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({ classSectionId: 'section-1', status: 'ACTIVE' }),
+    );
+  });
+
+  it('makes only one group, however often it is asked', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue({
+      ...section,
+      groupChat: { id: 'conv-1', name: 'Senior 2 A' },
+    });
+    mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'u-student-1' },
+      { userId: 'u-student-2' },
+      { userId: 'u-admin' },
+    ]);
+
+    const id = await service.ensureClassGroup('section-1');
+
+    expect(id).toBe('conv-1');
+    expect(mockPrisma.conversation.create).not.toHaveBeenCalled();
+    expect(mockPrisma.conversationParticipant.createMany).not.toHaveBeenCalled();
+    expect(mockPrisma.conversationParticipant.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('adds a student who has since joined the class', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue({
+      ...section,
+      groupChat: { id: 'conv-1', name: 'Senior 2 A' },
+    });
+    mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'u-student-1' },
+      { userId: 'u-admin' },
+    ]);
+
+    await service.ensureClassGroup('section-1');
+
+    expect(mockPrisma.conversationParticipant.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [{ conversationId: 'conv-1', userId: 'u-student-2' }],
+      }),
+    );
+  });
+
+  // A child who has left the class does not keep reading it.
+  it('takes out somebody who has left the class', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue({
+      ...section,
+      groupChat: { id: 'conv-1', name: 'Senior 2 A' },
+    });
+    mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'u-student-1' },
+      { userId: 'u-student-2' },
+      { userId: 'u-admin' },
+      { userId: 'u-left' },
+    ]);
+
+    await service.ensureClassGroup('section-1');
+
+    expect(mockPrisma.conversationParticipant.deleteMany).toHaveBeenCalledWith({
+      where: { conversationId: 'conv-1', userId: { in: ['u-left'] } },
+    });
+  });
+
+  it('renames the group when the class is renamed', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue({
+      ...section,
+      groupChat: { id: 'conv-1', name: 'Senior 1 A' },
+    });
+    mockPrisma.conversationParticipant.findMany.mockResolvedValue([
+      { userId: 'u-student-1' },
+      { userId: 'u-student-2' },
+      { userId: 'u-admin' },
+    ]);
+
+    await service.ensureClassGroup('section-1');
+
+    expect(mockPrisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv-1' },
+      data: { name: 'Senior 2 A' },
+    });
+  });
+
+  it('makes nothing for a class that does not exist', async () => {
+    mockPrisma.classSection.findUnique.mockResolvedValue(null);
+    await expect(service.ensureClassGroup('nope')).resolves.toBeNull();
+    expect(mockPrisma.conversation.create).not.toHaveBeenCalled();
+  });
+
+  // An empty class with nobody to answer for it is not a room.
+  it('makes nothing for a class with nobody in it at all', async () => {
+    mockPrisma.student.findMany.mockResolvedValue([]);
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+    await expect(service.ensureClassGroup('section-1')).resolves.toBeNull();
+    expect(mockPrisma.conversation.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The class group turning up on its own.
+ *
+ * "By default" means nobody creates it and nobody is invited to it. It is
+ * made sure of when a person's conversations are listed, which is the moment
+ * they would notice it missing.
+ */
+describe('MessagingService listing a class group into existence', () => {
+  const build = () => ({
+    user: { findUnique: jest.fn() },
+    conversation: { findMany: jest.fn().mockResolvedValue([]) },
+    message: { findFirst: jest.fn().mockResolvedValue(null) },
+    conversationParticipant: { count: jest.fn().mockResolvedValue(0) },
+  });
+
+  let mockPrisma: ReturnType<typeof build>;
+  let service: MessagingService;
+  let ensure: jest.SpyInstance;
+
+  beforeEach(() => {
+    mockPrisma = build();
+    service = new MessagingService(mockPrisma as never);
+    ensure = jest
+      .spyOn(service, 'ensureClassGroup')
+      .mockResolvedValue('conv-class');
+  });
+
+  it("makes sure of a student's own class", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'STUDENT',
+      student: { classSectionId: 'section-1', status: 'ACTIVE' },
+      teacher: null,
+    });
+
+    await service.getConversations('u-1');
+
+    expect(ensure).toHaveBeenCalledWith('section-1');
+  });
+
+  it('makes sure of every class a class teacher answers for', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'TEACHER',
+      student: null,
+      teacher: {
+        roles: [{ classSectionId: 'section-1' }, { classSectionId: 'section-2' }],
+      },
+    });
+
+    await service.getConversations('u-1');
+
+    expect(ensure).toHaveBeenCalledWith('section-1');
+    expect(ensure).toHaveBeenCalledWith('section-2');
+  });
+
+  it('asks once for a class named twice', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'TEACHER',
+      student: null,
+      teacher: {
+        roles: [{ classSectionId: 'section-1' }, { classSectionId: 'section-1' }],
+      },
+    });
+
+    await service.getConversations('u-1');
+
+    expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  // A parent, a librarian, a nurse: no class of their own, and no cost.
+  it('does nothing for somebody with no class', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'PARENT',
+      student: null,
+      teacher: null,
+    });
+
+    await service.getConversations('u-1');
+
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('does nothing for a student who has left', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'STUDENT',
+      student: { classSectionId: 'section-1', status: 'GRADUATED' },
+      teacher: null,
+    });
+
+    await service.getConversations('u-1');
+
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('still lists conversations for an account that has gone', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.getConversations('nobody')).resolves.toEqual([]);
+    expect(ensure).not.toHaveBeenCalled();
   });
 });

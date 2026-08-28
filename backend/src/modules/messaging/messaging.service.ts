@@ -87,7 +87,172 @@ export class MessagingService {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE CLASS GROUP
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * The name a class group carries: the class, as the school says it.
+   */
+  private classGroupName(section: {
+    name: string;
+    classLevel?: { name: string } | null;
+    trade?: { code: string } | null;
+  }): string {
+    return [section.classLevel?.name, section.trade?.code, section.name]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  /**
+   * Everyone who belongs in a class's group.
+   *
+   * The class, and whoever is responsible for it. A class teacher is set
+   * through TeacherRole; a class that has not been given one falls to the
+   * administrator, because a room of thirty children with no adult in it is
+   * not a room a school would allow.
+   */
+  private async classGroupMembers(classSectionId: string): Promise<string[]> {
+    const [students, classTeacher, admin] = await Promise.all([
+      this.prisma.student.findMany({
+        where: { classSectionId, status: 'ACTIVE', user: { isActive: true } },
+        select: { userId: true },
+      }),
+      this.prisma.teacherRole.findFirst({
+        where: { role: 'CLASS_TEACHER', classSectionId },
+        select: { teacher: { select: { userId: true } } },
+      }),
+      this.prisma.user.findFirst({
+        where: { role: Role.ADMIN, isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      }),
+    ]);
+
+    const responsible = classTeacher?.teacher?.userId ?? admin?.id;
+    return [
+      ...new Set([...students.map((s) => s.userId), responsible].filter(Boolean)),
+    ] as string[];
+  }
+
+  /**
+   * Make sure a class has its group, and that the group has the class in it.
+   *
+   * Reconciled rather than created once: a student who joined last week
+   * belongs in it, and one who has left does not. Doing that here means the
+   * group is right whenever somebody looks, without a nightly job to forget
+   * to run.
+   */
+  async ensureClassGroup(classSectionId: string): Promise<string | null> {
+    const section = await this.prisma.classSection.findUnique({
+      where: { id: classSectionId },
+      select: {
+        id: true,
+        name: true,
+        classLevel: { select: { name: true } },
+        trade: { select: { code: true } },
+        groupChat: { select: { id: true, name: true } },
+      },
+    });
+    if (!section) return null;
+
+    const wanted = await this.classGroupMembers(classSectionId);
+    // A class with nobody in it and no adult to answer for it has no group.
+    if (wanted.length === 0) return section.groupChat?.id ?? null;
+
+    const name = this.classGroupName(section);
+
+    if (!section.groupChat) {
+      const created = await this.prisma.conversation.create({
+        data: {
+          type: 'GROUP',
+          name,
+          classSectionId,
+          // Whoever answers for the class owns the room.
+          createdByUserId: wanted[wanted.length - 1],
+          participants: { create: wanted.map((userId) => ({ userId })) },
+        },
+        select: { id: true },
+      });
+      return created.id;
+    }
+
+    const groupId = section.groupChat.id;
+    const existing = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId: groupId },
+      select: { userId: true },
+    });
+    const have = new Set(existing.map((p) => p.userId));
+    const want = new Set(wanted);
+
+    const toAdd = wanted.filter((id) => !have.has(id));
+    const toRemove = [...have].filter((id) => !want.has(id));
+
+    if (toAdd.length > 0) {
+      await this.prisma.conversationParticipant.createMany({
+        data: toAdd.map((userId) => ({ conversationId: groupId, userId })),
+        skipDuplicates: true,
+      });
+    }
+    if (toRemove.length > 0) {
+      await this.prisma.conversationParticipant.deleteMany({
+        where: { conversationId: groupId, userId: { in: toRemove } },
+      });
+    }
+    // The class may have been renamed since.
+    if (section.groupChat.name !== name) {
+      await this.prisma.conversation.update({
+        where: { id: groupId },
+        data: { name },
+      });
+    }
+
+    return groupId;
+  }
+
+  /**
+   * The class groups this person belongs in, made sure of before their
+   * conversations are listed.
+   *
+   * A student has one — their own class. A class teacher has one per class
+   * they answer for. Everybody else has none, and pays nothing for the
+   * check.
+   */
+  private async ensureMyClassGroups(userId: string): Promise<void> {
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        student: { select: { classSectionId: true, status: true } },
+        teacher: {
+          select: {
+            roles: {
+              where: { role: 'CLASS_TEACHER' },
+              select: { classSectionId: true },
+            },
+          },
+        },
+      },
+    });
+    if (!me) return;
+
+    const sections: string[] = [];
+    if (me.student?.classSectionId && me.student.status === 'ACTIVE') {
+      sections.push(me.student.classSectionId);
+    }
+    for (const role of me.teacher?.roles ?? []) {
+      if (role.classSectionId) sections.push(role.classSectionId);
+    }
+
+    for (const sectionId of [...new Set(sections)]) {
+      await this.ensureClassGroup(sectionId);
+    }
+  }
+
   async getConversations(userId: string) {
+    // The class group is not something anyone has to create or be invited to.
+    await this.ensureMyClassGroups(userId);
+
     const conversations = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
       include: {
@@ -251,27 +416,70 @@ export class MessagingService {
    * only message staff. This replaces the previous admin-only `/users` lookup
    * the message composer used, which 403'd for every non-admin role.
    */
+  /**
+   * Who a person may start a conversation with.
+   *
+   * Staff may reach anybody. A student may reach the staff, and their own
+   * classmates — the people they already sit with all day. A parent reaches
+   * the staff only: a school messaging tool that lets one parent look up
+   * another parent's number is a different product.
+   *
+   * "Their class" rather than "every student in the school" is the line that
+   * matters. Fourteen hundred children able to search each other by name is a
+   * safeguarding problem, and it is not the thing being asked for — being
+   * unable to message the person at the next desk is.
+   */
   async getContacts(userId: string, search?: string) {
     const me = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: {
+        role: true,
+        student: { select: { classSectionId: true, status: true } },
+      },
     });
     if (!me) return { data: [] };
 
-    const STAFF = ['ADMIN', 'TEACHER', 'LIBRARIAN'];
+    // Every role that works for the school. Derived from the enum rather than
+    // listed, so a role added later is reachable the day it exists — the
+    // hand-written version had already gone stale twice.
+    const STUDENTS_AND_FAMILY: string[] = [Role.STUDENT, Role.PARENT];
+    const STAFF = Object.values(Role).filter(
+      (r) => !STUDENTS_AND_FAMILY.includes(r),
+    );
     const isStaff = STAFF.includes(me.role);
 
     const where: any = { isActive: true, id: { not: userId } };
+
     if (!isStaff) {
-      where.role = { in: STAFF };
+      const classmates =
+        me.role === Role.STUDENT &&
+        me.student?.status === 'ACTIVE' &&
+        me.student.classSectionId
+          ? {
+              student: {
+                classSectionId: me.student.classSectionId,
+                status: 'ACTIVE' as const,
+              },
+            }
+          : null;
+
+      where.AND = [
+        classmates
+          ? { OR: [{ role: { in: STAFF } }, classmates] }
+          : { role: { in: STAFF } },
+      ];
     }
+
     if (search && search.trim()) {
       const q = search.trim();
-      where.OR = [
-        { firstName: { contains: q, mode: 'insensitive' } },
-        { lastName: { contains: q, mode: 'insensitive' } },
-        { email: { contains: q, mode: 'insensitive' } },
-      ];
+      const matches = {
+        OR: [
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ],
+      };
+      where.AND = [...(where.AND ?? []), matches];
     }
 
     const users = await this.prisma.user.findMany({

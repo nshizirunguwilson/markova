@@ -3069,6 +3069,63 @@ async function main() {
     convCount++;
     msgCount += 2;
   }
+  // ─── THE CLASS GROUPS ───────────────────────────────────────────────────────
+  //
+  // Every class has one, and nobody creates it. It holds the class and the
+  // adult who answers for them: the class teacher where the class has been
+  // given one, the administrator where it has not — a room of thirty children
+  // with no adult in it is not a room a school would allow.
+  //
+  // The application reconciles these on read as students move between classes,
+  // so this only has to make the first one.
+  let classGroups = 0;
+  for (const section of await prisma.classSection.findMany({
+    select: {
+      id: true,
+      name: true,
+      classLevel: { select: { name: true } },
+      trade: { select: { code: true } },
+    },
+  })) {
+    const [students, classTeacher] = await Promise.all([
+      prisma.student.findMany({
+        where: { classSectionId: section.id, status: StudentStatus.ACTIVE },
+        select: { userId: true },
+      }),
+      prisma.teacherRole.findFirst({
+        where: { role: SpecialRole.CLASS_TEACHER, classSectionId: section.id },
+        select: { teacher: { select: { userId: true } } },
+      }),
+    ]);
+
+    const responsible = classTeacher?.teacher?.userId ?? admin.id;
+    const members = [
+      ...new Set([...students.map((s) => s.userId), responsible]),
+    ];
+    if (members.length === 0) continue;
+
+    const conv = await prisma.conversation.create({
+      data: {
+        type: ConversationType.GROUP,
+        name: [section.classLevel?.name, section.trade?.code, section.name]
+          .filter(Boolean)
+          .join(' '),
+        classSectionId: section.id,
+        createdByUserId: responsible,
+      },
+    });
+    await prisma.conversationParticipant.createMany({
+      data: members.map((userId) => ({
+        conversationId: conv.id,
+        userId,
+        isAdmin: userId === responsible,
+      })),
+    });
+    classGroups++;
+    convCount++;
+  }
+  console.log(`  ✅ ${classGroups} class groups seeded`);
+
   console.log(`  ✅ ${convCount} conversations + ${msgCount} messages seeded`);
 
   // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
