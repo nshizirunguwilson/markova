@@ -260,7 +260,7 @@ export default function AnnouncementsPage() {
                     onChange={(e) => {
                       const chosen = e.target.files?.[0];
                       if (!chosen) return;
-                      upload.mutate(chosen, {
+                      upload.mutate({ file: chosen }, {
                         onSuccess: (res) =>
                           setFile({
                             fileUrl: res.fileUrl,

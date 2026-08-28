@@ -589,12 +589,58 @@ describe('MarksService', () => {
       );
     });
 
-    it('carries the conduct standing onto the year record', async () => {
+    /*
+      Conduct across the year is each term's mark out of forty added up and
+      read as a percentage of what those terms are worth — a hundred and
+      twenty over three terms. Read from the incidents of each term, not from
+      the running field on the student.
+    */
+    it('carries the conduct across all three terms onto the year record', async () => {
       prisma.termResult.findMany.mockResolvedValue([{ average: 80 }]);
+      // Four points lost in each of the three terms: 36 + 36 + 36 of 120.
+      prisma.disciplineIncident.aggregate.mockResolvedValue({
+        _sum: { pointsDeducted: 4 },
+      });
+      prisma.meritAward.aggregate.mockResolvedValue({ _sum: { points: 0 } });
+
       await service.calculateYearResults({
         classSectionId: 'section-1',
         academicYearId: 'year-1',
       });
+
+      expect(
+        prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+      ).toBe(90);
+    });
+
+    // A clean year is a clean year, whatever the running field happens to say.
+    it('gives a year with nothing recorded against it full conduct', async () => {
+      prisma.termResult.findMany.mockResolvedValue([{ average: 80 }]);
+
+      await service.calculateYearResults({
+        classSectionId: 'section-1',
+        academicYearId: 'year-1',
+      });
+
+      expect(
+        prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
+      ).toBe(100);
+    });
+
+    // Merits put points back, capped at a clean sheet.
+    it("lets merits earned in a term restore that term's mark", async () => {
+      prisma.termResult.findMany.mockResolvedValue([{ average: 80 }]);
+      prisma.disciplineIncident.aggregate.mockResolvedValue({
+        _sum: { pointsDeducted: 8 },
+      });
+      prisma.meritAward.aggregate.mockResolvedValue({ _sum: { points: 4 } });
+
+      await service.calculateYearResults({
+        classSectionId: 'section-1',
+        academicYearId: 'year-1',
+      });
+
+      // 36 of 40 in each of three terms.
       expect(
         prisma.yearResult.upsert.mock.calls[0][0].create.disciplineAverage,
       ).toBe(90);
@@ -1226,6 +1272,8 @@ describe('a school that starts nobody with conduct points', () => {
     ).toBeNull();
   });
 
+  // A school that sets its own ceiling gets its own ceiling, out of one term
+  // here because only one term is being reported on.
   it('works it out as a percentage when there is a ceiling', async () => {
     prisma.schoolConfig.findUnique.mockResolvedValue({
       key: 'starting_discipline_points',
@@ -1234,6 +1282,10 @@ describe('a school that starts nobody with conduct points', () => {
     prisma.student.findMany.mockResolvedValue([
       { id: 's-1', disciplinePoints: 90 },
     ]);
+    prisma.disciplineIncident.aggregate.mockResolvedValue({
+      _sum: { pointsDeducted: 10 },
+    });
+    prisma.meritAward.aggregate.mockResolvedValue({ _sum: { points: 0 } });
 
     await service.calculateYearResults({
       classSectionId: 'section-1',

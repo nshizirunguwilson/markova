@@ -112,6 +112,71 @@ describe("searching from the topbar", () => {
   });
 });
 
+/**
+ * The shortcut every tool with a search box has, so it is the one people try.
+ */
+describe("reaching search from the keyboard", () => {
+  it("puts the cursor in the box on Cmd+K", async () => {
+    mount("ADMIN");
+    const search = screen.getByPlaceholderText(/search/i);
+    expect(search).not.toHaveFocus();
+
+    await userEvent.setup().keyboard("{Meta>}k{/Meta}");
+
+    expect(search).toHaveFocus();
+  });
+
+  it("does the same on Ctrl+K, for anyone not on a Mac", async () => {
+    mount("ADMIN");
+    await userEvent.setup().keyboard("{Control>}k{/Control}");
+    expect(screen.getByPlaceholderText(/search/i)).toHaveFocus();
+  });
+
+  // Pressing it again while half a search is typed must not lose the typing;
+  // selecting means the next keystroke replaces it, which is the convention.
+  it("selects what is already typed rather than clearing it", async () => {
+    mount("ADMIN");
+    const user = userEvent.setup();
+    const search = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
+    await user.type(search, "marks");
+    search.blur();
+
+    await user.keyboard("{Meta>}k{/Meta}");
+
+    expect(search.value).toBe("marks");
+    expect(search.selectionStart).toBe(0);
+    expect(search.selectionEnd).toBe("marks".length);
+  });
+
+  it("leaves a plain k alone, so typing still works", async () => {
+    mount("ADMIN");
+    await userEvent.setup().keyboard("k");
+    expect(screen.getByPlaceholderText(/search/i)).not.toHaveFocus();
+  });
+
+  // A shortcut nobody can see is a shortcut nobody uses.
+  it("shows the shortcut in the empty box", () => {
+    mount("ADMIN");
+    expect(document.body.textContent).toMatch(/Ctrl K/);
+  });
+
+  // Mac writes it one way and everybody else the other.
+  it("writes it the Mac way on a Mac", async () => {
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "MacIntel",
+    });
+    mount("ADMIN");
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("\u2318K"),
+    );
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "",
+    });
+  });
+});
+
 describe("following a notification", () => {
   async function openBell() {
     const user = userEvent.setup();

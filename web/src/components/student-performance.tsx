@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { TERM_CONDUCT_MARK, conductPercentage } from "@/lib/conduct";
 import type { EChartsOption } from "echarts";
 import { Card, CardTitle, Badge, Avatar, PageSpinner } from "@/components/ui";
 import { EChart } from "@/components/ui/echart";
@@ -166,7 +167,13 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             fontSize: 11,
             formatter: (p: any) => {
               const s = rows[p?.dataIndex ?? -1];
-              return s ? `${s.total}%  ${s.grade}` : "";
+              if (!s) return "";
+              // A subject the school has entered only partly still gets a
+              // label; a dash says "not marked yet", where the bare value
+              // wrote the word "undefined" across the chart.
+              const total = s.total ?? "–";
+              const grade = s.grade ?? "–";
+              return `${total}%  ${grade}`;
             },
           },
           markLine: {
@@ -298,8 +305,16 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     },
     {
       label: "Conduct",
-      value: s?.disciplinePoints ?? "–",
-      sub: "/ 100 points",
+      // Out of forty for the term, with the percentage under it: the raw mark
+      // alone does not say whether thirty-two is good.
+      value:
+        s?.disciplinePoints == null
+          ? "–"
+          : `${s.disciplinePoints} / ${TERM_CONDUCT_MARK}`,
+      sub:
+        s?.disciplinePoints == null
+          ? "not marked yet"
+          : `${conductPercentage(s.disciplinePoints, TERM_CONDUCT_MARK)}% this term`,
     },
   ];
 
@@ -310,6 +325,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         <div className="flex flex-wrap items-center gap-4">
           <Avatar
             src={s?.photoUrl}
+            seed={s?.id}
             fallback={(s?.name ?? "").split(" ").filter(Boolean).map((w: string) => w[0]).slice(0, 2).join("")}
             size="lg"
           />

@@ -182,6 +182,15 @@ describe("sending a message", () => {
     expect(h.api.post).not.toHaveBeenCalled();
   });
 
+  // Enter reaches the same code without going through the button, so the
+  // check has to be in the sending itself rather than only in what is dimmed.
+  it("refuses an empty message pressed through with Enter", async () => {
+    const box = await openConversation();
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(h.chat.sendMessage).not.toHaveBeenCalled();
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
   it("sends what was typed", async () => {
     const box = await openConversation();
     const user = userEvent.setup({ delay: null });
@@ -1814,12 +1823,19 @@ describe("runs of messages from one person", () => {
     expect(send).toBeEnabled();
   });
 
-  // The chat carries words. Attachments were removed from it deliberately.
-  it("offers no way to attach a file", async () => {
+  /*
+    Attachments were taken out of the chat once, when the only thing they did
+    was upload a file with no preview and no download. They are back with all
+    three, and the composer offers them beside the field rather than as a
+    separate control somewhere else on the page.
+  */
+  it("offers a way to attach a file beside the field", async () => {
     await openWith([at("m-1", "u-3", 0, "Muraho")]);
     await screen.findByText("Muraho");
-    expect(document.querySelector('input[type="file"]')).toBeNull();
-    expect(screen.queryByText(/attach/i)).toBeNull();
+    expect(document.querySelector('input[type="file"]')).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /attach a file/i }),
+    ).toBeInTheDocument();
   });
 
   it("names the sender in a group, where there is more than one", async () => {
@@ -2293,5 +2309,702 @@ describe("replies that are not straightforward", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /cancel reply/i })).toBeNull(),
     );
+  });
+});
+
+/**
+ * Files, and the checks that stop a person wasting their data on one that was
+ * never going to be accepted.
+ */
+describe("attaching a file", () => {
+  async function openConversation() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    return screen.findByPlaceholderText(/type a message/i);
+  }
+
+  /** The hidden file input the paperclip opens. */
+  function picker() {
+    return document.querySelector('input[type="file"]') as HTMLInputElement;
+  }
+
+  const asFile = (name: string, type: string, size: number) => {
+    const f = new File(["x"], name, { type });
+    Object.defineProperty(f, "size", { value: size });
+    return f;
+  };
+
+  it("offers a way to attach one", async () => {
+    await openConversation();
+    expect(
+      screen.getByRole("button", { name: /attach a file/i }),
+    ).toBeInTheDocument();
+  });
+
+  // The picker greys out what would be refused, which is a better place to
+  // learn it than an error after the upload.
+  it("offers only the types the API accepts", async () => {
+    await openConversation();
+    const accept = picker().getAttribute("accept") ?? "";
+    expect(accept).toContain("image/png");
+    expect(accept).toContain("video/mp4");
+    expect(accept).toContain("application/pdf");
+    expect(accept).not.toContain("svg");
+  });
+
+  /**
+   * "Which photo did I pick" is the question a filename cannot answer, so a
+   * chosen image is shown rather than named.
+   */
+  it("shows a thumbnail of a chosen photograph", async () => {
+    const madeUrl = vi.fn(() => "blob:preview");
+    vi.stubGlobal("URL", { ...URL, createObjectURL: madeUrl });
+    await openConversation();
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("sports day.jpg", "image/jpeg", 2000)] },
+    });
+
+    await waitFor(() => expect(madeUrl).toHaveBeenCalled());
+    expect(document.querySelector('img[src="blob:preview"]')).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the chosen file before it is sent", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+  });
+
+  /**
+   * Checked before a byte is uploaded: somebody on a mobile line should not
+   * push sixty megabytes up only to be told it was never going to fit.
+   */
+  it("refuses one that is too large without uploading it", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("film.mp4", "video/mp4", 80 * 1024 * 1024)] },
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("refuses a kind that is not accepted", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("x.svg", "image/svg+xml", 500)] },
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  // The picker can be opened and closed again without choosing anything.
+  it("does nothing when the picker is closed without a choice", async () => {
+    await openConversation();
+    fireEvent.change(picker(), { target: { files: [] } });
+    expect(h.toast.error).not.toHaveBeenCalled();
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  /*
+    One at a time: a second send while the first is still uploading would send
+    the same file twice.
+  */
+  it("refuses a second send while the first is still uploading", async () => {
+    await openConversation();
+    // An upload that never answers, so the send stays in flight.
+    h.api.post.mockImplementation(() => new Promise(() => {}));
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+
+    const send = screen.getByRole("button", { name: /send message/i });
+    await userEvent.setup({ delay: null }).click(send);
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalledTimes(1));
+    // Dimmed while it is in flight, so the second press cannot happen.
+    await waitFor(() => expect(send).toBeDisabled());
+
+    // And Enter, which does not go through the button at all, is refused too.
+    fireEvent.keyDown(screen.getByPlaceholderText(/type a message/i), {
+      key: "Enter",
+    });
+    expect(h.api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the wrong file be taken back before anyone sees it", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /remove attachment/i }));
+
+    await waitFor(() => expect(screen.queryByText(/marks\.pdf/)).toBeNull());
+  });
+
+  // A file on its own is a message; the send button has to say so.
+  it("allows sending a file with no words typed", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /send message/i }),
+      ).not.toBeDisabled(),
+    );
+  });
+
+  // The socket carries text only, so anything with a file goes by REST —
+  // after the upload, because the message cannot be stored without the URL.
+  it("uploads first, then sends the message pointing at it", async () => {
+    await openConversation();
+    h.api.post.mockResolvedValue({
+      data: { fileUrl: "/uploads/attachments/a1.pdf", fileName: "marks.pdf", size: 2000 },
+    });
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => {
+      const paths = h.api.post.mock.calls.map((c: unknown[]) => c[0]);
+      expect(paths).toContain("/messaging/attachments");
+      expect(paths).toContain("/messaging/messages");
+    });
+
+    const sent = h.api.post.mock.calls.find(
+      (c: unknown[]) => c[0] === "/messaging/messages",
+    )?.[1] as Record<string, unknown>;
+    expect(sent.fileUrl).toBe("/uploads/attachments/a1.pdf");
+    expect(sent.fileName).toBe("marks.pdf");
+    expect(sent.contentType).toBe("FILE");
+  });
+
+  // A failed upload has to leave the file and the caption where they were,
+  // so the person can try again rather than retyping.
+  /*
+    A file with no caption is stored under its own name. When the API answers
+    without one — which it should not, but a message with an empty body is
+    better than one that never sends — the message still goes.
+  */
+  it("still sends when the upload comes back without a name", async () => {
+    await openConversation();
+    serve(h.api, {
+      ...routes,
+      "/messaging/attachments": { fileUrl: "/uploads/attachments/a1.pdf" },
+      "/messaging/messages": { id: "m-2" },
+    });
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.some(
+          (c: unknown[]) => c[0] === "/messaging/messages",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("keeps the file when the upload fails", async () => {
+    await openConversation();
+    h.api.post.mockRejectedValue(new Error("no"));
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * A teacher pasting a link to a past paper and everybody having to retype it
+ * is the whole problem.
+ */
+describe("a link inside a message", () => {
+  it("is clickable", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "The paper is at https://markova.edu/papers",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: /markova\.edu\/papers/ }),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
+/** A photograph is shown, not named. */
+describe("a photograph in a thread", () => {
+  it("is shown in the bubble", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "sports day.jpg",
+          contentType: "FILE",
+          fileUrl: "/uploads/attachments/a1.jpg",
+          fileName: "sports day.jpg",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('img[src*="a1.jpg"]'),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
+/**
+ * A voice note is finished the moment recording stops, so it goes straight
+ * out — asking somebody to press send twice for one recording is a step
+ * nobody expects.
+ */
+describe("a voice note in a thread", () => {
+  async function openWithVoice(messages: unknown[] = []) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": messages,
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+  }
+
+  it("offers a way to record one", async () => {
+    await openWithVoice();
+    expect(
+      await screen.findByRole("button", { name: /record a voice note/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("plays rather than offering itself for download", async () => {
+    await openWithVoice([
+      {
+        id: "m-1",
+        conversationId: "conv-1",
+        senderUserId: "u-3",
+        sender: other,
+        content: "voice-note-1.weba",
+        contentType: "VOICE",
+        fileUrl: "/uploads/attachments/a1.weba",
+        fileName: "voice-note-1.weba",
+        createdAt: "2026-08-21T09:00:00Z",
+      },
+    ]);
+
+    expect(
+      await screen.findByRole("button", { name: /play voice note/i }),
+    ).toBeInTheDocument();
+    // Its stored name is not a caption; repeating it under the player says
+    // nothing.
+    expect(screen.queryByText("voice-note-1.weba")).toBeNull();
+  });
+});
+
+/**
+ * Driving a real recording through the page: the recorder is stood up here
+ * because jsdom has neither a microphone nor a MediaRecorder, and what is
+ * being tested is what the page does with the finished file.
+ */
+describe("sending a voice note", () => {
+  class FakeRecorder {
+    static isTypeSupported = () => true;
+    state = "inactive";
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    constructor(
+      public stream: unknown,
+      public options: { mimeType: string },
+    ) {}
+    start() {
+      this.state = "recording";
+    }
+    stop() {
+      this.state = "inactive";
+      this.ondataavailable?.({
+        data: new Blob(["x".repeat(200)], { type: "audio/webm" }),
+      });
+      this.onstop?.();
+    }
+  }
+
+  beforeEach(() => {
+    // Installed before anything renders: the recorder's own one-second
+    // counter is created when recording starts, and a clock swapped in
+    // afterwards would never reach it.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("MediaRecorder", FakeRecorder);
+    vi.stubGlobal("AudioContext", undefined);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] })),
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  /** The upload endpoint answering, on top of the ordinary thread routes. */
+  const withUpload = (over: Record<string, unknown> = {}) => ({
+    ...routes,
+    "/messaging/attachments": {
+      fileUrl: "/uploads/attachments/a1.weba",
+      fileName: "voice-note-1.weba",
+      size: 200,
+    },
+    "/messaging/messages": { id: "m-2" },
+    ...over,
+  });
+
+  async function recordFor(
+    seconds: number,
+    served: Record<string, unknown> = withUpload(),
+  ) {
+    serve(h.api, served);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({
+      delay: null,
+      advanceTimers: vi.advanceTimersByTime,
+    });
+    await user.click(screen.getByText(/Aline/));
+
+    await user.click(
+      await screen.findByRole("button", { name: /record a voice note/i }),
+    );
+    await screen.findByRole("button", { name: /send voice note/i });
+
+    // The recorder counts in seconds and the page refuses anything under
+    // one, so the clock is nudged forward rather than waited on.
+    await act(async () => {
+      vi.advanceTimersByTime(seconds * 1000);
+    });
+
+    await user.click(screen.getByRole("button", { name: /send voice note/i }));
+    return user;
+  }
+
+  it("uploads the recording and sends it as a voice message", async () => {
+    await recordFor(3);
+
+    await waitFor(
+      () => {
+        const paths = h.api.post.mock.calls.map((c: unknown[]) => c[0]);
+        expect(paths).toContain("/messaging/attachments");
+        expect(paths).toContain("/messaging/messages");
+      },
+      { timeout: 4000 },
+    );
+
+    const sent = h.api.post.mock.calls.find(
+      (c: unknown[]) => c[0] === "/messaging/messages",
+    )?.[1] as Record<string, unknown>;
+    expect(sent.contentType).toBe("VOICE");
+    expect(sent.fileUrl).toBe("/uploads/attachments/a1.weba");
+  });
+
+  /*
+    The size cap applies to a recording as much as to a chosen file. Five
+    minutes of speech is nowhere near it, so this only happens to a recorder
+    that has gone wrong — but a wrong recorder should be refused here rather
+    than half way through an upload.
+  */
+  it("refuses a recording over the size cap", async () => {
+    class HugeRecorder extends FakeRecorder {
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({
+          data: new Blob(["x".repeat(17 * 1024 * 1024)], {
+            type: "audio/webm",
+          }),
+        });
+        this.onstop?.();
+      }
+    }
+    vi.stubGlobal("MediaRecorder", HugeRecorder);
+
+    await recordFor(3);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(
+      h.api.post.mock.calls.some(
+        (c: unknown[]) => c[0] === "/messaging/attachments",
+      ),
+    ).toBe(false);
+  });
+
+  // A tap that produced nothing is not a message.
+  it("refuses a recording too short to be one", async () => {
+    await recordFor(0);
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("says so rather than silently dropping a failed upload", async () => {
+    // Everything answers except the upload itself.
+    await recordFor(3, routes);
+
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.some(
+          (c: unknown[]) => c[0] === "/messaging/attachments",
+        ),
+      ).toBe(true),
+    );
+    // Nothing was sent as a message, and the composer is usable again.
+    expect(
+      h.api.post.mock.calls.some(
+        (c: unknown[]) => c[0] === "/messaging/messages",
+      ),
+    ).toBe(false);
+    expect(
+      await screen.findByRole("button", { name: /record a voice note/i }),
+    ).toBeInTheDocument();
+  });
+
+  // While recording, the recorder takes the whole row: a field you cannot
+  // type into beside a running recorder only invites people to try.
+  it("hides the message field while recording", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByText(/Aline/));
+    await user.click(
+      await screen.findByRole("button", { name: /record a voice note/i }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText(/type a message/i)).toBeNull(),
+    );
+  });
+
+  it("brings the field back when the recording is thrown away", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByText(/Aline/));
+    await user.click(
+      await screen.findByRole("button", { name: /record a voice note/i }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /discard recording/i }),
+    );
+
+    expect(
+      await screen.findByPlaceholderText(/type a message/i),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The people picker names everybody by what tells them apart: a class for a
+ * student, a role for staff. A student with neither has only their role left.
+ */
+describe("naming people in the picker", () => {
+  it("falls back to a bare role for somebody with nothing else", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/contacts": {
+        data: [{ id: "u-9", firstName: "Divine", lastName: "Mukamana", role: "STUDENT" }],
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    // The picker lists nobody until something has been searched for.
+    fireEvent.change(screen.getByLabelText(/search users by name/i), {
+      target: { value: "Divine" },
+    });
+
+    await waitFor(
+      () => expect(screen.getByText(/Divine Mukamana/)).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
+    expect(screen.getByText("STUDENT")).toBeInTheDocument();
+  });
+
+  // The endpoint can answer with nothing at all while it is still loading.
+  it("shows an empty picker rather than failing on no answer", async () => {
+    serve(h.api, { ...routes, "/messaging/contacts": {} });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    fireEvent.change(screen.getByLabelText(/search users by name/i), {
+      target: { value: "Divine" },
+    });
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A photograph, a video or a voice note takes up no height until it has
+ * loaded, so a thread ending in one lands short of its own last message. The
+ * page watches the thread's own size rather than each element's load event,
+ * which catches a late web font and anything else that moves the ground.
+ */
+describe("keeping the thread landed while media settles", () => {
+  /**
+   * Stands the observer up and hands back the callback, so the settling can be
+   * driven with a thread of a known size. jsdom lays nothing out — every
+   * element is zero by zero — so the geometry is stated rather than measured.
+   */
+  async function openWithWatcher() {
+    const observed: Element[] = [];
+    let fire: () => void = () => {};
+    class Watcher {
+      constructor(cb: () => void) {
+        fire = cb;
+      }
+      observe(el: Element) {
+        observed.push(el);
+      }
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+    }
+    vi.stubGlobal("ResizeObserver", Watcher);
+
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    await waitFor(() => expect(observed.length).toBeGreaterThan(0));
+
+    const list = observed[0].parentElement as HTMLElement;
+    /** State the thread's size, since jsdom will not measure one. */
+    const say = (scrollHeight: number, clientHeight: number, scrollTop: number) => {
+      for (const [prop, value] of [
+        ["scrollHeight", scrollHeight],
+        ["clientHeight", clientHeight],
+      ] as const) {
+        Object.defineProperty(list, prop, { value, configurable: true });
+      }
+      list.scrollTop = scrollTop;
+    };
+    return { list, say, fire: () => act(() => fire()) };
+  }
+
+  it("watches the thread's own size", async () => {
+    const { list } = await openWithWatcher();
+    expect(list).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  /*
+    A photograph loading at the end of a thread adds three hundred pixels in
+    one frame. A reader who had not scrolled at all would otherwise be left
+    stranded above the message they came to read.
+  */
+  it("pulls the thread back down when a picture pushes the ground away", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(1200, 600, 300); // 300px of gap opened up underneath
+    fire();
+    expect(list.scrollTop).toBe(1200);
+    vi.unstubAllGlobals();
+  });
+
+  // Somebody who has scrolled up to read must not be yanked down because an
+  // image three screens below them finished loading.
+  it("leaves a reader who has scrolled up where they are", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(4000, 600, 0); // right at the top
+    fire();
+    expect(list.scrollTop).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("does nothing when the thread is already at the bottom", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(1200, 600, 600);
+    fire();
+    expect(list.scrollTop).toBe(600);
+    vi.unstubAllGlobals();
+  });
+
+  // A browser without one still shows the thread; it just does not re-settle.
+  it("shows the thread anyway where there is no observer", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(await screen.findByText(/Muraho neza/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });

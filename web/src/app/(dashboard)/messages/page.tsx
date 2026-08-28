@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button, Badge, Spinner, Input, Modal } from "@/components/ui";
+import { toast } from "sonner";
+import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
 import {
   useConversations,
   useMessages,
@@ -10,18 +11,31 @@ import {
   useSendMessage,
   useContacts,
   useAddParticipants,
+  useUploadAttachment,
   useParticipants,
   useRemoveParticipant,
   useRenameConversation,
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Search, Send, ArrowLeft, CornerUpLeft, WifiOff, Users, X } from "lucide-react";
+import { MessageSquare, Plus, Search, Send, ArrowLeft, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
 import { personDetail, personMatches, personName } from "@/lib/person";
 import { QuotedMessage } from "@/components/messaging/quoted-message";
+import { MessageAttachment } from "@/components/messaging/message-attachment";
+import { MessageText } from "@/components/messaging/message-text";
+import { VoiceNote } from "@/components/messaging/voice-note";
+import { VoiceRecorder } from "@/components/messaging/voice-recorder";
+import { NotifyToggle } from "@/components/messaging/notify-toggle";
+import {
+  ACCEPTED_ATTACHMENTS,
+  humanSize,
+  kindOfMime,
+  shortFilename,
+  whyNotSendable,
+} from "@/lib/attachments";
 
 /**
  * How far from the bottom of the thread still counts as "reading the latest".
@@ -29,6 +43,17 @@ import { QuotedMessage } from "@/components/messaging/quoted-message";
  * following new arrivals.
  */
 const NEAR_BOTTOM_PX = 120;
+
+/**
+ * How far a thread may be pulled back down while it is still settling.
+ *
+ * Larger than NEAR_BOTTOM_PX because media loading moves the ground by whole
+ * pictures at a time: a photograph appearing at the end of a thread can add
+ * three hundred pixels in one frame, and a reader who had not scrolled at all
+ * would otherwise be left stranded above it. Still bounded, so somebody who
+ * has scrolled up to read is left where they are.
+ */
+const SETTLING_PX = 600;
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -46,6 +71,19 @@ export default function MessagesPage() {
   const [threadSearch, setThreadSearch] = useState("");
   /** The message being answered, until it is sent or dismissed. */
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  /**
+   * The file chosen but not yet sent.
+   *
+   * Held rather than sent on choosing, so a caption can be typed with it and
+   * so the wrong file can be taken back before anybody sees it — both of
+   * which is what every messaging app does and therefore what people expect.
+   */
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  /** True while the recorder has replaced the field. */
+  const [recordingVoice, setRecordingVoice] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAttachment = useUploadAttachment();
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -172,12 +210,50 @@ export default function MessagesPage() {
       return;
     }
 
+
     const nearBottom =
       list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
     if (nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typingNames.length, selectedConv]);
+
+  /**
+   * Keep the bottom of the thread at the bottom while it is still settling.
+   *
+   * A photograph, a video or a voice note takes up no height until it has
+   * loaded, so the jump on opening aims at a height that is about to grow. A
+   * thread ending in a picture landed two hundred pixels short of its own last
+   * message, which is exactly the bug the instant jump was meant to fix — only
+   * caused by the media rather than by the animation.
+   *
+   * A ResizeObserver rather than load handlers on each element: it catches the
+   * picture, the video, the voice note's controls, a late web font and
+   * anything else that changes the height, without this having to know what
+   * kinds of thing a message can contain.
+   *
+   * Only while the reader is already at the bottom. Somebody who has scrolled
+   * up to read must not be yanked down because an image three screens below
+   * them finished loading.
+   */
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list || !selectedConv) return;
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      // Generous while settling: media arrives in one jump, and a reader who
+      // has not deliberately scrolled up is still "at the bottom" even after
+      // a picture has pushed the ground out from under them.
+      const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (gap > 0 && gap < SETTLING_PX) list.scrollTop = list.scrollHeight;
+    });
+
+    // The content, not the box: the box's own size does not change when a
+    // picture inside it loads.
+    for (const child of Array.from(list.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [selectedConv, threadBlocks.length]);
 
   // Handle typing indicator
   const handleInputChange = useCallback(
@@ -195,18 +271,139 @@ export default function MessagesPage() {
     [selectedConv, chatStore]
   );
 
+  /**
+   * Choosing a file to attach.
+   *
+   * Refused here, before a byte is uploaded, when it is the wrong kind or too
+   * large — somebody on a mobile line should not push fifty megabytes up only
+   * to be told it was never going to fit. The API checks again regardless;
+   * this is about not wasting the person's time and data.
+   */
+  const handleChooseFile = (chosen: File | null | undefined) => {
+    // Always clear the input, so choosing the same file twice in a row still
+    // fires a change event.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!chosen) return;
+
+    const refusal = whyNotSendable(chosen);
+    if (refusal) {
+      toast.error(refusal);
+      return;
+    }
+    setPendingFile(chosen);
+  };
+
+  /**
+   * Uploads a file and sends it as a message in one go.
+   *
+   * A voice note takes this path rather than the pending-file one: it is
+   * finished the moment recording stops, and asking somebody to press send
+   * twice for one recording is a step nobody expects.
+   */
+  const sendFileNow = async (
+    file: File,
+    contentType: "FILE" | "VOICE",
+    caption: string,
+  ) => {
+    if (!selectedConv) return;
+    const replyToId = replyingTo?.id;
+    setUploadPercent(0);
+    try {
+      const uploaded = await uploadAttachment.mutateAsync({
+        file,
+        onProgress: setUploadPercent,
+      });
+      setUploadPercent(null);
+      setReplyingTo(null);
+      sendMessageRest.mutate({
+        conversationId: selectedConv,
+        content: caption || uploaded.fileName,
+        contentType,
+        fileUrl: uploaded.fileUrl,
+        fileName: uploaded.fileName,
+        replyToId,
+      });
+    } catch {
+      // The hook has already said why.
+      setUploadPercent(null);
+    }
+  };
+
+  /** A finished recording: sent straight away, under its own name. */
+  const handleRecorded = (file: File, ran: number) => {
+    setRecordingVoice(false);
+    // A tap that produced nothing is not a message.
+    if (ran < 1) {
+      toast.error("That was too short to send. Hold on a moment longer.");
+      return;
+    }
+    const refusal = whyNotSendable(file);
+    if (refusal) {
+      toast.error(refusal);
+      return;
+    }
+    void sendFileNow(file, "VOICE", "");
+  };
+
   const handleSend = async () => {
-    if (!messageText.trim() || !selectedConv) return;
+    if (!selectedConv) return;
+    // A file on its own is a message; words on their own are a message; a
+    // file with a caption is one message, not two.
+    if (!messageText.trim() && !pendingFile) return;
+    // One at a time: a second send while the first is still uploading would
+    // send the same file twice.
+    if (uploadPercent !== null) return;
+
     const text = messageText;
     const replyToId = replyingTo?.id;
+    const file = pendingFile;
+
+    /*
+      The attachment goes up first, because the message cannot be stored
+      without the URL it points at. Everything is cleared only once that has
+      worked — a failed upload leaves the file and the caption where they
+      were, so the person can try again rather than retyping.
+    */
+    let attachment: { fileUrl: string; fileName: string } | null = null;
+    if (file) {
+      setUploadPercent(0);
+      try {
+        attachment = await uploadAttachment.mutateAsync({
+          file,
+          onProgress: setUploadPercent,
+        });
+      } catch {
+        // The hook has already said why.
+        setUploadPercent(null);
+        return;
+      }
+      setUploadPercent(null);
+    }
+
     setMessageText("");
     setReplyingTo(null);
+    setPendingFile(null);
 
     // Stop typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     chatStore.stopTyping(selectedConv);
 
-    if (chatStore.connected) {
+    const rest = {
+      conversationId: selectedConv,
+      // A file with no caption still needs something for the thread list and
+      // for a quote of it to show; its name is the honest answer.
+      content: text.trim() || attachment?.fileName || "",
+      replyToId,
+      ...(attachment
+        ? {
+            contentType: "FILE",
+            fileUrl: attachment.fileUrl,
+            fileName: attachment.fileName,
+          }
+        : {}),
+    };
+
+    if (chatStore.connected && !attachment) {
       try {
         const ack = await chatStore.sendMessage(selectedConv, text, undefined, replyToId);
         // The ack says whether a recipient was online to take it. Without
@@ -215,10 +412,11 @@ export default function MessagesPage() {
         chatStore.applyAck(queryClient, selectedConv, ack);
       } catch {
         // Fallback to REST
-        sendMessageRest.mutate({ conversationId: selectedConv, content: text, replyToId });
+        sendMessageRest.mutate(rest);
       }
     } else {
-      sendMessageRest.mutate({ conversationId: selectedConv, content: text, replyToId });
+      // The socket carries text only, so anything with a file goes by REST.
+      sendMessageRest.mutate(rest);
     }
   };
 
@@ -344,6 +542,8 @@ export default function MessagesPage() {
       <div className={`${selectedConv ? "hidden md:flex" : "flex"} w-full flex-col border-border md:w-[19rem] md:flex-shrink-0 md:border-r`}>
         <div className="flex items-center justify-between px-4 py-3.5">
           <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">Messages</h2>
+          <div className="flex items-center gap-0.5">
+          <NotifyToggle />
           <button
             type="button"
             aria-label="Add"
@@ -352,6 +552,7 @@ export default function MessagesPage() {
           >
             <Plus className="h-[18px] w-[18px]" />
           </button>
+          </div>
         </div>
 
         {/*
@@ -408,9 +609,21 @@ export default function MessagesPage() {
                   />
 
                   <span className="relative mt-0.5 flex-shrink-0">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
-                      {name.charAt(0).toUpperCase()}
-                    </span>
+                    {/* A person gets their face; a group gets its initial,
+                        because a group is not somebody. */}
+                    {conv.type === "ONE_ON_ONE" && otherUser ? (
+                      <Avatar
+                        src={otherUser.photoUrl}
+                        seed={otherUser.id}
+                        alt=""
+                        size="sm"
+                        className="h-9 w-9"
+                      />
+                    ) : (
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
                     {/* Absent rather than grey when someone is away: a second
                         grey dot on every row is noise, and it competes with
                         the unread dot for the same glance. */}
@@ -527,9 +740,19 @@ export default function MessagesPage() {
                 return (
                   <>
                     <span className="relative flex-shrink-0">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
-                        {getConvName(selectedConversation).charAt(0).toUpperCase()}
-                      </span>
+                      {oneOnOne && other ? (
+                        <Avatar
+                          src={other.photoUrl}
+                          seed={other.id}
+                          alt=""
+                          size="sm"
+                          className="h-9 w-9"
+                        />
+                      ) : (
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[0.8rem] font-semibold text-primary">
+                          {getConvName(selectedConversation).charAt(0).toUpperCase()}
+                        </span>
+                      )}
                       {oneOnOne && online && (
                         <span className="absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full bg-success ring-2 ring-surface" />
                       )}
@@ -649,11 +872,35 @@ export default function MessagesPage() {
                                   className="mb-1"
                                 />
                               )}
-                              {msg.content && (
-                                <p className="whitespace-pre-wrap break-words text-[0.875rem] leading-relaxed">
-                                  {msg.content}
-                                </p>
-                              )}
+                              {/* The file first, its caption under it —
+                                  the order every messaging app uses, because
+                                  the caption is about the file. */}
+                              {/* A voice note plays where it sits; every
+                                  other file gets its own treatment. */}
+                              {msg.fileUrl &&
+                                (msg.contentType === "VOICE" ? (
+                                  <VoiceNote
+                                    fileUrl={msg.fileUrl}
+                                    mine={group.mine}
+                                  />
+                                ) : (
+                                  <MessageAttachment
+                                    fileUrl={msg.fileUrl}
+                                    fileName={msg.fileName}
+                                    mine={group.mine}
+                                  />
+                                ))}
+                              {/* A file sent with no caption is stored under
+                                  its own name; repeating that under the file
+                                  itself says nothing. */}
+                              {msg.content &&
+                                msg.contentType !== "VOICE" &&
+                                !(msg.fileUrl && msg.content === msg.fileName) && (
+                                  <MessageText
+                                    text={msg.content}
+                                    mine={group.mine}
+                                  />
+                                )}
                             </div>
                           );
                         })}
@@ -727,7 +974,104 @@ export default function MessagesPage() {
                     </div>
                   )}
 
+                  {/*
+                    The file chosen but not yet sent, shown above the field so
+                    it is plainly attached to what is being typed. An image
+                    gets a thumbnail, because "which photo did I pick" is the
+                    question a filename cannot answer.
+                  */}
+                  {pendingFile && (
+                    <div className="mb-2 flex items-center gap-2.5 rounded-lg border border-border bg-surface-muted p-2">
+                      {kindOfMime(pendingFile.type) === "image" ? (
+                        <img
+                          src={URL.createObjectURL(pendingFile)}
+                          alt=""
+                          className="h-10 w-10 flex-shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-accent text-primary">
+                          <FileText className="h-5 w-5" />
+                        </span>
+                      )}
+
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className="block truncate text-[0.8125rem] font-medium text-foreground"
+                          title={pendingFile.name}
+                        >
+                          {shortFilename(pendingFile.name, 40)}
+                        </span>
+                        <span className="block text-[0.75rem] text-muted">
+                          {uploadPercent !== null
+                            ? `Sending… ${uploadPercent}%`
+                            : humanSize(pendingFile.size)}
+                        </span>
+                        {/* How far along, for the fifty-megabyte video that
+                            would otherwise look like the app had hung. */}
+                        {uploadPercent !== null && (
+                          <span
+                            role="progressbar"
+                            aria-label="Upload progress"
+                            aria-valuenow={uploadPercent}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-border"
+                          >
+                            <span
+                              className="block h-full rounded-full bg-primary transition-[width] duration-200"
+                              style={{ width: `${uploadPercent}%` }}
+                            />
+                          </span>
+                        )}
+                      </span>
+
+                      <button
+                        type="button"
+                        aria-label="Remove attachment"
+                        onClick={() => setPendingFile(null)}
+                        disabled={uploadPercent !== null}
+                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-foreground disabled:opacity-40"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={ACCEPTED_ATTACHMENTS}
+                      className="hidden"
+                      onChange={(e) => handleChooseFile(e.target.files?.[0])}
+                    />
+                    {!recordingVoice && (
+                      <button
+                        type="button"
+                        aria-label="Attach a file"
+                        title="Attach a file"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadPercent !== null}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:opacity-40"
+                      >
+                        <Paperclip className="h-[17px] w-[17px]" />
+                      </button>
+                    )}
+
+                    {/*
+                      While recording, the recorder takes the whole row. A
+                      field you cannot type into sitting beside a running
+                      recorder only invites people to try.
+                    */}
+                    <VoiceRecorder
+                      disabled={uploadPercent !== null}
+                      onStart={() => setRecordingVoice(true)}
+                      onRecorded={handleRecorded}
+                      onCancel={() => setRecordingVoice(false)}
+                    />
+
+                    {!recordingVoice && (
+                    <>
                     <input
                       type="text"
                       value={messageText}
@@ -745,11 +1089,16 @@ export default function MessagesPage() {
                       type="button"
                       aria-label="Send message"
                       onClick={handleSend}
-                      disabled={!messageText.trim()}
+                      disabled={
+                        (!messageText.trim() && !pendingFile) ||
+                        uploadPercent !== null
+                      }
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <Send className="h-[16px] w-[16px]" />
                     </button>
+                    </>
+                    )}
                   </div>
                 </>
               )}

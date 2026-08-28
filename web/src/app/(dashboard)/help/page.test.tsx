@@ -162,7 +162,7 @@ describe("the articles", () => {
   it("searches the articles on the server, not just on screen", async () => {
     await mount();
     await act(async () => {
-      fireEvent.change(screen.getByLabelText(/search faq/i), {
+      fireEvent.change(screen.getByLabelText(/search questions/i), {
         target: { value: "password" },
       });
     });
@@ -179,7 +179,7 @@ describe("the articles", () => {
     serve(h.api, { ...routes, "/help/faqs": [] });
     renderPage(HelpPage, { role: "TEACHER" });
     await waitFor(() =>
-      expect(screen.getByText(/no faq articles found/i)).toBeInTheDocument(),
+      expect(screen.getByText(/no questions found/i)).toBeInTheDocument(),
     );
   });
 
@@ -190,10 +190,10 @@ describe("the articles", () => {
   });
 });
 
-describe("my tickets", () => {
+describe("the help I have asked for", () => {
   async function openTickets() {
     await mount();
-    await click(tab(/my tickets/i));
+    await click(tab(/my requests/i));
     await waitFor(() => expect(screen.getByText(/Projector in Senior 1 A/)).toBeInTheDocument());
   }
 
@@ -218,14 +218,14 @@ describe("my tickets", () => {
     serve(h.api, { ...routes, "/help/tickets/mine": [] });
     renderPage(HelpPage, { role: "TEACHER" });
     await waitFor(() => expect(screen.getByText(/How do I reset a password/)).toBeInTheDocument());
-    await click(tab(/my tickets/i));
+    await click(tab(/my requests/i));
 
-    await waitFor(() => expect(screen.getByText(/no support tickets/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/have not asked for help/i)).toBeInTheDocument());
   });
 
-  it("goes back to the articles", async () => {
+  it("goes back to the questions", async () => {
     await openTickets();
-    await click(tab(/^faq$/i));
+    await click(tab(/^common questions$/i));
     await waitFor(() =>
       expect(screen.getByText(/How do I reset a password/)).toBeInTheDocument(),
     );
@@ -396,7 +396,7 @@ describe("a ticket already being looked at", () => {
     });
     renderPage(HelpPage, { role: "TEACHER" });
     // The tickets live behind their own tab.
-    await click(tab(/my tickets/i));
+    await click(tab(/my requests/i));
 
     const progress = await screen.findByText("IN_PROGRESS");
     const open = screen.getByText("OPEN");
@@ -409,7 +409,7 @@ describe("a ticket already being looked at", () => {
       "/help/tickets/mine": [{ ...tickets[0], id: "t-4", status: "ESCALATED" }],
     });
     renderPage(HelpPage, { role: "TEACHER" });
-    await click(tab(/my tickets/i));
+    await click(tab(/my requests/i));
 
     // A status the server grew before the app knew about it still draws.
     expect(await screen.findByText("ESCALATED")).toBeInTheDocument();
@@ -422,7 +422,7 @@ describe("a ticket already being looked at", () => {
     });
     renderPage(HelpPage, { role: "TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
-    await click(tab(/my tickets/i));
+    await click(tab(/my requests/i));
 
     expect(screen.queryByText(/Projector/)).toBeNull();
   });

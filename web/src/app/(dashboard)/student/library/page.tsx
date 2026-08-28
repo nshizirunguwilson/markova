@@ -32,7 +32,7 @@ export default function StudentLibraryPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Library" description="Your loans and book catalog" />
+      <PageHeader title="Library" description="The books you have, and everything you can borrow" />
 
       <div className="flex gap-2 border-b border-border">
         <button
@@ -43,7 +43,7 @@ export default function StudentLibraryPage() {
               : "border-transparent text-muted"
           }`}
         >
-          <BookOpen className="h-4 w-4" /> My Loans ({activeLoans.length})
+          <BookOpen className="h-4 w-4" /> My books ({activeLoans.length})
         </button>
         <button
           onClick={() => setTab("catalog")}
@@ -53,7 +53,7 @@ export default function StudentLibraryPage() {
               : "border-transparent text-muted"
           }`}
         >
-          <Library className="h-4 w-4" /> Catalog
+          <Library className="h-4 w-4" /> All books
         </button>
       </div>
 
@@ -65,9 +65,9 @@ export default function StudentLibraryPage() {
             </div>
           ) : (
             <>
-              {/* Active Loans */}
+              {/* The books this student has out */}
               <Card>
-                <CardTitle>Active Loans ({activeLoans.length})</CardTitle>
+                <CardTitle>Books you have ({activeLoans.length})</CardTitle>
                 {activeLoans.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {activeLoans.map((loan: any) => {
@@ -110,7 +110,7 @@ export default function StudentLibraryPage() {
                   </div>
                 ) : (
                   <p className="mt-4 text-center text-muted py-4">
-                    No active loans.
+                    You have no books out.
                   </p>
                 )}
               </Card>

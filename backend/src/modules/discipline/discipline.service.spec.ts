@@ -496,16 +496,19 @@ describe('DisciplineService', () => {
       expect(record.student.percentage).toBe(100);
     });
 
-    it('falls back to a hundred when the school never set one', async () => {
+    // Forty a term is the default now, not a hundred for the whole year —
+    // see src/common/conduct.ts for why conduct is marked per term.
+    it('falls back to forty when the school never set one', async () => {
       prisma.schoolConfig.findUnique.mockResolvedValue(null);
       prisma.student.findUnique.mockResolvedValue({
-        disciplinePoints: 90,
+        disciplinePoints: 32,
         user: { firstName: 'A', lastName: 'B' },
       });
       prisma.disciplineIncident.findMany.mockResolvedValue([]);
 
       const record = await service.getStudentDiscipline('student-1');
-      expect(record.student.startingPoints).toBe(100);
+      expect(record.student.startingPoints).toBe(40);
+      expect(record.student.percentage).toBe(80);
     });
   });
 

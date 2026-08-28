@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ pathname: { current: "/admin" } }));
+const h = vi.hoisted(() => {
+  const fn = () => vi.fn();
+  return {
+    pathname: { current: "/admin" },
+    api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
+  };
+});
+
+vi.mock("@/lib/api", () => ({ default: h.api }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => h.pathname.current,
@@ -11,17 +19,18 @@ vi.mock("next/navigation", () => ({
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sidebar } from "./sidebar";
-import { signIn } from "@/test/harness";
+import { renderWithProviders, signIn } from "@/test/harness";
 import type { User } from "@/stores/auth-store";
 
 beforeEach(() => {
   h.pathname.current = "/admin";
+  for (const m of Object.values(h.api)) m.mockReset();
 });
 
 function show(role: User["role"], pathname = `/${role.toLowerCase()}`) {
   h.pathname.current = pathname;
   signIn(role);
-  return render(<Sidebar isOpen onClose={vi.fn()} />);
+  return renderWithProviders(<Sidebar isOpen onClose={vi.fn()} />);
 }
 
 describe("what each role is offered", () => {
@@ -79,7 +88,7 @@ describe("on a phone", () => {
   it("closes when a link is followed", async () => {
     const onClose = vi.fn();
     signIn("ADMIN");
-    render(<Sidebar isOpen onClose={onClose} />);
+    renderWithProviders(<Sidebar isOpen onClose={onClose} />);
     await userEvent.setup().click(screen.getByText("Users"));
     expect(onClose).toHaveBeenCalled();
   });
@@ -88,7 +97,61 @@ describe("on a phone", () => {
 describe("before the profile has loaded", () => {
   it("falls back to the admin navigation rather than rendering nothing", () => {
     h.pathname.current = "/admin";
-    render(<Sidebar isOpen onClose={vi.fn()} />);
+    renderWithProviders(<Sidebar isOpen onClose={vi.fn()} />);
     expect(document.body.textContent).not.toBe("");
+  });
+});
+
+/**
+ * The quietest of the three ways of being told a message arrived: no notice,
+ * no sound, just a number that is there when you next look at the sidebar.
+ */
+describe("how many messages are waiting", () => {
+  function withUnread(count: number) {
+    h.api.get.mockImplementation(async (path: string) =>
+      path.includes("/messaging/unread")
+        ? { data: { count } }
+        : { data: [] },
+    );
+    return show("ADMIN");
+  }
+
+  it("shows the count beside Messages", async () => {
+    withUnread(3);
+    expect(await screen.findByText("3")).toBeInTheDocument();
+  });
+
+  it("says what the number means, for anyone not reading the screen", async () => {
+    withUnread(3);
+    expect(
+      await screen.findByLabelText(/3 unread messages/i),
+    ).toBeInTheDocument();
+  });
+
+  it("counts one message in the singular", async () => {
+    withUnread(1);
+    expect(await screen.findByLabelText(/1 unread message$/i)).toBeInTheDocument();
+  });
+
+  // Past ninety-nine the exact number stops meaning anything and starts
+  // breaking the row.
+  it("stops counting exactly past ninety-nine", async () => {
+    withUnread(250);
+    expect(await screen.findByText("99+")).toBeInTheDocument();
+  });
+
+  // An empty inbox needs no decoration.
+  it("shows nothing when there is nothing waiting", async () => {
+    withUnread(0);
+    await screen.findByText("Messages");
+    expect(screen.queryByLabelText(/unread message/i)).toBeNull();
+  });
+
+  // And nothing before the count has arrived, rather than a flash of zero.
+  it("shows nothing before the count is known", async () => {
+    h.api.get.mockImplementation(async () => ({ data: undefined }));
+    show("ADMIN");
+    await screen.findByText("Messages");
+    expect(screen.queryByLabelText(/unread message/i)).toBeNull();
   });
 });

@@ -57,16 +57,21 @@ function mount(user: Record<string, unknown> = {}, over: Record<string, unknown>
 
 const bar = () => document.querySelector("[style*='width']")!.className;
 
+/**
+ * Conduct is marked out of forty for the term, not out of a hundred for the
+ * year — a student who lost points in September should not still be carrying
+ * them in July. See src/lib/conduct.ts.
+ */
 describe("the conduct bar", () => {
   it("assumes a clean sheet when nothing is on record", async () => {
     mount();
-    await waitFor(() => expect(screen.getByText("100")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("40")).toBeInTheDocument());
     expect(bar()).toMatch(/success/);
   });
 
   it("reads the points off the student record", async () => {
-    mount({ student: { disciplinePoints: 55 } });
-    await waitFor(() => expect(screen.getByText("55")).toBeInTheDocument());
+    mount({ student: { disciplinePoints: 22 } });
+    await waitFor(() => expect(screen.getByText("22")).toBeInTheDocument());
   });
 
   it("falls back to points on the account itself", async () => {
@@ -74,22 +79,35 @@ describe("the conduct bar", () => {
     await waitFor(() => expect(screen.getByText("33")).toBeInTheDocument());
   });
 
+  // The raw mark alone does not say whether thirty-two is good.
+  it("says the percentage and the word beside it", async () => {
+    mount({ student: { disciplinePoints: 32 } });
+    await waitFor(() => expect(screen.getByText("32")).toBeInTheDocument());
+    expect(screen.getByText(/80% · Good/)).toBeInTheDocument();
+  });
+
+  it("says it is out of forty, not out of a hundred", async () => {
+    mount({ student: { disciplinePoints: 32 } });
+    await waitFor(() => expect(screen.getByText("32")).toBeInTheDocument());
+    expect(screen.getByText(/\/ 40/)).toBeInTheDocument();
+  });
+
   it("warns in the middle of the scale", async () => {
-    mount({ student: { disciplinePoints: 55 } });
-    await waitFor(() => expect(screen.getByText("55")).toBeInTheDocument());
+    mount({ student: { disciplinePoints: 22 } });
+    await waitFor(() => expect(screen.getByText("22")).toBeInTheDocument());
     expect(bar()).toMatch(/warning/);
   });
 
   it("paints a record in real trouble differently again", async () => {
-    mount({ student: { disciplinePoints: 22 } });
-    await waitFor(() => expect(screen.getByText("22")).toBeInTheDocument());
+    mount({ student: { disciplinePoints: 9 } });
+    await waitFor(() => expect(screen.getByText("9")).toBeInTheDocument());
     expect(bar()).toMatch(/danger/);
   });
 
   it("never draws the bar past the end of its track", async () => {
     // A merit-heavy term can take a student above the ceiling.
-    mount({ student: { disciplinePoints: 130 } });
-    await waitFor(() => expect(screen.getByText("130")).toBeInTheDocument());
+    mount({ student: { disciplinePoints: 52 } });
+    await waitFor(() => expect(screen.getByText("52")).toBeInTheDocument());
 
     const width = document
       .querySelector("[style*='width']")!

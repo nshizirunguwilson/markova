@@ -19,7 +19,9 @@ import { MessagingService } from './messaging.service';
     // `http://localhost:3000` — the API's own origin, which never opens a
     // socket — so with CORS_ORIGINS unset the REST calls worked and the chat
     // silently would not connect.
-    origin: (process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081')
+    origin: (
+      process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081'
+    )
       .split(',')
       .map((o) => o.trim())
       .filter(Boolean),
@@ -65,9 +67,7 @@ export class MessagingGateway
   ): Promise<string[]> {
     const ids =
       await this.messagingService.getConversationParticipantIds(conversationId);
-    return ids
-      .filter((id) => id !== exceptUserId)
-      .map((id) => `user:${id}`);
+    return ids.filter((id) => id !== exceptUserId).map((id) => `user:${id}`);
   }
 
   /** Broadcast a newly-created message to each participant. */
@@ -170,7 +170,8 @@ export class MessagingGateway
       // else in the school was at their desk and — because the corrections
       // that follow (`presenceChange`) are limited to conversation partners —
       // left a green dot next to a stranger lit until the page was reloaded.
-      const partners = await this.messagingService.getConversationPartnerIds(userId);
+      const partners =
+        await this.messagingService.getConversationPartnerIds(userId);
       const onlineList = partners.filter((id) => this.onlineUsers.has(id));
       client.emit('onlineUsers', onlineList);
 

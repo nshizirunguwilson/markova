@@ -211,6 +211,7 @@ export default function UserDetailPage() {
           <div className="flex items-center gap-4">
             <Avatar
               src={user.photoUrl}
+              seed={user.id}
               fallback={`${user.firstName[0]}${user.lastName[0]}`}
               size="lg"
             />

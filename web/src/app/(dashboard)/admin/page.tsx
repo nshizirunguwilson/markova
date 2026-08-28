@@ -294,7 +294,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted">Library: Active Loans</span>
+              <span className="text-sm text-muted">Library: books out</span>
               <span className="text-sm font-semibold text-foreground">
                 {library?.activeLoans ?? "—"}
               </span>

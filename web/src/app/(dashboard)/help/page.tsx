@@ -27,7 +27,7 @@ export default function HelpPage() {
   const [ticketForm, setTicketForm] = useState({ title: "", description: "", category: "" });
 
   const handleSubmitTicket = () => {
-    if (!ticketForm.title || !ticketForm.description) return toast.error("Fill title and description");
+    if (!ticketForm.title || !ticketForm.description) return toast.error("Please say what you need help with");
     createTicket.mutate(
       { ...ticketForm, category: ticketForm.category || undefined },
       {
@@ -36,7 +36,7 @@ export default function HelpPage() {
           setShowNewTicket(false);
           setTicketForm({ title: "", description: "", category: "" });
         },
-        onError: () => toast.error("Failed to submit ticket"),
+        onError: () => toast.error("That request could not be sent"),
       }
     );
   };
@@ -60,7 +60,7 @@ export default function HelpPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <PageHeader
-          title="Help Center"
+          title="Help"
         />
         <Button onClick={() => setShowNewTicket(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -79,7 +79,7 @@ export default function HelpPage() {
                 : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
-            {t === "faqs" ? "FAQ" : "My Tickets"}
+            {t === "faqs" ? "Common questions" : "My requests"}
           </button>
         ))}
       </div>
@@ -90,11 +90,11 @@ export default function HelpPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input
               type="text"
-              placeholder="Search FAQ..."
+              placeholder="Search questions..."
               className="w-full border rounded-lg pl-10 pr-4 py-2 text-sm"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-             aria-label="Search FAQ..."/>
+             aria-label="Search questions..."/>
           </div>
 
           {faqsLoading && <div className="text-center py-8"><Spinner /></div>}
@@ -130,7 +130,7 @@ export default function HelpPage() {
           {!faqsLoading && Object.keys(categories).length === 0 && (
             <Card className="p-8 text-center text-muted">
               <HelpCircle className="w-12 h-12 mx-auto mb-2 text-border-strong" />
-              No FAQ articles found
+              No questions found
             </Card>
           )}
         </div>
@@ -158,14 +158,14 @@ export default function HelpPage() {
           {!ticketsLoading && (!tickets || tickets.length === 0) && (
             <Card className="p-8 text-center text-muted">
               <MessageSquare className="w-12 h-12 mx-auto mb-2 text-border-strong" />
-              No support tickets
+              You have not asked for help yet
             </Card>
           )}
         </div>
       )}
 
       {/* New Ticket Modal */}
-      <Modal isOpen={showNewTicket} onClose={() => setShowNewTicket(false)} title="Submit Support Ticket">
+      <Modal isOpen={showNewTicket} onClose={() => setShowNewTicket(false)} title="Ask for help">
         <div className="space-y-4">
           <Input label="Title" value={ticketForm.title} onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })} />
           <div>
@@ -186,8 +186,8 @@ export default function HelpPage() {
               <option value="">General</option>
               <option value="Technical">Technical</option>
               <option value="Account">Account</option>
-              <option value="Feature Request">Feature Request</option>
-              <option value="Bug Report">Bug Report</option>
+              <option value="Something is missing">Feature Request</option>
+              <option value="Something is broken">Bug Report</option>
             </select>
           </div>
           <div className="flex justify-end gap-2">

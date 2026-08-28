@@ -131,7 +131,9 @@ export class MessagingService {
 
     const responsible = classTeacher?.teacher?.userId ?? admin?.id;
     return [
-      ...new Set([...students.map((s) => s.userId), responsible].filter(Boolean)),
+      ...new Set(
+        [...students.map((s) => s.userId), responsible].filter(Boolean),
+      ),
     ] as string[];
   }
 

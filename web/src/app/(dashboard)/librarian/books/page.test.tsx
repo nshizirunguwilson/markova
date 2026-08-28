@@ -142,7 +142,7 @@ describe("the catalogue", () => {
 
   it("shows the library's headline numbers", async () => {
     await mount();
-    expect(document.body.textContent).toMatch(/Active Loans/i);
+    expect(document.body.textContent).toMatch(/Books out/i);
     expect(document.body.textContent).toMatch(/Overdue/i);
   });
 });

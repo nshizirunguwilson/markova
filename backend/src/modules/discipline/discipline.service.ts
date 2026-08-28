@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { classDisplayName } from '../../common/class-name';
 import { OwnershipService } from '../../common/ownership.service';
 import {
@@ -443,7 +444,7 @@ export class DisciplineService {
     const config = await this.prisma.schoolConfig.findUnique({
       where: { key: 'starting_discipline_points' },
     });
-    return Number(config?.value || '100');
+    return Number(config?.value || String(TERM_CONDUCT_MARK));
   }
 
   private async notifyParent(

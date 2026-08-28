@@ -60,7 +60,7 @@ export default function LibrarianBooksPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Book Catalog</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">All books</h1>
           <p className="text-sm text-muted">Manage library books</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -92,7 +92,7 @@ export default function LibrarianBooksPage() {
             <p className="text-2xl font-bold text-success">{analytics.availableCopies}</p>
           </Card>
           <Card>
-            <p className="text-xs text-muted">Active Loans</p>
+            <p className="text-xs text-muted">Books out</p>
             <p className="text-2xl font-bold text-primary">{analytics.activeLoans}</p>
           </Card>
           <Card>
@@ -211,7 +211,7 @@ export default function LibrarianBooksPage() {
       </Modal>
 
       {/* Checkout Modal */}
-      <Modal isOpen={showCheckoutModal} onClose={() => setShowCheckoutModal(false)} title="Checkout Book">
+      <Modal isOpen={showCheckoutModal} onClose={() => setShowCheckoutModal(false)} title="Give out a book">
         <div className="space-y-4">
           <Input label="Book (barcode or ID)" value={checkoutForm.bookIdentifier}
             onChange={(e) => setCheckoutForm({ ...checkoutForm, bookIdentifier: e.target.value })}
@@ -229,7 +229,7 @@ export default function LibrarianBooksPage() {
       </Modal>
 
       {/* Return Modal */}
-      <Modal isOpen={showReturnModal} onClose={() => setShowReturnModal(false)} title="Return Book">
+      <Modal isOpen={showReturnModal} onClose={() => setShowReturnModal(false)} title="Take a book back">
         <div className="space-y-4">
           <Input label="Book (barcode or ID)" value={returnForm.bookIdentifier}
             onChange={(e) => setReturnForm({ bookIdentifier: e.target.value })}

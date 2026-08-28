@@ -118,7 +118,7 @@ describe('the letterhead on an official document', () => {
     // The letter is signed by a named head teacher, not by "Head Teacher"
     // alone, and the school's registration number belongs on the letterhead
     // because that is what a receiving school checks it against.
-    it('signs it in the head teacher\'s own name', async () => {
+    it("signs it in the head teacher's own name", async () => {
       const doc = await service.generateDocument(
         'student-1',
         'transfer_letter',

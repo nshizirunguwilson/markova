@@ -211,14 +211,39 @@ export function useRenameConversation() {
  */
 export function useUploadAttachment() {
   return useMutation({
-    mutationFn: async (file: File) => {
+    /*
+      `onProgress` matters here in a way it does not for a logo: a video may
+      be fifty megabytes, and fifty megabytes up a Rwandan mobile line with no
+      indication of how far along it is reads as the app having hung.
+    */
+    mutationFn: async ({
+      file,
+      onProgress,
+    }: {
+      file: File;
+      onProgress?: (percent: number) => void;
+    }) => {
       const body = new FormData();
       body.append("file", file);
       return (
         await api.post("/messaging/attachments", body, {
           headers: { "Content-Type": "multipart/form-data" },
+          onUploadProgress: (e) => {
+            // `total` is absent when the size is not known up front, which is
+            // rare for a file but has to leave the bar alone rather than
+            // dividing by nothing.
+            if (onProgress && e.total) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          },
         })
-      ).data as { fileUrl: string; fileName: string; size: number };
+      ).data as {
+        fileUrl: string;
+        fileName: string;
+        size: number;
+        kind?: string;
+        mimeType?: string;
+      };
     },
     onError: (e: unknown) =>
       toast.error(errorMessage(e, "That file could not be sent")),

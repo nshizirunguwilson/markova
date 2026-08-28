@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  TERM_CONDUCT_MARK,
+  conductPercentage,
+  termConduct,
+} from '../../common/conduct';
 import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
 import {
@@ -615,11 +620,36 @@ export class MarksService {
             ? validAvgs.reduce((s, a) => s + a, 0) / validAvgs.length
             : null;
 
-        // Discipline average (current points / starting points * 100)
-        const disciplineAverage =
-          startingPoints > 0
-            ? (student.disciplinePoints / startingPoints) * 100
-            : null;
+        /*
+          Conduct across the whole year: each term's mark out of forty, added
+          up and read as a percentage of what those terms are worth.
+
+          Read from the incidents and merits of each term rather than from the
+          running field on the student, so a year read in Term 1 is a
+          percentage of Term 1 and not of a year that has not happened.
+        */
+        const termConducts = await Promise.all(
+          terms.map(async (t) => {
+            const [off, back] = await Promise.all([
+              tx.disciplineIncident.aggregate({
+                where: { studentId: student.id, termId: t.id },
+                _sum: { pointsDeducted: true },
+              }),
+              tx.meritAward.aggregate({
+                where: { studentId: student.id, termId: t.id },
+                _sum: { points: true },
+              }),
+            ]);
+            return termConduct(
+              off._sum.pointsDeducted ?? 0,
+              back._sum.points ?? 0,
+              startingPoints,
+            );
+          }),
+        );
+        const conductTotal = termConducts.reduce((sum, m) => sum + m, 0);
+        const conductOutOf = terms.length * startingPoints;
+        const disciplineAverage = conductPercentage(conductTotal, conductOutOf);
 
         const letterGrade =
           yearlyAverage !== null ? overallGrade(yearlyAverage).letter : null;
@@ -837,11 +867,15 @@ export class MarksService {
     return Number(config?.value || '50');
   }
 
+  /**
+   * What a student starts each term on. Forty a term, a hundred and twenty a
+   * year — see common/conduct.ts for why it is marked per term at all.
+   */
   private async getStartingDisciplinePoints(): Promise<number> {
     const config = await this.prisma.schoolConfig.findUnique({
       where: { key: 'starting_discipline_points' },
     });
-    return Number(config?.value || '100');
+    return Number(config?.value || String(TERM_CONDUCT_MARK));
   }
 
   private groupMarksBySubject(marks: any[]) {

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { useUnreadMessageCount } from "@/hooks/use-messaging";
 import { useBrandStore } from "@/stores/brand-store";
 import { BrandMark } from "@/components/brand-mark";
 import type { Role } from "@/types";
@@ -19,6 +20,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const schoolName = useBrandStore((s) => s.schoolName);
   const sections = getNavigation((user?.role || "ADMIN") as Role);
+  // The same count the chat itself keeps; the socket invalidates it as
+  // messages arrive, so the badge follows without polling.
+  const { data: unreadMessages } = useUnreadMessageCount();
+  const unread = unreadMessages?.count ?? 0;
 
   return (
     <aside
@@ -64,7 +69,23 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       )}
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {/*
+                        How many are waiting, beside the word Messages. The
+                        quietest of the three ways of being told: no notice,
+                        no sound, just a number that is there when you next
+                        look at the sidebar.
+                      */}
+                      {item.href.endsWith("/messages") && unread > 0 && (
+                        <span
+                          aria-label={`${unread} unread ${unread === 1 ? "message" : "messages"}`}
+                          className="ml-auto min-w-[1.25rem] rounded-full bg-primary px-1.5 py-0.5 text-center text-[0.6875rem] font-semibold leading-none text-on-primary tabular-nums"
+                        >
+                          {/* Past ninety-nine the exact number stops meaning
+                              anything and starts breaking the row. */}
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

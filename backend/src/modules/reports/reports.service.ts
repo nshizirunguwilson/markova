@@ -11,10 +11,17 @@ import { SubjectScope } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
+import {
+  TERM_CONDUCT_MARK,
+  conductLabel,
+  conductPercentage,
+  conductRemark,
+  termConduct,
+} from '../../common/conduct';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
 import {
-  competenceFor,
+  competenceForSubject,
   computeSubjectTotal,
   gradeFor,
   overallGrade,
@@ -172,6 +179,30 @@ export class ReportsService implements OnModuleDestroy {
       }),
     ]);
 
+    /*
+      Conduct, for this term rather than as a running total across the year.
+
+      Read from what actually happened in the term — incidents off, merits
+      back on — rather than from the field on the student, which is a single
+      number for the whole year. A parent reading the Term 3 report needs to
+      know about Term 3; a student who lost points in September should not
+      still be carrying them in July.
+    */
+    const [deducted, restored] = await Promise.all([
+      this.prisma.disciplineIncident.aggregate({
+        where: { studentId, termId },
+        _sum: { pointsDeducted: true },
+      }),
+      this.prisma.meritAward.aggregate({
+        where: { studentId, termId },
+        _sum: { points: true },
+      }),
+    ]);
+    const conductPoints = termConduct(
+      deducted._sum.pointsDeducted ?? 0,
+      restored._sum.points ?? 0,
+    );
+
     const classResults = await this.prisma.termResult.findMany({
       where: { classSectionId: student.classSectionId, termId },
     });
@@ -205,6 +236,16 @@ export class ReportsService implements OnModuleDestroy {
         ? `${classTeacherRole.teacher.user.firstName} ${classTeacherRole.teacher.user.lastName}`
         : null,
       attendance: { present: attendancePresent, total: attendanceTotal },
+      /*
+        This term's conduct, out of forty. `outOf` travels with it so the
+        sheet never has to assume the mark: a school that sets a different
+        ceiling changes one number rather than every place it is printed.
+      */
+      conduct: {
+        points: conductPoints,
+        outOf: TERM_CONDUCT_MARK,
+        percentage: conductPercentage(conductPoints, TERM_CONDUCT_MARK),
+      },
       subjects: subjectBreakdown,
       result: termResult,
       classStats: {
@@ -481,9 +522,15 @@ export class ReportsService implements OnModuleDestroy {
           quoting the reference above.</p>`;
         return {
           title: `Transfer Letter - ${student.user.firstName} ${student.user.lastName}`,
-          html: this.renderLetterHtml(school, student, 'Transfer Letter', body, {
-            addressee: ['THE HEAD TEACHER', 'RECEIVING INSTITUTION'],
-          }),
+          html: this.renderLetterHtml(
+            school,
+            student,
+            'Transfer Letter',
+            body,
+            {
+              addressee: ['THE HEAD TEACHER', 'RECEIVING INSTITUTION'],
+            },
+          ),
         };
       }
       case 'enrollment_confirmation': {
@@ -1305,10 +1352,14 @@ export class ReportsService implements OnModuleDestroy {
           grade: band?.letter ?? null,
           points: band?.points ?? null,
           remark: band?.remark ?? null,
-          competence:
-            val.scope === SubjectScope.A_SPECIFIC
-              ? competenceFor(practical ? practical.pct : null)
-              : null,
+          // Every subject, not only the practical modules: the curriculum
+          // asks whether a learner can do the thing, and that question is as
+          // real in English as it is in a workshop.
+          competence: competenceForSubject(
+            val.scope,
+            total,
+            practical ? practical.pct : null,
+          ),
         };
       })
       .sort(
@@ -1370,20 +1421,39 @@ export class ReportsService implements OnModuleDestroy {
         ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
         : '–';
 
-    const conduct = (() => {
-      const p = data.student.disciplinePoints;
-      if (p == null) return '–';
-      if (p >= 95) return 'Excellent';
-      if (p >= 85) return 'Very Good';
-      if (p >= 70) return 'Good';
-      if (p >= 50) return 'Fair';
-      return 'Poor';
-    })();
+    /*
+      Conduct as a mark out of forty and as a percentage, rather than as a
+      bare word. "Good" tells a parent nothing they can act on; "32 / 40
+      (80%)" tells them where their child stands and by how much.
+    */
+    const conductPoints = data.conduct?.points ?? null;
+    const conductOutOf = data.conduct?.outOf ?? TERM_CONDUCT_MARK;
+    const conduct =
+      conductPoints === null ? '–' : conductLabel(conductPoints, conductOutOf);
+    const conductWord = conductRemark(
+      conductPoints === null
+        ? null
+        : conductPercentage(conductPoints, conductOutOf),
+    );
 
     const cell = (s: any, name: string) => {
       const a = s.assessments.find((x: any) => x.type === name);
       return `<td class="num">${a ? a.pct : '–'}</td>`;
     };
+
+    /*
+      Competent or not, for every subject rather than only the practical
+      modules. A dash where nothing has been marked: "not yet competent" is a
+      judgement, and a subject nobody has marked has not been judged.
+    */
+    const competenceCell = (s: any) =>
+      `<td>${
+        s.competence
+          ? s.competence === 'COMPETENT'
+            ? '<span class="chip ok">Competent</span>'
+            : '<span class="chip no">Not yet competent</span>'
+          : '–'
+      }</td>`;
 
     const row = (s: any) => `
       <tr>
@@ -1392,20 +1462,12 @@ export class ReportsService implements OnModuleDestroy {
         <td class="tot">${s.total ?? '–'}</td>
         <td class="gr">${s.grade ?? '–'}</td>
         <td class="num">${s.points ?? '–'}</td>
-        ${
-          isALevel
-            ? `<td>${
-                s.competence
-                  ? s.competence === 'COMPETENT'
-                    ? '<span class="chip ok">Competent</span>'
-                    : '<span class="chip no">Not Yet Competent</span>'
-                  : '–'
-              }</td>`
-            : `<td class="rem">${s.remark ?? '–'}</td>`
-        }
+        ${competenceCell(s)}
+        ${isALevel ? '' : `<td class="rem">${s.remark ?? '–'}</td>`}
       </tr>`;
 
-    const cols = isALevel ? 9 : 8;
+    // O-Level keeps its written remark alongside; A-Level never had one.
+    const cols = isALevel ? 9 : 9;
     const groupRow = (label: string, note: string) =>
       `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
 
@@ -1446,14 +1508,18 @@ export class ReportsService implements OnModuleDestroy {
 
     const headCols = isALevel
       ? `<th style="text-align:left">Module</th><th>CAT 1</th><th>CAT 2</th><th>Practical</th><th>Exam</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th>Competence</th>`
-      : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th style="text-align:left">Remark</th>`;
+      : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th>Competence</th><th style="text-align:left">Remark</th>`;
 
     const totalMax = data.subjects.length * 100;
     const overall = data.result ? overallGrade(data.result.average || 0) : null;
-    const specificSubjects = data.subjects.filter(
-      (s: any) => s.scope === 'A_SPECIFIC',
-    );
-    const competentCount = specificSubjects.filter(
+    /*
+      The competence tally. Counted over every subject that was judged rather
+      than over the practical modules alone — with competence on every row,
+      "3 of 4" under a sheet of eleven subjects would be reading a different
+      table from the one above it.
+    */
+    const judgedSubjects = data.subjects.filter((s: any) => s.competence);
+    const competentCount = judgedSubjects.filter(
       (s: any) => s.competence === 'COMPETENT',
     ).length;
 
@@ -1482,13 +1548,16 @@ export class ReportsService implements OnModuleDestroy {
         `${data.result?.rank ?? '–'}`,
         `of ${data.classStats.totalStudents}`,
       ),
-      isALevel
-        ? summaryCell(
-            'Practicals',
-            `${competentCount} / ${specificSubjects.length}`,
-            'Competent',
-          )
-        : summaryCell('Conduct', conduct, ''),
+      // Competence across the whole sheet now, so it is worth a cell on
+      // every report rather than only on an A-Level one.
+      summaryCell(
+        'Competent in',
+        `${competentCount} / ${judgedSubjects.length}`,
+        judgedSubjects.length === 1 ? 'subject' : 'subjects',
+      ),
+      // On every report now, A-Level included: a conduct mark out of forty
+      // is as much a part of an A-Level term as of an O-Level one.
+      summaryCell('Conduct', conduct, conductWord),
     ].join('');
 
     const aggregateNote = isALevel
@@ -1885,11 +1954,14 @@ export class ReportsService implements OnModuleDestroy {
         ? `a ${String(student.gender).toLowerCase()} student `
         : '';
       parts.push(
-        `${article}born ${new Date(student.dateOfBirth).toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })}`,
+        `${article}born ${new Date(student.dateOfBirth).toLocaleDateString(
+          'en-GB',
+          {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          },
+        )}`,
       );
     } else if (student.gender) {
       parts.push(`a ${String(student.gender).toLowerCase()} student`);

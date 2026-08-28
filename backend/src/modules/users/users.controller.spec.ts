@@ -221,11 +221,17 @@ describe('UsersController and the welfare staff', () => {
 
   it('keeps the rest of the query they sent', async () => {
     await controller.findAll(
-      { search: 'Keza', limit: 10 } as never,
-      { role: 'NURSE' },
+      { search: 'Keza', limit: 10 },
+      {
+        role: 'NURSE',
+      },
     );
     expect(service.findAll).toHaveBeenCalledWith(
-      expect.objectContaining({ search: 'Keza', limit: 10, role: Role.STUDENT }),
+      expect.objectContaining({
+        search: 'Keza',
+        limit: 10,
+        role: Role.STUDENT,
+      }),
     );
   });
 

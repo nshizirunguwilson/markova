@@ -707,24 +707,23 @@ describe('UsersService', () => {
      * however many times they had been saved, and a staff member's own
      * registration code never appeared at all.
      */
-    it.each([
-      'code',
-      'nationalId',
-      'nationality',
-      'gender',
-      'dateOfBirth',
-    ])('selects %s, which the profile page shows', async (field) => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
-      await service.findOne('user-1');
-      expect(prisma.user.findUnique.mock.calls[0][0].select[field]).toBe(true);
-    });
+    it.each(['code', 'nationalId', 'nationality', 'gender', 'dateOfBirth'])(
+      'selects %s, which the profile page shows',
+      async (field) => {
+        prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+        await service.findOne('user-1');
+        expect(prisma.user.findUnique.mock.calls[0][0].select[field]).toBe(
+          true,
+        );
+      },
+    );
 
     it('never selects the password hash even now', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
       await service.findOne('user-1');
-      expect(
-        prisma.user.findUnique.mock.calls[0][0].select,
-      ).not.toHaveProperty('passwordHash');
+      expect(prisma.user.findUnique.mock.calls[0][0].select).not.toHaveProperty(
+        'passwordHash',
+      );
     });
 
     // What a teacher's own page is made of: who they teach, when, and what
@@ -747,11 +746,18 @@ describe('UsersService', () => {
         id: 'user-1',
         teacher: {
           id: 'teacher-1',
-          roles: [{ id: 'r-1', role: 'CLASS_TEACHER', classSectionId: 'sec-1' }],
+          roles: [
+            { id: 'r-1', role: 'CLASS_TEACHER', classSectionId: 'sec-1' },
+          ],
         },
       });
       prisma.classSection.findMany.mockResolvedValue([
-        { id: 'sec-1', name: 'B', classLevel: { name: 'Senior 2' }, trade: null },
+        {
+          id: 'sec-1',
+          name: 'B',
+          classLevel: { name: 'Senior 2' },
+          trade: null,
+        },
       ]);
 
       const user: any = await service.findOne('user-1');
@@ -1162,7 +1168,7 @@ describe('creating a record with everything on it', () => {
       village: 'Karisimbi',
       isBoarder: true,
       religion: 'Protestant',
-      disciplinePoints: 100,
+      disciplinePoints: 40,
     });
     expect(written.dateOfBirth).toBeInstanceOf(Date);
     expect(written.enrollmentDate).toBeInstanceOf(Date);

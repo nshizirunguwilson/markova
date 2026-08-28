@@ -85,7 +85,25 @@ export function createMockPrisma(): MockPrisma & PrismaService {
   for (const model of modelNames) {
     const modelMock: Record<string, jest.Mock> = {};
     for (const method of modelMethods) {
-      modelMock[method] = jest.fn();
+      /*
+        `aggregate` answers with a shape rather than with nothing.
+
+        Prisma always returns `{ _sum: {...} }`, and callers read straight
+        through it — `result._sum.points` is the normal way to use it. A bare
+        `jest.fn()` hands back undefined, so every spec that did not happen to
+        stub this particular call died on a TypeError inside code that was
+        working perfectly well. Specs that care still override it.
+      */
+      modelMock[method] =
+        method === 'aggregate'
+          ? jest.fn().mockResolvedValue({
+              _sum: {},
+              _avg: {},
+              _min: {},
+              _max: {},
+              _count: 0,
+            })
+          : jest.fn();
     }
     mock[model] = modelMock;
   }

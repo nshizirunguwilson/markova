@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSocketConnection } from "@/hooks/use-socket";
+import { useMessageAlerts } from "@/hooks/use-message-alerts";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageSpinner } from "@/components/ui/spinner";
@@ -86,6 +87,10 @@ export function DashboardShell({
 
   // Initialize WebSocket connection for real-time chat
   useSocketConnection();
+
+  // A message that arrives while somebody is entering marks is otherwise
+  // invisible — the thread updates on a page nobody is looking at.
+  useMessageAlerts();
 
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);

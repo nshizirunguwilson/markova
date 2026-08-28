@@ -127,7 +127,7 @@ describe("the articles an admin manages", () => {
 describe("writing an article", () => {
   async function openNew() {
     await mount();
-    await click(button(/new faq|add faq|new article/i));
+    await click(button(/add a question|new question/i));
     return screen.findByRole("dialog");
   }
 
@@ -258,7 +258,7 @@ describe("editing an article", () => {
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    await click(button(/new faq|add faq|new article/i));
+    await click(button(/add a question|new question/i));
     const fresh = await screen.findByRole("dialog");
     expect((within(fresh).getByLabelText(/^title$/i) as HTMLInputElement).value).toBe("");
   });
@@ -301,10 +301,10 @@ describe("removing an article", () => {
   });
 });
 
-describe("the ticket queue", () => {
+describe("the queue of help requests", () => {
   async function openTickets() {
     await mount();
-    await click(button(/tickets/i));
+    await click(button(/help requests/i));
     await waitFor(() =>
       expect(screen.getByText(/Projector will not connect/)).toBeInTheDocument(),
     );
@@ -375,7 +375,7 @@ describe("the ticket queue", () => {
     await waitFor(() =>
       expect(screen.getByText(/How do I reset a password/)).toBeInTheDocument(),
     );
-    await click(button(/tickets/i));
+    await click(button(/help requests/i));
 
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     expect(screen.queryByText(/Projector will not connect/)).toBeNull();
@@ -385,7 +385,7 @@ describe("the ticket queue", () => {
 describe("the rest of the article form", () => {
   async function openNew() {
     await mount();
-    await click(button(/new faq|add faq|new article/i));
+    await click(button(/add a question|new question/i));
     return screen.findByRole("dialog");
   }
 
@@ -503,7 +503,7 @@ describe("how a ticket's state reads", () => {
     await waitFor(() =>
       expect(screen.getByText(/How do I reset a password/)).toBeInTheDocument(),
     );
-    await click(button(/tickets/i));
+    await click(button(/help requests/i));
 
     await waitFor(() =>
       expect(screen.getByText(/Projector will not connect/)).toBeInTheDocument(),

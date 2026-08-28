@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -48,6 +54,9 @@ interface TopbarProps {
   onToggleSidebar?: () => void;
 }
 
+/** Nothing to subscribe to: whether this is a Mac does not change. */
+const subscribeToNothing = () => () => {};
+
 export function Topbar({ onToggleSidebar }: TopbarProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -73,6 +82,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // getNavigation is pure and returns a static table; the React Compiler
   // memoizes this for us, and a hand-written useMemo here only gave the
@@ -105,17 +115,53 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close search on Escape
+  /**
+   * Escape closes what is open; Cmd+K (Ctrl+K off a Mac) puts the cursor in
+   * the search box from anywhere in the app.
+   *
+   * The shortcut every tool with a search box uses, so it is the one people
+   * try. It selects what is already typed rather than clearing it, so pressing
+   * it twice does not lose a half-finished search — and typing simply replaces
+   * the selection, which is what people expect.
+   *
+   * The browser's own Ctrl+K focuses the address bar, so this has to say it
+   * handled the key.
+   */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setSearchOpen(false);
         setNotifOpen(false);
+        return;
+      }
+
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const box = searchInputRef.current;
+        if (!box) return;
+        box.focus();
+        box.select();
+        if (box.value.trim()) setSearchOpen(true);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  /*
+    Mac writes it ⌘K and everybody else Ctrl K.
+
+    Through `useSyncExternalStore` rather than an effect that sets state: the
+    server has no navigator, so the answer has to be "no" there and the real
+    one on the client, and this is the hook that says exactly that without a
+    second render to correct itself. Nothing ever changes, so there is nothing
+    to subscribe to.
+  */
+  const onAMac = useSyncExternalStore(
+    subscribeToNothing,
+    () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
+    () => false,
+  );
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -179,6 +225,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
       <div className="relative w-80" ref={searchRef}>
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search pages..."
           value={searchQuery}
@@ -199,6 +246,15 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           }}
           className="w-full rounded-lg border border-border bg-accent-light/50 py-2 pl-10 pr-4 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
          aria-label="Search pages..."/>
+        {/* A shortcut nobody can see is a shortcut nobody uses. */}
+        {!searchQuery && (
+          <kbd
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-surface px-1.5 py-0.5 font-sans text-[0.6875rem] font-medium text-muted md:block"
+          >
+            {onAMac ? "\u2318K" : "Ctrl K"}
+          </kbd>
+        )}
         {searchQuery && (
           <button
             onClick={() => {
@@ -342,6 +398,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           >
             <Avatar
               src={user?.photoUrl}
+              seed={user?.id}
               fallback={
                 user ? `${user.firstName[0]}${user.lastName[0]}` : undefined
               }

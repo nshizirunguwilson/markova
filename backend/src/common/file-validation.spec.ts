@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  attachmentMatchesType,
   fileFilterFor,
   filenameFor,
   isAllowedAttachmentMime,
@@ -282,6 +283,138 @@ describe('file validation', () => {
         },
       };
       expect(removeStoredFile('/uploads/a.png', fs, resolve)).toBe(false);
+    });
+  });
+
+  /**
+   * The mime type on an upload is whatever the client claimed. A file is also
+   * asked what it actually is, because the declared type decides the
+   * extension it is stored under and /uploads is served by extension.
+   */
+  describe('checking an attachment is what it says it is', () => {
+    const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const mp4 = Buffer.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32,
+    ]);
+    const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x02]);
+    const docx = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+
+    it('accepts a real PDF', () => {
+      expect(attachmentMatchesType(pdf, 'application/pdf')).toBe(true);
+    });
+
+    it('accepts a real MP4, whose marker sits four bytes in', () => {
+      expect(attachmentMatchesType(mp4, 'video/mp4')).toBe(true);
+      expect(attachmentMatchesType(mp4, 'video/quicktime')).toBe(true);
+    });
+
+    it('accepts WebM, which is what the browser records', () => {
+      expect(attachmentMatchesType(webm, 'video/webm')).toBe(true);
+      expect(attachmentMatchesType(webm, 'audio/webm')).toBe(true);
+    });
+
+    it('accepts a modern Office file, which is a zip', () => {
+      expect(
+        attachmentMatchesType(
+          docx,
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ),
+      ).toBe(true);
+    });
+
+    // The whole point: a file claiming to be a video and carrying markup.
+    it('refuses HTML dressed as a video', () => {
+      const html = Buffer.from('<html><script>alert(1)</script>');
+      expect(attachmentMatchesType(html, 'video/mp4')).toBe(false);
+    });
+
+    it('refuses a PDF that is not one', () => {
+      expect(attachmentMatchesType(webm, 'application/pdf')).toBe(false);
+    });
+
+    it('still runs the image check for images', () => {
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+      expect(attachmentMatchesType(png, 'image/png')).toBe(true);
+      expect(attachmentMatchesType(docx, 'image/png')).toBe(false);
+    });
+
+    // Text really is any bytes; refusing a valid .txt for having no magic
+    // number would be worse than the check is worth.
+    it('lets plain text through, having no signature to check', () => {
+      expect(attachmentMatchesType(Buffer.from('Muraho'), 'text/plain')).toBe(
+        true,
+      );
+      expect(attachmentMatchesType(Buffer.from('a,b,c'), 'text/csv')).toBe(
+        true,
+      );
+    });
+
+    it('refuses a file too short to carry its own marker', () => {
+      expect(
+        attachmentMatchesType(Buffer.from([0x25]), 'application/pdf'),
+      ).toBe(false);
+    });
+  });
+
+  /**
+   * A teacher filming a two-minute demonstration on a phone. Half a school is
+   * on iPhones, which send video/quicktime.
+   */
+  describe('video attachments', () => {
+    it('accepts the four types a browser can play', () => {
+      for (const type of [
+        'video/mp4',
+        'video/webm',
+        'video/quicktime',
+        'video/ogg',
+      ]) {
+        expect(isAllowedAttachmentMime(type)).toBe(true);
+      }
+    });
+
+    it('stores each under an extension taken from its type', () => {
+      expect(safeAttachmentExtension('video/mp4')).toBe('.mp4');
+      expect(safeAttachmentExtension('video/quicktime')).toBe('.mov');
+    });
+
+    it('still refuses anything that runs when opened', () => {
+      expect(isAllowedAttachmentMime('image/svg+xml')).toBe(false);
+      expect(isAllowedAttachmentMime('text/html')).toBe(false);
+      expect(isAllowedAttachmentMime('application/x-msdownload')).toBe(false);
+    });
+  });
+
+  /**
+   * A browser recording announces itself as `audio/webm;codecs=opus`. The
+   * lists are exact, which is the point of them, so the parameters have to
+   * come off before the lookup — without this every voice note recorded in
+   * Chrome or Firefox was refused.
+   */
+  describe('a type that arrives with its codec attached', () => {
+    it('is accepted, on the type alone', () => {
+      expect(isAllowedAttachmentMime('audio/webm;codecs=opus')).toBe(true);
+      expect(isAllowedAttachmentMime('video/webm;codecs=vp9,opus')).toBe(true);
+    });
+
+    it('is stored under the extension for its type', () => {
+      expect(safeAttachmentExtension('audio/webm;codecs=opus')).toBe('.weba');
+    });
+
+    it('is checked against its type\u2019s own signature', () => {
+      const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
+      expect(attachmentMatchesType(webm, 'audio/webm;codecs=opus')).toBe(true);
+    });
+
+    // Only the parameters come off; the type itself is still matched exactly.
+    it('does not let an unaccepted type through on its parameters', () => {
+      expect(isAllowedAttachmentMime('text/html;charset=utf-8')).toBe(false);
+      expect(isAllowedAttachmentMime('image/svg+xml;charset=utf-8')).toBe(
+        false,
+      );
+    });
+
+    it('applies to images too', () => {
+      expect(isAllowedImageMime('image/png;something=1')).toBe(true);
     });
   });
 });

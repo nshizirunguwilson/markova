@@ -27,7 +27,7 @@ export default function LibrarianDashboard() {
       color: "text-primary bg-accent-light",
     },
     {
-      label: "Active Loans",
+      label: "Books out",
       value: analytics?.activeLoans ?? 0,
       icon: BookMarked,
       color: "text-success bg-success-wash",
@@ -39,7 +39,7 @@ export default function LibrarianDashboard() {
       color: "text-danger bg-danger-wash",
     },
     {
-      label: "Total Checkouts",
+      label: "Books given out",
       value: analytics?.totalCheckouts ?? 0,
       icon: BarChart3,
       color: "text-violet-600 bg-violet-50",
@@ -47,8 +47,8 @@ export default function LibrarianDashboard() {
   ];
 
   const quickLinks = [
-    { label: "Books Catalog", href: "/librarian/books", icon: BookOpen },
-    { label: "Checkout / Return", href: "/librarian/loans", icon: BookMarked },
+    { label: "All books", href: "/librarian/books", icon: BookOpen },
+    { label: "Give out and take back", href: "/librarian/loans", icon: BookMarked },
   ];
 
   return (

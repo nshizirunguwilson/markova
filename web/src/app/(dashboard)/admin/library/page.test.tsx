@@ -1190,7 +1190,7 @@ describe("the library while it is still loading", () => {
     serve(h.api, { ...routes, "/library/loans/active": hangs });
     renderPage(LibraryPage, { role: "ADMIN" });
 
-    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    await user.click(await screen.findByRole("button", { name: "Books out" }));
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
@@ -1241,12 +1241,12 @@ describe("exporting each library tab", () => {
     dueDate: "2026-08-08T00:00:00Z",
   };
 
-  it("exports the active loans, blank borrower and all", async () => {
+  it("exports the books that are out, blank borrower and all", async () => {
     const user = userEvent.setup();
     serve(h.api, { ...routes, "/library/loans/active": [namelessLoan] });
     renderPage(LibraryPage, { role: "ADMIN" });
 
-    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    await user.click(await screen.findByRole("button", { name: "Books out" }));
     await screen.findByText("Ubumenyi");
     await exportCsv(user);
 
@@ -1277,7 +1277,7 @@ describe("exporting each library tab", () => {
     });
     renderPage(LibraryPage, { role: "ADMIN" });
 
-    await user.click(await screen.findByRole("button", { name: "Active Loans" }));
+    await user.click(await screen.findByRole("button", { name: "Books out" }));
     await user.click(await screen.findByRole("button", { name: "Return" }));
 
     await waitFor(() =>
