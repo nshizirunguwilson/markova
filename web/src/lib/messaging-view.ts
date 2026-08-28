@@ -8,8 +8,25 @@
  * the words, which is what makes a chat look like a log file.
  */
 
-/** Messages closer together than this, from one person, read as one remark. */
-export const GROUP_WINDOW_MS = 5 * 60 * 1000;
+/**
+ * A run of messages carries one clock reading, and that reading has to be
+ * true of every message under it.
+ *
+ * It used to break after five minutes, and showed the run's *last* time. So
+ * three messages sent at 11:40, 11:42 and 11:44 sat under a single "11:44" —
+ * the label was wrong for two of the three, and there was no way to tell.
+ *
+ * A run now breaks when the clock reading itself changes. Every group then
+ * has exactly one honest label by construction, and the cost is only that a
+ * pair of messages either side of a minute boundary are drawn as two runs
+ * even when seconds apart. That is a cosmetic split; the alternative was a
+ * timestamp that lied.
+ *
+ * This is also why the clock shows no seconds: it does not need them. The
+ * label is accurate to the minute because the grouping is, and seconds in a
+ * conversation are noise nobody reads.
+ */
+export const GROUP_WINDOW_MS = 60 * 1000;
 
 export interface ViewMessage {
   id: string;
@@ -73,11 +90,25 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
   });
 }
 
-/** The clock time on a message, without the date. */
+/**
+ * The clock time on a message, without the date.
+ *
+ * Twenty-four hour, everywhere, regardless of what the reader's machine is
+ * set to. Rwandan schools write timetables, registers and letters on a 24
+ * hour clock, and a chat that says "8:20 PM" beside a register that says
+ * "20:20" makes somebody do the conversion in their head.
+ *
+ * `hourCycle` rather than `hour12: false`, because the latter renders
+ * midnight as "24:00" in some locales.
+ */
 export function clockTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 /**
@@ -105,8 +136,16 @@ export function groupThread(
 
     const group = block.groups[block.groups.length - 1];
     const last = group?.messages[group.messages.length - 1];
+    /*
+      Same sender is not enough: the run also has to read the same on the
+      clock, or the one label printed under it would be wrong for some of
+      the messages it covers.
+    */
+    const sameMinute =
+      last !== undefined && clockTime(message.createdAt) === clockTime(last.createdAt);
     const withinWindow =
       last !== undefined &&
+      sameMinute &&
       Math.abs(sentAt - new Date(last.createdAt).getTime()) <= GROUP_WINDOW_MS;
 
     if (group && group.senderId === senderId && withinWindow) {
