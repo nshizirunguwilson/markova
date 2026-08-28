@@ -137,38 +137,36 @@ export function useMessageAlerts() {
     return onNewMessage((raw) => {
       const message = raw as IncomingMessage;
 
-      /*
-        The thread open on screen, read from the URL rather than passed in:
-        the chat page keeps that in its own state, and reaching into it from
-        here would tie this hook to that page. The chat marks a conversation
-        read as soon as it is open, so the unread count corrects itself even
-        if a notice does slip through.
-      */
-      const openConversationId =
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("conversation")
-          : null;
-
       if (
         !shouldAnnounce({
           message,
           myUserId: me.current,
           pathname: where.current,
-          openConversationId,
         })
       ) {
         return;
       }
 
       const title = alertTitle(message);
-      const body = alertBody(message);
+      const body = alertBody();
+
+      /*
+        Opening the notice opens the thread it came from, not just the inbox:
+        the conversation id rides along in the URL, and the chat page reads it
+        and selects that conversation. Landing on a list and having to find
+        the person again is a second search for something you were already
+        told about.
+      */
+      const openThread = () =>
+        router.push(
+          message.conversationId
+            ? `/messages?conversation=${encodeURIComponent(message.conversationId)}`
+            : "/messages",
+        );
 
       toast(title, {
         description: body,
-        action: {
-          label: "Open",
-          onClick: () => router.push("/messages"),
-        },
+        action: { label: "Open", onClick: openThread },
       });
 
       // The browser's own notification, for somebody working in another tab.
@@ -184,10 +182,15 @@ export function useMessageAlerts() {
         try {
           // Tagged by conversation, so ten messages from one person replace
           // each other rather than stacking ten notifications up.
-          new Notification(title, {
+          const raised = new Notification(title, {
             body,
             tag: `markova-${message.conversationId ?? "chat"}`,
           });
+          // Clicking the browser's own notice opens the same thread.
+          raised.onclick = () => {
+            window.focus();
+            openThread();
+          };
         } catch {
           /* the corner notice has already done the job */
         }

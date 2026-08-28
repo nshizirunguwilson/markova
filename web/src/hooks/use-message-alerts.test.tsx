@@ -67,17 +67,43 @@ afterEach(() => {
 });
 
 describe("being told about a message from elsewhere in the system", () => {
-  it("shows a notice", async () => {
+  it("names the sender and says only that a message arrived", async () => {
     renderHook(() => useMessageAlerts());
     arrive(arriving());
     await waitFor(() => expect(h.toast).toHaveBeenCalled());
     expect(h.toast.mock.calls[0][0]).toBe("Aline Uwase");
-    expect(h.toast.mock.calls[0][1].description).toBe("Muraho neza");
+    expect(h.toast.mock.calls[0][1].description).toBe("sent a message");
   });
 
-  it("takes you to the conversation when the notice is followed", async () => {
+  // A screen in a staff room is not always read by the person the message is
+  // for, so the notice gives nothing away.
+  it("keeps the message itself out of the notice", async () => {
+    renderHook(() => useMessageAlerts());
+    arrive(arriving({ content: "Divine is being suspended on Monday" }));
+    await waitFor(() => expect(h.toast).toHaveBeenCalled());
+
+    const [title, options] = h.toast.mock.calls[0];
+    expect(`${title} ${options.description}`).not.toMatch(/suspended/i);
+  });
+
+  /*
+    Landing on the inbox and having to find the person again is a second
+    search for something you were just told about, so the thread it came from
+    rides along in the URL.
+  */
+  it("opens the sender's own thread when the notice is followed", async () => {
     renderHook(() => useMessageAlerts());
     arrive(arriving());
+    await waitFor(() => expect(h.toast).toHaveBeenCalled());
+
+    h.toast.mock.calls[0][1].action.onClick();
+
+    expect(h.router.push).toHaveBeenCalledWith("/messages?conversation=conv-1");
+  });
+
+  it("falls back to the inbox when the message names no thread", async () => {
+    renderHook(() => useMessageAlerts());
+    arrive(arriving({ conversationId: undefined }));
     await waitFor(() => expect(h.toast).toHaveBeenCalled());
 
     h.toast.mock.calls[0][1].action.onClick();
@@ -91,21 +117,20 @@ describe("being told about a message from elsewhere in the system", () => {
     expect(h.toast).not.toHaveBeenCalled();
   });
 
-  // A notice for a message visible two inches away is noise.
-  it("says nothing while you are looking at that very thread", () => {
+  it("says nothing while you are on the chat page", () => {
     h.pathname.current = "/messages";
-    window.history.replaceState({}, "", "/messages?conversation=conv-1");
     renderHook(() => useMessageAlerts());
     arrive(arriving());
     expect(h.toast).not.toHaveBeenCalled();
   });
 
-  it("still says so for another thread while on the chat page", async () => {
+  // Not merely the thread you have open — anywhere on the chat page. The
+  // inbox on the left already says a message arrived.
+  it("says nothing about another thread while on the chat page", async () => {
     h.pathname.current = "/messages";
-    window.history.replaceState({}, "", "/messages?conversation=conv-2");
     renderHook(() => useMessageAlerts());
-    arrive(arriving());
-    await waitFor(() => expect(h.toast).toHaveBeenCalled());
+    arrive(arriving({ conversationId: "conv-2" }));
+    expect(h.toast).not.toHaveBeenCalled();
   });
 
   // Registered once: re-registering on every navigation would drop a message
