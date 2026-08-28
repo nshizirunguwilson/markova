@@ -16,10 +16,11 @@ import {
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Send, ArrowLeft, WifiOff, Users, X } from "lucide-react";
+import { MessageSquare, Plus, Search, Send, ArrowLeft, WifiOff, Users, X } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
+import { personDetail, personMatches, personName } from "@/lib/person";
 
 /**
  * How far from the bottom of the thread still counts as "reading the latest".
@@ -41,6 +42,7 @@ export default function MessagesPage() {
   const [messageText, setMessageText] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [threadSearch, setThreadSearch] = useState("");
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -245,6 +247,27 @@ export default function MessagesPage() {
     return `Group (${conv.participants?.length || 0})`;
   };
 
+  /**
+   * The threads still showing after a search.
+   *
+   * Matched on the people in the conversation and on its name, so a group is
+   * findable by what it is called and a direct thread by who it is with.
+   * Filtered here rather than asked of the server: the list is already in
+   * memory, and a request per keystroke would be slower and no more correct.
+   */
+  const visibleConversations = useMemo(() => {
+    const all = conversations ?? [];
+    const q = threadSearch.trim();
+    if (!q) return all;
+
+    return all.filter((conv: any) => {
+      if (personMatches({ firstName: conv.name ?? "" }, q)) return true;
+      return (conv.participants ?? []).some(
+        (p: any) => p?.user?.id !== user?.id && personMatches(p?.user, q),
+      );
+    });
+  }, [conversations, threadSearch, user?.id]);
+
   const getOtherUser = (conv: any) => {
     if (conv.type === "ONE_ON_ONE") {
       return conv.participants?.find((p: any) => p?.user?.id !== user?.id)?.user;
@@ -310,16 +333,39 @@ export default function MessagesPage() {
           </button>
         </div>
 
+        {/*
+          Finding a thread in a long list.
+
+          Searches who a conversation is with, not what was said in it. That
+          is the question somebody actually has open — "where is the thread
+          with Aline" — and it is answerable instantly from what is already
+          on screen, with no request and no waiting.
+        */}
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              type="search"
+              value={threadSearch}
+              onChange={(e) => setThreadSearch(e.target.value)}
+              placeholder="Search people"
+              aria-label="Search people"
+              className="w-full rounded-lg border border-border bg-surface py-1.5 pl-8 pr-3 text-[0.8125rem] text-foreground placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+            />
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-10"><Spinner /></div>
-        ) : conversations?.length > 0 ? (
+        ) : visibleConversations.length > 0 ? (
           <div className="flex-1 overflow-y-auto pb-2">
-            {conversations.map((conv: any) => {
+            {visibleConversations.map((conv: any) => {
               const otherUser = getOtherUser(conv);
               const isOtherOnline = otherUser ? chatStore.isOnline(otherUser.id) : false;
               const unread = conv.unreadCount > 0;
               const active = selectedConv === conv.id;
               const name = getConvName(conv);
+              const detail = conv.type === "ONE_ON_ONE" ? personDetail(otherUser) : "";
 
               return (
                 <button
@@ -363,6 +409,13 @@ export default function MessagesPage() {
                         }`}
                       >
                         {name}
+                        {/* Four children share this name. The class is the
+                            thing that says which one. */}
+                        {detail && (
+                          <span className="ml-1.5 text-[0.75rem] font-normal text-muted">
+                            {detail}
+                          </span>
+                        )}
                       </span>
                       {conv.lastMessage && (
                         <span className="flex-shrink-0 text-[0.6875rem] tabular-nums text-muted">
@@ -396,6 +449,21 @@ export default function MessagesPage() {
                 </button>
               );
             })}
+          </div>
+        ) : threadSearch.trim() ? (
+          // Having nothing that matches is a different answer from having
+          // nothing at all, and the way out has to be offered.
+          <div className="px-6 py-12 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Nobody matches &ldquo;{threadSearch.trim()}&rdquo;
+            </p>
+            <button
+              type="button"
+              onClick={() => setThreadSearch("")}
+              className="mt-2 text-xs font-medium text-primary hover:underline"
+            >
+              Show every conversation
+            </button>
           </div>
         ) : (
           <div className="px-6 py-12 text-center">
@@ -733,9 +801,16 @@ export default function MessagesPage() {
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
                           {u.firstName?.charAt(0)?.toUpperCase() || "?"}
                         </div>
-                        <div>
-                          <span className="font-medium text-foreground">{u.firstName} {u.lastName}</span>
-                          <span className="ml-2 text-xs text-muted">{u.role}</span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-foreground">
+                            {personName(u)}
+                          </span>
+                          {/* The class for a student, the role for anyone
+                              else. Starting a thread with the wrong Aline is
+                              the mistake this prevents. */}
+                          <span className="ml-2 text-xs text-muted">
+                            {personDetail(u) || u.role}
+                          </span>
                         </div>
                       </button>
                     ))

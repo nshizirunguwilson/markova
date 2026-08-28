@@ -266,6 +266,21 @@ export class MessagingService {
                 photoUrl: true,
                 role: true,
                 lastSeenAt: true,
+                // Two children in a school of fourteen hundred share a name
+                // more often than not. The class is what tells them apart,
+                // and it is the first thing a teacher would ask.
+                student: {
+                  select: {
+                    studentIdNumber: true,
+                    classSection: {
+                      select: {
+                        name: true,
+                        classLevel: { select: { name: true } },
+                        trade: { select: { code: true } },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -490,6 +505,20 @@ export class MessagingService {
         lastName: true,
         role: true,
         photoUrl: true,
+        // Picking the right Aline out of four is only possible with the
+        // class beside the name.
+        student: {
+          select: {
+            studentIdNumber: true,
+            classSection: {
+              select: {
+                name: true,
+                classLevel: { select: { name: true } },
+                trade: { select: { code: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       take: 30,

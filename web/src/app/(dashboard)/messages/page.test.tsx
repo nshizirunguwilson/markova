@@ -1901,3 +1901,164 @@ describe("a message arriving while you watch", () => {
     }
   });
 });
+
+/**
+ * Finding a thread in a long inbox.
+ *
+ * Searches who a conversation is with, not what was said in it — that is the
+ * question somebody has open ("where is the thread with Aline"), and it is
+ * answerable from what is already on screen without a request.
+ */
+describe("searching the inbox for a person", () => {
+  const withPeople = (extra: unknown[]) => ({
+    ...routes,
+    "/messaging/conversations": [conversation, ...extra],
+  });
+
+  const second = {
+    id: "conv-2",
+    type: "ONE_ON_ONE",
+    participants: [
+      {
+        user: {
+          id: "u-4",
+          firstName: "Jean",
+          lastName: "Habimana",
+          role: "PARENT",
+        },
+      },
+    ],
+    lastMessage: {
+      senderUserId: "u-4",
+      content: "Murakoze",
+      createdAt: "2026-08-21T09:00:00Z",
+      sender: { firstName: "Jean", lastName: "Habimana" },
+    },
+    unreadCount: 0,
+  };
+
+  async function openInbox() {
+    serve(h.api, withPeople([second]));
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByRole("button", { name: /Aline/ });
+  }
+
+  const search = () => screen.getByLabelText("Search people");
+
+  it("shows every thread before anything is typed", async () => {
+    await openInbox();
+    expect(screen.getByRole("button", { name: /Aline/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Jean/ })).toBeInTheDocument();
+  });
+
+  it("narrows to the person named", async () => {
+    await openInbox();
+    await userEvent.setup({ delay: null }).type(search(), "jean");
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Aline/ })).toBeNull(),
+    );
+    expect(screen.getByRole("button", { name: /Jean/ })).toBeInTheDocument();
+  });
+
+  it("ignores case", async () => {
+    await openInbox();
+    await userEvent.setup({ delay: null }).type(search(), "JEAN");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Jean/ })).toBeInTheDocument(),
+    );
+  });
+
+  it("finds a group by what it is called", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [
+        { ...conversation, id: "conv-3", type: "GROUP", name: "Senior 2 A" },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByRole("button", { name: /Senior 2 A/ });
+    await userEvent.setup({ delay: null }).type(search(), "senior");
+    expect(
+      screen.getByRole("button", { name: /Senior 2 A/ }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * Finding nothing is a different answer from having nothing, and the way
+   * back has to be offered — otherwise an empty inbox looks broken.
+   */
+  it("says who it could not find, and offers the way back", async () => {
+    await openInbox();
+    const user = userEvent.setup({ delay: null });
+    await user.type(search(), "zzzz");
+
+    const nothing = await screen.findByText(/Nobody matches/);
+    expect(nothing.textContent).toContain("zzzz");
+
+    await user.click(screen.getByRole("button", { name: /show every conversation/i }));
+    expect(
+      await screen.findByRole("button", { name: /Aline/ }),
+    ).toBeInTheDocument();
+  });
+
+  // Not the same thing as an inbox with nothing in it.
+  it("keeps the empty inbox wording for an inbox that is empty", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    expect(await screen.findByText("No conversations yet")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A school of fourteen hundred children has four Alines. A list of bare names
+ * is unusable the moment it does.
+ */
+describe("telling two people with the same name apart", () => {
+  const inClass = {
+    ...conversation,
+    participants: [
+      {
+        user: {
+          ...other,
+          student: {
+            studentIdNumber: "STD-2026-011",
+            classSection: {
+              name: "A",
+              classLevel: { name: "Senior 2" },
+              trade: null,
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  it("puts the class beside a student's name", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [inClass] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    const row = await screen.findByRole("button", { name: /Aline/ });
+    expect(row.textContent).toContain("Senior 2 A");
+  });
+
+  it("leaves a group name alone", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations": [
+        { ...inClass, type: "GROUP", name: "Staff room" },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    const row = await screen.findByRole("button", { name: /Staff room/ });
+    expect(row.textContent).not.toContain("Senior 2 A");
+  });
+
+  it("finds a person by their class", async () => {
+    serve(h.api, { ...routes, "/messaging/conversations": [inClass] });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByRole("button", { name: /Aline/ });
+    await userEvent
+      .setup({ delay: null })
+      .type(screen.getByLabelText("Search people"), "senior 2");
+    expect(screen.getByRole("button", { name: /Aline/ })).toBeInTheDocument();
+  });
+});
