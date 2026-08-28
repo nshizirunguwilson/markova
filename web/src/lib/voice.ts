@@ -59,8 +59,16 @@ export function clockDuration(seconds: number): string {
   return `${mins}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-/** How many bars a waveform is drawn with. */
-export const WAVEFORM_BARS = 40;
+/**
+ * How many bars a waveform is drawn with.
+ *
+ * Fewer than it was. Forty bars inside a bubble a few hundred pixels wide
+ * gave each one about two pixels of room, which is not a bar — it is a dotted
+ * line, and that is exactly what it looked like. Twenty-eight bars at 3px
+ * with a 2px gap reads as a waveform at the size a voice note is actually
+ * drawn.
+ */
+export const WAVEFORM_BARS = 28;
 
 /**
  * The heights of those bars, from the audio itself.
@@ -108,7 +116,13 @@ export function peaksFrom(
  * gaps in it reads as a broken picture rather than as a pause in speech.
  */
 export function barHeight(peak: number): string {
-  const pct = 12 + Math.min(Math.max(peak, 0), 1) * 88;
+  /*
+    Floored at a fifth rather than at a tenth: a bar barely taller than it is
+    wide reads as a dot, and a row of dots is what a silent waveform used to
+    look like. Twenty percent is short enough to read as quiet and tall enough
+    to still be a bar.
+  */
+  const pct = 20 + Math.min(Math.max(peak, 0), 1) * 80;
   return `${Math.round(pct)}%`;
 }
 

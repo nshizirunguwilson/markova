@@ -125,7 +125,7 @@ export function VoiceNote({
   };
 
   return (
-    <div className="flex min-w-[13rem] max-w-[18rem] items-center gap-2.5">
+    <div className="flex w-[15rem] max-w-full items-center gap-2.5">
       <audio
         ref={audioRef}
         src={href}
@@ -152,7 +152,7 @@ export function VoiceNote({
         type="button"
         onClick={toggle}
         aria-label={playing ? "Pause voice note" : "Play voice note"}
-        className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
           mine
             ? "bg-on-primary/20 text-on-primary hover:bg-on-primary/30"
             : "bg-primary text-on-primary hover:opacity-90"
@@ -176,13 +176,13 @@ export function VoiceNote({
         <div
           onClick={seekTo}
           role="presentation"
-          className="flex h-8 cursor-pointer items-center gap-[2px]"
+          className="flex h-7 cursor-pointer items-center gap-[2px]"
         >
           {bars.map((peak, i) => (
             <span
               key={i}
               style={{ height: barHeight(peak) }}
-              className={`flex-1 rounded-full transition-colors ${
+              className={`w-[3px] flex-shrink-0 rounded-full transition-colors ${
                 i < filled
                   ? mine
                     ? "bg-on-primary"
@@ -196,8 +196,8 @@ export function VoiceNote({
         </div>
 
         <span
-          className={`block text-[0.6875rem] tabular-nums ${
-            mine ? "text-on-primary/80" : "text-muted"
+          className={`mt-0.5 block text-[0.6875rem] tabular-nums ${
+            mine ? "text-on-primary/70" : "text-muted"
           }`}
         >
           {/* Counting up while it plays, its full length when it is not —

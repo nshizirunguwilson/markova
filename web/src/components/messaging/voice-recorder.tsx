@@ -232,8 +232,15 @@ export function VoiceRecorder({
     ...levels,
   ];
 
+  /*
+    Deliberately narrow. Recording used to take the whole composer, which put
+    a forty-bar meter across the width of the window for what is a small,
+    momentary control — it read as the app having changed mode rather than as
+    a button being held. It now sits at about a third, the size it needs to
+    say "recording, this long, throw away or send".
+  */
   return (
-    <div className="flex flex-1 items-center gap-2.5 px-1">
+    <div className="flex w-[min(22rem,60%)] items-center gap-2 px-1">
       <button
         type="button"
         onClick={throwAway}
@@ -253,12 +260,15 @@ export function VoiceRecorder({
         {clockDuration(seconds)}
       </span>
 
-      <div className="flex h-8 min-w-0 flex-1 items-center gap-[2px]" aria-hidden="true">
+      <div
+        className="flex h-7 min-w-0 flex-1 items-center gap-[2px] overflow-hidden"
+        aria-hidden="true"
+      >
         {bars.map((level, i) => (
           <span
             key={i}
             style={{ height: barHeight(level) }}
-            className="flex-1 rounded-full bg-primary/70"
+            className="w-[3px] flex-shrink-0 rounded-full bg-primary/70"
           />
         ))}
       </div>
