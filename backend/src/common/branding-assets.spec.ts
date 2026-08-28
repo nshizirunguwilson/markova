@@ -48,3 +48,47 @@ describe('the branding assets that ship with the school', () => {
     expect(readFileSync(path).length).toBeLessThan(256 * 1024);
   });
 });
+
+/**
+ * The full-resolution artwork behind the shipped defaults.
+ *
+ * What ships is downscaled to roughly the size it prints at, because it is
+ * inlined as base64 into every letter. The master has to live somewhere all
+ * the same: a school's stamp is drawn once and re-exported for years, and a
+ * downscaled copy is not something you can go back to. `uploads/` is
+ * gitignored and a browser cache is not a backup — this folder is the only
+ * version-controlled copy.
+ */
+describe('the full-resolution artwork behind them', () => {
+  const originals = join(process.cwd(), 'assets', 'originals');
+
+  const masters = [['stamp.png', 'the school stamp']] as const;
+
+  it.each(masters)('keeps the master for %s — %s', (file) => {
+    expect(existsSync(join(originals, file))).toBe(true);
+  });
+
+  it.each(masters)('%s master is a real image', (file) => {
+    const path = join(originals, file);
+    if (!existsSync(path)) return;
+    expect(validateImageMagicBytes(readFileSync(path))).toBe(true);
+  });
+
+  // The point of keeping it is that it has detail the shipped copy lost.
+  it.each(masters)('%s master is larger than what ships', (file) => {
+    const master = join(originals, file);
+    const shipped = join(process.cwd(), 'assets', file);
+    if (!existsSync(master) || !existsSync(shipped)) return;
+    expect(readFileSync(master).length).toBeGreaterThan(
+      readFileSync(shipped).length,
+    );
+  });
+
+  // It is never inlined, so it carries no size ceiling — but it is in git,
+  // and a scan straight off a flatbed does not belong in a repository.
+  it.each(masters)('%s master is still a sane size for git', (file) => {
+    const path = join(originals, file);
+    if (!existsSync(path)) return;
+    expect(readFileSync(path).length).toBeLessThan(8 * 1024 * 1024);
+  });
+});
