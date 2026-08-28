@@ -1772,3 +1772,62 @@ describe("runs of messages from one person", () => {
     expect(screen.getByText(/August/)).toBeInTheDocument();
   });
 });
+
+/**
+ * Motion in the thread.
+ *
+ * A message that arrives while you are reading rises in. Everything already
+ * in the thread when you opened it does not — animating a hundred bubbles up
+ * on a thread you scrolled back through is a staggered list entrance: it
+ * delays reading and looks like the page loading twice.
+ */
+describe("a message arriving while you watch", () => {
+  const at = (id: string, senderUserId: string, minute: number, content: string) => ({
+    id,
+    conversationId: "conv-1",
+    senderUserId,
+    sender: { id: senderUserId, firstName: "Aline", lastName: "Uwase" },
+    content,
+    createdAt: `2026-08-21T09:0${minute}:00Z`,
+  });
+
+  async function openThread(messages: unknown[]) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": messages,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    const row = await screen.findByRole("button", { name: /Aline/ });
+    await userEvent.setup({ delay: null }).click(row);
+  }
+
+  it("animates nothing on a thread you have just opened", async () => {
+    await openThread([at("m-2", "u-3", 1, "second"), at("m-1", "u-3", 0, "first")]);
+    await screen.findByText("first");
+    expect(document.querySelector(".motion-rise-in")).toBeNull();
+  });
+
+  it("leaves an old message alone even when it is the last one", async () => {
+    await openThread([at("m-1", "u-3", 0, "only")]);
+    await screen.findByText("only");
+    const group = screen.getByText("only").closest("div")!.parentElement!;
+    expect(group.className).not.toContain("motion-rise-in");
+  });
+
+  // The class is on the group, not on each bubble, so a run of three
+  // messages rises as the one remark it is.
+  it("puts the movement on the run rather than on every bubble", async () => {
+    await openThread([
+      at("m-3", "u-3", 2, "third"),
+      at("m-2", "u-3", 1, "second"),
+      at("m-1", "u-3", 0, "first"),
+    ]);
+    await screen.findByText("first");
+    const bubbles = ["first", "second", "third"].map(
+      (t) => screen.getByText(t).closest("div")!,
+    );
+    for (const bubble of bubbles) {
+      expect(bubble.className).not.toContain("motion-rise-in");
+    }
+  });
+});
