@@ -151,8 +151,10 @@ export class UsersController {
     // copy of their photograph. A missing old file must never stop the new
     // one being saved either.
     const user = await this.usersService.findOne(id);
-    retireStoredFile(user.photoUrl, { existsSync, mkdirSync, renameSync }, (p) =>
-      join(process.cwd(), p),
+    retireStoredFile(
+      user.photoUrl,
+      { existsSync, mkdirSync, renameSync },
+      (p) => join(process.cwd(), p),
     );
     const photoUrl = `/uploads/photos/${file.filename}`;
     return this.usersService.updatePhoto(id, photoUrl);

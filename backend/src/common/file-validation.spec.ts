@@ -492,7 +492,12 @@ describe('file validation', () => {
     it('does nothing when the previous file is already gone', () => {
       const a = attic();
       expect(
-        retireStoredFile('/uploads/branding/missing.png', a.fs, a.resolve, a.now),
+        retireStoredFile(
+          '/uploads/branding/missing.png',
+          a.fs,
+          a.resolve,
+          a.now,
+        ),
       ).toBeNull();
       expect(a.moved).toEqual([]);
     });

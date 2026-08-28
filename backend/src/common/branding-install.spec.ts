@@ -100,7 +100,9 @@ describe('installing a branding image the school starts with', () => {
 describe('which config values the seed may write', () => {
   it('leaves branding a school has already set', () => {
     for (const key of SCHOOL_OWNED_KEYS) {
-      expect(shouldWriteConfig(key, '/uploads/branding/theirs.png')).toBe(false);
+      expect(shouldWriteConfig(key, '/uploads/branding/theirs.png')).toBe(
+        false,
+      );
     }
   });
 
