@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
@@ -59,6 +60,16 @@ export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
   const [selectedConv, setSelectedConv] = useState<string | null>(null);
+  /*
+    A notice about a new message opens this page with the thread it came from
+    named in the URL. Honoured once, when it changes: after that the person is
+    driving, and re-selecting on every render would fight them every time they
+    clicked a different conversation.
+  */
+  const askedForConv = useSearchParams().get("conversation");
+  useEffect(() => {
+    if (askedForConv) setSelectedConv(askedForConv);
+  }, [askedForConv]);
   const { data: messages } = useMessages(selectedConv || undefined);
   const sendMessageRest = useSendMessage();
   const createConv = useCreateConversation();
@@ -115,6 +126,8 @@ export default function MessagesPage() {
   const [renameTo, setRenameTo] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  /** The field itself, so opening a thread or answering a message lands in it. */
+  const composerRef = useRef<HTMLInputElement>(null);
   /**
    * True once the reader has scrolled far enough up that the newest message
    * is off the bottom of the view.
@@ -290,11 +303,43 @@ export default function MessagesPage() {
     return () => list.removeEventListener("scroll", check);
   }, [selectedConv, threadBlocks.length]);
 
+  /*
+    Opening a thread puts the cursor in the field. Somebody who clicks a
+    conversation has already decided to write in it; making them click a
+    second time to start is a step that exists for no reason.
+
+    Skipped on a touch screen, where focusing a field throws the keyboard up
+    over the conversation the moment it opens — the opposite of helpful.
+  */
+  useEffect(() => {
+    if (!selectedConv) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches) {
+      return;
+    }
+    composerRef.current?.focus();
+  }, [selectedConv]);
+
   /** Back to the newest message. */
   const jumpToBottom = useCallback(() => {
     const list = messageListRef.current;
     if (!list) return;
     list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+  }, []);
+
+  /*
+    Whatever you just sent is at the bottom, so that is where you should be.
+
+    This matters most for a reply: answering a message means scrolling up to
+    find it, and without this you send from up there and never see your own
+    message land. The thread only follows new arrivals when you are already
+    near the bottom — deliberately, so an incoming message does not yank a
+    reader away — and your own message is the one exception to that.
+  */
+  const followOwnMessage = useCallback(() => {
+    requestAnimationFrame(() => {
+      const list = messageListRef.current;
+      if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    });
   }, []);
 
   // Handle typing indicator
@@ -357,6 +402,7 @@ export default function MessagesPage() {
       });
       setUploadPercent(null);
       setReplyingTo(null);
+      followOwnMessage();
       sendMessageRest.mutate({
         conversationId: selectedConv,
         content: caption || uploaded.fileName,
@@ -425,6 +471,7 @@ export default function MessagesPage() {
     setMessageText("");
     setReplyingTo(null);
     setPendingFile(null);
+    followOwnMessage();
 
     // Stop typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -931,7 +978,7 @@ export default function MessagesPage() {
                             >
                             <div
                               id={`msg-${msg.id}`}
-                              className={`max-w-[min(34rem,78%)] p-2 ${corner} ${
+                              className={`max-w-[min(34rem,78%)] p-1.5 ${corner} ${
                                 group.mine
                                   ? "bg-primary text-on-primary"
                                   : "bg-surface-muted text-foreground"
@@ -983,7 +1030,12 @@ export default function MessagesPage() {
                             */}
                             <button
                               type="button"
-                              onClick={() => setReplyingTo(msg)}
+                              onClick={() => {
+                                setReplyingTo(msg);
+                                // Straight into the field: answering is the
+                                // whole reason the control was pressed.
+                                composerRef.current?.focus();
+                              }}
                               aria-label={`Reply to ${group.senderName}: ${
                                 (msg.content || "message").slice(0, 40)
                               }`}
@@ -1139,13 +1191,22 @@ export default function MessagesPage() {
                     {!recordingVoice && (
                     <>
                     <input
+                      ref={composerRef}
                       type="text"
                       value={messageText}
                       onChange={(e) => handleInputChange(e.target.value)}
                       placeholder="Type a message..."
                       aria-label="Type a message..."
                       onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                      className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1.5 text-[0.875rem] text-foreground placeholder:text-muted focus:outline-none"
+                      /*
+                        No ring of its own. The row around it already draws one
+                        on focus-within, and the app-wide `:focus-visible` rule
+                        was adding a second inside it — two outlines for one
+                        cursor. `focus-visible:` rather than `focus:`, because
+                        the global rule is on `:focus-visible` and a bare
+                        `focus:` variant never reaches it.
+                      */
+                      className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1.5 text-[0.875rem] text-foreground placeholder:text-muted focus:outline-none focus-visible:outline-none"
                     />
                     </>
                     )}
