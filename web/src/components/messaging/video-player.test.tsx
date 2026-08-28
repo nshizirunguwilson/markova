@@ -226,3 +226,45 @@ describe("clicking the clip", () => {
     expect(play).toHaveBeenCalled();
   });
 });
+
+/**
+ * A WebM clip reports its length as Infinity until it has been seeked, and
+ * "Infinity:NaN" under a video is worse than no length at all.
+ */
+describe("a clip whose length the browser does not know", () => {
+  it("leaves the length alone rather than showing nonsense", () => {
+    render(<VideoPlayer src="/uploads/a.mp4" />);
+    const video = clip();
+    Object.defineProperty(video, "duration", {
+      value: Infinity,
+      configurable: true,
+    });
+    act(() => {
+      video.dispatchEvent(new Event("loadedmetadata"));
+    });
+
+    expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
+  });
+
+  // Opened on a deliberate press, so the whole clip is worth fetching; in a
+  // bubble it is only ever a still.
+  it("fetches the whole clip when it is opened to play", () => {
+    render(<VideoPlayer src="/uploads/a.mp4" autoPlay />);
+    expect(clip()).toHaveAttribute("preload", "auto");
+    expect(clip()).toHaveAttribute("autoplay");
+  });
+
+  it("fetches only the metadata otherwise", () => {
+    render(<VideoPlayer src="/uploads/a.mp4" />);
+    expect(clip()).toHaveAttribute("preload", "metadata");
+  });
+
+  // Autoplaying means it is already running, so the big centre target would
+  // only be in the way.
+  it("does not cover an autoplaying clip with a play target", () => {
+    const { container } = render(<VideoPlayer src="/uploads/a.mp4" autoPlay />);
+    expect(
+      container.querySelector('[aria-hidden="true"].absolute.inset-0'),
+    ).toBeNull();
+  });
+});

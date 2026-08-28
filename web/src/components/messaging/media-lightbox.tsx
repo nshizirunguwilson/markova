@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Download, X } from "lucide-react";
 
+import { VideoPlayer } from "./video-player";
+
 /**
  * One picture or clip, opened large.
  *
@@ -94,11 +96,12 @@ export function MediaLightbox({
         className="flex max-h-[90vh] max-w-[90vw] items-center justify-center"
       >
         {kind === "video" ? (
-          <video
+          /* Our own controls, not the browser's — this is the only place a
+             clip plays, so it is the only place they are needed. */
+          <VideoPlayer
             src={src}
-            controls
             autoPlay
-            className="max-h-[90vh] max-w-[90vw] rounded-lg"
+            className="max-h-[90vh] max-w-[90vw]"
           />
         ) : (
           <img

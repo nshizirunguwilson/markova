@@ -25,11 +25,17 @@ describe("opening a picture large", () => {
     expect(img.className).toContain("max-w-[90vw]");
   });
 
-  it("plays a clip when that is what was opened", () => {
+  /*
+    Our own controls, not the browser's — this is the only place a clip plays,
+    so it is the only place they are needed.
+  */
+  it("plays a clip with our own controls when that is what was opened", () => {
     render(<MediaLightbox src="/uploads/a.mp4" kind="video" onClose={vi.fn()} />);
     const video = document.querySelector("video")!;
     expect(video).toBeInTheDocument();
-    expect(video).toHaveAttribute("controls");
+    expect(video).not.toHaveAttribute("controls");
+    expect(video).toHaveAttribute("autoplay");
+    expect(screen.getByRole("button", { name: /pause video|play video/i })).toBeInTheDocument();
   });
 
   it("is announced as a dialog", () => {
