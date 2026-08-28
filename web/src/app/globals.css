@@ -28,3 +28,85 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   Durations and easings come from design/tokens.json via tokens.css, so the
+   values here are the same milliseconds the mobile app animates on.
+
+   Everything below animates only `opacity` and `transform`. Both are handled
+   by the compositor, so none of it can cause a layout pass — which matters on
+   a table of 1,300 students far more than it does on a login screen.
+
+   The prefers-reduced-motion block above clamps every one of these to 0.01ms,
+   so a person who has asked for less motion gets the end state immediately
+   rather than a slower version of the same thing.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Rises as it arrives. Eight pixels: enough to read as movement, small enough
+   that the eye lands on the final position rather than tracking the travel. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The wizard's steps. Forward slides in from the right, Back from the left,
+   so the direction of travel matches the button that caused it. */
+@keyframes slide-from-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes slide-from-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A dialog panel: rises and settles from very slightly small, which reads as
+   coming toward the reader rather than sliding past them. */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.motion-fade-in {
+  animation: fade-in var(--duration-quick) var(--ease-enter) both;
+}
+
+.motion-rise-in {
+  animation: rise-in var(--duration-settle) var(--ease-enter) both;
+}
+
+.motion-panel-in {
+  animation: panel-in var(--duration-deliberate) var(--ease-enter) both;
+}
+
+.motion-step-forward {
+  animation: slide-from-right var(--duration-settle) var(--ease-enter) both;
+}
+
+.motion-step-back {
+  animation: slide-from-left var(--duration-settle) var(--ease-enter) both;
+}
+
+/*
+  Somebody is typing. Three dots that fill in turn.
+
+  The class was already on the typing notice in Messages and had never been
+  defined anywhere, so the dots sat there as static punctuation.
+*/
+@keyframes typing-dots {
+  0%   { clip-path: inset(0 100% 0 0); }
+  40%  { clip-path: inset(0 66% 0 0); }
+  60%  { clip-path: inset(0 33% 0 0); }
+  80%, 100% { clip-path: inset(0 0 0 0); }
+}
+
+.typing-dots {
+  display: inline-block;
+  animation: typing-dots 1.2s steps(1, end) infinite;
+}
