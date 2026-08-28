@@ -650,21 +650,38 @@ describe('the conduct verdict on a card', () => {
     expect(await cardLosing(lost)).toMatch(new RegExp(verdict));
   });
 
-  // "Good" tells a parent nothing they can act on; the mark and the
-  // percentage tell them where their child stands and by how much.
+  /*
+    Conduct is a row of the marks table now, not a figure in the summary
+    strip: its own mark where a total goes, its percentage where a grade goes.
+    "Good" on its own tells a parent nothing they can act on.
+  */
   it('prints the mark itself, not only the word', async () => {
-    expect(await cardLosing(8)).toMatch(/32 \/ 40 \(80%\)/);
+    const html = await cardLosing(8);
+    expect(html).toMatch(/Discipline/);
+    expect(html).toMatch(/32 \/ 40/);
+    expect(html).toMatch(/80%/);
   });
 
   it('gives a clean term the full mark', async () => {
-    expect(await cardLosing(0)).toMatch(/40 \/ 40 \(100%\)/);
+    expect(await cardLosing(0)).toMatch(/40 \/ 40/);
   });
 
   // A term cannot end below nothing, however bad it was.
   it('does not take a term below zero', async () => {
     const html = await cardLosing(90);
-    expect(html).toMatch(/0 \/ 40 \(0%\)/);
+    expect(html).toMatch(/0 \/ 40/);
     expect(html).not.toMatch(/-\d+ \/ 40/);
+  });
+
+  // Above the subjects, where a reader is already looking for marks.
+  it('puts it above the first group of subjects', async () => {
+    const html = await cardLosing(4);
+    expect(html.indexOf('Discipline')).toBeLessThan(html.indexOf('Core subjects'));
+  });
+
+  it('no longer repeats it in the summary strip', async () => {
+    const html = await cardLosing(4);
+    expect(html).not.toMatch(/<span>Conduct<\/span>/);
   });
 
   it('draws a dash for attendance nobody recorded', async () => {
@@ -759,7 +776,7 @@ describe('a report card with almost nothing on it', () => {
   */
   it('gives a term with nothing recorded against it the full conduct mark', async () => {
     const html = await service.generateTermReportHtml('student-1', 'term-1');
-    expect(html).toMatch(/40 \/ 40 \(100%\)/);
+    expect(html).toMatch(/40 \/ 40/);
     expect(html).toMatch(/Excellent/);
   });
 

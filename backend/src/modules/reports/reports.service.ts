@@ -13,7 +13,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import {
   TERM_CONDUCT_MARK,
-  conductLabel,
   conductPercentage,
   conductRemark,
   termConduct,
@@ -1423,13 +1422,11 @@ export class ReportsService implements OnModuleDestroy {
 
     /*
       Conduct as a mark out of forty and as a percentage, rather than as a
-      bare word. "Good" tells a parent nothing they can act on; "32 / 40
-      (80%)" tells them where their child stands and by how much.
+      bare word. "Good" tells a parent nothing they can act on; "32 / 40" and
+      "80%" tell them where their child stands and by how much.
     */
     const conductPoints = data.conduct?.points ?? null;
     const conductOutOf = data.conduct?.outOf ?? TERM_CONDUCT_MARK;
-    const conduct =
-      conductPoints === null ? '–' : conductLabel(conductPoints, conductOutOf);
     const conductWord = conductRemark(
       conductPoints === null
         ? null
@@ -1466,12 +1463,41 @@ export class ReportsService implements OnModuleDestroy {
         ${isALevel ? '' : `<td class="rem">${s.remark ?? '–'}</td>`}
       </tr>`;
 
+    /*
+      Conduct, as a row of the marks table rather than a figure tucked into
+      the summary strip.
+
+      It is marked out of forty a term like everything else on this sheet is
+      marked out of something, so it belongs where a reader is already looking
+      for marks — at the top, above the subjects, where it reads as part of
+      the term's record rather than as a footnote about it.
+
+      The empty cells are the assessment columns: conduct has no CAT and no
+      exam. Its own mark, its percentage in place of a grade, and the word for
+      it where a remark goes.
+    */
+    const conductRow = () => {
+      if (conductPoints === null) return '';
+      const pct = conductPercentage(conductPoints, conductOutOf);
+      const blanks = isALevel ? 4 : 3;
+      return `
+      <tr class="conduct">
+        <td class="subj">Discipline</td>
+        ${'<td class="num">–</td>'.repeat(blanks)}
+        <td class="tot">${conductPoints} / ${conductOutOf}</td>
+        <td class="gr">${pct === null ? '–' : `${pct}%`}</td>
+        <td class="num">–</td>
+        <td>–</td>
+        ${isALevel ? '' : `<td class="rem">${conductWord}</td>`}
+      </tr>`;
+    };
+
     // O-Level keeps its written remark alongside; A-Level never had one.
     const cols = isALevel ? 9 : 9;
     const groupRow = (label: string, note: string) =>
       `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
 
-    let tableBody = '';
+    let tableBody = conductRow();
     if (isALevel) {
       const general = data.subjects.filter(
         (s: any) => s.scope !== 'A_SPECIFIC',
@@ -1479,7 +1505,7 @@ export class ReportsService implements OnModuleDestroy {
       const specific = data.subjects.filter(
         (s: any) => s.scope === 'A_SPECIFIC',
       );
-      tableBody =
+      tableBody +=
         groupRow(
           'General modules',
           'CAT 1 20% + CAT 2 20% + Exam 60%, no practical',
@@ -1495,7 +1521,7 @@ export class ReportsService implements OnModuleDestroy {
       const electives = data.subjects.filter(
         (s: any) => s.scope === 'O_ELECTIVE',
       );
-      tableBody =
+      tableBody +=
         groupRow('Core subjects', 'count towards the aggregate') +
         core.map(row).join('') +
         (electives.length
@@ -1555,9 +1581,8 @@ export class ReportsService implements OnModuleDestroy {
         `${competentCount} / ${judgedSubjects.length}`,
         judgedSubjects.length === 1 ? 'subject' : 'subjects',
       ),
-      // On every report now, A-Level included: a conduct mark out of forty
-      // is as much a part of an A-Level term as of an O-Level one.
-      summaryCell('Conduct', conduct, conductWord),
+      // Conduct is not here any more: it is a row of the marks table, at the
+      // top, where a reader is already looking for marks.
     ].join('');
 
     const aggregateNote = isALevel
