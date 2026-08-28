@@ -21,13 +21,19 @@ describe("a file inside a message", () => {
     );
   });
 
-  it("gives a video the browser's own controls", () => {
+  /*
+    Our own controls, not the browser's. The built-in ones are a different
+    shape, colour and size in every browser, and inside a bubble they look
+    like a piece of somebody else's application.
+  */
+  it("gives a video controls of our own, not the browser's", () => {
     const { container } = render(
       <MessageAttachment fileUrl="/uploads/attachments/a1b2.mp4" fileName="demo.mp4" />,
     );
     const video = container.querySelector("video");
     expect(video).toBeInTheDocument();
-    expect(video).toHaveAttribute("controls");
+    expect(video).not.toHaveAttribute("controls");
+    expect(screen.getByRole("button", { name: /play video/i })).toBeInTheDocument();
   });
 
   // Enough to draw the first frame and know the length, without pulling

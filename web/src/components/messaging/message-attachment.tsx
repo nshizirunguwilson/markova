@@ -5,6 +5,8 @@ import { Download, FileText, Play } from "lucide-react";
 
 import { resolveUploadUrl } from "@/lib/assets";
 import { kindOfUrl, shortFilename } from "@/lib/attachments";
+import { MediaLightbox } from "./media-lightbox";
+import { VideoPlayer } from "./video-player";
 
 /**
  * A file inside a message.
@@ -40,6 +42,8 @@ export function MessageAttachment({
   const kind = kindOfUrl(fileUrl);
   const name = fileName?.trim() || "Attachment";
   const [brokenImage, setBrokenImage] = useState(false);
+  /** Open large, on a dimmed ground, when somebody asks for it. */
+  const [opened, setOpened] = useState(false);
 
   if (!href) return null;
 
@@ -67,7 +71,14 @@ export function MessageAttachment({
   if (kind === "image" && !brokenImage) {
     return (
       <figure className="group/att relative overflow-hidden rounded-lg">
-        <a href={href} target="_blank" rel="noopener noreferrer">
+        {/* Opens large in place rather than in a new tab: a photograph in a
+            conversation is something you glance at and come back from. */}
+        <button
+          type="button"
+          onClick={() => setOpened(true)}
+          aria-label={`Open ${name}`}
+          className="block"
+        >
           <img
             src={href}
             alt={name}
@@ -79,7 +90,7 @@ export function MessageAttachment({
             */
             className="max-h-72 w-auto max-w-full rounded-lg object-contain"
           />
-        </a>
+        </button>
         {/* Over the picture, so it does not cost a row of height. Always
             visible on touch, where there is no hover to reveal it. */}
         <div className="absolute right-1.5 top-1.5 rounded-md bg-black/45 text-white backdrop-blur-sm">
@@ -93,6 +104,14 @@ export function MessageAttachment({
             <Download className="h-4 w-4" />
           </a>
         </div>
+        {opened && (
+          <MediaLightbox
+            src={href}
+            kind="image"
+            name={name}
+            onClose={() => setOpened(false)}
+          />
+        )}
       </figure>
     );
   }
@@ -100,17 +119,18 @@ export function MessageAttachment({
   if (kind === "video") {
     return (
       <div className="overflow-hidden rounded-lg">
-        <video
-          src={href}
-          controls
-          preload="metadata"
-          className="max-h-72 w-full rounded-lg bg-black"
-        >
-          {/* Anyone whose browser will not play it still gets the file. */}
-          <a href={href} download={name}>
-            Download {name}
-          </a>
-        </video>
+        {/* Our own controls, not the browser's: the built-in ones are a
+            different shape and colour in every browser, and in a bubble they
+            look like a piece of somebody else's application. */}
+        <VideoPlayer src={href} onExpand={() => setOpened(true)} />
+        {opened && (
+          <MediaLightbox
+            src={href}
+            kind="video"
+            name={name}
+            onClose={() => setOpened(false)}
+          />
+        )}
         <div
           className={`mt-1 flex items-center gap-2 text-[0.75rem] ${
             mine ? "text-on-primary/80" : "text-muted"
