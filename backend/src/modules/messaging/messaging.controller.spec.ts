@@ -1,4 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { MessagingController } from './messaging.controller';
 import { MessagingService } from './messaging.service';
 import { MessagingGateway } from './messaging.gateway';
@@ -232,18 +235,46 @@ describe('MessagingController', () => {
         { token: MessagingGateway, name: 'gateway', mock: gateway },
       ]);
 
+    /*
+      Written to a real file, because the upload is checked against what its
+      bytes actually are: the declared type decides the extension it is stored
+      under, and /uploads is served by extension, so a file that lied about
+      itself would come back from the API's own origin as whatever it really
+      was.
+    */
+    const written: string[] = [];
+    const writeUpload = (name: string, bytes: number[], type: string, size?: number) => {
+      const path = join(tmpdir(), `markova-test-${Date.now()}-${name}`);
+      writeFileSync(path, Buffer.from(bytes));
+      written.push(path);
+      return {
+        filename: name,
+        originalname: name,
+        path,
+        mimetype: type,
+        size: size ?? bytes.length,
+      };
+    };
+
+    const PDF = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]; // %PDF-1
+
+    afterEach(() => {
+      for (const path of written.splice(0)) {
+        if (existsSync(path)) unlinkSync(path);
+      }
+    });
+
     it('answers with the stored url and the name it arrived under', async () => {
       const ctl: any = await build();
-      expect(
-        ctl.uploadAttachment({
-          filename: 'a1b2c3.pdf',
-          originalname: 'Marking scheme.pdf',
-          size: 2048,
-        }),
-      ).toEqual({
+      const file = writeUpload('a1b2c3.pdf', PDF, 'application/pdf', 2048);
+      file.originalname = 'Marking scheme.pdf';
+
+      expect(ctl.uploadAttachment(file)).toEqual({
         fileUrl: '/uploads/attachments/a1b2c3.pdf',
         fileName: 'Marking scheme.pdf',
         size: 2048,
+        kind: 'document',
+        mimeType: 'application/pdf',
       });
     });
 
@@ -252,6 +283,70 @@ describe('MessagingController', () => {
       expect(() => ctl.uploadAttachment(undefined)).toThrow(
         BadRequestException,
       );
+    });
+
+    /*
+      Multer takes one number, so it is given the largest of the four caps and
+      the per-kind cap is applied here. A forty megabyte document is refused
+      even though a fifty megabyte video would not be.
+    */
+    it('refuses a document over the document cap', async () => {
+      const ctl: any = await build();
+      const file = writeUpload(
+        'big.pdf',
+        PDF,
+        'application/pdf',
+        40 * 1024 * 1024,
+      );
+
+      expect(() => ctl.uploadAttachment(file)).toThrow(/25 MB/);
+    });
+
+    it('accepts a video larger than a document may be', async () => {
+      const ctl: any = await build();
+      const file = writeUpload(
+        'clip.mp4',
+        [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70],
+        'video/mp4',
+        40 * 1024 * 1024,
+      );
+
+      expect(ctl.uploadAttachment(file).kind).toBe('video');
+    });
+
+    // And the file goes back off disk, so nothing can point at it.
+    it('removes a file it refused for its size', async () => {
+      const ctl: any = await build();
+      const file = writeUpload(
+        'big.pdf',
+        PDF,
+        'application/pdf',
+        40 * 1024 * 1024,
+      );
+
+      expect(() => ctl.uploadAttachment(file)).toThrow(BadRequestException);
+      expect(existsSync(file.path)).toBe(false);
+    });
+
+    it('refuses a file that is not what it said it was', async () => {
+      const ctl: any = await build();
+      const html = [...Buffer.from('<html><script>alert(1)</script>')];
+      const file = writeUpload('a1.pdf', html, 'application/pdf');
+
+      expect(() => ctl.uploadAttachment(file)).toThrow(/do not match/);
+      expect(existsSync(file.path)).toBe(false);
+    });
+
+    // A browser recording announces itself as `audio/webm;codecs=opus`.
+    it('accepts a voice note recorded by a browser', async () => {
+      const ctl: any = await build();
+      const file = writeUpload(
+        'voice.weba',
+        [0x1a, 0x45, 0xdf, 0xa3, 0x01],
+        'audio/webm;codecs=opus',
+      );
+
+      expect(ctl.uploadAttachment(file).kind).toBe('audio');
     });
   });
 });
