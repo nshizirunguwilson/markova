@@ -318,6 +318,9 @@ model ClassSection {
   examSchedules         ExamSchedule[]
   activitySections      ActivitySection[]
 
+  /// The class's own group chat. One per class, created with the class.
+  groupChat Conversation?
+
   // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
   // null) are additionally guarded in AcademicService.
   @@unique([classLevelId, tradeId, name])
@@ -822,7 +825,14 @@ model Conversation {
   createdByUserId String           @map("created_by_user_id")
   createdAt       DateTime         @default(now()) @map("created_at")
 
+  /// Set on the one group that belongs to a class, and null on every other
+  /// conversation. A class has exactly one of these — it is the room the
+  /// class and its teacher are already in, created with the class rather
+  /// than by somebody remembering to.
+  classSectionId String? @unique @map("class_section_id")
+
   createdBy    User                      @relation(fields: [createdByUserId], references: [id])
+  classSection ClassSection?             @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
   participants ConversationParticipant[]
   messages     Message[]
 
