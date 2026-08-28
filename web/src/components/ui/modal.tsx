@@ -117,8 +117,13 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/*
+        The backdrop fades and the panel rises. A dialog that simply exists on
+        the next frame reads as a jump cut — the eye has to find it, because
+        nothing told it where it came from.
+      */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+        className="motion-fade-in fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
@@ -130,7 +135,7 @@ export function Modal({
         className={cn(
           // The wider sizes make tall content likely, so the sheet caps its
           // own height and scrolls rather than running off the viewport.
-          "relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-surface p-6 shadow-modal",
+          "motion-panel-in relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-xl border border-border bg-surface p-6 shadow-modal",
           sizes[size]
         )}
       >

@@ -504,3 +504,47 @@ describe("Modal keyboard handling", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+/**
+ * Motion on the dialog.
+ *
+ * A dialog that simply exists on the next frame reads as a jump cut: the eye
+ * has to hunt for it, because nothing said where it came from. The animation
+ * is applied to markup that is already mounted — it fades what is there
+ * rather than delaying it — so a test (or a screen reader) reading the dialog
+ * immediately still finds its content.
+ */
+describe("Modal motion", () => {
+  it("fades the backdrop and rises the panel", () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.className).toContain("motion-panel-in");
+    expect(
+      panel.parentElement?.querySelector(".motion-fade-in"),
+    ).not.toBeNull();
+  });
+
+  // The whole point: the animation must not gate the content existing.
+  it("has its content in the document straight away", () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    expect(screen.getByText("Body")).toBeInTheDocument();
+    expect(screen.getByText("Add book")).toBeInTheDocument();
+  });
+
+  it("animates nothing while it is closed", () => {
+    const { container } = render(
+      <Modal isOpen={false} onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    expect(container.querySelector(".motion-panel-in")).toBeNull();
+  });
+});
