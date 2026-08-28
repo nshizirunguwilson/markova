@@ -825,6 +825,35 @@ test('messages: opening a thread lands on the last message', async (browser) => 
   assert(state.hasMessages, 'the thread has no messages to land on');
   // A couple of pixels of slack for sub-pixel layout, no more.
   assert(state.gap <= 2, `the thread stopped ${state.gap}px short of the bottom`);
+
+  /*
+    And it stays landed while the media settles. A photograph, a video or a
+    voice note takes up no height until it has loaded, so a thread ending in
+    one used to land two hundred pixels short of its own last message once the
+    picture appeared.
+  */
+  await page.waitForTimeout(3000);
+  const settled = await page.evaluate(() => {
+    const list = document.querySelector('.overflow-y-auto.px-4');
+    return {
+      gap: Math.round(list.scrollHeight - list.scrollTop - list.clientHeight),
+      media:
+        list.querySelectorAll('img').length +
+        list.querySelectorAll('video').length +
+        list.querySelectorAll('audio').length,
+    };
+  });
+  assert(settled.gap <= 2,
+    `after ${settled.media} attachments loaded the thread sat ${settled.gap}px short`);
+
+  // But somebody who scrolled up to read is left where they are.
+  await page.evaluate(() => {
+    document.querySelector('.overflow-y-auto.px-4').scrollTop = 0;
+  });
+  await page.waitForTimeout(1500);
+  const stayed = await page.evaluate(() =>
+    Math.round(document.querySelector('.overflow-y-auto.px-4').scrollTop));
+  assert(stayed <= 2, `a reader scrolled to the top was dragged to ${stayed}px`);
   assert(state.lastVisible, 'the last message is hidden behind the composer');
 
   await ctx.close();
@@ -920,6 +949,134 @@ test('messaging: a student cannot broadcast to the school', async (browser) => {
   }, API);
 
   assert(status === 403, `a student reached the school-wide broadcast (${status})`);
+  await ctx.close();
+});
+
+
+/**
+ * The composer offers a file and a voice note, and both are reachable by
+ * keyboard. jsdom can render these; only a real browser can say whether they
+ * are actually on the screen and clickable.
+ */
+test('chat: the composer offers a file and a voice note', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('input[placeholder*="Type a message"]');
+
+  const state = await page.evaluate(() => {
+    const seen = (label) => {
+      const el = document.querySelector(`button[aria-label="${label}"]`);
+      if (!el) return null;
+      const box = el.getBoundingClientRect();
+      return { width: Math.round(box.width), height: Math.round(box.height) };
+    };
+    return {
+      attach: seen('Attach a file'),
+      record: seen('Record a voice note'),
+      // Only the types the API accepts, so the picker greys out the rest.
+      accept: document.querySelector('input[type="file"]')?.getAttribute('accept') ?? null,
+    };
+  });
+
+  assert(state.attach, 'there is no way to attach a file');
+  assert(state.record, 'there is no way to record a voice note');
+  assert(state.attach.width >= 24 && state.attach.height >= 24,
+    `the attach control is ${state.attach.width}x${state.attach.height}, too small to hit`);
+  assert(state.accept && state.accept.includes('video/mp4'),
+    'the picker does not offer video');
+  assert(state.accept && !state.accept.includes('svg'),
+    'the picker offers SVG, which runs script when opened');
+  await ctx.close();
+});
+
+/**
+ * The shortcut every tool with a search box has. The browser's own Ctrl+K
+ * focuses the address bar, so this only works if the page says it handled the
+ * key — which is a thing only a real browser can prove.
+ */
+test('search: Cmd+K puts the cursor in the page search', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin');
+
+  await page.keyboard.press('Meta+k');
+  await page.waitForTimeout(200);
+
+  const focused = await page.evaluate(() => {
+    const el = document.activeElement;
+    return el ? el.getAttribute('placeholder') : null;
+  });
+  assert(/search/i.test(focused ?? ''),
+    `Cmd+K focused ${focused ?? 'nothing'} rather than the search box`);
+
+  // And the shortcut is visible, because one nobody can see is one nobody uses.
+  const shown = await page.evaluate(() =>
+    (document.body.textContent ?? '').match(/\u2318K|Ctrl K/)?.[0] ?? null);
+  assert(shown, 'the shortcut is nowhere on the screen');
+  await ctx.close();
+});
+
+/**
+ * A face for everyone. The register is fourteen hundred rows, and a wall of
+ * two-letter initials is not something anybody can read down.
+ */
+test('avatars: a student with no photograph still has a face', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/students');
+  await page.waitForTimeout(1500);
+
+  const state = await page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('img')];
+    const drawn = imgs.filter((i) => (i.getAttribute('src') ?? '').startsWith('data:image/svg'));
+    return {
+      drawn: drawn.length,
+      // Two different people must not share one face.
+      distinct: new Set(drawn.map((i) => i.getAttribute('src'))).size,
+      rendered: drawn.filter((i) => i.getBoundingClientRect().width > 0).length,
+    };
+  });
+
+  assert(state.drawn > 0, 'nobody in the register has a drawn face');
+  assert(state.rendered > 0, 'the faces are in the page but none of them is drawn');
+  assert(state.distinct > 1, 'every student has been given the same face');
+  await ctx.close();
+});
+
+/**
+ * The quietest of the three ways of being told a message arrived: a number
+ * beside Messages that is there when you next look at the sidebar.
+ */
+test('messages: the sidebar says how many are waiting', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin');
+  await page.waitForTimeout(1500);
+
+  const badge = await page.evaluate(() => {
+    const el = document.querySelector('[aria-label*="unread message"]');
+    if (!el) return { present: false };
+    const link = el.closest('a');
+    return {
+      present: true,
+      says: (el.textContent ?? '').trim(),
+      onMessages: (link?.getAttribute('href') ?? '').endsWith('/messages'),
+    };
+  });
+
+  // Not every seed leaves an admin with unread messages, so an absent badge is
+  // a legitimate state. What is not legitimate is a badge on the wrong row.
+  if (badge.present) {
+    assert(badge.onMessages, 'the unread count is beside something other than Messages');
+    assert(/^\d+\+?$/.test(badge.says), `the count reads "${badge.says}"`);
+  }
   await ctx.close();
 });
 

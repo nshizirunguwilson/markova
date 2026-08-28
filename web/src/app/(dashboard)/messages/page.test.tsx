@@ -2910,3 +2910,101 @@ describe("naming people in the picker", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
+
+/**
+ * A photograph, a video or a voice note takes up no height until it has
+ * loaded, so a thread ending in one lands short of its own last message. The
+ * page watches the thread's own size rather than each element's load event,
+ * which catches a late web font and anything else that moves the ground.
+ */
+describe("keeping the thread landed while media settles", () => {
+  /**
+   * Stands the observer up and hands back the callback, so the settling can be
+   * driven with a thread of a known size. jsdom lays nothing out — every
+   * element is zero by zero — so the geometry is stated rather than measured.
+   */
+  async function openWithWatcher() {
+    const observed: Element[] = [];
+    let fire: () => void = () => {};
+    class Watcher {
+      constructor(cb: () => void) {
+        fire = cb;
+      }
+      observe(el: Element) {
+        observed.push(el);
+      }
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+    }
+    vi.stubGlobal("ResizeObserver", Watcher);
+
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    await waitFor(() => expect(observed.length).toBeGreaterThan(0));
+
+    const list = observed[0].parentElement as HTMLElement;
+    /** State the thread's size, since jsdom will not measure one. */
+    const say = (scrollHeight: number, clientHeight: number, scrollTop: number) => {
+      for (const [prop, value] of [
+        ["scrollHeight", scrollHeight],
+        ["clientHeight", clientHeight],
+      ] as const) {
+        Object.defineProperty(list, prop, { value, configurable: true });
+      }
+      list.scrollTop = scrollTop;
+    };
+    return { list, say, fire: () => act(() => fire()) };
+  }
+
+  it("watches the thread's own size", async () => {
+    const { list } = await openWithWatcher();
+    expect(list).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  /*
+    A photograph loading at the end of a thread adds three hundred pixels in
+    one frame. A reader who had not scrolled at all would otherwise be left
+    stranded above the message they came to read.
+  */
+  it("pulls the thread back down when a picture pushes the ground away", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(1200, 600, 300); // 300px of gap opened up underneath
+    fire();
+    expect(list.scrollTop).toBe(1200);
+    vi.unstubAllGlobals();
+  });
+
+  // Somebody who has scrolled up to read must not be yanked down because an
+  // image three screens below them finished loading.
+  it("leaves a reader who has scrolled up where they are", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(4000, 600, 0); // right at the top
+    fire();
+    expect(list.scrollTop).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("does nothing when the thread is already at the bottom", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(1200, 600, 600);
+    fire();
+    expect(list.scrollTop).toBe(600);
+    vi.unstubAllGlobals();
+  });
+
+  // A browser without one still shows the thread; it just does not re-settle.
+  it("shows the thread anyway where there is no observer", async () => {
+    vi.stubGlobal("ResizeObserver", undefined);
+
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(await screen.findByText(/Muraho neza/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});

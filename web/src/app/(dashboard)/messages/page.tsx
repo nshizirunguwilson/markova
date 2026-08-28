@@ -44,6 +44,17 @@ import {
  */
 const NEAR_BOTTOM_PX = 120;
 
+/**
+ * How far a thread may be pulled back down while it is still settling.
+ *
+ * Larger than NEAR_BOTTOM_PX because media loading moves the ground by whole
+ * pictures at a time: a photograph appearing at the end of a thread can add
+ * three hundred pixels in one frame, and a reader who had not scrolled at all
+ * would otherwise be left stranded above it. Still bounded, so somebody who
+ * has scrolled up to read is left where they are.
+ */
+const SETTLING_PX = 600;
+
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
@@ -199,12 +210,50 @@ export default function MessagesPage() {
       return;
     }
 
+
     const nearBottom =
       list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
     if (nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typingNames.length, selectedConv]);
+
+  /**
+   * Keep the bottom of the thread at the bottom while it is still settling.
+   *
+   * A photograph, a video or a voice note takes up no height until it has
+   * loaded, so the jump on opening aims at a height that is about to grow. A
+   * thread ending in a picture landed two hundred pixels short of its own last
+   * message, which is exactly the bug the instant jump was meant to fix — only
+   * caused by the media rather than by the animation.
+   *
+   * A ResizeObserver rather than load handlers on each element: it catches the
+   * picture, the video, the voice note's controls, a late web font and
+   * anything else that changes the height, without this having to know what
+   * kinds of thing a message can contain.
+   *
+   * Only while the reader is already at the bottom. Somebody who has scrolled
+   * up to read must not be yanked down because an image three screens below
+   * them finished loading.
+   */
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list || !selectedConv) return;
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      // Generous while settling: media arrives in one jump, and a reader who
+      // has not deliberately scrolled up is still "at the bottom" even after
+      // a picture has pushed the ground out from under them.
+      const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (gap > 0 && gap < SETTLING_PX) list.scrollTop = list.scrollHeight;
+    });
+
+    // The content, not the box: the box's own size does not change when a
+    // picture inside it loads.
+    for (const child of Array.from(list.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [selectedConv, threadBlocks.length]);
 
   // Handle typing indicator
   const handleInputChange = useCallback(
