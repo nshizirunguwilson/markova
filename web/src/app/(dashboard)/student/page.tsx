@@ -52,7 +52,7 @@ export default function StudentDashboard() {
           </p>
           <div className="mt-3 h-2 rounded-full bg-surface-muted">
             <div
-              className={`h-2 rounded-full transition-all ${
+              className={`h-2 rounded-full motion-bar ${
                 disciplinePoints >= 70
                   ? "bg-success"
                   : disciplinePoints >= 40

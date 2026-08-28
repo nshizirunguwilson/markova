@@ -117,7 +117,7 @@ export default function StudentMarksPage() {
                     </div>
                     <div className="h-2 w-full rounded-full bg-muted/20">
                       <div
-                        className={`h-2 rounded-full transition-all ${
+                        className={`h-2 rounded-full motion-bar ${
                           s.average >= 80
                             ? "bg-success"
                             : s.average >= 60

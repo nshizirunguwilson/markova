@@ -110,3 +110,15 @@ body {
   display: inline-block;
   animation: typing-dots 1.2s steps(1, end) infinite;
 }
+
+/*
+  A progress bar filling.
+
+  These were on `transition-all`, which animates every property that changes —
+  colour, shadow, transform — when the only thing that moves is the width.
+  Naming the property keeps the browser from watching the rest, and puts the
+  duration under the design system rather than Tailwind's 150ms default.
+*/
+.motion-bar {
+  transition: width var(--duration-settle) var(--ease-standard);
+}
