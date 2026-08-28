@@ -1944,3 +1944,344 @@ describe("dismissing the pack dialog mid-run", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   }, 40000);
 });
+
+/**
+ * A term report says how one term went. The year tab reads the three
+ * together: one student's year, and the whole school's.
+ */
+describe("the year", () => {
+  async function openYearTab() {
+    serve(h.api, routes);
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /^The Year$/i }));
+  }
+
+  it("offers both an annual report and a school summary", async () => {
+    await openYearTab();
+    expect(await screen.findByText(/One student.s year/)).toBeInTheDocument();
+    expect(screen.getByText(/The whole school/)).toBeInTheDocument();
+  });
+
+  // Every one of these needs an academic year rather than a term, which is
+  // the whole difference between them and a report card.
+  it("asks for an academic year", async () => {
+    await openYearTab();
+    expect(await screen.findByLabelText(/academic year/i)).toBeInTheDocument();
+  });
+
+  it("says so rather than fetching when no year is chosen", async () => {
+    await openYearTab();
+    const view = (await screen.findAllByRole("button", { name: /^View$/ }))[1];
+    await userEvent.setup({ delay: null }).click(view);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(
+      h.api.get.mock.calls.some((c: unknown[]) =>
+        String(c[0]).includes("year-summary"),
+      ),
+    ).toBe(false);
+  });
+
+  it("reads the school's year once a year is chosen", async () => {
+    await openYearTab();
+    const user = userEvent.setup({ delay: null });
+
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+    const view = (await screen.findAllByRole("button", { name: /^View$/ }))[1];
+    await user.click(view);
+
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some(
+          (c: unknown[]) =>
+            String(c[0]).includes("year-summary/html") &&
+            (c[1] as any)?.params?.academicYearId === "year-1",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  // A student's annual report needs the student too, not just the year.
+  /** The year tab with a year and a student already chosen. */
+  async function readyToRead() {
+    serve(h.api, {
+      ...routes,
+      "/reports/year-summary/html": "<html><body>school year</body></html>",
+      "/reports/year-summary/pdf": "PDF-BYTES",
+      "/reports/year": "<html><body>annual</body></html>",
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+    return user;
+  }
+
+  it("shows the school's year once it has been read", async () => {
+    const user = await readyToRead();
+    const view = (await screen.findAllByRole("button", { name: /^View$/ }))[1];
+    await user.click(view);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(document.body.textContent).toContain("School year summary");
+  });
+
+  it("downloads the school's year as a PDF", async () => {
+    const user = await readyToRead();
+    const pdf = (await screen.findAllByRole("button", { name: /^PDF$/ }))[1];
+    await user.click(pdf);
+
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("year-summary/pdf"),
+        ),
+      ).toBe(true),
+    );
+    expect(h.toast.success).toHaveBeenCalled();
+  });
+
+  it("prints the school's year", async () => {
+    const user = await readyToRead();
+    const print = (await screen.findAllByRole("button", { name: /^Print$/ }))[1];
+    await user.click(print);
+
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("year-summary/html"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  // The API refusing is not the same as the admin having chosen nothing, and
+  // it has to say which.
+  it("says so when the school's year cannot be read", async () => {
+    serve(h.api, {
+      ...routes,
+      // The API refusing is not the same as the admin having chosen nothing,
+      // and the page has to say which.
+      "/reports/year-summary/html": () => {
+        throw Object.assign(new Error("nope"), {
+          response: { status: 500, data: { message: "Could not build it" } },
+        });
+      },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+
+    const view = (await screen.findAllByRole("button", { name: /^View$/ }))[1];
+    await user.click(view);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+
+  it("reads a student's annual report once both are chosen", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/year": "<html><body>annual</body></html>",
+      // The picker searches users; give it one to find.
+      "/users": {
+        data: [
+          {
+            id: "u-9",
+            firstName: "Divine",
+            lastName: "Niyonkuru",
+            student: {
+              id: "student-9",
+              studentIdNumber: "STD-2026-009",
+              classSection: null,
+            },
+          },
+        ],
+        meta: { total: 1 },
+      },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+
+    // Choose the student through the picker, the way an admin does.
+    await user.click(screen.getByLabelText(/^Student$/i));
+    const option = await screen.findByText(/Divine Niyonkuru/);
+    await user.click(option);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: /^View$/ }))[0],
+    );
+
+    await waitFor(
+      () =>
+        expect(
+          h.api.get.mock.calls.some(
+            (c: unknown[]) =>
+              String(c[0]) === "/reports/year/student-9/html" &&
+              (c[1] as any)?.params?.academicYearId === "year-1",
+          ),
+        ).toBe(true),
+      { timeout: 4000 },
+    );
+  });
+
+  /** The year tab with a year and a student both chosen. */
+  async function withStudentChosen() {
+    serve(h.api, {
+      ...routes,
+      "/reports/year": "<html><body>annual</body></html>",
+      "/users": {
+        data: [
+          {
+            id: "u-9",
+            firstName: "Divine",
+            lastName: "Niyonkuru",
+            student: {
+              id: "student-9",
+              studentIdNumber: "STD-2026-009",
+              classSection: null,
+            },
+          },
+        ],
+        meta: { total: 1 },
+      },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+    await user.click(screen.getByLabelText(/^Student$/i));
+    await user.click(await screen.findByText(/Divine Niyonkuru/));
+    return user;
+  }
+
+  it("downloads an annual report as a PDF", async () => {
+    const user = await withStudentChosen();
+    await user.click((await screen.findAllByRole("button", { name: /^PDF$/ }))[0]);
+
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("/reports/year/student-9/pdf"),
+        ),
+      ).toBe(true),
+    );
+    expect(h.toast.success).toHaveBeenCalled();
+  });
+
+  it("prints an annual report", async () => {
+    const user = await withStudentChosen();
+    await user.click((await screen.findAllByRole("button", { name: /^Print$/ }))[0]);
+
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("/reports/year/student-9/html"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  /*
+    `printHtml` prints from an off-screen iframe and answers false when there
+    is nothing to print. Silently doing nothing is what the Print button used
+    to do, so it has to say so instead.
+  */
+  it("says so when there is nothing to print", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/year": "",
+      "/users": {
+        data: [
+          {
+            id: "u-9",
+            firstName: "Divine",
+            lastName: "Niyonkuru",
+            student: { id: "student-9", studentIdNumber: "STD-9", classSection: null },
+          },
+        ],
+        meta: { total: 1 },
+      },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+    await user.click(screen.getByLabelText(/^Student$/i));
+    await user.click(await screen.findByText(/Divine Niyonkuru/));
+
+    await user.click((await screen.findAllByRole("button", { name: /^Print$/ }))[0]);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+
+  it("asks for a year before fetching an annual report", async () => {
+    serve(h.api, routes);
+    renderPage(ReportsPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+    );
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByRole("button", { name: /^The Year$/i }));
+
+    await user.click((await screen.findAllByRole("button", { name: /^View$/ }))[0]);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(
+      h.api.get.mock.calls.some((c: unknown[]) =>
+        String(c[0]).includes("/reports/year/"),
+      ),
+    ).toBe(false);
+  });
+
+  it("asks for a student before fetching an annual report", async () => {
+    await openYearTab();
+    fireEvent.change(await screen.findByLabelText(/academic year/i), {
+      target: { value: "year-1" },
+    });
+
+    const view = (await screen.findAllByRole("button", { name: /^View$/ }))[0];
+    await userEvent.setup({ delay: null }).click(view);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(
+      h.api.get.mock.calls.some((c: unknown[]) =>
+        String(c[0]).includes("/reports/year/"),
+      ),
+    ).toBe(false);
+  });
+});

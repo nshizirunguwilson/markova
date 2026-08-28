@@ -82,6 +82,24 @@ describe('bootstrap', () => {
     );
   });
 
+  /**
+   * Express answers with the first middleware that matches. A `/uploads/...`
+   * request used to reach the static handler before the CORS middleware ran,
+   * so it came back with no Access-Control-Allow-Origin header and a
+   * `fetch()` from the dashboard was refused by the browser.
+   *
+   * An <img> does not care, which is why pictures always looked fine. What
+   * broke was everything that reads the bytes — a voice note's waveform is
+   * decoded with fetch + AudioContext, so every one of them drew a flat line
+   * instead of the sound in it.
+   */
+  it('turns CORS on before it starts serving uploads', async () => {
+    await boot({});
+    const corsAt = app.enableCors.mock.invocationCallOrder[0];
+    const staticAt = app.useStaticAssets.mock.invocationCallOrder[0];
+    expect(corsAt).toBeLessThan(staticAt);
+  });
+
   // Uploaded files are served outside the prefix, because their stored paths
   // are what the database and every printed report card already carry.
   it('serves uploads outside the prefix', async () => {

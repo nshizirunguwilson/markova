@@ -35,6 +35,33 @@ async function bootstrap() {
   }
 
   app.setGlobalPrefix('api', { exclude: ['uploads/{*path}'] });
+
+  // Defaults cover the local dev surfaces: the Next.js dashboard on :3001 and
+  // Expo web on :8081. The API itself (:3000) is not an origin that calls us.
+  const corsOrigins = (
+    process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081'
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  /*
+    CORS is enabled before the static handler, and the order is the whole
+    point. Express answers with the first middleware that matches, so a
+    `/uploads/...` request used to be served by the static handler before the
+    CORS middleware ever ran — no Access-Control-Allow-Origin header, and a
+    `fetch()` from the dashboard on :3001 was refused by the browser.
+
+    An <img> or <video> does not care, which is why pictures always looked
+    fine. What broke was everything that reads the bytes: the waveform on a
+    voice note is decoded with fetch + AudioContext, so every voice note in
+    the app drew a flat line instead of the sound in it.
+  */
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
+
   app.useStaticAssets(
     join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
     {
@@ -47,19 +74,6 @@ async function bootstrap() {
     }),
   );
   app.use(compression());
-
-  // Defaults cover the local dev surfaces: the Next.js dashboard on :3001 and
-  // Expo web on :8081. The API itself (:3000) is not an origin that calls us.
-  const corsOrigins = (
-    process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081'
-  )
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: true,
-  });
 
   app.useGlobalPipes(
     new ValidationPipe({

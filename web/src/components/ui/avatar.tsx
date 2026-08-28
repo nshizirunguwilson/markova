@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/assets";
-import { generatedAvatar } from "@/lib/avatar";
 import { User } from "lucide-react";
 
 interface AvatarProps {
@@ -9,12 +8,6 @@ interface AvatarProps {
   size?: "sm" | "md" | "lg";
   fallback?: string;
   className?: string;
-  /**
-   * The person's id. Given one, somebody with no photograph gets a drawn
-   * face of their own rather than their initials — generated locally and
-   * always the same for the same person.
-   */
-  seed?: string | null;
 }
 
 export function Avatar({
@@ -23,7 +16,6 @@ export function Avatar({
   size = "md",
   fallback,
   className,
-  seed,
 }: AvatarProps) {
   const sizes = {
     sm: "h-8 w-8 text-xs",
@@ -55,28 +47,8 @@ export function Avatar({
     );
   }
 
-  /*
-    No photograph. A drawn face, if we know who this is — a school register
-    of fourteen hundred rows of "AU" and "AM" is a wall of initials nobody
-    can read down. Same person, same face, every time.
-  */
-  const drawn = generatedAvatar(seed);
-  if (drawn) {
-    return (
-      <img
-        src={drawn}
-        alt={alt}
-        className={cn(
-          "rounded-full border border-border bg-accent object-cover",
-          sizes[size],
-          className
-        )}
-      />
-    );
-  }
-
-  // Nobody in particular: initials, or the placeholder that has always been
-  // here for a row with no person behind it at all.
+  // No photograph: their initials, or the placeholder for a row with no
+  // person behind it at all.
   return (
     <div
       className={cn(

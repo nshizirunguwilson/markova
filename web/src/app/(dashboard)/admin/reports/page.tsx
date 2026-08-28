@@ -66,9 +66,20 @@ export default function AdminReportsPage() {
   const [termId, setTermId] = useState("");
   const [levelId, setLevelId] = useState("");
   const [sectionId, setSectionId] = useState("");
-  const [tab, setTab] = useState<"report-cards" | "documents">("report-cards");
+  const [tab, setTab] = useState<"report-cards" | "the-year" | "documents">("report-cards");
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [viewing, setViewing] = useState<{ html: string; name: string; studentId: string } | null>(null);
+
+  /*
+    The year tab. A term report answers "how was this term"; these answer
+    "how was the year" — one sheet per student, and one for the school.
+  */
+  const [yearStudentId, setYearStudentId] = useState("");
+  const [yearBusy, setYearBusy] = useState<"student" | "school" | null>(null);
+  const [yearViewing, setYearViewing] = useState<{
+    html: string;
+    title: string;
+  } | null>(null);
   const [pending, setPending] = useState<RowAction>(null);
   const [bulk, setBulk] = useState<BulkState | null>(null);
   const bulkCancelled = useRef(false);
@@ -138,6 +149,76 @@ export default function AdminReportsPage() {
       toast.error("Failed to load report");
     } finally {
       setPending(null);
+    }
+  };
+
+  /*
+    The year. Every one of these needs an academic year rather than a term,
+    which is the whole difference: a term report is one sitting, and these are
+    the three of them read together.
+  */
+  const loadYearReport = async (kind: "view" | "download" | "print") => {
+    if (!yearId) return toast.error("Choose an academic year");
+    if (!yearStudentId) return toast.error("Choose a student");
+    setYearBusy("student");
+    try {
+      if (kind === "download") {
+        const res = await api.get(`/reports/year/${yearStudentId}/pdf`, {
+          params: { academicYearId: yearId },
+          responseType: "blob",
+        });
+        saveBlob(
+          new Blob([res.data], { type: "application/pdf" }),
+          `Annual-Report-${yearStudentId}.pdf`,
+        );
+        toast.success("Downloaded the annual report");
+        return;
+      }
+      const res = await api.get(`/reports/year/${yearStudentId}/html`, {
+        params: { academicYearId: yearId },
+      });
+      if (kind === "print") {
+        if (!printHtml(res.data))
+          toast.error("Your browser would not open the print dialog");
+        return;
+      }
+      setYearViewing({ html: res.data, title: "Annual report" });
+    } catch (e) {
+      toast.error(errorMessage(e, "Could not load the annual report"));
+    } finally {
+      setYearBusy(null);
+    }
+  };
+
+  const loadSchoolYear = async (kind: "view" | "download" | "print") => {
+    if (!yearId) return toast.error("Choose an academic year");
+    setYearBusy("school");
+    try {
+      if (kind === "download") {
+        const res = await api.get(`/reports/year-summary/pdf`, {
+          params: { academicYearId: yearId },
+          responseType: "blob",
+        });
+        saveBlob(
+          new Blob([res.data], { type: "application/pdf" }),
+          `School-Year-Summary.pdf`,
+        );
+        toast.success("Downloaded the school year summary");
+        return;
+      }
+      const res = await api.get(`/reports/year-summary/html`, {
+        params: { academicYearId: yearId },
+      });
+      if (kind === "print") {
+        if (!printHtml(res.data))
+          toast.error("Your browser would not open the print dialog");
+        return;
+      }
+      setYearViewing({ html: res.data, title: "School year summary" });
+    } catch (e) {
+      toast.error(errorMessage(e, "Could not load the year summary"));
+    } finally {
+      setYearBusy(null);
     }
   };
 
@@ -329,7 +410,7 @@ export default function AdminReportsPage() {
       <h1 className="text-xl md:text-2xl font-bold text-primary">Reports & Documents</h1>
 
       <div className="flex gap-2 border-b border-border">
-        {(["report-cards", "documents"] as const).map((t) => (
+        {(["report-cards", "the-year", "documents"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -339,7 +420,11 @@ export default function AdminReportsPage() {
                 : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
-            {t === "report-cards" ? "Report Cards" : "Documents"}
+            {t === "report-cards"
+              ? "Report Cards"
+              : t === "the-year"
+                ? "The Year"
+                : "Documents"}
           </button>
         ))}
       </div>
@@ -691,6 +776,125 @@ export default function AdminReportsPage() {
                 </div>
               </div>
             )}
+          </Modal>
+        </>
+      )}
+
+      {tab === "the-year" && (
+        <>
+          <Card className="p-6 space-y-4">
+            <CardTitle>The year</CardTitle>
+            <p className="text-sm text-muted">
+              A term report says how one term went. These read the three
+              together: what a student did across the year and what happens
+              next, and how the whole school did.
+            </p>
+            <div>
+              <label
+                htmlFor="year-report-year"
+                className="mb-1 block text-sm font-medium"
+              >
+                Academic year
+              </label>
+              <select
+                id="year-report-year"
+                value={yearId}
+                onChange={(e) => setYearId(e.target.value)}
+                className="w-full max-w-sm rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <option value="">Choose a year</option>
+                {(years ?? []).map((y: any) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-4">
+            <CardTitle>One student&rsquo;s year</CardTitle>
+            <p className="text-sm text-muted">
+              Each subject across the three terms, the year&rsquo;s average and
+              position, conduct out of 120, and the promotion decision.
+            </p>
+            <StudentPicker value={yearStudentId} onChange={setYearStudentId} />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => loadYearReport("view")}
+                disabled={yearBusy === "student"}
+              >
+                {yearBusy === "student" ? (
+                  <Spinner className="mr-1 h-4 w-4" />
+                ) : (
+                  <Eye className="mr-1 h-4 w-4" />
+                )}
+                View
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => loadYearReport("print")}
+                disabled={yearBusy === "student"}
+              >
+                <Printer className="mr-1 h-4 w-4" /> Print
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => loadYearReport("download")}
+                disabled={yearBusy === "student"}
+              >
+                <Download className="mr-1 h-4 w-4" /> PDF
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="p-6 space-y-4">
+            <CardTitle>The whole school</CardTitle>
+            <p className="text-sm text-muted">
+              Every class on its own line: how many students, the average, the
+              pass rate and how many were promoted, with attendance and
+              conduct for the year beneath.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => loadSchoolYear("view")}
+                disabled={yearBusy === "school"}
+              >
+                {yearBusy === "school" ? (
+                  <Spinner className="mr-1 h-4 w-4" />
+                ) : (
+                  <Users className="mr-1 h-4 w-4" />
+                )}
+                View
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => loadSchoolYear("print")}
+                disabled={yearBusy === "school"}
+              >
+                <Printer className="mr-1 h-4 w-4" /> Print
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => loadSchoolYear("download")}
+                disabled={yearBusy === "school"}
+              >
+                <Download className="mr-1 h-4 w-4" /> PDF
+              </Button>
+            </div>
+          </Card>
+
+          <Modal
+            isOpen={!!yearViewing}
+            onClose={() => setYearViewing(null)}
+            title={yearViewing?.title ?? "Report"}
+            size="5xl"
+          >
+            <div className="max-h-[72vh] overflow-y-auto rounded-lg border border-border bg-accent-light/40 p-3">
+              {yearViewing && (
+                <A4Preview html={yearViewing.html} title={yearViewing.title} />
+              )}
+            </div>
           </Modal>
         </>
       )}

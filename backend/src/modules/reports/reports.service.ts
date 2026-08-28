@@ -13,10 +13,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import {
   TERM_CONDUCT_MARK,
-  conductLabel,
   conductPercentage,
   conductRemark,
   termConduct,
+  yearConduct,
 } from '../../common/conduct';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
@@ -375,6 +375,37 @@ export class ReportsService implements OnModuleDestroy {
       orderBy: [{ subject: { name: 'asc' } }, { term: { startDate: 'asc' } }],
     });
 
+    /*
+      Conduct across the whole year: each term's mark out of forty, added up.
+
+      Read from what happened in each term rather than from the running field
+      on the student, and counted only over the terms being reported on — a
+      year read in Term 1 should not show a student two thirds of the way to
+      nothing for terms that have not happened.
+    */
+    const conductByTerm = await Promise.all(
+      terms.map(async (term) => {
+        const [off, back] = await Promise.all([
+          this.prisma.disciplineIncident.aggregate({
+            where: { studentId, termId: term.id },
+            _sum: { pointsDeducted: true },
+          }),
+          this.prisma.meritAward.aggregate({
+            where: { studentId, termId: term.id },
+            _sum: { points: true },
+          }),
+        ]);
+        return {
+          term: term.name,
+          points: termConduct(
+            off._sum.pointsDeducted ?? 0,
+            back._sum.points ?? 0,
+          ),
+        };
+      }),
+    );
+    const conductYear = yearConduct(conductByTerm.map((t) => t.points));
+
     const school = await this.getSchoolInfo();
 
     return {
@@ -383,6 +414,7 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         photoUrl: student.user.photoUrl,
+        stage: student.classSection.classLevel.stage,
         class: [
           student.classSection.classLevel.name,
           student.classSection.trade?.code,
@@ -396,6 +428,12 @@ export class ReportsService implements OnModuleDestroy {
       termResults,
       yearResult,
       subjectsByTerm: this.groupMarksBySubjectAndTerm(allMarks, terms),
+      conduct: {
+        byTerm: conductByTerm,
+        points: conductYear.points,
+        outOf: conductYear.outOf,
+        percentage: conductPercentage(conductYear.points, conductYear.outOf),
+      },
     };
   }
 
@@ -1369,19 +1407,77 @@ export class ReportsService implements OnModuleDestroy {
       );
   }
 
+  /**
+   * Each subject's mark in each term of a year.
+   *
+   * Every term's figure is the same weighted total the term report card
+   * prints — CAT 1, CAT 2, the practical where there is one, and the exam, at
+   * the weights for that subject's scope. It has to be: a parent holding the
+   * annual report beside the three term reports must read the same number
+   * three times, and anything else looks like the school cannot add up.
+   *
+   * This used to fold marks together as `(running + next) / 2`, which is not
+   * an average of anything — the last mark of a term counted for half of it,
+   * the one before for a quarter, and a CAT counted as much as the exam.
+   */
   private groupMarksBySubjectAndTerm(marks: any[], terms: any[]) {
-    const result: Record<string, Record<string, number>> = {};
+    // subject -> term -> the assessments recorded for it
+    const gathered = new Map<
+      string,
+      { scope: SubjectScope; byTerm: Map<string, any[]> }
+    >();
+
     for (const m of marks) {
-      if (!result[m.subject.name]) result[m.subject.name] = {};
+      const subject = m.subject.name;
+      if (!gathered.has(subject)) {
+        gathered.set(subject, {
+          scope: m.subject.scope as SubjectScope,
+          byTerm: new Map(),
+        });
+      }
       const termName = terms.find((t: any) => t.id === m.termId)?.name || '';
-      const pct = Math.round((m.score / m.maxScore) * 100);
-      if (!result[m.subject.name][termName])
-        result[m.subject.name][termName] = pct;
-      else
-        result[m.subject.name][termName] = Math.round(
-          (result[m.subject.name][termName] + pct) / 2,
-        );
+      const forSubject = gathered.get(subject)!;
+      if (!forSubject.byTerm.has(termName)) forSubject.byTerm.set(termName, []);
+      forSubject.byTerm.get(termName)!.push({
+        assessmentName: m.assessmentType?.name ?? '',
+        score: m.score,
+        maxScore: m.maxScore,
+      });
     }
+
+    const result: Record<
+      string,
+      {
+        scope: SubjectScope;
+        terms: Record<string, number | null>;
+        average: number | null;
+      }
+    > = {};
+
+    for (const [subject, { scope, byTerm }] of gathered) {
+      const perTerm: Record<string, number | null> = {};
+      for (const term of terms) {
+        const assessments = byTerm.get(term.name) ?? [];
+        perTerm[term.name] = assessments.length
+          ? computeSubjectTotal(scope, assessments)
+          : null;
+      }
+
+      // The year's mark for a subject is the mean of the terms it was
+      // actually taught in — a subject dropped after Term 2 is not a subject
+      // the student scored zero in for Term 3.
+      const marked = Object.values(perTerm).filter(
+        (v): v is number => v !== null,
+      );
+      result[subject] = {
+        scope,
+        terms: perTerm,
+        average: marked.length
+          ? Math.round(marked.reduce((a, b) => a + b, 0) / marked.length)
+          : null,
+      };
+    }
+
     return result;
   }
 
@@ -1423,13 +1519,11 @@ export class ReportsService implements OnModuleDestroy {
 
     /*
       Conduct as a mark out of forty and as a percentage, rather than as a
-      bare word. "Good" tells a parent nothing they can act on; "32 / 40
-      (80%)" tells them where their child stands and by how much.
+      bare word. "Good" tells a parent nothing they can act on; "32 / 40" and
+      "80%" tell them where their child stands and by how much.
     */
     const conductPoints = data.conduct?.points ?? null;
     const conductOutOf = data.conduct?.outOf ?? TERM_CONDUCT_MARK;
-    const conduct =
-      conductPoints === null ? '–' : conductLabel(conductPoints, conductOutOf);
     const conductWord = conductRemark(
       conductPoints === null
         ? null
@@ -1466,12 +1560,41 @@ export class ReportsService implements OnModuleDestroy {
         ${isALevel ? '' : `<td class="rem">${s.remark ?? '–'}</td>`}
       </tr>`;
 
+    /*
+      Conduct, as a row of the marks table rather than a figure tucked into
+      the summary strip.
+
+      It is marked out of forty a term like everything else on this sheet is
+      marked out of something, so it belongs where a reader is already looking
+      for marks — at the top, above the subjects, where it reads as part of
+      the term's record rather than as a footnote about it.
+
+      The empty cells are the assessment columns: conduct has no CAT and no
+      exam. Its own mark, its percentage in place of a grade, and the word for
+      it where a remark goes.
+    */
+    const conductRow = () => {
+      if (conductPoints === null) return '';
+      const pct = conductPercentage(conductPoints, conductOutOf);
+      const blanks = isALevel ? 4 : 3;
+      return `
+      <tr class="conduct">
+        <td class="subj">Discipline</td>
+        ${'<td class="num">–</td>'.repeat(blanks)}
+        <td class="tot">${conductPoints} / ${conductOutOf}</td>
+        <td class="gr">${pct === null ? '–' : `${pct}%`}</td>
+        <td class="num">–</td>
+        <td>–</td>
+        ${isALevel ? '' : `<td class="rem">${conductWord}</td>`}
+      </tr>`;
+    };
+
     // O-Level keeps its written remark alongside; A-Level never had one.
     const cols = isALevel ? 9 : 9;
     const groupRow = (label: string, note: string) =>
       `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
 
-    let tableBody = '';
+    let tableBody = conductRow();
     if (isALevel) {
       const general = data.subjects.filter(
         (s: any) => s.scope !== 'A_SPECIFIC',
@@ -1479,7 +1602,7 @@ export class ReportsService implements OnModuleDestroy {
       const specific = data.subjects.filter(
         (s: any) => s.scope === 'A_SPECIFIC',
       );
-      tableBody =
+      tableBody +=
         groupRow(
           'General modules',
           'CAT 1 20% + CAT 2 20% + Exam 60%, no practical',
@@ -1495,7 +1618,7 @@ export class ReportsService implements OnModuleDestroy {
       const electives = data.subjects.filter(
         (s: any) => s.scope === 'O_ELECTIVE',
       );
-      tableBody =
+      tableBody +=
         groupRow('Core subjects', 'count towards the aggregate') +
         core.map(row).join('') +
         (electives.length
@@ -1555,9 +1678,8 @@ export class ReportsService implements OnModuleDestroy {
         `${competentCount} / ${judgedSubjects.length}`,
         judgedSubjects.length === 1 ? 'subject' : 'subjects',
       ),
-      // On every report now, A-Level included: a conduct mark out of forty
-      // is as much a part of an A-Level term as of an O-Level one.
-      summaryCell('Conduct', conduct, conductWord),
+      // Conduct is not here any more: it is a row of the marks table, at the
+      // top, where a reader is already looking for marks.
     ].join('');
 
     const aggregateNote = isALevel
@@ -1754,6 +1876,514 @@ export class ReportsService implements OnModuleDestroy {
 
       <div class="legend">${legend}</div>
       ${verifyStrip}
+    </div>
+    </body></html>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE ANNUAL REPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async generateYearReportHtml(
+    studentId: string,
+    academicYearId: string,
+  ): Promise<string> {
+    const data = await this.getYearReportData(studentId, academicYearId);
+    return this.renderYearReportHtml(data);
+  }
+
+  async generateYearReportPdf(
+    studentId: string,
+    academicYearId: string,
+  ): Promise<Buffer> {
+    const html = await this.generateYearReportHtml(studentId, academicYearId);
+    // A full-bleed A4 sheet with its own margins, like the term card.
+    return this.htmlToPdf(html, 0);
+  }
+
+  /**
+   * The whole year on one sheet.
+   *
+   * A term report answers "how was this term"; this answers "how was the
+   * year, and what happens next" — which is the question a parent actually
+   * has in July and the one a promotion decision is argued from. So it is
+   * laid out as one row per subject with a column per term, because that is
+   * the shape you read a trend in: three numbers side by side show whether a
+   * child climbed or slid in a way three separate sheets never can.
+   *
+   * Every term column is the same weighted total that term's report card
+   * printed. A parent holding all four documents must read the same number
+   * in all four.
+   */
+  private renderYearReportHtml(data: any): string {
+    const navy = data.school.primaryColor;
+    const logo = logoDataUri(data.school.logoUrl);
+    const terms: string[] = data.terms ?? [];
+    const year = data.yearResult;
+
+    const subjects = Object.entries(
+      data.subjectsByTerm as Record<
+        string,
+        { terms: Record<string, number | null>; average: number | null }
+      >,
+    ).sort(([a], [b]) => a.localeCompare(b));
+
+    const num = (v: number | null | undefined) =>
+      v === null || v === undefined ? '–' : String(v);
+
+    const subjectRows = subjects
+      .map(([name, marks]) => {
+        const band = marks.average !== null ? overallGrade(marks.average) : null;
+        return `
+      <tr>
+        <td class="subj">${escapeHtml(name)}</td>
+        ${terms.map((t) => `<td class="num">${num(marks.terms[t])}</td>`).join('')}
+        <td class="tot">${num(marks.average)}</td>
+        <td class="gr">${band?.letter ?? '–'}</td>
+      </tr>`;
+      })
+      .join('');
+
+    /*
+      Conduct gets the same treatment it gets on a term card: a row of the
+      marks table, above the subjects, because it is marked out of something
+      just as they are.
+    */
+    const conductRow = `
+      <tr class="conduct">
+        <td class="subj">Discipline</td>
+        ${terms
+          .map((t) => {
+            const found = (data.conduct?.byTerm ?? []).find(
+              (c: any) => c.term === t,
+            );
+            return `<td class="num">${found ? `${found.points}/${TERM_CONDUCT_MARK}` : '–'}</td>`;
+          })
+          .join('')}
+        <td class="tot">${data.conduct?.points ?? '–'} / ${data.conduct?.outOf ?? '–'}</td>
+        <td class="gr">${data.conduct?.percentage === null || data.conduct?.percentage === undefined ? '–' : `${data.conduct.percentage}%`}</td>
+      </tr>`;
+
+    const cell = (label: string, big: string, small: string) =>
+      `<div class="cell"><span>${label}</span><b>${big}</b> <small>${small}</small></div>`;
+
+    const yearAverage = year?.yearlyAverage ?? null;
+    const decision = year
+      ? year.isPromoted
+        ? 'PROMOTED'
+        : 'REPEATING'
+      : 'NOT YET DECIDED';
+
+    const summary = [
+      cell(
+        'Year average',
+        yearAverage === null ? '–' : `${yearAverage.toFixed(1)}%`,
+        yearAverage === null ? '' : overallGrade(yearAverage).remark,
+      ),
+      cell('Overall grade', year?.letterGrade ?? '–', ''),
+      cell(
+        'Position',
+        year?.rank ? String(year.rank) : '–',
+        year?.rank ? 'in class' : '',
+      ),
+      cell(
+        'Conduct',
+        `${data.conduct?.points ?? '–'} / ${data.conduct?.outOf ?? '–'}`,
+        conductRemark(data.conduct?.percentage ?? null),
+      ),
+    ].join('');
+
+    /*
+      The decision, said plainly and once. A parent reading this sheet in July
+      is reading it for one sentence, and burying that sentence in a table of
+      averages is how a school ends up explaining it on the phone instead.
+    */
+    const decisionNote = year
+      ? year.isPromoted
+        ? `${escapeHtml(data.student.name)} has met the requirements for promotion and moves up next year.`
+        : `${escapeHtml(data.student.name)} has not met the requirements for promotion and repeats the year.`
+      : 'The school has not yet finalised promotion for this year.';
+
+    const initials = (data.school.name || 'MA')
+      .split(/\s+/)
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      @page{ size:A4; margin:0; }
+      body{
+        font-family:Poppins,'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
+        color:#1c2733; background:#fff; width:210mm;
+      }
+      .sheet{ width:210mm; min-height:297mm; padding:14mm 13mm; }
+      .head{ display:flex; align-items:center; gap:12px; border-bottom:2px solid ${navy}; padding-bottom:10px; }
+      .crest{ width:52px; height:52px; object-fit:contain; }
+      .crest-fallback{ width:52px; height:52px; border-radius:50%; background:${navy}; color:#fff;
+        display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px; }
+      .school{ flex:1; }
+      .school h1{ font-size:17px; color:${navy}; letter-spacing:.01em; }
+      .school p{ font-size:9.5px; color:#5b6b7b; margin-top:2px; }
+      .doc{ text-align:right; }
+      .doc b{ display:block; font-size:12px; color:${navy}; letter-spacing:.09em; }
+      .doc span{ font-size:9.5px; color:#5b6b7b; }
+
+      .who{ display:flex; gap:18px; margin-top:12px; font-size:10.5px; }
+      .who div{ flex:1; }
+      .who span{ color:#5b6b7b; }
+      .who b{ color:#1c2733; }
+
+      table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:10px; }
+      th{ background:${navy}; color:#fff; font-weight:600; padding:6px 5px; font-size:9.5px; }
+      td{ padding:5px; border-bottom:1px solid #e6ecf1; text-align:center; }
+      td.subj{ text-align:left; font-weight:500; }
+      td.tot{ font-weight:700; }
+      td.gr{ font-weight:700; color:${navy}; }
+      tr.conduct td{ font-weight:600; background:rgba(21,37,54,.035); }
+
+      .summary{ display:flex; gap:8px; margin-top:14px; }
+      .cell{ flex:1; border:1px solid #e6ecf1; border-radius:6px; padding:8px 10px; }
+      .cell span{ display:block; font-size:8.5px; color:#5b6b7b; text-transform:uppercase; letter-spacing:.07em; }
+      .cell b{ font-size:15px; color:${navy}; }
+      .cell small{ font-size:9px; color:#5b6b7b; }
+
+      .decision{ margin-top:14px; border:1px solid ${navy}; border-radius:6px; padding:10px 12px; }
+      .decision b{ display:block; font-size:12px; letter-spacing:.08em; color:${navy}; }
+      .decision p{ font-size:10px; color:#3c4a58; margin-top:3px; }
+
+      .sigs{ display:flex; gap:26px; margin-top:26px; font-size:9.5px; color:#5b6b7b; }
+      .sigs div{ flex:1; border-top:1px solid #a9b6c2; padding-top:5px; text-align:center; }
+      .note{ margin-top:12px; font-size:8.5px; color:#7c8b99; }
+    </style></head><body>
+    <div class="sheet">
+      <div class="head">
+        ${logo ? `<img class="crest" src="${logo}" alt="">` : `<div class="crest-fallback">${initials}</div>`}
+        <div class="school">
+          <h1>${escapeHtml(data.school.name)}</h1>
+          <p>${escapeHtml(data.school.address || '')}</p>
+        </div>
+        <div class="doc">
+          <b>ANNUAL REPORT</b>
+          <span>${escapeHtml(data.academicYear.name)}</span>
+        </div>
+      </div>
+
+      <div class="who">
+        <div><span>Student</span><br><b>${escapeHtml(data.student.name)}</b></div>
+        <div><span>Student number</span><br><b>${escapeHtml(data.student.studentIdNumber || '–')}</b></div>
+        <div><span>Class</span><br><b>${escapeHtml(data.student.class)}</b></div>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Subject</th>
+          ${terms.map((t) => `<th>${escapeHtml(t)}</th>`).join('')}
+          <th>Year</th><th>Grade</th>
+        </tr></thead>
+        <tbody>${conductRow}${subjectRows}</tbody>
+      </table>
+
+      <div class="summary">${summary}</div>
+
+      <div class="decision">
+        <b>${decision}</b>
+        <p>${decisionNote}</p>
+      </div>
+
+      <div class="sigs">
+        <div>Class Teacher</div>
+        <div>Head Teacher</div>
+        <div>Parent / Guardian</div>
+      </div>
+
+      <div class="note">Each term column is the weighted total that term's report card carried. The year mark is the mean of the terms the subject was taught in. Conduct is marked out of ${TERM_CONDUCT_MARK} a term, ${data.conduct?.outOf ?? ''} across the year.</div>
+    </div>
+    </body></html>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // THE SCHOOL'S YEAR
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * How the whole school did in a year, class by class.
+   *
+   * The annual report answers a parent's question about one child. This
+   * answers the head teacher's about all of them, and it is a different
+   * document: nobody reads eight hundred report cards to find out whether
+   * Senior 2 had a bad year.
+   *
+   * Everything is counted from the year records the school has actually
+   * calculated. A class nobody has run year results for shows as having none,
+   * rather than as a class where every child failed — the two look identical
+   * in a table of zeroes and mean opposite things.
+   */
+  /** The mark a school counts as a pass. Defaults to 50, as the seed sets. */
+  private async passThreshold(): Promise<number> {
+    const config = await this.prisma.schoolConfig.findUnique({
+      where: { key: 'pass_threshold' },
+    });
+    return Number(config?.value || '50');
+  }
+
+  async getSchoolYearSummary(academicYearId: string) {
+    const academicYear = await this.prisma.academicYear.findUnique({
+      where: { id: academicYearId },
+    });
+    if (!academicYear) throw new NotFoundException('Academic year not found');
+
+    const terms = await this.prisma.term.findMany({
+      where: { academicYearId },
+      select: { id: true, startDate: true, endDate: true },
+    });
+    const termIds = terms.map((t) => t.id);
+
+    /*
+      Attendance is dated rather than filed under a term, so the year is the
+      span from the first term's start to the last term's end. Without any
+      terms there is no span, and counting every attendance record ever
+      written would report the whole school's history as this year's.
+    */
+    const yearStart = terms.length
+      ? new Date(Math.min(...terms.map((t) => t.startDate.getTime())))
+      : null;
+    const yearEnd = terms.length
+      ? new Date(Math.max(...terms.map((t) => t.endDate.getTime())))
+      : null;
+    const withinYear =
+      yearStart && yearEnd ? { date: { gte: yearStart, lte: yearEnd } } : null;
+
+    const sections = await this.prisma.classSection.findMany({
+      include: { classLevel: true, trade: true },
+    });
+
+    const results = await this.prisma.yearResult.findMany({
+      where: { academicYearId },
+    });
+
+    const passThreshold = await this.passThreshold();
+
+    const byClass = sections
+      .map((section) => {
+        const rows = results.filter((r) => r.classSectionId === section.id);
+        const averages = rows
+          .map((r) => r.yearlyAverage)
+          .filter((a): a is number => a !== null);
+
+        return {
+          classSection: classDisplayName(section),
+          students: rows.length,
+          average: averages.length
+            ? Number(
+                (
+                  averages.reduce((a, b) => a + b, 0) / averages.length
+                ).toFixed(1),
+              )
+            : null,
+          // A pass rate over nobody is not zero percent, it is nothing.
+          passRate: averages.length
+            ? Math.round(
+                (averages.filter((a) => a >= passThreshold).length /
+                  averages.length) *
+                  100,
+              )
+            : null,
+          promoted: rows.filter((r) => r.isPromoted).length,
+        };
+      })
+      .filter((c) => c.students > 0)
+      .sort((a, b) => a.classSection.localeCompare(b.classSection));
+
+    const allAverages = results
+      .map((r) => r.yearlyAverage)
+      .filter((a): a is number => a !== null);
+
+    // Attendance and conduct across the whole year, in one query each rather
+    // than one per class: a school of eight hundred would otherwise be sixty
+    // round trips to draw one line.
+    const [attendanceTotal, attendancePresent, deducted, restored] =
+      await Promise.all([
+        withinYear
+          ? this.prisma.attendance.count({ where: withinYear })
+          : Promise.resolve(0),
+        withinYear
+          ? this.prisma.attendance.count({
+              where: { ...withinYear, status: { in: ['PRESENT', 'LATE'] } },
+            })
+          : Promise.resolve(0),
+        this.prisma.disciplineIncident.aggregate({
+          where: { termId: { in: termIds } },
+          _sum: { pointsDeducted: true },
+          _count: true,
+        }),
+        this.prisma.meritAward.aggregate({
+          where: { termId: { in: termIds } },
+          _count: true,
+        }),
+      ]);
+
+    const school = await this.getSchoolInfo();
+
+    return {
+      school,
+      academicYear: { name: academicYear.name },
+      passThreshold,
+      classes: byClass,
+      totals: {
+        students: results.length,
+        average: allAverages.length
+          ? Number(
+              (
+                allAverages.reduce((a, b) => a + b, 0) / allAverages.length
+              ).toFixed(1),
+            )
+          : null,
+        passRate: allAverages.length
+          ? Math.round(
+              (allAverages.filter((a) => a >= passThreshold).length /
+                allAverages.length) *
+                100,
+            )
+          : null,
+        promoted: results.filter((r) => r.isPromoted).length,
+        attendance:
+          attendanceTotal > 0
+            ? Math.round((attendancePresent / attendanceTotal) * 100)
+            : null,
+        incidents: deducted._count,
+        pointsDeducted: deducted._sum.pointsDeducted ?? 0,
+        merits: restored._count,
+      },
+    };
+  }
+
+  async generateSchoolYearSummaryHtml(academicYearId: string): Promise<string> {
+    return this.renderSchoolYearSummaryHtml(
+      await this.getSchoolYearSummary(academicYearId),
+    );
+  }
+
+  async generateSchoolYearSummaryPdf(academicYearId: string): Promise<Buffer> {
+    const html = await this.generateSchoolYearSummaryHtml(academicYearId);
+    return this.htmlToPdf(html, 0);
+  }
+
+  /** The school's year on one sheet: a row per class, and the school beneath. */
+  private renderSchoolYearSummaryHtml(data: any): string {
+    const navy = data.school.primaryColor;
+    const logo = logoDataUri(data.school.logoUrl);
+
+    const pct = (v: number | null) => (v === null ? '–' : `${v}%`);
+    const num = (v: number | null) => (v === null ? '–' : String(v));
+
+    const classRows = data.classes
+      .map(
+        (c: any) => `
+      <tr>
+        <td class="subj">${escapeHtml(c.classSection)}</td>
+        <td class="num">${c.students}</td>
+        <td class="num">${num(c.average)}</td>
+        <td class="num">${pct(c.passRate)}</td>
+        <td class="num">${c.promoted}</td>
+      </tr>`,
+      )
+      .join('');
+
+    const cell = (label: string, big: string, small: string) =>
+      `<div class="cell"><span>${label}</span><b>${big}</b> <small>${small}</small></div>`;
+
+    const t = data.totals;
+    const summary = [
+      cell('Students', String(t.students), 'with a year result'),
+      cell(
+        'School average',
+        t.average === null ? '–' : `${t.average}%`,
+        t.average === null ? '' : overallGrade(t.average).remark,
+      ),
+      cell('Pass rate', pct(t.passRate), `at ${data.passThreshold}% and above`),
+      cell('Promoted', String(t.promoted), 'to the next year'),
+    ].join('');
+
+    const welfare = [
+      cell('Attendance', pct(t.attendance), 'present or late'),
+      cell('Incidents', String(t.incidents), `${t.pointsDeducted} points off`),
+      cell('Merits', String(t.merits), 'awarded'),
+    ].join('');
+
+    const initials = (data.school.name || 'MA')
+      .split(/\s+/)
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      @page{ size:A4; margin:0; }
+      body{
+        font-family:Poppins,'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
+        color:#1c2733; background:#fff; width:210mm;
+      }
+      .sheet{ width:210mm; min-height:297mm; padding:14mm 13mm; }
+      .head{ display:flex; align-items:center; gap:12px; border-bottom:2px solid ${navy}; padding-bottom:10px; }
+      .crest{ width:52px; height:52px; object-fit:contain; }
+      .crest-fallback{ width:52px; height:52px; border-radius:50%; background:${navy}; color:#fff;
+        display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px; }
+      .school{ flex:1; }
+      .school h1{ font-size:17px; color:${navy}; }
+      .school p{ font-size:9.5px; color:#5b6b7b; margin-top:2px; }
+      .doc{ text-align:right; }
+      .doc b{ display:block; font-size:12px; color:${navy}; letter-spacing:.09em; }
+      .doc span{ font-size:9.5px; color:#5b6b7b; }
+
+      h2{ font-size:10px; text-transform:uppercase; letter-spacing:.09em; color:#5b6b7b; margin:16px 0 6px; }
+      table{ width:100%; border-collapse:collapse; font-size:10px; }
+      th{ background:${navy}; color:#fff; font-weight:600; padding:6px 5px; font-size:9.5px; }
+      td{ padding:5px; border-bottom:1px solid #e6ecf1; text-align:center; }
+      td.subj{ text-align:left; font-weight:500; }
+
+      .summary{ display:flex; gap:8px; margin-top:8px; }
+      .cell{ flex:1; border:1px solid #e6ecf1; border-radius:6px; padding:8px 10px; }
+      .cell span{ display:block; font-size:8.5px; color:#5b6b7b; text-transform:uppercase; letter-spacing:.07em; }
+      .cell b{ font-size:15px; color:${navy}; }
+      .cell small{ font-size:9px; color:#5b6b7b; }
+      .note{ margin-top:14px; font-size:8.5px; color:#7c8b99; }
+      .empty{ padding:14px; text-align:center; font-size:10px; color:#7c8b99; border:1px dashed #d6dee6; border-radius:6px; }
+    </style></head><body>
+    <div class="sheet">
+      <div class="head">
+        ${logo ? `<img class="crest" src="${logo}" alt="">` : `<div class="crest-fallback">${initials}</div>`}
+        <div class="school">
+          <h1>${escapeHtml(data.school.name)}</h1>
+          <p>${escapeHtml(data.school.address || '')}</p>
+        </div>
+        <div class="doc">
+          <b>SCHOOL YEAR SUMMARY</b>
+          <span>${escapeHtml(data.academicYear.name)}</span>
+        </div>
+      </div>
+
+      <h2>The year in figures</h2>
+      <div class="summary">${summary}</div>
+
+      <h2>Attendance and conduct</h2>
+      <div class="summary">${welfare}</div>
+
+      <h2>Class by class</h2>
+      ${
+        data.classes.length
+          ? `<table>
+        <thead><tr>
+          <th style="text-align:left">Class</th><th>Students</th><th>Average</th><th>Pass rate</th><th>Promoted</th>
+        </tr></thead>
+        <tbody>${classRows}</tbody>
+      </table>`
+          : `<div class="empty">No year results have been calculated for ${escapeHtml(data.academicYear.name)} yet.</div>`
+      }
+
+      <div class="note">Counted from the year results the school has calculated. A class with no year results is left out rather than shown as a class where everybody failed. Pass rate is the share at or above ${data.passThreshold}%.</div>
     </div>
     </body></html>`;
   }

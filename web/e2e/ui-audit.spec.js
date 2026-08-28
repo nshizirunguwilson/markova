@@ -1024,33 +1024,6 @@ test('search: Cmd+K puts the cursor in the page search', async (browser) => {
 });
 
 /**
- * A face for everyone. The register is fourteen hundred rows, and a wall of
- * two-letter initials is not something anybody can read down.
- */
-test('avatars: a student with no photograph still has a face', async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await authedPage(ctx, 'ADMIN');
-  await visit(page, '/admin/students');
-  await page.waitForTimeout(1500);
-
-  const state = await page.evaluate(() => {
-    const imgs = [...document.querySelectorAll('img')];
-    const drawn = imgs.filter((i) => (i.getAttribute('src') ?? '').startsWith('data:image/svg'));
-    return {
-      drawn: drawn.length,
-      // Two different people must not share one face.
-      distinct: new Set(drawn.map((i) => i.getAttribute('src'))).size,
-      rendered: drawn.filter((i) => i.getBoundingClientRect().width > 0).length,
-    };
-  });
-
-  assert(state.drawn > 0, 'nobody in the register has a drawn face');
-  assert(state.rendered > 0, 'the faces are in the page but none of them is drawn');
-  assert(state.distinct > 1, 'every student has been given the same face');
-  await ctx.close();
-});
-
-/**
  * The quietest of the three ways of being told a message arrived: a number
  * beside Messages that is there when you next look at the sidebar.
  */
@@ -1077,6 +1050,158 @@ test('messages: the sidebar says how many are waiting', async (browser) => {
     assert(badge.onMessages, 'the unread count is beside something other than Messages');
     assert(/^\d+\+?$/.test(badge.says), `the count reads "${badge.says}"`);
   }
+  await ctx.close();
+});
+
+
+/**
+ * Generously rounded, with one corner squared off on the speaker's side.
+ * That single square corner is what the eye reads as "which side said this".
+ */
+test('chat: bubbles are rounded, with one corner squared per run', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(1200);
+
+  const shape = await page.evaluate(() => {
+    const bubbles = [...document.querySelectorAll('.bubble')];
+    if (!bubbles.length) return null;
+    const read = (el) => {
+      const s = getComputedStyle(el);
+      return {
+        tl: parseFloat(s.borderTopLeftRadius),
+        tr: parseFloat(s.borderTopRightRadius),
+        bl: parseFloat(s.borderBottomLeftRadius),
+        br: parseFloat(s.borderBottomRightRadius),
+        squared: el.className.includes('bubble-tail'),
+      };
+    };
+    return {
+      all: bubbles.map(read),
+      squaredCount: bubbles.filter((b) => b.className.includes('bubble-tail')).length,
+      total: bubbles.length,
+    };
+  });
+
+  assert(shape, 'no bubbles rendered');
+  for (const b of shape.all) {
+    // Rounded: the complaint was that they had gone square.
+    assert(b.tl >= 12 && b.tr >= 12, `a bubble's top corners are ${b.tl}/${b.tr}px, not rounded`);
+    if (b.squared) {
+      const squaredCorner = Math.min(b.bl, b.br);
+      assert(squaredCorner <= 8, `the squared corner is ${squaredCorner}px, which is not squared`);
+    }
+  }
+  assert(shape.squaredCount > 0, 'no bubble carries the squared corner');
+  assert(shape.squaredCount <= shape.total, 'more squared corners than bubbles');
+  await ctx.close();
+});
+
+/**
+ * The reply control used to sit once under a whole run, which left the
+ * earlier of two consecutive messages unanswerable.
+ */
+test('chat: every message has its own reply control', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(1200);
+
+  const counted = await page.evaluate(() => ({
+    bubbles: document.querySelectorAll('.bubble').length,
+    replies: document.querySelectorAll('button[aria-label^="Reply to"]').length,
+  }));
+
+  assert(counted.bubbles > 0, 'the thread has no messages');
+  assert(
+    counted.replies === counted.bubbles,
+    `${counted.bubbles} messages but ${counted.replies} reply controls`,
+  );
+  await ctx.close();
+});
+
+/**
+ * A term report says how one term went; these read the three together.
+ */
+test('reports: the year tab offers both yearly reports', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/reports');
+
+  await page.locator('button', { hasText: /^The Year$/ }).first().click();
+  await page.waitForTimeout(600);
+
+  const found = await page.evaluate(() => ({
+    student: /One student.s year/.test(document.body.textContent || ''),
+    school: /The whole school/.test(document.body.textContent || ''),
+    year: !!document.querySelector('#year-report-year'),
+  }));
+
+  assert(found.student, "the annual report section is not on the year tab");
+  assert(found.school, "the school summary section is not on the year tab");
+  assert(found.year, 'the year tab does not ask for an academic year');
+  await ctx.close();
+});
+
+/** The discipline mark moved out of the summary strip and into the table. */
+test('reports: a report card carries discipline as a row, above the subjects', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  // localStorage is denied on about:blank, so land on a real page first.
+  await visit(page, '/admin/reports');
+
+  const html = await page.evaluate(async (api) => {
+    const token = localStorage.getItem('access_token');
+    const terms = await (
+      await fetch(`${api}/academic/terms`, { headers: { Authorization: `Bearer ${token}` } })
+    ).json();
+    const term = (terms.data ?? terms)[0];
+    const students = await (
+      await fetch(`${api}/users?role=STUDENT&limit=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).json();
+    const studentId = (students.data ?? students)[0]?.student?.id;
+    if (!studentId || !term?.id) return null;
+    const res = await fetch(
+      `${api}/reports/term/${studentId}/html?termId=${term.id}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    return res.ok ? await res.text() : null;
+  }, API);
+
+  if (!html) {
+    // No published card for this student and term; nothing to assert against.
+    await ctx.close();
+    return;
+  }
+
+  assert(/Discipline/.test(html), 'the card carries no discipline row');
+  const disciplineAt = html.indexOf('Discipline');
+  const firstGroup = Math.min(
+    ...['Core subjects', 'General modules']
+      .map((g) => html.indexOf(g))
+      .filter((i) => i >= 0),
+  );
+  assert(
+    !Number.isFinite(firstGroup) || disciplineAt < firstGroup,
+    'discipline is not above the first group of subjects',
+  );
   await ctx.close();
 });
 

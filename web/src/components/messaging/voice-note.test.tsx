@@ -356,3 +356,30 @@ describe("skipping through a voice note", () => {
     expect(pause).toHaveBeenCalled();
   });
 });
+
+/**
+ * Forty bars inside a bubble a few hundred pixels wide gave each one about
+ * two pixels of room, which is not a bar — it is a dotted line, and that is
+ * what it looked like.
+ */
+describe("the size a voice note is drawn at", () => {
+  it("draws bars with real width, not hairlines", () => {
+    render(<VoiceNote fileUrl="/uploads/attachments/a1.weba" />);
+    for (const bar of bars()) {
+      expect(bar.className).toContain("w-[3px]");
+    }
+  });
+
+  it("uses few enough bars to fit a bubble", () => {
+    render(<VoiceNote fileUrl="/uploads/attachments/a1.weba" />);
+    expect(bars().length).toBeLessThanOrEqual(28);
+  });
+
+  // A bar barely taller than it is wide reads as a dot.
+  it("never draws a silent bar as a dot", () => {
+    render(<VoiceNote fileUrl="/uploads/attachments/a1.weba" />);
+    for (const bar of bars()) {
+      expect(parseInt((bar as HTMLElement).style.height, 10)).toBeGreaterThanOrEqual(20);
+    }
+  });
+});

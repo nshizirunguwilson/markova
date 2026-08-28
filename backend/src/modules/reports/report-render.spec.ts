@@ -348,44 +348,113 @@ describe('the year report', () => {
         termId: 'term-1',
         score: 16,
         maxScore: 20,
-        subject: { name: 'Mathematics' },
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
         assessmentType: { name: 'CAT 1' },
       },
       {
         termId: 'term-2',
         score: 18,
         maxScore: 20,
-        subject: { name: 'Mathematics' },
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
         assessmentType: { name: 'CAT 1' },
       },
     ]);
 
     const data = await service.getYearReportData('student-1', 'year-1');
-    expect(data.subjectsByTerm).toEqual({
-      Mathematics: { 'Term 1': 80, 'Term 2': 90 },
+    expect(data.subjectsByTerm.Mathematics.terms).toEqual({
+      'Term 1': 80,
+      'Term 2': 90,
     });
   });
 
-  it('averages two marks landing in the same term', async () => {
+  /**
+   * Every term's figure is the weighted total the term report card prints,
+   * at the weights for that subject's scope. A parent holding the annual
+   * report beside the three term reports must read the same number three
+   * times.
+   *
+   * With only the two CATs recorded, the weights renormalise over what is
+   * there: 20 and 20 out of 40, so an even split of 50% and 100% is 75.
+   */
+  it("weighs each term's marks the way the term card does", async () => {
     prisma.mark.findMany.mockResolvedValue([
       {
         termId: 'term-1',
         score: 10,
         maxScore: 20,
-        subject: { name: 'Mathematics' },
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
         assessmentType: { name: 'CAT 1' },
       },
       {
         termId: 'term-1',
         score: 20,
         maxScore: 20,
-        subject: { name: 'Mathematics' },
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
         assessmentType: { name: 'CAT 2' },
       },
     ]);
 
     const data = await service.getYearReportData('student-1', 'year-1');
-    expect(data.subjectsByTerm.Mathematics['Term 1']).toBe(75);
+    expect(data.subjectsByTerm.Mathematics.terms['Term 1']).toBe(75);
+  });
+
+  /*
+    The exam is worth three fifths of a term, so it must move the figure
+    three times as far as a CAT does. The old running `(a + b) / 2` fold gave
+    the last mark half the term whatever it was.
+  */
+  it('lets the exam outweigh the CATs, as its weighting says', async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        termId: 'term-1',
+        score: 20,
+        maxScore: 20,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 1' },
+      },
+      {
+        termId: 'term-1',
+        score: 20,
+        maxScore: 20,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 2' },
+      },
+      {
+        termId: 'term-1',
+        score: 0,
+        maxScore: 20,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'End of Term Exam' },
+      },
+    ]);
+
+    const data = await service.getYearReportData('student-1', 'year-1');
+    // 100% on both CATs (20% each) and nothing on the exam (60%) is 40.
+    expect(data.subjectsByTerm.Mathematics.terms['Term 1']).toBe(40);
+  });
+
+  // A subject dropped after Term 2 is not a subject the student scored zero
+  // in for Term 3.
+  it("averages a subject over the terms it was actually taught in", async () => {
+    prisma.mark.findMany.mockResolvedValue([
+      {
+        termId: 'term-1',
+        score: 16,
+        maxScore: 20,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 1' },
+      },
+      {
+        termId: 'term-2',
+        score: 12,
+        maxScore: 20,
+        subject: { name: 'Mathematics', scope: 'O_CORE' },
+        assessmentType: { name: 'CAT 1' },
+      },
+    ]);
+
+    const data = await service.getYearReportData('student-1', 'year-1');
+    expect(data.subjectsByTerm.Mathematics.average).toBe(70);
   });
 
   it('reads only the terms belonging to the year asked for', async () => {
@@ -650,21 +719,38 @@ describe('the conduct verdict on a card', () => {
     expect(await cardLosing(lost)).toMatch(new RegExp(verdict));
   });
 
-  // "Good" tells a parent nothing they can act on; the mark and the
-  // percentage tell them where their child stands and by how much.
+  /*
+    Conduct is a row of the marks table now, not a figure in the summary
+    strip: its own mark where a total goes, its percentage where a grade goes.
+    "Good" on its own tells a parent nothing they can act on.
+  */
   it('prints the mark itself, not only the word', async () => {
-    expect(await cardLosing(8)).toMatch(/32 \/ 40 \(80%\)/);
+    const html = await cardLosing(8);
+    expect(html).toMatch(/Discipline/);
+    expect(html).toMatch(/32 \/ 40/);
+    expect(html).toMatch(/80%/);
   });
 
   it('gives a clean term the full mark', async () => {
-    expect(await cardLosing(0)).toMatch(/40 \/ 40 \(100%\)/);
+    expect(await cardLosing(0)).toMatch(/40 \/ 40/);
   });
 
   // A term cannot end below nothing, however bad it was.
   it('does not take a term below zero', async () => {
     const html = await cardLosing(90);
-    expect(html).toMatch(/0 \/ 40 \(0%\)/);
+    expect(html).toMatch(/0 \/ 40/);
     expect(html).not.toMatch(/-\d+ \/ 40/);
+  });
+
+  // Above the subjects, where a reader is already looking for marks.
+  it('puts it above the first group of subjects', async () => {
+    const html = await cardLosing(4);
+    expect(html.indexOf('Discipline')).toBeLessThan(html.indexOf('Core subjects'));
+  });
+
+  it('no longer repeats it in the summary strip', async () => {
+    const html = await cardLosing(4);
+    expect(html).not.toMatch(/<span>Conduct<\/span>/);
   });
 
   it('draws a dash for attendance nobody recorded', async () => {
@@ -759,7 +845,7 @@ describe('a report card with almost nothing on it', () => {
   */
   it('gives a term with nothing recorded against it the full conduct mark', async () => {
     const html = await service.generateTermReportHtml('student-1', 'term-1');
-    expect(html).toMatch(/40 \/ 40 \(100%\)/);
+    expect(html).toMatch(/40 \/ 40/);
     expect(html).toMatch(/Excellent/);
   });
 
