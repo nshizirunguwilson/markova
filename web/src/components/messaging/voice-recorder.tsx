@@ -252,7 +252,15 @@ export function VoiceRecorder({
     say "recording, this long, throw away or send".
   */
   return (
-    <div className="flex w-[min(22rem,60%)] items-center gap-2 px-1">
+    /*
+      Anchored to the right, where the microphone that started it was.
+
+      As the last child of the composer it used to lay out from the left, so
+      pressing a button on the right made the recorder appear on the other
+      side of the row — the control looked like it had jumped away from the
+      hand that pressed it. `ml-auto` keeps it under the same finger.
+    */
+    <div className="ml-auto flex w-[min(22rem,60%)] items-center gap-2 px-1">
       <button
         type="button"
         onClick={throwAway}
