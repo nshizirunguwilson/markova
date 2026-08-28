@@ -1,6 +1,8 @@
 import { SubjectScope } from '@prisma/client';
 import {
+  COMPETENCE_THRESHOLD,
   competenceFor,
+  competenceForSubject,
   computeSubjectTotal,
   countsTowardAggregate,
   gradeFor,
@@ -94,6 +96,69 @@ describe('grading', () => {
     it('reads the overall average on the core scale', () => {
       expect(overallGrade(70.2).letter).toBe('A');
       expect(overallGrade(68.8).letter).toBe('B');
+    });
+  });
+});
+
+/**
+ * Competence on every subject, not only the practical modules.
+ *
+ * The Rwandan competence-based curriculum asks whether a learner can do the
+ * thing, and that question is as real in English as it is in a workshop.
+ */
+describe('whether a subject was reached', () => {
+  it('reads a mark at or above the threshold as competent', () => {
+    expect(competenceFor(COMPETENCE_THRESHOLD)).toBe('COMPETENT');
+    expect(competenceFor(85)).toBe('COMPETENT');
+  });
+
+  it('reads one below it as not yet', () => {
+    expect(competenceFor(COMPETENCE_THRESHOLD - 1)).toBe('NOT_YET_COMPETENT');
+    expect(competenceFor(0)).toBe('NOT_YET_COMPETENT');
+  });
+
+  // "Not yet competent" is a judgement, and a subject nobody has marked has
+  // not been judged.
+  it('says nothing about a subject with no mark', () => {
+    expect(competenceFor(null)).toBeNull();
+  });
+
+  describe('for one subject on a report card', () => {
+    it('judges an ordinary subject on its term total', () => {
+      expect(competenceForSubject(SubjectScope.O_CORE, 75, null)).toBe(
+        'COMPETENT',
+      );
+      expect(competenceForSubject(SubjectScope.O_ELECTIVE, 40, null)).toBe(
+        'NOT_YET_COMPETENT',
+      );
+      expect(competenceForSubject(SubjectScope.A_GENERAL, 90, null)).toBe(
+        'COMPETENT',
+      );
+    });
+
+    /*
+      The practical is the assessment that asks whether the learner can do the
+      work. Judging a module on a total three fifths made of written papers
+      would say something else.
+    */
+    it('judges a practical module on its practical mark', () => {
+      expect(competenceForSubject(SubjectScope.A_SPECIFIC, 90, 40)).toBe(
+        'NOT_YET_COMPETENT',
+      );
+      expect(competenceForSubject(SubjectScope.A_SPECIFIC, 40, 90)).toBe(
+        'COMPETENT',
+      );
+    });
+
+    // A module the school has not run a practical for yet still has a total.
+    it('falls back to the total for a module with no practical', () => {
+      expect(competenceForSubject(SubjectScope.A_SPECIFIC, 80, null)).toBe(
+        'COMPETENT',
+      );
+    });
+
+    it('says nothing for a subject with nothing to judge', () => {
+      expect(competenceForSubject(SubjectScope.O_CORE, null, null)).toBeNull();
     });
   });
 });

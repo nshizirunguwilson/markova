@@ -14,7 +14,7 @@ import { classDisplayName } from '../../common/class-name';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
 import {
-  competenceFor,
+  competenceForSubject,
   computeSubjectTotal,
   gradeFor,
   overallGrade,
@@ -1305,10 +1305,14 @@ export class ReportsService implements OnModuleDestroy {
           grade: band?.letter ?? null,
           points: band?.points ?? null,
           remark: band?.remark ?? null,
-          competence:
-            val.scope === SubjectScope.A_SPECIFIC
-              ? competenceFor(practical ? practical.pct : null)
-              : null,
+          // Every subject, not only the practical modules: the curriculum
+          // asks whether a learner can do the thing, and that question is as
+          // real in English as it is in a workshop.
+          competence: competenceForSubject(
+            val.scope,
+            total,
+            practical ? practical.pct : null,
+          ),
         };
       })
       .sort(
@@ -1385,6 +1389,20 @@ export class ReportsService implements OnModuleDestroy {
       return `<td class="num">${a ? a.pct : '–'}</td>`;
     };
 
+    /*
+      Competent or not, for every subject rather than only the practical
+      modules. A dash where nothing has been marked: "not yet competent" is a
+      judgement, and a subject nobody has marked has not been judged.
+    */
+    const competenceCell = (s: any) =>
+      `<td>${
+        s.competence
+          ? s.competence === 'COMPETENT'
+            ? '<span class="chip ok">Competent</span>'
+            : '<span class="chip no">Not yet competent</span>'
+          : '–'
+      }</td>`;
+
     const row = (s: any) => `
       <tr>
         <td class="subj">${escapeHtml(s.subject)}</td>
@@ -1392,20 +1410,12 @@ export class ReportsService implements OnModuleDestroy {
         <td class="tot">${s.total ?? '–'}</td>
         <td class="gr">${s.grade ?? '–'}</td>
         <td class="num">${s.points ?? '–'}</td>
-        ${
-          isALevel
-            ? `<td>${
-                s.competence
-                  ? s.competence === 'COMPETENT'
-                    ? '<span class="chip ok">Competent</span>'
-                    : '<span class="chip no">Not Yet Competent</span>'
-                  : '–'
-              }</td>`
-            : `<td class="rem">${s.remark ?? '–'}</td>`
-        }
+        ${competenceCell(s)}
+        ${isALevel ? '' : `<td class="rem">${s.remark ?? '–'}</td>`}
       </tr>`;
 
-    const cols = isALevel ? 9 : 8;
+    // O-Level keeps its written remark alongside; A-Level never had one.
+    const cols = isALevel ? 9 : 9;
     const groupRow = (label: string, note: string) =>
       `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
 
@@ -1446,14 +1456,18 @@ export class ReportsService implements OnModuleDestroy {
 
     const headCols = isALevel
       ? `<th style="text-align:left">Module</th><th>CAT 1</th><th>CAT 2</th><th>Practical</th><th>Exam</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th>Competence</th>`
-      : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th style="text-align:left">Remark</th>`;
+      : `<th style="text-align:left">Subject</th><th>CAT 1<br>(20%)</th><th>CAT 2<br>(20%)</th><th>Exam<br>(60%)</th><th>Total<br>/100</th><th>Grade</th><th>Points</th><th>Competence</th><th style="text-align:left">Remark</th>`;
 
     const totalMax = data.subjects.length * 100;
     const overall = data.result ? overallGrade(data.result.average || 0) : null;
-    const specificSubjects = data.subjects.filter(
-      (s: any) => s.scope === 'A_SPECIFIC',
-    );
-    const competentCount = specificSubjects.filter(
+    /*
+      The competence tally. Counted over every subject that was judged rather
+      than over the practical modules alone — with competence on every row,
+      "3 of 4" under a sheet of eleven subjects would be reading a different
+      table from the one above it.
+    */
+    const judgedSubjects = data.subjects.filter((s: any) => s.competence);
+    const competentCount = judgedSubjects.filter(
       (s: any) => s.competence === 'COMPETENT',
     ).length;
 
@@ -1482,13 +1496,14 @@ export class ReportsService implements OnModuleDestroy {
         `${data.result?.rank ?? '–'}`,
         `of ${data.classStats.totalStudents}`,
       ),
-      isALevel
-        ? summaryCell(
-            'Practicals',
-            `${competentCount} / ${specificSubjects.length}`,
-            'Competent',
-          )
-        : summaryCell('Conduct', conduct, ''),
+      // Competence across the whole sheet now, so it is worth a cell on
+      // every report rather than only on an A-Level one.
+      summaryCell(
+        'Competent in',
+        `${competentCount} / ${judgedSubjects.length}`,
+        judgedSubjects.length === 1 ? 'subject' : 'subjects',
+      ),
+      ...(isALevel ? [] : [summaryCell('Conduct', conduct, '')]),
     ].join('');
 
     const aggregateNote = isALevel

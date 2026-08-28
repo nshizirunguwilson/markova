@@ -33,7 +33,16 @@ export const ELECTIVE_SCALE: GradeBand[] = [
 
 export const MAX_POINTS_PER_SUBJECT = 6;
 
-// A practical mark at or above this percentage is Competent.
+/**
+ * The mark at or above which a subject is Competent.
+ *
+ * The same number the practical modules have always used, now applied to
+ * every subject: the Rwandan competence-based curriculum asks whether a
+ * learner can do the thing, and that question is as real in English or
+ * Mathematics as it is in a workshop. A report card that answers it for the
+ * practical modules alone answers it for a handful of A-Level students and
+ * for nobody else in the school.
+ */
 export const COMPETENCE_THRESHOLD = 70;
 
 // Term mark composition per subject scope. Keys are assessment type names
@@ -98,9 +107,38 @@ export function countsTowardAggregate(scope: SubjectScope): boolean {
 
 export type Competence = 'COMPETENT' | 'NOT_YET_COMPETENT';
 
-export function competenceFor(practicalPct: number | null): Competence | null {
-  if (practicalPct === null) return null;
-  return practicalPct >= COMPETENCE_THRESHOLD
-    ? 'COMPETENT'
-    : 'NOT_YET_COMPETENT';
+/**
+ * Competent or not, from a percentage.
+ *
+ * Null for a subject with no mark at all: "not yet competent" is a judgement,
+ * and a subject nobody has marked has not been judged. The report card draws
+ * that as a dash.
+ */
+export function competenceFor(pct: number | null): Competence | null {
+  if (pct === null) return null;
+  return pct >= COMPETENCE_THRESHOLD ? 'COMPETENT' : 'NOT_YET_COMPETENT';
+}
+
+/**
+ * Competent or not for one subject on a report card.
+ *
+ * Every subject is judged, not only the practical modules. Which mark decides
+ * it depends on what the subject has:
+ *
+ * - A practical module with a practical mark is judged on that mark. That is
+ *   what the practical is for — it is the assessment that asks whether the
+ *   learner can do the work — and judging it on a total three fifths made of
+ *   written papers would say something else.
+ * - Everything else is judged on its term total, which is the only measure of
+ *   the subject there is.
+ */
+export function competenceForSubject(
+  scope: SubjectScope,
+  totalPct: number | null,
+  practicalPct: number | null,
+): Competence | null {
+  if (scope === SubjectScope.A_SPECIFIC && practicalPct !== null) {
+    return competenceFor(practicalPct);
+  }
+  return competenceFor(totalPct);
 }

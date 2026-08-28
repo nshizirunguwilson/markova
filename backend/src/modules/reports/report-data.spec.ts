@@ -297,9 +297,34 @@ describe('report card data', () => {
       expect(data.subjects[0].competence).toBe('COMPETENT');
     });
 
-    it('says nothing about competence for an ordinary subject', async () => {
+    /*
+      Every subject is judged now, not only the practical modules. The
+      curriculum asks whether a learner can do the thing, and that question is
+      as real in Mathematics as it is in a workshop — a report card that
+      answered it for the practical modules alone answered it for a handful of
+      A-Level students and for nobody else in the school.
+    */
+    it('says whether an ordinary subject was reached too', async () => {
       prisma.mark.findMany.mockResolvedValue([
-        mark('Mathematics', 'CAT 1', 15),
+        mark('Mathematics', 'End of Term Exam', 18),
+      ]);
+      const data = await service.getTermReportData('student-1', 'term-1');
+      expect(data.subjects[0].competence).toBe('COMPETENT');
+    });
+
+    it('says not yet for an ordinary subject under the threshold', async () => {
+      prisma.mark.findMany.mockResolvedValue([
+        mark('Mathematics', 'End of Term Exam', 8),
+      ]);
+      const data = await service.getTermReportData('student-1', 'term-1');
+      expect(data.subjects[0].competence).toBe('NOT_YET_COMPETENT');
+    });
+
+    // "Not yet competent" is a judgement, and a subject nobody has marked has
+    // not been judged.
+    it('says nothing about a subject with no mark that can be weighed', async () => {
+      prisma.mark.findMany.mockResolvedValue([
+        mark('Mathematics', 'Made-up assessment', 15),
       ]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.subjects[0].competence).toBeNull();
