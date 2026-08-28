@@ -27,10 +27,15 @@ import {
  */
 
 /**
- * Peaks already worked out, by URL. A thread scrolled up and down would
- * otherwise decode the same clip every time it came back into view.
+ * Clips already read, by URL: their bars and their length.
+ *
+ * A thread scrolled up and down would otherwise decode the same clip every
+ * time it came back into view. The length is kept alongside the bars because
+ * it comes from the same decode — a WebM recording reports its own length as
+ * Infinity until it has been seeked, so this is often the only place the real
+ * one is known.
  */
-const known = new Map<string, number[]>();
+const known = new Map<string, { peaks: number[]; duration: number }>();
 
 /** Only for tests, which must not inherit waveforms from each other. */
 export function clearKnownWaveforms(): void {
@@ -49,10 +54,11 @@ export function VoiceNote({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
-  const [length, setLength] = useState(0);
-  const [peaks, setPeaks] = useState<number[] | null>(
-    href ? (known.get(href) ?? null) : null,
-  );
+  // What is already known about this clip, so a thread scrolled back to does
+  // not redraw from nothing.
+  const read = href ? known.get(href) : undefined;
+  const [length, setLength] = useState(read?.duration ?? 0);
+  const [peaks, setPeaks] = useState<number[] | null>(read?.peaks ?? null);
 
   /*
     Decoding the clip to find its shape. Deliberately best effort: a browser
@@ -82,7 +88,7 @@ export function VoiceNote({
         if (cancelled) return;
 
         const found = peaksFrom(decoded.getChannelData(0));
-        known.set(href, found);
+        known.set(href, { peaks: found, duration: decoded.duration });
         setPeaks(found);
         // The decoded clip knows its own length before the element does.
         setLength((was) => was || decoded.duration);

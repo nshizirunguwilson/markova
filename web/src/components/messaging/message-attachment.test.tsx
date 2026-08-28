@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MessageAttachment } from "./message-attachment";
 
@@ -90,6 +90,34 @@ describe("a file inside a message", () => {
     }
   });
 
+  /*
+    The download control under a video or an audio clip. The plain anchor
+    inside the media element is the fallback for a browser that cannot play
+    it; the styled one is the last.
+  */
+  function downloadControl(container: HTMLElement) {
+    const all = [...container.querySelectorAll("a[download]")];
+    return all[all.length - 1]!.className;
+  }
+
+  it("takes its colours from your own bubble for a video too", () => {
+    const { container, rerender } = render(
+      <MessageAttachment fileUrl="/uploads/a.mp4" fileName="a.mp4" />,
+    );
+    const theirs = downloadControl(container);
+    rerender(<MessageAttachment fileUrl="/uploads/a.mp4" fileName="a.mp4" mine />);
+    expect(downloadControl(container)).not.toBe(theirs);
+  });
+
+  it("and for audio", () => {
+    const { container, rerender } = render(
+      <MessageAttachment fileUrl="/uploads/a.mp3" fileName="a.mp3" />,
+    );
+    const theirs = downloadControl(container);
+    rerender(<MessageAttachment fileUrl="/uploads/a.mp3" fileName="a.mp3" mine />);
+    expect(downloadControl(container)).not.toBe(theirs);
+  });
+
   it("still says something when the file has lost its name", () => {
     render(<MessageAttachment fileUrl="/uploads/attachments/a1b2.pdf" />);
     expect(screen.getByText("Attachment")).toBeInTheDocument();
@@ -106,6 +134,25 @@ describe("a file inside a message", () => {
       <MessageAttachment fileUrl="/uploads/attachments/a1b2.bin" fileName="data.bin" />,
     );
     expect(screen.getByRole("link")).toHaveAttribute("download", "data.bin");
+  });
+
+  /**
+   * A photograph whose file has gone falls back to the named row, so there is
+   * still something to click rather than a broken-image icon.
+   */
+  it("falls back to a named row when the photograph will not load", () => {
+    const { container } = render(
+      <MessageAttachment
+        fileUrl="/uploads/attachments/a1.jpg"
+        fileName="sports day.jpg"
+      />,
+    );
+    fireEvent.error(container.querySelector("img")!);
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "download",
+      "sports day.jpg",
+    );
   });
 
   it("takes its colours from your own bubble", () => {

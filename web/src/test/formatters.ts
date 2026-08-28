@@ -55,3 +55,25 @@ export function findThrowingFormatters(options: ChartOption[]) {
   });
   return failures;
 }
+
+/**
+ * Everything the formatters draw, for every shape they are given.
+ *
+ * A formatter that does not throw can still write "undefined" into a tooltip,
+ * which is the failure a reader actually sees. This hands back what was drawn
+ * so a test can say so.
+ */
+export function renderAllFormatters(options: ChartOption[]): string[] {
+  const drawn: string[] = [];
+  collectFormatters(options).forEach((format) => {
+    for (const shape of HOVER_SHAPES) {
+      try {
+        const out = format(shape);
+        if (typeof out === "string") drawn.push(out);
+      } catch {
+        // Whether it throws is `findThrowingFormatters`'s question.
+      }
+    }
+  });
+  return drawn;
+}

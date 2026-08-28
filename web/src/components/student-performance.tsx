@@ -166,7 +166,13 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             fontSize: 11,
             formatter: (p: any) => {
               const s = rows[p?.dataIndex ?? -1];
-              return s ? `${s.total}%  ${s.grade}` : "";
+              if (!s) return "";
+              // A subject the school has entered only partly still gets a
+              // label; a dash says "not marked yet", where the bare value
+              // wrote the word "undefined" across the chart.
+              const total = s.total ?? "–";
+              const grade = s.grade ?? "–";
+              return `${total}%  ${grade}`;
             },
           },
           markLine: {

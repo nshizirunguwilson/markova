@@ -50,9 +50,21 @@ export const MAX_ANY_ATTACHMENT_BYTES = Math.max(
   ...Object.values(MAX_ATTACHMENT_BYTES),
 );
 
+/**
+ * A mime type without its parameters.
+ *
+ * A browser recording announces itself as `audio/webm;codecs=opus`, and an
+ * exact allow-list — which is the only kind worth having — does not contain
+ * that string. Without this every voice note recorded in Chrome or Firefox
+ * was refused.
+ */
+export function baseMime(mimetype: string): string {
+  return (mimetype || '').split(';')[0].trim().toLowerCase();
+}
+
 /** Which of the four a mime type counts as, or null when it is not accepted. */
 export function attachmentKind(mimetype: string): AttachmentKind | null {
-  const type = (mimetype || '').toLowerCase();
+  const type = baseMime(mimetype);
   if (type.startsWith('image/')) return 'image';
   if (type.startsWith('video/')) return 'video';
   if (type.startsWith('audio/')) return 'audio';

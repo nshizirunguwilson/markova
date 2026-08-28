@@ -39,7 +39,23 @@ interface ChatState {
   joinConversation: (conversationId: string) => void;
   isOnline: (userId: string) => boolean;
   getTypingUsers: (conversationId: string) => Map<string, string>;
+  /**
+   * Watch for messages arriving, from anywhere in the app.
+   *
+   * The socket is opened once for the whole dashboard, so this is how a page
+   * that is not the chat learns a message has come in. Returns the function
+   * that stops watching; callers must call it when they unmount or a second
+   * notice appears for every message.
+   *
+   * A list of watchers rather than one, and kept outside the store's own
+   * state, so registering one does not re-render everything reading the
+   * store.
+   */
+  onNewMessage: (handler: (message: unknown) => void) => () => void;
 }
+
+/** Everyone currently watching for messages. See `onNewMessage`. */
+const watchers = new Set<(message: unknown) => void>();
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const WS_URL = API_URL.replace("/api", "");
@@ -166,6 +182,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const currentUserId = (socket as any)._userId;
       if (message.sender?.id !== currentUserId) {
         playNotificationSound();
+      }
+
+      /*
+        And tell whoever is watching. Each watcher is called inside its own
+        try, because a notice that throws must not take the message with it —
+        the cache above has already been updated, and the thread being right
+        matters more than the corner of the screen being right.
+      */
+      for (const watcher of watchers) {
+        try {
+          watcher(message);
+        } catch {
+          /* a notice is a nicety; the message has already landed */
+        }
       }
     });
 
@@ -336,6 +366,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   isOnline: (userId: string) => {
     return get().onlineUsers.has(userId);
+  },
+
+  onNewMessage: (handler: (message: unknown) => void) => {
+    watchers.add(handler);
+    return () => {
+      watchers.delete(handler);
+    };
   },
 
   getTypingUsers: (conversationId: string) => {

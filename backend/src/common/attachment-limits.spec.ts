@@ -24,6 +24,12 @@ describe('what kind of attachment this is', () => {
   it('answers nothing for nothing', () => {
     expect(attachmentKind('')).toBeNull();
   });
+
+  // A browser recording announces itself as `audio/webm;codecs=opus`.
+  it('reads past the codec a recording arrives with', () => {
+    expect(attachmentKind('audio/webm;codecs=opus')).toBe('audio');
+    expect(maxBytesFor('audio/webm;codecs=opus')).toBe(16 * MB);
+  });
 });
 
 /**

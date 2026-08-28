@@ -381,4 +381,36 @@ describe('file validation', () => {
       expect(isAllowedAttachmentMime('application/x-msdownload')).toBe(false);
     });
   });
+
+  /**
+   * A browser recording announces itself as `audio/webm;codecs=opus`. The
+   * lists are exact, which is the point of them, so the parameters have to
+   * come off before the lookup — without this every voice note recorded in
+   * Chrome or Firefox was refused.
+   */
+  describe('a type that arrives with its codec attached', () => {
+    it('is accepted, on the type alone', () => {
+      expect(isAllowedAttachmentMime('audio/webm;codecs=opus')).toBe(true);
+      expect(isAllowedAttachmentMime('video/webm;codecs=vp9,opus')).toBe(true);
+    });
+
+    it('is stored under the extension for its type', () => {
+      expect(safeAttachmentExtension('audio/webm;codecs=opus')).toBe('.weba');
+    });
+
+    it('is checked against its type\u2019s own signature', () => {
+      const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
+      expect(attachmentMatchesType(webm, 'audio/webm;codecs=opus')).toBe(true);
+    });
+
+    // Only the parameters come off; the type itself is still matched exactly.
+    it('does not let an unaccepted type through on its parameters', () => {
+      expect(isAllowedAttachmentMime('text/html;charset=utf-8')).toBe(false);
+      expect(isAllowedAttachmentMime('image/svg+xml;charset=utf-8')).toBe(false);
+    });
+
+    it('applies to images too', () => {
+      expect(isAllowedImageMime('image/png;something=1')).toBe(true);
+    });
+  });
 });

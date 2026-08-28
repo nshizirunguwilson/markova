@@ -98,6 +98,10 @@ describe("turning audio into bars", () => {
   it("copes with no audio at all", () => {
     expect(peaksFrom([], 5)).toEqual([0, 0, 0, 0, 0]);
   });
+
+  it("copes with being asked for no bars", () => {
+    expect(peaksFrom([0.5, 0.5], 0)).toEqual([]);
+  });
 });
 
 /**

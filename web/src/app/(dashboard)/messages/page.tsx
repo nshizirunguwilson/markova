@@ -28,6 +28,7 @@ import { MessageAttachment } from "@/components/messaging/message-attachment";
 import { MessageText } from "@/components/messaging/message-text";
 import { VoiceNote } from "@/components/messaging/voice-note";
 import { VoiceRecorder } from "@/components/messaging/voice-recorder";
+import { NotifyToggle } from "@/components/messaging/notify-toggle";
 import {
   ACCEPTED_ATTACHMENTS,
   humanSize,
@@ -492,6 +493,8 @@ export default function MessagesPage() {
       <div className={`${selectedConv ? "hidden md:flex" : "flex"} w-full flex-col border-border md:w-[19rem] md:flex-shrink-0 md:border-r`}>
         <div className="flex items-center justify-between px-4 py-3.5">
           <h2 className="text-[0.95rem] font-semibold tracking-tight text-foreground">Messages</h2>
+          <div className="flex items-center gap-0.5">
+          <NotifyToggle />
           <button
             type="button"
             aria-label="Add"
@@ -500,6 +503,7 @@ export default function MessagesPage() {
           >
             <Plus className="h-[18px] w-[18px]" />
           </button>
+          </div>
         </div>
 
         {/*

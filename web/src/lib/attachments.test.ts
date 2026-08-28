@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACCEPTED_ATTACHMENTS,
+  baseMime,
   humanSize,
   kindOfMime,
   kindOfUrl,
@@ -86,6 +87,12 @@ describe("whether a file can be sent", () => {
     expect(said).toContain("photo.jpg");
   });
 
+  it("calls a document a document rather than an application", () => {
+    const said = whyNotSendable(file("marks.pdf", "application/pdf", 30 * MB));
+    expect(said).toContain("A document");
+    expect(said).toContain("25 MB");
+  });
+
   it("refuses a video over the video cap", () => {
     expect(whyNotSendable(file("clip.mp4", "video/mp4", 80 * MB))).toContain(
       "50 MB",
@@ -114,6 +121,26 @@ describe("whether a file can be sent", () => {
     for (const type of ACCEPTED_ATTACHMENTS.split(",")) {
       expect(whyNotSendable(file("f", type, 1000))).toBeNull();
     }
+  });
+
+  /**
+   * A browser recording announces itself as `audio/webm;codecs=opus`, and a
+   * list matched exactly does not contain that string. Without this every
+   * voice note recorded in Chrome or Firefox was refused by its own check.
+   */
+  it("accepts a recording that arrives with its codec attached", () => {
+    expect(
+      whyNotSendable(file("voice.weba", "audio/webm;codecs=opus", 5000)),
+    ).toBeNull();
+    expect(kindOfMime("audio/webm;codecs=opus")).toBe("audio");
+    expect(baseMime("AUDIO/WEBM;codecs=opus")).toBe("audio/webm");
+  });
+
+  // Only the parameters come off; the type itself is still matched exactly.
+  it("does not let a refused type through on its parameters", () => {
+    expect(
+      whyNotSendable(file("x.html", "text/html;charset=utf-8", 500)),
+    ).toContain("not a kind of file");
   });
 
   it("never offers a type the API would refuse", () => {

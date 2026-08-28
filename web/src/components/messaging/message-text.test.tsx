@@ -48,6 +48,13 @@ describe("finding links in a message", () => {
     );
   });
 
+  // A message that is nothing but a link has no text either side of it.
+  it("copes with a message that is only a link", () => {
+    const pieces = linkPieces("https://markova.edu");
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0].href).toBe("https://markova.edu");
+  });
+
   it("finds several links in one message", () => {
     const pieces = linkPieces("https://a.rw and https://b.rw");
     expect(pieces.filter((p) => p.href)).toHaveLength(2);

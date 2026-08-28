@@ -27,8 +27,21 @@ const EXTENSION_BY_MIME: Record<string, string> = {
 };
 
 /** True when this is a mime type uploads are allowed to use at all. */
+/**
+ * A mime type without its parameters.
+ *
+ * A browser recording announces itself as `audio/webm;codecs=opus`. The
+ * allow-lists below are exact, which is the point of them, so the parameters
+ * have to come off before the lookup or every voice note recorded in Chrome
+ * or Firefox is refused. Only the parameters are dropped; the type itself is
+ * still matched exactly.
+ */
+export function baseMime(mimetype: string): string {
+  return (mimetype || '').split(';')[0].trim().toLowerCase();
+}
+
 export function isAllowedImageMime(mimetype: string): boolean {
-  return Object.hasOwn(EXTENSION_BY_MIME, mimetype.toLowerCase());
+  return Object.hasOwn(EXTENSION_BY_MIME, baseMime(mimetype));
 }
 
 /**
@@ -36,7 +49,7 @@ export function isAllowedImageMime(mimetype: string): boolean {
  * is not one accepted. Never returns anything derived from the client filename.
  */
 export function safeImageExtension(mimetype: string): string | null {
-  return EXTENSION_BY_MIME[mimetype.toLowerCase()] ?? null;
+  return EXTENSION_BY_MIME[baseMime(mimetype)] ?? null;
 }
 
 export function validateImageMagicBytes(buffer: Buffer): boolean {
@@ -105,7 +118,7 @@ const ATTACHMENT_EXTENSION_BY_MIME: Record<string, string> = {
 };
 
 export function isAllowedAttachmentMime(mimetype: string): boolean {
-  return Object.hasOwn(ATTACHMENT_EXTENSION_BY_MIME, mimetype.toLowerCase());
+  return Object.hasOwn(ATTACHMENT_EXTENSION_BY_MIME, baseMime(mimetype));
 }
 
 /**
@@ -113,7 +126,7 @@ export function isAllowedAttachmentMime(mimetype: string): boolean {
  * type is not accepted. Never derived from the client filename.
  */
 export function safeAttachmentExtension(mimetype: string): string | null {
-  return ATTACHMENT_EXTENSION_BY_MIME[mimetype.toLowerCase()] ?? null;
+  return ATTACHMENT_EXTENSION_BY_MIME[baseMime(mimetype)] ?? null;
 }
 
 /**
@@ -292,7 +305,7 @@ export function attachmentMatchesType(
   buffer: Buffer,
   mimetype: string,
 ): boolean {
-  const type = (mimetype || '').toLowerCase();
+  const type = baseMime(mimetype);
 
   // Images already have their own signature table; reuse it rather than
   // keeping two lists of the same four formats.

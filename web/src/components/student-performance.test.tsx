@@ -193,6 +193,35 @@ describe("its chart callbacks", () => {
     expect(findThrowingFormatters(h.charts)).toEqual([]);
   });
 
+  /**
+   * A term the school has entered only partly: a subject with no name, no
+   * total and no grade. ECharts still asks the tooltip to draw it, and every
+   * one of those gaps has to come out as a dash rather than "undefined".
+   */
+  it("none throws, and none says undefined, for a half-entered term", async () => {
+    const { findThrowingFormatters, renderAllFormatters } = await import(
+      "@/test/formatters"
+    );
+    const bare = term("2026-2027", "Term 1", 70, 66);
+    serve(h.api, {
+      "/analytics/student": profile([
+        {
+          ...bare,
+          termName: undefined,
+          yearName: undefined,
+          subjects: [{ scope: "O_CORE" }],
+        },
+      ]),
+    });
+    render();
+    await waitFor(() => expect(h.charts.length).toBeGreaterThan(0));
+
+    expect(findThrowingFormatters(h.charts)).toEqual([]);
+    for (const drawn of renderAllFormatters(h.charts)) {
+      expect(drawn).not.toContain("undefined");
+    }
+  });
+
   it("none throws for a student with no terms at all", async () => {
     const { findThrowingFormatters } = await import("@/test/formatters");
     serve(h.api, { "/analytics/student": profile([]) });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   assertMutation,
@@ -49,5 +49,95 @@ describe("use-messaging queries", () => {
 describe("use-messaging mutations", () => {
   it.each(mutations)("$name writes its endpoint and reports failure", async (c) => {
     await assertMutation(api, c);
+  });
+});
+
+/**
+ * How far along an upload is. It matters here in a way it does not for a
+ * logo: a video may be fifty megabytes, and fifty megabytes up a Rwandan
+ * mobile line with no indication of progress reads as the app having hung.
+ */
+describe("uploading an attachment", () => {
+  it("reports how far along it is", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { Providers } = await import("@/test/harness");
+
+    api.post.mockImplementation(
+      async (
+        _url: string,
+        _body: unknown,
+        config: { onUploadProgress?: (e: unknown) => void },
+      ) => {
+        config.onUploadProgress?.({ loaded: 25, total: 100 });
+        config.onUploadProgress?.({ loaded: 100, total: 100 });
+        return { data: { fileUrl: "/uploads/a.pdf", fileName: "a.pdf", size: 4 } };
+      },
+    );
+
+    const seen: number[] = [];
+    const { result } = renderHook(() => messaging.useUploadAttachment(), {
+      wrapper: Providers,
+    });
+    await result.current.mutateAsync({
+      file: new File(["x"], "a.pdf", { type: "application/pdf" }),
+      onProgress: (p) => seen.push(p),
+    });
+
+    await waitFor(() => expect(seen).toEqual([25, 100]));
+  });
+
+  // `total` is absent when the size is not known up front. Rare for a file,
+  // but it has to leave the bar alone rather than dividing by nothing.
+  it("leaves the bar alone when the size is not known", async () => {
+    const { renderHook } = await import("@testing-library/react");
+    const { Providers } = await import("@/test/harness");
+
+    api.post.mockImplementation(
+      async (
+        _url: string,
+        _body: unknown,
+        config: { onUploadProgress?: (e: unknown) => void },
+      ) => {
+        config.onUploadProgress?.({ loaded: 25 });
+        return { data: { fileUrl: "/uploads/a.pdf", fileName: "a.pdf", size: 4 } };
+      },
+    );
+
+    const seen: number[] = [];
+    const { result } = renderHook(() => messaging.useUploadAttachment(), {
+      wrapper: Providers,
+    });
+    await result.current.mutateAsync({
+      file: new File(["x"], "a.pdf", { type: "application/pdf" }),
+      onProgress: (p) => seen.push(p),
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  // A caller that does not care how far along it is.
+  it("uploads perfectly well with nobody watching", async () => {
+    const { renderHook } = await import("@testing-library/react");
+    const { Providers } = await import("@/test/harness");
+
+    api.post.mockImplementation(
+      async (
+        _url: string,
+        _body: unknown,
+        config: { onUploadProgress?: (e: unknown) => void },
+      ) => {
+        config.onUploadProgress?.({ loaded: 50, total: 100 });
+        return { data: { fileUrl: "/uploads/a.pdf", fileName: "a.pdf", size: 4 } };
+      },
+    );
+
+    const { result } = renderHook(() => messaging.useUploadAttachment(), {
+      wrapper: Providers,
+    });
+    const answer = await result.current.mutateAsync({
+      file: new File(["x"], "a.pdf", { type: "application/pdf" }),
+    });
+
+    expect(answer.fileUrl).toBe("/uploads/a.pdf");
   });
 });

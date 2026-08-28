@@ -51,9 +51,21 @@ export const ACCEPTED_ATTACHMENTS = [
   "text/csv",
 ].join(",");
 
+/**
+ * A mime type without its parameters.
+ *
+ * A browser recording announces itself as `audio/webm;codecs=opus`, and an
+ * allow-list matching exactly — which is the only kind worth having — does
+ * not contain that string. Without this every voice note recorded in Chrome
+ * or Firefox was refused by its own check.
+ */
+export function baseMime(mimetype: string): string {
+  return (mimetype || "").split(";")[0].trim().toLowerCase();
+}
+
 /** Which of the four a mime type counts as. */
 export function kindOfMime(mimetype: string): AttachmentKind | null {
-  const type = (mimetype || "").toLowerCase();
+  const type = baseMime(mimetype);
   if (type.startsWith("image/")) return "image";
   if (type.startsWith("video/")) return "video";
   if (type.startsWith("audio/")) return "audio";
@@ -113,7 +125,7 @@ export function whyNotSendable(file: {
 }): string | null {
   const kind = kindOfMime(file.type);
 
-  if (!kind || !ACCEPTED_ATTACHMENTS.includes(file.type.toLowerCase())) {
+  if (!kind || !ACCEPTED_ATTACHMENTS.includes(baseMime(file.type))) {
     return `${file.name} is not a kind of file that can be sent here. Photos, videos, audio, PDFs, Word, Excel, PowerPoint and text files can.`;
   }
 

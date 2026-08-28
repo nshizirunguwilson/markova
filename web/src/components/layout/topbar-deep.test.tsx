@@ -157,7 +157,23 @@ describe("reaching search from the keyboard", () => {
   // A shortcut nobody can see is a shortcut nobody uses.
   it("shows the shortcut in the empty box", () => {
     mount("ADMIN");
-    expect(document.body.textContent).toMatch(/Ctrl K|\u2318K/);
+    expect(document.body.textContent).toMatch(/Ctrl K/);
+  });
+
+  // Mac writes it one way and everybody else the other.
+  it("writes it the Mac way on a Mac", async () => {
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "MacIntel",
+    });
+    mount("ADMIN");
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("\u2318K"),
+    );
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "",
+    });
   });
 });
 
