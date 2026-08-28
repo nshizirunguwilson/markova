@@ -137,7 +137,7 @@ If the web app still points at the old address after a restart, clear the build
 cache and start again:
 
 ```bash
-rm -rf web/.next
+cd web && npm run dev:fresh
 ```
 
 ## Checking it before you send the link
