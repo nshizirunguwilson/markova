@@ -82,6 +82,14 @@ export default function MessagesPage() {
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   /** True while the recorder has replaced the field. */
   const [recordingVoice, setRecordingVoice] = useState(false);
+  /**
+   * Is there anything to send?
+   *
+   * Decides which single control sits at the end of the composer: Send when
+   * there is, a microphone when there is not. `trim()` so a row of spaces is
+   * not mistaken for a message and does not take the microphone away.
+   */
+  const hasSomethingToSend = messageText.trim() !== "" || !!pendingFile;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAttachment = useUploadAttachment();
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
@@ -1128,18 +1136,6 @@ export default function MessagesPage() {
                       </button>
                     )}
 
-                    {/*
-                      While recording, the recorder takes the whole row. A
-                      field you cannot type into sitting beside a running
-                      recorder only invites people to try.
-                    */}
-                    <VoiceRecorder
-                      disabled={uploadPercent !== null}
-                      onStart={() => setRecordingVoice(true)}
-                      onRecorded={handleRecorded}
-                      onCancel={() => setRecordingVoice(false)}
-                    />
-
                     {!recordingVoice && (
                     <>
                     <input
@@ -1151,18 +1147,38 @@ export default function MessagesPage() {
                       onKeyDown={(e) => e.key === "Enter" && handleSend()}
                       className="min-w-0 flex-1 border-0 bg-transparent px-1.5 py-1.5 text-[0.875rem] text-foreground placeholder:text-muted focus:outline-none"
                     />
+                    </>
+                    )}
 
-                    {/* Dimmed until there is something to send, so the button
-                        says whether the action is available before it is
-                        pressed. */}
+                    {/*
+                      One control at the end of the row, and it is whichever
+                      one you actually mean: a microphone while there is
+                      nothing to send, and Send the moment there is.
+
+                      Two buttons sitting side by side would make you pick
+                      between them every time, when the state of the field has
+                      already picked. Spaces do not count as typing — a
+                      stray space should not take the microphone away.
+
+                      While recording, the recorder takes the whole row: a
+                      field you cannot type into sitting beside a running
+                      recorder only invites people to try.
+                    */}
+                    <VoiceRecorder
+                      hidden={hasSomethingToSend}
+                      disabled={uploadPercent !== null}
+                      onStart={() => setRecordingVoice(true)}
+                      onRecorded={handleRecorded}
+                      onCancel={() => setRecordingVoice(false)}
+                    />
+
+                    {!recordingVoice && hasSomethingToSend && (
+                    <>
                     <button
                       type="button"
                       aria-label="Send message"
                       onClick={handleSend}
-                      disabled={
-                        (!messageText.trim() && !pendingFile) ||
-                        uploadPercent !== null
-                      }
+                      disabled={uploadPercent !== null}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <Send className="h-[16px] w-[16px]" />

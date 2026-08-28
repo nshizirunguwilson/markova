@@ -174,10 +174,12 @@ describe("sending a message", () => {
     await waitFor(() => expect(screen.getByText(/Muraho neza/)).toBeInTheDocument());
   });
 
-  // An empty send would post a blank bubble into someone's thread.
+  // An empty send would post a blank bubble into someone's thread. There is
+  // no Send to press while the field is empty — the microphone has that
+  // place — so what has to hold is that nothing leaves.
   it("refuses to send an empty message", async () => {
     await openConversation();
-    await userEvent.setup({ delay: null }).click(screen.getByRole("button", { name: /send message/i }));
+    expect(screen.queryByRole("button", { name: /send message/i })).toBeNull();
     expect(h.chat.sendMessage).not.toHaveBeenCalled();
     expect(h.api.post).not.toHaveBeenCalled();
   });
@@ -872,8 +874,10 @@ describe("announcements a person receives", () => {
 
   it("lets the school follow up in its own announcement", async () => {
     await openAnnouncement("admin-1");
+    // The composer is there to write in; Send appears once there is something
+    // to send, so the field itself is what proves the school may reply.
     await waitFor(() =>
-      expect(screen.getByLabelText("Send message")).toBeInTheDocument(),
+      expect(screen.getByPlaceholderText(/type a message/i)).toBeInTheDocument(),
     );
   });
 });
@@ -1815,22 +1819,57 @@ describe("runs of messages from one person", () => {
   });
 
   /**
-   * Send is the one control that must not be pressable when it would do
-   * nothing: a blank message posted to a parent is worse than no button.
+   * One control at the end of the row, and it is whichever one you mean: a
+   * microphone while there is nothing to send, Send the moment there is.
    */
-  it("will not send until something has been typed", async () => {
+  it("offers the microphone until something has been typed", async () => {
     await openWith([at("m-1", "u-3", 0, "Muraho")]);
     await screen.findByText("Muraho");
-    const send = screen.getByRole("button", { name: /send message/i });
-    expect(send).toBeDisabled();
+
+    expect(
+      screen.getByRole("button", { name: /record a voice note/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /send message/i })).toBeNull();
 
     const box = screen.getByPlaceholderText(/type a message/i);
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(box, { target: { value: "  " } });
-    expect(send).toBeDisabled();
-
     fireEvent.change(box, { target: { value: "Murakoze" } });
-    expect(send).toBeEnabled();
+
+    expect(
+      screen.getByRole("button", { name: /send message/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /record a voice note/i }),
+    ).toBeNull();
+  });
+
+  // A stray space is not a message, and must not take the microphone away.
+  it("keeps the microphone for a field holding only spaces", async () => {
+    await openWith([at("m-1", "u-3", 0, "Muraho")]);
+    await screen.findByText("Muraho");
+
+    fireEvent.change(screen.getByPlaceholderText(/type a message/i), {
+      target: { value: "   " },
+    });
+
+    expect(
+      screen.getByRole("button", { name: /record a voice note/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /send message/i })).toBeNull();
+  });
+
+  // Choosing a file is something to send, even with nothing typed.
+  it("offers Send once a file is chosen with nothing typed", async () => {
+    await openWith([at("m-1", "u-3", 0, "Muraho")]);
+    await screen.findByText("Muraho");
+
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["x"], "marks.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "size", { value: 2000 });
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    expect(
+      await screen.findByRole("button", { name: /send message/i }),
+    ).toBeInTheDocument();
   });
 
   /*
