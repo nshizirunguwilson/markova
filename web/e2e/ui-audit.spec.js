@@ -785,6 +785,51 @@ test('modal: the backdrop covers the sidebar, not just the content', async (brow
   await ctx.close();
 });
 
+/**
+ * Opening a thread lands on the end of it.
+ *
+ * It used to scroll smoothly, which aims at the scroll height as it was when
+ * the animation began — while the thread was still wrapping its messages
+ * underneath it. The last message came to rest half-hidden behind the
+ * composer, which is not where any chat leaves you. jsdom lays nothing out,
+ * so only a real browser can tell.
+ */
+test('messages: opening a thread lands on the last message', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, `/admin/messages`);
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('input[placeholder*="Type a message"]');
+  await page.waitForTimeout(2000);
+
+  const state = await page.evaluate(() => {
+    const list = document.querySelector('.overflow-y-auto.px-4');
+    if (!list) return null;
+    const bubbles = list.querySelectorAll('[class*="rounded-2xl"]');
+    const last = bubbles[bubbles.length - 1];
+    return {
+      gap: Math.round(list.scrollHeight - list.scrollTop - list.clientHeight),
+      lastVisible: last
+        ? last.getBoundingClientRect().bottom <= list.getBoundingClientRect().bottom + 1
+        : null,
+      hasMessages: bubbles.length > 0,
+    };
+  });
+
+  assert(state, 'the thread never rendered');
+  assert(state.hasMessages, 'the thread has no messages to land on');
+  // A couple of pixels of slack for sub-pixel layout, no more.
+  assert(state.gap <= 2, `the thread stopped ${state.gap}px short of the bottom`);
+  assert(state.lastVisible, 'the last message is hidden behind the composer');
+
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

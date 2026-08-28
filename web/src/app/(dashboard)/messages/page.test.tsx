@@ -1014,6 +1014,26 @@ describe("managing a group", () => {
  * of this block covers threads whose sender, name or participants are missing,
  * which is what a thread looks like after somebody leaves the school.
  */
+/**
+ * jsdom lays nothing out, so a scrolling container reports zero for all of
+ * its metrics. These stand in for a thread taller than its own window.
+ */
+function tallList(scrollHeight: number, clientHeight: number) {
+  const originals = (["scrollHeight", "clientHeight"] as const).map((name) => {
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, name);
+    const value = name === "scrollHeight" ? scrollHeight : clientHeight;
+    Object.defineProperty(Element.prototype, name, {
+      configurable: true,
+      get: () => value,
+    });
+    return () => {
+      if (original) Object.defineProperty(Element.prototype, name, original);
+      else delete (Element.prototype as unknown as Record<string, unknown>)[name];
+    };
+  });
+  return () => originals.forEach((undo) => undo());
+}
+
 describe("who is typing", () => {
   async function openWithTyping(names: string[]) {
     const map = new Map(names.map((n, i) => [`typer-${i}`, n]));
@@ -1046,6 +1066,47 @@ describe("who is typing", () => {
    * the person doing the typing ever saw it in full — their own keystrokes
    * were sending messages, and those did move the view.
    */
+  it("does not jump a reader who has scrolled up", async () => {
+    const restore = tallList(4000, 500);
+    try {
+      await openWithTyping(["Aline"]);
+      await screen.findByText(/Aline is typing/);
+      const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+      // Let the landing finish — it settles on the next frame, and scrolling
+      // up before that would be undone by it rather than by the follow.
+      await new Promise((r) => setTimeout(r, 80));
+
+      // They scroll back to read something, and the thread must stay put.
+      list.scrollTop = 100;
+      await new Promise((r) => setTimeout(r, 80));
+      expect(list.scrollTop).toBe(100);
+    } finally {
+      restore();
+    }
+  });
+
+  it("waits for the thread before deciding where the bottom is", async () => {
+    const restore = tallList(4000, 500);
+    try {
+      serve(h.api, {
+        ...routes,
+        "/messaging/conversations/conv-1/messages": [],
+      });
+      renderPage(MessagesPage, { role: "ADMIN" });
+      await userEvent.setup({ delay: null }).click(
+        await screen.findByRole("button", { name: /Aline/ }),
+      );
+      await screen.findByPlaceholderText(/type a message/i);
+
+      // An empty thread has no end to land on, so nothing is scrolled and the
+      // landing is still owed once the messages arrive.
+      const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+      expect(list.scrollTop).toBe(0);
+    } finally {
+      restore();
+    }
+  });
+
   it("puts the notice inside the thread, above the point scrolled to", async () => {
     await openWithTyping(["Aline"]);
     const notice = await screen.findByText(/Aline is typing/);
@@ -1101,13 +1162,22 @@ describe("who is typing", () => {
     }
   });
 
-  it("scrolls down when the notice appears", async () => {
-    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
-    await openWithTyping(["Aline"]);
-
-    expect(await screen.findByText(/Aline is typing/)).toBeInTheDocument();
-    expect(scrolled).toHaveBeenCalled();
-    scrolled.mockRestore();
+  /**
+   * Opening a thread lands on the end of it. Not smoothly: a smooth scroll
+   * aims at the scroll height as it was when the animation began, and the
+   * thread is still wrapping its messages underneath it — which left the last
+   * message half-hidden behind the composer.
+   */
+  it("lands on the bottom when the thread opens", async () => {
+    const restore = tallList(4000, 500);
+    try {
+      await openWithTyping(["Aline"]);
+      await screen.findByText(/Aline is typing/);
+      const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+      expect(list.scrollTop).toBe(4000);
+    } finally {
+      restore();
+    }
   });
 
   it("names two people in the plural", async () => {

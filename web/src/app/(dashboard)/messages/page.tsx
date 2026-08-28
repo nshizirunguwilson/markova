@@ -123,28 +123,54 @@ export default function MessagesPage() {
   const typingMap = selectedConv ? chatStore.getTypingUsers(selectedConv) : new Map();
   const typingNames = Array.from(typingMap.values());
 
+  /** The thread whose bottom we have already jumped to. */
+  const landedOn = useRef<string | null>(null);
+
   /**
    * Follow the bottom of the thread.
    *
-   * The typing indicator is a row like any other, so it has to be a
-   * dependency here: without it the notice appears below the fold and the
-   * reader sees a sliver of it, or nothing. It only ever looked right for
-   * whoever was typing, because their own keystrokes were sending messages
-   * that moved the view.
+   * Opening a thread jumps, straight to the end and without animating.
+   * Smooth-scrolling on open aimed at the scroll height as it was when the
+   * animation began, and the thread was still laying out underneath it — the
+   * last message ended up half-hidden behind the composer, which is not where
+   * any chat leaves you.
    *
-   * Somebody who has scrolled up to read is left where they are. Being
-   * yanked to the bottom because the other party started typing is worse
-   * than missing the notice.
+   * After that it follows: a message or a typing notice arriving scrolls the
+   * view down gently. The typing notice is a row like any other, so it has to
+   * be a dependency — without it the notice appears below the fold and the
+   * reader sees a sliver of it, or nothing.
+   *
+   * Somebody who has scrolled up to read is left where they are. Being yanked
+   * to the bottom because the other party started typing is worse than
+   * missing the notice.
    */
   useEffect(() => {
     const list = messageListRef.current;
+    if (!list) return;
+
+    const opening = landedOn.current !== selectedConv;
+    if (opening) {
+      // Nothing to land on yet; wait for the thread to arrive.
+      if (!messages || messages.length === 0) return;
+
+      const toBottom = () => {
+        list.scrollTop = list.scrollHeight;
+      };
+      toBottom();
+      // Again on the next frame: the first pass runs before the browser has
+      // finished wrapping long messages, and the height it aimed at was
+      // shorter than the height it ended up with.
+      requestAnimationFrame(toBottom);
+      landedOn.current = selectedConv;
+      return;
+    }
+
     const nearBottom =
-      !list ||
       list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
     if (nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, typingNames.length]);
+  }, [messages, typingNames.length, selectedConv]);
 
   // Handle typing indicator
   const handleInputChange = useCallback(
