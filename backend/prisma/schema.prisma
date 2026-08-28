@@ -867,9 +867,18 @@ model Message {
   fileName       String?            @map("file_name")
   createdAt      DateTime           @default(now()) @map("created_at")
 
+  /// The message this one answers, when it answers one.
+  ///
+  /// Set null rather than cascaded when the original goes: a reply is still a
+  /// thing somebody said, and deleting it because the message above it was
+  /// removed would take a real sentence out of the conversation.
+  replyToId      String?            @map("reply_to_id")
+
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User          @relation(fields: [senderUserId], references: [id])
   reads        MessageRead[]
+  replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]     @relation("MessageReplies")
 
   @@index([conversationId, createdAt])
   @@map("messages")

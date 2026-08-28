@@ -1304,3 +1304,89 @@ describe('MessagingService listing a class group into existence', () => {
     expect(ensure).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Answering a particular message.
+ *
+ * The check that matters is which conversation the original belongs to: a
+ * reply pointing at a message in somebody else's thread would quote text the
+ * sender was never allowed to read, straight into a room where others can
+ * see it.
+ */
+describe('MessagingService replying to a message', () => {
+  const build = () => ({
+    conversationParticipant: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'p-1' }),
+    },
+    conversation: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ type: 'ONE_ON_ONE', createdByUserId: 'u-1' }),
+    },
+    message: {
+      findFirst: jest.fn(),
+      create: jest.fn().mockResolvedValue({ id: 'm-new' }),
+    },
+  });
+
+  let mockPrisma: ReturnType<typeof build>;
+  let service: MessagingService;
+
+  const send = (over = {}) => ({
+    conversationId: 'conv-1',
+    content: 'Yego',
+    ...over,
+  });
+
+  beforeEach(() => {
+    mockPrisma = build();
+    service = new MessagingService(mockPrisma as never);
+  });
+
+  it('stores which message a reply answers', async () => {
+    mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
+
+    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+
+    expect(mockPrisma.message.create.mock.calls[0][0].data.replyToId).toBe('m-1');
+  });
+
+  it('looks for the original inside this conversation only', async () => {
+    mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
+
+    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+
+    expect(mockPrisma.message.findFirst.mock.calls[0][0].where).toEqual({
+      id: 'm-1',
+      conversationId: 'conv-1',
+    });
+  });
+
+  // The whole point of the check.
+  it('refuses a reply to a message from another conversation', async () => {
+    mockPrisma.message.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.sendMessage(send({ replyToId: 'elsewhere' }) as never, 'u-1'),
+    ).rejects.toThrow(/not in this conversation/i);
+    expect(mockPrisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves an ordinary message alone', async () => {
+    await service.sendMessage(send() as never, 'u-1');
+
+    expect(mockPrisma.message.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.message.create.mock.calls[0][0].data.replyToId).toBeUndefined();
+  });
+
+  it('sends back what the quote needs to draw', async () => {
+    mockPrisma.message.findFirst.mockResolvedValue({ id: 'm-1' });
+
+    await service.sendMessage(send({ replyToId: 'm-1' }) as never, 'u-1');
+
+    const included = mockPrisma.message.create.mock.calls[0][0].include;
+    expect(included.replyTo.select).toEqual(
+      expect.objectContaining({ content: true, sender: expect.anything() }),
+    );
+  });
+});

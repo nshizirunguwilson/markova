@@ -810,7 +810,7 @@ test('messages: opening a thread lands on the last message', async (browser) => 
   const state = await page.evaluate(() => {
     const list = document.querySelector('.overflow-y-auto.px-4');
     if (!list) return null;
-    const bubbles = list.querySelectorAll('[class*="rounded-2xl"]');
+    const bubbles = list.querySelectorAll('.bubble');
     const last = bubbles[bubbles.length - 1];
     return {
       gap: Math.round(list.scrollHeight - list.scrollTop - list.clientHeight),

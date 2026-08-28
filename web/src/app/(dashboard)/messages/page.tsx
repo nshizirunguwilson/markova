@@ -599,17 +599,16 @@ export default function MessagesPage() {
                         )}
 
                         {group.messages.map((msg: any, i) => {
-                          const isLastOfRun = i === group.messages.length - 1;
-                          // The run's closing corner is squared off, which is
-                          // what makes a stack of bubbles read as one block
-                          // pointing at its sender.
-                          const corner = group.mine
-                            ? isLastOfRun
-                              ? "rounded-2xl rounded-br-md"
-                              : "rounded-2xl"
-                            : isLastOfRun
-                              ? "rounded-2xl rounded-bl-md"
-                              : "rounded-2xl";
+                          // The tail goes on the first bubble of a run and
+                          // points at whoever said it. Four bubbles from one
+                          // person do not need four arrows.
+                          const corner = `bubble ${
+                            i === 0
+                              ? group.mine
+                                ? "bubble-tail-end"
+                                : "bubble-tail-start"
+                              : ""
+                          }`;
 
                           return (
                             <div

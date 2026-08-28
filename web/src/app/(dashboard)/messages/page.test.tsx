@@ -1744,33 +1744,37 @@ describe("runs of messages from one person", () => {
     expect(threadStamps()).toHaveLength(3);
   });
 
-  // Only the last bubble of a run gets the squared corner that points at
-  // its sender; the ones above it stay fully rounded.
-  it("squares only the closing corner of a run", async () => {
+  /**
+   * The tail is what tells a chat bubble from a box: it points at whoever
+   * said it, so the eye knows which side a message came from before reading
+   * a word. Only the first bubble of a run carries one — four bubbles from
+   * one person do not need four arrows.
+   */
+  it("gives the run one tail, on its first bubble", async () => {
     await openWith([
       at("m-2", "u-3", 1, "another"),
       at("m-1", "u-3", 0, "Muraho"),
     ]);
     await screen.findByText("Muraho");
     const first = screen.getByText("Muraho").closest("div")!;
-    const last = screen.getByText("another").closest("div")!;
-    expect(first.className).not.toContain("rounded-bl-md");
-    expect(last.className).toContain("rounded-bl-md");
+    const second = screen.getByText("another").closest("div")!;
+    expect(first.className).toContain("bubble-tail-start");
+    expect(second.className).not.toContain("bubble-tail");
+    expect(second.className).toContain("bubble");
   });
 
-  // Your own run is drawn the same way, mirrored: the squared corner is on
-  // the other side.
-  it("squares the closing corner of your own run on your side", async () => {
+  // Your own run is the same shape mirrored: the tail points the other way.
+  it("points your own tail at your side", async () => {
     await openWith([
       at("m-2", "user-1", 1, "and this"),
       at("m-1", "user-1", 0, "I said this"),
     ]);
     await screen.findByText("I said this");
     const first = screen.getByText("I said this").closest("div")!;
-    const last = screen.getByText("and this").closest("div")!;
-    expect(first.className).not.toContain("rounded-br-md");
-    expect(last.className).toContain("rounded-br-md");
-    expect(last.className).toContain("bg-primary");
+    const second = screen.getByText("and this").closest("div")!;
+    expect(first.className).toContain("bubble-tail-end");
+    expect(second.className).not.toContain("bubble-tail");
+    expect(first.className).toContain("bg-primary");
   });
 
   it("states the message's fate once for the run, not per message", async () => {
