@@ -1246,6 +1246,107 @@ test('reports: a report card carries discipline as a row, above the subjects', a
   await ctx.close();
 });
 
+
+/**
+ * A corner nested inside another looks right when the gap between the two
+ * curves stays constant, which means outer = inner + padding. It cannot hold
+ * on both axes unless the padding is equal on both axes, which is why these
+ * two are checked together.
+ */
+test('chat: a bubble sits concentric with what it holds', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(1500);
+
+  const geo = await page.evaluate(() => {
+    const px = (v) => parseFloat(v);
+    const bubble = [...document.querySelectorAll('.bubble')].find((b) => b.querySelector('figure'))
+      || document.querySelector('.bubble');
+    if (!bubble) return null;
+    const s = getComputedStyle(bubble);
+    const inner = bubble.querySelector('figure');
+    return {
+      padding: {
+        top: px(s.paddingTop), right: px(s.paddingRight),
+        bottom: px(s.paddingBottom), left: px(s.paddingLeft),
+      },
+      outer: px(s.borderBottomLeftRadius),
+      inner: inner ? px(getComputedStyle(inner).borderTopLeftRadius) : null,
+    };
+  });
+
+  assert(geo, 'no bubbles rendered');
+
+  const { top, right, bottom, left } = geo.padding;
+  assert(
+    top === right && right === bottom && bottom === left,
+    `the bubble's padding is ${top}/${right}/${bottom}/${left}, not equal on both axes`,
+  );
+
+  if (geo.inner !== null) {
+    const wanted = geo.inner + top;
+    assert(
+      Math.abs(geo.outer - wanted) <= 1,
+      `outer radius is ${geo.outer}px; inner ${geo.inner}px plus ${top}px of padding wants ${wanted}px`,
+    );
+  }
+  await ctx.close();
+});
+
+/**
+ * One control at the end of the composer, and it is whichever one you mean.
+ * Two side by side would make you choose every time, when the state of the
+ * field has already chosen.
+ */
+test('chat: the composer offers record or send, never both', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  const field = 'input[placeholder*="Type a message"]';
+  await page.waitForSelector(field);
+  await page.waitForTimeout(800);
+
+  const shown = () =>
+    page.evaluate(() => ({
+      mic: !!document.querySelector('button[aria-label="Record a voice note"]'),
+      send: !!document.querySelector('button[aria-label="Send message"]'),
+    }));
+
+  const empty = await shown();
+  assert(empty.mic && !empty.send, 'an empty field should offer the microphone alone');
+
+  // A stray space is not a message, and must not take the microphone away.
+  await page.fill(field, '   ');
+  await page.waitForTimeout(250);
+  const spaces = await shown();
+  assert(spaces.mic && !spaces.send, 'spaces alone should still offer the microphone');
+
+  await page.fill(field, 'Muraho');
+  await page.waitForTimeout(250);
+  const typed = await shown();
+  assert(typed.send && !typed.mic, 'a typed message should offer Send alone');
+
+  await page.fill(field, '');
+  await page.waitForTimeout(250);
+  const cleared = await shown();
+  assert(cleared.mic && !cleared.send, 'clearing the field should bring the microphone back');
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter
