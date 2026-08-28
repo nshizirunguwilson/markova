@@ -624,20 +624,47 @@ describe('the conduct verdict on a card', () => {
     return service.generateTermReportHtml('student-1', 'term-1');
   };
 
+  /**
+   * Conduct is marked out of forty for the term, so the card is driven by
+   * what happened in the term rather than by the running field on the
+   * student. `lost` is what the term's incidents took off.
+   */
+  const cardLosing = async (lost: number) => {
+    prisma.student.findUnique.mockResolvedValue({ ...baseStudent });
+    prisma.disciplineIncident.aggregate.mockResolvedValue({
+      _sum: { pointsDeducted: lost },
+    });
+    prisma.meritAward.aggregate.mockResolvedValue({ _sum: { points: 0 } });
+    return service.generateTermReportHtml('student-1', 'term-1');
+  };
+
+  // Read off the percentage, so the bands mean the same whether they are
+  // applied to a term out of forty or to a year out of a hundred and twenty.
   it.each([
-    [98, 'Excellent'],
-    [90, 'Very Good'],
-    [78, 'Good'],
-    [60, 'Fair'],
-    [30, 'Poor'],
-  ])('calls %i points %s', async (points, verdict) => {
-    expect(await cardFor(points)).toMatch(new RegExp(verdict));
+    [1, 'Excellent'],
+    [4, 'Very good'],
+    [9, 'Good'],
+    [18, 'Fair'],
+    [28, 'Poor'],
+  ])('calls a term losing %i points %s', async (lost, verdict) => {
+    expect(await cardLosing(lost)).toMatch(new RegExp(verdict));
   });
 
-  it('says nothing at all when no conduct is on record', async () => {
-    const html = await cardFor(null);
-    expect(html).toMatch(/<html/i);
-    expect(html).not.toMatch(/Excellent|Very Good|Poor/);
+  // "Good" tells a parent nothing they can act on; the mark and the
+  // percentage tell them where their child stands and by how much.
+  it('prints the mark itself, not only the word', async () => {
+    expect(await cardLosing(8)).toMatch(/32 \/ 40 \(80%\)/);
+  });
+
+  it('gives a clean term the full mark', async () => {
+    expect(await cardLosing(0)).toMatch(/40 \/ 40 \(100%\)/);
+  });
+
+  // A term cannot end below nothing, however bad it was.
+  it('does not take a term below zero', async () => {
+    const html = await cardLosing(90);
+    expect(html).toMatch(/0 \/ 40 \(0%\)/);
+    expect(html).not.toMatch(/-\d+ \/ 40/);
   });
 
   it('draws a dash for attendance nobody recorded', async () => {
@@ -725,9 +752,15 @@ describe('a report card with almost nothing on it', () => {
     expect(html).toMatch(/<div class="addr"><\/div>/);
   });
 
-  it('says nothing about conduct when no points are on record', async () => {
+  /*
+    A term with no incidents in it is a clean sheet, not an unknown. The mark
+    starts at forty and comes down; nothing having come down is the full mark,
+    which is what a student who did nothing wrong has earned.
+  */
+  it('gives a term with nothing recorded against it the full conduct mark', async () => {
     const html = await service.generateTermReportHtml('student-1', 'term-1');
-    expect(html).not.toMatch(/Excellent|Very Good|Poor/);
+    expect(html).toMatch(/40 \/ 40 \(100%\)/);
+    expect(html).toMatch(/Excellent/);
   });
 
   it('never prints the word undefined', async () => {

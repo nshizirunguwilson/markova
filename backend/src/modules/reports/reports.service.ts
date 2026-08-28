@@ -11,6 +11,13 @@ import { SubjectScope } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
+import {
+  TERM_CONDUCT_MARK,
+  conductLabel,
+  conductPercentage,
+  conductRemark,
+  termConduct,
+} from '../../common/conduct';
 import puppeteer, { Browser } from 'puppeteer-core';
 import { buildZip, toCsv } from './zip.util';
 import {
@@ -172,6 +179,30 @@ export class ReportsService implements OnModuleDestroy {
       }),
     ]);
 
+    /*
+      Conduct, for this term rather than as a running total across the year.
+
+      Read from what actually happened in the term — incidents off, merits
+      back on — rather than from the field on the student, which is a single
+      number for the whole year. A parent reading the Term 3 report needs to
+      know about Term 3; a student who lost points in September should not
+      still be carrying them in July.
+    */
+    const [deducted, restored] = await Promise.all([
+      this.prisma.disciplineIncident.aggregate({
+        where: { studentId, termId },
+        _sum: { pointsDeducted: true },
+      }),
+      this.prisma.meritAward.aggregate({
+        where: { studentId, termId },
+        _sum: { points: true },
+      }),
+    ]);
+    const conductPoints = termConduct(
+      deducted._sum.pointsDeducted ?? 0,
+      restored._sum.points ?? 0,
+    );
+
     const classResults = await this.prisma.termResult.findMany({
       where: { classSectionId: student.classSectionId, termId },
     });
@@ -205,6 +236,16 @@ export class ReportsService implements OnModuleDestroy {
         ? `${classTeacherRole.teacher.user.firstName} ${classTeacherRole.teacher.user.lastName}`
         : null,
       attendance: { present: attendancePresent, total: attendanceTotal },
+      /*
+        This term's conduct, out of forty. `outOf` travels with it so the
+        sheet never has to assume the mark: a school that sets a different
+        ceiling changes one number rather than every place it is printed.
+      */
+      conduct: {
+        points: conductPoints,
+        outOf: TERM_CONDUCT_MARK,
+        percentage: conductPercentage(conductPoints, TERM_CONDUCT_MARK),
+      },
       subjects: subjectBreakdown,
       result: termResult,
       classStats: {
@@ -1374,15 +1415,20 @@ export class ReportsService implements OnModuleDestroy {
         ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
         : '–';
 
-    const conduct = (() => {
-      const p = data.student.disciplinePoints;
-      if (p == null) return '–';
-      if (p >= 95) return 'Excellent';
-      if (p >= 85) return 'Very Good';
-      if (p >= 70) return 'Good';
-      if (p >= 50) return 'Fair';
-      return 'Poor';
-    })();
+    /*
+      Conduct as a mark out of forty and as a percentage, rather than as a
+      bare word. "Good" tells a parent nothing they can act on; "32 / 40
+      (80%)" tells them where their child stands and by how much.
+    */
+    const conductPoints = data.conduct?.points ?? null;
+    const conductOutOf = data.conduct?.outOf ?? TERM_CONDUCT_MARK;
+    const conduct =
+      conductPoints === null ? '–' : conductLabel(conductPoints, conductOutOf);
+    const conductWord = conductRemark(
+      conductPoints === null
+        ? null
+        : conductPercentage(conductPoints, conductOutOf),
+    );
 
     const cell = (s: any, name: string) => {
       const a = s.assessments.find((x: any) => x.type === name);
@@ -1503,7 +1549,9 @@ export class ReportsService implements OnModuleDestroy {
         `${competentCount} / ${judgedSubjects.length}`,
         judgedSubjects.length === 1 ? 'subject' : 'subjects',
       ),
-      ...(isALevel ? [] : [summaryCell('Conduct', conduct, '')]),
+      // On every report now, A-Level included: a conduct mark out of forty
+      // is as much a part of an A-Level term as of an O-Level one.
+      summaryCell('Conduct', conduct, conductWord),
     ].join('');
 
     const aggregateNote = isALevel

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MeritCategory } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { AwardMeritDto, QueryMeritsDto } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
@@ -46,7 +47,7 @@ export class MeritsService {
     const config = await this.prisma.schoolConfig.findUnique({
       where: { key: 'starting_discipline_points' },
     });
-    return Number(config?.value || '100');
+    return Number(config?.value || String(TERM_CONDUCT_MARK));
   }
 
   /**

@@ -619,11 +619,12 @@ describe('the merits service on a partly set-up school', () => {
   });
 
   // A hundred is the score the Rwandan conduct scheme starts everyone on.
-  it('starts everyone on a hundred when the school set nothing', async () => {
+  // Forty a term is the default now, not a hundred for the whole year.
+  it('starts everyone on forty when the school set nothing', async () => {
     prisma.schoolConfig.findUnique.mockResolvedValue(null);
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
-      disciplinePoints: 88,
+      disciplinePoints: 30,
     });
 
     await service.award(
@@ -638,9 +639,9 @@ describe('the merits service on a partly set-up school', () => {
       'user-1',
     );
 
-    // 88 plus 5 is 93, which is still under the clean sheet, so all five land.
+    // 30 plus 5 is 35, still under the clean sheet, so all five land.
     const update = prisma.student.update.mock.calls[0][0];
-    expect(update.data.disciplinePoints).toBe(93);
+    expect(update.data.disciplinePoints).toBe(35);
   });
 
   it('takes the schools own score when it has set one', async () => {

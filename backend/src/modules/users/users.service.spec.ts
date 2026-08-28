@@ -1162,7 +1162,7 @@ describe('creating a record with everything on it', () => {
       village: 'Karisimbi',
       isBoarder: true,
       religion: 'Protestant',
-      disciplinePoints: 100,
+      disciplinePoints: 40,
     });
     expect(written.dateOfBirth).toBeInstanceOf(Date);
     expect(written.enrollmentDate).toBeInstanceOf(Date);

@@ -24,6 +24,7 @@ import {
   MeritCategory,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { TERM_CONDUCT_MARK } from '../src/common/conduct';
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
@@ -703,7 +704,9 @@ async function main() {
       value: installAsset('signature.png', 'signature.png'),
     },
     { key: 'primary_color', value: '#1B4F72' },
-    { key: 'starting_discipline_points', value: '100' },
+    // Forty a term, a hundred and twenty a year — see
+    // src/common/conduct.ts for why conduct is marked per term.
+    { key: 'starting_discipline_points', value: '40' },
     { key: 'borrowing_limit', value: '3' },
     { key: 'borrowing_duration_days', value: '14' },
     { key: 'pass_threshold', value: '50' },
@@ -1655,7 +1658,7 @@ async function main() {
           dateOfBirth: dob,
           gender,
           status: StudentStatus.ACTIVE,
-          disciplinePoints: 100,
+          disciplinePoints: TERM_CONDUCT_MARK,
           ...extras.student,
         },
       });
@@ -1909,7 +1912,7 @@ async function main() {
           last.level.order === 6
             ? StudentStatus.GRADUATED
             : StudentStatus.TRANSFERRED,
-        disciplinePoints: 100,
+        disciplinePoints: TERM_CONDUCT_MARK,
         ...extras.student,
       },
     });
@@ -2508,7 +2511,13 @@ async function main() {
         : isModerate
           ? sample(MODERATE_KINDS)
           : sample(MINOR_KINDS);
-      const pts = isMajor ? 10 + rand(6) : isModerate ? 5 + rand(4) : 2 + rand(3);
+      /*
+        Scaled to the forty-point term. Against the old hundred these were
+        10-16 for a major; the same proportion of forty is 4-6, so a
+        suspension still costs a good part of the term's conduct mark without
+        a single incident wiping it out.
+      */
+      const pts = isMajor ? 4 + rand(3) : isModerate ? 2 + rand(2) : 1 + rand(2);
       const action = isMajor
         ? DisciplineAction.SUSPENSION
         : isModerate
@@ -2545,11 +2554,19 @@ async function main() {
         majorCount++;
         if (appealTargets.length < 3) appealTargets.push({ incident, student });
       }
-      // Points reset each term, so only the running term's deductions show.
+      // The mark is per term, so only the running term's deductions show on
+      // the student's own standing. Floored at nothing: a term cannot end
+      // below zero, and a decrement on its own can.
       if (term.id === currentTerm.id) {
+        const standing = await prisma.student.findUnique({
+          where: { id: student.id },
+          select: { disciplinePoints: true },
+        });
         await prisma.student.update({
           where: { id: student.id },
-          data: { disciplinePoints: { decrement: pts } },
+          data: {
+            disciplinePoints: Math.max(0, (standing?.disciplinePoints ?? 0) - pts),
+          },
         });
       }
     }
@@ -3678,7 +3695,7 @@ async function main() {
     await prisma.student.update({
       where: { id: studentId },
       data: {
-        disciplinePoints: Math.min(100, st.disciplinePoints + earned),
+        disciplinePoints: Math.min(TERM_CONDUCT_MARK, st.disciplinePoints + earned),
       },
     });
   }

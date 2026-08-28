@@ -178,7 +178,8 @@ describe('bulk import', () => {
       const data = prisma.student.create.mock.calls[0][0].data;
       expect(data.studentIdNumber).toMatch(/^STD-\d{4}-\d{6}-\d{3}$/);
       expect(data.classSectionId).toBe('section-1');
-      expect(data.disciplinePoints).toBe(100);
+      // Forty a term, not a hundred for the year — see common/conduct.ts.
+      expect(data.disciplinePoints).toBe(40);
     });
 
     it('creates a teacher record', async () => {

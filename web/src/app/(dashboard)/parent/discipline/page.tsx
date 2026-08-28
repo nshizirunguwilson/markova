@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { conductPercentage } from "@/lib/conduct";
 import { classDisplayName } from "@/lib/utils";
 import {
   Card,
@@ -109,7 +110,17 @@ export default function ParentDisciplinePage() {
               <Shield className="h-10 w-10 text-primary" />
               <div className="flex-1">
                 <p className="text-sm text-muted">Discipline Points</p>
-                <p className="text-3xl font-bold">{data.student?.currentPoints} / {data.student?.startingPoints}</p>
+                <p className="text-3xl font-bold">
+                  {data.student?.currentPoints} / {data.student?.startingPoints}
+                </p>
+                {/* The mark alone does not say whether it is good; the
+                    percentage is the form the report card uses. */}
+                <p className="text-sm text-muted">
+                  {conductPercentage(
+                    data.student?.currentPoints,
+                    data.student?.startingPoints,
+                  ) ?? "–"}
+                  % this term</p>
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
                     className={`h-3 rounded-full ${

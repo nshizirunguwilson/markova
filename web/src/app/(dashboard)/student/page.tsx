@@ -3,6 +3,12 @@
 import { useAuthStore } from "@/stores/auth-store";
 import { Card, CardTitle, PageSpinner } from "@/components/ui";
 import { useMyLoans } from "@/hooks/use-library";
+import {
+  TERM_CONDUCT_MARK,
+  conductPercentage,
+  conductRemark,
+  conductTone,
+} from "@/lib/conduct";
 import Link from "next/link";
 import {
   Award,
@@ -22,7 +28,16 @@ export default function StudentDashboard() {
 
   const loansList: any[] = myLoans ?? [];
   const activeLoans = loansList.filter((l: any) => !l.returnedAt);
-  const disciplinePoints = (user as any)?.student?.disciplinePoints ?? (user as any)?.disciplinePoints ?? 100;
+  /*
+    Conduct is marked out of forty for the term, not out of a hundred for the
+    year — see src/lib/conduct.ts. A student with no record yet is on a clean
+    sheet, which is the full mark rather than nothing.
+  */
+  const disciplinePoints =
+    (user as any)?.student?.disciplinePoints ??
+    (user as any)?.disciplinePoints ??
+    TERM_CONDUCT_MARK;
+  const conductPct = conductPercentage(disciplinePoints, TERM_CONDUCT_MARK);
 
   const quickLinks = [
     { label: "My Marks", href: "/student/marks", icon: ClipboardList },
@@ -44,22 +59,26 @@ export default function StudentDashboard() {
         <Card>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5 text-primary" />
-            Discipline Points
+            Conduct this term
           </CardTitle>
           <p className="mt-3 text-3xl font-bold text-foreground">
             {disciplinePoints}
-            <span className="text-lg font-normal text-muted"> / 100</span>
+            <span className="text-lg font-normal text-muted">
+              {" "}
+              / {TERM_CONDUCT_MARK}
+            </span>
+          </p>
+          {/* The percentage and the word, because the raw mark alone does not
+              say whether forty is good. */}
+          <p className="mt-1 text-sm text-muted">
+            {conductPct === null
+              ? "Not marked yet"
+              : `${conductPct}% · ${conductRemark(conductPct)}`}
           </p>
           <div className="mt-3 h-2 rounded-full bg-surface-muted">
             <div
-              className={`h-2 rounded-full motion-bar ${
-                disciplinePoints >= 70
-                  ? "bg-success"
-                  : disciplinePoints >= 40
-                    ? "bg-warning"
-                    : "bg-danger"
-              }`}
-              style={{ width: `${Math.min(disciplinePoints, 100)}%` }}
+              className={`h-2 rounded-full motion-bar ${conductTone(conductPct)}`}
+              style={{ width: `${Math.min(conductPct ?? 0, 100)}%` }}
             />
           </div>
         </Card>

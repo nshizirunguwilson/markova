@@ -7,6 +7,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
@@ -477,7 +478,7 @@ export class UsersService {
             dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
             gender: dto.gender || null,
             status: dto.status || 'ACTIVE',
-            disciplinePoints: 100,
+            disciplinePoints: TERM_CONDUCT_MARK,
             ...(dto.enrollmentDate && {
               enrollmentDate: new Date(dto.enrollmentDate),
             }),
@@ -859,7 +860,7 @@ export class UsersService {
               dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : null,
               gender: (row.gender as any) || null,
               status: 'ACTIVE',
-              disciplinePoints: 100,
+              disciplinePoints: TERM_CONDUCT_MARK,
               province: row.province || null,
               district: row.district || null,
               sector: row.sector || null,

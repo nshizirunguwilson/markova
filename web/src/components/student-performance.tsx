@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { TERM_CONDUCT_MARK, conductPercentage } from "@/lib/conduct";
 import type { EChartsOption } from "echarts";
 import { Card, CardTitle, Badge, Avatar, PageSpinner } from "@/components/ui";
 import { EChart } from "@/components/ui/echart";
@@ -304,8 +305,16 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     },
     {
       label: "Conduct",
-      value: s?.disciplinePoints ?? "–",
-      sub: "/ 100 points",
+      // Out of forty for the term, with the percentage under it: the raw mark
+      // alone does not say whether thirty-two is good.
+      value:
+        s?.disciplinePoints == null
+          ? "–"
+          : `${s.disciplinePoints} / ${TERM_CONDUCT_MARK}`,
+      sub:
+        s?.disciplinePoints == null
+          ? "not marked yet"
+          : `${conductPercentage(s.disciplinePoints, TERM_CONDUCT_MARK)}% this term`,
     },
   ];
 
