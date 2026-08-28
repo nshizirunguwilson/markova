@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText, Play } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 
 import { resolveUploadUrl } from "@/lib/assets";
 import { kindOfUrl, shortFilename } from "@/lib/attachments";
 import { MediaLightbox } from "./media-lightbox";
+import { PlayTriangle } from "./play-triangle";
 
 /**
  * A file inside a message.
@@ -146,7 +147,7 @@ export function MessageAttachment({
           />
           <span className="absolute inset-0 flex items-center justify-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors group-hover/att:bg-black/60">
-              <Play className="ml-1 h-6 w-6" />
+              <PlayTriangle className="h-6 w-6" />
             </span>
           </span>
         </button>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { Pause } from "lucide-react";
+
+import { PlayTriangle } from "./play-triangle";
 
 import { resolveUploadUrl } from "@/lib/assets";
 import {
@@ -161,9 +163,7 @@ export function VoiceNote({
         {playing ? (
           <Pause className="h-4 w-4" />
         ) : (
-          // Nudged right: a triangle centred by its bounding box looks left
-          // of centre inside a circle.
-          <Play className="ml-0.5 h-4 w-4" />
+          <PlayTriangle className="h-4 w-4" />
         )}
       </button>
 
