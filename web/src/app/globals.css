@@ -124,53 +124,34 @@ body {
 }
 
 /* ── Message bubbles ─────────────────────────────────────────────────────────
-   A tail, and a tight radius.
+   Generously rounded, with one corner squared off on the speaker's side.
 
-   The bubbles were a 16px radius on three corners and 6px on the fourth,
-   which reads as a rounded rectangle somebody nudged rather than as a shape
-   that means something. What tells a chat bubble apart from a box is the
-   tail: it points at whoever said it, so the eye knows which side a message
-   came from before reading a word of it.
+   That single square corner is what the eye reads as "which side said this",
+   and it is why a chat bubble looks like a chat bubble rather than a pill. It
+   goes on the BOTTOM — bottom-right for your own messages, bottom-left for
+   theirs — because that is the corner nearest the person, and it is where
+   every messaging app people already use puts it.
 
-   Only the first bubble of a run gets one. A tail on every bubble in a run of
-   four is four arrows pointing at the same person.
+   The radius is 18px, not the 8px this had before: at 8px the shape reads as
+   a rectangle somebody rounded slightly, which is what it looked like.
+
+   Only the last bubble of a run gets the square corner. Four bubbles from one
+   person do not need four tails; the run ends once, and that is what points.
    ────────────────────────────────────────────────────────────────────────── */
 
 .bubble {
   position: relative;
-  border-radius: 0.5rem;
+  border-radius: 18px;
 }
 
-.bubble-tail-start,
+/* Theirs: squared at the bottom-left, nearest them. */
+.bubble-tail-start {
+  border-bottom-left-radius: 4px;
+}
+
+/* Yours: squared at the bottom-right, nearest you. */
 .bubble-tail-end {
-  /* The corner the tail grows out of is square; the rest stay rounded. */
-  --tail: 8px;
-}
-
-.bubble-tail-start { border-top-left-radius: 0; }
-.bubble-tail-end { border-top-right-radius: 0; }
-
-.bubble-tail-start::before,
-.bubble-tail-end::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  width: var(--tail);
-  height: var(--tail);
-  /* Drawn as a right triangle in the bubble's own colour, so a brand-coloured
-     bubble and a neutral one both get a tail that matches without either
-     naming a colour here. */
-  background: inherit;
-}
-
-.bubble-tail-start::before {
-  left: calc(var(--tail) * -1);
-  clip-path: polygon(100% 0, 100% 100%, 0 0);
-}
-
-.bubble-tail-end::before {
-  right: calc(var(--tail) * -1);
-  clip-path: polygon(0 0, 0 100%, 100% 0);
+  border-bottom-right-radius: 4px;
 }
 
 /*
