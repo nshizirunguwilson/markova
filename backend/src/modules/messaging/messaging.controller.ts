@@ -31,7 +31,19 @@ import {
   RenameConversationDto,
   SendMessageDto,
 } from './dto';
-import { fileFilterFor, filenameFor } from '../../common/file-validation';
+import {
+  fileFilterFor,
+  filenameFor,
+  removeStoredFile,
+  validateUploadedAttachment,
+} from '../../common/file-validation';
+import {
+  attachmentKind,
+  maxBytesFor,
+  tooLargeMessage,
+  MAX_ANY_ATTACHMENT_BYTES,
+} from '../../common/attachment-limits';
+import * as fsModule from 'fs';
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -242,18 +254,40 @@ export class MessagingController {
     FileInterceptor('file', {
       storage: attachmentStorage,
       fileFilter: fileFilterFor('attachment', ATTACHMENT_REFUSAL),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      /*
+        Multer takes one number, so it gets the largest of the four caps and
+        the per-kind cap is applied below. A 40MB spreadsheet is refused, but
+        only after it has arrived — which is why the web checks the size
+        before uploading anything, and this is the backstop.
+      */
+      limits: { fileSize: MAX_ANY_ATTACHMENT_BYTES },
     }),
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a file to attach to a message' })
   uploadAttachment(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file was sent');
+
+    // A video may be 50MB; a photograph may not. Over the cap for its own
+    // kind, the file goes back off disk before anything can point at it.
+    if (file.size > maxBytesFor(file.mimetype)) {
+      removeStoredFile(file.path, fsModule, (p) => p);
+      throw new BadRequestException(
+        tooLargeMessage(file.mimetype, file.size),
+      );
+    }
+
+    // And it has to be what it said it was. The declared type decided the
+    // extension, and /uploads is served by extension.
+    validateUploadedAttachment(file.path, file.mimetype);
+
     return {
       fileUrl: `/uploads/attachments/${file.filename}`,
       // The name a person sees, kept apart from the name on disk.
       fileName: file.originalname,
       size: file.size,
+      kind: attachmentKind(file.mimetype),
+      mimeType: file.mimetype,
     };
   }
 }
