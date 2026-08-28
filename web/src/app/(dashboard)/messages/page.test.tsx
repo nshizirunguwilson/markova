@@ -1591,8 +1591,17 @@ describe("how the inbox marks a thread", () => {
     await screen.findByRole("button", { name: /Aline/ });
   }
 
+  /**
+   * The inbox row, by its exact label. A loose match now also finds the
+   * "Reply to Aline Uwase" control inside an open thread.
+   */
+  /**
+   * The inbox row. Anchored at the start so it matches both the plain label
+   * and "Aline Uwase, 3 unread", but not the "Reply to Aline Uwase" control
+   * inside an open thread.
+   */
   function row() {
-    return screen.getByRole("button", { name: /Aline/ });
+    return screen.getByRole("button", { name: /^Aline Uwase/ });
   }
 
   it("counts the unread messages in the school's own colour", async () => {
@@ -2064,5 +2073,225 @@ describe("telling two people with the same name apart", () => {
       .setup({ delay: null })
       .type(screen.getByLabelText("Search people"), "senior 2");
     expect(screen.getByRole("button", { name: /Aline/ })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Answering a particular message.
+ *
+ * A reply that does not show what it answers is a reply nobody can follow
+ * once the conversation has moved on — which is the whole reason the quote
+ * exists.
+ */
+describe("replying to a message", () => {
+  const msg = (id: string, senderUserId: string, content: string, over = {}) => ({
+    id,
+    conversationId: "conv-1",
+    senderUserId,
+    sender:
+      senderUserId === "user-1"
+        ? { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" }
+        : other,
+    content,
+    createdAt: "2026-08-21T09:00:00Z",
+    ...over,
+  });
+
+  async function openThread(messages: unknown[]) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": messages,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    const row = await screen.findByRole("button", { name: /^Aline/ });
+    await userEvent.setup({ delay: null }).click(row);
+    return userEvent.setup({ delay: null });
+  }
+
+  it("offers a way to answer each message", async () => {
+    await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    expect(
+      screen.getByRole("button", { name: /reply to aline/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows what is being answered above the box", async () => {
+    const user = await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+
+    await user.click(screen.getByRole("button", { name: /reply to aline/i }));
+
+    // The quote names who said it and repeats a line of it.
+    const cancel = screen.getByRole("button", { name: /cancel reply/i });
+    expect(cancel).toBeInTheDocument();
+    expect(screen.getAllByText("Aline Uwase").length).toBeGreaterThan(0);
+  });
+
+  it("lets the quote be dismissed", async () => {
+    const user = await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    await user.click(screen.getByRole("button", { name: /reply to aline/i }));
+
+    await user.click(screen.getByRole("button", { name: /cancel reply/i }));
+
+    expect(screen.queryByRole("button", { name: /cancel reply/i })).toBeNull();
+  });
+
+  it("sends the answer against the message it answers", async () => {
+    const user = await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    await user.click(screen.getByRole("button", { name: /reply to aline/i }));
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), "Yego");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => expect(h.chat.sendMessage).toHaveBeenCalled());
+    const [, , , replyToId] = h.chat.sendMessage.mock.calls[0];
+    expect(replyToId).toBe("m-1");
+  });
+
+  // The quote is spent once it has been sent.
+  it("clears the quote after sending", async () => {
+    const user = await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    await user.click(screen.getByRole("button", { name: /reply to aline/i }));
+    await user.type(screen.getByPlaceholderText(/type a message/i), "Yego");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /cancel reply/i })).toBeNull(),
+    );
+  });
+
+  it("draws the quote inside a message that answers one", async () => {
+    await openThread([
+      msg("m-2", "u-3", "Yego", {
+        replyTo: {
+          id: "m-1",
+          content: "Muraho",
+          contentType: "TEXT",
+          sender: { firstName: "Wilson", lastName: "Nshizirungu" },
+        },
+      }),
+      msg("m-1", "user-1", "Muraho"),
+    ]);
+    await screen.findByText("Yego");
+    // The quoted line appears twice: once as the original, once in the quote.
+    expect(screen.getAllByText("Muraho").length).toBe(2);
+  });
+
+  it("goes to the original when the quote is clicked", async () => {
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    const user = await openThread([
+      msg("m-2", "u-3", "Yego", {
+        replyTo: {
+          id: "m-1",
+          content: "Muraho",
+          contentType: "TEXT",
+          sender: { firstName: "Wilson", lastName: "Nshizirungu" },
+        },
+      }),
+      msg("m-1", "user-1", "Muraho"),
+    ]);
+    await screen.findByText("Yego");
+    scrolled.mockClear();
+
+    // Inside the thread, not the inbox row — whose preview also says
+    // "Muraho".
+    const thread = document.querySelector(".overflow-y-auto.px-4")!;
+    const quote = Array.from(thread.querySelectorAll("button")).find((b) =>
+      (b.textContent ?? "").includes("Muraho"),
+    )!;
+    expect(quote).toBeTruthy();
+    await user.click(quote);
+
+    expect(scrolled).toHaveBeenCalled();
+    scrolled.mockRestore();
+  });
+});
+
+/**
+ * The edges of replying — the shapes the API can send that the happy path
+ * never produces.
+ */
+describe("replies that are not straightforward", () => {
+  const msg = (id: string, senderUserId: string, content: string, over = {}) => ({
+    id,
+    conversationId: "conv-1",
+    senderUserId,
+    sender: { id: senderUserId, firstName: "Aline", lastName: "Uwase" },
+    content,
+    createdAt: "2026-08-21T09:00:00Z",
+    ...over,
+  });
+
+  async function openThread(messages: unknown[]) {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": messages,
+    });
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    const row = await screen.findByRole("button", { name: /^Aline/ });
+    await userEvent.setup({ delay: null }).click(row);
+    return userEvent.setup({ delay: null });
+  }
+
+  it("draws no quote on a message that answers nothing", async () => {
+    await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    const thread = document.querySelector(".overflow-y-auto.px-4")!;
+    expect(thread.querySelectorAll("button").length).toBeGreaterThan(0);
+    // The only buttons in the thread are the reply controls.
+    for (const b of Array.from(thread.querySelectorAll("button"))) {
+      expect(b.getAttribute("aria-label")).toMatch(/reply to/i);
+    }
+  });
+
+  /**
+   * The original was deleted after being answered. The database sets the
+   * link to null rather than removing the reply, so the answer survives with
+   * nothing to quote — and has to draw.
+   */
+  it("draws a reply whose original has gone", async () => {
+    await openThread([msg("m-2", "u-3", "Yego", { replyTo: null })]);
+    expect(await screen.findByText("Yego")).toBeInTheDocument();
+  });
+
+  it("goes nowhere when the original is not on screen", async () => {
+    const user = await openThread([
+      msg("m-2", "u-3", "Yego", {
+        replyTo: {
+          id: "scrolled-away",
+          content: "Muraho",
+          contentType: "TEXT",
+          sender: { firstName: "Wilson", lastName: "Nshizirungu" },
+        },
+      }),
+    ]);
+    await screen.findByText("Yego");
+
+    const thread = document.querySelector(".overflow-y-auto.px-4")!;
+    const quote = Array.from(thread.querySelectorAll("button")).find((b) =>
+      (b.textContent ?? "").includes("Muraho"),
+    )!;
+
+    // Older messages are not loaded, so there is nothing to scroll to — and
+    // clicking must not throw.
+    await user.click(quote);
+    expect(screen.getByText("Yego")).toBeInTheDocument();
+  });
+
+  it("forgets the quote when another thread is opened", async () => {
+    const user = await openThread([msg("m-1", "u-3", "Muraho")]);
+    await screen.findByText("Muraho");
+    await user.click(screen.getByRole("button", { name: /reply to aline/i }));
+    expect(screen.getByRole("button", { name: /cancel reply/i })).toBeInTheDocument();
+
+    // Leaving the thread drops the quote: it belonged to that conversation.
+    await user.click(screen.getByRole("button", { name: /go back/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /cancel reply/i })).toBeNull(),
+    );
   });
 });

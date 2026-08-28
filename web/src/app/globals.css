@@ -172,3 +172,19 @@ body {
   right: calc(var(--tail) * -1);
   clip-path: polygon(0 0, 0 100%, 100% 0);
 }
+
+/*
+  Marking the message a quote sent you to.
+
+  Scrolling somewhere without saying which one you landed on leaves the reader
+  hunting. A brief lift of the bubble's own ground says "this one" and then
+  gets out of the way.
+*/
+@keyframes flash {
+  0%, 70% { filter: brightness(1.18); }
+  100% { filter: none; }
+}
+
+.motion-flash {
+  animation: flash 1.2s var(--ease-standard) both;
+}

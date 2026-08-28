@@ -16,11 +16,12 @@ import {
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Search, Send, ArrowLeft, WifiOff, Users, X } from "lucide-react";
+import { MessageSquare, Plus, Search, Send, ArrowLeft, CornerUpLeft, WifiOff, Users, X } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
 import { personDetail, personMatches, personName } from "@/lib/person";
+import { QuotedMessage } from "@/components/messaging/quoted-message";
 
 /**
  * How far from the bottom of the thread still counts as "reading the latest".
@@ -43,6 +44,8 @@ export default function MessagesPage() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [threadSearch, setThreadSearch] = useState("");
+  /** The message being answered, until it is sent or dismissed. */
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
   const [newConvName, setNewConvName] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -119,6 +122,8 @@ export default function MessagesPage() {
   // reader, and animating all of it would be a staggered entrance.
   useEffect(() => {
     newestSeen.current = null;
+    // A quote belongs to the thread it was picked in.
+    setReplyingTo(null);
   }, [selectedConv]);
 
   // Get typing users for current conversation
@@ -193,7 +198,9 @@ export default function MessagesPage() {
   const handleSend = async () => {
     if (!messageText.trim() || !selectedConv) return;
     const text = messageText;
+    const replyToId = replyingTo?.id;
     setMessageText("");
+    setReplyingTo(null);
 
     // Stop typing indicator
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -201,17 +208,17 @@ export default function MessagesPage() {
 
     if (chatStore.connected) {
       try {
-        const ack = await chatStore.sendMessage(selectedConv, text);
+        const ack = await chatStore.sendMessage(selectedConv, text, undefined, replyToId);
         // The ack says whether a recipient was online to take it. Without
         // this the message sat on one tick until something else refreshed the
         // cache, even though the server had already marked it delivered.
         chatStore.applyAck(queryClient, selectedConv, ack);
       } catch {
         // Fallback to REST
-        sendMessageRest.mutate({ conversationId: selectedConv, content: text });
+        sendMessageRest.mutate({ conversationId: selectedConv, content: text, replyToId });
       }
     } else {
-      sendMessageRest.mutate({ conversationId: selectedConv, content: text });
+      sendMessageRest.mutate({ conversationId: selectedConv, content: text, replyToId });
     }
   };
 
@@ -267,6 +274,20 @@ export default function MessagesPage() {
       );
     });
   }, [conversations, threadSearch, user?.id]);
+
+  /**
+   * Go to the message a quote answers, and say which one it was.
+   *
+   * The flash matters: scrolling somewhere without marking the destination
+   * leaves the reader hunting for whichever message they were sent to.
+   */
+  const jumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("motion-flash");
+    window.setTimeout(() => el.classList.remove("motion-flash"), 1200);
+  };
 
   const getOtherUser = (conv: any) => {
     if (conv.type === "ONE_ON_ONE") {
@@ -586,7 +607,7 @@ export default function MessagesPage() {
                     return (
                       <div
                         key={group.key}
-                        className={`mb-3 flex flex-col gap-0.5 ${
+                        className={`group/msg mb-3 flex flex-col gap-0.5 ${
                           isNewArrival ? "motion-rise-in " : ""
                         }${
                           group.mine ? "items-end" : "items-start"
@@ -613,12 +634,21 @@ export default function MessagesPage() {
                           return (
                             <div
                               key={msg.id}
+                              id={`msg-${msg.id}`}
                               className={`max-w-[min(34rem,78%)] px-3.5 py-2 ${corner} ${
                                 group.mine
                                   ? "bg-primary text-on-primary"
                                   : "bg-surface-muted text-foreground"
                               }`}
                             >
+                              {msg.replyTo && (
+                                <QuotedMessage
+                                  message={msg.replyTo}
+                                  mine={group.mine}
+                                  onJump={() => jumpToMessage(msg.replyTo.id)}
+                                  className="mb-1"
+                                />
+                              )}
                               {msg.content && (
                                 <p className="whitespace-pre-wrap break-words text-[0.875rem] leading-relaxed">
                                   {msg.content}
@@ -628,7 +658,20 @@ export default function MessagesPage() {
                           );
                         })}
 
-                        <span className="mt-0.5 flex items-center gap-1 px-1 text-[0.6875rem] tabular-nums text-muted">
+                        <span className="mt-0.5 flex items-center gap-1.5 px-1 text-[0.6875rem] tabular-nums text-muted">
+                          {/*
+                            Answering this particular message. Shown on hover
+                            and whenever it has keyboard focus, so it is not a
+                            mouse-only feature.
+                          */}
+                          <button
+                            type="button"
+                            onClick={() => setReplyingTo(last)}
+                            aria-label={`Reply to ${group.senderName}`}
+                            className="rounded px-1 py-0.5 text-primary opacity-0 transition-opacity focus:opacity-100 group-hover/msg:opacity-100"
+                          >
+                            <CornerUpLeft className="h-3.5 w-3.5" />
+                          </button>
                           {clockTime(last.createdAt)}
                           {group.mine && <span aria-hidden="true">·</span>}
                           <MessageState msg={last} />
@@ -670,6 +713,20 @@ export default function MessagesPage() {
                 </p>
               ) : (
                 <>
+                  {replyingTo && (
+                    <div className="mb-2 flex items-center gap-2">
+                      <QuotedMessage message={replyingTo} className="flex-1" />
+                      <button
+                        type="button"
+                        aria-label="Cancel reply"
+                        onClick={() => setReplyingTo(null)}
+                        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                     <input
                       type="text"
