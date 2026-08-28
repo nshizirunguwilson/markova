@@ -1149,25 +1149,53 @@ test('chat: every message has its own reply control', async (browser) => {
 });
 
 /**
- * A term report says how one term went; these read the three together.
+ * A term report answers "how was this term". The last term of a year offers
+ * the other question too, without a page of its own to reach it from.
  */
-test('reports: the year tab offers both yearly reports', async (browser) => {
+test('reports: the last term of a year can be read as the whole year', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, '/admin/reports');
 
-  await page.locator('button', { hasText: /^The Year$/ }).first().click();
-  await page.waitForTimeout(600);
+  // The Year tab is gone; the choice lives on the report card filters.
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('button')].map((b) => b.textContent.trim()),
+  );
+  assert(!tabs.includes('The Year'), 'the Year tab is still there');
 
-  const found = await page.evaluate(() => ({
-    student: /One student.s year/.test(document.body.textContent || ''),
-    school: /The whole school/.test(document.body.textContent || ''),
-    year: !!document.querySelector('#year-report-year'),
-  }));
+  const years = page.locator('select[aria-label="Academic year"]');
+  const yearOptions = await years.locator('option').all();
+  if (yearOptions.length < 2) {
+    await ctx.close();
+    return;
+  }
+  await years.selectOption({ index: 1 });
+  await page.waitForTimeout(900);
 
-  assert(found.student, "the annual report section is not on the year tab");
-  assert(found.school, "the school summary section is not on the year tab");
-  assert(found.year, 'the year tab does not ask for an academic year');
+  const termSelect = page.locator('select[aria-label="Term"]');
+  const terms = await termSelect.locator('option').all();
+  if (terms.length < 2) {
+    await ctx.close();
+    return;
+  }
+
+  // The last term of the year is the one that offers it.
+  await termSelect.selectOption({ index: terms.length - 1 });
+  await page.waitForTimeout(400);
+  const onLast = await page.evaluate(() =>
+    /ends the year/i.test(document.body.textContent || ''),
+  );
+  assert(onLast, 'the last term does not offer the whole-year choice');
+
+  // An earlier one does not.
+  if (terms.length > 2) {
+    await termSelect.selectOption({ index: 1 });
+    await page.waitForTimeout(400);
+    const onFirst = await page.evaluate(() =>
+      /ends the year/i.test(document.body.textContent || ''),
+    );
+    assert(!onFirst, 'an earlier term is offering the whole-year choice');
+  }
   await ctx.close();
 });
 

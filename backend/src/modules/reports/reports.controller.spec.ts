@@ -29,9 +29,6 @@ describe('ReportsController', () => {
     'getYearReportData',
     'generateYearReportHtml',
     'generateYearReportPdf',
-    'getSchoolYearSummary',
-    'generateSchoolYearSummaryHtml',
-    'generateSchoolYearSummaryPdf',
     'generateDocument',
     'generateDocumentPdf',
     'generateIdCardData',
@@ -275,27 +272,11 @@ describe('ReportsController', () => {
   });
 
   /**
-   * A class average and a promotion count across the whole school are the
-   * head teacher's figures. A parent has no business reading how every other
-   * child in the year did, and a teacher who needs their own class has the
-   * class report.
+   * The annual report is a student's own, so it is open to the same people
+   * the term card is.
    */
-  describe("who may read the whole school's year", () => {
-    it.each([
-      ['the data', 'getSchoolYearSummary'],
-      ['the page', 'getSchoolYearSummaryHtml'],
-      ['the download', 'getSchoolYearSummaryPdf'],
-    ])('%s is admin only', (_n, method) => {
-      const roles = Reflect.getMetadata(
-        ROLES_KEY,
-        (ReportsController.prototype as Record<string, any>)[method],
-      ) as string[];
-      expect(roles).toEqual(['ADMIN']);
-    });
-
-    // The annual report is a student's own, so it is open to the same people
-    // the term card is.
-    it('but a student may still read their own annual report', () => {
+  describe('who may read an annual report', () => {
+    it('is open to a student and their parent', () => {
       const roles = Reflect.getMetadata(
         ROLES_KEY,
         ReportsController.prototype.getYearReportHtml,
