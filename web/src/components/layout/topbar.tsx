@@ -73,6 +73,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // getNavigation is pure and returns a static table; the React Compiler
   // memoizes this for us, and a hand-written useMemo here only gave the
@@ -105,16 +106,46 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close search on Escape
+  /**
+   * Escape closes what is open; Cmd+K (Ctrl+K off a Mac) puts the cursor in
+   * the search box from anywhere in the app.
+   *
+   * The shortcut every tool with a search box uses, so it is the one people
+   * try. It selects what is already typed rather than clearing it, so pressing
+   * it twice does not lose a half-finished search — and typing simply replaces
+   * the selection, which is what people expect.
+   *
+   * The browser's own Ctrl+K focuses the address bar, so this has to say it
+   * handled the key.
+   */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setSearchOpen(false);
         setNotifOpen(false);
+        return;
+      }
+
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const box = searchInputRef.current;
+        if (!box) return;
+        box.focus();
+        box.select();
+        if (box.value.trim()) setSearchOpen(true);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  /*
+    Mac writes it ⌘K and everybody else Ctrl K. Read once on mount rather than
+    while rendering, so the server and the first client render agree.
+  */
+  const [onAMac, setOnAMac] = useState(false);
+  useEffect(() => {
+    setOnAMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
   }, []);
 
   const handleLogout = () => {
@@ -179,6 +210,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
       <div className="relative w-80" ref={searchRef}>
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search pages..."
           value={searchQuery}
@@ -199,6 +231,15 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           }}
           className="w-full rounded-lg border border-border bg-accent-light/50 py-2 pl-10 pr-4 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
          aria-label="Search pages..."/>
+        {/* A shortcut nobody can see is a shortcut nobody uses. */}
+        {!searchQuery && (
+          <kbd
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-surface px-1.5 py-0.5 font-sans text-[0.6875rem] font-medium text-muted md:block"
+          >
+            {onAMac ? "\u2318K" : "Ctrl K"}
+          </kbd>
+        )}
         {searchQuery && (
           <button
             onClick={() => {
