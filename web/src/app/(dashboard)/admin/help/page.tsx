@@ -83,7 +83,7 @@ export default function AdminHelpPage() {
   };
 
   const handleDeleteFaq = (id: string) => {
-    if (!confirm("Delete this FAQ?")) return;
+    if (!confirm("Delete this question?")) return;
     deleteFaq.mutate(id, {
       onSuccess: () => toast.success("Deleted"),
       onError: () => toast.error("Failed"),
@@ -107,7 +107,7 @@ export default function AdminHelpPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Help & Support Management"
+        title="Help and questions"
       />
 
       <div className="flex gap-2 border-b border-border">
@@ -121,7 +121,7 @@ export default function AdminHelpPage() {
                 : "border-transparent text-muted hover:text-foreground-muted"
             }`}
           >
-            {t === "faqs" ? "FAQ Articles" : "Support Tickets"}
+            {t === "faqs" ? "Common questions" : "Help requests"}
           </button>
         ))}
       </div>
@@ -131,7 +131,7 @@ export default function AdminHelpPage() {
           <div className="flex justify-end">
             <Button onClick={openNewFaq}>
               <Plus className="w-4 h-4 mr-2" />
-              Add FAQ
+              Add a question
             </Button>
           </div>
 
@@ -177,7 +177,7 @@ export default function AdminHelpPage() {
             </Card>
           )}
 
-          <Modal isOpen={showFaqModal} onClose={() => setShowFaqModal(false)} title={editingFaq ? "Edit FAQ" : "New FAQ"}>
+          <Modal isOpen={showFaqModal} onClose={() => setShowFaqModal(false)} title={editingFaq ? "Edit question" : "New question"}>
             <div className="space-y-4">
               <Input label="Title" value={faqForm.title} onChange={(e) => setFaqForm({ ...faqForm, title: e.target.value })} />
               <div>

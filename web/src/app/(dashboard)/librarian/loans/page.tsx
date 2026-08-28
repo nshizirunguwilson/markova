@@ -29,8 +29,8 @@ export default function LibrarianLoansPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Loans"
-        description="Track active and overdue book loans"
+        title="Borrowed books"
+        description="See which books are out and which are late"
       />
 
       <div className="flex gap-2 border-b border-border">
@@ -116,7 +116,9 @@ export default function LibrarianLoansPage() {
         </Card>
       ) : (
         <Card>
-          <p className="text-center text-muted py-8">No {tab} loans.</p>
+          <p className="text-center text-muted py-8">
+            {tab === "active" ? "No books are out." : "Nothing is late."}
+          </p>
         </Card>
       )}
     </div>

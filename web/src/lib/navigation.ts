@@ -198,7 +198,7 @@ const librarianNav: NavSection[] = [
     title: "Library",
     items: [
       { label: "Books", href: "/librarian/books", icon: Library },
-      { label: "Loans", href: "/librarian/loans", icon: BookOpen },
+      { label: "Borrowed books", href: "/librarian/loans", icon: BookOpen },
     ],
   },
   {

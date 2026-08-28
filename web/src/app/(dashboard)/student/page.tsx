@@ -67,13 +67,13 @@ export default function StudentDashboard() {
         <Card>
           <CardTitle className="flex items-center gap-2">
             <Library className="h-5 w-5 text-primary" />
-            My Loans
+            My books
           </CardTitle>
           <p className="mt-3 text-3xl font-bold text-foreground">
             {activeLoans.length}
           </p>
           <p className="mt-1 text-sm text-muted">
-            {activeLoans.length === 1 ? "active loan" : "active loans"}
+            {activeLoans.length === 1 ? "book borrowed" : "books borrowed"}
           </p>
         </Card>
 

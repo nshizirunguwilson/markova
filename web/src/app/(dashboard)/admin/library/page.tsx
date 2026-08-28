@@ -180,7 +180,7 @@ export default function AdminLibraryPage() {
     } else if (tab === "loans") {
       exportData(format, {
         filename: "active-loans",
-        title: "Active Loans",
+        title: "Books out",
         columns: [
           { header: "Book", key: "book.title" },
           { header: "Borrower", key: "_borrower" },
@@ -197,12 +197,12 @@ export default function AdminLibraryPage() {
     } else if (tab === "overdue") {
       exportData(format, {
         filename: "overdue-loans",
-        title: "Overdue Loans",
+        title: "Books overdue",
         columns: [
           { header: "Book", key: "book.title" },
           { header: "Borrower", key: "_borrower" },
           { header: "Due Date", key: "_dueDate" },
-          { header: "Days Overdue", key: "_daysOverdue" },
+          { header: "Days late", key: "_daysOverdue" },
         ],
         data: overdueLoans.map((l: any) => ({
           ...l,
@@ -216,7 +216,7 @@ export default function AdminLibraryPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "books", label: "Books" },
-    { key: "loans", label: "Active Loans" },
+    { key: "loans", label: "Books out" },
     { key: "overdue", label: "Overdue" },
     { key: "analytics", label: "Analytics" },
   ];
@@ -225,7 +225,7 @@ export default function AdminLibraryPage() {
     <div>
       <PageHeader
         title="Library"
-        description="Manage books, loans, and returns"
+        description="Books, who has them, and what has come back"
         actions={
           <>
             <div className="flex flex-wrap gap-2">
@@ -349,7 +349,7 @@ export default function AdminLibraryPage() {
         </>
       )}
 
-      {/* Active Loans Tab */}
+      {/* The books that are out */}
       {tab === "loans" && (
         loadingLoans ? <PageSpinner /> : (
           <div className="overflow-x-auto">
@@ -455,7 +455,7 @@ export default function AdminLibraryPage() {
               <p className="text-3xl font-bold text-primary">{analytics?.totalBooks ?? 0}</p>
             </Card>
             <Card className="p-6">
-              <p className="text-sm text-muted">Active Loans</p>
+              <p className="text-sm text-muted">Books out</p>
               <p className="text-3xl font-bold text-primary-light">{analytics?.activeLoans ?? 0}</p>
             </Card>
             <Card className="p-6">
@@ -463,7 +463,7 @@ export default function AdminLibraryPage() {
               <p className="text-3xl font-bold text-danger">{analytics?.overdueLoans ?? 0}</p>
             </Card>
             <Card className="p-6">
-              <p className="text-sm text-muted">Total Checkouts</p>
+              <p className="text-sm text-muted">Books given out</p>
               <p className="text-3xl font-bold text-primary">{analytics?.totalCheckouts ?? 0}</p>
             </Card>
             {analytics?.popularBooks && analytics.popularBooks.length > 0 && (
@@ -571,7 +571,7 @@ export default function AdminLibraryPage() {
       </Modal>
 
       {/* Checkout Modal */}
-      <Modal isOpen={showCheckoutModal} onClose={() => { setShowCheckoutModal(false); checkoutFormHook.reset(); }} title="Checkout Book">
+      <Modal isOpen={showCheckoutModal} onClose={() => { setShowCheckoutModal(false); checkoutFormHook.reset(); }} title="Give out a book">
         <form onSubmit={handleCheckout} className="space-y-4">
           <div>
             <label htmlFor="f-book" className="mb-1 block text-sm font-medium">Book</label>

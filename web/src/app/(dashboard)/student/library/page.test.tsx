@@ -69,12 +69,12 @@ function mount(loans: unknown[] = [], extra: Record<string, unknown> = {}) {
 describe("what a student has out", () => {
   it("says plainly when they have nothing out", async () => {
     mount([]);
-    expect(await screen.findByText("No active loans.")).toBeInTheDocument();
+    expect(await screen.findByText("You have no books out.")).toBeInTheDocument();
   });
 
-  it("counts the active loans on the tab itself", async () => {
+  it("counts the books out on the tab itself", async () => {
     mount([dueIn(5), dueIn(9, { id: "loan-b" })]);
-    expect(await screen.findByText(/My Loans \(2\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/My books \(2\)/)).toBeInTheDocument();
   });
 
   it("counts only the ones still out", async () => {
@@ -82,7 +82,7 @@ describe("what a student has out", () => {
       dueIn(5),
       dueIn(-30, { id: "loan-done", status: "RETURNED", returnedAt: "2026-08-10T00:00:00Z" }),
     ]);
-    expect(await screen.findByText(/My Loans \(1\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/My books \(1\)/)).toBeInTheDocument();
   });
 
   it("says how many days are left on a book due next week", async () => {
@@ -114,7 +114,7 @@ describe("what a student has out", () => {
 describe("what a student has already given back", () => {
   it("hides the history section entirely when there is none", async () => {
     mount([dueIn(5)]);
-    await screen.findByText(/My Loans/);
+    await screen.findByText(/My books/);
     expect(screen.queryByText("Borrowing History")).toBeNull();
   });
 
@@ -149,9 +149,9 @@ describe("what a student has already given back", () => {
 
 describe("the catalogue", () => {
   async function openCatalogue() {
-    await screen.findByText(/My Loans/);
+    await screen.findByText(/My books/);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /catalog/i }));
+      fireEvent.click(screen.getByRole("button", { name: /all books/i }));
     });
   }
 
@@ -208,14 +208,14 @@ describe("while the library is still loading", () => {
   it("spins rather than claiming no loans", async () => {
     mount([], { "/library/loans/my": hangs });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
-    expect(screen.queryByText("No active loans.")).toBeNull();
+    expect(screen.queryByText("You have no books out.")).toBeNull();
   });
 
   it("spins rather than claiming the shelves are empty", async () => {
     mount([], { "/library/books": hangs });
-    await screen.findByText(/My Loans/);
+    await screen.findByText(/My books/);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /catalog/i }));
+      fireEvent.click(screen.getByRole("button", { name: /all books/i }));
     });
     expect(screen.queryByText("No books found.")).toBeNull();
   });
