@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   attachmentMatchesType,
+  retireStoredFile,
   fileFilterFor,
   filenameFor,
   isAllowedAttachmentMime,
@@ -415,6 +416,114 @@ describe('file validation', () => {
 
     it('applies to images too', () => {
       expect(isAllowedImageMime('image/png;something=1')).toBe(true);
+    });
+  });
+
+  /**
+   * Replacing a school's stamp used to unlink the old one on the spot. That
+   * is fine right up until somebody replaces the wrong thing — at which point
+   * the only copy of a mark drawn once and used for years is gone, with no
+   * undo and nothing in the trash.
+   */
+  describe('retiring the file a replacement takes over from', () => {
+    function attic() {
+      const moved: [string, string][] = [];
+      const made: string[] = [];
+      const present = new Set(['/root/uploads/branding/old.png']);
+      const fs = {
+        existsSync: (p: string) => present.has(p),
+        mkdirSync: (p: string) => {
+          made.push(p);
+        },
+        renameSync: (from: string, to: string) => {
+          moved.push([from, to]);
+          present.delete(from);
+          present.add(to);
+        },
+      };
+      const resolve = (p: string) => `/root${p}`;
+      const now = () => new Date('2026-08-28T19:41:07.000Z');
+      return { fs, resolve, now, moved, made, present };
+    }
+
+    it('moves it aside instead of deleting it', () => {
+      const a = attic();
+      const to = retireStoredFile(
+        '/uploads/branding/old.png',
+        a.fs,
+        a.resolve,
+        a.now,
+      );
+
+      expect(a.moved).toHaveLength(1);
+      expect(to).toBe(a.moved[0][1]);
+      // Still on disk, just somewhere else.
+      expect(a.present.has(to!)).toBe(true);
+    });
+
+    // Sortable, legal in a filename, and it says what the file was.
+    it('names it by when it was retired and what it was', () => {
+      const a = attic();
+      const to = retireStoredFile(
+        '/uploads/branding/old.png',
+        a.fs,
+        a.resolve,
+        a.now,
+      );
+
+      expect(to).toBe('/root/uploads/replaced/2026-08-28T19-41-07-old.png');
+    });
+
+    it('makes the folder it retires into', () => {
+      const a = attic();
+      retireStoredFile('/uploads/branding/old.png', a.fs, a.resolve, a.now);
+      expect(a.made).toContain('/root/uploads/replaced');
+    });
+
+    // Exactly like the deletion it replaces: never block the new upload.
+    it('does nothing when there was no previous file', () => {
+      const a = attic();
+      expect(retireStoredFile(null, a.fs, a.resolve, a.now)).toBeNull();
+      expect(retireStoredFile(undefined, a.fs, a.resolve, a.now)).toBeNull();
+      expect(retireStoredFile('', a.fs, a.resolve, a.now)).toBeNull();
+      expect(a.moved).toEqual([]);
+    });
+
+    it('does nothing when the previous file is already gone', () => {
+      const a = attic();
+      expect(
+        retireStoredFile('/uploads/branding/missing.png', a.fs, a.resolve, a.now),
+      ).toBeNull();
+      expect(a.moved).toEqual([]);
+    });
+
+    it('survives a filesystem that refuses the move', () => {
+      const a = attic();
+      const broken = {
+        ...a.fs,
+        renameSync: () => {
+          throw new Error('read-only volume');
+        },
+      };
+      expect(() =>
+        retireStoredFile('/uploads/branding/old.png', broken, a.resolve, a.now),
+      ).not.toThrow();
+      expect(
+        retireStoredFile('/uploads/branding/old.png', broken, a.resolve, a.now),
+      ).toBeNull();
+    });
+
+    it('survives a folder it cannot create', () => {
+      const a = attic();
+      const broken = {
+        ...a.fs,
+        mkdirSync: () => {
+          throw new Error('permission denied');
+        },
+      };
+      expect(
+        retireStoredFile('/uploads/branding/old.png', broken, a.resolve, a.now),
+      ).toBeNull();
     });
   });
 });

@@ -22,7 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
 import { join } from 'path';
-import { existsSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, renameSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { SchoolConfigService } from './school-config.service';
 import {
@@ -35,7 +35,7 @@ import { RolesGuard } from '../../common/guards';
 import {
   fileFilterFor,
   filenameFor,
-  removeStoredFile,
+  retireStoredFile,
   validateUploadedImage,
 } from '../../common/file-validation';
 
@@ -55,9 +55,16 @@ const brandingStorage = diskStorage({
 export class SchoolConfigController {
   constructor(private readonly configService: SchoolConfigService) {}
 
-  /** Removes the file a branding key no longer points at. */
-  private deleteOldFile(fileUrl: string | null | undefined) {
-    removeStoredFile(fileUrl, { existsSync, unlinkSync }, (p) =>
+  /**
+   * Moves aside the file a branding key no longer points at.
+   *
+   * Retired rather than deleted. A school's stamp is drawn once and used for
+   * years; replacing the wrong one used to destroy the only copy on the spot,
+   * with no undo and nothing in the trash. It now waits in
+   * `uploads/replaced/` for the day somebody needs it back.
+   */
+  private retireOldFile(fileUrl: string | null | undefined) {
+    retireStoredFile(fileUrl, { existsSync, mkdirSync, renameSync }, (p) =>
       join(process.cwd(), p),
     );
   }
@@ -84,7 +91,7 @@ export class SchoolConfigController {
       join(process.cwd(), 'uploads/branding', file.filename),
     );
     const oldConfig = await this.configService.findByKey(key).catch(() => null);
-    this.deleteOldFile(oldConfig?.value);
+    this.retireOldFile(oldConfig?.value);
     const url = `/uploads/branding/${file.filename}`;
     return this.configService.updateBrandingFile(key, url);
   }
