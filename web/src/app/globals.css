@@ -10,12 +10,26 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Every interactive element gets a visible keyboard focus ring.
-   --color-primary-light clears the 3:1 non-text contrast threshold. */
-:focus-visible {
-  outline: 2px solid var(--color-primary-light);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+/*
+  Every interactive element gets a visible keyboard focus ring.
+  --color-primary-light clears the 3:1 non-text contrast threshold.
+
+  Inside `@layer base`, and the layer is the point. Unlayered rules beat
+  layered ones outright, whatever the specificity, so while this sat outside
+  a layer it overrode Tailwind's own `outline-none` — every one of the ninety
+  odd controls that draws its own focus ring was drawing this one as well.
+  Two rings for one cursor, most visibly around the message field.
+
+  In `base` it still applies everywhere by default, because base sits below
+  utilities; it just stops fighting the controls that have said, explicitly,
+  that they light themselves up another way.
+*/
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary-light);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -146,8 +160,8 @@ body {
 
         outer radius = inner radius + the padding between them
 
-    A photograph or a file row inside a bubble is 8px, and the bubble pads it
-    by 8px on every side, so the bubble wants 16. At 18 the outer curve ran
+    A photograph or a file row inside a bubble is 6px, and the bubble pads it
+    by 6px on every side, so the bubble wants 12. At 18 the outer curve ran
     ahead of the inner one and the corner read as too round for what it held.
 
     This only works because the padding is now equal on both axes. It used to
@@ -155,7 +169,7 @@ body {
     single radius could sit concentric with the thing inside it, and that is
     what looked wrong.
   */
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .bubble-tail-start,
@@ -205,4 +219,5 @@ body {
 .motion-flash {
   animation: flash 1.2s var(--ease-standard) both;
 }
+
 
