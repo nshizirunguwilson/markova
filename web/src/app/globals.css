@@ -122,3 +122,69 @@ body {
 .motion-bar {
   transition: width var(--duration-settle) var(--ease-standard);
 }
+
+/* ── Message bubbles ─────────────────────────────────────────────────────────
+   A tail, and a tight radius.
+
+   The bubbles were a 16px radius on three corners and 6px on the fourth,
+   which reads as a rounded rectangle somebody nudged rather than as a shape
+   that means something. What tells a chat bubble apart from a box is the
+   tail: it points at whoever said it, so the eye knows which side a message
+   came from before reading a word of it.
+
+   Only the first bubble of a run gets one. A tail on every bubble in a run of
+   four is four arrows pointing at the same person.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.bubble {
+  position: relative;
+  border-radius: 0.5rem;
+}
+
+.bubble-tail-start,
+.bubble-tail-end {
+  /* The corner the tail grows out of is square; the rest stay rounded. */
+  --tail: 8px;
+}
+
+.bubble-tail-start { border-top-left-radius: 0; }
+.bubble-tail-end { border-top-right-radius: 0; }
+
+.bubble-tail-start::before,
+.bubble-tail-end::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--tail);
+  height: var(--tail);
+  /* Drawn as a right triangle in the bubble's own colour, so a brand-coloured
+     bubble and a neutral one both get a tail that matches without either
+     naming a colour here. */
+  background: inherit;
+}
+
+.bubble-tail-start::before {
+  left: calc(var(--tail) * -1);
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+}
+
+.bubble-tail-end::before {
+  right: calc(var(--tail) * -1);
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+
+/*
+  Marking the message a quote sent you to.
+
+  Scrolling somewhere without saying which one you landed on leaves the reader
+  hunting. A brief lift of the bubble's own ground says "this one" and then
+  gets out of the way.
+*/
+@keyframes flash {
+  0%, 70% { filter: brightness(1.18); }
+  100% { filter: none; }
+}
+
+.motion-flash {
+  animation: flash 1.2s var(--ease-standard) both;
+}

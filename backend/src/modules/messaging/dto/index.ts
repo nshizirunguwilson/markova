@@ -52,6 +52,18 @@ export class SendMessageDto {
   @MaxLength(1000)
   fileUrl?: string;
 
+  /**
+   * The message this one answers.
+   *
+   * Checked against the conversation before it is stored: a reply pointing at
+   * a message in somebody else's thread would quote text the sender was never
+   * allowed to read.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  replyToId?: string;
+
   /** The name the sender's file had, so the recipient knows what it is. */
   @ApiPropertyOptional()
   @IsOptional()

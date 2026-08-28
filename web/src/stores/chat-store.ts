@@ -27,7 +27,12 @@ interface ChatState {
     conversationId: string,
     ack: { messageId?: string; status?: string } | undefined,
   ) => void;
-  sendMessage: (conversationId: string, content: string, contentType?: string) => Promise<any>;
+  sendMessage: (
+    conversationId: string,
+    content: string,
+    contentType?: string,
+    replyToId?: string,
+  ) => Promise<any>;
   markRead: (conversationId: string) => void;
   startTyping: (conversationId: string) => void;
   stopTyping: (conversationId: string) => void;
@@ -273,7 +278,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
   },
 
-  sendMessage: async (conversationId: string, content: string, contentType?: string) => {
+  sendMessage: async (
+    conversationId: string,
+    content: string,
+    contentType?: string,
+    replyToId?: string,
+  ) => {
     const { socket } = get();
     if (!socket?.connected) throw new Error("Not connected");
 
@@ -286,7 +296,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       socket.emit(
         "sendMessage",
-        { conversationId, content, contentType },
+        { conversationId, content, contentType, replyToId },
         (response: any) => {
           clearTimeout(timeout);
           if (response?.error) reject(new Error(response.error));

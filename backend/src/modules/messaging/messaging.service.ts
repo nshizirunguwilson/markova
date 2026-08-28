@@ -319,6 +319,24 @@ export class MessagingService {
     });
   }
 
+  /**
+   * What a quoted message needs to show.
+   *
+   * The line of text, who said it, and what kind of thing it was — enough to
+   * draw the bar above a reply without loading the whole message a second
+   * time. Not nested further: a reply to a reply quotes the message it
+   * answers, not the whole chain behind it.
+   */
+  private static readonly QUOTED = {
+    select: {
+      id: true,
+      content: true,
+      contentType: true,
+      senderUserId: true,
+      sender: { select: { firstName: true, lastName: true } },
+    },
+  } as const;
+
   async getMessages(
     conversationId: string,
     userId: string,
@@ -337,6 +355,7 @@ export class MessagingService {
           select: { id: true, firstName: true, lastName: true, photoUrl: true },
         },
         reads: { select: { userId: true, readAt: true } },
+        replyTo: MessagingService.QUOTED,
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -362,6 +381,21 @@ export class MessagingService {
       );
     }
 
+    // A reply has to answer something in this conversation. Pointing at a
+    // message in another thread would quote text the sender was never allowed
+    // to read, straight into a room where others can see it.
+    if (dto.replyToId) {
+      const original = await this.prisma.message.findFirst({
+        where: { id: dto.replyToId, conversationId: dto.conversationId },
+        select: { id: true },
+      });
+      if (!original) {
+        throw new BadRequestException(
+          'That message is not in this conversation',
+        );
+      }
+    }
+
     return this.prisma.message.create({
       data: {
         conversationId: dto.conversationId,
@@ -371,11 +405,13 @@ export class MessagingService {
         status: 'SENT',
         fileUrl: dto.fileUrl,
         fileName: dto.fileName,
+        replyToId: dto.replyToId,
       },
       include: {
         sender: {
           select: { id: true, firstName: true, lastName: true, photoUrl: true },
         },
+        replyTo: MessagingService.QUOTED,
       },
     });
   }

@@ -239,6 +239,7 @@ export class MessagingGateway
       content: string;
       contentType?: string;
       fileUrl?: string;
+      replyToId?: string;
     },
   ) {
     const userId = client.data.user.sub;
@@ -253,6 +254,7 @@ export class MessagingGateway
         content: data.content,
         contentType: data.contentType as any,
         fileUrl: data.fileUrl,
+        replyToId: data.replyToId,
       },
       userId,
     );
