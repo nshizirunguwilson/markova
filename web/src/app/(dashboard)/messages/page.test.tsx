@@ -629,9 +629,15 @@ describe("the state of a message you sent", () => {
   /**
    * The state line for the run the message belongs to. Written once under a
    * run, on its timestamp line, rather than inside every bubble.
+   *
+   * Found by walking up to the run itself rather than by counting parents:
+   * each message now sits in its own row alongside a reply control, so the
+   * footer is no longer the bubble's immediate parent.
    */
   function state() {
-    const run = screen.getByText(/Mwaramutse/).closest("div")!.parentElement!;
+    const run = screen
+      .getByText(/Mwaramutse/)
+      .closest('[class*="group/msg"]')!;
     return run.textContent ?? "";
   }
 
@@ -1768,30 +1774,35 @@ describe("runs of messages from one person", () => {
    * a word. Only the first bubble of a run carries one — four bubbles from
    * one person do not need four arrows.
    */
-  it("gives the run one tail, on its first bubble", async () => {
+  /**
+   * The squared corner closes a run rather than opening it: it sits at the
+   * bottom of the bubble, nearest the speaker, so it belongs on the last one.
+   * Four bubbles from one person do not need four of them.
+   */
+  it("squares one corner of a run, on its last bubble", async () => {
     await openWith([
       at("m-2", "u-3", 1, "another"),
       at("m-1", "u-3", 0, "Muraho"),
     ]);
     await screen.findByText("Muraho");
     const first = screen.getByText("Muraho").closest("div")!;
-    const second = screen.getByText("another").closest("div")!;
-    expect(first.className).toContain("bubble-tail-start");
-    expect(second.className).not.toContain("bubble-tail");
-    expect(second.className).toContain("bubble");
+    const last = screen.getByText("another").closest("div")!;
+    expect(last.className).toContain("bubble-tail-start");
+    expect(first.className).not.toContain("bubble-tail");
+    expect(first.className).toContain("bubble");
   });
 
-  // Your own run is the same shape mirrored: the tail points the other way.
-  it("points your own tail at your side", async () => {
+  // Your own run is the same shape mirrored: squared on the other side.
+  it("squares your own run on your side", async () => {
     await openWith([
       at("m-2", "user-1", 1, "and this"),
       at("m-1", "user-1", 0, "I said this"),
     ]);
     await screen.findByText("I said this");
     const first = screen.getByText("I said this").closest("div")!;
-    const second = screen.getByText("and this").closest("div")!;
-    expect(first.className).toContain("bubble-tail-end");
-    expect(second.className).not.toContain("bubble-tail");
+    const last = screen.getByText("and this").closest("div")!;
+    expect(last.className).toContain("bubble-tail-end");
+    expect(first.className).not.toContain("bubble-tail");
     expect(first.className).toContain("bg-primary");
   });
 
@@ -3006,5 +3017,72 @@ describe("keeping the thread landed while media settles", () => {
 
     expect(await screen.findByText(/Muraho neza/)).toBeInTheDocument();
     vi.unstubAllGlobals();
+  });
+});
+
+/**
+ * The reply control used to sit once under a whole run, which meant two
+ * messages in a row left the first one unanswerable — you could only ever
+ * reply to the last thing somebody said.
+ */
+describe("replying to one message out of several", () => {
+  async function twoInARow() {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-2",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "and the second thing",
+          createdAt: "2026-08-21T09:01:00Z",
+        },
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "the first thing",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    await screen.findByText("the first thing");
+  }
+
+  it("offers a reply control for every message, not one per run", async () => {
+    await twoInARow();
+    expect(screen.getAllByRole("button", { name: /^Reply to/i })).toHaveLength(2);
+  });
+
+  // The bug itself: the earlier of two consecutive messages must be reachable.
+  it("can reply to the first of two consecutive messages", async () => {
+    await twoInARow();
+
+    const first = screen
+      .getAllByRole("button", { name: /^Reply to/i })
+      .find((b) => /the first thing/.test(b.getAttribute("aria-label") ?? ""));
+    expect(first).toBeTruthy();
+
+    await userEvent.setup({ delay: null }).click(first!);
+
+    // The composer now quotes that message rather than the later one.
+    const quoted = await screen.findByLabelText(/cancel reply/i);
+    const draft = quoted.closest("div")!;
+    expect(draft.textContent).toContain("the first thing");
+    expect(draft.textContent).not.toContain("and the second thing");
+  });
+
+  it("names the message each control answers, for a screen reader", async () => {
+    await twoInARow();
+    const labels = screen
+      .getAllByRole("button", { name: /^Reply to/i })
+      .map((b) => b.getAttribute("aria-label"));
+    expect(labels.some((l) => l?.includes("the first thing"))).toBe(true);
+    expect(labels.some((l) => l?.includes("and the second thing"))).toBe(true);
   });
 });

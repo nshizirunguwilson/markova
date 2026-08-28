@@ -841,11 +841,15 @@ export default function MessagesPage() {
                         )}
 
                         {group.messages.map((msg: any, i) => {
-                          // The tail goes on the first bubble of a run and
-                          // points at whoever said it. Four bubbles from one
-                          // person do not need four arrows.
+                          /*
+                            The squared corner closes a run rather than opening
+                            it: it sits at the bottom, nearest the speaker, so
+                            it belongs on the last bubble. Four bubbles from one
+                            person do not need four of them.
+                          */
+                          const endsRun = i === group.messages.length - 1;
                           const corner = `bubble ${
-                            i === 0
+                            endsRun
                               ? group.mine
                                 ? "bubble-tail-end"
                                 : "bubble-tail-start"
@@ -853,8 +857,20 @@ export default function MessagesPage() {
                           }`;
 
                           return (
+                            /*
+                              Each message gets its own row, and its own reply
+                              control beside it. It used to sit once under the
+                              whole run, which meant two messages in a row left
+                              the first one unanswerable — you could only ever
+                              reply to the last thing somebody said.
+                            */
                             <div
                               key={msg.id}
+                              className={`group/bubble flex w-full items-center gap-1 ${
+                                group.mine ? "flex-row-reverse" : ""
+                              }`}
+                            >
+                            <div
                               id={`msg-${msg.id}`}
                               className={`max-w-[min(34rem,78%)] px-3.5 py-2 ${corner} ${
                                 group.mine
@@ -900,23 +916,27 @@ export default function MessagesPage() {
                                   />
                                 )}
                             </div>
+
+                            {/*
+                              Answering this message. Shown on hover of its own
+                              row and whenever it has keyboard focus, so it is
+                              not a mouse-only feature.
+                            */}
+                            <button
+                              type="button"
+                              onClick={() => setReplyingTo(msg)}
+                              aria-label={`Reply to ${group.senderName}: ${
+                                (msg.content || "message").slice(0, 40)
+                              }`}
+                              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted opacity-0 transition-opacity hover:bg-surface-muted hover:text-foreground focus:opacity-100 group-hover/bubble:opacity-100"
+                            >
+                              <CornerUpLeft className="h-3.5 w-3.5" />
+                            </button>
+                            </div>
                           );
                         })}
 
                         <span className="mt-0.5 flex items-center gap-1.5 px-1 text-[0.6875rem] tabular-nums text-muted">
-                          {/*
-                            Answering this particular message. Shown on hover
-                            and whenever it has keyboard focus, so it is not a
-                            mouse-only feature.
-                          */}
-                          <button
-                            type="button"
-                            onClick={() => setReplyingTo(last)}
-                            aria-label={`Reply to ${group.senderName}`}
-                            className="rounded px-1 py-0.5 text-primary opacity-0 transition-opacity focus:opacity-100 group-hover/msg:opacity-100"
-                          >
-                            <CornerUpLeft className="h-3.5 w-3.5" />
-                          </button>
                           {clockTime(last.createdAt)}
                           {group.mine && <span aria-hidden="true">·</span>}
                           <MessageState msg={last} />
