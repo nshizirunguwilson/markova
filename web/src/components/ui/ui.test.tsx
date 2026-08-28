@@ -496,8 +496,11 @@ describe("Modal keyboard handling", () => {
 
   it("closes when the backdrop behind it is clicked", async () => {
     const onClose = vi.fn();
-    const { container } = render(withThreeButtons(onClose));
-    const backdrop = container.querySelector(".fixed.inset-0.bg-black\\/40")!;
+    render(withThreeButtons(onClose));
+    // Queried from the document, not the render container: the dialog is
+    // portalled into <body> and is no longer a descendant of where it was
+    // written.
+    const backdrop = document.querySelector(".fixed.inset-0.motion-fade-in")!;
 
     await userEvent.setup().click(backdrop);
 
@@ -546,5 +549,74 @@ describe("Modal motion", () => {
       </Modal>,
     );
     expect(container.querySelector(".motion-panel-in")).toBeNull();
+  });
+});
+
+/**
+ * Where the dialog is rendered.
+ *
+ * It used to be a descendant of whatever opened it, which worked only for as
+ * long as nothing above it created a stacking context. Then the page fade
+ * did — animating opacity creates one — and the dialog was trapped inside
+ * `<main>`: the sidebar painted over its left edge and the backdrop dimmed
+ * only the content column, while every unit test still passed.
+ */
+describe("Modal placement", () => {
+  it("renders into the document body, not where it was written", () => {
+    const { container } = render(
+      <div>
+        <Modal isOpen onClose={vi.fn()} title="Add book">
+          <p>Body</p>
+        </Modal>
+      </div>,
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  /**
+   * The property that actually matters: an ancestor with a stacking context
+   * must not be able to trap it. This is the exact shape that broke it.
+   */
+  it("escapes an ancestor that creates a stacking context", () => {
+    render(
+      <div style={{ opacity: 0.99 }} data-testid="trap">
+        <Modal isOpen onClose={vi.fn()} title="Add book">
+          <p>Body</p>
+        </Modal>
+      </div>,
+    );
+    const trap = screen.getByTestId("trap");
+    expect(trap.contains(screen.getByRole("dialog"))).toBe(false);
+  });
+
+  it("takes the dialog away again when it closes", () => {
+    const { rerender } = render(
+      <Modal isOpen onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+
+    rerender(
+      <Modal isOpen={false} onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  // Dimmed rather than blurred: blurring a page of dense text turns it into
+  // mush the eye keeps trying to resolve, and costs a full-screen filter pass
+  // on every frame of the fade.
+  it("dims the page behind it without blurring it", () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Add book">
+        <p>Body</p>
+      </Modal>,
+    );
+    const backdrop = document.querySelector(".fixed.inset-0.motion-fade-in")!;
+    expect(backdrop.className).toContain("bg-black/50");
+    expect(backdrop.className).not.toContain("backdrop-blur");
   });
 });

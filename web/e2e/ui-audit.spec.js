@@ -148,7 +148,7 @@ test('auth: valid login (student, no OTP) reaches dashboard', async (browser) =>
   await page.fill('#identifier', ACCOUNTS.STUDENT.email);
   await page.fill('#password', PASS);
   await page.click('button:has-text("Sign In")');
-  await page.waitForURL('**/student', { timeout: 45000 });
+  await page.waitForURL('**/student', { timeout: 90000 });
   assert(new URL(page.url()).pathname === '/student', 'did not land on /student');
   await ctx.close();
 });
@@ -267,7 +267,7 @@ test('form: Add Subject empty submit shows validation error', async (browser) =>
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, `/admin/subjects`);
-  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
+  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 90000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
   await page.click('[role=dialog] button:has-text("Create")');
@@ -281,7 +281,7 @@ test('form: create subject persists and appears after reload (no duplicate on do
   const page = await authedPage(ctx, 'ADMIN');
   const name = `ZZ Audit ${Date.now()}`;
   await visit(page, `/admin/subjects`);
-  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
+  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 90000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
   await page.fill('[role=dialog] input[placeholder*="Mathematics"]', name);
@@ -328,7 +328,7 @@ test('table: student search filters, no-match shows empty state, clear restores'
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, `/admin/students`);
-  await page.waitForSelector('table tbody tr', { timeout: 45000 });
+  await page.waitForSelector('table tbody tr', { timeout: 90000 });
   const initial = await page.locator('table tbody tr').count();
   const search = page.locator('input[placeholder*="Search by name"]').first();
   // The search is debounced and then queries 1,334 students, so these waits
@@ -362,7 +362,7 @@ test('modal: Escape closes the Add Subject modal', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, `/admin/subjects`);
-  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
+  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 90000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
   await page.keyboard.press('Escape');
@@ -375,7 +375,7 @@ test('modal: Cancel button closes the modal', async (browser) => {
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, `/admin/subjects`);
-  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 45000 });
+  await page.waitForSelector('button:has-text("Add Subject")', { timeout: 90000 });
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
   await page.click('[role=dialog] button:has-text("Cancel")');
@@ -510,7 +510,7 @@ test('form: Add User wizard reaches every student step without creating anyone',
   await page.waitForFunction(
     () => (document.querySelectorAll('[role="dialog"] select')[0]?.options.length ?? 0) > 1,
     null,
-    { timeout: 45000 },
+    { timeout: 90000 },
   );
 
   const levels = await selects.nth(0).evaluate((el) =>
@@ -748,18 +748,90 @@ test('motion: everything collapses for a reader who asked for less', async (brow
   await ctx.close();
 });
 
+/**
+ * A dialog covers the whole application, not just the column it was opened
+ * from.
+ *
+ * It used to be rendered where it was written — inside `<main>` — which was
+ * fine until something above it created a stacking context. The page fade
+ * animates opacity, which creates one, and the dialog was trapped: the
+ * sidebar painted over its left edge and the backdrop dimmed only the middle
+ * of the screen. Every unit test still passed, because in jsdom nothing
+ * paints.
+ */
+test('modal: the backdrop covers the sidebar, not just the content', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, `/admin/users`);
+
+  await page.getByRole('button', { name: /bulk import/i }).first().click();
+  await page.waitForSelector('[role="dialog"]');
+  await page.waitForTimeout(500);
+
+  const facts = await page.evaluate(() => {
+    const main = document.querySelector('#main-content');
+    const dialog = document.querySelector('[role="dialog"]');
+    // A point well inside the sidebar.
+    const over = document.elementFromPoint(120, 400);
+    return {
+      escapedMain: !main.contains(dialog),
+      onTopOfSidebar: (over?.className || '').includes('inset-0'),
+    };
+  });
+
+  assert(facts.escapedMain, 'the dialog is still inside <main> and can be trapped');
+  assert(facts.onTopOfSidebar, 'the sidebar paints over the backdrop');
+
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter
   const browser = await chromium.launch({ headless: true });
   if (!only) { process.stdout.write('  (pre-warming dev routes...)\n'); await prewarm(browser); }
-  let pass = 0, fail = 0; const failures = [];
+  let pass = 0, fail = 0;
+  const failures = [];
+  const flaky = [];
+
+  /*
+    One retry, reported rather than hidden.
+
+    This suite runs against a dev server that compiles on demand and serves
+    one request at a time, and fifty-odd tests will occasionally starve one of
+    them: the failure is always "waiting for a page that has not been served
+    yet", and it moves to a different test on every run. Pages that fail this
+    way load in under a second when asked on their own.
+
+    Retrying quietly would turn a real regression into an intermittent one
+    nobody chases. So a test that passes second time is counted as passed and
+    named at the end as flaky — the suite stays green and stays honest about
+    which tests it had to ask twice.
+  */
   for (const t of tests) {
     if (only && !t.name.includes(only)) continue;
-    try { await t.fn(browser); console.log(`  PASS  ${t.name}`); pass++; }
-    catch (e) { console.log(`  FAIL  ${t.name}\n        ${e.message}`); fail++; failures.push(t.name); }
+    try {
+      await t.fn(browser);
+      console.log(`  PASS  ${t.name}`);
+      pass++;
+      continue;
+    } catch (first) {
+      try {
+        await t.fn(browser);
+        console.log(`  PASS  ${t.name}  (on retry)`);
+        pass++;
+        flaky.push(`${t.name} — first attempt: ${first.message.split('\n')[0]}`);
+      } catch (e) {
+        console.log(`  FAIL  ${t.name}\n        ${e.message}`);
+        fail++;
+        failures.push(t.name);
+      }
+    }
   }
   await browser.close();
   console.log(`\n${pass} passed, ${fail} failed, ${tests.length} total`);
+  if (flaky.length) {
+    console.log(`\n${flaky.length} needed a second attempt:\n - ` + flaky.join('\n - '));
+  }
   if (fail) { console.log('Failures:\n - ' + failures.join('\n - ')); process.exit(1); }
 })();
