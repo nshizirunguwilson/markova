@@ -6,7 +6,6 @@ import { Download, FileText, Play } from "lucide-react";
 import { resolveUploadUrl } from "@/lib/assets";
 import { kindOfUrl, shortFilename } from "@/lib/attachments";
 import { MediaLightbox } from "./media-lightbox";
-import { VideoPlayer } from "./video-player";
 
 /**
  * A file inside a message.
@@ -117,12 +116,54 @@ export function MessageAttachment({
   }
 
   if (kind === "video") {
+    /*
+      In the bubble a clip is a still with a play button on it — it does not
+      play here at all. It used to, and expanding it then started a second
+      copy from the beginning while the small one carried on playing behind
+      the overlay: two soundtracks at once, and the position thrown away.
+
+      One clip, one place. Pressing play opens it large and plays it there.
+      Treated exactly like a photograph otherwise, down to where the download
+      sits, because in a conversation they are the same kind of thing.
+    */
     return (
-      <div className="overflow-hidden rounded-lg">
-        {/* Our own controls, not the browser's: the built-in ones are a
-            different shape and colour in every browser, and in a bubble they
-            look like a piece of somebody else's application. */}
-        <VideoPlayer src={href} onExpand={() => setOpened(true)} />
+      <figure className="group/att relative overflow-hidden rounded-lg bg-black">
+        <button
+          type="button"
+          onClick={() => setOpened(true)}
+          aria-label={`Play ${name}`}
+          className="block w-full"
+        >
+          <video
+            src={href}
+            // Enough to draw the first frame; nothing is fetched beyond it
+            // until somebody actually opens the clip.
+            preload="metadata"
+            muted
+            playsInline
+            tabIndex={-1}
+            className="pointer-events-none max-h-72 w-full rounded-lg bg-black object-contain"
+          />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors group-hover/att:bg-black/60">
+              <Play className="ml-1 h-6 w-6" />
+            </span>
+          </span>
+        </button>
+
+        {/* Same corner as a photograph's. */}
+        <div className="absolute right-1.5 top-1.5 rounded-md bg-black/45 text-white backdrop-blur-sm">
+          <a
+            href={href}
+            download={name}
+            aria-label={`Download ${name}`}
+            title={`Download ${name}`}
+            className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-black/60"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+        </div>
+
         {opened && (
           <MediaLightbox
             src={href}
@@ -131,18 +172,7 @@ export function MessageAttachment({
             onClose={() => setOpened(false)}
           />
         )}
-        <div
-          className={`mt-1 flex items-center gap-2 text-[0.75rem] ${
-            mine ? "text-on-primary/80" : "text-muted"
-          }`}
-        >
-          <Play className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate" title={name}>
-            {shortFilename(name)}
-          </span>
-          {download}
-        </div>
-      </div>
+      </figure>
     );
   }
 

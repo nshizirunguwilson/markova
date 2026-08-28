@@ -23,11 +23,15 @@ import { clockDuration } from "@/lib/voice";
 export function VideoPlayer({
   src,
   onExpand,
+  autoPlay,
   className = "",
 }: {
   src: string;
   /** Given when there is somewhere larger to open it. */
   onExpand?: () => void;
+  /** Start playing as soon as it can. The lightbox opens on a deliberate
+   *  press, so the clip should already be running when it appears. */
+  autoPlay?: boolean;
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,7 +40,7 @@ export function VideoPlayer({
   const [at, setAt] = useState(0);
   const [length, setLength] = useState(0);
   /** True once anything has been played, so the big centre button gets out of the way. */
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(!!autoPlay);
 
   // Controls linger while paused and after a touch, and get out of the way
   // while it is actually playing.
@@ -91,7 +95,10 @@ export function VideoPlayer({
       <video
         ref={videoRef}
         src={src}
-        preload="metadata"
+        // Opened on a deliberate press, so it is worth fetching the whole
+        // clip here; in a bubble it is only ever a still.
+        preload={autoPlay ? "auto" : "metadata"}
+        autoPlay={autoPlay}
         playsInline
         onClick={toggle}
         onPlay={() => {
@@ -112,7 +119,9 @@ export function VideoPlayer({
           if (Number.isFinite(found)) setLength(found);
         }}
         onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
-        className="max-h-72 w-full cursor-pointer bg-black"
+        className={`w-full cursor-pointer bg-black ${
+          autoPlay ? "max-h-[90vh]" : "max-h-72"
+        }`}
       />
 
       {/*

@@ -23,18 +23,48 @@ describe("a file inside a message", () => {
   });
 
   /*
-    Our own controls, not the browser's. The built-in ones are a different
-    shape, colour and size in every browser, and inside a bubble they look
-    like a piece of somebody else's application.
+    In the bubble a clip is a still with a play button on it — it does not
+    play here at all. It used to, and expanding it then started a second copy
+    from the beginning while the small one carried on playing behind the
+    overlay: two soundtracks at once.
   */
-  it("gives a video controls of our own, not the browser's", () => {
+  it("shows a video as a still, with no controls of its own", () => {
     const { container } = render(
       <MessageAttachment fileUrl="/uploads/attachments/a1b2.mp4" fileName="demo.mp4" />,
     );
-    const video = container.querySelector("video");
-    expect(video).toBeInTheDocument();
+    const video = container.querySelector("video")!;
     expect(video).not.toHaveAttribute("controls");
-    expect(screen.getByRole("button", { name: /play video/i })).toBeInTheDocument();
+    expect(video).not.toHaveAttribute("autoplay");
+    // The still cannot be clicked into playing; the button over it opens it.
+    expect(video.className).toContain("pointer-events-none");
+    expect(screen.getByRole("button", { name: /play demo\.mp4/i })).toBeInTheDocument();
+  });
+
+  it("names the clip on the control that opens it", () => {
+    render(
+      <MessageAttachment fileUrl="/uploads/attachments/a1b2.mp4" fileName="demo.mp4" />,
+    );
+    expect(screen.getByRole("button", { name: "Play demo.mp4" })).toBeInTheDocument();
+  });
+
+  // The filename row under a clip is gone: the bubble shows the picture, and
+  // a name under it is a caption nobody asked for.
+  it("does not print the filename under a clip", () => {
+    render(
+      <MessageAttachment fileUrl="/uploads/attachments/a1b2.mp4" fileName="demo.mp4" />,
+    );
+    expect(screen.queryByText("demo.mp4")).toBeNull();
+  });
+
+  // Same corner as a photograph's, because in a conversation they are the
+  // same kind of thing.
+  it("puts a clip's download where a photograph's is", () => {
+    const { container } = render(
+      <MessageAttachment fileUrl="/uploads/attachments/a1b2.mp4" fileName="demo.mp4" />,
+    );
+    const corner = container.querySelector(".absolute.right-1\\.5.top-1\\.5");
+    expect(corner).toBeInTheDocument();
+    expect(corner!.querySelector("a[download]")).toBeInTheDocument();
   });
 
   // Enough to draw the first frame and know the length, without pulling
@@ -106,15 +136,6 @@ describe("a file inside a message", () => {
     const all = [...container.querySelectorAll("a[download]")];
     return all[all.length - 1]!.className;
   }
-
-  it("takes its colours from your own bubble for a video too", () => {
-    const { container, rerender } = render(
-      <MessageAttachment fileUrl="/uploads/a.mp4" fileName="a.mp4" />,
-    );
-    const theirs = downloadControl(container);
-    rerender(<MessageAttachment fileUrl="/uploads/a.mp4" fileName="a.mp4" mine />);
-    expect(downloadControl(container)).not.toBe(theirs);
-  });
 
   it("and for audio", () => {
     const { container, rerender } = render(
@@ -196,11 +217,15 @@ describe("opening media large from a bubble", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("opens a clip from its expand control", async () => {
+  // One clip, one place: pressing play opens it large and plays it there.
+  it("opens a clip large rather than playing it in the bubble", async () => {
     render(<MessageAttachment fileUrl="/uploads/attachments/a1.mp4" fileName="demo.mp4" />);
     await userEvent
       .setup()
-      .click(screen.getByRole("button", { name: /open video larger/i }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      .click(screen.getByRole("button", { name: /play demo\.mp4/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    // The copy that plays is the one in the dialog, and it starts itself.
+    expect(dialog.querySelector("video")).toHaveAttribute("autoplay");
   });
 });

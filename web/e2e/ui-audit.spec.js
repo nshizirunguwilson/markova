@@ -1058,7 +1058,7 @@ test('messages: the sidebar says how many are waiting', async (browser) => {
  * Generously rounded, with one corner squared off on the speaker's side.
  * That single square corner is what the eye reads as "which side said this".
  */
-test('chat: bubbles are rounded, with one corner squared per run', async (browser) => {
+test('chat: bubbles are rounded and carry one arrow per run', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, '/admin/messages');
@@ -1094,14 +1094,27 @@ test('chat: bubbles are rounded, with one corner squared per run', async (browse
   assert(shape, 'no bubbles rendered');
   for (const b of shape.all) {
     // Rounded: the complaint was that they had gone square.
-    assert(b.tl >= 12 && b.tr >= 12, `a bubble's top corners are ${b.tl}/${b.tr}px, not rounded`);
+    assert(b.bl >= 12 && b.br >= 12, `a bubble's bottom corners are ${b.bl}/${b.br}px, not rounded`);
     if (b.squared) {
-      const squaredCorner = Math.min(b.bl, b.br);
-      assert(squaredCorner <= 8, `the squared corner is ${squaredCorner}px, which is not squared`);
+      // The corner the tail grows out of is squared so the triangle meets it.
+      const tailCorner = Math.min(b.tl, b.tr);
+      assert(tailCorner <= 4, `the tail's corner is ${tailCorner}px, so the arrow will not meet it`);
+    } else {
+      assert(b.tl >= 12 && b.tr >= 12, `a tailless bubble has a square top corner`);
     }
   }
-  assert(shape.squaredCount > 0, 'no bubble carries the squared corner');
-  assert(shape.squaredCount <= shape.total, 'more squared corners than bubbles');
+  assert(shape.squaredCount > 0, 'no bubble carries a tail');
+  assert(shape.squaredCount <= shape.total, 'more tails than bubbles');
+
+  // The arrow itself, drawn as a triangle off that corner.
+  const arrow = await page.evaluate(() => {
+    const tailed = document.querySelector('.bubble-tail-start, .bubble-tail-end');
+    if (!tailed) return null;
+    const before = getComputedStyle(tailed, '::before');
+    return { content: before.content, clip: before.clipPath, width: before.width };
+  });
+  assert(arrow, 'no tailed bubble to inspect');
+  assert(arrow.clip && arrow.clip !== 'none', 'the tail has no triangle clip-path');
   await ctx.close();
 });
 
@@ -1136,25 +1149,53 @@ test('chat: every message has its own reply control', async (browser) => {
 });
 
 /**
- * A term report says how one term went; these read the three together.
+ * A term report answers "how was this term". The last term of a year offers
+ * the other question too, without a page of its own to reach it from.
  */
-test('reports: the year tab offers both yearly reports', async (browser) => {
+test('reports: the last term of a year can be read as the whole year', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await authedPage(ctx, 'ADMIN');
   await visit(page, '/admin/reports');
 
-  await page.locator('button', { hasText: /^The Year$/ }).first().click();
-  await page.waitForTimeout(600);
+  // The Year tab is gone; the choice lives on the report card filters.
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('button')].map((b) => b.textContent.trim()),
+  );
+  assert(!tabs.includes('The Year'), 'the Year tab is still there');
 
-  const found = await page.evaluate(() => ({
-    student: /One student.s year/.test(document.body.textContent || ''),
-    school: /The whole school/.test(document.body.textContent || ''),
-    year: !!document.querySelector('#year-report-year'),
-  }));
+  const years = page.locator('select[aria-label="Academic year"]');
+  const yearOptions = await years.locator('option').all();
+  if (yearOptions.length < 2) {
+    await ctx.close();
+    return;
+  }
+  await years.selectOption({ index: 1 });
+  await page.waitForTimeout(900);
 
-  assert(found.student, "the annual report section is not on the year tab");
-  assert(found.school, "the school summary section is not on the year tab");
-  assert(found.year, 'the year tab does not ask for an academic year');
+  const termSelect = page.locator('select[aria-label="Term"]');
+  const terms = await termSelect.locator('option').all();
+  if (terms.length < 2) {
+    await ctx.close();
+    return;
+  }
+
+  // The last term of the year is the one that offers it.
+  await termSelect.selectOption({ index: terms.length - 1 });
+  await page.waitForTimeout(400);
+  const onLast = await page.evaluate(() =>
+    /ends the year/i.test(document.body.textContent || ''),
+  );
+  assert(onLast, 'the last term does not offer the whole-year choice');
+
+  // An earlier one does not.
+  if (terms.length > 2) {
+    await termSelect.selectOption({ index: 1 });
+    await page.waitForTimeout(400);
+    const onFirst = await page.evaluate(() =>
+      /ends the year/i.test(document.body.textContent || ''),
+    );
+    assert(!onFirst, 'an earlier term is offering the whole-year choice');
+  }
   await ctx.close();
 });
 

@@ -18,7 +18,7 @@ import {
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Search, Send, ArrowLeft, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText } from "lucide-react";
+import { MessageSquare, Plus, Search, Send, ArrowLeft, ChevronDown, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
@@ -107,6 +107,16 @@ export default function MessagesPage() {
   const [renameTo, setRenameTo] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  /**
+   * True once the reader has scrolled far enough up that the newest message
+   * is off the bottom of the view.
+   *
+   * Far enough being a whole screen rather than a few pixels: a button that
+   * appears the moment you nudge the wheel is a button that flickers, and
+   * somebody reading the last few messages does not need to be told where the
+   * bottom is.
+   */
+  const [scrolledUp, setScrolledUp] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Mark as read when a conversation is open AND whenever a new incoming
@@ -254,6 +264,30 @@ export default function MessagesPage() {
     for (const child of Array.from(list.children)) observer.observe(child);
     return () => observer.disconnect();
   }, [selectedConv, threadBlocks.length]);
+
+  /**
+   * Watch how far from the bottom the reader is, so the jump-down button can
+   * appear when it is useful and stay out of the way when it is not.
+   */
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list || !selectedConv) return;
+
+    const check = () => {
+      const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
+      setScrolledUp(gap > list.clientHeight * 0.75);
+    };
+    check();
+    list.addEventListener("scroll", check, { passive: true });
+    return () => list.removeEventListener("scroll", check);
+  }, [selectedConv, threadBlocks.length]);
+
+  /** Back to the newest message. */
+  const jumpToBottom = useCallback(() => {
+    const list = messageListRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+  }, []);
 
   // Handle typing indicator
   const handleInputChange = useCallback(
@@ -805,6 +839,23 @@ export default function MessagesPage() {
               Repeating both on every bubble gave the least important thing on
               screen the same rhythm as the words.
             */}
+            {/*
+              Wrapped so the jump-down button can sit over the thread rather
+              than inside it: a child of the scrolling element scrolls away
+              with the messages, which is the one place it must not be.
+            */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+            {scrolledUp && (
+              <button
+                type="button"
+                onClick={jumpToBottom}
+                aria-label="Jump to the newest message"
+                title="Jump to the newest message"
+                className="motion-fade-in absolute right-4 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-popover transition-colors hover:bg-surface-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <ChevronDown className="h-5 w-5" />
+              </button>
+            )}
             <div ref={messageListRef} className="flex-1 overflow-y-auto px-4 py-5">
               {threadBlocks.map((block) => (
                 <div key={block.key}>
@@ -841,15 +892,12 @@ export default function MessagesPage() {
                         )}
 
                         {group.messages.map((msg: any, i) => {
-                          /*
-                            The squared corner closes a run rather than opening
-                            it: it sits at the bottom, nearest the speaker, so
-                            it belongs on the last bubble. Four bubbles from one
-                            person do not need four of them.
-                          */
-                          const endsRun = i === group.messages.length - 1;
+                          // The tail opens a run and points at whoever said it.
+                          // Four bubbles from one person do not need four
+                          // arrows pointing at the same place.
+                          const opensRun = i === 0;
                           const corner = `bubble ${
-                            endsRun
+                            opensRun
                               ? group.mine
                                 ? "bubble-tail-end"
                                 : "bubble-tail-start"
@@ -961,6 +1009,7 @@ export default function MessagesPage() {
               )}
 
               <div ref={messagesEndRef} />
+            </div>
             </div>
 
             {/*
