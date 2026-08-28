@@ -26,6 +26,8 @@ import { personDetail, personMatches, personName } from "@/lib/person";
 import { QuotedMessage } from "@/components/messaging/quoted-message";
 import { MessageAttachment } from "@/components/messaging/message-attachment";
 import { MessageText } from "@/components/messaging/message-text";
+import { VoiceNote } from "@/components/messaging/voice-note";
+import { VoiceRecorder } from "@/components/messaging/voice-recorder";
 import {
   ACCEPTED_ATTACHMENTS,
   humanSize,
@@ -66,6 +68,8 @@ export default function MessagesPage() {
    */
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  /** True while the recorder has replaced the field. */
+  const [recordingVoice, setRecordingVoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAttachment = useUploadAttachment();
   const [newConvType, setNewConvType] = useState("ONE_ON_ONE");
@@ -237,6 +241,58 @@ export default function MessagesPage() {
       return;
     }
     setPendingFile(chosen);
+  };
+
+  /**
+   * Uploads a file and sends it as a message in one go.
+   *
+   * A voice note takes this path rather than the pending-file one: it is
+   * finished the moment recording stops, and asking somebody to press send
+   * twice for one recording is a step nobody expects.
+   */
+  const sendFileNow = async (
+    file: File,
+    contentType: "FILE" | "VOICE",
+    caption: string,
+  ) => {
+    if (!selectedConv) return;
+    const replyToId = replyingTo?.id;
+    setUploadPercent(0);
+    try {
+      const uploaded = await uploadAttachment.mutateAsync({
+        file,
+        onProgress: setUploadPercent,
+      });
+      setUploadPercent(null);
+      setReplyingTo(null);
+      sendMessageRest.mutate({
+        conversationId: selectedConv,
+        content: caption || uploaded.fileName,
+        contentType,
+        fileUrl: uploaded.fileUrl,
+        fileName: uploaded.fileName,
+        replyToId,
+      });
+    } catch {
+      // The hook has already said why.
+      setUploadPercent(null);
+    }
+  };
+
+  /** A finished recording: sent straight away, under its own name. */
+  const handleRecorded = (file: File, ran: number) => {
+    setRecordingVoice(false);
+    // A tap that produced nothing is not a message.
+    if (ran < 1) {
+      toast.error("That was too short to send. Hold on a moment longer.");
+      return;
+    }
+    const refusal = whyNotSendable(file);
+    if (refusal) {
+      toast.error(refusal);
+      return;
+    }
+    void sendFileNow(file, "VOICE", "");
   };
 
   const handleSend = async () => {
@@ -766,17 +822,26 @@ export default function MessagesPage() {
                               {/* The file first, its caption under it —
                                   the order every messaging app uses, because
                                   the caption is about the file. */}
-                              {msg.fileUrl && (
-                                <MessageAttachment
-                                  fileUrl={msg.fileUrl}
-                                  fileName={msg.fileName}
-                                  mine={group.mine}
-                                />
-                              )}
+                              {/* A voice note plays where it sits; every
+                                  other file gets its own treatment. */}
+                              {msg.fileUrl &&
+                                (msg.contentType === "VOICE" ? (
+                                  <VoiceNote
+                                    fileUrl={msg.fileUrl}
+                                    mine={group.mine}
+                                  />
+                                ) : (
+                                  <MessageAttachment
+                                    fileUrl={msg.fileUrl}
+                                    fileName={msg.fileName}
+                                    mine={group.mine}
+                                  />
+                                ))}
                               {/* A file sent with no caption is stored under
                                   its own name; repeating that under the file
                                   itself says nothing. */}
                               {msg.content &&
+                                msg.contentType !== "VOICE" &&
                                 !(msg.fileUrl && msg.content === msg.fileName) && (
                                   <MessageText
                                     text={msg.content}
@@ -927,17 +992,33 @@ export default function MessagesPage() {
                       className="hidden"
                       onChange={(e) => handleChooseFile(e.target.files?.[0])}
                     />
-                    <button
-                      type="button"
-                      aria-label="Attach a file"
-                      title="Attach a file"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadPercent !== null}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:opacity-40"
-                    >
-                      <Paperclip className="h-[17px] w-[17px]" />
-                    </button>
+                    {!recordingVoice && (
+                      <button
+                        type="button"
+                        aria-label="Attach a file"
+                        title="Attach a file"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadPercent !== null}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-foreground disabled:opacity-40"
+                      >
+                        <Paperclip className="h-[17px] w-[17px]" />
+                      </button>
+                    )}
 
+                    {/*
+                      While recording, the recorder takes the whole row. A
+                      field you cannot type into sitting beside a running
+                      recorder only invites people to try.
+                    */}
+                    <VoiceRecorder
+                      disabled={uploadPercent !== null}
+                      onStart={() => setRecordingVoice(true)}
+                      onRecorded={handleRecorded}
+                      onCancel={() => setRecordingVoice(false)}
+                    />
+
+                    {!recordingVoice && (
+                    <>
                     <input
                       type="text"
                       value={messageText}
@@ -963,6 +1044,8 @@ export default function MessagesPage() {
                     >
                       <Send className="h-[16px] w-[16px]" />
                     </button>
+                    </>
+                    )}
                   </div>
                 </>
               )}
