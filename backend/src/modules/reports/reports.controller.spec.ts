@@ -1,3 +1,4 @@
+import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { ReportsController } from './reports.controller';
 import { VerifyController } from './verify.controller';
 import { ReportsService } from './reports.service';
@@ -26,6 +27,11 @@ describe('ReportsController', () => {
     'isReportCardIssued',
     'generateClassReportCards',
     'getYearReportData',
+    'generateYearReportHtml',
+    'generateYearReportPdf',
+    'getSchoolYearSummary',
+    'generateSchoolYearSummaryHtml',
+    'generateSchoolYearSummaryPdf',
     'generateDocument',
     'generateDocumentPdf',
     'generateIdCardData',
@@ -268,11 +274,48 @@ describe('ReportsController', () => {
     });
   });
 
+  /**
+   * A class average and a promotion count across the whole school are the
+   * head teacher's figures. A parent has no business reading how every other
+   * child in the year did, and a teacher who needs their own class has the
+   * class report.
+   */
+  describe("who may read the whole school's year", () => {
+    it.each([
+      ['the data', 'getSchoolYearSummary'],
+      ['the page', 'getSchoolYearSummaryHtml'],
+      ['the download', 'getSchoolYearSummaryPdf'],
+    ])('%s is admin only', (_n, method) => {
+      const roles = Reflect.getMetadata(
+        ROLES_KEY,
+        (ReportsController.prototype as Record<string, any>)[method],
+      ) as string[];
+      expect(roles).toEqual(['ADMIN']);
+    });
+
+    // The annual report is a student's own, so it is open to the same people
+    // the term card is.
+    it('but a student may still read their own annual report', () => {
+      const roles = Reflect.getMetadata(
+        ROLES_KEY,
+        ReportsController.prototype.getYearReportHtml,
+      ) as string[];
+      expect(roles).toContain('STUDENT');
+      expect(roles).toContain('PARENT');
+    });
+  });
+
   describe('every report naming a student checks whose it is', () => {
     it.each([
       ['the data', (c: any) => c.getTermReport('student-1', 't', parent)],
       ['the page', (c: any) => c.getTermReportHtml('student-1', 't', parent)],
       ['the year', (c: any) => c.getYearReport('student-1', 'y', parent)],
+      // The annual report carries a whole year of a child's marks, so it is
+      // checked exactly as hard as the term card is.
+      [
+        'the annual page',
+        (c: any) => c.getYearReportHtml('student-1', 'y', parent),
+      ],
     ])('%s', async (_n, call) => {
       await run({
         name: 'checked',

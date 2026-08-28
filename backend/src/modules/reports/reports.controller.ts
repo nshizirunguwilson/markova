@@ -137,6 +137,85 @@ export class ReportsController {
     return this.service.getYearReportData(studentId, academicYearId);
   }
 
+  @Get('year/:studentId/html')
+  // Bulk class downloads fetch these one per student, like the term cards.
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Get the annual report as HTML' })
+  async getYearReportHtml(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    return this.service.generateYearReportHtml(studentId, academicYearId);
+  }
+
+  @Get('year/:studentId/pdf')
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
+  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @ApiOperation({ summary: 'Download the annual report as PDF' })
+  async getYearReportPdf(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
+    @Res() res: express.Response,
+    @CurrentUser() user: any,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    const pdf = await this.service.generateYearReportPdf(
+      studentId,
+      academicYearId,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="annual-report-${studentId}.pdf"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
+  }
+
+  // ── The school's year ───────────────────────────────────────────────────
+
+  /*
+    Admin only, all three. A class average and a promotion count across the
+    whole school are the head teacher's figures; a parent has no business
+    reading how every other child in the year did, and a teacher who needs
+    their own class has the class report.
+  */
+  @Get('year-summary')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: "Get the whole school's year as data" })
+  async getSchoolYearSummary(
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
+  ) {
+    return this.service.getSchoolYearSummary(academicYearId);
+  }
+
+  @Get('year-summary/html')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: "Get the whole school's year as HTML" })
+  async getSchoolYearSummaryHtml(
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
+  ) {
+    return this.service.generateSchoolYearSummaryHtml(academicYearId);
+  }
+
+  @Get('year-summary/pdf')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: "Download the whole school's year as PDF" })
+  async getSchoolYearSummaryPdf(
+    @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
+    @Res() res: express.Response,
+  ) {
+    const pdf = await this.service.generateSchoolYearSummaryPdf(academicYearId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="school-year-summary.pdf"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
+  }
+
   // ── Documents ───────────────────────────────────────────────────────────
 
   @Post('document')
