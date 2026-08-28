@@ -715,22 +715,75 @@ describe('MessagingService', () => {
       expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     });
 
-    it.each(['STUDENT', 'PARENT'])('holds a %s to staff only', async (role) => {
-      mockPrisma.user.findUnique.mockResolvedValue({ role });
+    /** The `where` the roll was actually queried with. */
+    const askedFor = () => mockPrisma.user.findMany.mock.calls[0][0].where;
+
+    it('holds a PARENT to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT' });
       await service.getContacts('user-1');
-      expect(mockPrisma.user.findMany.mock.calls[0][0].where.role).toEqual({
-        in: ['ADMIN', 'TEACHER', 'LIBRARIAN'],
+      const clause = askedFor().AND[0];
+      expect(clause.role.in).toContain('ADMIN');
+      expect(clause.role.in).not.toContain('STUDENT');
+      expect(clause.role.in).not.toContain('PARENT');
+    });
+
+    /**
+     * The staff list used to be written out by hand, and had already gone
+     * stale twice: a student could not message the nurse or the matron
+     * because nobody revisited it when those roles were added.
+     */
+    it('counts every role that works for the school as staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'PARENT' });
+      await service.getContacts('user-1');
+      const staff = askedFor().AND[0].role.in;
+      for (const role of ['ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE']) {
+        expect(staff).toContain(role);
+      }
+    });
+
+    /**
+     * Being unable to message the person at the next desk is the complaint.
+     * Being able to search fourteen hundred children by name is a different
+     * problem, so a student reaches their own class and the staff.
+     */
+    it('lets a student reach their classmates as well as the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1');
+      const [staffOrClassmates] = askedFor().AND[0].OR;
+      expect(staffOrClassmates.role.in).toContain('TEACHER');
+      expect(askedFor().AND[0].OR[1]).toEqual({
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
       });
     });
 
-    it.each(['ADMIN', 'TEACHER', 'LIBRARIAN'])(
+    it('holds a student with no class to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: null, status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1');
+      expect(askedFor().AND[0]).not.toHaveProperty('OR');
+    });
+
+    // A student who has left keeps no reach into the class they left.
+    it('holds a student who has left to the staff', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'TRANSFERRED' },
+      });
+      await service.getContacts('user-1');
+      expect(askedFor().AND[0]).not.toHaveProperty('OR');
+    });
+
+    it.each(['ADMIN', 'TEACHER', 'LIBRARIAN', 'NURSE', 'MATRON'])(
       'lets a %s write to anybody',
       async (role) => {
         mockPrisma.user.findUnique.mockResolvedValue({ role });
         await service.getContacts('user-1');
-        expect(
-          mockPrisma.user.findMany.mock.calls[0][0].where,
-        ).not.toHaveProperty('role');
+        expect(askedFor()).not.toHaveProperty('AND');
       },
     );
 
@@ -753,11 +806,22 @@ describe('MessagingService', () => {
     it('searches the name and the address', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
       await service.getContacts('user-1', 'Aline');
-      const or = JSON.stringify(
-        mockPrisma.user.findMany.mock.calls[0][0].where.OR,
-      );
-      expect(or).toContain('firstName');
-      expect(or).toContain('email');
+      // The search is one clause among the rules, not a replacement for them:
+      // narrowing by name must never widen who is reachable.
+      const asked = JSON.stringify(askedFor().AND);
+      expect(asked).toContain('firstName');
+      expect(asked).toContain('email');
+    });
+
+    it('keeps a student inside their class while searching', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        role: 'STUDENT',
+        student: { classSectionId: 'section-1', status: 'ACTIVE' },
+      });
+      await service.getContacts('user-1', 'Aline');
+      const [rules, search] = askedFor().AND;
+      expect(rules).toHaveProperty('OR');
+      expect(JSON.stringify(search)).toContain('firstName');
     });
 
     it('ignores a search of nothing but spaces', async () => {
