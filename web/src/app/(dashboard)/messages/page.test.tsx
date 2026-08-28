@@ -1814,12 +1814,19 @@ describe("runs of messages from one person", () => {
     expect(send).toBeEnabled();
   });
 
-  // The chat carries words. Attachments were removed from it deliberately.
-  it("offers no way to attach a file", async () => {
+  /*
+    Attachments were taken out of the chat once, when the only thing they did
+    was upload a file with no preview and no download. They are back with all
+    three, and the composer offers them beside the field rather than as a
+    separate control somewhere else on the page.
+  */
+  it("offers a way to attach a file beside the field", async () => {
     await openWith([at("m-1", "u-3", 0, "Muraho")]);
     await screen.findByText("Muraho");
-    expect(document.querySelector('input[type="file"]')).toBeNull();
-    expect(screen.queryByText(/attach/i)).toBeNull();
+    expect(document.querySelector('input[type="file"]')).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /attach a file/i }),
+    ).toBeInTheDocument();
   });
 
   it("names the sender in a group, where there is more than one", async () => {
@@ -2292,6 +2299,224 @@ describe("replies that are not straightforward", () => {
     await user.click(screen.getByRole("button", { name: /go back/i }));
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /cancel reply/i })).toBeNull(),
+    );
+  });
+});
+
+/**
+ * Files, and the checks that stop a person wasting their data on one that was
+ * never going to be accepted.
+ */
+describe("attaching a file", () => {
+  async function openConversation() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    return screen.findByPlaceholderText(/type a message/i);
+  }
+
+  /** The hidden file input the paperclip opens. */
+  function picker() {
+    return document.querySelector('input[type="file"]') as HTMLInputElement;
+  }
+
+  const asFile = (name: string, type: string, size: number) => {
+    const f = new File(["x"], name, { type });
+    Object.defineProperty(f, "size", { value: size });
+    return f;
+  };
+
+  it("offers a way to attach one", async () => {
+    await openConversation();
+    expect(
+      screen.getByRole("button", { name: /attach a file/i }),
+    ).toBeInTheDocument();
+  });
+
+  // The picker greys out what would be refused, which is a better place to
+  // learn it than an error after the upload.
+  it("offers only the types the API accepts", async () => {
+    await openConversation();
+    const accept = picker().getAttribute("accept") ?? "";
+    expect(accept).toContain("image/png");
+    expect(accept).toContain("video/mp4");
+    expect(accept).toContain("application/pdf");
+    expect(accept).not.toContain("svg");
+  });
+
+  it("shows the chosen file before it is sent", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+  });
+
+  /**
+   * Checked before a byte is uploaded: somebody on a mobile line should not
+   * push sixty megabytes up only to be told it was never going to fit.
+   */
+  it("refuses one that is too large without uploading it", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("film.mp4", "video/mp4", 80 * 1024 * 1024)] },
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("refuses a kind that is not accepted", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("x.svg", "image/svg+xml", 500)] },
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("lets the wrong file be taken back before anyone sees it", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /remove attachment/i }));
+
+    await waitFor(() => expect(screen.queryByText(/marks\.pdf/)).toBeNull());
+  });
+
+  // A file on its own is a message; the send button has to say so.
+  it("allows sending a file with no words typed", async () => {
+    await openConversation();
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /send message/i }),
+      ).not.toBeDisabled(),
+    );
+  });
+
+  // The socket carries text only, so anything with a file goes by REST —
+  // after the upload, because the message cannot be stored without the URL.
+  it("uploads first, then sends the message pointing at it", async () => {
+    await openConversation();
+    h.api.post.mockResolvedValue({
+      data: { fileUrl: "/uploads/attachments/a1.pdf", fileName: "marks.pdf", size: 2000 },
+    });
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => {
+      const paths = h.api.post.mock.calls.map((c: unknown[]) => c[0]);
+      expect(paths).toContain("/messaging/attachments");
+      expect(paths).toContain("/messaging/messages");
+    });
+
+    const sent = h.api.post.mock.calls.find(
+      (c: unknown[]) => c[0] === "/messaging/messages",
+    )?.[1] as Record<string, unknown>;
+    expect(sent.fileUrl).toBe("/uploads/attachments/a1.pdf");
+    expect(sent.fileName).toBe("marks.pdf");
+    expect(sent.contentType).toBe("FILE");
+  });
+
+  // A failed upload has to leave the file and the caption where they were,
+  // so the person can try again rather than retyping.
+  it("keeps the file when the upload fails", async () => {
+    await openConversation();
+    h.api.post.mockRejectedValue(new Error("no"));
+
+    fireEvent.change(picker(), {
+      target: { files: [asFile("marks.pdf", "application/pdf", 2000)] },
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(screen.getByText(/marks\.pdf/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * A teacher pasting a link to a past paper and everybody having to retype it
+ * is the whole problem.
+ */
+describe("a link inside a message", () => {
+  it("is clickable", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "The paper is at https://markova.edu/papers",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: /markova\.edu\/papers/ }),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
+/** A photograph is shown, not named. */
+describe("a photograph in a thread", () => {
+  it("is shown in the bubble", async () => {
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        {
+          id: "m-1",
+          conversationId: "conv-1",
+          senderUserId: "u-3",
+          sender: other,
+          content: "sports day.jpg",
+          contentType: "FILE",
+          fileUrl: "/uploads/attachments/a1.jpg",
+          fileName: "sports day.jpg",
+          createdAt: "2026-08-21T09:00:00Z",
+        },
+      ],
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('img[src*="a1.jpg"]'),
+      ).toBeInTheDocument(),
     );
   });
 });
