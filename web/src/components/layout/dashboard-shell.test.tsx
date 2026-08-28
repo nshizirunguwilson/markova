@@ -330,3 +330,45 @@ describe("DashboardShell and the welfare roles", () => {
     expect(h.router.replace).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Motion on the content region.
+ *
+ * The most-seen transition in the app is a page swapping its spinner for
+ * data, and it was a hard cut. Opacity only, and keyed on the path so it
+ * replays per page — nothing moves, and nothing is delayed, which is what
+ * separates this from a sliding route transition in a tool people use all
+ * day.
+ */
+describe("DashboardShell content motion", () => {
+  it("fades the content region in", async () => {
+    h.pathname.current = "/admin";
+    signIn("ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    const main = document.querySelector("#main-content")!;
+    expect(main.className).toContain("motion-fade-in");
+  });
+
+  // The animation must never gate the content: it fades what is already
+  // there, so a reader — or a test — finds it on the first frame.
+  it("has the page in the document straight away", async () => {
+    h.pathname.current = "/admin";
+    signIn("ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(
+      document.querySelector("#main-content")!.textContent,
+    ).toMatch(/the dashboard/i);
+  });
+});
