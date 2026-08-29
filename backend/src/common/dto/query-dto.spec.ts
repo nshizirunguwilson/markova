@@ -23,10 +23,7 @@ import { PocketMoneyQueryDto } from '../../modules/pocket-money/dto';
 import { IdCardRegistryQueryDto } from '../../modules/reports/dto';
 import { QueryIncidentsDto } from '../../modules/discipline/dto';
 import { QueryAnalyticsDto } from '../../modules/analytics/dto';
-import {
-  AdmissionQueryDto,
-  SaveIntakeDto,
-} from '../../modules/admissions/dto';
+import { AdmissionQueryDto, SaveIntakeDto } from '../../modules/admissions/dto';
 
 /**
  * Query strings.

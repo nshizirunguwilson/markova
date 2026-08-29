@@ -70,7 +70,7 @@ export default function AdmissionsStatusPage() {
           Check an application
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Enter the reference the school gave you and the applicant's date of
+          Enter the reference the school gave you and the applicant&apos;s date of
           birth.
         </p>
       </header>
@@ -240,7 +240,7 @@ export default function AdmissionsStatusPage() {
       <footer className="mt-10 space-y-3 border-t border-border pt-6 text-center">
         <p className="flex items-center justify-center gap-2 text-xs text-muted">
           <Lock className="h-3.5 w-3.5" />
-          Only somebody with the reference and the applicant's date of birth can
+          Only somebody with the reference and the applicant&apos;s date of birth can
           see this.
         </p>
         <p className="text-sm">

@@ -15,7 +15,12 @@ import { AdmissionsService } from './admissions.service';
  */
 describe('AdmissionsService', () => {
   const prisma: any = {
-    admissionIntake: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
+    admissionIntake: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     application: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
@@ -26,8 +31,18 @@ describe('AdmissionsService', () => {
     },
     applicationEvent: { create: jest.fn() },
     applicationNote: { create: jest.fn() },
-    applicationDocument: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-    admissionOffer: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
+    applicationDocument: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    admissionOffer: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     classSection: { findUnique: jest.fn() },
     student: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
     user: { findUnique: jest.fn(), create: jest.fn(), upsert: jest.fn() },
@@ -101,7 +116,9 @@ describe('AdmissionsService', () => {
       expect(result.reference).toBe('APP-2026-0001');
       expect(prisma.application.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ reference: expect.stringMatching(/^APP-\d{4}-\d{4}$/) }),
+          data: expect.objectContaining({
+            reference: expect.stringMatching(/^APP-\d{4}-\d{4}$/),
+          }),
         }),
       );
     });
@@ -133,7 +150,9 @@ describe('AdmissionsService', () => {
         ...OPEN_INTAKE,
         isOpen: false,
       });
-      await expect(service.submit(submission)).rejects.toThrow(BadRequestException);
+      await expect(service.submit(submission)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('refuses an intake that has not opened yet', async () => {
@@ -146,7 +165,9 @@ describe('AdmissionsService', () => {
 
     it('says so when the intake does not exist', async () => {
       prisma.admissionIntake.findUnique.mockResolvedValue(null);
-      await expect(service.submit(submission)).rejects.toThrow(NotFoundException);
+      await expect(service.submit(submission)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('refuses a date of birth it cannot read', async () => {
@@ -252,7 +273,8 @@ describe('AdmissionsService', () => {
         { documents: ['BIRTH_CERTIFICATE', 'PASSPORT_PHOTO'] } as never,
         'admin-1',
       );
-      const written = prisma.applicationEvent.create.mock.calls[0][0].data.reason;
+      const written =
+        prisma.applicationEvent.create.mock.calls[0][0].data.reason;
       expect(written).toContain('Birth certificate');
       expect(written).toContain('Passport photograph');
     });
@@ -260,19 +282,22 @@ describe('AdmissionsService', () => {
     it('carries a note alongside the list', async () => {
       await service.requestInfo(
         'app-1',
-        { documents: ['PASSPORT_PHOTO'], note: 'The last one was too dark' } as never,
+        {
+          documents: ['PASSPORT_PHOTO'],
+          note: 'The last one was too dark',
+        } as never,
         'admin-1',
       );
-      expect(prisma.applicationEvent.create.mock.calls[0][0].data.reason).toContain(
-        'too dark',
-      );
+      expect(
+        prisma.applicationEvent.create.mock.calls[0][0].data.reason,
+      ).toContain('too dark');
     });
 
     // An empty request tells the family nothing and stops the school's clock
     // for no reason.
     it('refuses a request that asks for nothing', async () => {
       await expect(
-        service.requestInfo('app-1', { documents: [] } as never, 'admin-1'),
+        service.requestInfo('app-1', { documents: [] }, 'admin-1'),
       ).rejects.toThrow(/what is missing/i);
     });
   });
@@ -333,7 +358,7 @@ describe('AdmissionsService', () => {
       await expect(
         service.makeOffer(
           'app-1',
-          { classSectionId: 'section-1', expiresAt: '2020-01-01' } as never,
+          { classSectionId: 'section-1', expiresAt: '2020-01-01' },
           'admin-1',
         ),
       ).rejects.toThrow(/expire in the past/i);
@@ -358,7 +383,11 @@ describe('AdmissionsService', () => {
         application: application({ status: 'OFFERED' }),
       });
       prisma.admissionOffer.update.mockResolvedValue({});
-      await service.revokeOffer('offer-1', 'Went to a waitlisted family', 'admin-1');
+      await service.revokeOffer(
+        'offer-1',
+        'Went to a waitlisted family',
+        'admin-1',
+      );
       expect(prisma.application.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'UNDER_REVIEW' }),
@@ -463,7 +492,9 @@ describe('AdmissionsService', () => {
     // The family did this themselves; there is no member of staff to name.
     it('names no actor for what the family did', async () => {
       await service.respondToOffer('APP-2026-0417', '2013-04-02', true);
-      expect(prisma.applicationEvent.create.mock.calls[0][0].data.actorUserId).toBeNull();
+      expect(
+        prisma.applicationEvent.create.mock.calls[0][0].data.actorUserId,
+      ).toBeNull();
     });
 
     it('refuses an offer that has already run out', async () => {
@@ -563,7 +594,9 @@ describe('AdmissionsService', () => {
 
     it('reads a reference typed in lower case', async () => {
       prisma.application.findUnique.mockResolvedValue(null);
-      await service.publicStatus('app-2026-0417', '2013-04-02').catch(() => null);
+      await service
+        .publicStatus('app-2026-0417', '2013-04-02')
+        .catch(() => null);
       expect(prisma.application.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { reference: 'APP-2026-0417' } }),
       );
@@ -586,7 +619,10 @@ describe('AdmissionsService', () => {
       prisma.user.create.mockResolvedValue({ id: 'user-1' });
       prisma.student.findUnique.mockResolvedValue(null);
       prisma.student.create.mockResolvedValue({ id: 'student-1' });
-      prisma.user.upsert.mockResolvedValue({ id: 'parent-1', phone: '+250788100000' });
+      prisma.user.upsert.mockResolvedValue({
+        id: 'parent-1',
+        phone: '+250788100000',
+      });
       prisma.parentStudent.create.mockResolvedValue({});
     });
 
@@ -724,7 +760,7 @@ describe('AdmissionsService', () => {
       prisma.applicationDocument.create.mockResolvedValue({ id: 'doc-9' });
       await service.attachDocument(
         'app-1',
-        'PASSPORT_PHOTO' as never,
+        'PASSPORT_PHOTO',
         '/uploads/admissions/photo.png',
         'photo.png',
       );
@@ -741,7 +777,7 @@ describe('AdmissionsService', () => {
     it('refuses a document for an application that is not there', async () => {
       prisma.application.findUnique.mockResolvedValue(null);
       await expect(
-        service.attachDocument('nope', 'PASSPORT_PHOTO' as never, '/f', 'f'),
+        service.attachDocument('nope', 'PASSPORT_PHOTO', '/f', 'f'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -800,7 +836,7 @@ describe('AdmissionsService', () => {
           ],
         }),
       ]);
-      const result = await service.queue({} as never);
+      const result = await service.queue({});
       expect(result.data[0].completeness).toMatchObject({
         complete: false,
         missing: ['NATIONAL_EXAM_RESULT', 'PREVIOUS_REPORT_CARD', 'PARENT_ID'],
@@ -813,7 +849,7 @@ describe('AdmissionsService', () => {
      */
     it('asks the database for the oldest first', async () => {
       prisma.application.findMany.mockResolvedValue([]);
-      await service.queue({} as never);
+      await service.queue({});
       expect(prisma.application.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ orderBy: { submittedAt: 'asc' } }),
       );
@@ -830,7 +866,7 @@ describe('AdmissionsService', () => {
         row({ status: 'INFO_REQUESTED' }),
         row({ status: 'REJECTED' }),
       ]);
-      const result = await service.queue({} as never);
+      const result = await service.queue({});
       expect(result.buckets).toEqual({ TO_DECIDE: 2, WAITING: 1, DECIDED: 1 });
     });
 
@@ -839,22 +875,22 @@ describe('AdmissionsService', () => {
         row({ status: 'SUBMITTED' }),
         row({ status: 'REJECTED' }),
       ]);
-      const result = await service.queue({ bucket: 'TO_DECIDE' } as never);
+      const result = await service.queue({ bucket: 'TO_DECIDE' });
       expect(result.total).toBe(1);
       expect(result.data[0].status).toBe('SUBMITTED');
     });
 
     it('searches a reference, a name or the guardian phone', async () => {
       prisma.application.findMany.mockResolvedValue([]);
-      await service.queue({ search: 'Uwase' } as never);
-      expect(JSON.stringify(prisma.application.findMany.mock.calls[0][0].where)).toContain(
-        'Uwase',
-      );
+      await service.queue({ search: 'Uwase' });
+      expect(
+        JSON.stringify(prisma.application.findMany.mock.calls[0][0].where),
+      ).toContain('Uwase');
     });
 
     it('pages through the pile', async () => {
       prisma.application.findMany.mockResolvedValue([row(), row(), row()]);
-      const result = await service.queue({ page: 2, limit: 2 } as never);
+      const result = await service.queue({ page: 2, limit: 2 });
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(3);
     });

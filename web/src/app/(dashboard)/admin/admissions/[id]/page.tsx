@@ -33,7 +33,6 @@ import {
   ageOf,
   examLine,
   expiresIn,
-  waitingFor,
   type ApplicationStatus,
   type DocumentKind,
 } from "@/lib/admissions";
@@ -776,7 +775,7 @@ export default function ApplicationPage() {
         <div className="space-y-4">
           <p className="text-sm text-muted">
             The place is held from now until the expiry date, and counts against
-            the intake for as long as it is. The family answers on the school's
+            the intake for as long as it is. The family answers on the school&apos;s
             admissions page.
           </p>
           <div>

@@ -205,7 +205,7 @@ export function ageOf(dateOfBirth: string | Date | null | undefined): number | n
   const dob = new Date(dateOfBirth);
   if (Number.isNaN(dob.getTime())) return null;
   const now = new Date();
-  let age = now.getFullYear() - dob.getFullYear();
+  const age = now.getFullYear() - dob.getFullYear();
   const before =
     now.getMonth() < dob.getMonth() ||
     (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate());

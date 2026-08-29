@@ -443,7 +443,7 @@ export default function ApplyPage() {
             <p className="text-xs text-muted">
               The school will ask for the supporting documents once it has read
               the application: a birth certificate, the results slip, the last
-              report card, a photograph and the parent's national ID.
+              report card, a photograph and the parent&apos;s national ID.
             </p>
           </Card>
 
