@@ -157,11 +157,11 @@ describe("grouping a thread the way it is read", () => {
     expect(blocks[0].groups).toHaveLength(1);
   });
 
-  it("holds it together right up to two minutes", () => {
+  it("holds it together right up to three minutes", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, "2026-08-27T10:02:00"),
+        msg("m-2", her, "2026-08-27T10:03:00"),
       ],
       me,
       now,
@@ -170,11 +170,11 @@ describe("grouping a thread the way it is read", () => {
   });
 
   // Past that they are two remarks, not one.
-  it("breaks the run once the gap is longer than two minutes", () => {
+  it("breaks the run once the gap is longer than three minutes", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, "2026-08-27T10:02:30"),
+        msg("m-2", her, "2026-08-27T10:03:30"),
       ],
       me,
       now,
@@ -183,19 +183,19 @@ describe("grouping a thread the way it is read", () => {
   });
 
   // The run is labelled with its last message, which is when the remark
-  // finished. Two minutes is short enough that the difference never matters.
+  // finished. Three minutes is short enough that the difference never matters.
   it("labels a run by when it finished", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:05"),
-        msg("m-2", her, "2026-08-27T10:01:50"),
+        msg("m-2", her, "2026-08-27T10:02:50"),
       ],
       me,
       now,
     );
     const group = blocks[0].groups[0];
     const last = group.messages[group.messages.length - 1];
-    expect(clockTime(last.createdAt)).toBe("10:01");
+    expect(clockTime(last.createdAt)).toBe("10:02");
   });
 
   it("starts a new day rather than running across midnight", () => {
