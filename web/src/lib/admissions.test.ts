@@ -207,6 +207,10 @@ describe("how long an offer has left", () => {
   it("says nothing when there is no offer", () => {
     expect(expiresIn(null)).toBe("");
   });
+
+  it("says nothing for a date it cannot read", () => {
+    expect(expiresIn("last Tuesday")).toBe("");
+  });
 });
 
 /** What decides whether a level fits. */
@@ -224,6 +228,14 @@ describe("an applicant's age", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-20T12:00:00Z"));
     expect(ageOf("2013-09-02")).toBe(12);
+  });
+
+  // A birthday earlier this month has already happened; one later has not.
+  it("counts a birthday already past this month", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-20T12:00:00Z"));
+    expect(ageOf("2013-06-02")).toBe(13);
+    expect(ageOf("2013-06-28")).toBe(12);
   });
 
   it("gives nothing for a date it cannot read", () => {

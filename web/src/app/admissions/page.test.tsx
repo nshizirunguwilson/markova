@@ -116,6 +116,35 @@ describe("finding your own application", () => {
     );
   });
 
+  // A reference typed into a box is followed by Enter, not by reaching for
+  // the mouse.
+  it("looks it up when Enter is pressed in the reference box", async () => {
+    renderWithProviders(<AdmissionsStatusPage />);
+    await type(/Application reference/i, "APP-2026-0417");
+    await type(/date of birth/i, "2013-04-02");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByLabelText(/Application reference/i), {
+        key: "Enter",
+      });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/admissions/public/status",
+        expect.objectContaining({ reference: "APP-2026-0417" }),
+      ),
+    );
+  });
+
+  it("does nothing on Enter before both fields are filled", async () => {
+    renderWithProviders(<AdmissionsStatusPage />);
+    await act(async () => {
+      fireEvent.keyDown(screen.getByLabelText(/Application reference/i), {
+        key: "Enter",
+      });
+    });
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
   it("says who can see this, at the foot of the page", () => {
     renderWithProviders(<AdmissionsStatusPage />);
     expect(document.body.textContent).toMatch(
@@ -207,6 +236,64 @@ describe("answering an offer", () => {
     });
     await look();
     expect(document.body.textContent).toMatch(/would not be taking this place/i);
+  });
+
+  it("carries the reason a family gives for turning it down", async () => {
+    await look();
+    await type(/Why you are turning the place down/i, "We took another school");
+    await click(button(/Turn it down/));
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/admissions/public/offer/answer",
+        expect.objectContaining({
+          accept: false,
+          reason: "We took another school",
+        }),
+      ),
+    );
+  });
+
+  // A family who says nothing has still turned the place down.
+  it("turns it down without a reason", async () => {
+    await look();
+    await click(button(/Turn it down/));
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/admissions/public/offer/answer",
+        expect.objectContaining({ accept: false, reason: undefined }),
+      ),
+    );
+  });
+
+  it("names the trade and says so when the place is a day place", async () => {
+    serve({
+      ...publicStatus,
+      offer: {
+        ...publicStatus.offer,
+        isBoarder: false,
+        classSection: {
+          name: "A",
+          classLevel: { name: "Senior 3" },
+          trade: { code: "SWD", name: "Software Development" },
+        },
+      },
+    });
+    await look();
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/SWD/);
+    expect(text).toMatch(/Day/);
+  });
+
+  it("leaves the page usable when the answer is refused", async () => {
+    await look();
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400, data: { message: "That offer has expired." } },
+    });
+    await click(button(/Accept the place/));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("That offer has expired."),
+    );
   });
 
   it("shows no offer section when there is no offer", async () => {

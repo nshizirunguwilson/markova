@@ -125,6 +125,55 @@ describe("the form", () => {
     expect(document.body.textContent).toMatch(/letter confirming it/i);
   });
 
+  /**
+   * The form asks for the whole enrolment record, and every field has to
+   * reach the API: one that silently does not is a field the office ends up
+   * typing in by hand on the day the student arrives.
+   */
+  it("carries every answer through to the API", async () => {
+    await mount();
+    await fillTheMinimum();
+    await click(screen.getByLabelText(/boarding place/i));
+    await type(/^Gender$/i, "MALE");
+    await type(/Blood type/i, "O+");
+    await type(/Insurance number/i, "MUT-123456");
+    await type(/Allergies/i, "Peanuts");
+    await type(/Medical conditions/i, "Asthma");
+    await type(/^Province$/i, "Kigali City");
+    await type(/^District$/i, "Gasabo");
+    await type(/^Sector$/i, "Kacyiru");
+    await type(/^Cell$/i, "Kamatamu");
+    await type(/^Village$/i, "Amahoro");
+    await type(/School coming from/i, "EP Kacyiru");
+    await type(/Who is paying the fees/i, "NGO_SPONSOR");
+    await type(/Which bursary/i, "Compassion Rwanda");
+    await type(/Relationship to the child/i, "Father");
+    await type(/^Email$/i, "marie@example.com");
+    await type(/would like the school to know/i, "A sibling is already here");
+    await click(button(/Send the application/));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(h.api.post.mock.calls[0][1]).toMatchObject({
+      isBoarder: true,
+      gender: "MALE",
+      bloodType: "O+",
+      insuranceNumber: "MUT-123456",
+      allergies: "Peanuts",
+      medicalConditions: "Asthma",
+      province: "Kigali City",
+      district: "Gasabo",
+      sector: "Kacyiru",
+      cell: "Kamatamu",
+      village: "Amahoro",
+      previousSchool: "EP Kacyiru",
+      funding: "NGO_SPONSOR",
+      fundingDetail: "Compassion Rwanda",
+      guardianRelation: "Father",
+      guardianEmail: "marie@example.com",
+      note: "A sibling is already here",
+    });
+  });
+
   it("says what the school will ask for afterwards", async () => {
     await mount();
     expect(document.body.textContent).toMatch(/birth certificate/i);
@@ -186,6 +235,40 @@ describe("sending it", () => {
       expect(screen.getByText("APP-2026-0417")).toBeInTheDocument(),
     );
     expect(document.body.textContent).toMatch(/Keep this reference/i);
+  });
+
+  /*
+    The reference is the only thing a family gets, so copying it has to work
+    and has to say that it did.
+  */
+  it("copies the reference and says so", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    await mount();
+    await fillTheMinimum();
+    await click(button(/Send the application/));
+    await waitFor(() =>
+      expect(screen.getByText("APP-2026-0417")).toBeInTheDocument(),
+    );
+    await click(button(/Copy the reference/));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("APP-2026-0417"));
+    await waitFor(() => expect(button(/Copied/)).toBeTruthy());
+  });
+
+  // A browser that refuses the clipboard leaves the reference on screen to be
+  // read, and the button must not claim it copied.
+  it("does not claim it copied when the browser refuses", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.assign(navigator, { clipboard: { writeText } });
+    await mount();
+    await fillTheMinimum();
+    await click(button(/Send the application/));
+    await waitFor(() =>
+      expect(screen.getByText("APP-2026-0417")).toBeInTheDocument(),
+    );
+    await click(button(/Copy the reference/));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(button(/Copied/)).toBeFalsy();
   });
 
   it("points at the page where they can check on it", async () => {

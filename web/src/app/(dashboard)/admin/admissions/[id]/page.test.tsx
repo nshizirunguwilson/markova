@@ -241,6 +241,40 @@ describe("deciding", () => {
     );
   });
 
+  it("closes without deciding when the reason box is cancelled", async () => {
+    await mount();
+    await click(button(/Turn down/));
+    await click(button(/^Cancel$/));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("says so when the API refuses a decision", async () => {
+    await mount();
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: { message: "An application that is submitted cannot go straight to enrolled." },
+      },
+    });
+    await click(button(/Turn down/));
+    await type(/^Why$/i, "Below the mark");
+    const dialog = screen.getByRole("dialog");
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /^Turn down$/i.test(b.textContent ?? "")),
+    );
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        expect.stringMatching(/cannot go straight to/),
+      ),
+    );
+  });
+
   it("waitlists with a reason of its own", async () => {
     serve(h.api, { ...routes, "/admissions/applications/app-1/decide": {} });
     await mount();
@@ -302,6 +336,47 @@ describe("asking the family for what is missing", () => {
         .getAllByRole("button")
         .find((b) => /Ask the family/i.test(b.textContent ?? "")),
     ).toBeDisabled();
+  });
+
+  it("unticks what was ticked by mistake", async () => {
+    await mount();
+    await click(button(/Ask for what is missing/));
+    const dialog = await screen.findByRole("dialog");
+    const box = within(dialog).getAllByRole("checkbox")[0];
+    await click(box);
+    await click(box);
+    expect(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /Ask the family/i.test(b.textContent ?? "")),
+    ).toBeDisabled();
+  });
+
+  it("sends a note on its own when nothing is ticked", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/applications/app-1/request-info": {},
+    });
+    await mount();
+    await click(button(/Ask for what is missing/));
+    await type(/Anything else to say/i, "The photograph was too dark");
+    await click(button(/Ask the family/));
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/admissions/applications/app-1/request-info",
+        { documents: [], note: "The photograph was too dark" },
+      ),
+    );
+  });
+
+  it("closes without asking when cancelled", async () => {
+    await mount();
+    await click(button(/Ask for what is missing/));
+    await click(button(/^Cancel$/));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
   });
 
   it("sends exactly what was ticked", async () => {
@@ -372,6 +447,38 @@ describe("offering a place", () => {
     );
   });
 
+  it("closes without offering when cancelled", async () => {
+    await mount();
+    await click(button(/Offer a place/));
+    await click(button(/^Cancel$/));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("carries the conditions it was given", async () => {
+    serve(h.api, { ...routes, "/admissions/applications/app-1/offer": {} });
+    await mount();
+    await click(button(/Offer a place/));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^Class$/i), {
+        target: { value: "section-1" },
+      });
+    });
+    await type(/Held until/i, "2026-09-15");
+    await type(/^Conditions$/i, "Subject to the original results slip");
+    await click(button(/Offer the place/));
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/admissions/applications/app-1/offer",
+        expect.objectContaining({
+          conditions: "Subject to the original results slip",
+        }),
+      ),
+    );
+  });
+
   // An application waiting on the family is not one to offer a place on.
   it("does not offer a place while the family owes the school something", async () => {
     serveApplication({ status: "INFO_REQUESTED" });
@@ -419,6 +526,17 @@ describe("a place already held", () => {
         reason: "It went to a waitlisted family",
       }),
     );
+  });
+
+  it("closes without taking the place back when cancelled", async () => {
+    serveApplication(offered);
+    await mount();
+    await click(button(/Take the place back/));
+    await click(button(/^Cancel$/));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
   });
 
   /**
@@ -486,6 +604,202 @@ describe("enrolling", () => {
  * Acting on a duplicate is a mistake that otherwise surfaces at enrolment,
  * with the family already told they had a place.
  */
+/**
+ * Not every application looks like the one above: a transfer has no exam mark,
+ * a day student is not a boarder, and an address a family only half filled in
+ * still has to read as a row rather than as a gap.
+ */
+describe("an application shaped differently", () => {
+  const other = {
+    gender: "MALE",
+    isBoarder: false,
+    dateOfBirth: null,
+    district: null,
+    province: null,
+    sector: null,
+    cell: null,
+    village: null,
+    previousSchool: null,
+    examMark: null,
+    examTotal: null,
+    fundingDetail: "Sponsored by Gasabo district",
+    secondGuardianName: "Emmanuel Uwase",
+    secondGuardianPhone: "+250788100001",
+    medicalConditions: "Asthma",
+    disability: "Partial hearing loss",
+    trade: { code: "SWD", name: "Software Development" },
+    intake: {
+      id: "intake-2",
+      name: "Transfers, 2026",
+      entryPoint: "TRANSFER",
+      classLevel: { id: "level-3", name: "Senior 3" },
+    },
+    completeness: {
+      required: ["BIRTH_CERTIFICATE", "PASSPORT_PHOTO", "PARENT_ID"],
+      present: ["BIRTH_CERTIFICATE"],
+      missing: ["PASSPORT_PHOTO", "PARENT_ID"],
+      unverified: [],
+      complete: false,
+      fraction: 1 / 3,
+    },
+    documents: [
+      {
+        id: "doc-1",
+        kind: "BIRTH_CERTIFICATE",
+        fileUrl: "",
+        fileName: "birth-certificate.pdf",
+        verifiedAt: "2026-06-02T00:00:00.000Z",
+        uploadedAt: "2026-06-01T00:00:00.000Z",
+        verifiedBy: null,
+      },
+    ],
+  };
+
+  const mountOther = async () => {
+    serveApplication(other);
+    await mount();
+  };
+
+  // "Senior 1 · Senior 1" reads as a fault, but a transfer into Senior 3 is
+  // two different facts and both belong on the line.
+  it("names the door and the level when they differ", async () => {
+    await mountOther();
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/Transfer/);
+    expect(text).toMatch(/Senior 3/);
+    expect(text).toMatch(/Day student/);
+    expect(text).toMatch(/SWD/);
+  });
+
+  it("leaves a dash rather than a gap where the family said nothing", async () => {
+    await mountOther();
+    expect(document.body.textContent).not.toMatch(/National exam/);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(2);
+  });
+
+  it("says who else the school can call, and what to know first", async () => {
+    await mountOther();
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/Emmanuel Uwase/);
+    expect(text).toMatch(/\+250788100001/);
+    expect(text).toMatch(/Asthma/);
+    expect(text).toMatch(/Partial hearing loss/);
+    expect(text).toMatch(/Sponsored by Gasabo district/);
+  });
+
+  // A document that is simply not there needs to read as absent rather than
+  // as one more row a reviewer has to open to find out.
+  it("marks the documents nobody sent", async () => {
+    await mountOther();
+    expect(document.body.textContent).toMatch(/1 of 3 in/);
+    expect(
+      screen.queryByLabelText(/Open Passport photograph/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says the office checked a document even when it cannot say who", async () => {
+    await mountOther();
+    expect(document.body.textContent).toMatch(/Checked by the office/);
+  });
+
+  it("shows a held day place with its trade", async () => {
+    serveApplication({
+      ...other,
+      status: "OFFERED",
+      offers: [
+        {
+          ...liveOffer,
+          isBoarder: false,
+          classSection: {
+            id: "section-3",
+            name: "A",
+            classLevel: { name: "Senior 3" },
+            trade: { code: "SWD", name: "Software Development" },
+          },
+        },
+      ],
+    });
+    await mount();
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/Senior 3 SWD A/);
+    expect(text).toMatch(/Day/);
+  });
+});
+
+/**
+ * A refusal from the API is the school's own rule speaking, so the screen
+ * stays where it is and repeats what it said.
+ */
+describe("when the API refuses", () => {
+  const refuse = (message: string) =>
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400, data: { message } },
+    });
+
+  it("keeps the request open when it will not send", async () => {
+    await mount();
+    refuse("Nothing was asked for.");
+    await click(button(/Ask for what is missing/));
+    await type(/Anything else to say/i, "Please resend the photograph");
+    await click(button(/Ask the family/));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Nothing was asked for."),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("keeps the offer open when the round has no places left", async () => {
+    await mount();
+    refuse("That intake has no places left.");
+    await click(button(/Offer a place/));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^Class$/i), {
+        target: { value: "section-1" },
+      });
+    });
+    await type(/Held until/i, "2026-09-15");
+    await click(button(/Offer the place/));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "That intake has no places left.",
+      ),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("keeps the place held when it will not be taken back", async () => {
+    serveApplication({ status: "OFFERED", offers: [liveOffer] });
+    await mount();
+    refuse("That offer has already been answered.");
+    await click(button(/Take the place back/));
+    await type(/^Why$/i, "It went to a waitlisted family");
+    const dialog = screen.getByRole("dialog");
+    await click(
+      within(dialog)
+        .getAllByRole("button")
+        .find((b) => /Take it back/i.test(b.textContent ?? "")),
+    );
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "That offer has already been answered.",
+      ),
+    );
+  });
+
+  it("says so when a student cannot be created", async () => {
+    serveApplication({ status: "ACCEPTED" });
+    await mount();
+    refuse("A student with that number already exists.");
+    await click(button(/Enrol as a student/));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "A student with that number already exists.",
+      ),
+    );
+  });
+});
+
 describe("duplicates", () => {
   it("warns when the same child has applied twice", async () => {
     serveApplication({

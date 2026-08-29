@@ -21,7 +21,12 @@ vi.mock("next/navigation", () => ({
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve, serveFailure } from "@/test/page";
 import { populatedRoutes } from "@/test/fixtures";
-import { admissionsRoutes, queue } from "@/test/admissions-fixtures";
+import {
+  admissionsRoutes,
+  intake,
+  queue,
+  queueRows,
+} from "@/test/admissions-fixtures";
 
 import AdmissionsDeskPage from "./page";
 
@@ -115,6 +120,45 @@ describe("the queue", () => {
     );
   });
 
+  /*
+    A transfer sits no national exam, so the row carries where they are coming
+    from instead of printing a mark that does not exist.
+  */
+  it("shows where a transfer is coming from instead of a mark", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/applications": {
+        ...queue,
+        data: [
+          {
+            ...queueRows[0],
+            intake: { ...queueRows[0].intake, entryPoint: "TRANSFER" },
+            previousSchool: "GS Rwamagana",
+          },
+        ],
+      },
+    });
+    renderPage(AdmissionsDeskPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/GS Rwamagana/),
+    );
+    expect(document.body.textContent).not.toMatch(/Exam:/);
+  });
+
+  it("draws an empty bar for a row the API sent no documents for", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/applications": {
+        ...queue,
+        data: [{ ...queueRows[0], completeness: null }],
+      },
+    });
+    renderPage(AdmissionsDeskPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/Nothing to send/),
+    );
+  });
+
   it("does not go blank when the queue fails to load", async () => {
     serveFailure(h.api);
     renderPage(AdmissionsDeskPage, { role: "ADMIN" });
@@ -153,6 +197,39 @@ describe("the piles", () => {
     );
   });
 
+  it("says nothing matched a search rather than that the pile is empty", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/applications": { ...queue, data: [], total: 0, buckets: {} },
+    });
+    renderPage(AdmissionsDeskPage, { role: "ADMIN" });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Search applications/i), {
+        target: { value: "Kagabo" },
+      });
+    });
+    await waitFor(
+      () =>
+        expect(document.body.textContent).toMatch(/No application matches that/),
+      { timeout: 3000 },
+    );
+  });
+
+  it("says another pile is empty without claiming the desk is clear", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/applications": { ...queue, data: [], total: 0, buckets: {} },
+    });
+    renderPage(AdmissionsDeskPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Offered/ })).toBeInTheDocument(),
+    );
+    await click(screen.getByRole("button", { name: /^Offered/ }));
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/Nothing in this pile/),
+    );
+  });
+
   // The desk being clear is a good outcome and should read like one.
   it("says the desk is clear rather than showing an error", async () => {
     serve(h.api, {
@@ -184,12 +261,49 @@ describe("places left", () => {
     against a round nobody can apply to. It still appears in the intake picker,
     because its applications are worth reading.
   */
+  // A full round has to read as full: an offer against it will be refused.
+  it("marks a round with nothing left", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/intakes": [{ ...intake, placesLeft: 0, total: 1 }],
+    });
+    renderPage(AdmissionsDeskPage, { role: "ADMIN" });
+    await waitFor(() => expect(document.body.textContent).toMatch(/of 80 left/));
+    expect(document.body.textContent).toMatch(/1 application[^s]/);
+    expect(
+      document.querySelector(".text-danger.tabular-nums, .tabular-nums.text-danger"),
+    ).toBeTruthy();
+  });
+
   it("gives a closed round no places card", async () => {
     await mount();
     expect(document.body.textContent).not.toMatch(/of 12 left/);
     expect(
       (screen.getByLabelText(/Intake/i) as HTMLSelectElement).textContent,
     ).toMatch(/Transfers, 2025/);
+  });
+});
+
+describe("paging", () => {
+  it("is not offered when everybody fits on one page", async () => {
+    await mount();
+    expect(screen.queryByLabelText(/Next page/i)).not.toBeInTheDocument();
+  });
+
+  it("moves forward and back", async () => {
+    serve(h.api, { ...routes, "/admissions/applications": { ...queue, total: 200 } });
+    await mount();
+    await click(screen.getByLabelText(/Next page/i));
+    await waitFor(() =>
+      expect(h.api.get).toHaveBeenCalledWith(
+        "/admissions/applications",
+        expect.objectContaining({ params: expect.objectContaining({ page: 2 }) }),
+      ),
+    );
+    await click(screen.getByLabelText(/Previous page/i));
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Previous page/i)).toBeDisabled(),
+    );
   });
 });
 

@@ -69,7 +69,7 @@ export default function AdmissionsDeskPage() {
   const { data: intakes } = useIntakes();
   const { data, isLoading } = useApplicationQueue({
     intakeId: intakeId || undefined,
-    bucket: bucket || undefined,
+    bucket,
     search: search || undefined,
     page,
     limit,

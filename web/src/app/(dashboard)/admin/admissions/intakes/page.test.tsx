@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveFailure } from "@/test/page";
 import { classLevel, populatedRoutes } from "@/test/fixtures";
-import { admissionsRoutes } from "@/test/admissions-fixtures";
+import { admissionsRoutes, intake } from "@/test/admissions-fixtures";
 
 import IntakesPage from "./page";
 
@@ -74,6 +74,17 @@ describe("the rounds", () => {
     await mount();
     expect(document.body.textContent).toMatch(/57/);
     expect(document.body.textContent).toMatch(/of 80 left/);
+  });
+
+  it("says one application rather than 1 applications", async () => {
+    serve(h.api, {
+      ...routes,
+      "/admissions/intakes": [{ ...intake, total: 1 }],
+    });
+    renderPage(IntakesPage, { role: "ADMIN" });
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/1 application[^s]/),
+    );
   });
 
   it("says which are open and which are closed", async () => {
@@ -166,6 +177,51 @@ describe("opening a round", () => {
           entryPoint: "SENIOR_ONE",
         }),
       ),
+    );
+  });
+
+  // Which door decides which documents a family is asked for, so changing it
+  // has to reach the round that is saved.
+  it("carries the door that was chosen", async () => {
+    await mount();
+    await click(button(/Change/));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Which door/i), {
+        target: { value: "TRANSFER" },
+      });
+      fireEvent.click(screen.getByLabelText(/Taking applications/i));
+    });
+    await click(button(/^Save$/));
+    await waitFor(() =>
+      expect(h.api.put).toHaveBeenCalledWith(
+        "/admissions/intakes",
+        expect.objectContaining({ entryPoint: "TRANSFER", isOpen: false }),
+      ),
+    );
+  });
+
+  it("keeps the round on screen when the API refuses it", async () => {
+    await mount();
+    h.api.put.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400, data: { message: "That round closes before it opens." } },
+    });
+    await click(button(/Change/));
+    await click(button(/^Save$/));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "That round closes before it opens.",
+      ),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("closes when dismissed from the dialog itself", async () => {
+    await mount();
+    await click(button(/Open a round/));
+    await click(screen.getByLabelText(/Close dialog/i));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   });
 
