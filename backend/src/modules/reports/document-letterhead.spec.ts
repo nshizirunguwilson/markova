@@ -395,21 +395,21 @@ describe('a transcript', () => {
   });
 
   // A term closed before the marks were finished carries no numbers at all.
-  it('draws an em dash for a term with no figures on it', async () => {
+  it('draws a dash for a term with no figures on it', async () => {
     prisma.termResult.findMany.mockResolvedValue([
       result({ average: null, letterGrade: null, rank: null }),
     ]);
 
     const doc = await service.generateDocument('student-1', 'transcript');
-    expect(doc.html).toMatch(/—/);
+    expect(doc.html).toMatch(/>-</);
     expect(doc.html).not.toMatch(/undefined|null<\/td>/);
   });
 
-  it('draws an em dash for a grade recorded as an empty string', async () => {
+  it('draws a dash for a grade recorded as an empty string', async () => {
     prisma.termResult.findMany.mockResolvedValue([result({ letterGrade: '' })]);
 
     const doc = await service.generateDocument('student-1', 'transcript');
-    expect(doc.html).toMatch(/—/);
+    expect(doc.html).toMatch(/>-</);
   });
 });
 

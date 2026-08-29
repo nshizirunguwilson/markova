@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderPage, serve, serveFailure } from "@/test/page";
+import { cellTexts, renderPage, serve, serveFailure } from "@/test/page";
 import { classSection, populatedRoutes, subject } from "@/test/fixtures";
 
 import TeachersPage from "./page";
@@ -111,8 +111,8 @@ describe("the staff list", () => {
 
   /**
    * The list answers "who teaches what" and nothing else. Everything about
-   * one teacher — their classes, the class they are class teacher of, where
-   * they are this period, their own details — lives on their own page, and
+   * one teacher - their classes, the class they are class teacher of, where
+   * they are this period, their own details - lives on their own page, and
    * there was no way to reach it.
    */
   it("opens a teacher when their row is clicked", async () => {
@@ -155,7 +155,9 @@ describe("the staff list", () => {
     });
     renderPage(TeachersPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    expect(screen.getByText(/Aline/).closest("tr")!.textContent).toMatch(/—/);
+    expect(
+      cellTexts(screen.getByText(/Aline/).closest("tr")!),
+    ).toContain("-");
   });
 
   it("marks a deactivated account as inactive", async () => {

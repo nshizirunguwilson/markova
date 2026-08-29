@@ -435,7 +435,7 @@ describe('the year report', () => {
 
   // A subject dropped after Term 2 is not a subject the student scored zero
   // in for Term 3.
-  it("averages a subject over the terms it was actually taught in", async () => {
+  it('averages a subject over the terms it was actually taught in', async () => {
     prisma.mark.findMany.mockResolvedValue([
       {
         termId: 'term-1',
@@ -745,7 +745,9 @@ describe('the conduct verdict on a card', () => {
   // Above the subjects, where a reader is already looking for marks.
   it('puts it above the first group of subjects', async () => {
     const html = await cardLosing(4);
-    expect(html.indexOf('Discipline')).toBeLessThan(html.indexOf('Core subjects'));
+    expect(html.indexOf('Discipline')).toBeLessThan(
+      html.indexOf('Core subjects'),
+    );
   });
 
   it('no longer repeats it in the summary strip', async () => {
@@ -957,7 +959,7 @@ describe('a report card with elective subjects on it', () => {
     ]);
 
     const html = await service.generateTermReportHtml('student-1', 'term-1');
-    expect(html).toMatch(/–/);
+    expect(html).toMatch(/>-</);
     expect(html).not.toMatch(/undefined|null<\/td>/);
   });
 
@@ -1171,10 +1173,10 @@ describe('a subject with no weighted marks against it', () => {
 
     const html = await service.generateTermReportHtml('student-1', 'term-1');
     const row = html.slice(html.indexOf('Mathematics'));
-    expect(row).toMatch(/<td class="tot">–<\/td>/);
-    expect(row).toMatch(/<td class="gr">–<\/td>/);
-    expect(row).toMatch(/<td class="num">–<\/td>/);
-    expect(row).toMatch(/<td class="rem">–<\/td>/);
+    expect(row).toMatch(/<td class="tot">-<\/td>/);
+    expect(row).toMatch(/<td class="gr">-<\/td>/);
+    expect(row).toMatch(/<td class="num">-<\/td>/);
+    expect(row).toMatch(/<td class="rem">-<\/td>/);
   });
 
   // A term closed before anything was marked has a result row with no average.
