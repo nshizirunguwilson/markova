@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "./presence";
+import {
+  deliveryLabel,
+  formatLastSeen,
+  lastMessagePrefix,
+  messagePreview,
+} from "./presence";
 
 const now = new Date("2026-08-22T12:00:00Z");
 const minutesAgo = (n: number) =>
@@ -132,5 +137,41 @@ describe("labelling the last message in a thread", () => {
         you,
       ),
     ).toBe("You: ");
+  });
+});
+
+/**
+ * A voice note is stored under the name it was recorded as —
+ * `voice-note-2026-08-29-05-47-12.weba` — which is a filename, not a
+ * sentence. In the inbox it filled the line and told nobody anything.
+ */
+describe("what a message reads as in a preview", () => {
+  it("calls a voice note a voice message", () => {
+    expect(
+      messagePreview({
+        contentType: "VOICE",
+        content: "voice-note-2026-08-29-05-47-12.weba",
+      }),
+    ).toBe("Voice message");
+  });
+
+  // A file keeps its own name: "Term 1 marks.pdf" is exactly what a person
+  // needs to see there.
+  it("leaves a file under the name it was sent with", () => {
+    expect(
+      messagePreview({ contentType: "FILE", content: "Term 1 marks.pdf" }),
+    ).toBe("Term 1 marks.pdf");
+  });
+
+  it("repeats a message of words", () => {
+    expect(messagePreview({ contentType: "TEXT", content: "Muraho" })).toBe(
+      "Muraho",
+    );
+  });
+
+  it("says nothing for nothing", () => {
+    expect(messagePreview(null)).toBe("");
+    expect(messagePreview(undefined)).toBe("");
+    expect(messagePreview({ content: null })).toBe("");
   });
 });

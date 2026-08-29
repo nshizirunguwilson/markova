@@ -69,3 +69,25 @@ export function lastMessagePrefix(
   const name = message.sender?.firstName?.trim();
   return `${name || "Someone"}: `;
 }
+
+/**
+ * What a message reads as in a one-line preview.
+ *
+ * A voice note is stored under the name it was recorded as —
+ * `voice-note-2026-08-29-05-47-12.weba` — which is a filename, not a
+ * sentence. In the inbox it filled the line and told nobody anything; the
+ * only useful thing to say is that it is a voice message.
+ *
+ * Files keep their own names, because "Term 1 marks.pdf" is exactly what a
+ * person needs to see there.
+ */
+export function messagePreview(
+  message:
+    | { content?: string | null; contentType?: string | null }
+    | null
+    | undefined,
+): string {
+  if (!message) return "";
+  if (message.contentType === "VOICE") return "Voice message";
+  return message.content ?? "";
+}
