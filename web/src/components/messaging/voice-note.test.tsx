@@ -399,22 +399,43 @@ describe("how a voice note is laid out", () => {
     expect(row.contains(bars)).toBe(true);
   });
 
-  it("puts the length under that row, not inside it", () => {
+  /*
+    The bars are a fixed count at a fixed width, so a bubble sized for the
+    widest of them always ends with a gap on the right. The length goes there
+    rather than on a line of its own, which made the bubble taller for a
+    number that already had somewhere to be.
+  */
+  it("puts the length at the end of the same row", () => {
     const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
     const length = [...container.querySelectorAll("span")].find((e) =>
       /^\d+:\d\d$/.test(e.textContent ?? ""),
     )!;
     const button = container.querySelector("button")!;
-    expect(length.parentElement!.contains(button)).toBe(true);
-    expect(button.parentElement!.contains(length)).toBe(false);
+    const bars = container.querySelector('[role="presentation"]')!;
+
+    // One row holding all three.
+    const row = button.parentElement!;
+    expect(row.contains(bars)).toBe(true);
+    expect(row.contains(length)).toBe(true);
   });
 
-  // Left, because that is where the eye returns after reading the bars.
-  it("aligns the length to the left", () => {
+  it("puts it after the bars, not before them", () => {
     const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
     const length = [...container.querySelectorAll("span")].find((e) =>
       /^\d+:\d\d$/.test(e.textContent ?? ""),
     )!;
-    expect(length.className).not.toContain("text-center");
+    const bars = container.querySelector('[role="presentation"]')!;
+    expect(
+      bars.compareDocumentPosition(length) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // The bars take the room; the number keeps only what it needs.
+  it("does not let the length squeeze the bars", () => {
+    const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
+    const length = [...container.querySelectorAll("span")].find((e) =>
+      /^\d+:\d\d$/.test(e.textContent ?? ""),
+    )!;
+    expect(length.className).toContain("flex-shrink-0");
   });
 });
