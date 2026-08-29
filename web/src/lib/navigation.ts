@@ -111,6 +111,9 @@ const teacherNav: NavSection[] = [
     title: "Teaching",
     items: [
       { label: "Marks Entry", href: "/teacher/marks", icon: ClipboardList },
+      /* Where a class teacher writes the comment on each card. The same
+         screen the head teacher confirms from, shared rather than copied. */
+      { label: "Report cards", href: "/admin/report-cards", icon: FileCheck },
       { label: "Grading", href: "/grading", icon: Scale },
       { label: "Assessments", href: "/teacher/homework", icon: FileText },
     ],

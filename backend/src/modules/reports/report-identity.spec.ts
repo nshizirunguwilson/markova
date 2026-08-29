@@ -197,6 +197,60 @@ describe('who the report card belongs to', () => {
     expect(html).toContain('@page{ size:A4; margin:0; }');
   });
 
+  /**
+   * A card for a past year belongs to the class the child sat in then.
+   *
+   * The position is read off the result and was always right; the
+   * denominator was counted from `student.classSectionId`, which is where
+   * the child is *now*. So an old Senior 3 card printed "1 of 30" from the
+   * Senior 4 they were promoted into, while the ranks on the same sheet ran
+   * to 26 - the sheet contradicting itself in two places a reader can see at
+   * once.
+   */
+  describe('a card for a year the child has left behind', () => {
+    beforeEach(() => {
+      prisma.termResult.findFirst.mockResolvedValue({
+        id: 'res-1',
+        classSectionId: 'section-then',
+        average: 61.5,
+        letterGrade: 'C',
+        rank: 4,
+        aggregate: 21,
+        aggregateMax: 30,
+      });
+    });
+
+    it('counts the class they were in, not the one they moved to', async () => {
+      await card();
+      expect(prisma.termResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ classSectionId: 'section-then' }),
+        }),
+      );
+    });
+
+    it('names the teacher of that class', async () => {
+      await card();
+      expect(prisma.teacherRole.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ classSectionId: 'section-then' }),
+        }),
+      );
+    });
+
+    /* A term with no result computed has no section of its own to fall back
+       on, so the child's current class is the only answer there is. */
+    it('falls back to the current class when nothing was computed', async () => {
+      prisma.termResult.findFirst.mockResolvedValue(null);
+      await card();
+      expect(prisma.termResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ classSectionId: 'section-1' }),
+        }),
+      );
+    });
+  });
+
   it('keeps the facts that say which record this is', async () => {
     const html = await card();
     expect(html).toContain('STD-2026-231419-167');

@@ -14,10 +14,22 @@ describe("getNavigation", () => {
 
   it.each(ROLES)("keeps every %s link inside that role's subtree", (role) => {
     const own = `/${role.toLowerCase()}`;
-    /* Pages that belong to nobody in particular. Grading is reference
-       material: how a mark becomes a grade is the same answer whoever asks,
-       so it is one page rather than a copy per role. */
-    const shared = ["/messages", "/help", "/profile", "/grading"];
+    /*
+      Pages that belong to nobody in particular. Grading is reference
+      material: how a mark becomes a grade is the same answer whoever asks,
+      so it is one page rather than a copy per role. The report cards screen
+      is shared for a stronger reason - the class teacher, the head teacher
+      and the principal all work on the same cards, and the failure it
+      replaces is precisely two of them disagreeing about whether a class is
+      finished.
+    */
+    const shared = [
+      "/messages",
+      "/help",
+      "/profile",
+      "/grading",
+      "/admin/report-cards",
+    ];
     for (const href of hrefsFor(role)) {
       const allowed =
         href.startsWith(own) || shared.some((s) => href.startsWith(s));
@@ -25,11 +37,29 @@ describe("getNavigation", () => {
     }
   });
 
-  it("never offers a non-admin the admin subtree", () => {
+  /**
+   * One shared page is not a door into /admin. A class teacher reaches the
+   * report cards they write on and nothing else under that prefix.
+   */
+  it("offers a non-admin no admin page but the one they share", () => {
     for (const role of ROLES.filter((r) => r !== "ADMIN")) {
-      expect(hrefsFor(role).some((h) => h.startsWith("/admin"))).toBe(false);
+      const admin = hrefsFor(role).filter((h) => h.startsWith("/admin"));
+      expect(admin.every((h) => h === "/admin/report-cards")).toBe(true);
     }
   });
+
+  it("gives a class teacher the report cards they write on", () => {
+    expect(hrefsFor("TEACHER")).toContain("/admin/report-cards");
+  });
+
+  // They write; they do not certify their own work, and nothing in the menu
+  // should suggest otherwise.
+  it.each(["STUDENT", "PARENT", "LIBRARIAN"] as Role[])(
+    "does not offer the report cards screen to a %s",
+    (role) => {
+      expect(hrefsFor(role)).not.toContain("/admin/report-cards");
+    },
+  );
 
   it("lists no duplicate destinations within a role", () => {
     for (const role of ROLES) {

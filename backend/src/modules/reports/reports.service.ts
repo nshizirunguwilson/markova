@@ -166,8 +166,13 @@ export class ReportsService implements OnModuleDestroy {
       ? await this.ensureVerification(termResult.id)
       : null;
 
+    /* The teacher of the class they sat in that term, by the same argument
+       as the class size below. */
     const classTeacherRole = await this.prisma.teacherRole.findFirst({
-      where: { role: 'CLASS_TEACHER', classSectionId: student.classSectionId },
+      where: {
+        role: 'CLASS_TEACHER',
+        classSectionId: termResult?.classSectionId ?? student.classSectionId,
+      },
       include: {
         teacher: {
           include: {
@@ -232,8 +237,19 @@ export class ReportsService implements OnModuleDestroy {
       restored._sum.points ?? 0,
     );
 
+    /*
+      The class this child was actually in that term, not the one they are in
+      now.
+
+      `student.classSectionId` is their current place, so a report card for a
+      past year counted the class they were promoted into: a Senior 3 card
+      printed "1 of 30" because the reader is now in a Senior 4 of thirty,
+      while the ranks on that same sheet ran 1 to 26. The result carries the
+      section it was computed against, and that is the one to count.
+    */
+    const classSectionId = termResult?.classSectionId ?? student.classSectionId;
     const classResults = await this.prisma.termResult.findMany({
-      where: { classSectionId: student.classSectionId, termId },
+      where: { classSectionId, termId },
     });
     const classAverage =
       classResults.length > 0
