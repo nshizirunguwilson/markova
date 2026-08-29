@@ -82,7 +82,7 @@ const nameOf = (p: { firstName: string; lastName: string } | null) =>
 export default function ApplicationPage() {
   // Non-null in the App Router, and this file only exists inside `[id]`.
   const { id } = useParams<{ id: string }>();
-  const { data, isLoading } = useApplication(id);
+  const { data, isLoading, isError } = useApplication(id);
 
   const decide = useDecide();
   const requestInfo = useRequestInfo();
@@ -108,7 +108,31 @@ export default function ApplicationPage() {
      Asking the API per level would refetch each time the modal opens. */
   const { data: sections } = useSections();
 
-  if (isLoading || !data) return <PageSpinner />;
+  if (isLoading) return <PageSpinner />;
+
+  /*
+    Spinning forever is the worst of both: it looks like the page is working
+    and gives a reviewer nothing to do. An application that will not load is
+    almost always one that has been enrolled and re-read from a stale link.
+  */
+  if (isError || !data) {
+    return (
+      <div>
+        <Link
+          href="/admin/admissions"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to the desk
+        </Link>
+        <Card>
+          <p className="text-sm text-muted">
+            This application could not be loaded. It may have been removed, or
+            the link may be out of date. The desk has the current list.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   const c = data.completeness;
   const age = ageOf(data.dateOfBirth);
