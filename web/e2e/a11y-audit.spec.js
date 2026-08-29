@@ -112,9 +112,43 @@ async function login(role, attempt = 0) {
   return verified;
 }
 
+/**
+ * Wait for the page to actually be the page before judging it.
+ *
+ * A flat 500ms after `domcontentloaded` was a race, and it lost often enough
+ * to matter: three runs of this suite in a row reported twenty contrast
+ * failures on one page, then nothing at all, then two missing document
+ * titles somewhere else. Every one of those was a skeleton being scanned —
+ * grey placeholder bars really do fail contrast, and the title really is
+ * absent until the route resolves.
+ *
+ * A gate that cries wolf is worse than no gate, because the first thing
+ * anybody does with it is stop believing it.
+ */
+async function settle(page) {
+  // The route has resolved once it has a title of its own.
+  await page
+    .waitForFunction(() => document.title && document.title.trim().length > 0, {
+      timeout: 15000,
+    })
+    .catch(() => {});
+
+  // And once nothing is still spinning. Pages here draw a spinner while their
+  // queries are in flight, which is exactly the state that scans as a wall of
+  // low-contrast grey.
+  await page
+    .waitForFunction(() => !document.querySelector('.animate-spin'), {
+      timeout: 15000,
+    })
+    .catch(() => {});
+
+  // A beat for the paint that follows.
+  await page.waitForTimeout(400);
+}
+
 async function scan(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForTimeout(500);
+  await settle(page);
   const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   return result.violations;
 }
