@@ -82,7 +82,32 @@ function ScaleTable({ scale }: { scale: Scale }) {
  * differently from one who cannot, and the proportions say that faster than
  * the numbers do.
  */
-function WeightBar({ weight }: { weight: Weight }) {
+/**
+ * Kinds of subject that are weighted identically, shown once.
+ *
+ * Three of the four scopes are 20/20/60, and drawing three identical bars
+ * beside each other says "these are different" three times over. Grouping
+ * them says the true thing instead: most subjects are weighted alike, and
+ * the trade modules are the exception worth looking at.
+ */
+function groupByWeighting(weights: Weight[]) {
+  const groups = new Map<string, { names: string[]; parts: Weight["parts"] }>();
+  for (const w of weights) {
+    const key = w.parts.map((p) => `${p.assessment}:${p.percent}`).join("|");
+    const found = groups.get(key);
+    if (found) found.names.push(w.name);
+    else groups.set(key, { names: [w.name], parts: w.parts });
+  }
+  return [...groups.values()];
+}
+
+function WeightBar({
+  names,
+  parts,
+}: {
+  names: string[];
+  parts: Weight["parts"];
+}) {
   const shades = [
     "bg-primary",
     "bg-primary/70",
@@ -91,9 +116,11 @@ function WeightBar({ weight }: { weight: Weight }) {
   ];
   return (
     <div>
-      <p className="text-sm font-medium text-foreground">{weight.name}</p>
+      <p className="text-sm font-medium text-foreground">
+        {names.join(", ")}
+      </p>
       <div className="mt-2 flex h-7 w-full overflow-hidden rounded-md">
-        {weight.parts.map((p, i) => (
+        {parts.map((p, i) => (
           <div
             key={p.assessment}
             className={`flex items-center justify-center ${shades[i % shades.length]}`}
@@ -107,7 +134,7 @@ function WeightBar({ weight }: { weight: Weight }) {
         ))}
       </div>
       <p className="mt-1.5 text-xs text-muted">
-        {weight.parts.map((p) => p.assessment).join(" · ")}
+        {parts.map((p) => p.assessment).join(" · ")}
       </p>
     </div>
   );
@@ -141,13 +168,13 @@ export default function GradingPage() {
       <Card>
         <CardTitle className="text-base">What makes up a term mark</CardTitle>
         <p className="mb-4 mt-1 text-sm text-muted">
-          Each subject&apos;s total is its assessments at these weights. Different
-          kinds of subject are weighted differently, because a trade module is
+          Each subject&apos;s total is its assessments at these weights. Most
+          subjects are weighted alike; a trade module is not, because it is
           examined in a workshop as well as on paper.
         </p>
         <div className="space-y-5">
-          {(data.weights as Weight[]).map((w) => (
-            <WeightBar key={w.scope} weight={w} />
+          {groupByWeighting(data.weights as Weight[]).map((g) => (
+            <WeightBar key={g.names.join()} names={g.names} parts={g.parts} />
           ))}
         </div>
       </Card>
@@ -205,7 +232,7 @@ export default function GradingPage() {
         </p>
         <div className="flex flex-wrap gap-2">
           {(data.conduct.bands as { from: number; remark: string }[]).map(
-            (b) => (
+            (b, i, all) => (
               <div
                 key={b.remark}
                 className="rounded-lg border border-border px-3 py-2"
@@ -213,8 +240,12 @@ export default function GradingPage() {
                 <p className="text-sm font-medium text-foreground">
                   {b.remark}
                 </p>
+                {/* The last band is everything under the one above it.
+                    "0% and above" is true and says nothing. */}
                 <p className="font-mono text-xs tabular-nums text-muted">
-                  {b.from}% and above
+                  {i === all.length - 1
+                    ? `below ${all[i - 1]?.from ?? 0}%`
+                    : `${b.from}% and above`}
                 </p>
               </div>
             ),

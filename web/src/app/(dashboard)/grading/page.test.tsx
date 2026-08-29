@@ -138,6 +138,39 @@ describe("what a term mark is made of", () => {
     expect(text).toContain("Advanced Level, trade modules");
   });
 
+  /**
+   * Three of the four kinds of subject are weighted identically, and three
+   * identical bars say "these are different" three times over. Grouped, the
+   * page says the true thing: most subjects are weighted alike, and the
+   * trade modules are the exception worth looking at.
+   */
+  it("draws one bar for kinds of subject weighted alike", async () => {
+    const shared = {
+      ...scale,
+      weights: [
+        scale.weights[0],
+        {
+          scope: "O_ELECTIVE",
+          name: "Ordinary Level, elective subjects",
+          parts: scale.weights[0].parts,
+        },
+        scale.weights[1],
+      ],
+    };
+    serve(h.api, { ...routes, "/academic/grading-scale": shared });
+    await mount();
+    expect(screen.getAllByTitle("End of Term Exam: 60%")).toHaveLength(1);
+    expect(document.body.textContent).toContain(
+      "Ordinary Level, core subjects, Ordinary Level, elective subjects",
+    );
+  });
+
+  it("keeps a differently weighted kind on its own bar", async () => {
+    await mount();
+    expect(screen.getByTitle("Practical: 30%")).toBeInTheDocument();
+    expect(screen.getByTitle("End of Term Exam: 60%")).toBeInTheDocument();
+  });
+
   // The practical is the fact a TVET student most needs off this page.
   it("shows the practical where there is one", async () => {
     await mount();
@@ -231,6 +264,17 @@ describe("the words on a report card", () => {
     expect(text).toMatch(/starts the term on full marks/);
     expect(text).toContain("Excellent");
     expect(text).toContain("Poor");
+  });
+
+  /*
+    The worst band is everything under the one above it. "0% and above" is
+    true of every mark there is and so says nothing at all.
+  */
+  it("writes the worst conduct band as a floor rather than a threshold", async () => {
+    await mount();
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("below 95%");
+    expect(text).not.toContain("0% and above");
   });
 });
 
