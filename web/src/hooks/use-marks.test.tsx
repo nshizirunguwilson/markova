@@ -5,6 +5,7 @@ import {
   assertMutation,
   assertQuery,
   resolveAll,
+  runMutation,
   type MutationCase,
   type QueryCase,
 } from "@/test/hooks";
@@ -18,12 +19,11 @@ const h = vi.hoisted(() => ({
     patch: vi.fn(),
     delete: vi.fn(),
   },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-}));
+vi.mock("sonner", () => ({ toast: h.toast }));
 
 import * as marks from "./use-marks";
 
@@ -31,6 +31,7 @@ const api = h.api;
 
 beforeEach(() => {
   for (const m of Object.values(api)) m.mockReset();
+  for (const m of Object.values(h.toast)) m.mockReset();
 });
 
 const queries: QueryCase[] = [
@@ -51,6 +52,7 @@ const mutations: MutationCase[] = [
   { name: "usePublishTermResults", hook: () => marks.usePublishTermResults(), method: "post", url: "/marks/term-results/publish" },
   { name: "useUpdateTermResultComment", hook: () => marks.useUpdateTermResultComment(), method: "put", url: "/marks/term-results/id-1/comment" },
   { name: "useCalculateYearResults", hook: () => marks.useCalculateYearResults(), method: "post", url: "/marks/year-results/calculate" },
+  { name: "useConfirmReportCards", hook: () => marks.useConfirmReportCards(), method: "post", url: "/marks/report-cards/confirm" },
 ];
 
 describe("use-marks queries", () => {
@@ -93,5 +95,113 @@ describe("use-marks enabled guards", () => {
       wrapper: Providers,
     });
     expect(result.current.fetchStatus).toBe("idle");
+  });
+});
+
+/**
+ * What each of the three acts on a report card tells the person who did it.
+ *
+ * They are three different decisions with three different consequences, and
+ * a line that says "saved" for all of them teaches somebody that the three
+ * buttons are the same button.
+ */
+describe("what the desk is told", () => {
+  it("says the principal can now issue, when a class is confirmed", async () => {
+    resolveAll(api, {});
+    await runMutation(() => marks.useConfirmReportCards(), {
+      classSectionId: "section-1",
+      termId: "term-1",
+      isConfirmed: true,
+    });
+    expect(h.toast.success).toHaveBeenCalledWith(
+      expect.stringMatching(/principal can now issue/i),
+    );
+  });
+
+  /*
+    Handing a class back withdraws any card already issued from it, which is
+    a consequence somebody is owed in the line rather than in a support call.
+  */
+  it("says what handing a class back cost", async () => {
+    resolveAll(api, {});
+    await runMutation(() => marks.useConfirmReportCards(), {
+      classSectionId: "section-1",
+      termId: "term-1",
+      isConfirmed: false,
+    });
+    expect(h.toast.success).toHaveBeenCalledWith(
+      expect.stringMatching(/already issued are withdrawn/i),
+    );
+  });
+});
+
+/**
+ * The draft.
+ *
+ * Fetched on demand rather than with the class: thirty drafts nobody asked
+ * for is thirty round trips to answer a question the reviewer may not have.
+ */
+describe("drafting the comments", () => {
+  it("asks for one child, for one term", async () => {
+    resolveAll(api, { classTeacher: "a", headTeacher: "b" });
+    await runMutation(() => marks.useSuggestComments(), {
+      studentId: "student-1",
+      termId: "term-1",
+    });
+    expect(api.get).toHaveBeenCalledWith(
+      "/reports/term/student-1/comment-suggestions",
+      expect.objectContaining({ params: { termId: "term-1" } }),
+    );
+  });
+
+  it("hands back both drafts", async () => {
+    resolveAll(api, { classTeacher: "the work", headTeacher: "the standing" });
+    const out = await runMutation(() => marks.useSuggestComments(), {
+      studentId: "student-1",
+      termId: "term-1",
+    });
+    expect(out.current.data).toEqual({
+      classTeacher: "the work",
+      headTeacher: "the standing",
+    });
+  });
+
+  // Nothing is written by asking for a draft.
+  it("saves nothing", async () => {
+    resolveAll(api, { classTeacher: "a", headTeacher: "b" });
+    await runMutation(() => marks.useSuggestComments(), {
+      studentId: "student-1",
+      termId: "term-1",
+    });
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("says so when a draft cannot be written", async () => {
+    api.get.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 400,
+        data: { message: "That term has no marks in it." },
+      },
+    });
+    await runMutation(() => marks.useSuggestComments(), {
+      studentId: "student-1",
+      termId: "term-1",
+    });
+    expect(h.toast.error).toHaveBeenCalledWith("That term has no marks in it.");
+  });
+
+  // Nothing useful comes back from a 500, so the shared line stands.
+  it("falls back to the house sentence when the server says nothing", async () => {
+    api.get.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 500, data: {} },
+    });
+    await runMutation(() => marks.useSuggestComments(), {
+      studentId: "student-1",
+      termId: "term-1",
+    });
+    expect(h.toast.error).toHaveBeenCalled();
   });
 });
