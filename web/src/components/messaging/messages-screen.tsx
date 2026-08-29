@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
@@ -91,10 +91,30 @@ export default function MessagesPage() {
     Reading it from the route rather than mirroring it into state means there
     is one answer to "which thread is this", and it survives a reload.
   */
-  const router = useRouter();
   const pathname = usePathname();
-  const routeParams = useParams<{ conversationId?: string }>();
-  const routeConv = routeParams?.conversationId ?? null;
+
+  /**
+   * The address, split into the messages path this role is on and the thread
+   * on the end of it.
+   *
+   * Every role re-exports this screen under its own path — `/admin/messages`,
+   * `/parent/messages` — so a conversation has to be appended to whichever
+   * one the reader is actually on, or opening a thread would throw them into
+   * another role's section of the app.
+   *
+   * Read from the pathname rather than from route parameters because the URL
+   * is changed below without a navigation, and parameters only move when the
+   * router does.
+   */
+  const [messagesBase, routeConv] = useMemo(() => {
+    const at = pathname.lastIndexOf("/messages");
+    // A trailing slash would make the address below "//<id>", which a browser
+    // reads as another host rather than another path.
+    if (at < 0) return [pathname.replace(/\/+$/, ""), null] as const;
+    const base = pathname.slice(0, at + "/messages".length);
+    const rest = pathname.slice(base.length).replace(/^\//, "");
+    return [base, rest || null] as const;
+  }, [pathname]);
 
   /*
     The route is the source of truth, and this follows it.
@@ -112,23 +132,30 @@ export default function MessagesPage() {
   }, [routeConv]);
 
   /**
-   * The messages path this role is on, without any conversation on the end.
+   * Open a thread, and give it its address.
    *
-   * Every role re-exports this page under its own path — `/admin/messages`,
-   * `/parent/messages` — so a conversation has to be appended to whichever
-   * one the reader is actually on, or opening a thread would throw them into
-   * another role's section of the app.
+   * The URL is written with the History API rather than pushed through the
+   * router. A router push changes the route segment, and Next answers that by
+   * unmounting this screen and mounting a new one: the conversation you had
+   * just clicked was drawn, and then a moment later the whole surface was
+   * torn down and built again around it. That second rebuild is the flash,
+   * and it took the scroll position, the reply you were writing and anything
+   * else held in state down with it.
+   *
+   * `pushState` is supported for exactly this, and `usePathname` follows it,
+   * so the back button, a reload and a link shared with somebody else all
+   * still land on the right thread — without a navigation for a move that
+   * never leaves the page.
    */
-  const messagesBase = pathname.replace(/\/[^/]*$/, (tail) =>
-    tail === "/messages" ? tail : "",
-  );
-
   const openConversation = useCallback(
     (id: string | null) => {
       setSelectedConv(id);
-      router.push(id ? `${messagesBase}/${id}` : messagesBase);
+      const next = id ? `${messagesBase}/${id}` : messagesBase;
+      if (window.location.pathname !== next) {
+        window.history.pushState(null, "", next);
+      }
     },
-    [router, messagesBase],
+    [messagesBase],
   );
   const { data: messages } = useMessages(selectedConv || undefined);
   const sendMessageRest = useSendMessage();

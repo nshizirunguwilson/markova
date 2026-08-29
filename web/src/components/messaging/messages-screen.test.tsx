@@ -7,8 +7,6 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
-    // Which thread is open is the route now, not a query string.
-    routeParams: { current: {} as { conversationId?: string } },
     pathname: { current: "/messages" },
     chat: {
       connected: true,
@@ -42,7 +40,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => h.pathname.current,
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => h.routeParams.current,
+  // Which thread is open is read off the pathname, not from a route
+  // parameter — see the screen's own note on why.
+  useParams: () => ({}),
 }));
 vi.mock("@/stores/chat-store", () => ({
   useChatStore: (selector?: (s: unknown) => unknown) =>
@@ -51,7 +51,7 @@ vi.mock("@/stores/chat-store", () => ({
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveAll } from "@/test/page";
-import MessagesPage from "./page";
+import MessagesPage from "./messages-screen";
 
 const other = {
   id: "u-3",
@@ -3400,12 +3400,11 @@ describe("after sending", () => {
  */
 describe("arriving from a notification", () => {
   afterEach(() => {
-    h.routeParams.current = {};
     h.pathname.current = "/messages";
+    window.history.replaceState(null, "", "/messages");
   });
 
   it("opens the thread the route names", async () => {
-    h.routeParams.current = { conversationId: "conv-1" };
     h.pathname.current = "/messages/conv-1";
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
@@ -3425,7 +3424,27 @@ describe("arriving from a notification", () => {
 
     await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
-    expect(h.router.push).toHaveBeenCalledWith("/messages/conv-1");
+    expect(window.location.pathname).toBe("/messages/conv-1");
+  });
+
+  /**
+   * The address is written, not navigated to.
+   *
+   * A router push changes the route segment, and Next answers that by
+   * unmounting this screen and mounting a new one — so the thread you clicked
+   * was drawn and then, a frame or two later, the whole surface was torn down
+   * and rebuilt around it. That rebuild is the flash, and it takes the scroll
+   * position and a half-written reply with it.
+   */
+  it("opens a thread without navigating away from the page", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(h.router.push).not.toHaveBeenCalled();
+    expect(h.router.replace).not.toHaveBeenCalled();
   });
 
   // Every role re-exports this page under its own path, so a conversation is
@@ -3438,11 +3457,10 @@ describe("arriving from a notification", () => {
 
     await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
-    expect(h.router.push).toHaveBeenCalledWith("/admin/messages/conv-1");
+    expect(window.location.pathname).toBe("/admin/messages/conv-1");
   });
 
   it("goes back to the inbox when the thread is closed", async () => {
-    h.routeParams.current = { conversationId: "conv-1" };
     h.pathname.current = "/messages/conv-1";
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
@@ -3454,7 +3472,7 @@ describe("arriving from a notification", () => {
     if (!back) return;
     await userEvent.setup({ delay: null }).click(back);
 
-    expect(h.router.push).toHaveBeenCalledWith("/messages");
+    expect(window.location.pathname).toBe("/messages");
   });
 });
 
