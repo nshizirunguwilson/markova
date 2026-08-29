@@ -220,7 +220,7 @@ jobs:
           cat /tmp/web.log || true
 
   design-system:
-    name: Design system (token drift + contrast)
+    name: Design system (token drift + contrast + dashes)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -233,6 +233,8 @@ jobs:
       - run: node scripts/sync-design-tokens.mjs --check
       # Every colour pairing has to stay at WCAG AA.
       - run: node scripts/check-contrast.mjs
+      # No em dashes or en dashes anywhere a person writes.
+      - run: node scripts/check-dashes.mjs
 
   mobile:
     name: Mobile (typecheck + tests)

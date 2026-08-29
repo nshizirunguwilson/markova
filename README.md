@@ -129,6 +129,20 @@ node scripts/build-brand-assets.mjs     # re-render every icon from the logo
 CI fails if the generated files drift or if a colour pairing drops below AA.
 See `design/README.md` for the reasoning behind the palette and the mark.
 
+## Punctuation
+
+The repository carries no em dashes and no en dashes, anywhere a person writes:
+prose, comments, UI copy, test names and seed data. A hyphen does every job
+they were doing, and CI fails on any that appear.
+
+```bash
+node scripts/check-dashes.mjs           # report any, and fail
+node scripts/check-dashes.mjs --fix     # replace them all with a hyphen
+```
+
+`web/AGENTS.md` is the one exception: `next dev` writes that block itself and
+puts its own dashes back, so the check skips it.
+
 ## Tests
 
 ```bash
