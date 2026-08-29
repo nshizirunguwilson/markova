@@ -44,7 +44,12 @@ import {
   gradeFor,
   overallGrade,
   MAX_POINTS_PER_SUBJECT,
+  COMPETENCE_THRESHOLD,
 } from '../src/common/grading';
+import {
+  suggestComments,
+  type CommentSubject,
+} from '../src/common/report-comments';
 import { NotificationSubject } from '../src/common/notification-target';
 
 const prisma = new PrismaClient();
@@ -664,10 +669,12 @@ async function main() {
   console.log('  🧹 Existing data cleared');
 
   // Reserve the documented demo names and addresses before any generation.
-  ['Wilson Nshizirungu', 'Josiane Mutoni'].forEach((n) => {
-    const [f, l] = n.split(' ');
-    claimFullName(f, l);
-  });
+  ['Wilson Nshizirungu', 'Josiane Mutoni', 'Speciose Mukarugwiza'].forEach(
+    (n) => {
+      const [f, l] = n.split(' ');
+      claimFullName(f, l);
+    },
+  );
   [
     'aline.uwase@markova.edu',
     'student1@markova.edu',
@@ -675,6 +682,7 @@ async function main() {
     'patron@markova.edu',
     'matron@markova.edu',
     'nurse@markova.edu',
+    'headteacher@markova.edu',
   ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
@@ -869,6 +877,22 @@ async function main() {
       firstName: 'Straton',
       lastName: 'Nsengiyumva',
       born: '1979-09-24',
+    },
+    /*
+      The head teacher, the Director of Studies. Runs the academic side:
+      confirms every report card before the principal issues it, writes the
+      head teacher's comment on each one, and keeps the teaching staff's
+      timetable and attendance. One post, so one account.
+    */
+    {
+      email: 'headteacher@markova.edu',
+      phone: '+250788000025',
+      code: `HTC-${new Date().getFullYear()}-001`,
+      role: Role.HEAD_TEACHER,
+      gender: Gender.FEMALE,
+      firstName: 'Speciose',
+      lastName: 'Mukarugwiza',
+      born: '1976-02-08',
     },
   ];
 
@@ -2094,9 +2118,18 @@ async function main() {
 
   const strength = new Map<string, number>(); // per student|subject
   const allPeople = [
-    ...enrolled.map((e) => ({ student: e.student, placements: e.placements })),
+    ...enrolled.map((e) => ({
+      student: e.student,
+      user: e.user,
+      placements: e.placements,
+    })),
     ...alumni,
   ];
+
+  /* The name a child is spoken to by, for the comments drafted below. */
+  const nameOfStudent = new Map<string, string>(
+    allPeople.map((p) => [p.student.id, p.user.firstName as string]),
+  );
 
   for (const { student, placements } of allPeople) {
     const baseline = 45 + rand(41);
@@ -2223,9 +2256,19 @@ async function main() {
   }
 
   const termResultRows: any[] = [];
+  /* Each term's average, so the next term's head teacher comment can say
+     which way a child is moving rather than only where they stand. */
+  const averageByStudentTerm = new Map<string, number>();
   for (let yearIdx = 0; yearIdx < allYears.length; yearIdx++)
-  for (const term of allYears[yearIdx].terms.filter(termBegun))
+  for (const [termIdx, term] of allYears[yearIdx].terms
+    .filter(termBegun)
+    .entries())
   for (const meta of sectionMetas) {
+    // The term before this one in the same year, where there is one.
+    const priorTerm =
+      termIdx > 0
+        ? allYears[yearIdx].terms.filter(termBegun)[termIdx - 1]
+        : null;
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
     // The term in progress stays a draft; everything before it is finished.
@@ -2244,8 +2287,12 @@ async function main() {
       let subjectCount = 0;
       let aggregate = 0;
       let aggregateMax = 0;
+      /* Kept so each card can be commented on the way a real one is: from
+         the subjects it actually prints. */
+      const commentSubjects: CommentSubject[] = [];
       for (const [subjectId, subjectRows] of bySubject) {
-        const scope = subjectById.get(subjectId)!.scope as SubjectScope;
+        const subject = subjectById.get(subjectId)!;
+        const scope = subject.scope as SubjectScope;
         const total = computeSubjectTotal(
           scope,
           subjectRows.map((r) => ({
@@ -2257,6 +2304,14 @@ async function main() {
         if (total === null) continue;
         totalMarks += total;
         subjectCount++;
+        commentSubjects.push({
+          name: subject.name,
+          total,
+          grade: gradeFor(scope, total).letter,
+          competence: total >= COMPETENCE_THRESHOLD
+            ? 'COMPETENT'
+            : 'NOT_YET_COMPETENT',
+        });
         if (countsTowardAggregate(scope)) {
           aggregate += gradeFor(scope, total).points;
           aggregateMax += MAX_POINTS_PER_SUBJECT;
@@ -2285,14 +2340,60 @@ async function main() {
         publishedAt: isCurrentResultTerm ? null : new Date(),
         reportCardPublished: !isCurrentResultTerm,
         reportCardPublishedAt: isCurrentResultTerm ? null : new Date(),
+        /* A card cannot be issued without the head teacher's check, so a
+           seeded database where the past terms are issued and unconfirmed
+           would be a state the system itself refuses to produce. */
+        dosConfirmed: !isCurrentResultTerm,
+        dosConfirmedAt: isCurrentResultTerm ? null : new Date(),
+        /* The subjects and the conduct this card was worked out from, so the
+           comments below can be written from what the card prints. */
+        _subjects: commentSubjects,
+        _firstName: nameOfStudent.get(student.id) ?? 'This student',
       });
     }
 
     computed.sort((a, b) => b.average - a.average);
+    /*
+      Both comments on every finished card, drafted the way the school drafts
+      them: from the subjects the card prints, in the two registers the two
+      writers actually use.
+
+      One canned sentence on the top student and nothing on the other
+      twenty-nine was the previous demo, and it showed a family exactly what
+      an unread report card looks like. The head teacher's check needs a
+      class teacher's comment on every card anyway, so a seed that leaves
+      them blank seeds a class that could never have been confirmed.
+    */
     computed.forEach((r, i) => {
       r.rank = i + 1;
-      if (i === 0) r.teacherComment = 'Excellent work, keep leading the class.';
+      if (isCurrentResultTerm) return;
+      const previous = priorTerm
+        ? (averageByStudentTerm.get(`${r.studentId}|${priorTerm.id}`) ?? null)
+        : null;
+      const both = suggestComments({
+        studentId: r.studentId,
+        firstName: r._firstName,
+        average: r.average,
+        letterGrade: r.letterGrade,
+        rank: r.rank,
+        classSize: computed.length,
+        aggregate: r.aggregate,
+        aggregateMax: r.aggregateMax,
+        previousAverage: previous,
+        subjects: r._subjects,
+        conduct: null,
+      });
+      r.teacherComment = both.classTeacher;
+      r.headmasterComment = both.headTeacher;
     });
+    // The term's averages, for next term's comment to compare against.
+    for (const r of computed) {
+      averageByStudentTerm.set(`${r.studentId}|${term.id}`, r.average);
+    }
+    for (const r of computed) {
+      delete r._subjects;
+      delete r._firstName;
+    }
     termResultRows.push(...computed);
   }
   for (let i = 0; i < termResultRows.length; i += 5000) {
