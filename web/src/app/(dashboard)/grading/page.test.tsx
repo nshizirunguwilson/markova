@@ -160,9 +160,12 @@ describe("what a term mark is made of", () => {
     serve(h.api, { ...routes, "/academic/grading-scale": shared });
     await mount();
     expect(screen.getAllByTitle("End of Term Exam: 60%")).toHaveLength(1);
-    expect(document.body.textContent).toContain(
-      "Ordinary Level, core subjects, Ordinary Level, elective subjects",
-    );
+    /* Each name in its own chip, so three kinds weighted alike read as
+       three things rather than as one long label. */
+    expect(screen.getByText("Ordinary Level, core subjects")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ordinary Level, elective subjects"),
+    ).toBeInTheDocument();
   });
 
   it("keeps a differently weighted kind on its own bar", async () => {

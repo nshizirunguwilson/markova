@@ -108,18 +108,35 @@ function WeightBar({
   names: string[];
   parts: Weight["parts"];
 }) {
+  /*
+    Solid hues rather than one colour faded, because these segments carry
+    their own percentage in white. A faded navy at 25% is a 1.5:1 background
+    for white text - the label disappears, and axe says so. These four are
+    from the categorical chart palette, which `scripts/check-contrast.mjs`
+    already asserts clears 4.5:1 under a white label.
+  */
   const shades = [
-    "bg-primary",
-    "bg-primary/70",
-    "bg-primary/45",
-    "bg-primary/25",
+    "bg-[#1B4F72]",
+    "bg-[#1A5276]",
+    "bg-[#117A65]",
+    "bg-[#7D3C98]",
   ];
   return (
     <div>
-      <p className="text-sm font-medium text-foreground">
-        {names.join(", ")}
-      </p>
-      <div className="mt-2 flex h-7 w-full overflow-hidden rounded-md">
+      {/* One row per kind, not one comma-separated sentence: three names run
+          together read as one long label rather than as three things that
+          happen to be weighted alike. */}
+      <div className="mb-2 flex flex-wrap gap-x-2 gap-y-1">
+        {names.map((n) => (
+          <span
+            key={n}
+            className="rounded-md bg-surface-muted px-2 py-0.5 text-xs font-medium text-foreground-muted"
+          >
+            {n}
+          </span>
+        ))}
+      </div>
+      <div className="flex h-7 w-full overflow-hidden rounded-md">
         {parts.map((p, i) => (
           <div
             key={p.assessment}
