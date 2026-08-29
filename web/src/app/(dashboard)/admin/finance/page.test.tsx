@@ -76,6 +76,16 @@ describe("the roll", () => {
     expect(rowFor(/Divine Niyonkuru/).textContent).toMatch(/80,000 RWF/);
   });
 
+  /*
+    The order is fixed and there is no column to click, so the page has to say
+    what it is — a reader who assumes alphabetical will think the roll is
+    wrong.
+  */
+  it("says the roll is ordered by what is owed", async () => {
+    await mount();
+    expect(document.body.textContent).toMatch(/largest balances first/i);
+  });
+
   it("names the class the way the school does", async () => {
     await mount();
     expect(rowFor(/Divine Niyonkuru/).textContent).toMatch(/Senior 1 A/);

@@ -1425,6 +1425,38 @@ test('fees: the register lists every student, not every class', async (browser) 
   await ctx.close();
 });
 
+/**
+ * Biggest debts first.
+ *
+ * A bursar opens this page to find out who to chase, and alphabetical order
+ * buries the handful of families owing two hundred thousand among six hundred
+ * who owe nothing. Checked against the real roll rather than a fixture,
+ * because the ordering is worked out over every student in the school.
+ */
+test('fees: the register puts the biggest debts at the top', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'BURSAR');
+  await visit(page, '/admin/finance');
+  await page.waitForSelector('tbody tr:has-text("STD-")', { timeout: 30000 });
+
+  // The balance is the fifth cell, written as "93,500 RWF".
+  const balances = await page.$$eval('tbody tr', (rows) =>
+    rows
+      .map((r) => r.querySelectorAll('td')[4]?.innerText ?? '')
+      .filter((t) => /RWF/.test(t))
+      .map((t) => Number(t.replace(/[^0-9]/g, ''))),
+  );
+  assert(balances.length > 5, `only read ${balances.length} balances`);
+  assert(balances[0] > 0, 'the first row owes nothing, so nothing is being chased');
+  for (let i = 1; i < balances.length; i++) {
+    assert(
+      balances[i] <= balances[i - 1],
+      `row ${i} owes ${balances[i]}, above it owes ${balances[i - 1]}`,
+    );
+  }
+  await ctx.close();
+});
+
 test('fees: the price list says a boarder and a day student pay differently', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await authedPage(ctx, 'BURSAR');
