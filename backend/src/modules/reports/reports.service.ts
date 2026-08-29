@@ -49,6 +49,10 @@ import {
   sanitizeColor,
   watermark,
 } from '../../common/html';
+import {
+  suggestComments,
+  type CommentFacts,
+} from '../../common/report-comments';
 
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -1343,6 +1347,66 @@ export class ReportsService implements OnModuleDestroy {
       registrationNumber: escapeHtml(map['registration_number'] || ''),
       primaryColor: sanitizeColor(map['primary_color']),
     };
+  }
+
+  /**
+   * Two drafted comments for one report card.
+   *
+   * Assembled from `getTermReportData`, which is the same call that renders
+   * the sheet. That is the whole point of putting this here rather than in
+   * the marks module: a comment that reflects "what is on the report card"
+   * has to be built from what is on the report card, and a second reading of
+   * the marks is a second reading that can disagree with the first.
+   *
+   * The previous term's average is the one fact the card itself does not
+   * carry, and it is worth fetching: a 58% that was 48% last term is a
+   * different conversation from a 58% that was 68%.
+   */
+  async suggestReportComments(studentId: string, termId: string) {
+    const data = await this.getTermReportData(studentId, termId);
+
+    const term = await this.prisma.term.findUnique({
+      where: { id: termId },
+      select: { startDate: true, academicYearId: true },
+    });
+    const previous = term
+      ? await this.prisma.termResult.findFirst({
+          where: {
+            studentId,
+            term: {
+              academicYearId: term.academicYearId,
+              startDate: { lt: term.startDate },
+            },
+          },
+          orderBy: { term: { startDate: 'desc' } },
+          select: { average: true },
+        })
+      : null;
+
+    const facts: CommentFacts = {
+      studentId,
+      // The name the child is spoken to by, not the whole record.
+      firstName: String(data.student.name || '').split(/\s+/)[0] || 'This student',
+      average: data.result?.average ?? null,
+      letterGrade: data.result?.letterGrade ?? null,
+      rank: data.result?.rank ?? null,
+      classSize: data.classStats.totalStudents,
+      aggregate: data.result?.aggregate ?? null,
+      aggregateMax: data.result?.aggregateMax ?? null,
+      previousAverage: previous?.average ?? null,
+      subjects: data.subjects.map((s: any) => ({
+        name: s.subject,
+        total: s.total,
+        grade: s.grade,
+        competence: s.competence,
+      })),
+      conduct:
+        data.conduct?.points === null || data.conduct?.points === undefined
+          ? null
+          : { points: data.conduct.points, outOf: data.conduct.outOf },
+    };
+
+    return suggestComments(facts);
   }
 
   private groupMarksBySubject(marks: any[]) {

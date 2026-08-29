@@ -104,6 +104,29 @@ export class ReportsController {
     return this.service.getTermReportData(studentId, termId);
   }
 
+  /**
+   * Two drafted comments for one card.
+   *
+   * Only the three people who ever write one may ask for a draft. A family
+   * reading a suggestion the school has not adopted would be reading an
+   * opinion nobody holds, and a student could work out their position from a
+   * draft written before the marks were released.
+   *
+   * Nothing is saved by this: the draft lands in a box, and the person whose
+   * name goes under it decides what is actually written.
+   */
+  @Get('term/:studentId/comment-suggestions')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @ApiOperation({ summary: 'Draft the class teacher and head teacher comments' })
+  async suggestComments(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Query('termId', ParseUUIDPipe) termId: string,
+    @CurrentUser() user: any,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    return this.service.suggestReportComments(studentId, termId);
+  }
+
   @Get('term/:studentId/html')
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.

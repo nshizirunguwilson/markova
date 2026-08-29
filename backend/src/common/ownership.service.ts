@@ -7,16 +7,21 @@ export class OwnershipService {
 
   /**
    * Verify that the requesting user has access to the given student's data.
-   * - ADMIN / TEACHER: always allowed
+   * - ADMIN / HEAD_TEACHER / TEACHER: always allowed
    * - STUDENT: must be their own student record
    * - PARENT: the student must be one of their linked children
+   *
+   * The head teacher sits with the first group because reading every child's
+   * record is the post: they confirm each report card before it is issued,
+   * which cannot be done without opening it.
    */
   async verifyStudentAccess(
     userId: string,
     role: string,
     studentId: string,
   ): Promise<void> {
-    if (role === 'ADMIN' || role === 'TEACHER') return;
+    if (role === 'ADMIN' || role === 'HEAD_TEACHER' || role === 'TEACHER')
+      return;
 
     if (role === 'STUDENT') {
       const student = await this.prisma.student.findFirst({
