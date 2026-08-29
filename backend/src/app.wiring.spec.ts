@@ -8,6 +8,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClinicModule } from './modules/clinic/clinic.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { DisciplineModule } from './modules/discipline/discipline.module';
 import { HealthModule } from './modules/health/health.module';
 import { HelpModule } from './modules/help/help.module';
@@ -46,6 +47,7 @@ const FEATURE_MODULES = [
   PocketMoneyModule,
   ActivitiesModule,
   ClinicModule,
+  FinanceModule,
   HomeworkModule,
   MessagingModule,
   NotificationsModule,
