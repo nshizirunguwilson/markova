@@ -11,6 +11,17 @@ import {
 // Local time throughout: day boundaries are local, so a UTC literal would
 // make these tests pass or fail depending on where they are run.
 const now = new Date("2026-08-27T15:00:00");
+/**
+ * The start of a run, and a time measured from it.
+ *
+ * The cases about where the window falls are written as offsets rather than
+ * as clock readings worked out by hand: what they are checking is that the
+ * boundary is inclusive and that a gap past it splits the run, and neither of
+ * those is a claim about any particular number of minutes. The number itself
+ * is pinned once, below.
+ */
+const runStart = "2026-08-27T10:00:00";
+const after = (ms: number) => new Date(Date.parse(runStart) + ms).toISOString();
 const me = "me-1";
 const her = "u-2";
 
@@ -86,6 +97,17 @@ describe("labelling the day a message was sent", () => {
   });
 });
 
+describe("how long a run may pause for", () => {
+  /*
+    The one place the window's value is stated. Everything else about grouping
+    is written in terms of the constant, so this is what has to be changed —
+    deliberately — when the policy changes.
+  */
+  it("is three minutes", () => {
+    expect(GROUP_WINDOW_MS).toBe(3 * 60 * 1000);
+  });
+});
+
 describe("grouping a thread the way it is read", () => {
   it("runs consecutive messages from one person together", () => {
     const blocks = groupThread(
@@ -119,8 +141,8 @@ describe("grouping a thread the way it is read", () => {
   it("breaks the run after a long enough gap", () => {
     const blocks = groupThread(
       [
-        msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, new Date(Date.parse("2026-08-27T10:00:00") + GROUP_WINDOW_MS + 1000).toISOString()),
+        msg("m-1", her, runStart),
+        msg("m-2", her, after(GROUP_WINDOW_MS + 1000)),
       ],
       me,
       now,
@@ -143,7 +165,7 @@ describe("grouping a thread the way it is read", () => {
   /*
     A minute boundary is not a boundary anybody can see. Two messages seconds
     apart are one remark whichever side of it they fall, which is what the
-    two-minute window is for.
+    grouping window is for.
   */
   it("holds a run together across a minute boundary", () => {
     const blocks = groupThread(
@@ -157,11 +179,11 @@ describe("grouping a thread the way it is read", () => {
     expect(blocks[0].groups).toHaveLength(1);
   });
 
-  it("holds it together right up to three minutes", () => {
+  it("holds it together right up to the end of the window", () => {
     const blocks = groupThread(
       [
-        msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, "2026-08-27T10:03:00"),
+        msg("m-1", her, runStart),
+        msg("m-2", her, after(GROUP_WINDOW_MS)),
       ],
       me,
       now,
@@ -170,11 +192,11 @@ describe("grouping a thread the way it is read", () => {
   });
 
   // Past that they are two remarks, not one.
-  it("breaks the run once the gap is longer than three minutes", () => {
+  it("breaks the run once the gap is past the window", () => {
     const blocks = groupThread(
       [
-        msg("m-1", her, "2026-08-27T10:00:00"),
-        msg("m-2", her, "2026-08-27T10:03:30"),
+        msg("m-1", her, runStart),
+        msg("m-2", her, after(GROUP_WINDOW_MS + 30000)),
       ],
       me,
       now,
@@ -183,19 +205,19 @@ describe("grouping a thread the way it is read", () => {
   });
 
   // The run is labelled with its last message, which is when the remark
-  // finished. Three minutes is short enough that the difference never matters.
+  // finished. The window is short enough that the difference never matters.
   it("labels a run by when it finished", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:05"),
-        msg("m-2", her, "2026-08-27T10:02:50"),
+        msg("m-2", her, "2026-08-27T10:01:50"),
       ],
       me,
       now,
     );
     const group = blocks[0].groups[0];
     const last = group.messages[group.messages.length - 1];
-    expect(clockTime(last.createdAt)).toBe("10:02");
+    expect(clockTime(last.createdAt)).toBe("10:01");
   });
 
   it("starts a new day rather than running across midnight", () => {
