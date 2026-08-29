@@ -58,20 +58,23 @@ export const STATUS_LABEL: Record<FeeStatus, string> = {
 };
 
 /**
- * How a status looks.
+ * How a status looks, as one of the badge variants the rest of the app uses.
  *
  * `PART_PAID` and `UNPAID` are both "owing" as far as the report card is
  * concerned, but they are not the same thing to a bursar chasing money, and
  * washing them into one colour would throw away the distinction the register
  * exists to draw. Amber for a family part way there, red for one that has not
- * started — and grey, not red, for a term nobody has been billed for, which
- * is the school's own unfinished work rather than a family's debt.
+ * started — and a plain grey, not red, for a term nobody has been billed for,
+ * which is the school's own unfinished work rather than a family's debt.
  */
-export const STATUS_TONE: Record<FeeStatus, string> = {
-  CLEARED: "bg-success-wash text-success border-success/30",
-  PART_PAID: "bg-warning-wash text-warning border-warning/30",
-  UNPAID: "bg-danger-wash text-danger border-danger/30",
-  NOT_INVOICED: "bg-surface-muted text-muted border-border",
+export const STATUS_VARIANT: Record<
+  FeeStatus,
+  "success" | "warning" | "danger" | "default"
+> = {
+  CLEARED: "success",
+  PART_PAID: "warning",
+  UNPAID: "danger",
+  NOT_INVOICED: "default",
 };
 
 /** The colour of the filled part of a progress bar, matching the status. */

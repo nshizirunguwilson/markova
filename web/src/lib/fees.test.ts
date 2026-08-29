@@ -5,7 +5,7 @@ import {
   REFERENCE_LABEL,
   STATUS_BAR,
   STATUS_LABEL,
-  STATUS_TONE,
+  STATUS_VARIANT,
   WAIVER_HINT,
   WAIVER_LABEL,
   money,
@@ -93,20 +93,19 @@ describe("naming a status", () => {
     throws away the distinction the register exists to draw.
   */
   it("gives part paid and nothing paid different colours", () => {
-    expect(STATUS_TONE.PART_PAID).not.toBe(STATUS_TONE.UNPAID);
+    expect(STATUS_VARIANT.PART_PAID).not.toBe(STATUS_VARIANT.UNPAID);
     expect(STATUS_BAR.PART_PAID).not.toBe(STATUS_BAR.UNPAID);
   });
 
   // A term nobody was billed for is the school's unfinished work, not a
   // family's debt, so it must not be dressed as an alarm.
   it("does not colour an unbilled term as a problem", () => {
-    expect(STATUS_TONE.NOT_INVOICED).not.toContain("danger");
-    expect(STATUS_TONE.NOT_INVOICED).not.toContain("warning");
+    expect(STATUS_VARIANT.NOT_INVOICED).toBe("default");
   });
 
   it("has a colour and a bar for every status", () => {
     for (const status of Object.keys(STATUS_LABEL)) {
-      expect(STATUS_TONE[status as keyof typeof STATUS_TONE]).toBeTruthy();
+      expect(STATUS_VARIANT[status as keyof typeof STATUS_VARIANT]).toBeTruthy();
       expect(STATUS_BAR[status as keyof typeof STATUS_BAR]).toBeTruthy();
     }
   });
