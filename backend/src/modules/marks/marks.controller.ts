@@ -14,6 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MarksService } from './marks.service';
 import { OwnershipService } from '../../common/ownership.service';
+import { FeeGateService } from '../../common/fee-gate.service';
 import {
   CreateMarkDto,
   UpdateMarkDto,
@@ -37,7 +38,22 @@ export class MarksController {
   constructor(
     private readonly service: MarksService,
     private readonly ownership: OwnershipService,
+    private readonly feeGate: FeeGateService,
   ) {}
+
+  /*
+    Results held over unpaid fees are reported, not refused.
+
+    These three endpoints are what a student's own marks page is built from,
+    and a 403 there is a dead end: the page has nothing to draw and the family
+    is told only that they are blocked. Answering with `withheld` instead lets
+    the page say which term it is, how much is outstanding and where to go
+    about it.
+
+    The report and PDF endpoints in the reports controller do refuse, because
+    a download has no page to render an explanation into and handing over a
+    file is exactly what must not happen.
+  */
 
   // ── Mark CRUD ───────────────────────────────────────────────────────────
 
@@ -132,6 +148,12 @@ export class MarksController {
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    const withheld = await this.feeGate.withholdingFor(
+      user.role,
+      studentId,
+      termId,
+    );
+    if (withheld) return { withheld };
     // The role decides whether unpublished figures come back at all.
     return this.service.getStudentTermResult(studentId, termId, user.role);
   }
@@ -190,6 +212,12 @@ export class MarksController {
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    const withheld = await this.feeGate.withholdingForYear(
+      user.role,
+      studentId,
+      academicYearId,
+    );
+    if (withheld) return { withheld };
     return this.service.getStudentYearResult(studentId, academicYearId);
   }
 
@@ -211,6 +239,14 @@ export class MarksController {
       const issued = await this.service.isReportCardIssued(studentId, termId);
       if (!issued) return { issued: false };
     }
+    // Issued, but held: two different things to say, and a family can act on
+    // only one of them.
+    const withheld = await this.feeGate.withholdingFor(
+      user.role,
+      studentId,
+      termId,
+    );
+    if (withheld) return { issued: true, withheld };
     const card = await this.service.getReportCardData(studentId, termId);
     return { issued: true, ...card };
   }
