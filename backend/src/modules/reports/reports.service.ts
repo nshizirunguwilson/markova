@@ -1506,6 +1506,24 @@ export class ReportsService implements OnModuleDestroy {
       ? `<img class="crest-img" src="${logo}" alt="" />`
       : `<div class="crest">${initials}</div>`;
 
+    /*
+      The child's own photograph, inlined rather than linked. A remote fetch
+      inside the PDF renderer is the slowest and least reliable moment to
+      discover a file has moved, and the crest already refuses to take one.
+      No fallback portrait: initials in the frame say "we have no photograph
+      of this child" honestly, where a silhouette says nothing at all.
+    */
+    const portrait = logoDataUri(data.student.photoUrl, { fallback: null });
+    /* First name and family name, not the first two words: plenty of Rwandan
+       students carry two given names, and "Kevin Hirwa Kwizera" initialled
+       from the left reads KH rather than KK. */
+    const nameWords = String(data.student.name || '').split(/\s+/).filter(Boolean);
+    const studentInitials = [nameWords[0], nameWords[nameWords.length - 1]]
+      .filter(Boolean)
+      .map((w: string) => w[0])
+      .join('')
+      .toUpperCase();
+
     const regTail = String(data.student.studentIdNumber || '')
       .split('-')
       .pop();
@@ -1518,10 +1536,12 @@ export class ReportsService implements OnModuleDestroy {
     const info = (label: string, value: string) =>
       `<div><span>${label}</span><b>${value}</b></div>`;
 
-    const attendance =
-      data.attendance && data.attendance.total > 0
-        ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
-        : '-';
+    /*
+      Attendance is no longer printed here. It is a record of the term, not a
+      fact about who this child is, and it sat in the identity fields saying
+      neither. The register still holds it and the year report still carries
+      it; the card is the wrong place to read it from.
+    */
 
     /*
       Conduct as a mark out of forty and as a percentage, rather than as a
@@ -1778,7 +1798,23 @@ export class ReportsService implements OnModuleDestroy {
       .title-band{ margin:10px 0 12px; background:#eef4f9; border:1px solid rgba(21,37,54,.09); text-align:center; padding:7px 12px; border-radius:4px; }
       .title-band .t{ font-size:14.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:${navy}; }
       .title-band .s{ font-size:11px; color:#5b6b7b; margin-top:2px; }
-      .info{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 18px; font-size:11.5px; margin-bottom:12px; }
+      /*
+        Who this card belongs to, as one block rather than as two of eight
+        equal fields.
+
+        A card is handed over in a stack of thirty, and the first thing a
+        parent does is confirm it is their child's. The name previously
+        carried exactly the weight of "Class size", which made identity the
+        hardest thing on the sheet to find and the wrong card the easiest
+        mistake to make. The photograph settles it without reading.
+      */
+      .ident{ display:flex; align-items:center; gap:14px; margin-bottom:12px; padding:8px 12px; border:1px solid rgba(21,37,54,.09); border-left:4px solid ${navy}; border-radius:4px; background:#f8fbfd; }
+      .portrait{ width:24mm; height:29mm; flex:0 0 24mm; border:1px solid rgba(21,37,54,.16); border-radius:3px; overflow:hidden; background:#eef4f9; display:flex; align-items:center; justify-content:center; }
+      .portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .portrait span{ font-size:22px; font-weight:700; color:${navy}; letter-spacing:.04em; }
+      .who{ flex:1; min-width:0; }
+      .who .nm{ font-size:22px; font-weight:700; color:${navy}; letter-spacing:.01em; line-height:1.15; margin-bottom:8px; }
+      .info{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px 18px; font-size:11.5px; }
       .info div span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:2px; }
       .info div b{ font-weight:600; }
       table.marks{ border-collapse:collapse; width:100%; font-size:11.5px; }
@@ -1847,15 +1883,22 @@ export class ReportsService implements OnModuleDestroy {
         <div class="s">${escapeHtml(data.term.academicYear)} School Year${sectorLine}</div>
       </div>
 
-      <div class="info">
-        ${info('Student name', escapeHtml(data.student.name))}
-        ${info('Registration No', escapeHtml(data.student.studentIdNumber))}
-        ${info('Class', escapeHtml(data.student.class))}
-        ${info('Class size', `${data.classStats.totalStudents} students`)}
-        ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
-        ${info('Term', escapeHtml(data.term.name))}
-        ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '-')}
-        ${info('Attendance', attendance)}
+      <div class="ident">
+        <div class="portrait">${
+          portrait
+            ? `<img src="${portrait}" alt="" />`
+            : `<span>${escapeHtml(studentInitials)}</span>`
+        }</div>
+        <div class="who">
+          <div class="nm">${escapeHtml(data.student.name)}</div>
+          <div class="info">
+            ${info('Registration No', escapeHtml(data.student.studentIdNumber))}
+            ${info('Class', escapeHtml(data.student.class))}
+            ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
+            ${info('Term', escapeHtml(data.term.name))}
+            ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '-')}
+          </div>
+        </div>
       </div>
 
       <table class="marks">
