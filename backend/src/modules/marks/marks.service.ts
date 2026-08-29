@@ -28,6 +28,7 @@ import {
   CalculateYearResultDto,
   UpdateTermResultCommentDto,
   PublishTermResultsDto,
+  ConfirmReportCardsDto,
   PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
@@ -540,11 +541,74 @@ export class MarksService {
   }
 
   /**
+   * The head teacher standing behind a class's report cards, or handing them
+   * back to be worked on.
+   *
+   * This is the step between the comments being written and the principal
+   * issuing the cards, and it is the only point at which somebody reads a
+   * sheet whole before a family does. A school that issues without it has
+   * nobody who checked; `publishReportCards` refuses until it is done.
+   *
+   * Handing a class back clears the confirmation for every card in it. That
+   * is deliberate: the head teacher confirms a class, not a card, because
+   * what they are actually certifying is that the set is consistent - the
+   * same term, the same marking, the same standard applied to thirty
+   * children - and half a confirmed class certifies nothing.
+   */
+  async confirmReportCards(dto: ConfirmReportCardsDto, userId: string) {
+    const where = { classSectionId: dto.classSectionId, termId: dto.termId };
+
+    if (dto.isConfirmed) {
+      const unpublished = await this.prisma.termResult.count({
+        where: { ...where, isPublished: false },
+      });
+      if (unpublished > 0) {
+        throw new BadRequestException(
+          `Publish the marks first: ${unpublished} of this class's results are still unpublished, and there is nothing to confirm until the figures are settled.`,
+        );
+      }
+
+      /* Nothing to stand behind. A card with no comment on it is a card the
+         class teacher has not finished, and confirming it would put the head
+         teacher's name to an empty box. */
+      const uncommented = await this.prisma.termResult.count({
+        where: { ...where, OR: [{ teacherComment: null }, { teacherComment: '' }] },
+      });
+      if (uncommented > 0) {
+        throw new BadRequestException(
+          `${uncommented} of these cards have no class teacher's comment yet. A card is not ready to confirm until it has been written on.`,
+        );
+      }
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.termResult.updateMany({
+      where,
+      data: dto.isConfirmed
+        ? { dosConfirmed: true, dosConfirmedAt: now, dosConfirmedById: userId }
+        : {
+            dosConfirmed: false,
+            dosConfirmedAt: null,
+            dosConfirmedById: null,
+            /* Handing a class back withdraws any card already issued from it.
+               Leaving one out would mean a family holding a card the head
+               teacher has just said is not right. */
+            reportCardPublished: false,
+            reportCardPublishedAt: null,
+          },
+    });
+
+    return { ...updated, isConfirmed: dto.isConfirmed };
+  }
+
+  /**
    * Issue (or withdraw) the report cards for a class.
    *
    * Refused while the marks are unpublished, because the card carries them -
    * issuing one would put in front of a family precisely the figures the
-   * school has not released.
+   * school has not released. Refused again until the head teacher has
+   * confirmed the class, because that is the school's own read of the sheet
+   * and the principal is signing on the strength of it.
    */
   async publishReportCards(dto: PublishReportCardsDto) {
     const where = { classSectionId: dto.classSectionId, termId: dto.termId };
@@ -556,6 +620,15 @@ export class MarksService {
       if (unpublished > 0) {
         throw new BadRequestException(
           `Publish the marks first: ${unpublished} of this class's results are still unpublished, and a report card carries them.`,
+        );
+      }
+
+      const unconfirmed = await this.prisma.termResult.count({
+        where: { ...where, dosConfirmed: false },
+      });
+      if (unconfirmed > 0) {
+        throw new BadRequestException(
+          `The head teacher has not confirmed this class yet: ${unconfirmed} of these cards are still waiting. A card is issued on the strength of that check.`,
         );
       }
     }

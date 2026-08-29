@@ -23,6 +23,7 @@ import {
   CalculateYearResultDto,
   UpdateTermResultCommentDto,
   PublishTermResultsDto,
+  ConfirmReportCardsDto,
   PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
@@ -159,13 +160,35 @@ export class MarksController {
   }
 
   @Put('term-results/:id/comment')
-  @Roles('ADMIN', 'TEACHER')
+  // The head teacher writes one of the two comments, so they reach the same
+  // endpoint the class teacher does.
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Update teacher/headmaster comment on term result' })
   updateComment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTermResultCommentDto,
   ) {
     return this.service.updateTermResultComment(id, dto);
+  }
+
+  /**
+   * The head teacher standing behind a class's cards, or handing them back.
+   *
+   * The admin is allowed here as well, because a school where the head
+   * teacher is away for a fortnight still has to issue report cards, and a
+   * gate nobody can open in an emergency is a gate people learn to route
+   * around permanently.
+   */
+  @Post('report-cards/confirm')
+  @Roles('HEAD_TEACHER', 'ADMIN')
+  @ApiOperation({
+    summary: "Confirm a class's report cards, or hand them back",
+  })
+  confirmReportCards(
+    @Body() dto: ConfirmReportCardsDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.confirmReportCards(dto, user.id);
   }
 
   @Post('report-cards/publish')

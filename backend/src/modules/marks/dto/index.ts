@@ -87,6 +87,24 @@ export class PublishReportCardsDto {
   @ApiProperty() @IsBoolean() isPublished: boolean;
 }
 
+/**
+ * The head teacher standing behind a class's cards, or handing them back.
+ *
+ * Handing them back takes a reason: a class teacher who is told only that
+ * their cards were returned has to guess what to fix, and guessing is how a
+ * card goes round the loop three times.
+ */
+export class ConfirmReportCardsDto {
+  @ApiProperty() @IsUUID() classSectionId: string;
+  @ApiProperty() @IsUUID() termId: string;
+  @ApiProperty() @IsBoolean() isConfirmed: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class QueryMarksDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() studentId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() subjectId?: string;
