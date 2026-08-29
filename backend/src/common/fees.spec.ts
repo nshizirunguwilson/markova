@@ -152,7 +152,9 @@ describe('whether results are withheld', () => {
   });
 
   it('releases them once the term is cleared', () => {
-    expect(withholdingReason(feeStanding(195000, [{ amount: 195000 }], []))).toBeNull();
+    expect(
+      withholdingReason(feeStanding(195000, [{ amount: 195000 }], [])),
+    ).toBeNull();
   });
 
   it('releases them when the school has raised no bill at all', () => {

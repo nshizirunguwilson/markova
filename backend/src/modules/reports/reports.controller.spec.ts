@@ -181,7 +181,7 @@ describe('ReportsController', () => {
       buildController(ReportsController, [
         { token: ReportsService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },
-      { token: FeeGateService, name: 'feeGate', mock: feeGate },
+        { token: FeeGateService, name: 'feeGate', mock: feeGate },
       ]);
 
     it('sends a report card as a named PDF', async () => {

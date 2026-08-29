@@ -126,8 +126,16 @@ describe('FinanceController', () => {
    */
   describe('an account a family can reach', () => {
     it.each([
-      ['one term', 'account', (c: any) => c.account('stu-1', 'term-1', { id: 'u-1', role: 'PARENT' })],
-      ['every term', 'history', (c: any) => c.history('stu-1', { id: 'u-1', role: 'PARENT' })],
+      [
+        'one term',
+        'account',
+        (c: any) => c.account('stu-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
+      ],
+      [
+        'every term',
+        'history',
+        (c: any) => c.history('stu-1', { id: 'u-1', role: 'PARENT' }),
+      ],
     ])('checks whose account it is before reading %s', async (_n, _m, call) => {
       const ctl: any = await buildController(FinanceController, [
         { token: FinanceService, name: 'service', mock: service },

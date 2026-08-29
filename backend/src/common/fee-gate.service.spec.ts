@@ -74,7 +74,9 @@ describe('FeeGateService', () => {
 
     it('releases a term that has been paid', async () => {
       prisma.feeInvoice.findUnique.mockResolvedValue(settled);
-      expect(await gate.withholdingFor('STUDENT', 'stu-1', 'term-1')).toBeNull();
+      expect(
+        await gate.withholdingFor('STUDENT', 'stu-1', 'term-1'),
+      ).toBeNull();
     });
 
     /**
@@ -87,7 +89,9 @@ describe('FeeGateService', () => {
         payments: [],
         waivers: [{ amount: 195000, revokedAt: null }],
       });
-      expect(await gate.withholdingFor('STUDENT', 'stu-1', 'term-1')).toBeNull();
+      expect(
+        await gate.withholdingFor('STUDENT', 'stu-1', 'term-1'),
+      ).toBeNull();
     });
 
     /**
@@ -97,12 +101,16 @@ describe('FeeGateService', () => {
      */
     it('releases a term nobody was billed for', async () => {
       prisma.feeInvoice.findUnique.mockResolvedValue(null);
-      expect(await gate.withholdingFor('STUDENT', 'stu-1', 'term-1')).toBeNull();
+      expect(
+        await gate.withholdingFor('STUDENT', 'stu-1', 'term-1'),
+      ).toBeNull();
     });
 
     it('releases everything when the school has turned the rule off', async () => {
       prisma.schoolConfig.findUnique.mockResolvedValue({ value: 'false' });
-      expect(await gate.withholdingFor('STUDENT', 'stu-1', 'term-1')).toBeNull();
+      expect(
+        await gate.withholdingFor('STUDENT', 'stu-1', 'term-1'),
+      ).toBeNull();
     });
   });
 
@@ -112,12 +120,17 @@ describe('FeeGateService', () => {
    * its own records cannot run.
    */
   describe('who is never held', () => {
-    it.each(['ADMIN', 'TEACHER', 'BURSAR', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN'])(
-      'never holds a %s',
-      async (role) => {
-        expect(await gate.withholdingFor(role, 'stu-1', 'term-1')).toBeNull();
-      },
-    );
+    it.each([
+      'ADMIN',
+      'TEACHER',
+      'BURSAR',
+      'PATRON',
+      'MATRON',
+      'NURSE',
+      'LIBRARIAN',
+    ])('never holds a %s', async (role) => {
+      expect(await gate.withholdingFor(role, 'stu-1', 'term-1')).toBeNull();
+    });
 
     // And it does not go to the database to find that out.
     it('does not even look up the invoice for staff', async () => {

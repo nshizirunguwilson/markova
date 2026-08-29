@@ -209,7 +209,7 @@ describe('MarksController', () => {
       const run2 = await controllerHarness(MarksController, [
         { token: MarksService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },
-      { token: FeeGateService, name: 'feeGate', mock: feeGate },
+        { token: FeeGateService, name: 'feeGate', mock: feeGate },
       ]);
       await expect(
         run2({
@@ -353,7 +353,10 @@ describe('marks held over unpaid fees', () => {
     'isReportCardIssued',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
-  const withheld = { balance: 75000, message: '75,000 RWF is still outstanding' };
+  const withheld = {
+    balance: 75000,
+    message: '75,000 RWF is still outstanding',
+  };
   const feeGate = {
     withholdingFor: jest.fn(),
     withholdingForYear: jest.fn(),

@@ -79,7 +79,9 @@ export class FinanceController {
 
   @Post('invoices/raise')
   @Roles('ADMIN', 'BURSAR')
-  @ApiOperation({ summary: "Raise the term's invoices for everyone not billed" })
+  @ApiOperation({
+    summary: "Raise the term's invoices for everyone not billed",
+  })
   raise(@Body() dto: RaiseInvoicesDto) {
     return this.service.raiseInvoices(dto.termId, dto.classSectionId);
   }

@@ -324,6 +324,10 @@ export default function FeeAccountPage() {
                               setReason("");
                             }}
                             aria-label={`Void receipt ${p.receiptNumber}`}
+                            /* Icon only, so the hover tooltip is the only
+                               thing telling a bursar what the button does
+                               before they press it. */
+                            title={`Void receipt ${p.receiptNumber}`}
                           >
                             <Ban className="h-4 w-4" />
                           </Button>
@@ -380,6 +384,7 @@ export default function FeeAccountPage() {
                               setReason("");
                             }}
                             aria-label="Withdraw this waiver"
+                            title="Withdraw this waiver"
                           >
                             <Undo2 className="h-4 w-4" />
                           </Button>

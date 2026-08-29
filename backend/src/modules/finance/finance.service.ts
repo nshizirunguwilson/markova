@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FeeAppliesTo, PaymentMethod, WaiverKind } from '@prisma/client';
+import { FeeAppliesTo } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   chargesFor,
@@ -531,7 +531,7 @@ export class FinanceService {
           invoiceId: invoice.id,
           receiptNumber: nextReceiptNumber(last?.receiptNumber, year),
           amount: dto.amount,
-          method: dto.method as PaymentMethod,
+          method: dto.method,
           reference: dto.reference?.trim() || null,
           paidAt,
           note: dto.note?.trim() || null,
@@ -589,7 +589,7 @@ export class FinanceService {
     return this.prisma.feeWaiver.create({
       data: {
         invoiceId: invoice.id,
-        kind: dto.kind as WaiverKind,
+        kind: dto.kind,
         amount: dto.amount,
         reason: dto.reason.trim(),
         grantedByUserId: userId,

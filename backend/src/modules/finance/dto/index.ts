@@ -64,7 +64,9 @@ export class CopyFeeStructureDto {
 export class RaiseInvoicesDto {
   @ApiProperty() @IsUUID() termId: string;
 
-  @ApiPropertyOptional({ description: 'One class only, rather than the school' })
+  @ApiPropertyOptional({
+    description: 'One class only, rather than the school',
+  })
   @IsOptional()
   @IsUUID()
   classSectionId?: string;

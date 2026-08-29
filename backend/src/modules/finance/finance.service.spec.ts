@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { FinanceService } from './finance.service';
 
 /**
@@ -28,8 +32,17 @@ describe('FinanceService', () => {
       delete: jest.fn(),
       createMany: jest.fn(),
     },
-    feeInvoice: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
-    feePayment: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    feeInvoice: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
+    feePayment: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     feeWaiver: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(prisma)),
   };
@@ -37,9 +50,30 @@ describe('FinanceService', () => {
   const service = new FinanceService(prisma as never);
 
   const items = [
-    { id: 'i-1', classLevelId: 'lvl-1', name: 'Tuition', amount: 85000, appliesTo: 'ALL', position: 0 },
-    { id: 'i-2', classLevelId: 'lvl-1', name: 'Boarding', amount: 60000, appliesTo: 'BOARDER', position: 1 },
-    { id: 'i-3', classLevelId: 'lvl-1', name: 'Transport', amount: 25000, appliesTo: 'DAY', position: 2 },
+    {
+      id: 'i-1',
+      classLevelId: 'lvl-1',
+      name: 'Tuition',
+      amount: 85000,
+      appliesTo: 'ALL',
+      position: 0,
+    },
+    {
+      id: 'i-2',
+      classLevelId: 'lvl-1',
+      name: 'Boarding',
+      amount: 60000,
+      appliesTo: 'BOARDER',
+      position: 1,
+    },
+    {
+      id: 'i-3',
+      classLevelId: 'lvl-1',
+      name: 'Transport',
+      amount: 25000,
+      appliesTo: 'DAY',
+      position: 2,
+    },
   ];
 
   beforeEach(() => {
@@ -68,7 +102,7 @@ describe('FinanceService', () => {
           classLevelId: 'l',
           name: '   ',
           amount: 1000,
-        } as never),
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -79,7 +113,7 @@ describe('FinanceService', () => {
         classLevelId: 'l',
         name: '  Tuition  ',
         amount: 1000,
-      } as never);
+      });
       expect(prisma.feeItem.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ name: 'Tuition' }),
@@ -96,7 +130,7 @@ describe('FinanceService', () => {
           classLevelId: 'l',
           name: 'Tuition',
           amount: 1,
-        } as never),
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -116,7 +150,9 @@ describe('FinanceService', () => {
     });
 
     it('refuses when there is nothing to copy', async () => {
-      prisma.feeItem.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      prisma.feeItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
       await expect(service.copyFeeStructure('t-1', 't-2')).rejects.toThrow(
         BadRequestException,
       );
@@ -201,7 +237,11 @@ describe('FinanceService', () => {
     it('reports students whose class level has no price list', async () => {
       prisma.student.findMany.mockResolvedValue([
         boarder,
-        { id: 'stu-3', isBoarder: false, classSection: { classLevelId: 'lvl-9' } },
+        {
+          id: 'stu-3',
+          isBoarder: false,
+          classSection: { classLevelId: 'lvl-9' },
+        },
       ]);
       const result = await service.raiseInvoices('term-1');
       expect(result).toMatchObject({ raised: 1, withoutStructure: 1 });
@@ -247,7 +287,12 @@ describe('FinanceService', () => {
       prisma.feeInvoice.findUnique.mockResolvedValue(null);
       await expect(
         service.recordPayment(
-          { studentId: 's', termId: 't', amount: 1000, method: 'CASH' } as never,
+          {
+            studentId: 's',
+            termId: 't',
+            amount: 1000,
+            method: 'CASH',
+          } as never,
           'user-1',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -276,7 +321,13 @@ describe('FinanceService', () => {
         receiptNumber: 'RCT-2026-0340',
       });
       await service.recordPayment(
-        { studentId: 's', termId: 't', amount: 1000, method: 'CASH', paidAt: '2026-02-12' } as never,
+        {
+          studentId: 's',
+          termId: 't',
+          amount: 1000,
+          method: 'CASH',
+          paidAt: '2026-02-12',
+        } as never,
         'user-1',
       );
       expect(prisma.feePayment.create).toHaveBeenCalledWith(
@@ -312,7 +363,13 @@ describe('FinanceService', () => {
 
     it('stores an empty reference as nothing rather than as blank', async () => {
       await service.recordPayment(
-        { studentId: 's', termId: 't', amount: 1000, method: 'CASH', reference: '  ' } as never,
+        {
+          studentId: 's',
+          termId: 't',
+          amount: 1000,
+          method: 'CASH',
+          reference: '  ',
+        } as never,
         'user-1',
       );
       expect(prisma.feePayment.create).toHaveBeenCalledWith(
@@ -325,7 +382,13 @@ describe('FinanceService', () => {
     it('refuses a date it cannot read', async () => {
       await expect(
         service.recordPayment(
-          { studentId: 's', termId: 't', amount: 1000, method: 'CASH', paidAt: 'last Tuesday' } as never,
+          {
+            studentId: 's',
+            termId: 't',
+            amount: 1000,
+            method: 'CASH',
+            paidAt: 'last Tuesday',
+          } as never,
           'user-1',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -355,7 +418,10 @@ describe('FinanceService', () => {
     });
 
     it('keeps the entry, with a reason and a name against it', async () => {
-      prisma.feePayment.findUnique.mockResolvedValue({ id: 'p-1', voidedAt: null });
+      prisma.feePayment.findUnique.mockResolvedValue({
+        id: 'p-1',
+        voidedAt: null,
+      });
       prisma.feePayment.update.mockResolvedValue({});
       await service.voidPayment('p-1', 'Entered twice', 'bursar-1');
       expect(prisma.feePayment.update).toHaveBeenCalledWith({
@@ -410,7 +476,13 @@ describe('FinanceService', () => {
     it('refuses to write off more than is still owed', async () => {
       await expect(
         service.grantWaiver(
-          { studentId: 's', termId: 't', kind: 'BURSARY', amount: 80000, reason: 'x' } as never,
+          {
+            studentId: 's',
+            termId: 't',
+            kind: 'BURSARY',
+            amount: 80000,
+            reason: 'x',
+          } as never,
           'bursar-1',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -419,7 +491,13 @@ describe('FinanceService', () => {
     it('says how much was actually owed when it refuses', async () => {
       await expect(
         service.grantWaiver(
-          { studentId: 's', termId: 't', kind: 'BURSARY', amount: 80000, reason: 'x' } as never,
+          {
+            studentId: 's',
+            termId: 't',
+            kind: 'BURSARY',
+            amount: 80000,
+            reason: 'x',
+          } as never,
           'bursar-1',
         ),
       ).rejects.toThrow(/75,000/);
@@ -427,7 +505,13 @@ describe('FinanceService', () => {
 
     it('allows a waiver for exactly what is owed', async () => {
       await service.grantWaiver(
-        { studentId: 's', termId: 't', kind: 'BURSARY', amount: 75000, reason: 'x' } as never,
+        {
+          studentId: 's',
+          termId: 't',
+          kind: 'BURSARY',
+          amount: 75000,
+          reason: 'x',
+        } as never,
         'bursar-1',
       );
       expect(prisma.feeWaiver.create).toHaveBeenCalled();
@@ -437,7 +521,13 @@ describe('FinanceService', () => {
       prisma.feeInvoice.findUnique.mockResolvedValue(null);
       await expect(
         service.grantWaiver(
-          { studentId: 's', termId: 't', kind: 'BURSARY', amount: 1000, reason: 'x' } as never,
+          {
+            studentId: 's',
+            termId: 't',
+            kind: 'BURSARY',
+            amount: 1000,
+            reason: 'x',
+          } as never,
           'u',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -498,7 +588,7 @@ describe('FinanceService', () => {
         row('b', [invoice(195000, 120000)]),
         row('c', []),
       ]);
-      const result = await service.register({ termId: 'term-1' } as never);
+      const result = await service.register({ termId: 'term-1' });
       expect(result.data.map((r: any) => r.status)).toEqual([
         'CLEARED',
         'PART_PAID',
@@ -519,7 +609,7 @@ describe('FinanceService', () => {
       const result = await service.register({
         termId: 'term-1',
         status: 'UNPAID',
-      } as never);
+      });
       expect(result.total).toBe(1);
       expect(result.data[0].student.id).toBe('b');
     });
@@ -532,14 +622,14 @@ describe('FinanceService', () => {
         termId: 'term-1',
         page: 2,
         limit: 2,
-      } as never);
+      });
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(3);
     });
 
     it('searches by name or student number', async () => {
       prisma.student.findMany.mockResolvedValue([]);
-      await service.register({ termId: 'term-1', search: 'Uwase' } as never);
+      await service.register({ termId: 'term-1', search: 'Uwase' });
       const where = prisma.student.findMany.mock.calls[0][0].where;
       expect(JSON.stringify(where)).toContain('Uwase');
     });
@@ -548,12 +638,27 @@ describe('FinanceService', () => {
   describe('the term at a glance', () => {
     it('adds up what was billed, collected, waived and is still out', async () => {
       prisma.feeInvoice.findMany.mockResolvedValue([
-        { total: 100000, payments: [{ amount: 100000, voidedAt: null }], waivers: [] },
-        { total: 100000, payments: [{ amount: 40000, voidedAt: null }], waivers: [] },
-        { total: 100000, payments: [], waivers: [{ amount: 100000, revokedAt: null }] },
+        {
+          total: 100000,
+          payments: [{ amount: 100000, voidedAt: null }],
+          waivers: [],
+        },
+        {
+          total: 100000,
+          payments: [{ amount: 40000, voidedAt: null }],
+          waivers: [],
+        },
+        {
+          total: 100000,
+          payments: [],
+          waivers: [{ amount: 100000, revokedAt: null }],
+        },
       ]);
       prisma.student.count.mockResolvedValue(5);
-      prisma.term.findUnique.mockResolvedValue({ id: 'term-1', name: 'Term 1' });
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        name: 'Term 1',
+      });
 
       const summary = await service.summary('term-1');
       expect(summary).toMatchObject({
