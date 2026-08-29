@@ -1425,6 +1425,80 @@ test('chat: typing anywhere lands in the message field', async (browser) => {
   await ctx.close();
 });
 
+
+/**
+ * A cold load of a thread's own URL brings every attachment in at once and
+ * pushes the end of the conversation thousands of pixels away. A refresh has
+ * to land on the last message, not the first.
+ */
+test('chat: a refreshed thread lands on its newest message', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('input[placeholder*="Type a message"]');
+  await page.waitForTimeout(800);
+
+  // Straight to the thread's own URL, the way a refresh arrives.
+  const threadUrl = new URL(page.url()).pathname;
+  await visit(page, threadUrl);
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(3500);
+
+  const landed = await page.evaluate(() => {
+    const l = document.querySelector('.overflow-y-auto.px-4');
+    if (!l) return null;
+    return {
+      gap: Math.round(l.scrollHeight - l.scrollTop - l.clientHeight),
+      media: l.querySelectorAll('img,video,audio').length,
+    };
+  });
+  assert(landed, 'the thread never rendered');
+  assert(
+    landed.gap <= 2,
+    `a refresh left the thread ${landed.gap}px short, with ${landed.media} attachments in it`,
+  );
+  await ctx.close();
+});
+
+/**
+ * A rounded rectangle splices an arc onto a straight edge, and the join is a
+ * real discontinuity. `corner-shape: squircle` eases the curvature in.
+ */
+test('chat: bubbles carry squircle corners where supported', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('.bubble');
+  await page.waitForTimeout(1200);
+
+  const shape = await page.evaluate(() => {
+    if (!CSS.supports('corner-shape', 'squircle')) return 'unsupported';
+    const b = document.querySelector('.bubble');
+    return getComputedStyle(b).getPropertyValue('corner-shape').trim();
+  });
+
+  // Purely additive: a browser without the property keeps the plain radius,
+  // and there is nothing to assert there.
+  if (shape === 'unsupported') {
+    await ctx.close();
+    return;
+  }
+  assert(shape === 'squircle', `a bubble's corner-shape is "${shape}"`);
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

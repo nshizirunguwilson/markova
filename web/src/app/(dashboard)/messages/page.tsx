@@ -248,6 +248,15 @@ export default function MessagesPage() {
   const landedOn = useRef<string | null>(null);
   /** Set while waiting for a message of your own to render, so it can be followed. */
   const followingOwn = useRef(false);
+  /**
+   * Set from the moment a thread opens until the reader takes control of the
+   * scroll, so the view stays glued to the bottom while the thread settles.
+   *
+   * Cleared by a real scrolling gesture rather than by a `scroll` event: the
+   * pinning below sets `scrollTop` itself, and a scroll event cannot tell
+   * that apart from a reader reaching for the wheel.
+   */
+  const holdingBottom = useRef(false);
 
   /**
    * Follow the bottom of the thread.
@@ -285,6 +294,7 @@ export default function MessagesPage() {
       // shorter than the height it ended up with.
       requestAnimationFrame(toBottom);
       landedOn.current = selectedConv;
+      holdingBottom.current = true;
       return;
     }
 
@@ -328,9 +338,9 @@ export default function MessagesPage() {
    * anything else that changes the height, without this having to know what
    * kinds of thing a message can contain.
    *
-   * Only while the reader is already at the bottom. Somebody who has scrolled
-   * up to read must not be yanked down because an image three screens below
-   * them finished loading.
+   * Only while the reader is already at the bottom, or has not yet scrolled
+   * at all. Somebody who has scrolled up to read must not be yanked down
+   * because an image three screens below them finished loading.
    */
   useEffect(() => {
     const list = messageListRef.current;
@@ -338,17 +348,52 @@ export default function MessagesPage() {
     if (typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver(() => {
-      // Generous while settling: media arrives in one jump, and a reader who
-      // has not deliberately scrolled up is still "at the bottom" even after
-      // a picture has pushed the ground out from under them.
+      /*
+        Until the reader takes the scroll, the bottom is followed however far
+        the thread grows. That matters on a cold load of a thread's own URL:
+        nine pictures and voice notes arrive at once and push the end of the
+        conversation two thousand pixels away, which is far past any
+        reasonable "nearly at the bottom" allowance — so a distance-based
+        rule alone left the reader stranded at the top of the thread.
+
+        After the reader has scrolled, the allowance applies again: media
+        loading below them must not drag them off what they are reading.
+      */
       const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (gap > 0 && gap < SETTLING_PX) list.scrollTop = list.scrollHeight;
+      if (gap <= 0) return;
+      if (holdingBottom.current || gap < SETTLING_PX) {
+        list.scrollTop = list.scrollHeight;
+      }
     });
 
     // The content, not the box: the box's own size does not change when a
     // picture inside it loads.
     for (const child of Array.from(list.children)) observer.observe(child);
-    return () => observer.disconnect();
+
+    /*
+      A gesture, not a scroll event. The pinning above moves `scrollTop`
+      itself, and a `scroll` listener could not tell that from the reader
+      reaching for the wheel — it would unpin on the very first frame.
+    */
+    const release = () => {
+      holdingBottom.current = false;
+    };
+    const keys = new Set([
+      "PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown",
+    ]);
+    const onKey = (e: KeyboardEvent) => {
+      if (keys.has(e.key)) release();
+    };
+    list.addEventListener("wheel", release, { passive: true });
+    list.addEventListener("touchmove", release, { passive: true });
+    list.addEventListener("keydown", onKey);
+
+    return () => {
+      observer.disconnect();
+      list.removeEventListener("wheel", release);
+      list.removeEventListener("touchmove", release);
+      list.removeEventListener("keydown", onKey);
+    };
   }, [selectedConv, threadBlocks.length]);
 
   /**
@@ -1284,7 +1329,7 @@ export default function MessagesPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                  <div className="squircle flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                     <input
                       ref={fileInputRef}
                       type="file"

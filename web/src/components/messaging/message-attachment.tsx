@@ -70,7 +70,7 @@ export function MessageAttachment({
 
   if (kind === "image" && !brokenImage) {
     return (
-      <figure className="group/att relative overflow-hidden rounded-md">
+      <figure className="squircle group/att relative overflow-hidden rounded-md">
         {/* Opens large in place rather than in a new tab: a photograph in a
             conversation is something you glance at and come back from. */}
         <button
@@ -88,7 +88,7 @@ export function MessageAttachment({
               the rest of the conversation off the screen, and a narrow one
               should not be stretched to fill a box.
             */
-            className="max-h-72 w-auto max-w-full rounded-md object-contain"
+            className="squircle max-h-72 w-auto max-w-full rounded-md object-contain"
           />
         </button>
         {/* Over the picture, so it does not cost a row of height. Always
@@ -128,7 +128,7 @@ export function MessageAttachment({
       sits, because in a conversation they are the same kind of thing.
     */
     return (
-      <figure className="group/att relative overflow-hidden rounded-md bg-black">
+      <figure className="squircle group/att relative overflow-hidden rounded-md bg-black">
         <button
           type="button"
           onClick={() => setOpened(true)}
@@ -143,7 +143,7 @@ export function MessageAttachment({
             muted
             playsInline
             tabIndex={-1}
-            className="pointer-events-none max-h-72 w-full rounded-md bg-black object-contain"
+            className="squircle pointer-events-none max-h-72 w-full rounded-md bg-black object-contain"
           />
           <span className="absolute inset-0 flex items-center justify-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors group-hover/att:bg-black/60">
@@ -206,7 +206,7 @@ export function MessageAttachment({
       href={href}
       download={name}
       title={name}
-      className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors ${
+      className={`squircle flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors ${
         mine
           ? "bg-black/15 text-on-primary hover:bg-black/25"
           : "bg-surface text-foreground hover:bg-accent-light"

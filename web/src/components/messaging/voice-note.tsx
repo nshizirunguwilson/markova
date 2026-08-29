@@ -127,7 +127,8 @@ export function VoiceNote({
   };
 
   return (
-    <div className="flex w-[15rem] max-w-full items-center gap-2.5">
+    <div className="w-[15rem] max-w-full">
+      <div className="flex items-center gap-2.5">
       <audio
         ref={audioRef}
         src={href}
@@ -150,12 +151,11 @@ export function VoiceNote({
         }}
       />
 
-      <div className="flex flex-shrink-0 flex-col items-center">
       <button
         type="button"
         onClick={toggle}
         aria-label={playing ? "Pause voice note" : "Play voice note"}
-        className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
           mine
             ? "bg-on-primary/20 text-on-primary hover:bg-on-primary/30"
             : "bg-primary text-on-primary hover:opacity-90"
@@ -167,26 +167,6 @@ export function VoiceNote({
           <PlayTriangle className="h-4 w-4" />
         )}
       </button>
-
-        {/*
-          The length sits under the button that plays it, not under the bars.
-
-          The bars are the one part of this that means anything across its
-          width — they are a picture of the sound from start to finish — so
-          hanging a number under them cuts that picture short and leaves the
-          control column looking unfinished. Under the button the number has
-          a column of its own, and the bars get the full width they are for.
-        */}
-        <span
-          className={`mt-1 block text-center text-[0.6875rem] tabular-nums ${
-            mine ? "text-on-primary/70" : "text-muted"
-          }`}
-        >
-          {/* Counting up while it plays, its full length when it is not —
-              the same as every voice note anybody has used. */}
-          {clockDuration(playing || at > 0 ? at : length)}
-        </span>
-      </div>
 
       {/*
         The bars. A div rather than a slider because the audio element is
@@ -216,6 +196,26 @@ export function VoiceNote({
           ))}
         </div>
       </div>
+      </div>
+
+      {/*
+        The length sits under the whole control, aligned to its left edge.
+
+        Under the row rather than inside it, because the button and the bars
+        are one thing — a control you press and scrub — and a number wedged
+        between them splits it. Left, because that is where the eye returns
+        after reading the bars, and a centred number under an asymmetric row
+        looks adrift.
+      */}
+      <span
+        className={`mt-1 block text-[0.6875rem] tabular-nums ${
+          mine ? "text-on-primary/70" : "text-muted"
+        }`}
+      >
+        {/* Counting up while it plays, its full length when it is not —
+            the same as every voice note anybody has used. */}
+        {clockDuration(playing || at > 0 ? at : length)}
+      </span>
     </div>
   );
 }
