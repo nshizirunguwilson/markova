@@ -34,6 +34,7 @@ import {
   shouldWriteConfig,
 } from '../src/common/branding-install';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
 import { buildStudentId, studentIdSecret } from '../src/common/student-id';
@@ -3276,6 +3277,364 @@ async function main() {
     })),
   });
   console.log(`  ✅ ${ticketRows.length} support tickets seeded`);
+
+  // ─── ADMISSIONS ─────────────────────────────────────────────────────────────
+  // A fortnight at a real school rather than a wall of identical rows. What
+  // makes the queue worth looking at is the spread: most applications arrive
+  // incomplete, a real tail is waiting on the family, and a handful are
+  // obviously going to be turned away.
+  //
+  // Three intakes, because the three doors are genuinely different. A transfer
+  // has no national exam slip to give; a Senior 1 entrant has no trade to pick.
+  const admissionYear = allYears[2].year;
+
+  const s1Level = classLevels.find((l) => l.name === 'Senior 1');
+  const l3Level = classLevels.find((l) => l.name === 'Level 3');
+  const s4Level = classLevels.find((l) => l.name === 'Level 4');
+
+  const intakeRows = [
+    {
+      level: s1Level,
+      entryPoint: 'SENIOR_ONE' as const,
+      name: `Senior 1 intake, ${admissionYear.name}`,
+      places: 80,
+      count: 120,
+    },
+    {
+      level: l3Level,
+      entryPoint: 'ADVANCED_LEVEL' as const,
+      name: `Level 3 trade intake, ${admissionYear.name}`,
+      places: 60,
+      count: 45,
+    },
+    {
+      level: s4Level,
+      entryPoint: 'TRANSFER' as const,
+      name: `Transfers, ${admissionYear.name}`,
+      places: 12,
+      count: 14,
+    },
+  ].filter((r) => r.level);
+
+  const intakes: any[] = [];
+  for (const row of intakeRows) {
+    intakes.push(
+      await prisma.admissionIntake.create({
+        data: {
+          academicYearId: admissionYear.id,
+          classLevelId: row.level!.id,
+          entryPoint: row.entryPoint,
+          name: row.name,
+          places: row.places,
+          // Opened six weeks ago, closing in a fortnight: a round in progress,
+          // which is the only interesting state to demonstrate.
+          opensAt: addDays(today, -42),
+          closesAt: addDays(today, 14),
+          isOpen: true,
+        },
+      }),
+    );
+  }
+
+  /**
+   * A P6 mark the way a real cohort is distributed: a long middle, thin tails.
+   * Uniform marks would make every decision look arbitrary.
+   */
+  const examMark = () => {
+    const rolls = [Math.random(), Math.random(), Math.random()];
+    const middle = rolls.reduce((a, b) => a + b, 0) / 3;
+    return Math.round(24 + middle * 62);
+  };
+
+  const GUARDIAN_RELATIONS = ['Mother', 'Father', 'Guardian', 'Aunt', 'Uncle'];
+  const FUNDING_WITH_LETTER = [
+    { funding: 'DISTRICT_BURSARY', detail: 'District bursary, confirmed by the sector office' },
+    { funding: 'GOVERNMENT_SPONSORED', detail: 'Government sponsorship, NESA placement' },
+    { funding: 'NGO_SPONSOR', detail: 'Sponsored by Compassion Rwanda' },
+    { funding: 'FARG', detail: 'FARG entitlement, genocide survivors fund' },
+    { funding: 'STAFF_CHILD', detail: 'Child of a member of staff' },
+  ];
+
+  const DOC_KINDS: Record<string, string[]> = {
+    SENIOR_ONE: ['BIRTH_CERTIFICATE', 'NATIONAL_EXAM_RESULT', 'PREVIOUS_REPORT_CARD', 'PASSPORT_PHOTO', 'PARENT_ID'],
+    ADVANCED_LEVEL: ['BIRTH_CERTIFICATE', 'NATIONAL_EXAM_RESULT', 'PREVIOUS_REPORT_CARD', 'PASSPORT_PHOTO', 'PARENT_ID'],
+    TRANSFER: ['BIRTH_CERTIFICATE', 'TRANSFER_LETTER', 'PREVIOUS_REPORT_CARD', 'PASSPORT_PHOTO', 'PARENT_ID'],
+  };
+
+  const REJECTION_REASONS = [
+    'Below the mark for this intake',
+    'The intake was full before this application was reviewed',
+    'The trade applied for has no places left, and no second choice was given',
+    'Age outside the range for this level',
+  ];
+
+  const appRows: any[] = [];
+  const docRows: any[] = [];
+  const eventRows: any[] = [];
+  const noteRows: any[] = [];
+  const offerRows: any[] = [];
+  let appSeq = 0;
+  const admissionsClassCounts = new Map<string, number>();
+
+  /** One family's application, and everything that has happened to it. */
+  const buildApplication = (
+    intake: any,
+    entryPoint: string,
+    opts: { forceStatus?: string; twinOf?: any } = {},
+  ) => {
+    const gender = chance(0.51) ? Gender.FEMALE : Gender.MALE;
+    const child = opts.twinOf
+      ? { first: opts.twinOf.firstName, last: opts.twinOf.lastName }
+      : studentName(gender, admissionsClassCounts);
+    const guardianGender = chance(0.6) ? Gender.FEMALE : Gender.MALE;
+    const guardian = adultName(guardianGender);
+
+    const area = sample(chance(0.55) ? KIGALI_AREAS : UPCOUNTRY_AREAS);
+    const isBoarder = chance(0.34);
+    const funded = chance(0.12);
+    const money = funded ? sample(FUNDING_WITH_LETTER) : null;
+
+    // Senior 1 entrants are 12 or 13; a Level 3 applicant is 15 to 17.
+    const age = entryPoint === 'SENIOR_ONE' ? 12 + rand(2) : 15 + rand(3);
+    const dob =
+      opts.twinOf?.dateOfBirth ??
+      new Date(today.getFullYear() - age, rand(12), 1 + rand(27));
+
+    const submittedAt = addDays(today, -(1 + rand(40)));
+    appSeq += 1;
+    const reference = `APP-${today.getFullYear()}-${String(appSeq).padStart(4, '0')}`;
+
+    /*
+      Most applications arrive incomplete, which is the whole reason the
+      "request more information" flow exists. About 55% are complete.
+    */
+    const required = [
+      ...DOC_KINDS[entryPoint],
+      ...(isBoarder ? ['MEDICAL_FORM', 'INSURANCE_CARD'] : []),
+      ...(funded ? ['BURSARY_LETTER'] : []),
+    ];
+    const complete = chance(0.55);
+    const attached = complete
+      ? required
+      : shuffled(required).slice(0, Math.max(2, required.length - (1 + rand(2))));
+
+    /*
+      Where it has got to. Complete applications get decided; incomplete ones
+      mostly sit waiting on the family, which is exactly what a real queue
+      looks like.
+    */
+    let status: string;
+    if (opts.forceStatus) {
+      status = opts.forceStatus;
+    } else if (!complete) {
+      status = chance(0.72) ? 'INFO_REQUESTED' : 'SUBMITTED';
+    } else {
+      const roll = Math.random();
+      status =
+        roll < 0.2
+          ? 'SUBMITTED'
+          : roll < 0.36
+            ? 'UNDER_REVIEW'
+            : roll < 0.46
+              ? 'WAITLISTED'
+              : roll < 0.68
+                ? 'OFFERED'
+                : roll < 0.78
+                  ? 'ACCEPTED'
+                  : roll < 0.92
+                    ? 'REJECTED'
+                    : 'WITHDRAWN';
+    }
+
+    const id = randomUUID();
+    appRows.push({
+      id,
+      intakeId: intake.id,
+      reference,
+      status,
+      firstName: child.first,
+      lastName: child.last,
+      dateOfBirth: dob,
+      gender,
+      nationality: 'Rwandan',
+      province: area.province,
+      district: area.district,
+      sector: sample(area.sectors),
+      cell: sample(CELLS),
+      village: sample(VILLAGES),
+      previousSchool:
+        entryPoint === 'SENIOR_ONE' ? sample(PRIMARY_SCHOOLS) : sample(SECONDARY_SCHOOLS),
+      examMark: entryPoint === 'TRANSFER' ? null : examMark(),
+      examTotal: entryPoint === 'TRANSFER' ? null : 100,
+      tradeId: entryPoint === 'ADVANCED_LEVEL' ? sample(trades).id : null,
+      secondChoiceTradeId:
+        entryPoint === 'ADVANCED_LEVEL' && chance(0.7) ? sample(trades).id : null,
+      isBoarder,
+      funding: money?.funding ?? 'FAMILY',
+      fundingDetail: money?.detail ?? null,
+      bloodType: chance(0.4) ? sample(['A+', 'B+', 'O+', 'AB+', 'O-']) : null,
+      allergies: chance(0.12) ? sample(['Peanuts', 'Dust', 'Penicillin']) : null,
+      medicalConditions: chance(0.08) ? sample(['Asthma', 'Sickle cell trait']) : null,
+      disability: chance(0.03) ? sample(['Low vision', 'Hearing impairment']) : null,
+      insuranceNumber: chance(0.7) ? `MUT-${100000 + rand(899999)}` : null,
+      religion: sample(['Catholic', 'Protestant', 'Adventist', 'Muslim', null]),
+      guardianName: `${guardian.first} ${guardian.last}`,
+      guardianPhone:
+        opts.twinOf?.guardianPhone ?? `+2507${sample(['8', '2'])}${1000000 + rand(8999999)}`,
+      guardianEmail: chance(0.45)
+        ? `${guardian.first.toLowerCase()}.${guardian.last.toLowerCase()}@gmail.com`
+        : null,
+      guardianNationalId: chance(0.8) ? makeNid(guardianGender, 1985 + rand(15)) : null,
+      guardianRelation: sample(GUARDIAN_RELATIONS),
+      note: chance(0.18)
+        ? sample([
+            'The child has a sibling already at the school.',
+            'We would like the boarding option if a place is available.',
+            'The father works abroad; please call the mother.',
+            'We are applying to two schools and will confirm quickly.',
+          ])
+        : null,
+      submittedAt,
+      decidedAt: ['REJECTED', 'WITHDRAWN', 'ENROLLED'].includes(status)
+        ? addDays(submittedAt, 3 + rand(10))
+        : null,
+    });
+
+    for (const kind of attached) {
+      docRows.push({
+        applicationId: id,
+        kind,
+        fileUrl: `/uploads/admissions/${id}-${kind.toLowerCase()}.pdf`,
+        fileName: `${kind.toLowerCase().replace(/_/g, '-')}.pdf`,
+        // The office has opened most of what it has been sent, not all.
+        verifiedAt: chance(0.7) ? addDays(submittedAt, 1 + rand(4)) : null,
+        verifiedByUserId: chance(0.7) ? admin.id : null,
+        uploadedAt: submittedAt,
+      });
+    }
+
+    /* The trail. Every application starts with arriving, and then carries
+       whatever got it to where it is. */
+    eventRows.push({
+      applicationId: id,
+      fromStatus: null,
+      toStatus: 'SUBMITTED',
+      reason: 'Received from the admissions site',
+      createdAt: submittedAt,
+    });
+
+    const step = (from: string, to: string, reason: string | null, day: number) =>
+      eventRows.push({
+        applicationId: id,
+        fromStatus: from,
+        toStatus: to,
+        reason,
+        actorUserId: admin.id,
+        createdAt: addDays(submittedAt, day),
+      });
+
+    if (status === 'INFO_REQUESTED') {
+      const missing = required.filter((k) => !attached.includes(k));
+      step('SUBMITTED', 'UNDER_REVIEW', null, 1 + rand(3));
+      step(
+        'UNDER_REVIEW',
+        'INFO_REQUESTED',
+        `Asked for: ${missing.join(', ').toLowerCase().replace(/_/g, ' ')}`,
+        2 + rand(4),
+      );
+    } else if (status !== 'SUBMITTED') {
+      step('SUBMITTED', 'UNDER_REVIEW', null, 1 + rand(3));
+
+      if (status === 'WAITLISTED') {
+        step('UNDER_REVIEW', 'WAITLISTED', 'Strong application, no place left in this intake', 4 + rand(4));
+      } else if (status === 'REJECTED') {
+        step('UNDER_REVIEW', 'REJECTED', sample(REJECTION_REASONS), 4 + rand(6));
+      } else if (status === 'WITHDRAWN') {
+        step('UNDER_REVIEW', 'WITHDRAWN', 'The family took a place elsewhere', 5 + rand(8));
+      } else if (status === 'OFFERED' || status === 'ACCEPTED') {
+        const sections = sectionMetas.filter(
+          (m) => m.level.id === intake.classLevelId,
+        );
+        const section = sections.length ? sample(sections).section : null;
+        if (section) {
+          const expiresAt = addDays(today, status === 'OFFERED' ? 2 + rand(12) : -(1 + rand(4)));
+          offerRows.push({
+            applicationId: id,
+            classSectionId: section.id,
+            isBoarder,
+            termFee: isBoarder ? 195000 + rand(60) * 500 : 120000 + rand(40) * 500,
+            conditions: chance(0.2) ? 'Subject to the original results slip being produced' : null,
+            expiresAt,
+            offeredByUserId: admin.id,
+            offeredAt: addDays(submittedAt, 5 + rand(5)),
+            acceptedAt: status === 'ACCEPTED' ? addDays(submittedAt, 8 + rand(5)) : null,
+          });
+          step('UNDER_REVIEW', 'OFFERED', `Place offered in ${section.name}`, 5 + rand(5));
+          if (status === 'ACCEPTED') {
+            eventRows.push({
+              applicationId: id,
+              fromStatus: 'OFFERED',
+              toStatus: 'ACCEPTED',
+              reason: 'Place accepted by the family',
+              createdAt: addDays(submittedAt, 8 + rand(5)),
+            });
+          }
+        }
+      }
+    }
+
+    if (chance(0.22)) {
+      noteRows.push({
+        applicationId: id,
+        body: sample([
+          'Spoke to the mother; the results slip is in the post.',
+          'Sibling already here, in Senior 3. Worth keeping together.',
+          'Phone rings out. Tried twice this week.',
+          'Marks look strong for the trade they picked.',
+          'Family asked whether the boarding fee can be paid in two parts.',
+        ]),
+        authorUserId: admin.id,
+        createdAt: addDays(submittedAt, 2 + rand(6)),
+      });
+    }
+
+    return appRows[appRows.length - 1];
+  };
+
+  for (const [i, row] of intakeRows.entries()) {
+    for (let n = 0; n < row.count; n++) {
+      buildApplication(intakes[i], row.entryPoint);
+    }
+  }
+
+  /*
+    Three deliberate duplicates, so the detection banner is visible in a demo
+    rather than something you have to take on trust: the same child applying
+    twice, and two siblings under one guardian phone.
+  */
+  const twinSource = appRows[2];
+  if (twinSource) {
+    buildApplication(intakes[0], 'SENIOR_ONE', { twinOf: twinSource, forceStatus: 'SUBMITTED' });
+    buildApplication(intakes[0], 'SENIOR_ONE', {
+      twinOf: { ...appRows[5], firstName: appRows[5].firstName, dateOfBirth: undefined },
+      forceStatus: 'SUBMITTED',
+    });
+    buildApplication(intakes[0], 'SENIOR_ONE', { twinOf: twinSource, forceStatus: 'UNDER_REVIEW' });
+  }
+
+  await prisma.application.createMany({ data: appRows });
+  for (let i = 0; i < docRows.length; i += 2000) {
+    await prisma.applicationDocument.createMany({ data: docRows.slice(i, i + 2000) });
+  }
+  for (let i = 0; i < eventRows.length; i += 2000) {
+    await prisma.applicationEvent.createMany({ data: eventRows.slice(i, i + 2000) });
+  }
+  if (noteRows.length) await prisma.applicationNote.createMany({ data: noteRows });
+  if (offerRows.length) await prisma.admissionOffer.createMany({ data: offerRows });
+
+  console.log(
+    `  ✅ Admissions seeded: ${intakes.length} intakes, ${appRows.length} applications, ${docRows.length} documents, ${offerRows.length} offers`,
+  );
 
   // ─── SCHOOL FEES ────────────────────────────────────────────────────────────
   // The ledger a Rwandan day-and-boarding secondary school actually keeps.

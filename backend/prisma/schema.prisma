@@ -197,6 +197,10 @@ model User {
   feePaymentsVoided       FeePayment[]               @relation("FeePaymentVoidedBy")
   feeWaiversGranted       FeeWaiver[]                @relation("FeeWaiverGrantedBy")
   feeWaiversRevoked       FeeWaiver[]                @relation("FeeWaiverRevokedBy")
+  applicationDocsVerified ApplicationDocument[]      @relation("ApplicationDocVerifiedBy")
+  applicationEvents       ApplicationEvent[]         @relation("ApplicationEventActor")
+  applicationNotes        ApplicationNote[]          @relation("ApplicationNoteAuthor")
+  admissionOffers         AdmissionOffer[]           @relation("AdmissionOfferedBy")
 
   @@index([role])
   @@index([isActive])
@@ -251,6 +255,7 @@ model AcademicYear {
   terms                 Term[]
   teacherSubjectClasses TeacherSubjectClass[]
   yearResults           YearResult[]
+  admissionIntakes      AdmissionIntake[]
 
   @@map("academic_years")
 }
@@ -291,6 +296,7 @@ model ClassLevel {
   subjects            Subject[]
   activityClassLevels ActivityClassLevel[]
   feeItems            FeeItem[]
+  admissionIntakes    AdmissionIntake[]
 
   @@map("class_levels")
 }
@@ -305,6 +311,9 @@ model Trade {
 
   sections ClassSection[]
   subjects Subject[]
+
+  applications             Application[] @relation("ApplicationTrade")
+  secondChoiceApplications Application[] @relation("ApplicationSecondChoice")
 
   @@map("trades")
 }
@@ -328,6 +337,7 @@ model ClassSection {
   homeworks             Homework[]
   examSchedules         ExamSchedule[]
   activitySections      ActivitySection[]
+  admissionOffers       AdmissionOffer[]
 
   /// The class's own group chat. One per class, created with the class.
   groupChat Conversation?
@@ -455,6 +465,7 @@ model Student {
   medications         MedicationAdministration[]
   healthRecord        StudentHealthRecord?
   feeInvoices         FeeInvoice[]
+  application         Application?
 
   @@index([classSectionId])
   @@index([status])
@@ -1563,4 +1574,314 @@ model FeeWaiver {
 
   @@index([invoiceId])
   @@map("fee_waivers")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMISSIONS
+//
+// Where a family's application from the public site becomes a decision, and a
+// decision becomes a student.
+//
+// Two rules shape every model here, and both come from the same place: an
+// admissions record is evidence. A family that is turned away will ask why,
+// sometimes a year later, and the school has to be able to answer.
+//
+//  - **Nothing is ever deleted.** A rejection is a state with a reason and a
+//    name against it, not a missing row. The same rule the fee ledger follows.
+//  - **The school's clock and the family's are different.** Reviewing is the
+//    school's business; accepting or declining an offer is the family's. They
+//    are two records, so neither can overwrite the other.
+//
+// An application is deliberately shaped like a Student without being one. It
+// is what the family *claimed*; a student record is what the school *holds*,
+// and correcting a misspelt village at enrolment must not rewrite what was
+// submitted.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Which door a family is coming through. The three are genuinely different
+/// applications: a transfer has no national exam slip, and a Senior 1 entrant
+/// has no trade to choose.
+enum AdmissionEntryPoint {
+  /// Leaving P6, entering the first year of secondary.
+  SENIOR_ONE
+  /// Finished O-Level, entering A-Level or a TVET trade level.
+  ADVANCED_LEVEL
+  /// Moving school mid-stream, at any level.
+  TRANSFER
+}
+
+/// Where an application stands.
+///
+/// Nine, and each one exists because somebody would otherwise have to keep the
+/// difference in their head. See `admissions-state.ts` for what may follow what.
+enum ApplicationStatus {
+  /// Arrived, nobody has looked. The count of these is the school's backlog.
+  SUBMITTED
+  /// Somebody has it. Stops two officers working the same family.
+  UNDER_REVIEW
+  /// Waiting on the family. The school's clock stops here, so its own queue
+  /// ages do not read as its own delay.
+  INFO_REQUESTED
+  /// Good enough, no place. Rejecting them loses the list the school needs the
+  /// day somebody declines an offer.
+  WAITLISTED
+  /// A place is held, with an expiry. Held capacity, and visible as such.
+  OFFERED
+  /// The family said yes. Separate from ENROLLED because the office still has
+  /// work to do.
+  ACCEPTED
+  /// A real student record exists. The only state that has written rows
+  /// outside admissions.
+  ENROLLED
+  /// The school said no. Carries a reason, because the school will be asked.
+  REJECTED
+  /// The family stopped. Not a rejection, and reporting the two together is
+  /// how a school comes to believe it turns away more children than it does.
+  WITHDRAWN
+}
+
+/// What a family attaches. An enum rather than free text, so "what is still
+/// missing" is computable rather than remembered.
+enum AdmissionDocumentKind {
+  BIRTH_CERTIFICATE
+  NATIONAL_EXAM_RESULT
+  PREVIOUS_REPORT_CARD
+  TRANSFER_LETTER
+  PASSPORT_PHOTO
+  PARENT_ID
+  MEDICAL_FORM
+  INSURANCE_CARD
+  BURSARY_LETTER
+  OTHER
+}
+
+/// How a family says they will pay, declared at application. What they declare
+/// becomes a waiver on their first invoice for the office to confirm.
+enum AdmissionFunding {
+  FAMILY
+  DISTRICT_BURSARY
+  GOVERNMENT_SPONSORED
+  NGO_SPONSOR
+  FARG
+  STAFF_CHILD
+}
+
+/// An admissions round: one entry point, one class level, one year.
+///
+/// Where places finally live. `ClassSection` has never carried a capacity, and
+/// admissions is the first feature that genuinely needs one - an offer against
+/// unknown capacity is a guess. It sits here rather than on the class because
+/// an intake is where a school actually thinks about how many it can take.
+model AdmissionIntake {
+  id             String              @id @default(uuid())
+  academicYearId String              @map("academic_year_id")
+  classLevelId   String              @map("class_level_id")
+  entryPoint     AdmissionEntryPoint @map("entry_point")
+  /// Shown to families: "Senior 1 intake, 2026".
+  name           String
+  /// How many the school can take. Offers outstanding count against it.
+  places         Int
+  opensAt        DateTime            @map("opens_at")
+  closesAt       DateTime            @map("closes_at")
+  isOpen         Boolean             @default(true) @map("is_open")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel   ClassLevel   @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+
+  applications Application[]
+
+  @@unique([academicYearId, classLevelId, entryPoint])
+  @@index([isOpen])
+  @@map("admission_intakes")
+}
+
+/// One family's application.
+///
+/// The columns mirror `Student` almost one for one, and that is not
+/// duplication: this is what was claimed, and a student record is what the
+/// school holds. The two have to be able to differ.
+model Application {
+  id        String            @id @default(uuid())
+  intakeId  String            @map("intake_id")
+  /// `APP-2026-0417`. Quoted by the family for months, so it is unique across
+  /// the school and never reused. Deliberately not a student number: holding
+  /// one of those would imply they got in.
+  reference String            @unique
+  status    ApplicationStatus @default(SUBMITTED)
+
+  // ── the applicant ─────────────────────────────────────────────────────
+  firstName   String   @map("first_name")
+  lastName    String   @map("last_name")
+  dateOfBirth DateTime @map("date_of_birth")
+  gender      Gender
+  nationality String?
+  /// NIDA, for an applicant old enough to hold one.
+  nationalId  String?  @map("national_id")
+
+  // ── where they live, the standard five-level Rwandan address ──────────
+  province String?
+  district String?
+  sector   String?
+  cell     String?
+  village  String?
+
+  // ── school history ────────────────────────────────────────────────────
+  previousSchool      String? @map("previous_school")
+  /// The national exam mark, out of the total that exam is marked from.
+  examMark            Float?  @map("exam_mark")
+  examTotal           Float?  @map("exam_total")
+  /// For an A-Level or TVET application: the trade they want, and a fallback.
+  tradeId             String? @map("trade_id")
+  secondChoiceTradeId String? @map("second_choice_trade_id")
+
+  // ── what they are asking for ──────────────────────────────────────────
+  isBoarder     Boolean          @default(false) @map("is_boarder")
+  funding       AdmissionFunding @default(FAMILY)
+  /// Named when the funding is anything but the family paying.
+  fundingDetail String?          @map("funding_detail")
+
+  // ── welfare, the fields the sick bay and the register need on day one ──
+  bloodType         String? @map("blood_type")
+  allergies         String?
+  medicalConditions String? @map("medical_conditions")
+  disability        String?
+  insuranceNumber   String? @map("insurance_number")
+  religion          String?
+
+  // ── who to talk to ────────────────────────────────────────────────────
+  guardianName        String  @map("guardian_name")
+  guardianPhone       String  @map("guardian_phone")
+  guardianEmail       String? @map("guardian_email")
+  guardianNationalId  String? @map("guardian_national_id")
+  guardianRelation    String  @map("guardian_relation")
+  secondGuardianName  String? @map("second_guardian_name")
+  secondGuardianPhone String? @map("second_guardian_phone")
+
+  /// Anything the family wanted the school to know.
+  note String?
+
+  // ── what became of it ─────────────────────────────────────────────────
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  decidedAt   DateTime? @map("decided_at")
+  /// Set once ENROLLED. The application is frozen from then on.
+  studentId   String?   @unique @map("student_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  intake            AdmissionIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  trade             Trade?          @relation("ApplicationTrade", fields: [tradeId], references: [id])
+  secondChoiceTrade Trade?          @relation("ApplicationSecondChoice", fields: [secondChoiceTradeId], references: [id])
+  student           Student?        @relation(fields: [studentId], references: [id])
+
+  documents ApplicationDocument[]
+  events    ApplicationEvent[]
+  notes     ApplicationNote[]
+  offers    AdmissionOffer[]
+
+  @@index([intakeId, status])
+  @@index([status, submittedAt])
+  @@index([guardianPhone])
+  @@map("applications")
+}
+
+/// One file a family attached.
+model ApplicationDocument {
+  id               String                @id @default(uuid())
+  applicationId    String                @map("application_id")
+  kind             AdmissionDocumentKind
+  fileUrl          String                @map("file_url")
+  fileName         String                @map("file_name")
+  /// The office has opened it and confirmed it is what it claims to be.
+  verifiedAt       DateTime?             @map("verified_at")
+  verifiedByUserId String?               @map("verified_by_user_id")
+  uploadedAt       DateTime              @default(now()) @map("uploaded_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  verifiedBy  User?       @relation("ApplicationDocVerifiedBy", fields: [verifiedByUserId], references: [id])
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+/// Every state change, with who, when and why.
+///
+/// The audit trail, and what an appeal is answered from. A decision is
+/// reversible until it is communicated and after that only by an explicit
+/// reversal, which is itself one of these rows.
+model ApplicationEvent {
+  id            String             @id @default(uuid())
+  applicationId String             @map("application_id")
+  /// Null for the row that records the application arriving.
+  fromStatus    ApplicationStatus? @map("from_status")
+  toStatus      ApplicationStatus  @map("to_status")
+  /// Required on anything a family could be told about. An unexplained
+  /// decision is indistinguishable from a mistake.
+  reason        String?
+  /// Null for what the family did, and for what the system did itself.
+  actorUserId   String?            @map("actor_user_id")
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor       User?       @relation("ApplicationEventActor", fields: [actorUserId], references: [id])
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
+
+/// An internal remark. Never shown to the family, and the screen says so.
+model ApplicationNote {
+  id            String   @id @default(uuid())
+  applicationId String   @map("application_id")
+  body          String
+  authorUserId  String   @map("author_user_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  author      User        @relation("ApplicationNoteAuthor", fields: [authorUserId], references: [id])
+
+  @@index([applicationId, createdAt])
+  @@map("application_notes")
+}
+
+/// A place held for a family, with an expiry and an answer.
+///
+/// Its own record rather than a status, because the school's clock and the
+/// family's are different: the school offers, the family answers, and neither
+/// should be able to overwrite the other. An offer that expires unanswered is
+/// a third outcome again.
+model AdmissionOffer {
+  id             String   @id @default(uuid())
+  applicationId  String   @map("application_id")
+  /// The class the place is in. Named on the offer rather than guessed at
+  /// enrolment, because a family accepts a specific place.
+  classSectionId String   @map("class_section_id")
+  isBoarder      Boolean  @default(false) @map("is_boarder")
+  /// What the family is told the term will cost, taken from the fee structure
+  /// at the moment of offering.
+  termFee        Float?   @map("term_fee")
+  /// Anything conditional: "subject to the original results slip".
+  conditions     String?
+  expiresAt      DateTime @map("expires_at")
+
+  offeredByUserId String   @map("offered_by_user_id")
+  offeredAt       DateTime @default(now()) @map("offered_at")
+
+  /// The family's answer, and when. Null while the offer stands.
+  acceptedAt    DateTime? @map("accepted_at")
+  declinedAt    DateTime? @map("declined_at")
+  declineReason String?   @map("decline_reason")
+  /// Withdrawn by the school before the family answered.
+  revokedAt     DateTime? @map("revoked_at")
+  revokeReason  String?   @map("revoke_reason")
+
+  application  Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id])
+  offeredBy    User         @relation("AdmissionOfferedBy", fields: [offeredByUserId], references: [id])
+
+  @@index([applicationId])
+  @@index([expiresAt])
+  @@map("admission_offers")
 }

@@ -24,6 +24,7 @@ import {
   Megaphone,
   Receipt,
   Landmark,
+  Inbox,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -47,6 +48,7 @@ const adminNav: NavSection[] = [
   {
     title: "People",
     items: [
+      { label: "Admissions", href: "/admin/admissions", icon: Inbox },
       { label: "Users", href: "/admin/users", icon: Users },
       { label: "Students", href: "/admin/students", icon: GraduationCap },
       { label: "Teachers", href: "/admin/teachers", icon: UserCheck },
