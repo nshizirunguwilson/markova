@@ -74,6 +74,8 @@ describe("shortening an amount for a tile", () => {
 
   it("handles nothing", () => {
     expect(shortMoney(0)).toBe("0 RWF");
+    expect(shortMoney(null)).toBe("0 RWF");
+    expect(shortMoney(undefined)).toBe("0 RWF");
   });
 });
 
@@ -200,5 +202,11 @@ describe("summing a term up in a line", () => {
 
   it("says the school has not billed yet rather than showing a debt", () => {
     expect(standingSummary(null, "NOT_INVOICED")).toMatch(/not billed/i);
+  });
+
+  // A status without a standing behind it cannot be summed up, and inventing
+  // a sentence for it would put a figure on screen that nothing supports.
+  it("says nothing at all when there is no standing to sum up", () => {
+    expect(standingSummary(null, "CLEARED")).toBe("");
   });
 });

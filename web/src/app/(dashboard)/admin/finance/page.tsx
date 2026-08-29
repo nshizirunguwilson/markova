@@ -294,7 +294,7 @@ export default function FeeRegisterPage() {
                             <Avatar
                               src={row.student.photoUrl}
                               alt=""
-                              fallback={`${row.student.firstName[0] ?? ""}${row.student.lastName[0] ?? ""}`}
+                              fallback={`${row.student.firstName[0]}${row.student.lastName[0]}`}
                               size="sm"
                             />
                             <div className="min-w-0">

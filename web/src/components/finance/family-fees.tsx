@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Badge, Card, CardTitle, PageSpinner } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
 import { FeeBar } from "@/components/finance/fee-bar";
@@ -52,15 +52,21 @@ export function FamilyFees({
   const { data: history, isLoading: loadingHistory } = useFeeHistory(
     studentId || undefined,
   );
-  const [termId, setTermId] = useState("");
-
-  // Open on the live term, or the most recent one billed. A family arriving
-  // here wants this term, not the oldest one on record.
-  useEffect(() => {
-    if (!history?.length) return;
-    const current = history.find((h) => h.term.isCurrent);
-    setTermId((existing) => existing || (current ?? history[0]).term.id);
-  }, [history]);
+  /**
+   * Which term is open.
+   *
+   * Derived during render rather than synced in an effect: the reader's own
+   * choice wins, and until they make one it falls to the live term, or to the
+   * most recent one billed. A family arriving here wants this term, not the
+   * oldest on record — and holding it in an effect meant a render with no
+   * term at all, then a second one to correct it.
+   */
+  const [picked, setPicked] = useState<string | null>(null);
+  const termId =
+    picked ??
+    (history?.find((h) => h.term.isCurrent) ?? history?.[0])?.term.id ??
+    "";
+  const setTermId = setPicked;
 
   const { data: account, isLoading } = useFeeAccount(
     studentId || undefined,

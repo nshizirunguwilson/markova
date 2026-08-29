@@ -67,8 +67,13 @@ export default function FeeStructurePage() {
     setAppliesTo((item?.appliesTo as FeeAppliesTo) ?? "ALL");
   };
 
+  /*
+    Save is disabled until there is a name and an amount, so checking again
+    here would be the same rule in two places — and two copies of a rule are
+    two things that can disagree.
+  */
   const submit = async () => {
-    if (!editing || !name.trim() || amount === "") return;
+    if (!editing) return;
     await save
       .mutateAsync({
         id: editing.id,

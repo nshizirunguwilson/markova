@@ -52,6 +52,13 @@ describe("reading a held term out of a failed request", () => {
     ).toEqual({ balance: 0, message: "held" });
   });
 
+  it("copes with a refusal that carries no message", () => {
+    expect(withheldFrom(refusal({ reason: FEE_REFUSAL_REASON }))).toEqual({
+      balance: 0,
+      message: "",
+    });
+  });
+
   it("ignores a balance that is not a number", () => {
     expect(
       withheldFrom(

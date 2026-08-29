@@ -70,8 +70,9 @@ const nameOf = (p: { firstName: string; lastName: string } | null) =>
   p ? `${p.firstName} ${p.lastName}` : "the office";
 
 export default function FeeAccountPage() {
-  const params = useParams<{ studentId: string }>();
-  const studentId = params?.studentId ?? "";
+  // Non-null in the App Router, and this file only exists inside the
+  // `[studentId]` segment, so the parameter is always there.
+  const { studentId } = useParams<{ studentId: string }>();
   const searchParams = useSearchParams();
 
   const [termId, setTermId] = useState(searchParams.get("termId") ?? "");
@@ -117,9 +118,13 @@ export default function FeeAccountPage() {
     setWaiverReason("");
   };
 
+  /*
+    The amount is a number field, and the button below is disabled until it
+    holds a positive one. A second check here would be the same rule written
+    twice, and two copies of a rule are two things that can disagree.
+  */
   const submitPayment = async () => {
     const value = Number(amount);
-    if (!value || value <= 0) return;
     await recordPayment
       .mutateAsync({
         studentId,
@@ -134,9 +139,9 @@ export default function FeeAccountPage() {
       .catch(() => {});
   };
 
+  /** As above: the button is the gate. */
   const submitWaiver = async () => {
     const value = Number(waiverAmount);
-    if (!value || value <= 0 || !waiverReason.trim()) return;
     await grantWaiver
       .mutateAsync({
         studentId,
