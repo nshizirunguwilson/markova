@@ -8,7 +8,7 @@ import { WithheldNotice } from "./withheld-notice";
  * A school withholding a report card over unpaid fees is ordinary in Rwanda,
  * so the panel has to read as a term explained rather than as an error. The
  * three things a family needs are that it is the fees, how much, and where to
- * go next — a padlock alone has them phoning the school to find out which.
+ * go next - a padlock alone has them phoning the school to find out which.
  */
 describe("a held term", () => {
   const withheld = { balance: 74000, message: "held" };

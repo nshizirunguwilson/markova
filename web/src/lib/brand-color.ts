@@ -1,9 +1,9 @@
 /**
  * Deriving a usable palette from the one colour a school chooses.
  *
- * A school picks a single brand colour in Settings. Everything else — the
+ * A school picks a single brand colour in Settings. Everything else - the
  * lighter and darker variants, and the pale washes that badges, the sidebar
- * highlight and info panels sit on — is worked out from it. That derivation
+ * highlight and info panels sit on - is worked out from it. That derivation
  * has to hold WCAG AA, because it is the same washes the designed navy was
  * hand-checked against (see scripts/check-contrast.mjs) and nobody re-checks
  * it when a school types in a green.
@@ -21,7 +21,7 @@ export const MIN_NON_TEXT_CONTRAST = 3;
 /**
  * `--color-muted`, the fixed neutral the design system uses for secondary
  * text. It is not derived from the brand colour, but it is routinely set on
- * `bg-accent-light` — every table header in the app — so the palest wash has
+ * `bg-accent-light` - every table header in the app - so the palest wash has
  * to clear AA against it as well as against the brand colour itself. The
  * designed navy wash does, at 4.68:1; a wash derived only against the brand
  * left it at 4.49:1.
@@ -100,7 +100,7 @@ export function washFor(
     if (contrastRatio(hex, candidate) >= minRatio) return candidate;
   }
   // Nothing between here and white cleared it. White is the palest thing
-  // there is, so it is the best available answer even when it falls short —
+  // there is, so it is the best available answer even when it falls short -
   // returning the darker candidate instead would be strictly worse.
   return contrastRatio(hex, "#ffffff") > contrastRatio(hex, candidate)
     ? "#ffffff"
@@ -141,7 +141,7 @@ const PALEST_WASH = 0.9;
  * The school's colour, darkened just far enough to be readable as text.
  *
  * `--color-primary` is not only a fill. It is the colour of every link, every
- * active label and every brand-coloured caption in the app — and those sit on
+ * active label and every brand-coloured caption in the app - and those sit on
  * washes of the same colour as often as on plain white. A school picking a
  * mid-green like #2A8D50 gets 4.18:1 on white and 3.7:1 on the wash, which
  * fails AA on every page at once, and the school has no way of knowing
@@ -179,7 +179,7 @@ export function onPrimaryFor(hex: string): string {
  * The whole palette a school's one colour implies.
  *
  * Both washes carry brand-coloured text, so both are held to the text ratio,
- * and they have to be distinguishable from each other as well — a badge sits
+ * and they have to be distinguishable from each other as well - a badge sits
  * on a hovered row.
  */
 export function brandPalette(hex: string): BrandPalette {
@@ -201,8 +201,8 @@ export function brandPalette(hex: string): BrandPalette {
   const accent = washFor(hex, MIN_TEXT_CONTRAST, 0.78);
   let accentLight = washFor(hex, MIN_TEXT_CONTRAST, 0.9);
 
-  // The palest wash carries `--color-muted` as well as brand-coloured text —
-  // it is what every table header sits on — so keep lightening until the
+  // The palest wash carries `--color-muted` as well as brand-coloured text -
+  // it is what every table header sits on - so keep lightening until the
   // neutral clears too.
   for (
     let mix = 0.9;

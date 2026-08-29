@@ -6,7 +6,7 @@ import { PlayTriangle } from "./play-triangle";
 /**
  * A triangle's weight is toward its base, so one centred by its bounding box
  * looks left of centre. Icon sets work around it with a margin nudge, and
- * every nudge is a guess — ours was 4px on a 24px icon, which overshot.
+ * every nudge is a guess - ours was 4px on a 24px icon, which overshot.
  */
 describe("a play triangle that centres itself", () => {
   /** The centroid of a triangle is the mean of its three corners. */

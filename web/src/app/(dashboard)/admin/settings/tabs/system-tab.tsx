@@ -5,7 +5,7 @@ import { Card, CardTitle, Input, Button, Badge } from "@/components/ui";
 import { useSchoolConfig, useBulkUpsertConfig } from "@/hooks/use-academic";
 import { Save } from "lucide-react";
 
-// Mirrors the fixed scales in the backend (common/grading.ts) — shown for
+// Mirrors the fixed scales in the backend (common/grading.ts) - shown for
 // reference only, grading is not configurable.
 const CORE_SCALE = [
   { letter: "A", min: 70, remark: "Excellent" },

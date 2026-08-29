@@ -256,7 +256,7 @@ export default function AdminDisciplinePage() {
               <Card>
                 <p className="text-xs text-muted">Praise per incident</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {meritSummary.ratio ?? "—"}
+                  {meritSummary.ratio ?? "-"}
                 </p>
                 {/* Below 1 means the school writes down more of what goes
                     wrong than what goes right. Most schools never see this. */}

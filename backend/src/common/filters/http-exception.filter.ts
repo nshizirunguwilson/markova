@@ -24,8 +24,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     /**
      * A machine-readable name for the refusal, when the thrower gave one.
      *
-     * Two different 403s can reach the same screen — a report card that has
-     * not been issued, and one held because the fees are owed — and they need
+     * Two different 403s can reach the same screen - a report card that has
+     * not been issued, and one held because the fees are owed - and they need
      * different pages. Matching on the message text to tell them apart breaks
      * the first time somebody rewords it, so a refusal that a client has to
      * distinguish carries a `reason` instead, and this passes it through.
@@ -36,7 +36,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     /**
      * A unique-constraint clash is the user's mistake, not the server's.
      *
-     * Prisma raises P2002 when two rows collide on a unique column — a second
+     * Prisma raises P2002 when two rows collide on a unique column - a second
      * account on one email, two students given one card number. Services are
      * expected to check first and refuse with a message naming the holder,
      * but any route that forgets used to return a raw 500 reading "An

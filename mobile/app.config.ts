@@ -5,8 +5,8 @@ import type { ExpoConfig } from 'expo/config';
  * environment instead of being frozen into app.json.
  *
  * This previously lived in app.json with no `extra` block at all, which meant
- * `API_URL` always fell back to `http://localhost:3000/api` — unreachable from
- * any physical device — and `getExpoPushTokenAsync` had no project id, so a
+ * `API_URL` always fell back to `http://localhost:3000/api` - unreachable from
+ * any physical device - and `getExpoPushTokenAsync` had no project id, so a
  * standalone build could never register for push.
  *
  * Set these in `.env` locally (see .env.example) and as EAS secrets for builds:
@@ -66,7 +66,7 @@ const config: ExpoConfig = {
     [
       'expo-notifications',
       {
-        // White silhouette on transparent — Android tints it in the status bar.
+        // White silhouette on transparent - Android tints it in the status bar.
         icon: './assets/notification-icon.png',
         color: BRAND_NAVY,
       },

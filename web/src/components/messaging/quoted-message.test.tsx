@@ -6,7 +6,7 @@ import { QuotedMessage, quotedSummary } from "./quoted-message";
 
 /**
  * Shaped like the `replyTo` the API sends with each message: the line of
- * text, what kind of thing it was, and who said it — enough to draw the bar
+ * text, what kind of thing it was, and who said it - enough to draw the bar
  * without loading the original again.
  */
 const quoted = (over = {}) => ({

@@ -1,7 +1,7 @@
 /**
  * How money is written and named on screen.
  *
- * The arithmetic itself lives on the API — a balance a client works out is a
+ * The arithmetic itself lives on the API - a balance a client works out is a
  * balance that can disagree with the one the gate uses, and the gate is what
  * decides whether a child sees their results. What is here is presentation:
  * the words, the colours and the shapes a reader needs to take it in.
@@ -34,7 +34,7 @@ export function money(amount: number | null | undefined): string {
  *
  * A term's takings run to eight digits, and "144,836,000 RWF" across a
  * summary strip crowds out the label that says what it is. Only ever for a
- * headline figure with the exact one available beside it — never on a row a
+ * headline figure with the exact one available beside it - never on a row a
  * family is checking against their own records.
  */
 export function shortMoney(amount: number | null | undefined): string {
@@ -64,7 +64,7 @@ export const STATUS_LABEL: Record<FeeStatus, string> = {
  * concerned, but they are not the same thing to a bursar chasing money, and
  * washing them into one colour would throw away the distinction the register
  * exists to draw. Amber for a family part way there, red for one that has not
- * started — and a plain grey, not red, for a term nobody has been billed for,
+ * started - and a plain grey, not red, for a term nobody has been billed for,
  * which is the school's own unfinished work rather than a family's debt.
  */
 export const STATUS_VARIANT: Record<
@@ -173,13 +173,13 @@ export function standingSummary(
   if (standing.cleared) {
     return standing.waived > 0 && standing.paid === 0
       ? `Cleared in full by a bursary of ${money(standing.waived)}.`
-      : `Paid in full — ${money(standing.total)}.`;
+      : `Paid in full - ${money(standing.total)}.`;
   }
   const paidPart =
     standing.waived > 0
       ? `${money(standing.paid)} paid and ${money(standing.waived)} waived`
       : `${money(standing.paid)} paid`;
-  return `${money(standing.balance)} still to pay — ${paidPart} of ${money(
+  return `${money(standing.balance)} still to pay - ${paidPart} of ${money(
     standing.total,
   )}.`;
 }

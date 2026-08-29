@@ -56,7 +56,7 @@ const prisma = new PrismaClient();
 //  - a small minority of students carry a rare lineage name passed down from
 //    a parent; those names stay inside one family
 
-// Adults (teachers, parents) — Western first names of their generation.
+// Adults (teachers, parents) - Western first names of their generation.
 const ADULT_WESTERN_MALE = [
   'Jean', 'Eric', 'Patrick', 'Emmanuel', 'Olivier', 'Fabrice', 'Thierry',
   'Aimable', 'Gilbert', 'Innocent', 'Claude', 'Bosco', 'Theogene', 'Faustin',
@@ -79,7 +79,7 @@ const ADULT_WESTERN_FEMALE = [
   'Bernadette', 'Emerthe', 'Francine', 'Judith', 'Seraphine',
 ];
 
-// Adults — Kinyarwanda names, gendered.
+// Adults - Kinyarwanda names, gendered.
 const ADULT_KINYA_MALE = [
   'Habimana', 'Bizimana', 'Nshimiyimana', 'Hakizimana', 'Mugisha',
   'Ndayisaba', 'Nsengiyumva', 'Murenzi', 'Gatera', 'Karangwa', 'Kagabo',
@@ -109,7 +109,7 @@ const ADULT_KINYA_FEMALE = [
   'Nyiramugisha', 'Mukanyangezi', 'Uwacu', 'Mukundwa', 'Kanyamibwa',
 ];
 
-// Students — modern Kinyarwanda names (Gen-Z / Gen-Alpha), gendered.
+// Students - modern Kinyarwanda names (Gen-Z / Gen-Alpha), gendered.
 const STUDENT_KINYA_MALE = [
   'Shema', 'Manzi', 'Ganza', 'Hirwa', 'Mucyo', 'Gisa', 'Nkusi', 'Kwizera',
   'Cyubahiro', 'Intwari', 'Imanzi', 'Shyaka', 'Rugero', 'Kaze', 'Mugabo',
@@ -135,7 +135,7 @@ const STUDENT_KINYA_UNISEX = [
   'Ihirwe', 'Iranzi', 'Isheja', 'Nema',
 ];
 
-// Students — modern Western/Christian first names.
+// Students - modern Western/Christian first names.
 const STUDENT_WESTERN_MALE = [
   'Ryan', 'Bryan', 'Brian', 'Ivan', 'Kevin', 'Ethan', 'Aidan', 'Alvin',
   'Chris', 'Danny', 'Arnold', 'Prince', 'Yannick', 'Cedric', 'Kenny',
@@ -362,7 +362,7 @@ function shuffled<T>(arr: T[]): T[] {
 }
 
 // Deals a pool card by card in random order, reshuffling only once the whole
-// pool is used up — this spreads repeats as thinly as the pool allows.
+// pool is used up - this spreads repeats as thinly as the pool allows.
 function dealer(pool: string[]) {
   let deck = shuffled(pool);
   return () => {
@@ -623,7 +623,7 @@ function studentName(
 }
 
 // ─── DATE HELPERS ────────────────────────────────────────────────────────────
-// All demo dates are derived from "now" so the data always looks current — the
+// All demo dates are derived from "now" so the data always looks current - the
 // active term contains today, attendance includes today, loans are mostly not
 // yet due. Re-seeding any day produces fresh-looking data.
 
@@ -657,7 +657,7 @@ async function clearDatabase() {
 async function main() {
   console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
-  // Make the seed idempotent — clear everything first so it can be re-run
+  // Make the seed idempotent - clear everything first so it can be re-run
   // any time to restore a clean, current-looking demo.
   await clearDatabase();
   console.log('  🧹 Existing data cleared');
@@ -695,7 +695,7 @@ async function main() {
     Installs a shipped image only where doing so cannot destroy one the school
     chose for itself. This used to be a bare copyFileSync on every run, which
     meant a school that had put its own stamp at uploads/stamp.png lost it the
-    next time anyone reseeded — silently, with no copy kept. See
+    next time anyone reseeded - silently, with no copy kept. See
     src/common/branding-install.ts.
   */
   const kept: string[] = [];
@@ -715,7 +715,7 @@ async function main() {
     // The mark-only logo: the UI prints the school name as text wherever it is
     // needed, so the logo itself stays clean.
     { key: 'logo_url', value: installAsset('logo-mark.png', 'logo.png') },
-    // Printed on every official document — the stamp beside the head
+    // Printed on every official document - the stamp beside the head
     // teacher's signature, at the foot of the letter.
     { key: 'stamp_url', value: installAsset('stamp.png', 'stamp.png') },
     {
@@ -723,7 +723,7 @@ async function main() {
       value: installAsset('signature.png', 'signature.png'),
     },
     { key: 'primary_color', value: '#1B4F72' },
-    // Forty a term, a hundred and twenty a year — see
+    // Forty a term, a hundred and twenty a year - see
     // src/common/conduct.ts for why conduct is marked per term.
     { key: 'starting_discipline_points', value: '40' },
     { key: 'borrowing_limit', value: '3' },
@@ -760,7 +760,7 @@ async function main() {
     );
   }
 
-  // Hash once — bcrypt is the slowest single thing in this script.
+  // Hash once - bcrypt is the slowest single thing in this script.
   const passwordHash = await bcrypt.hash('Password123!', 10);
 
   // ─── ADMIN USER ─────────────────────────────────────────────────────────────
@@ -778,7 +778,7 @@ async function main() {
       firstName: 'Wilson',
       lastName: 'Nshizirungu',
       isActive: true,
-      forcePasswordChange: false, // demo account — log straight into dashboard
+      forcePasswordChange: false, // demo account - log straight into dashboard
     },
   });
   console.log('  ✅ Admin user seeded');
@@ -806,8 +806,8 @@ async function main() {
   // ─── BOARDING STAFF AND THE NURSE ───────────────────────────────────────────
   //
   // A patron, a matron and a nurse, seeded like the librarian so every fresh
-  // database has one of each. Their pages — pocket money, the sick bay, the
-  // activity register — were built and then never seen, because there was no
+  // database has one of each. Their pages - pocket money, the sick bay, the
+  // activity register - were built and then never seen, because there was no
   // account in any seed that could sign in and reach them.
   //
   // Three separate people rather than one account with three hats: a boys'
@@ -901,7 +901,7 @@ async function main() {
   // seed carries the three most recent school years that have started as of
   // today. When today falls in a holiday gap (between terms, or after Term 3
   // like every July-August), the most recent term's end date is stretched to
-  // today+3 so the demo always has a live current term — that stretch is the
+  // today+3 so the demo always has a live current term - that stretch is the
   // only departure from the published dates.
   const today = startOfToday();
   const yr = today.getFullYear();
@@ -955,7 +955,7 @@ async function main() {
   if (calendars.length !== 3) throw new Error('calendar selection expects 3 started years');
 
   // The current term: the latest one that has started. If today is past its
-  // end we are in a school holiday — stretch it (see above).
+  // end we are in a school holiday - stretch it (see above).
   let curTi = 0;
   for (let i = 0; i < 3; i++) {
     if (calendars[2].terms[i].start <= today) curTi = i;
@@ -1047,7 +1047,7 @@ async function main() {
     });
     classLevels.push(level);
     // Each level runs all 4 trades. 3 or 4 of them (random) get streams A+B,
-    // the rest stream A only — so a level totals 7 or 8 classes.
+    // the rest stream A only - so a level totals 7 or 8 classes.
     const doubledCount = 3 + rand(2);
     const doubled = new Set(
       shuffled(TRADES.map((t) => t.code)).slice(0, doubledCount),
@@ -1101,7 +1101,7 @@ async function main() {
       }),
     );
   }
-  // Kinyarwanda + Entrepreneurship are taught at both stages — reuse core rows.
+  // Kinyarwanda + Entrepreneurship are taught at both stages - reuse core rows.
   const sharedCore = oCoreSubjects.filter((s) =>
     A_SHARED_CORE_NAMES.includes(s.name),
   );
@@ -1149,7 +1149,7 @@ async function main() {
   }
 
   // ─── WEEKLY PERIOD WEIGHTS ──────────────────────────────────────────────────
-  // 8 periods a day, 40 a week. O-Level: the national allocation — core
+  // 8 periods a day, 40 a week. O-Level: the national allocation - core
   // papers heavy, electives light. A-Level: a 12-period general block and 28
   // periods shared across the trade's modules for the level.
   const O_WEEKLY: Record<string, number> = {
@@ -1172,7 +1172,7 @@ async function main() {
     'English (Communication Skills)': 3,
     'Mathematics for Technology': 3,
     'Basic ICT': 2,
-  }; // 12 — trade modules share the remaining 28
+  }; // 12 - trade modules share the remaining 28
 
   const planBySection = new Map<string, Map<string, number>>();
   for (const meta of sectionMetas) {
@@ -1310,7 +1310,7 @@ async function main() {
   }
 
   // ─── TEACHERS (40) ──────────────────────────────────────────────────────────
-  // No two teachers share any name component — 40 staff with a repeated name
+  // No two teachers share any name component - 40 staff with a repeated name
   // would read as fake immediately.
   const TEACHER_COUNT = specialtyByTeacher.length; // 40, from the specialty layout
   // The demo teacher keeps the address documented in CLAUDE.md; the other
@@ -1568,7 +1568,7 @@ async function main() {
     const cands = (
       sectionsByLevel.get(`${prevO}|${prevTrade?.code ?? '-'}`) ?? []
     ).filter((m) => getOcc(yearIdx, m.section.id) < 30);
-    if (cands.length === 0) return null; // past classes full — came from elsewhere
+    if (cands.length === 0) return null; // past classes full - came from elsewhere
     const meta = sample(cands);
     addOcc(yearIdx, meta.section.id);
     return { meta, repeat };
@@ -1675,7 +1675,7 @@ async function main() {
       const dob = new Date(
         `${yr - ageBase}-${String((i % 12) + 1).padStart(2, '0')}-${String(((i * 7) % 27) + 1).padStart(2, '0')}`,
       );
-      // NIDA issues IDs from the 16th birthday — gate on the real age, not
+      // NIDA issues IDs from the 16th birthday - gate on the real age, not
       // the birth-year difference.
       const actualAge = Math.floor(
         (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000),
@@ -1802,7 +1802,7 @@ async function main() {
   // Everyone else lives in a family unit: siblings share the same two
   // parents; some homes are single-mother or single-father; a few children
   // live with a guardian (an aunt, uncle or grandparent), whose link says
-  // so. Every guardian gets an account — whether they ever log in is a
+  // so. Every guardian gets an account - whether they ever log in is a
   // different question the activity layer answers.
   const unlinked = students.filter((s) => !linkedStudentIds.has(s.id));
   const kidsQueue = shuffled(unlinked);
@@ -2210,7 +2210,7 @@ async function main() {
     marksByStudentTerm.set(key, list);
   }
 
-  // Who sat in which class, each year — current students and alumni alike.
+  // Who sat in which class, each year - current students and alumni alike.
   const membership = new Map<string, any[]>();
   for (const { student, placements } of allPeople) {
     for (const pl of placements) {
@@ -2276,7 +2276,7 @@ async function main() {
         /**
          * Past terms are finished business: marks out, report cards issued.
          * The term in progress is left as a draft so the demo shows the
-         * pipeline honestly — an admin can work out the results, release the
+         * pipeline honestly - an admin can work out the results, release the
          * marks, then issue the cards, and watch a student's page change at
          * each step. Publishing everything up front hid the whole flow.
          */
@@ -2674,7 +2674,7 @@ async function main() {
     shelf: string;
   };
   const bookData: BookSpec[] = [
-    // REB class sets — shelf A (no ISBN: local curriculum prints)
+    // REB class sets - shelf A (no ISBN: local curriculum prints)
     { title: 'Mathematics for Rwanda Schools, Senior 1', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
     { title: 'Mathematics for Rwanda Schools, Senior 2', author: 'REB', category: 'Textbooks', qty: 40, cost: 6500, shelf: 'A1' },
     { title: 'Mathematics for Rwanda Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 35, cost: 6800, shelf: 'A1' },
@@ -2688,7 +2688,7 @@ async function main() {
     { title: 'Entrepreneurship for Rwandan Schools, Senior 3', author: 'REB', category: 'Textbooks', qty: 30, cost: 6200, shelf: 'A4' },
     { title: 'Geography and Environment for Rwanda, Senior 2', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
     { title: 'History and Citizenship, Senior 3', author: 'REB', category: 'Textbooks', qty: 28, cost: 6900, shelf: 'A4' },
-    // Sciences and mathematics references — shelf B
+    // Sciences and mathematics references - shelf B
     { title: 'English Grammar in Use', author: 'Raymond Murphy', isbn: '978-1108457651', category: 'Languages', qty: 12, cost: 18000, shelf: 'B1' },
     { title: 'Practical English Usage', author: 'Michael Swan', isbn: '978-0194202428', category: 'Languages', qty: 6, cost: 22000, shelf: 'B1' },
     { title: 'Fundamentals of Physics', author: 'Halliday & Resnick', isbn: '978-1119460138', category: 'Sciences', qty: 5, cost: 38000, shelf: 'B2' },
@@ -2696,7 +2696,7 @@ async function main() {
     { title: 'Biology: A Global Approach', author: 'Neil Campbell', isbn: '978-1292341637', category: 'Sciences', qty: 4, cost: 34000, shelf: 'B2' },
     { title: 'Calculus: Early Transcendentals', author: 'James Stewart', isbn: '978-1285741550', category: 'Mathematics', qty: 5, cost: 32000, shelf: 'B3' },
     { title: 'Statistics for Business', author: 'David Anderson', isbn: '978-0357715857', category: 'Mathematics', qty: 4, cost: 28000, shelf: 'B3' },
-    // ICT and trades — shelf C
+    // ICT and trades - shelf C
     { title: 'HTML and CSS: Design and Build Websites', author: 'Jon Duckett', isbn: '978-1118008188', category: 'ICT & Trades', qty: 8, cost: 26000, shelf: 'C1' },
     { title: 'JavaScript and JQuery', author: 'Jon Duckett', isbn: '978-1118531648', category: 'ICT & Trades', qty: 8, cost: 27000, shelf: 'C1' },
     { title: 'Eloquent JavaScript', author: 'Marijn Haverbeke', isbn: '978-1593279509', category: 'ICT & Trades', qty: 6, cost: 24000, shelf: 'C1' },
@@ -2711,7 +2711,7 @@ async function main() {
     { title: 'Tourism: Principles and Practice', author: 'John Fletcher', isbn: '978-1292172354', category: 'ICT & Trades', qty: 6, cost: 33000, shelf: 'C4' },
     { title: 'Hotel Front Office Management', author: 'James A. Bardi', isbn: '978-0470637524', category: 'ICT & Trades', qty: 4, cost: 30000, shelf: 'C4' },
     { title: 'First Aid Manual', author: 'St John Ambulance', isbn: '978-0241241233', category: 'ICT & Trades', qty: 10, cost: 12000, shelf: 'C4' },
-    // African and Rwandan literature — shelf D
+    // African and Rwandan literature - shelf D
     { title: 'Things Fall Apart', author: 'Chinua Achebe', isbn: '978-0385474542', category: 'Literature', qty: 15, cost: 9000, shelf: 'D1' },
     { title: 'The River Between', author: 'Ngugi wa Thiongo', isbn: '978-0435905484', category: 'Literature', qty: 12, cost: 8500, shelf: 'D1' },
     { title: 'Weep Not, Child', author: 'Ngugi wa Thiongo', isbn: '978-0143106692', category: 'Literature', qty: 10, cost: 8500, shelf: 'D1' },
@@ -2727,7 +2727,7 @@ async function main() {
     { title: 'The Girl Who Smiled Beads', author: 'Clemantine Wamariya', isbn: '978-0451495334', category: 'Literature', qty: 6, cost: 14000, shelf: 'D4' },
     { title: 'Baking Cakes in Kigali', author: 'Gaile Parkin', isbn: '978-0385343435', category: 'Literature', qty: 5, cost: 12000, shelf: 'D4' },
     { title: 'Imigani y i Kinyarwanda: Rwandan Folktales', author: 'Anthology', category: 'Kinyarwanda', qty: 12, cost: 6000, shelf: 'D4' },
-    // French and reference — shelf E
+    // French and reference - shelf E
     { title: 'Le Petit Prince', author: 'Antoine de Saint-Exupery', isbn: '978-0156012195', category: 'Languages', qty: 10, cost: 9500, shelf: 'E1' },
     { title: "L'Enfant Noir", author: 'Camara Laye', isbn: '978-2266083614', category: 'Languages', qty: 8, cost: 8500, shelf: 'E1' },
     { title: "Oxford Advanced Learner's Dictionary", author: 'Oxford University Press', isbn: '978-0194798488', category: 'Reference', qty: 15, cost: 25000, shelf: 'E2' },
@@ -2758,7 +2758,7 @@ async function main() {
   }
 
   // Loan history across the year: returned (some late), out now, overdue
-  // (kept ACTIVE — the app derives overdue from the due date), and lost.
+  // (kept ACTIVE - the app derives overdue from the due date), and lost.
   const borrowDays = 14; // matches borrowing_duration_days config
   const outByBook = new Map<string, number>();
   const loanRows: any[] = [];
@@ -3141,7 +3141,7 @@ async function main() {
   //
   // Every class has one, and nobody creates it. It holds the class and the
   // adult who answers for them: the class teacher where the class has been
-  // given one, the administrator where it has not — a room of thirty children
+  // given one, the administrator where it has not - a room of thirty children
   // with no adult in it is not a room a school would allow.
   //
   // The application reconciles these on read as students move between classes,
@@ -3281,7 +3281,7 @@ async function main() {
   // The ledger a Rwandan day-and-boarding secondary school actually keeps.
   // Seeded as a real book: a price list per class level, one frozen invoice
   // per student per term, and entries against it. Nothing here stores a
-  // balance — every figure the app shows is the sum of these rows, which is
+  // balance - every figure the app shows is the sum of these rows, which is
   // the only way the demo can be trusted to behave like the real thing.
   //
   // The amounts are ordinary for a Rwandan TSS: tuition rising a little with
@@ -3349,7 +3349,7 @@ async function main() {
     payerOf.set(
       st.id,
       // Most families pay. A handful are sponsored outright, and a real tail
-      // is behind — without that tail the gate has nothing to demonstrate.
+      // is behind - without that tail the gate has nothing to demonstrate.
       chance(0.04)
         ? 'SPONSORED'
         : chance(0.46)
@@ -3368,7 +3368,7 @@ async function main() {
     Signing in as student1 is how anybody looks at this feature, and a roll
     where that account happens to be paid up shows nothing. Their past terms
     settle normally, so the older report cards still open and only the live
-    term is held — which is the behaviour being demonstrated.
+    term is held - which is the behaviour being demonstrated.
   */
   const demoStudent = enrolled.find(
     (e) => e.user.email === 'student1@markova.edu',
@@ -4186,7 +4186,7 @@ async function main() {
           }
         }
         // 2) Otherwise the subject with the most periods left whose teacher
-        //    is free — first one not yet seen today, then allowing a second
+        //    is free - first one not yet seen today, then allowing a second
         //    (non-consecutive) period.
         if (!chosen) {
           for (const pass of [0, 1] as const) {
@@ -4215,7 +4215,7 @@ async function main() {
   );
 
   // ─── PROFILE AVATARS ────────────────────────────────────────────────────────
-  // Deterministic duotone SVG initials written into uploads/avatars — real
+  // Deterministic duotone SVG initials written into uploads/avatars - real
   // files served by the API, exercising the same pipeline uploaded photos
   // use. Coverage varies like a real school's: all demo accounts, nearly
   // all staff, most students, under half of parents, few alumni.

@@ -91,7 +91,7 @@ export function subscribeToAlertStanding(listener: () => void): () => void {
 }
 
 /**
- * Something changed the standing — the preference was written, or permission
+ * Something changed the standing - the preference was written, or permission
  * was asked for. Drops the held snapshot and tells everyone looking.
  */
 export function notifyStandingChanged(): void {
@@ -106,8 +106,8 @@ export function notifyStandingChanged(): void {
  * the whole dashboard and the notice has to appear whichever page is open.
  *
  * Two levels: a notice in the corner that takes you to the conversation, and
- * — only if the person turned it on, and only when this tab is not the one
- * they are looking at — a notification from the browser itself. Nothing here
+ * - only if the person turned it on, and only when this tab is not the one
+ * they are looking at - a notification from the browser itself. Nothing here
  * interrupts what they are doing.
  */
 export function useMessageAlerts() {
@@ -156,7 +156,7 @@ export function useMessageAlerts() {
         search for something you were already told about.
 
         `/messages/<id>` is the thread's own address, so this is the same link
-        anybody would get by opening the conversation themselves — nothing
+        anybody would get by opening the conversation themselves - nothing
         about it says it came from a notification.
       */
       const openThread = () =>
@@ -172,7 +172,7 @@ export function useMessageAlerts() {
       });
 
       // The browser's own notification, for somebody working in another tab.
-      // Only when asked for, and never when this tab is already in front —
+      // Only when asked for, and never when this tab is already in front -
       // the corner notice has that covered.
       if (
         browserAlertsWanted() &&

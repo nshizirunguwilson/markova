@@ -181,7 +181,7 @@ export default function AdminTeachersPage() {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">
-                          {user.teacher?.employmentStatus || "—"}
+                          {user.teacher?.employmentStatus || "-"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -189,7 +189,7 @@ export default function AdminTeachersPage() {
                           <div className="flex flex-wrap gap-1">
                             {teacherAssignments.slice(0, 3).map((a: any) => (
                               <Badge key={a.id} variant="info">
-                                {a.subject?.name} – {classDisplayName(a.classSection)}
+                                {a.subject?.name} - {classDisplayName(a.classSection)}
                               </Badge>
                             ))}
                             {teacherAssignments.length > 3 && (
@@ -227,7 +227,7 @@ export default function AdminTeachersPage() {
 
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">

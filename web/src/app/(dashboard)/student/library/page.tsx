@@ -141,7 +141,7 @@ export default function StudentLibraryPage() {
                             <TableCell className="text-sm">
                               {loan.returnedAt
                                 ? new Date(loan.returnedAt).toLocaleDateString()
-                                : "—"}
+                                : "-"}
                             </TableCell>
                             <TableCell>
                               <Badge

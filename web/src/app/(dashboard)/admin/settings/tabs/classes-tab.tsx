@@ -38,7 +38,7 @@ export function ClassesTab() {
     const isALevel = level.stage === "A_LEVEL";
     const tradeId = tradeInputs[level.id] || undefined;
     if (isALevel && !tradeId) {
-      toast.error("Pick a trade — A-Level classes belong to a trade");
+      toast.error("Pick a trade - A-Level classes belong to a trade");
       return;
     }
     createSection.mutate(
@@ -53,7 +53,7 @@ export function ClassesTab() {
       qc.invalidateQueries({ queryKey: ["class-levels"] });
       toast.success("Class level deleted");
     } catch (e: unknown) {
-      toast.error(errorMessage(e, "Failed — may have linked data"));
+      toast.error(errorMessage(e, "Failed - may have linked data"));
     }
   };
 
@@ -64,7 +64,7 @@ export function ClassesTab() {
       qc.invalidateQueries({ queryKey: ["sections"] });
       toast.success("Section deleted");
     } catch (e: unknown) {
-      toast.error(errorMessage(e, "Failed — may have students"));
+      toast.error(errorMessage(e, "Failed - may have students"));
     }
   };
 
@@ -105,7 +105,7 @@ export function ClassesTab() {
               >
                 <option value="">Trade…</option>
                 {trades?.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
+                  <option key={t.id} value={t.id}>{t.code} - {t.name}</option>
                 ))}
               </select>
             )}
@@ -149,7 +149,7 @@ export function ClassesTab() {
           <Input id="cl-order" label="Order" type="number" {...register("order")} />
           <Button type="submit" isLoading={createLevel.isPending}><Plus className="mr-1 h-4 w-4" /> Add</Button>
         </form>
-        <p className="mt-2 text-xs text-muted">O-Level holds Senior 1–3; trade levels (Level 3–5) are A-Level.</p>
+        <p className="mt-2 text-xs text-muted">O-Level holds Senior 1-3; trade levels (Level 3-5) are A-Level.</p>
       </Card>
 
       {/* Confirm Action Modal */}

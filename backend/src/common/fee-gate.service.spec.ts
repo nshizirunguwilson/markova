@@ -141,7 +141,7 @@ describe('FeeGateService', () => {
 
   /**
    * An annual report is the three terms added up, so it is held while any of
-   * them is owed on — and it reports the whole year's shortfall, because that
+   * them is owed on - and it reports the whole year's shortfall, because that
    * is what it would take to release it.
    */
   describe('a year', () => {
@@ -211,8 +211,8 @@ describe('FeeGateService', () => {
     });
 
     /**
-     * A report card can be refused for two quite different things — not
-     * issued yet, or held over the fees — and they need different screens.
+     * A report card can be refused for two quite different things - not
+     * issued yet, or held over the fees - and they need different screens.
      * The refusal carries a name for itself so the page telling them apart
      * does not have to match on the wording of a sentence.
      */

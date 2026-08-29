@@ -1192,7 +1192,7 @@ describe('a profile assembled from thin records', () => {
 });
 
 /**
- * Analytics reads raw marks, not calculated results — so it walked straight
+ * Analytics reads raw marks, not calculated results - so it walked straight
  * past publication. A student could open their own Analytics page and read
  * subject scores the school had not released, days before those scores
  * appeared anywhere else in the app.

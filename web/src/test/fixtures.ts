@@ -78,7 +78,7 @@ export const teachers = [
  * than no fixture at all.
  *
  * Each row carries its `student` (or `teacher`) the way `GET /users` really
- * returns it — the record id, the id number and the class, all nested. Rows
+ * returns it - the record id, the id number and the class, all nested. Rows
  * that were the bare user made anything reading `user.student.id` render an
  * empty picker while its tests passed.
  */
@@ -139,8 +139,8 @@ export const termResult = {
  * What `GET /reports/term/:studentId` actually answers with.
  *
  * Copied from a live response, not invented. The student and parent report
- * pages were written against a shape nobody checked — `report.termName`,
- * `report.average`, `s.subjectName` — and their tests carried fixtures shaped
+ * pages were written against a shape nobody checked - `report.termName`,
+ * `report.average`, `s.subjectName` - and their tests carried fixtures shaped
  * to match the pages rather than the API. So the tests passed while the real
  * page rendered a card with no subject names and dashes where the average,
  * grade and position should be.
@@ -163,7 +163,7 @@ export const termReport = {
   term: { name: "Term 1", academicYear: "2025-2026" },
   classTeacher: "Aline Uwase",
   attendance: { present: 58, total: 60 },
-  // `subject` carries the name — not `subjectName`, which is what the pages
+  // `subject` carries the name - not `subjectName`, which is what the pages
   // used to read and why every row rendered blank.
   subjects: [
     { subject: "Mathematics", scope: "O_CORE", assessments: [], average: 82, total: 82, grade: "A", points: 6, remark: "Excellent", competence: null },
@@ -604,7 +604,7 @@ export const thinRoutes: Record<string, unknown> = Object.fromEntries(
  * Almost every page colours a figure against a threshold: an attendance rate
  * is green above ninety, amber above seventy-five, red below. A fixture set
  * with one healthy number in it only ever paints the first of those, and the
- * red arm — the one a head teacher actually acts on — is never drawn.
+ * red arm - the one a head teacher actually acts on - is never drawn.
  *
  * So this maps the rates down under every threshold, empties the counts, and
  * flips the flags. It is deliberately blunt: what it proves is that a page
@@ -641,7 +641,7 @@ export const strainedRoutes: Record<string, unknown> = Object.fromEntries(
 /**
  * The same school with every optional field left empty.
  *
- * Almost every column in this app is written as `value ?? "—"` or
+ * Almost every column in this app is written as `value ?? "-"` or
  * `value || 0`, and a fixture set where every field is filled in never draws
  * a single one of those fallbacks. This blanks every leaf that is not an id,
  * a name or part of the response envelope, which is what a record imported

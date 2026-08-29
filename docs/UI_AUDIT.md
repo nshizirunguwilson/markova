@@ -1,4 +1,4 @@
-# Markova — Frontend UI Audit
+# Markova - Frontend UI Audit
 
 _Audit date: 2026-06-10. Scope: the Next.js 16 web dashboard (`web/`) driven through a real headless Chromium (Playwright) against the live stack (web :3001 → API :3000). Three phases: MAP → TEST → FIX. Branch: `audit/frontend-ui-audit` (off the backend-fix branch; not pushed)._
 
@@ -8,14 +8,14 @@ Status legend (FIX columns): **FIXED** · **DEFERRED** · **N/A**.
 
 ## 0. Executive summary
 
-The UI is in strong shape: **all 56 role pages render cleanly** at desktop width — zero uncaught console errors, zero failed network requests, zero blank/crashed pages, every page has a heading and real seeded data. Menu-based navigation is correctly role-scoped (each role's sidebar only lists its own pages).
+The UI is in strong shape: **all 56 role pages render cleanly** at desktop width - zero uncaught console errors, zero failed network requests, zero blank/crashed pages, every page has a heading and real seeded data. Menu-based navigation is correctly role-scoped (each role's sidebar only lists its own pages).
 
 Two real problems surfaced, both reproduced in the browser:
 
-1. **CRITICAL — client-side role guard is missing.** The dashboard layout renders `<DashboardShell>` **without** `allowedRoles`, so the shell's role check never runs. Direct-URL access lets **any** authenticated role open **any** other role's pages: a student visiting `/admin/users`, `/admin/settings`, `/teacher/marks`, `/librarian/books` stays there and the admin/teacher page content renders (with the student's own sidebar). 16/16 cross-role probes leaked. The backend still enforces data RBAC (admin APIs 403 for a student, so no admin data loads or mutates), but the page is reachable — exactly what the brief says must never happen.
-2. **HIGH — `/admin/attendance` breaks the mobile/tablet layout.** Horizontal overflow of **+1618px (768)** / **+1756px (390)**: the "Attendance by Class" bar chart isn't wrapped in a scroll container (the tables on the same page are), so ~25 section bars push the page to 2386px wide.
+1. **CRITICAL - client-side role guard is missing.** The dashboard layout renders `<DashboardShell>` **without** `allowedRoles`, so the shell's role check never runs. Direct-URL access lets **any** authenticated role open **any** other role's pages: a student visiting `/admin/users`, `/admin/settings`, `/teacher/marks`, `/librarian/books` stays there and the admin/teacher page content renders (with the student's own sidebar). 16/16 cross-role probes leaked. The backend still enforces data RBAC (admin APIs 403 for a student, so no admin data loads or mutates), but the page is reachable - exactly what the brief says must never happen.
+2. **HIGH - `/admin/attendance` breaks the mobile/tablet layout.** Horizontal overflow of **+1618px (768)** / **+1756px (390)**: the "Attendance by Class" bar chart isn't wrapped in a scroll container (the tables on the same page are), so ~25 section bars push the page to 2386px wide.
 
-Plus ~11 minor (8–94px) horizontal overflows on a handful of pages at mobile/tablet (marks tables, library, onboarding, settings).
+Plus ~11 minor (8-94px) horizontal overflows on a handful of pages at mobile/tablet (marks tables, library, onboarding, settings).
 
 Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-Questions.**
 
@@ -25,7 +25,7 @@ Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-
 
 ## 1. Methodology & setup
 
-- **Stack:** backend booted from `dist` (clean, 187 routes, db+redis ok); web `npm run dev` on :3001 (ready, `/login` 200). Database already seeded (Rwandan demo data: 330 students, 30 teachers, full records per entity — no page renders empty).
+- **Stack:** backend booted from `dist` (clean, 187 routes, db+redis ok); web `npm run dev` on :3001 (ready, `/login` 200). Database already seeded (Rwandan demo data: 330 students, 30 teachers, full records per entity - no page renders empty).
 - **Auth:** Playwright authenticates each role via the real API (session OTP handled through `devOtp`) and injects the resulting tokens into `localStorage` (`access_token`/`refresh_token`), then drives the **real rendered pages**. Demo accounts: admin `wilsonshizirungu@gmail.com`, teacher `aline.uwase@markova.academy`, librarian `librarian@markova.academy`, student `student1@markova.academy`, parent phone `+250788100000` (password `Password123!`).
 - **Viewports:** 1440 (desktop), 768 (tablet), 390 (mobile).
 - **Signals captured per page:** final URL (redirect detection), console errors, uncaught page errors, network responses ≥400, blank/empty-body detection, heading presence, horizontal overflow (`scrollWidth − clientWidth`), and screenshots.
@@ -43,7 +43,7 @@ Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-
 | `/forgot-password` | Request reset link | email input, submit, back-to-login link | OK |
 | `/reset-password` | Set new password from token | password + confirm, submit | OK |
 
-**Dashboard pages** (menu column = the role whose sidebar lists it; "reachable by" before the fix = *any authenticated role* via direct URL — see F-1). Interactive-element counts are from the live DOM inventory.
+**Dashboard pages** (menu column = the role whose sidebar lists it; "reachable by" before the fix = *any authenticated role* via direct URL - see F-1). Interactive-element counts are from the live DOM inventory.
 
 | Route | Menu role | Purpose | Key interactive elements | Render |
 |---|---|---|---|---|
@@ -102,29 +102,29 @@ Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-
 
 ### CRITICAL
 
-**F-1 — No client-side role guard; every role can reach every other role's pages.** _Status: FIXED_
-`web/src/app/(dashboard)/layout.tsx` renders `<DashboardShell>{children}</DashboardShell>` with no `allowedRoles`, and `DashboardShell` only enforces roles when that prop is set — so the check is dead for the entire dashboard. Verified live: as STUDENT, `/admin/users` → stays on `/admin/users` and renders the Users page; same for `/admin/settings`, `/teacher/marks`, `/librarian/books`; as TEACHER → `/admin/settings` renders; as PARENT/LIBRARIAN → `/admin/*` renders. 16/16 cross-role probes reached the restricted route.
+**F-1 - No client-side role guard; every role can reach every other role's pages.** _Status: FIXED_
+`web/src/app/(dashboard)/layout.tsx` renders `<DashboardShell>{children}</DashboardShell>` with no `allowedRoles`, and `DashboardShell` only enforces roles when that prop is set - so the check is dead for the entire dashboard. Verified live: as STUDENT, `/admin/users` → stays on `/admin/users` and renders the Users page; same for `/admin/settings`, `/teacher/marks`, `/librarian/books`; as TEACHER → `/admin/settings` renders; as PARENT/LIBRARIAN → `/admin/*` renders. 16/16 cross-role probes reached the restricted route.
 Impact: a user can open admin/teacher/librarian screens they have no business seeing (page chrome + structure; data is still blocked by the API's 403s). Fix: derive the required role from the path prefix in `DashboardShell` and redirect mismatches to the user's own dashboard (shared `/messages` and `/help` exempt).
 
 ### HIGH
 
-**F-2 — `/admin/attendance` horizontal overflow on tablet/mobile.** _Status: FIXED_
+**F-2 - `/admin/attendance` horizontal overflow on tablet/mobile.** _Status: FIXED_
 The "Attendance by Class" bar chart (`flex items-end gap-3 h-40`, one `flex-1` bar per section) is not in a scroll container, so ~25 sections widen the page to **2386px** (+1618 at 768, +1756 at 390). The tables on the page are already wrapped in `overflow-x-auto`; the chart should be too (with a small per-bar min-width so bars stay legible while the row scrolls).
 
 ### MEDIUM
 
-**F-3 — Minor horizontal overflows (8–94px) on mobile/tablet.** _Status: FIXED (where load-bearing) / DEFERRED (cosmetic)_
+**F-3 - Minor horizontal overflows (8-94px) on mobile/tablet.** _Status: FIXED (where load-bearing) / DEFERRED (cosmetic)_
 Detected: `/admin/marks` (+9 tablet), `/admin/discipline` (+8 mobile), `/admin/onboarding` (+26), `/admin/settings` (+11), `/student` (+20), `/student/marks` (+94), `/parent/marks` (+19/+49), `/librarian` (+34/+69), `/librarian/books` (+41). Mostly wide tables/grids that need an `overflow-x-auto` wrapper or `min-w-0` on a flex child. `/student/marks` (+94) is the most visible and is fixed; the sub-30px ones are cosmetic.
 
 ### LOW / OPEN QUESTIONS
 
-- **OQ-1 — Modal dismissal:** should modals close on outside-click and Escape? (Tested in Phase 2; safest behaviour = Escape closes, outside-click closes for non-destructive modals.)
-- **OQ-2 — Unsaved-changes guard:** no dirty-form navigation warning anywhere. Acceptable for an internal tool, but flagged.
-- **L-1 — `/admin/timetable` and analytics pages report 0 main-area buttons** in the inventory because FullCalendar/Recharts mount after `networkidle`; not a bug (verified the calendar renders), just a note for testers.
+- **OQ-1 - Modal dismissal:** should modals close on outside-click and Escape? (Tested in Phase 2; safest behaviour = Escape closes, outside-click closes for non-destructive modals.)
+- **OQ-2 - Unsaved-changes guard:** no dirty-form navigation warning anywhere. Acceptable for an internal tool, but flagged.
+- **L-1 - `/admin/timetable` and analytics pages report 0 main-area buttons** in the inventory because FullCalendar/Recharts mount after `networkidle`; not a bug (verified the calendar renders), just a note for testers.
 
 ---
 
-## 4. Phase 2 — tests & results
+## 4. Phase 2 - tests & results
 
 Regression suite committed at **`web/e2e/ui-audit.spec.js`** (headless Chromium, 20 tests). Run it with the app on :3001 and the API on :3000:
 
@@ -133,7 +133,7 @@ node web/e2e/ui-audit.spec.js          # all tests
 node web/e2e/ui-audit.spec.js rbac     # filter by substring
 ```
 
-It logs each role in **once** and reuses tokens (the API rate-limits login to 10/min, so a fresh login per test would 429 mid-run — see test-harness notes below), and pre-warms the dev routes (Next compiles routes lazily on first hit).
+It logs each role in **once** and reuses tokens (the API rate-limits login to 10/min, so a fresh login per test would 429 mid-run - see test-harness notes below), and pre-warms the dev routes (Next compiles routes lazily on first hit).
 
 **Coverage:** auth (valid login, invalid-password error, password show/hide, logged-out redirect, logout+Back), RBAC route guards (6 role×route probes), 404 handling, a full CRUD form on Subjects (empty→validation, create→persists-after-reload, double-click→no duplicate), table search (match filters, no-match empty state, clear restores), modal dismissal (Escape, Cancel), and responsive overflow at 390/768.
 
@@ -141,20 +141,20 @@ It logs each role in **once** and reuses tokens (the API rate-limits login to 10
 - 6 × `rbac: <role> cannot reach <route>` → **F-1** (every probe reached the restricted page).
 - 3 × `responsive: <page> has no horizontal overflow` → **F-2/F-3**.
 
-**Three "failures" that were test artifacts, not UI bugs** (investigated with isolated probes, then the tests were corrected — noted here per the brief):
+**Three "failures" that were test artifacts, not UI bugs** (investigated with isolated probes, then the tests were corrected - noted here per the brief):
 - *Form/CRUD timeouts:* the suite was logging in fresh per test and tripping the API's 10/min login rate-limit → empty tokens → shell bounced to `/login` → "Add Subject" never appeared. Fixed by caching tokens per role. The Subjects create/validate/double-submit flow **works** (Button disables on `isLoading`, so the double-click creates exactly one row; verified persisted after reload).
-- *Students search empty state:* the test used `input[placeholder*="Search" i]` — Playwright's engine doesn't honour the CSS `i` attribute flag, so it bound the wrong element. With the correct selector the search **works**: `uwase` → 1 row, a no-match term → "No students found", clearing → full list restored (server-side debounced query verified firing).
-- *Logout + Back:* the test simulated logout by clearing only `localStorage`, leaving the in-memory auth store authenticated. With the **real** logout (user menu → Sign Out → confirm, which clears the store too), Back correctly lands on `/login` with no dashboard content — verified.
+- *Students search empty state:* the test used `input[placeholder*="Search" i]` - Playwright's engine doesn't honour the CSS `i` attribute flag, so it bound the wrong element. With the correct selector the search **works**: `uwase` → 1 row, a no-match term → "No students found", clearing → full list restored (server-side debounced query verified firing).
+- *Logout + Back:* the test simulated logout by clearing only `localStorage`, leaving the in-memory auth store authenticated. With the **real** logout (user menu → Sign Out → confirm, which clears the store too), Back correctly lands on `/login` with no dashboard content - verified.
 
 **Post-fix result:** see §5.
 
 ### Other behaviours verified green
-- **Modals** (Subjects add/delete, logout confirm): open, close via Escape / Cancel / X / backdrop click; focus trap; body scroll lock; focus returns to trigger — all present in the shared `Modal` component.
+- **Modals** (Subjects add/delete, logout confirm): open, close via Escape / Cancel / X / backdrop click; focus trap; body scroll lock; focus returns to trigger - all present in the shared `Modal` component.
 - **Buttons** disable while their mutation is pending (`isLoading` → `disabled`), preventing double-submit.
 - **404**: `/garbage` renders the custom `not-found.tsx` ("404 / Page Not Found / Go Home"), no console error.
 - **Auth**: invalid password keeps you on `/login` with a toast; valid student login lands on `/student`; logged-out access to `/admin/users` redirects to `/login`.
 
-## 5. Phase 3 — fix log
+## 5. Phase 3 - fix log
 
 Severity order per the brief: security/role-leak → crashes → broken functionality → validation UX → visual. No crashes/broken-functionality/validation bugs were found, so the work was the role leak then the responsive breakage.
 
@@ -169,7 +169,7 @@ Severity order per the brief: security/role-leak → crashes → broken function
 - **F-2/F-3:** `/admin/attendance`, `/student/marks`, `/parent/marks` (390 & 768), `/student`, `/librarian`, `/librarian/books` all report **no horizontal overflow** at 390/768.
 - **Full Playwright suite: 20 passed / 0 failed.** Web `tsc --noEmit` clean.
 
-**Deferred (cosmetic, ≤26px, admin-only — left as recommendations, not regressions):**
+**Deferred (cosmetic, ≤26px, admin-only - left as recommendations, not regressions):**
 - `/admin/onboarding` (+26 mobile): the horizontal setup-wizard stepper overflows slightly; needs the stepper to wrap/scroll, a larger change than the rest. Admin-only, desktop-first.
 - `/admin/settings` (+11 mobile): the right-aligned "Save Changes" button nudges past the edge.
 - `/admin/marks` (+9 at exactly 768) and `/admin/discipline` (+8 mobile): the results/incidents tables are already inside internal `overflow-x-auto` scrollers; the residual few px are at the md breakpoint boundary and don't scroll the page meaningfully.
@@ -178,12 +178,12 @@ These were judged cosmetic per the brief's "fix MEDIUM where low risk; cosmetic 
 
 ## 6. Open questions
 
-- **OQ-1 (modal dismissal):** the shared `Modal` already closes on Escape, backdrop click, X, and Cancel, with a focus trap and scroll lock — so the safest behaviour is already implemented; no change needed.
+- **OQ-1 (modal dismissal):** the shared `Modal` already closes on Escape, backdrop click, X, and Cancel, with a focus trap and scroll lock - so the safest behaviour is already implemented; no change needed.
 - **OQ-2 (unsaved-changes guard):** no dirty-form navigation warning exists. Not added (out of scope, and an internal tool); flagged for product to decide.
 
 ## 7. Screenshot evidence
 
 Saved under `screenshots/` (gitignored):
-- `screenshots/<role>/*.png` — 1440px, every own-role page (56), pre-fix baseline.
-- `screenshots/tablet/*.png`, `screenshots/mobile/*.png` — 768/390 for key + overflowing pages.
-- `screenshots/postfix-mobile/*.png` — post-fix 390px proof for the six fixed pages plus `student_admin_users.png` showing the RBAC redirect (a student sent back to `/student`).
+- `screenshots/<role>/*.png` - 1440px, every own-role page (56), pre-fix baseline.
+- `screenshots/tablet/*.png`, `screenshots/mobile/*.png` - 768/390 for key + overflowing pages.
+- `screenshots/postfix-mobile/*.png` - post-fix 390px proof for the six fixed pages plus `student_admin_users.png` showing the RBAC redirect (a student sent back to `/student`).

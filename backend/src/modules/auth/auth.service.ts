@@ -106,7 +106,7 @@ export class AuthService {
       return this.issueTokens(user.id, user.role, ipAddress, deviceInfo);
     }
 
-    // For admin/teacher/parent/librarian — generate + send OTP
+    // For admin/teacher/parent/librarian - generate + send OTP
     const { sessionId, devOtp } = await this.createAndSendOtp(user);
 
     return {
@@ -189,7 +189,7 @@ export class AuthService {
 
     /**
      * The code is already in Redis, so the session is valid whether or not
-     * the email ever arrives — which is why this is dispatched rather than
+     * the email ever arrives - which is why this is dispatched rather than
      * awaited.
      *
      * Awaiting it made every sign-in wait on a round trip to the mail server,
@@ -249,7 +249,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid OTP');
     }
 
-    // OTP valid — clean up and issue tokens
+    // OTP valid - clean up and issue tokens
     await this.redis.del('otp:' + dto.sessionId);
 
     const user = await this.prisma.user.findUnique({
@@ -304,7 +304,7 @@ export class AuthService {
       const lockKey = `refresh_lock:${session.id}`;
       const acquired = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
       if (!acquired) {
-        // Another request is already refreshing this token — possible replay
+        // Another request is already refreshing this token - possible replay
         await this.prisma.userSession.update({
           where: { id: session.id },
           data: { isActive: false },

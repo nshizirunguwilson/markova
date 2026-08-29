@@ -16,8 +16,8 @@ interface AuthShellProps {
  *
  * Deliberately mirrors the mobile auth screens: brand-navy ground, white card,
  * logo mark, school name, one-line subtitle. The two platforms previously
- * inverted each other — web put a white shield on navy inside a pale card while
- * mobile put a blue letter on white against navy — so signing in looked like
+ * inverted each other - web put a white shield on navy inside a pale card while
+ * mobile put a blue letter on white against navy - so signing in looked like
  * two different products. Both now render the same composition.
  */
 export function AuthShell({ title, subtitle, children }: AuthShellProps) {

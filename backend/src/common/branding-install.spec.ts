@@ -65,7 +65,7 @@ describe('installing a branding image the school starts with', () => {
   });
 
   /**
-   * A file already in place still needs the config pointing at it — that is
+   * A file already in place still needs the config pointing at it - that is
    * how a rebuilt database on an existing install finds the school's own
    * stamp again instead of coming back blank.
    */

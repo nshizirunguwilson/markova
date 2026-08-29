@@ -359,7 +359,7 @@ describe("skipping through a voice note", () => {
 
 /**
  * Forty bars inside a bubble a few hundred pixels wide gave each one about
- * two pixels of room, which is not a bar — it is a dotted line, and that is
+ * two pixels of room, which is not a bar - it is a dotted line, and that is
  * what it looked like.
  */
 describe("the size a voice note is drawn at", () => {
@@ -385,7 +385,7 @@ describe("the size a voice note is drawn at", () => {
 });
 
 /**
- * The button and the bars are one control — you press it and scrub it — so
+ * The button and the bars are one control - you press it and scrub it - so
  * the length sits under the pair rather than wedged between them.
  */
 describe("how a voice note is laid out", () => {

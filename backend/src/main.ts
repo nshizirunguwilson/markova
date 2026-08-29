@@ -49,7 +49,7 @@ async function bootstrap() {
     CORS is enabled before the static handler, and the order is the whole
     point. Express answers with the first middleware that matches, so a
     `/uploads/...` request used to be served by the static handler before the
-    CORS middleware ever ran — no Access-Control-Allow-Origin header, and a
+    CORS middleware ever ran - no Access-Control-Allow-Origin header, and a
     `fetch()` from the dashboard on :3001 was refused by the browser.
 
     An <img> or <video> does not care, which is why pictures always looked

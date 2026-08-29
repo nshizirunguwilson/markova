@@ -503,15 +503,15 @@ describe("a boarder rather than a day student", () => {
   it("shows the enrolment date once there is one", async () => {
     await mount(boarder);
     expect(screen.getByText("Enrolled")).toBeInTheDocument();
-    // A real date, not the em dash the fixture with no enrolment shows.
+    // A real date, not the dash the fixture with no enrolment shows.
     const field = screen.getByText("Enrolled").parentElement!;
-    expect(field.textContent).not.toContain("—");
+    expect(field.textContent).not.toContain("-");
   });
 
-  it("draws an em dash where no blood type is recorded", async () => {
+  it("draws a dash where no blood type is recorded", async () => {
     await mount(boarder);
     const field = screen.getByText("Blood Type").parentElement!;
-    expect(field.textContent).toContain("—");
+    expect(field.textContent).toContain("-");
   });
 
   it("opens the form already set to boarding", async () => {
@@ -588,16 +588,16 @@ describe("a teacher whose file is incomplete", () => {
     },
   };
 
-  it("draws em dashes for the grade and the RSSB number", async () => {
+  it("draws dashes for the grade and the RSSB number", async () => {
     await mount(bare);
     for (const label of ["Qualification", "RSSB Number"]) {
-      expect(screen.getByText(label).parentElement!.textContent).toContain("—");
+      expect(screen.getByText(label).parentElement!.textContent).toContain("-");
     }
   });
 
-  it("draws an em dash where there is no hire date", async () => {
+  it("draws a dash where there is no hire date", async () => {
     await mount(bare);
-    expect(screen.getByText("Hired").parentElement!.textContent).toContain("—");
+    expect(screen.getByText("Hired").parentElement!.textContent).toContain("-");
   });
 });
 
@@ -626,9 +626,9 @@ describe("a parent and the children on their record", () => {
     ],
   };
 
-  it("lists the child with an em dash where the number will go", async () => {
+  it("lists the child with a dash where the number will go", async () => {
     await mount(parent);
     const child = screen.getByText(/Divine/).closest("div")!.parentElement!;
-    expect(child.textContent).toContain("—");
+    expect(child.textContent).toContain("-");
   });
 });

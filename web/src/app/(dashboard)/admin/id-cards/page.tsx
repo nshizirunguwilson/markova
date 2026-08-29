@@ -53,7 +53,7 @@ export default function AdminIdCardsPage() {
    * Any change of filter starts again at the first page: staying on page 12
    * of a narrower list shows an empty table.
    *
-   * Reset where the filter changes rather than in an effect watching it — an
+   * Reset where the filter changes rather than in an effect watching it - an
    * effect that calls setState runs a second render every time, and the query
    * below would fire once for the old page before the reset landed.
    */
@@ -138,19 +138,19 @@ export default function AdminIdCardsPage() {
       <div className="grid grid-cols-3 gap-3 print:hidden">
         <Card padding="sm">
           <div className="text-center">
-            <p className="text-2xl font-bold text-foreground">{data?.total ?? "—"}</p>
+            <p className="text-2xl font-bold text-foreground">{data?.total ?? "-"}</p>
             <p className="text-sm text-muted">Students</p>
           </div>
         </Card>
         <Card padding="sm">
           <div className="text-center">
-            <p className="text-2xl font-bold text-success">{data?.issued ?? "—"}</p>
+            <p className="text-2xl font-bold text-success">{data?.issued ?? "-"}</p>
             <p className="text-sm text-muted">Have a card</p>
           </div>
         </Card>
         <Card padding="sm">
           <div className="text-center">
-            <p className="text-2xl font-bold text-danger">{data?.notIssued ?? "—"}</p>
+            <p className="text-2xl font-bold text-danger">{data?.notIssued ?? "-"}</p>
             <p className="text-sm text-muted">No card yet</p>
           </div>
         </Card>
@@ -252,7 +252,7 @@ export default function AdminIdCardsPage() {
                   <TableCell className="text-xs text-muted">
                     {it.cardIssuedAt
                       ? new Date(it.cardIssuedAt).toLocaleDateString()
-                      : "—"}
+                      : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     {it.hasCard ? (
@@ -319,7 +319,7 @@ export default function AdminIdCardsPage() {
         {!isLoading && meta.totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">

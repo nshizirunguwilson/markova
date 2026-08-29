@@ -287,7 +287,7 @@ export default function AnnouncementsPage() {
                 <p className="text-xs text-muted">This will reach</p>
                 <p className="text-2xl font-bold">
                   {!spec
-                    ? "—"
+                    ? "-"
                     : isFetching
                       ? "…"
                       : (preview?.count ?? 0)}

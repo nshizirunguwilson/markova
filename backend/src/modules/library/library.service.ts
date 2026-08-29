@@ -180,7 +180,7 @@ export class LibraryService {
       },
     });
     if (overdueLoans > 0) {
-      throw new BadRequestException('Cannot borrow — has overdue books');
+      throw new BadRequestException('Cannot borrow - has overdue books');
     }
 
     // Calculate due date

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/assets";
 import { useBrandStore } from "@/stores/brand-store";
 
-/** Markova's own mark — used when the school hasn't uploaded a logo. */
+/** Markova's own mark - used when the school hasn't uploaded a logo. */
 const FALLBACK_MARK = "/brand/logo-mark.png";
 
 interface BrandMarkProps {

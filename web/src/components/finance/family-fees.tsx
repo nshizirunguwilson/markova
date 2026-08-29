@@ -24,7 +24,7 @@ import { Info, Landmark, Lock } from "lucide-react";
  * and what that means for the report card.
  *
  * Deliberately not a copy of the bursar's page. There is nothing to act on
- * here — no counter, no corrections — so the page leads with the one number
+ * here - no counter, no corrections - so the page leads with the one number
  * that matters and then explains it. Where a term is holding results back it
  * says so on that term's own row, because "why can I not see my marks" and
  * "how much do we owe" are the same question asked from two directions.
@@ -58,7 +58,7 @@ export function FamilyFees({
    * Derived during render rather than synced in an effect: the reader's own
    * choice wins, and until they make one it falls to the live term, or to the
    * most recent one billed. A family arriving here wants this term, not the
-   * oldest on record — and holding it in an effect meant a render with no
+   * oldest on record - and holding it in an effect meant a render with no
    * term at all, then a second one to correct it.
    */
   const [picked, setPicked] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export function FamilyFees({
 
       {/*
         Said once, at the top, and only when it is true. A family that owes
-        nothing should never be shown a warning about report cards — and one
+        nothing should never be shown a warning about report cards - and one
         that does needs the total for the year rather than for whichever term
         they happen to be looking at.
       */}
@@ -222,7 +222,7 @@ export function FamilyFees({
                       : "text-success"
                   }`}
                 >
-                  {standing ? money(standing.balance) : "—"}
+                  {standing ? money(standing.balance) : "-"}
                 </p>
                 <p className="mt-1 text-sm text-muted">
                   {standingSummary(standing, status)}

@@ -73,7 +73,7 @@ export class SchoolConfigController {
    * Stores one branding image against its config key.
    *
    * The three uploads were the same fifteen lines three times over, and each
-   * one dereferenced `file.filename` without checking there was a file — a
+   * one dereferenced `file.filename` without checking there was a file - a
    * request that arrived with the wrong field name (or none) crashed on a
    * TypeError and came back as a bare 500, which the settings page could only
    * report as "Failed to upload logo".

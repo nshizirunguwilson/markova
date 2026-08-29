@@ -46,7 +46,7 @@ interface Child {
  * What a parent came here to find out: where the money went.
  *
  * The statement is the whole page. The controls beneath it are the two things
- * a parent actually asks for once they can see the spending — a daily cap so a
+ * a parent actually asks for once they can see the spending - a daily cap so a
  * term's money lasts a term, and a warning before it runs out.
  */
 export default function ParentPocketMoneyPage() {
@@ -220,7 +220,7 @@ export default function ParentPocketMoneyPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted">
-                          {e.recordedBy ?? "—"}
+                          {e.recordedBy ?? "-"}
                         </TableCell>
                         <TableCell
                           className={`text-right font-medium ${

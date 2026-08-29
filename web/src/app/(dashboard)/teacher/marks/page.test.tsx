@@ -282,7 +282,7 @@ describe("entering marks while offline", () => {
 
   /**
    * A partial sync must keep what did not go, or the failed half is lost for
-   * good — and must drop what did, or those marks are posted a second time on
+   * good - and must drop what did, or those marks are posted a second time on
    * the next attempt, overwriting anything corrected in between.
    */
   it("keeps only what failed when some entries went through", async () => {

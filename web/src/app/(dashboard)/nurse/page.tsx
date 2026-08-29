@@ -23,7 +23,7 @@ import { useAuthStore } from "@/stores/auth-store";
  *
  * The same sick bay the boarding staff see, framed differently: to a matron
  * it is a list of empty beds, to the nurse it is her ward. What she has that
- * they do not is the clinical picture — how many visits this month, who was
+ * they do not is the clinical picture - how many visits this month, who was
  * sent to hospital, and which students keep coming back, which is the only
  * thing in these records that a single visit cannot tell you.
  *

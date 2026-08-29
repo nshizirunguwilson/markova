@@ -122,8 +122,8 @@ const metrics = {
 };
 
 /**
- * Data a screen reads but never draws — a lookup table, a list it only
- * searches — leaves a test nothing to wait for on screen. Seeding it makes
+ * Data a screen reads but never draws - a lookup table, a list it only
+ * searches - leaves a test nothing to wait for on screen. Seeding it makes
  * the screen's own behaviour the only thing under test.
  */
 export type Seed = [queryKey: unknown[], data: unknown][];
@@ -221,8 +221,8 @@ export function meterFill(screen: { getByRole: (role: string) => unknown }) {
 /**
  * Lets every settled promise land.
  *
- * A screen that reads something it never shows — a lookup table, a list it
- * only searches — gives a test nothing to wait for on screen. This waits for
+ * A screen that reads something it never shows - a lookup table, a list it
+ * only searches - gives a test nothing to wait for on screen. This waits for
  * the queries themselves instead.
  */
 export async function settle() {

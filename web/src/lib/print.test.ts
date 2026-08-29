@@ -4,7 +4,7 @@ import { printHtml } from "./print";
 
 /**
  * The Print button used to open a second tab, print from it, and leave it
- * behind — or be swallowed by a popup blocker, which reads as a button that
+ * behind - or be swallowed by a popup blocker, which reads as a button that
  * does nothing at all. Everything here is about printing from the page the
  * user is already looking at.
  */

@@ -32,7 +32,7 @@ import ParentReportsPage from "./page";
  */
 
 /**
- * The shape `GET /reports/term/:studentId` really answers with — taken from
+ * The shape `GET /reports/term/:studentId` really answers with - taken from
  * `termReport` in the shared fixtures, which was copied from a live response.
  *
  * The old fixture here was invented to match the page instead: `termName`,
@@ -160,8 +160,8 @@ describe("finding the right card", () => {
 describe("printing the card", () => {
   /**
    * A parent pressing Print gets the A4 sheet the school issues, printed from
-   * this page. It used to open a popup and write its own two-line summary —
-   * name, average, grade, rank — which looked nothing like the real card.
+   * this page. It used to open a popup and write its own two-line summary -
+   * name, average, grade, rank - which looked nothing like the real card.
    */
   it("prints the school's own card from this page", async () => {
     mount();

@@ -7,7 +7,7 @@ import { standing } from "@/test/fee-fixtures";
  * The bar answers "how close", which a column of numbers does not.
  *
  * Neither colour nor length works for everybody, so the answer is also in
- * words on the element itself — that is the part these tests hold.
+ * words on the element itself - that is the part these tests hold.
  */
 describe("the settled bar", () => {
   const bar = (node: HTMLElement) => node.querySelector("[role='img']")!;

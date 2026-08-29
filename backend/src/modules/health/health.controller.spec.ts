@@ -32,7 +32,7 @@ describe('HealthController', () => {
     expect(result.checks.redis.status).toBe('ok');
   });
 
-  it('reports degraded — not a crash — when Postgres is unreachable', async () => {
+  it('reports degraded - not a crash - when Postgres is unreachable', async () => {
     mockPrisma.$queryRaw.mockRejectedValue(new Error('ECONNREFUSED'));
     mockRedis.ping.mockResolvedValue('PONG');
 

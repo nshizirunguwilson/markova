@@ -52,7 +52,7 @@ describe("the word for a conduct mark", () => {
   });
 
   it("says nothing when there is no percentage", () => {
-    expect(conductRemark(null)).toBe("–");
+    expect(conductRemark(null)).toBe("-");
   });
 
   it("reads a term and a year at the same standing identically", () => {

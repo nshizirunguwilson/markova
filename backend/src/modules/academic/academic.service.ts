@@ -223,7 +223,7 @@ export class AcademicService {
           orderBy: { name: 'asc' },
           include: {
             trade: true,
-            // Enrolled students only — alumni keep their section link for
+            // Enrolled students only - alumni keep their section link for
             // records but must not inflate the class size.
             _count: {
               select: { students: { where: { status: 'ACTIVE' } } },
@@ -411,7 +411,7 @@ export class AcademicService {
         classLevel: { select: { id: true, name: true, stage: true } },
         // What the subject is actually used for. Without these the subjects
         // page could not say whether anyone teaches it, whether it appears on
-        // a timetable, or whether deleting it would take marks with it — and
+        // a timetable, or whether deleting it would take marks with it - and
         // deleting one that has marks is refused, so the page has to be able
         // to say so before the admin presses the button.
         _count: {
@@ -1027,7 +1027,7 @@ export class AcademicService {
 
     // A promotion moves a student UP the ladder. The six levels are ordered
     // Senior 1-3 then TVET Level 3-5 (ClassLevel.order 1..6), and the UI used
-    // to let any level be chosen as the destination — so "Senior 2 → Senior 1"
+    // to let any level be chosen as the destination - so "Senior 2 → Senior 1"
     // was a click away, and it silently demoted a whole class. Same level is
     // refused too: repeating a year is a retention, not a promotion.
     const destination = await this.prisma.classSection.findUnique({

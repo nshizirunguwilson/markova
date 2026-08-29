@@ -341,7 +341,7 @@ describe("DashboardShell and the welfare roles", () => {
  *
  * The most-seen transition in the app is a page swapping its spinner for
  * data, and it was a hard cut. Opacity only, and keyed on the route so it
- * replays per page — nothing moves, and nothing is delayed, which is what
+ * replays per page - nothing moves, and nothing is delayed, which is what
  * separates this from a sliding route transition in a tool people use all
  * day.
  */
@@ -363,8 +363,8 @@ describe("DashboardShell content motion", () => {
   /**
    * The key is the route, not the address.
    *
-   * A page that rewrites its own URL without navigating — the chat, which
-   * puts the open thread in the address — was being destroyed and faded back
+   * A page that rewrites its own URL without navigating - the chat, which
+   * puts the open thread in the address - was being destroyed and faded back
    * in on every click, losing its scroll position and anything half written
    * in the process. That was the whole page being thrown away, not a
    * transition.
@@ -408,7 +408,7 @@ describe("DashboardShell content motion", () => {
   });
 
   // The animation must never gate the content: it fades what is already
-  // there, so a reader — or a test — finds it on the first frame.
+  // there, so a reader - or a test - finds it on the first frame.
   it("has the page in the document straight away", async () => {
     h.pathname.current = "/admin";
     signIn("ADMIN");

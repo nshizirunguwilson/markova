@@ -703,25 +703,25 @@ These patterns will be **adapted** (not copy-pasted) from the web app:
 
 ## Potential Risks & Gotchas
 
-1. **expo-secure-store is async** — Unlike localStorage, token reads are async. Must handle this in the API interceptor (await the token before each request). May need a token cache in memory.
+1. **expo-secure-store is async** - Unlike localStorage, token reads are async. Must handle this in the API interceptor (await the token before each request). May need a token cache in memory.
 
-2. **Socket.io reconnection on app resume** — React Native's AppState changes when app goes to background. Must reconnect socket on `active` state, disconnect on `background` to save battery.
+2. **Socket.io reconnection on app resume** - React Native's AppState changes when app goes to background. Must reconnect socket on `active` state, disconnect on `background` to save battery.
 
-3. **Keyboard handling in chat** — The message input must stay visible above keyboard. Use `KeyboardAvoidingView` with correct behavior per platform (`padding` on iOS, `height` on Android).
+3. **Keyboard handling in chat** - The message input must stay visible above keyboard. Use `KeyboardAvoidingView` with correct behavior per platform (`padding` on iOS, `height` on Android).
 
-4. **iOS push notifications require Apple Developer account** — Can't test real push on iOS without it. Use Expo's push notification testing tool during development.
+4. **iOS push notifications require Apple Developer account** - Can't test real push on iOS without it. Use Expo's push notification testing tool during development.
 
-5. **Large image uploads on mobile data** — Profile photo uploads should compress images before upload. Use `expo-image-manipulator` to resize to max 800px and compress quality to 80%.
+5. **Large image uploads on mobile data** - Profile photo uploads should compress images before upload. Use `expo-image-manipulator` to resize to max 800px and compress quality to 80%.
 
-6. **Android back button** — Must handle hardware back button correctly in modals, chat screens, and nested navigation.
+6. **Android back button** - Must handle hardware back button correctly in modals, chat screens, and nested navigation.
 
-7. **Offline marks sync conflicts** — If a teacher enters marks offline and an admin also enters marks on web, the sync needs conflict resolution. Current plan: server wins (overwrite local).
+7. **Offline marks sync conflicts** - If a teacher enters marks offline and an admin also enters marks on web, the sync needs conflict resolution. Current plan: server wins (overwrite local).
 
-8. **QR code format** — Must agree on QR code content format with backend. Suggest: `markova:student:{studentId}` as the QR payload.
+8. **QR code format** - Must agree on QR code content format with backend. Suggest: `markova:student:{studentId}` as the QR payload.
 
-9. **Expo Go limitations** — Some features (push notifications, camera in production mode) require a development build, not Expo Go. Plan for `eas build --profile development` early.
+9. **Expo Go limitations** - Some features (push notifications, camera in production mode) require a development build, not Expo Go. Plan for `eas build --profile development` early.
 
-10. **API URL in production** — The mobile app needs the production API URL baked into the build (or configurable). Use `expo-constants` to manage environment-specific config.
+10. **API URL in production** - The mobile app needs the production API URL baked into the build (or configurable). Use `expo-constants` to manage environment-specific config.
 
 ---
 

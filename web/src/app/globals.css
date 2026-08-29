@@ -16,7 +16,7 @@ body {
 
   Inside `@layer base`, and the layer is the point. Unlayered rules beat
   layered ones outright, whatever the specificity, so while this sat outside
-  a layer it overrode Tailwind's own `outline-none` — every one of the ninety
+  a layer it overrode Tailwind's own `outline-none` - every one of the ninety
   odd controls that draws its own focus ring was drawing this one as well.
   Two rings for one cursor, most visibly around the message field.
 
@@ -48,7 +48,7 @@ body {
    values here are the same milliseconds the mobile app animates on.
 
    Everything below animates only `opacity` and `transform`. Both are handled
-   by the compositor, so none of it can cause a layout pass — which matters on
+   by the compositor, so none of it can cause a layout pass - which matters on
    a table of 1,300 students far more than it does on a login screen.
 
    The prefers-reduced-motion block above clamps every one of these to 0.01ms,
@@ -128,8 +128,8 @@ body {
 /*
   A progress bar filling.
 
-  These were on `transition-all`, which animates every property that changes —
-  colour, shadow, transform — when the only thing that moves is the width.
+  These were on `transition-all`, which animates every property that changes -
+  colour, shadow, transform - when the only thing that moves is the width.
   Naming the property keeps the browser from watching the rest, and puts the
   duration under the design system rather than Tailwind's 150ms default.
 */
@@ -155,7 +155,7 @@ body {
   Squircle corners, on the chat surfaces only.
 
   A rounded rectangle is an arc spliced onto two straight edges, and the join
-  is a real discontinuity — the curvature jumps from nothing to everything at
+  is a real discontinuity - the curvature jumps from nothing to everything at
   a point. `corner-shape: squircle` draws a superellipse instead, where the
   curvature eases in, which is the shape Apple's icons and iOS sheets use and
   the reason they look softer at the same radius.
@@ -186,7 +186,7 @@ body {
     ahead of the inner one and the corner read as too round for what it held.
 
     This only works because the padding is now equal on both axes. It used to
-    be 14px across and 8px down, which wanted 22 and 16 at the same time — no
+    be 14px across and 8px down, which wanted 22 and 16 at the same time - no
     single radius could sit concentric with the thing inside it, and that is
     what looked wrong.
   */

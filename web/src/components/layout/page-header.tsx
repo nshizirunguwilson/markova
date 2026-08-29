@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 interface PageHeaderProps {
   /** Usually a plain string; accepts nodes so pages can greet by name. */
   title: React.ReactNode;
-  /** One line of context under the title — a count, a scope, a hint. */
+  /** One line of context under the title - a count, a scope, a hint. */
   description?: React.ReactNode;
   /** Actions aligned to the trailing edge: export buttons, status badges, CTAs. */
   actions?: React.ReactNode;

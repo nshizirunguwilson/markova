@@ -146,7 +146,7 @@ describe("what the notice says", () => {
 
   /**
    * A notice is read by whoever is looking at the screen, which in a school
-   * is not always the person the message is for — a laptop on a desk in a
+   * is not always the person the message is for - a laptop on a desk in a
    * staff room, a screen shared in a meeting, a phone handed to a child. A
    * message about a child's discipline record has no business appearing in
    * the corner of any of them.

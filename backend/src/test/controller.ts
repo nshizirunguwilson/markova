@@ -7,7 +7,7 @@ import { AuthGuard } from '@nestjs/passport';
  *
  * Every controller here is the same shape: a route that pulls a DTO, a param
  * and sometimes the signed-in user off the request, and hands them to a
- * service. That layer is thin, but it is not free of bugs — the ones it does
+ * service. That layer is thin, but it is not free of bugs - the ones it does
  * have are the expensive kind. `getTeacherAssignments(user.id)` compared a
  * User id against a Teacher id and matched nothing, and the mobile pocket
  * money lookup sent the wrong field name and 400'd on every scan. Both were

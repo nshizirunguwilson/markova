@@ -58,7 +58,7 @@ export default function AdminMarksPage() {
   const { data: allSections } = useSections(selectedLevel || undefined);
   // `/academic/sections` with no level answers with every class in the school,
   // and this page used to fall back to the first of them. Opening Marks
-  // therefore showed a real class the admin had never chosen — marks for
+  // therefore showed a real class the admin had never chosen - marks for
   // someone else's roll, under a "Select level..." placeholder. Nothing is
   // loaded now until a level and a section are both picked.
   const sections = selectedLevel ? allSections : undefined;
@@ -256,7 +256,7 @@ export default function AdminMarksPage() {
                 onClick={() => {
                   setConfirmMessage(
                     isPublished
-                      ? "Take these marks back? Students and parents will stop seeing their subject breakdown, average and position — and any report cards you have issued for this class are withdrawn with them."
+                      ? "Take these marks back? Students and parents will stop seeing their subject breakdown, average and position - and any report cards you have issued for this class are withdrawn with them."
                       : "Release these marks? Every student in the class and their parents will be able to see their subject breakdown, average and position.",
                   );
                   setConfirmAction(() => () => publishResults.mutate({
@@ -288,7 +288,7 @@ export default function AdminMarksPage() {
                 disabled={!cardsIssued && !isPublished}
                 title={
                   !cardsIssued && !isPublished
-                    ? "Publish the marks first — a report card carries them"
+                    ? "Publish the marks first - a report card carries them"
                     : undefined
                 }
                 onClick={() => {
@@ -371,7 +371,7 @@ export default function AdminMarksPage() {
                         r.rank === 3 ? "bg-warning-wash text-warning" :
                         "bg-muted/10 text-muted"
                       }`}>
-                        {r.rank || "—"}
+                        {r.rank || "-"}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -381,10 +381,10 @@ export default function AdminMarksPage() {
                             that have gone missing. */}
                         {`${r.student?.user?.firstName ?? ""} ${
                           r.student?.user?.lastName ?? ""
-                        }`.trim() || "—"}
+                        }`.trim() || "-"}
                       </p>
                     </TableCell>
-                    <TableCell>{r.totalMarks?.toFixed(1) || "—"}</TableCell>
+                    <TableCell>{r.totalMarks?.toFixed(1) || "-"}</TableCell>
                     <TableCell>
                       <span className={`font-bold ${
                         (r.average || 0) >= 80 ? "text-success" :
@@ -392,7 +392,7 @@ export default function AdminMarksPage() {
                         (r.average || 0) >= 50 ? "text-warning" :
                         "text-danger"
                       }`}>
-                        {r.average?.toFixed(1) || "—"}%
+                        {r.average?.toFixed(1) || "-"}%
                       </span>
                     </TableCell>
                     <TableCell>
@@ -402,7 +402,7 @@ export default function AdminMarksPage() {
                         r.letterGrade === "C" ? "warning" :
                         "danger"
                       }>
-                        {r.letterGrade || "—"}
+                        {r.letterGrade || "-"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -433,7 +433,7 @@ export default function AdminMarksPage() {
             <p className="mb-2 font-medium text-foreground">How a term’s results reach a family</p>
             <p>
               Teachers enter marks. <strong>Calculate Results</strong> turns
-              those into subject totals, averages, grades and class positions —
+              those into subject totals, averages, grades and class positions -
               visible to staff only. <strong>Publish</strong> releases the marks
               to students and parents. <strong>Issue</strong> then hands over the
               report card itself, which most schools do later, after

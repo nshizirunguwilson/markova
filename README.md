@@ -3,7 +3,7 @@
 Standalone, self-hosted school management system, built for Rwandan schools.
 
 An admin dashboard for staff, a mobile app for teachers and parents, and a REST
-API that owns the data — all of it running on your own infrastructure.
+API that owns the data - all of it running on your own infrastructure.
 
 ## Project structure
 
@@ -12,7 +12,7 @@ markova/
 ├── backend/          # NestJS 11 + Prisma + PostgreSQL REST API (source of truth)
 ├── web/              # Next.js 16 (App Router) + React 19 dashboard
 ├── mobile/           # Expo Router (SDK 55) / React Native app
-├── design/           # Design tokens + logo — the source both clients generate from
+├── design/           # Design tokens + logo - the source both clients generate from
 ├── scripts/          # Token sync, contrast check, brand asset builder
 ├── docs/             # Deployment guide, feature guide, readiness notes
 ├── docker-compose.yml
@@ -22,12 +22,12 @@ markova/
 
 ## Tech stack
 
-- **Backend** — Node.js, NestJS 11, TypeScript, Prisma ORM
-- **Database** — PostgreSQL 15 with Redis for cache, OTP and queues
-- **Web** — Next.js 16 (App Router), React 19, Tailwind CSS v4, TanStack Query
-- **Mobile** — Expo SDK 55, Expo Router, React Native — for admins, teachers,
+- **Backend** - Node.js, NestJS 11, TypeScript, Prisma ORM
+- **Database** - PostgreSQL 15 with Redis for cache, OTP and queues
+- **Web** - Next.js 16 (App Router), React 19, Tailwind CSS v4, TanStack Query
+- **Mobile** - Expo SDK 55, Expo Router, React Native - for admins, teachers,
   parents and librarians. Students use the web portal.
-- **Design** — one token file drives both clients; every colour pairing is
+- **Design** - one token file drives both clients; every colour pairing is
   verified against WCAG AA in CI
 
 ## Roles
@@ -38,14 +38,14 @@ markova/
 | Teacher | ✅ | ✅ |
 | Librarian | ✅ | ✅ |
 | Parent | ✅ | ✅ |
-| Student | ✅ | — by design |
+| Student | ✅ | - by design |
 
 Parents can sign in with either an email address or their phone number; many are
 registered with a phone only.
 
 ## Development setup
 
-1. **Start the data stores** (Postgres on `:5434`, Redis on `:6380` — deliberately
+1. **Start the data stores** (Postgres on `:5434`, Redis on `:6380` - deliberately
    not the default ports):
 
    ```bash
@@ -71,7 +71,7 @@ registered with a phone only.
    npm run start:dev
    ```
 
-4. **Run the dashboard** (port 3001 — the API owns 3000):
+4. **Run the dashboard** (port 3001 - the API owns 3000):
 
    ```bash
    cd web
@@ -83,7 +83,7 @@ registered with a phone only.
 
    ```bash
    cd mobile
-   cp .env.example .env   # a device cannot reach "localhost" — use your LAN IP
+   cp .env.example .env   # a device cannot reach "localhost" - use your LAN IP
    npm install
    npm start
    ```
@@ -108,7 +108,7 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 | Teacher | `aline.uwase@markova.edu` |
 | Librarian | `librarian@markova.edu` |
 | Student | `student1@markova.edu` (web only) |
-| Parent | `+250788100000` (phone only — no email) |
+| Parent | `+250788100000` (phone only - no email) |
 
 Login may return an OTP step; outside production the code is included in the
 response as `devOtp`.
@@ -140,7 +140,7 @@ cd mobile && npx tsc --noEmit
 
 ## Documentation
 
-- `CLAUDE.md` — architecture and conventions
-- `design/README.md` — the design system
-- `docs/deployment-guide.md` — production deployment
-- `docs/FEATURE-GUIDE.md` — what the product does
+- `CLAUDE.md` - architecture and conventions
+- `design/README.md` - the design system
+- `docs/deployment-guide.md` - production deployment
+- `docs/FEATURE-GUIDE.md` - what the product does

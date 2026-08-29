@@ -99,7 +99,7 @@ describe('conduct as a percentage', () => {
 
   it('writes the mark and the percentage together', () => {
     expect(conductLabel(32, 40)).toBe('32 / 40 (80%)');
-    expect(conductLabel(0, 0)).toBe('–');
+    expect(conductLabel(0, 0)).toBe('-');
   });
 });
 
@@ -126,7 +126,7 @@ describe('the word for a conduct mark', () => {
   });
 
   it('says nothing when there is no percentage', () => {
-    expect(conductRemark(null)).toBe('–');
+    expect(conductRemark(null)).toBe('-');
   });
 
   // The same term mark and year mark must read the same, which is the whole

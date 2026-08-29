@@ -16,7 +16,7 @@ import { VideoPlayer } from "./video-player";
  * what makes clicking outside to close feel obvious.
  *
  * Only the media. No filmstrip of the other things in the conversation, no
- * sender, no caption — those are all on the page behind it, and putting them
+ * sender, no caption - those are all on the page behind it, and putting them
  * here again just makes the thing you wanted to look at smaller.
  *
  * Portalled to the body, because the thread scrolls and animates its own
@@ -89,14 +89,14 @@ export function MediaLightbox({
         The media itself, capped at nine tenths of the window in both
         directions so a tall photograph and a wide one both fit whole. The
         click guard stops the ground's close handler firing when somebody
-        means to touch the picture — or a control on the clip.
+        means to touch the picture - or a control on the clip.
       */}
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[90vh] max-w-[90vw] items-center justify-center"
       >
         {kind === "video" ? (
-          /* Our own controls, not the browser's — this is the only place a
+          /* Our own controls, not the browser's - this is the only place a
              clip plays, so it is the only place they are needed. */
           <VideoPlayer
             src={src}

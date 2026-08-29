@@ -114,7 +114,7 @@ export default function ChildHealth() {
                 />
                 <Fact
                   label="On this number"
-                  value={record?.emergencyContactPhone ?? '—'}
+                  value={record?.emergencyContactPhone ?? '-'}
                   mono
                   last
                 />

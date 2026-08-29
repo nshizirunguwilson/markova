@@ -62,7 +62,7 @@ export function SubjectsTab() {
       qc.invalidateQueries({ queryKey: ["subjects"] });
       toast.success("Subject deleted");
     } catch (e: unknown) {
-      toast.error(errorMessage(e, "Failed — may have linked marks"));
+      toast.error(errorMessage(e, "Failed - may have linked marks"));
     }
   };
 
@@ -85,7 +85,7 @@ export function SubjectsTab() {
               {subjects?.map((s: any) => (
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell>{s.category || "—"}</TableCell>
+                  <TableCell>{s.category || "-"}</TableCell>
                   <TableCell>{s.maxMarks}</TableCell>
                   <TableCell>
                     <button onClick={() => toggleActive(s.id, s.isActive)}>

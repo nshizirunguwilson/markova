@@ -53,8 +53,8 @@ import {
  * balance, then a way to take the money. So the balance is the largest thing
  * on the page and the two actions sit directly under it.
  *
- * Below that is the book itself — what was billed, what came in, what was
- * written off — because the second question a family asks is always "what
+ * Below that is the book itself - what was billed, what came in, what was
+ * written off - because the second question a family asks is always "what
  * about the 40,000 I paid in January", and the answer has to be on the same
  * screen as the number they are disputing.
  */
@@ -211,7 +211,7 @@ export default function FeeAccountPage() {
                 standing && standing.balance > 0 ? "text-danger" : "text-success"
               }`}
             >
-              {standing ? money(standing.balance) : "—"}
+              {standing ? money(standing.balance) : "-"}
             </p>
             <p className="mt-1 text-sm text-muted">
               {standingSummary(standing, status)}
@@ -311,7 +311,7 @@ export default function FeeAccountPage() {
                           {p.voidedAt && (
                             <p className="mt-1 text-xs text-danger">
                               Voided {dateOf(p.voidedAt)} by {nameOf(p.voidedBy)}
-                              {p.voidReason ? ` — ${p.voidReason}` : ""}
+                              {p.voidReason ? ` - ${p.voidReason}` : ""}
                             </p>
                           )}
                         </div>
@@ -371,7 +371,7 @@ export default function FeeAccountPage() {
                             <p className="mt-1 text-xs text-danger">
                               Withdrawn {dateOf(w.revokedAt)} by{" "}
                               {nameOf(w.revokedBy)}
-                              {w.revokeReason ? ` — ${w.revokeReason}` : ""}
+                              {w.revokeReason ? ` - ${w.revokeReason}` : ""}
                             </p>
                           )}
                         </div>
@@ -436,7 +436,7 @@ export default function FeeAccountPage() {
             </select>
           </div>
           {/*
-            The reference is named after whatever the family is holding — a
+            The reference is named after whatever the family is holding - a
             deposit slip, a MoMo message, a cheque stub. One generic
             "Reference" is what gets the wrong number typed into it.
           */}

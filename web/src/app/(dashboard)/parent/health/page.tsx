@@ -96,7 +96,7 @@ export default function ParentHealthPage() {
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card padding="sm" className="border-danger/40 bg-danger/5">
-              {/* `text-muted` on this tint is 4.49:1 — one hundredth under AA.
+              {/* `text-muted` on this tint is 4.49:1 - one hundredth under AA.
                   The darker of the two secondary greys clears it at 6.56:1,
                   and this is the card that tells a nurse what a child cannot
                   be given. */}

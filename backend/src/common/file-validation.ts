@@ -179,8 +179,8 @@ export function filenameFor(
  *
  * A plain `Error` here is not an HttpException, so Nest's multer wrapper hands
  * it straight through and the client gets a bare 500. Every refused upload
- * therefore read as "Failed to upload logo" — the same message a server outage
- * produces — when the real answer was "that is a HEIC and we take JPEG or PNG".
+ * therefore read as "Failed to upload logo" - the same message a server outage
+ * produces - when the real answer was "that is a HEIC and we take JPEG or PNG".
  */
 function refusalError(
   mimetype: string,
@@ -189,7 +189,7 @@ function refusalError(
 ): BadRequestException {
   /*
     The list of what would have been accepted, named by extension rather than
-    by mime type — somebody told "accepted: image/jpeg" has to translate it,
+    by mime type - somebody told "accepted: image/jpeg" has to translate it,
     and somebody told "JPG, PNG" does not. This used to read off the image
     table whatever was being uploaded, so a refused message attachment was
     told PDFs were unacceptable when they are the commonest thing sent.
@@ -254,7 +254,7 @@ export function removeStoredFile(
  *
  * The mime type on an upload is whatever the client claimed, so a file is
  * also asked what it actually is. A type absent from here is one with no
- * signature worth checking — plain text and CSV are any bytes at all.
+ * signature worth checking - plain text and CSV are any bytes at all.
  *
  * `at` is where the marker sits: MP4 and QuickTime carry a four-byte length
  * first and only then `ftyp`, which is why they are checked at offset 4.
@@ -296,7 +296,7 @@ const ATTACHMENT_SIGNATURES: Record<string, { at: number; bytes: number[] }[]> =
 /**
  * Do these bytes look like the type they claim to be?
  *
- * True for a type we have no signature for — text really is any bytes, and
+ * True for a type we have no signature for - text really is any bytes, and
  * refusing a valid .txt because it does not start with a magic number would
  * be worse than the check is worth.
  */
@@ -358,7 +358,7 @@ export function validateUploadedAttachment(
  *
  * Replacing a school's stamp used to unlink the old one on the spot. That is
  * fine right up until somebody replaces the wrong thing, or replaces the
- * right thing and then wants it back — at which point the only copy of a mark
+ * right thing and then wants it back - at which point the only copy of a mark
  * a school had drawn once and used for years is gone, with no undo, no
  * warning and nothing in the trash. Recovering one from a browser cache is
  * not a plan.
@@ -389,7 +389,7 @@ export function retireStoredFile(
     const attic = resolve('/uploads/replaced');
     fs.mkdirSync(attic, { recursive: true });
 
-    // 2026-08-28T19-41-07 — sortable, and legal in a filename.
+    // 2026-08-28T19-41-07 - sortable, and legal in a filename.
     const when = now().toISOString().slice(0, 19).replace(/[:]/g, '-');
     const name = from.split('/').pop() || 'file';
     const to = `${attic}/${when}-${name}`;

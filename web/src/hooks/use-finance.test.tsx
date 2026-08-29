@@ -141,7 +141,7 @@ describe("use-finance mutations", () => {
  *
  * A bursar acts on these sentences: they are the confirmation that the money
  * is in the book, and the number a family is then given. Two of them also
- * carry the promise the whole ledger rests on — that nothing is erased.
+ * carry the promise the whole ledger rests on - that nothing is erased.
  */
 describe("what the office is told", () => {
   it("names the receipt it just issued", async () => {

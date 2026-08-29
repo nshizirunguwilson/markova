@@ -61,7 +61,7 @@ describe("BrandProvider", () => {
 
   /**
    * Solid brand fills (the unread badge in Messages) carry this as their text
-   * colour, and it is chosen against the fill the palette actually paints —
+   * colour, and it is chosen against the fill the palette actually paints -
    * which for a bright colour is the darkened, readable form of it, not the
    * raw hex the school typed.
    */
@@ -134,7 +134,7 @@ describe("BrandProvider", () => {
   /**
    * A school that picks its own colour should not be left with Markova's blue
    * washes behind it, but one that never changes it must look exactly as
-   * designed — so the derived tints are only set when the colour differs.
+   * designed - so the derived tints are only set when the colour differs.
    */
   it("derives the washes from a custom colour", async () => {
     serveBranding({ primaryColor: "#7D3C98" });
@@ -171,7 +171,7 @@ describe("BrandProvider", () => {
 
   /**
    * A colour with no room for a readable wash is darkened until it has room,
-   * rather than being handed the designed neutrals — which are a pale blue,
+   * rather than being handed the designed neutrals - which are a pale blue,
    * checked once against the designed navy. A school that chose green was
    * getting green-on-blue at 3.7:1 on every sidebar item in the app.
    */

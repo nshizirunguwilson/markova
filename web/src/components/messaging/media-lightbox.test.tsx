@@ -6,7 +6,7 @@ import { MediaLightbox } from "./media-lightbox";
 
 /**
  * Not fullscreen: about nine tenths of the window, on a dimmed ground, with
- * the page still visible at the edges. Only the media — no filmstrip, no
+ * the page still visible at the edges. Only the media - no filmstrip, no
  * sender, no caption; those are all on the page behind it.
  */
 describe("opening a picture large", () => {
@@ -26,7 +26,7 @@ describe("opening a picture large", () => {
   });
 
   /*
-    Our own controls, not the browser's — this is the only place a clip plays,
+    Our own controls, not the browser's - this is the only place a clip plays,
     so it is the only place they are needed.
   */
   it("plays a clip with our own controls when that is what was opened", () => {
@@ -108,7 +108,7 @@ describe("opening a picture large", () => {
 
   /*
     Portalled to the body: the thread scrolls and animates its own opacity,
-    and a fixed child of an animating ancestor is trapped inside it — the same
+    and a fixed child of an animating ancestor is trapped inside it - the same
     trap that once painted a modal underneath the sidebar.
   */
   it("is portalled out of the thread", () => {

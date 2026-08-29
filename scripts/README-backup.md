@@ -1,4 +1,4 @@
-# Markova Database Backup — Setup Guide
+# Markova Database Backup - Setup Guide
 
 ## Prerequisites
 

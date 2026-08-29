@@ -210,7 +210,7 @@ export default function AdminStudentsPage() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm font-mono">
-                        {user.student?.studentIdNumber || "—"}
+                        {user.student?.studentIdNumber || "-"}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -219,11 +219,11 @@ export default function AdminStudentsPage() {
                           {classDisplayName(user.student.classSection)}
                         </span>
                       ) : (
-                        <span className="text-sm text-muted">—</span>
+                        <span className="text-sm text-muted">-</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm">{user.student?.gender || "—"}</span>
+                      <span className="text-sm">{user.student?.gender || "-"}</span>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
@@ -276,7 +276,7 @@ export default function AdminStudentsPage() {
 
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}–
+              Showing {meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">

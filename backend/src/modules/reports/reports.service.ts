@@ -30,7 +30,7 @@ import {
 /**
  * Inline a logo as a data URI for PDF rendering.
  *
- * The PDF is produced with `page.setContent()`, which has no base URL — so a
+ * The PDF is produced with `page.setContent()`, which has no base URL - so a
  * stored path like `/uploads/branding/x.png` can never be fetched by Chrome.
  * It has to be embedded directly.
  *
@@ -182,8 +182,8 @@ export class ReportsService implements OnModuleDestroy {
     /*
       Conduct, for this term rather than as a running total across the year.
 
-      Read from what actually happened in the term — incidents off, merits
-      back on — rather than from the field on the student, which is a single
+      Read from what actually happened in the term - incidents off, merits
+      back on - rather than from the field on the student, which is a single
       number for the whole year. A parent reading the Term 3 report needs to
       know about Term 3; a student who lost points in September should not
       still be carrying them in July.
@@ -379,7 +379,7 @@ export class ReportsService implements OnModuleDestroy {
       Conduct across the whole year: each term's mark out of forty, added up.
 
       Read from what happened in each term rather than from the running field
-      on the student, and counted only over the terms being reported on — a
+      on the student, and counted only over the terms being reported on - a
       year read in Term 1 should not show a student two thirds of the way to
       nothing for terms that have not happened.
     */
@@ -779,7 +779,7 @@ export class ReportsService implements OnModuleDestroy {
     // A card is a key: it opens the gate, borrows books and identifies the
     // holder as a student here. The bulk route has always filtered on ACTIVE;
     // the single one did not, so a card could be issued to somebody who had
-    // graduated or transferred out — with no expiry on it, that card works
+    // graduated or transferred out - with no expiry on it, that card works
     // for ever.
     if (student.status !== 'ACTIVE') {
       throw new BadRequestException(
@@ -1232,7 +1232,7 @@ export class ReportsService implements OnModuleDestroy {
         return { filename, csv: toCsv(rows.map(userRow)) };
       }
       // The two big tables (hundreds of thousands of rows) are fetched flat and
-      // joined via lookup maps — nested includes at this scale exhaust memory.
+      // joined via lookup maps - nested includes at this scale exhaust memory.
       case 'marks': {
         const [rows, students, subjects, assessmentTypes, terms] =
           await Promise.all([
@@ -1411,13 +1411,13 @@ export class ReportsService implements OnModuleDestroy {
    * Each subject's mark in each term of a year.
    *
    * Every term's figure is the same weighted total the term report card
-   * prints — CAT 1, CAT 2, the practical where there is one, and the exam, at
+   * prints - CAT 1, CAT 2, the practical where there is one, and the exam, at
    * the weights for that subject's scope. It has to be: a parent holding the
    * annual report beside the three term reports must read the same number
    * three times, and anything else looks like the school cannot add up.
    *
    * This used to fold marks together as `(running + next) / 2`, which is not
-   * an average of anything — the last mark of a term counted for half of it,
+   * an average of anything - the last mark of a term counted for half of it,
    * the one before for a quarter, and a CAT counted as much as the exam.
    */
   private groupMarksBySubjectAndTerm(marks: any[], terms: any[]) {
@@ -1464,7 +1464,7 @@ export class ReportsService implements OnModuleDestroy {
       }
 
       // The year's mark for a subject is the mean of the terms it was
-      // actually taught in — a subject dropped after Term 2 is not a subject
+      // actually taught in - a subject dropped after Term 2 is not a subject
       // the student scored zero in for Term 3.
       const marked = Object.values(perTerm).filter(
         (v): v is number => v !== null,
@@ -1515,7 +1515,7 @@ export class ReportsService implements OnModuleDestroy {
     const attendance =
       data.attendance && data.attendance.total > 0
         ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
-        : '–';
+        : '-';
 
     /*
       Conduct as a mark out of forty and as a percentage, rather than as a
@@ -1532,7 +1532,7 @@ export class ReportsService implements OnModuleDestroy {
 
     const cell = (s: any, name: string) => {
       const a = s.assessments.find((x: any) => x.type === name);
-      return `<td class="num">${a ? a.pct : '–'}</td>`;
+      return `<td class="num">${a ? a.pct : '-'}</td>`;
     };
 
     /*
@@ -1546,18 +1546,18 @@ export class ReportsService implements OnModuleDestroy {
           ? s.competence === 'COMPETENT'
             ? '<span class="chip ok">Competent</span>'
             : '<span class="chip no">Not yet competent</span>'
-          : '–'
+          : '-'
       }</td>`;
 
     const row = (s: any) => `
       <tr>
         <td class="subj">${escapeHtml(s.subject)}</td>
         ${cell(s, 'CAT 1')}${cell(s, 'CAT 2')}${isALevel ? cell(s, 'Practical') : ''}${cell(s, 'End of Term Exam')}
-        <td class="tot">${s.total ?? '–'}</td>
-        <td class="gr">${s.grade ?? '–'}</td>
-        <td class="num">${s.points ?? '–'}</td>
+        <td class="tot">${s.total ?? '-'}</td>
+        <td class="gr">${s.grade ?? '-'}</td>
+        <td class="num">${s.points ?? '-'}</td>
         ${competenceCell(s)}
-        ${isALevel ? '' : `<td class="rem">${s.remark ?? '–'}</td>`}
+        ${isALevel ? '' : `<td class="rem">${s.remark ?? '-'}</td>`}
       </tr>`;
 
     /*
@@ -1566,7 +1566,7 @@ export class ReportsService implements OnModuleDestroy {
 
       It is marked out of forty a term like everything else on this sheet is
       marked out of something, so it belongs where a reader is already looking
-      for marks — at the top, above the subjects, where it reads as part of
+      for marks - at the top, above the subjects, where it reads as part of
       the term's record rather than as a footnote about it.
 
       The empty cells are the assessment columns: conduct has no CAT and no
@@ -1580,11 +1580,11 @@ export class ReportsService implements OnModuleDestroy {
       return `
       <tr class="conduct">
         <td class="subj">Discipline</td>
-        ${'<td class="num">–</td>'.repeat(blanks)}
+        ${'<td class="num">-</td>'.repeat(blanks)}
         <td class="tot">${conductPoints} / ${conductOutOf}</td>
-        <td class="gr">${pct === null ? '–' : `${pct}%`}</td>
-        <td class="num">–</td>
-        <td>–</td>
+        <td class="gr">${pct === null ? '-' : `${pct}%`}</td>
+        <td class="num">-</td>
+        <td>-</td>
         ${isALevel ? '' : `<td class="rem">${conductWord}</td>`}
       </tr>`;
     };
@@ -1637,7 +1637,7 @@ export class ReportsService implements OnModuleDestroy {
     const overall = data.result ? overallGrade(data.result.average || 0) : null;
     /*
       The competence tally. Counted over every subject that was judged rather
-      than over the practical modules alone — with competence on every row,
+      than over the practical modules alone - with competence on every row,
       "3 of 4" under a sheet of eleven subjects would be reading a different
       table from the one above it.
     */
@@ -1658,17 +1658,17 @@ export class ReportsService implements OnModuleDestroy {
       summaryCell('Average', `${(data.result?.average ?? 0).toFixed(1)}%`, ''),
       summaryCell(
         'Overall grade',
-        data.result?.letterGrade || '–',
+        data.result?.letterGrade || '-',
         overall?.remark || '',
       ),
       summaryCell(
         'Aggregate',
-        `${data.result?.aggregate ?? '–'}`,
-        `/ ${data.result?.aggregateMax ?? '–'}`,
+        `${data.result?.aggregate ?? '-'}`,
+        `/ ${data.result?.aggregateMax ?? '-'}`,
       ),
       summaryCell(
         'Position',
-        `${data.result?.rank ?? '–'}`,
+        `${data.result?.rank ?? '-'}`,
         `of ${data.classStats.totalStudents}`,
       ),
       // Competence across the whole sheet now, so it is worth a cell on
@@ -1846,7 +1846,7 @@ export class ReportsService implements OnModuleDestroy {
         ${info('Class size', `${data.classStats.totalStudents} students`)}
         ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
         ${info('Term', escapeHtml(data.term.name))}
-        ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '–')}
+        ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '-')}
         ${info('Attendance', attendance)}
       </div>
 
@@ -1905,7 +1905,7 @@ export class ReportsService implements OnModuleDestroy {
    * The whole year on one sheet.
    *
    * A term report answers "how was this term"; this answers "how was the
-   * year, and what happens next" — which is the question a parent actually
+   * year, and what happens next" - which is the question a parent actually
    * has in July and the one a promotion decision is argued from. So it is
    * laid out as one row per subject with a column per term, because that is
    * the shape you read a trend in: three numbers side by side show whether a
@@ -1929,17 +1929,18 @@ export class ReportsService implements OnModuleDestroy {
     ).sort(([a], [b]) => a.localeCompare(b));
 
     const num = (v: number | null | undefined) =>
-      v === null || v === undefined ? '–' : String(v);
+      v === null || v === undefined ? '-' : String(v);
 
     const subjectRows = subjects
       .map(([name, marks]) => {
-        const band = marks.average !== null ? overallGrade(marks.average) : null;
+        const band =
+          marks.average !== null ? overallGrade(marks.average) : null;
         return `
       <tr>
         <td class="subj">${escapeHtml(name)}</td>
         ${terms.map((t) => `<td class="num">${num(marks.terms[t])}</td>`).join('')}
         <td class="tot">${num(marks.average)}</td>
-        <td class="gr">${band?.letter ?? '–'}</td>
+        <td class="gr">${band?.letter ?? '-'}</td>
       </tr>`;
       })
       .join('');
@@ -1957,11 +1958,11 @@ export class ReportsService implements OnModuleDestroy {
             const found = (data.conduct?.byTerm ?? []).find(
               (c: any) => c.term === t,
             );
-            return `<td class="num">${found ? `${found.points}/${TERM_CONDUCT_MARK}` : '–'}</td>`;
+            return `<td class="num">${found ? `${found.points}/${TERM_CONDUCT_MARK}` : '-'}</td>`;
           })
           .join('')}
-        <td class="tot">${data.conduct?.points ?? '–'} / ${data.conduct?.outOf ?? '–'}</td>
-        <td class="gr">${data.conduct?.percentage === null || data.conduct?.percentage === undefined ? '–' : `${data.conduct.percentage}%`}</td>
+        <td class="tot">${data.conduct?.points ?? '-'} / ${data.conduct?.outOf ?? '-'}</td>
+        <td class="gr">${data.conduct?.percentage === null || data.conduct?.percentage === undefined ? '-' : `${data.conduct.percentage}%`}</td>
       </tr>`;
 
     const cell = (label: string, big: string, small: string) =>
@@ -1977,18 +1978,18 @@ export class ReportsService implements OnModuleDestroy {
     const summary = [
       cell(
         'Year average',
-        yearAverage === null ? '–' : `${yearAverage.toFixed(1)}%`,
+        yearAverage === null ? '-' : `${yearAverage.toFixed(1)}%`,
         yearAverage === null ? '' : overallGrade(yearAverage).remark,
       ),
-      cell('Overall grade', year?.letterGrade ?? '–', ''),
+      cell('Overall grade', year?.letterGrade ?? '-', ''),
       cell(
         'Position',
-        year?.rank ? String(year.rank) : '–',
+        year?.rank ? String(year.rank) : '-',
         year?.rank ? 'in class' : '',
       ),
       cell(
         'Conduct',
-        `${data.conduct?.points ?? '–'} / ${data.conduct?.outOf ?? '–'}`,
+        `${data.conduct?.points ?? '-'} / ${data.conduct?.outOf ?? '-'}`,
         conductRemark(data.conduct?.percentage ?? null),
       ),
     ].join('');
@@ -2072,7 +2073,7 @@ export class ReportsService implements OnModuleDestroy {
 
       <div class="who">
         <div><span>Student</span><br><b>${escapeHtml(data.student.name)}</b></div>
-        <div><span>Student number</span><br><b>${escapeHtml(data.student.studentIdNumber || '–')}</b></div>
+        <div><span>Student number</span><br><b>${escapeHtml(data.student.studentIdNumber || '-')}</b></div>
         <div><span>Class</span><br><b>${escapeHtml(data.student.class)}</b></div>
       </div>
 
@@ -2242,7 +2243,7 @@ export class ReportsService implements OnModuleDestroy {
 
         <div class="addressee">${addressee}</div>
 
-        <div class="subject">RE: ${escapeHtml(opts.title)}${opts.subtitle ? ` — ${escapeHtml(opts.subtitle)}` : ''}</div>
+        <div class="subject">RE: ${escapeHtml(opts.title)}${opts.subtitle ? ` - ${escapeHtml(opts.subtitle)}` : ''}</div>
         <div class="subject-rule"></div>
 
         <div class="salutation">${escapeHtml(opts.salutation ?? 'Dear Sir / Madam,')}</div>
@@ -2293,7 +2294,7 @@ export class ReportsService implements OnModuleDestroy {
       `student number <strong>${escapeHtml(student.studentIdNumber)}</strong>`,
     ];
     if (student.dateOfBirth) {
-      // "a male student born 4 March 2010", not "born 4 March 2010, male" —
+      // "a male student born 4 March 2010", not "born 4 March 2010, male" -
       // this reads inside a sentence, not down a column of a form.
       const article = student.gender
         ? `a ${String(student.gender).toLowerCase()} student `
@@ -2407,11 +2408,11 @@ export class ReportsService implements OnModuleDestroy {
       ? termResults
           .map(
             (tr) =>
-              `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td style="text-align:center">${tr.average?.toFixed(1) ?? '—'}%</td><td style="text-align:center">${escapeHtml(tr.letterGrade ?? '') || '—'}</td><td style="text-align:center">${
+              `<tr><td>${escapeHtml(tr.term.academicYear.name)}</td><td>${escapeHtml(tr.term.name)}</td><td style="text-align:center">${tr.average?.toFixed(1) ?? '-'}%</td><td style="text-align:center">${escapeHtml(tr.letterGrade ?? '') || '-'}</td><td style="text-align:center">${
                 tr.aggregate != null && tr.aggregateMax != null
                   ? `${tr.aggregate}/${tr.aggregateMax}`
-                  : '—'
-              }</td><td style="text-align:center">${tr.rank ?? '—'}</td></tr>`,
+                  : '-'
+              }</td><td style="text-align:center">${tr.rank ?? '-'}</td></tr>`,
           )
           .join('')
       : `<tr><td colspan="6" style="text-align:center;color:#5b6b7b">No results have been published for this student yet.</td></tr>`;

@@ -300,7 +300,7 @@ describe('report card data', () => {
     /*
       Every subject is judged now, not only the practical modules. The
       curriculum asks whether a learner can do the thing, and that question is
-      as real in Mathematics as it is in a workshop — a report card that
+      as real in Mathematics as it is in a workshop - a report card that
       answered it for the practical modules alone answered it for a handful of
       A-Level students and for nobody else in the school.
     */

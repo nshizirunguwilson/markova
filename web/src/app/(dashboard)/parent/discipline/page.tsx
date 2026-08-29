@@ -119,7 +119,7 @@ export default function ParentDisciplinePage() {
                   {conductPercentage(
                     data.student?.currentPoints,
                     data.student?.startingPoints,
-                  ) ?? "–"}
+                  ) ?? "-"}
                   % this term</p>
                 <div className="mt-2 h-3 w-full rounded-full bg-muted/20">
                   <div
@@ -147,7 +147,7 @@ export default function ParentDisciplinePage() {
                         <p className="mt-1 text-xs text-muted">
                           {new Date(inc.date).toLocaleDateString()}
                           {inc.time && ` at ${inc.time}`}
-                          {inc.location && ` — ${inc.location}`}
+                          {inc.location && ` - ${inc.location}`}
                         </p>
                       </div>
                       <Badge variant="danger">-{inc.pointsDeducted}</Badge>

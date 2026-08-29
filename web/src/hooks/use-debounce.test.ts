@@ -56,7 +56,7 @@ describe('useDebounce', () => {
 
     rerender({ value: 'd', delay: 300 });
 
-    // Only 200ms have passed since last change — still initial
+    // Only 200ms have passed since last change - still initial
     act(() => {
       vi.advanceTimersByTime(200);
     });

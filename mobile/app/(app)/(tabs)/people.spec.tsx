@@ -9,7 +9,7 @@ import People from './people';
 /**
  * Everyone, in one list.
  *
- * The web splits this into three pages — users, students, teachers — because
+ * The web splits this into three pages - users, students, teachers - because
  * a sidebar has room for three links. On a phone that would be three nearly
  * identical screens and three different places to search, so it is one list
  * with a role filter.

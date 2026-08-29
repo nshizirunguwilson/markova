@@ -380,8 +380,8 @@ export function AddUserWizard({
    * Move to the next step, or put the cursor on what is stopping it.
    *
    * A step that refuses to advance in silence is indistinguishable from a
-   * dead button. The field at fault is on this step by construction — that
-   * is what was validated — so it is already showing its own message, and
+   * dead button. The field at fault is on this step by construction - that
+   * is what was validated - so it is already showing its own message, and
    * focusing it is what turns "nothing happened" into "this one".
    *
    * Read through `getFieldState` rather than the `errors` object: `errors`
@@ -513,7 +513,7 @@ export function AddUserWizard({
       <form onSubmit={submit} className="space-y-4">
         {/*
           The step that is on screen, re-mounted on every change so the
-          animation replays — and sliding in from the side it came from, so
+          animation replays - and sliding in from the side it came from, so
           Continue and Back look like the different things they are.
 
           The footer sits outside: its buttons stay put while the fields
@@ -825,9 +825,9 @@ export function AddUserWizard({
                 <Field label="Qualification">
                   <select {...register("qualification")} className={selectCls}>
                     <option value="">Select...</option>
-                    <option value="A0">A0 — Bachelor&apos;s degree</option>
-                    <option value="A1">A1 — Diploma</option>
-                    <option value="A2">A2 — Secondary certificate</option>
+                    <option value="A0">A0 - Bachelor&apos;s degree</option>
+                    <option value="A1">A1 - Diploma</option>
+                    <option value="A2">A2 - Secondary certificate</option>
                   </select>
                 </Field>
               </div>
@@ -972,7 +972,7 @@ export function AddUserWizard({
 
               These were two: a `type="button"` Continue and a `type="submit"`
               Create User, in the same place in the tree. React reuses the DOM
-              node between them and only swaps the props — so clicking
+              node between them and only swaps the props - so clicking
               Continue on the second-to-last step ran `next`, React flushed
               the step change synchronously, `type` became "submit" on the
               very element being clicked, and the browser then submitted the

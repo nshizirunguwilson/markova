@@ -54,7 +54,7 @@ export const MAX_ANY_ATTACHMENT_BYTES = Math.max(
  * A mime type without its parameters.
  *
  * A browser recording announces itself as `audio/webm;codecs=opus`, and an
- * exact allow-list — which is the only kind worth having — does not contain
+ * exact allow-list - which is the only kind worth having - does not contain
  * that string. Without this every voice note recorded in Chrome or Firefox
  * was refused.
  */
@@ -78,7 +78,7 @@ export function maxBytesFor(mimetype: string): number {
   return kind ? MAX_ATTACHMENT_BYTES[kind] : MAX_ATTACHMENT_BYTES.document;
 }
 
-/** "10 MB", "1.5 MB", "800 KB" — a size in words a person reads. */
+/** "10 MB", "1.5 MB", "800 KB" - a size in words a person reads. */
 export function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < MB) return `${Math.round(bytes / 1024)} KB`;

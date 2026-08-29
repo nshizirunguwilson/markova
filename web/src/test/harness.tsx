@@ -31,7 +31,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // One client per mount, not one per render.
   //
   // `makeQueryClient()` sat in the render body, so every re-render of the
-  // tree built a fresh client and threw the old cache away — a query that
+  // tree built a fresh client and threw the old cache away - a query that
   // was in flight went back to pending, and the component under test kept
   // being handed `isPending` for data that had already arrived. That is what
   // made the search pickers settle on some runs and hang on others.

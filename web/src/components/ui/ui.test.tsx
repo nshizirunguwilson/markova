@@ -390,7 +390,7 @@ describe("Modal keyboard handling", () => {
   /**
    * The dialog moves focus to its first control on open, on the next frame.
    * Taking focus before that has happened means the autofocus lands in the
-   * middle of the test and Tab starts from somewhere else — so wait for it.
+   * middle of the test and Tab starts from somewhere else - so wait for it.
    */
   async function settledDialog() {
     const dialog = screen.getByRole("dialog");
@@ -513,8 +513,8 @@ describe("Modal keyboard handling", () => {
  *
  * A dialog that simply exists on the next frame reads as a jump cut: the eye
  * has to hunt for it, because nothing said where it came from. The animation
- * is applied to markup that is already mounted — it fades what is there
- * rather than delaying it — so a test (or a screen reader) reading the dialog
+ * is applied to markup that is already mounted - it fades what is there
+ * rather than delaying it - so a test (or a screen reader) reading the dialog
  * immediately still finds its content.
  */
 describe("Modal motion", () => {
@@ -557,7 +557,7 @@ describe("Modal motion", () => {
  *
  * It used to be a descendant of whatever opened it, which worked only for as
  * long as nothing above it created a stacking context. Then the page fade
- * did — animating opacity creates one — and the dialog was trapped inside
+ * did - animating opacity creates one - and the dialog was trapped inside
  * `<main>`: the sidebar painted over its left edge and the backdrop dimmed
  * only the content column, while every unit test still passed.
  */

@@ -25,7 +25,7 @@ describe('the branding assets that ship with the school', () => {
     ['signature.png', "the head teacher's signature"],
   ] as const;
 
-  it.each(shipped)('ships %s — %s', (file) => {
+  it.each(shipped)('ships %s - %s', (file) => {
     expect(existsSync(join(assets, file))).toBe(true);
   });
 
@@ -56,7 +56,7 @@ describe('the branding assets that ship with the school', () => {
  * inlined as base64 into every letter. The master has to live somewhere all
  * the same: a school's stamp is drawn once and re-exported for years, and a
  * downscaled copy is not something you can go back to. `uploads/` is
- * gitignored and a browser cache is not a backup — this folder is the only
+ * gitignored and a browser cache is not a backup - this folder is the only
  * version-controlled copy.
  */
 describe('the full-resolution artwork behind them', () => {
@@ -64,7 +64,7 @@ describe('the full-resolution artwork behind them', () => {
 
   const masters = [['stamp.png', 'the school stamp']] as const;
 
-  it.each(masters)('keeps the master for %s — %s', (file) => {
+  it.each(masters)('keeps the master for %s - %s', (file) => {
     expect(existsSync(join(originals, file))).toBe(true);
   });
 
@@ -84,7 +84,7 @@ describe('the full-resolution artwork behind them', () => {
     );
   });
 
-  // It is never inlined, so it carries no size ceiling — but it is in git,
+  // It is never inlined, so it carries no size ceiling - but it is in git,
   // and a scan straight off a flatbed does not belong in a repository.
   it.each(masters)('%s master is still a sane size for git', (file) => {
     const path = join(originals, file);

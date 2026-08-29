@@ -57,8 +57,8 @@ export default function ParentReportsPage() {
   /**
    * Prints the A4 report card the school actually issues.
    *
-   * This used to build its own two-line page in a popup — name, average,
-   * grade, rank — so a parent who pressed Print got something that looked
+   * This used to build its own two-line page in a popup - name, average,
+   * grade, rank - so a parent who pressed Print got something that looked
    * nothing like the document their child's school hands out. It now prints
    * the same sheet, from this page rather than a second tab.
    */
@@ -136,7 +136,7 @@ export default function ParentReportsPage() {
         <Card className="p-6 space-y-4">
           <div className="flex justify-between items-center">
             <CardTitle>
-              {report.student?.name} — {report.term?.name}
+              {report.student?.name} - {report.term?.name}
             </CardTitle>
             <Button variant="outline" size="sm" isLoading={printing} onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-1" /> Print
@@ -146,15 +146,15 @@ export default function ParentReportsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Average</p>
-              <p className="text-xl font-bold text-primary">{report.result?.average != null ? `${report.result.average.toFixed(1)}%` : "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.average != null ? `${report.result.average.toFixed(1)}%` : "-"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Grade</p>
-              <p className="text-xl font-bold text-primary">{report.result?.letterGrade ?? "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.letterGrade ?? "-"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Rank</p>
-              <p className="text-xl font-bold text-primary">{report.classStats?.rank ? `#${report.classStats.rank}` : "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.classStats?.rank ? `#${report.classStats.rank}` : "-"}</p>
             </Card>
           </div>
 

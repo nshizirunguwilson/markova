@@ -744,7 +744,7 @@ describe("a class recorded without its trade or its roll", () => {
     sections: [{ id: "sec-9", name: "B", classLevelId: "level-9" }],
   };
 
-  it("draws an em dash for the trade and a nought for the students", async () => {
+  it("draws a dash for the trade and a nought for the students", async () => {
     serve(h.api, { ...routes, "/academic/class-levels": [untidy] });
     renderPage(ClassesPage, { role: "ADMIN" });
     await screen.findByText("Level 5");
@@ -753,7 +753,7 @@ describe("a class recorded without its trade or its roll", () => {
     await waitFor(() => expect(document.querySelector("table")).toBeTruthy());
 
     const row = screen.getByText("B").closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
     expect(within(row).getByText("0")).toBeInTheDocument();
   });
 });
@@ -790,8 +790,8 @@ describe("what the export actually writes", () => {
     // The empty level still appears, so a structure export is a full picture
     // of the school rather than only the parts that are filled in.
     expect(payload.data).toEqual([
-      { _level: "Senior 1", _trade: "—", _section: "—", _students: "—" },
-      { _level: "Level 4", _trade: "—", _section: "A", _students: "—" },
+      { _level: "Senior 1", _trade: "-", _section: "-", _students: "-" },
+      { _level: "Level 4", _trade: "-", _section: "A", _students: "-" },
     ]);
   });
 });
@@ -948,7 +948,7 @@ describe("levels recorded without an order", () => {
 
     const [, payload] = ex.exportData.mock.calls.at(-1)! as [string, any];
     expect(payload.data).toEqual([
-      { _level: "Senior 1", _trade: "—", _section: "—", _students: "—" },
+      { _level: "Senior 1", _trade: "-", _section: "-", _students: "-" },
     ]);
   });
 });

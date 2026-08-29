@@ -159,7 +159,7 @@ describe("which class a student can be promoted into", () => {
   it("marks the next level up as the usual answer", async () => {
     await mountLadder();
     await chooseFrom("lvl-2");
-    expect(levelSelects()[1].textContent).toMatch(/Senior 3 — next level/);
+    expect(levelSelects()[1].textContent).toMatch(/Senior 3 - next level/);
   });
 
   // It is the answer nine times in ten, so it is offered already filled in.

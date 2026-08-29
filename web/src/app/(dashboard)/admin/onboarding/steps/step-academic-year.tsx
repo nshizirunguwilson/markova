@@ -30,7 +30,7 @@ export function StepAcademicYear() {
               <CheckCircle2 className="h-5 w-5 text-success" />
               <span className="font-medium">{y.name}</span>
               <span className="text-sm text-muted">
-                {new Date(y.startDate).toLocaleDateString()} — {new Date(y.endDate).toLocaleDateString()}
+                {new Date(y.startDate).toLocaleDateString()} - {new Date(y.endDate).toLocaleDateString()}
               </span>
               {y.isCurrent && <Badge variant="success">Current</Badge>}
             </div>

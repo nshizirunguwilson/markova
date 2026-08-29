@@ -121,7 +121,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
    *
    * The shortcut every tool with a search box uses, so it is the one people
    * try. It selects what is already typed rather than clearing it, so pressing
-   * it twice does not lose a half-finished search — and typing simply replaces
+   * it twice does not lose a half-finished search - and typing simply replaces
    * the selection, which is what people expect.
    *
    * The browser's own Ctrl+K focuses the address bar, so this has to say it
@@ -183,7 +183,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
    * Open a notification.
    *
    * This used to branch on `notif.type`, which is the channel the notice went
-   * out on — SMS, EMAIL or PUSH. Every branch tested it for words like
+   * out on - SMS, EMAIL or PUSH. Every branch tested it for words like
    * "ATTENDANCE", so none could ever match and clicking a notification did
    * nothing but mark it read. What a notice is about lives on
    * `relatedEntityType`; `notificationHref` turns that plus the reader's role
@@ -343,7 +343,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                         key={notif.id}
                         onClick={() => handleNotificationClick(notif)}
                         aria-label={
-                          href ? `${notif.title} — open` : notif.title ?? ""
+                          href ? `${notif.title} - open` : notif.title ?? ""
                         }
                         className={cn(
                           "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left last:border-0",

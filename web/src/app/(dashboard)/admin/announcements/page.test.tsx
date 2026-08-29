@@ -452,12 +452,12 @@ describe("attaching a file", () => {
  * from the moment the page opens, before there is an audience or a subject.
  */
 describe("the preview before anything is chosen", () => {
-  it("shows an em dash rather than a count of nought", async () => {
+  it("shows a dash rather than a count of nought", async () => {
     await mount();
 
     // Nought would read as "this will reach nobody", which is different from
     // "you have not said who yet".
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
     expect(screen.getByText(/finish choosing the audience/i)).toBeInTheDocument();
   });
 

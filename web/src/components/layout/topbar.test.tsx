@@ -25,7 +25,7 @@ import { serve } from "@/test/page";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * `type` is the channel a notice went out on — SMS, EMAIL, PUSH. It is NOT
+ * `type` is the channel a notice went out on - SMS, EMAIL, PUSH. It is NOT
  * what the notice is about, and the bell used to try to route on it, which is
  * why every branch was dead. `relatedEntityType` carries the subject.
  */

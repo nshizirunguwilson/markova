@@ -64,7 +64,7 @@ const WS_URL = API_URL.replace("/api", "");
 let notificationAudio: HTMLAudioElement | null = null;
 function playNotificationSound() {
   if (!notificationAudio) {
-    // Simple beep using data URI — no file dependency
+    // Simple beep using data URI - no file dependency
     notificationAudio = new Audio(
       "data:audio/wav;base64,UklGRl9vT19teleXhBTUEgaWQzMBAAAAA//uQxAAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ=="
     );
@@ -186,7 +186,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       /*
         And tell whoever is watching. Each watcher is called inside its own
-        try, because a notice that throws must not take the message with it —
+        try, because a notice that throws must not take the message with it -
         the cache above has already been updated, and the thread being right
         matters more than the corner of the screen being right.
       */
@@ -266,7 +266,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearTyping(data.conversationId, data.userId);
     });
 
-    // Handle reconnection — refresh token
+    // Handle reconnection - refresh token
     socket.on("connect_error", async () => {
       const newToken = localStorage.getItem("access_token");
       if (newToken && newToken !== token) {

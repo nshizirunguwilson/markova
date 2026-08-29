@@ -189,7 +189,7 @@ describe("summing a term up in a line", () => {
 
   it("says so plainly when the term is paid off", () => {
     expect(standingSummary(standing({ paid: 195000 }), "CLEARED")).toBe(
-      "Paid in full — 195,000 RWF.",
+      "Paid in full - 195,000 RWF.",
     );
   });
 

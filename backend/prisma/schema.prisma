@@ -23,7 +23,7 @@ enum Role {
   MATRON
   /// Keeps the fee ledger: raises the term's invoices, takes payments at the
   /// counter, and decides who is carried. Sees the money and the roll, and
-  /// nothing academic — a bursar has no business in a mark book.
+  /// nothing academic - a bursar has no business in a mark book.
   BURSAR
   /// School nurse. Sees health records; sees nothing academic.
   NURSE
@@ -295,7 +295,7 @@ model ClassLevel {
   @@map("class_levels")
 }
 
-// A-Level (TVET) trade section, e.g. SWD — Software Development, under the
+// A-Level (TVET) trade section, e.g. SWD - Software Development, under the
 // national sector it belongs to (e.g. ICT and Multimedia). O-Level has none.
 model Trade {
   id     String @id @default(uuid())
@@ -587,7 +587,7 @@ model TermResult {
 
   /// The report card issued, which is a separate act. A school routinely
   /// releases marks as soon as they are checked, then issues the formal
-  /// document later — after deliberation, and once the head teacher's
+  /// document later - after deliberation, and once the head teacher's
   /// comments are written. Marks must be published first: a report card
   /// carries them, so issuing one without them is a contradiction.
   reportCardPublished   Boolean   @default(false) @map("report_card_published")
@@ -838,7 +838,7 @@ model Conversation {
   createdAt       DateTime         @default(now()) @map("created_at")
 
   /// Set on the one group that belongs to a class, and null on every other
-  /// conversation. A class has exactly one of these — it is the room the
+  /// conversation. A class has exactly one of these - it is the room the
   /// class and its teacher are already in, created with the class rather
   /// than by somebody remembering to.
   classSectionId String? @unique @map("class_section_id")
@@ -1373,7 +1373,7 @@ model MeritAward {
 // answer "how much is left on Rose's account" without finding the bursar.
 //
 // Three rules, the same ones the pocket money ledger follows, and for the
-// same reason — it is somebody else's money:
+// same reason - it is somebody else's money:
 //
 //  - **A balance is derived, never stored.** It is the invoice total less what
 //    has been paid and what has been waived. A stored balance that drifts from
@@ -1497,7 +1497,7 @@ model FeeInvoiceLine {
 /// Money received against an invoice.
 ///
 /// Never edited and never deleted. A receipt entered twice is voided, which
-/// leaves both the entry and the reason in the book — the correction a bursar
+/// leaves both the entry and the reason in the book - the correction a bursar
 /// can show an auditor, rather than a row that quietly went missing.
 model FeePayment {
   id               String        @id @default(uuid())
@@ -1537,7 +1537,7 @@ model FeePayment {
 ///
 /// Counts towards clearing the term exactly as a payment does. Without it a
 /// sponsored child could never be shown their own results, and the only way
-/// round would be to record a payment that never happened — which is worse
+/// round would be to record a payment that never happened - which is worse
 /// than the problem.
 model FeeWaiver {
   id              String     @id @default(uuid())

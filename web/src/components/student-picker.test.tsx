@@ -101,7 +101,7 @@ beforeEach(() => {
 /**
  * Finding one student out of a school.
  *
- * This was three dependent dropdowns — Level, then Section, then Student —
+ * This was three dependent dropdowns - Level, then Section, then Student -
  * so looking somebody up required knowing their class first.
  */
 describe("picking a student by searching", () => {

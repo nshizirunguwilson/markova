@@ -10,7 +10,7 @@ Markova is two servers, and the split is not where people expect it.
 The web app on `:3001` does not fetch data on the visitor's behalf. It sends
 them a page, and then **their browser** calls the API directly. So when you
 forward only 3001, the visitor's browser is told to call
-`http://localhost:3000/api` — and that is *their* localhost, not yours.
+`http://localhost:3000/api` - and that is *their* localhost, not yours.
 
 That is the error in the screenshot:
 
@@ -59,8 +59,8 @@ Then restart both servers again.
 
 In the **Ports** panel:
 
-1. Forward `3001` — the web app.
-2. Forward `3000` — the API.
+1. Forward `3001` - the web app.
+2. Forward `3000` - the API.
 3. Right-click each → **Port Visibility** → **Public**.
 
 Step 3 is the one people miss. Dev tunnels are **private** by default: the
@@ -84,7 +84,7 @@ ngrok http 3000
 ```
 
 Free ngrok gives unrelated hostnames for each, so `scripts/share.mjs` cannot
-work the second out from the first. Set them by hand — see below.
+work the second out from the first. Set them by hand - see below.
 
 ### On the same wi-fi
 
@@ -102,16 +102,16 @@ to be on the same network.
 
 Two lines, in two files. You can set them yourself if you would rather.
 
-**`web/.env.local`** — where the visitor's browser will look for the API:
+**`web/.env.local`** - where the visitor's browser will look for the API:
 
 ```
 NEXT_PUBLIC_API_URL=https://v0k7pbb7-3000.inc1.devtunnels.ms/api
 ```
 
 One variable covers everything: REST calls, the chat websocket, and uploaded
-images. Note the `/api` on the end — without it every request 404s.
+images. Note the `/api` on the end - without it every request 404s.
 
-**`backend/.env`** — which origins the API will answer:
+**`backend/.env`** - which origins the API will answer:
 
 ```
 CORS_ORIGINS=http://localhost:3001,http://localhost:8081,https://v0k7pbb7-3001.inc1.devtunnels.ms
@@ -125,7 +125,7 @@ while everything else works.
 ## Restarting is not optional
 
 `NEXT_PUBLIC_*` is read when Next.js compiles, not when a page loads. Change it
-and the running server keeps serving the old address until it restarts — which
+and the running server keeps serving the old address until it restarts - which
 looks exactly like the change not working.
 
 ```bash
@@ -151,7 +151,7 @@ curl -s -i https://v0k7pbb7-3000.inc1.devtunnels.ms/api/school-config/public \
 ```
 
 You want a `200`, and an `access-control-allow-origin` header naming the web
-tunnel. If the header is missing, `CORS_ORIGINS` has not taken effect — the API
+tunnel. If the header is missing, `CORS_ORIGINS` has not taken effect - the API
 was not restarted.
 
 Then open the web address in a private window. A private window has none of
@@ -175,7 +175,7 @@ Every seeded account uses the password `Password123!`.
 ## Worth knowing before you share
 
 - **Anyone with the link is on your machine's database.** Whatever they change,
-  everyone sees. Reseed afterwards if it matters — and note that reseeding logs
+  everyone sees. Reseed afterwards if it matters - and note that reseeding logs
   everyone out.
 - **The tunnel dies when the terminal does.** VS Code tunnels stop when the
   window closes; ngrok stops on Ctrl-C.

@@ -38,7 +38,7 @@ function timeOf(iso: string): string {
 /**
  * What is on, for one student.
  *
- * A student's question is never "list the school calendar" — it is "what am I
+ * A student's question is never "list the school calendar" - it is "what am I
  * meant to be at, and is there anything I still need a slip for". So the
  * permission line sits on the card and says what to do about it.
  */

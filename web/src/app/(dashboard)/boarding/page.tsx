@@ -53,7 +53,7 @@ export function whenIs(iso: string, now: Date = new Date()): string {
  * money is in the safe, and what is happening this week that changes the
  * routine.
  *
- * Deliberately narrow. Nothing academic appears here — a matron has no
+ * Deliberately narrow. Nothing academic appears here - a matron has no
  * business reading marks, and the API refuses her anyway.
  */
 export default function BoardingDashboard() {

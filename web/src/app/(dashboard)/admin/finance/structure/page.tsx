@@ -27,7 +27,7 @@ import { ArrowLeft, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 /**
  * What the school charges, by class level, for one term.
  *
- * The price list — not anybody's bill. Every invoice already raised carries
+ * The price list - not anybody's bill. Every invoice already raised carries
  * its own copy of these lines, so editing here changes what the *next*
  * invoice says and never what a family has already been asked for. That
  * distinction is the reason the whole thing is safe to edit mid-term, and it
@@ -69,7 +69,7 @@ export default function FeeStructurePage() {
 
   /*
     Save is disabled until there is a name and an amount, so checking again
-    here would be the same rule in two places — and two copies of a rule are
+    here would be the same rule in two places - and two copies of a rule are
     two things that can disagree.
   */
   const submit = async () => {
@@ -348,7 +348,7 @@ export default function FeeStructurePage() {
 
               The React Compiler hoists what a callback closes over into the
               dependency check it builds around it, and that check runs on
-              every render — including the ones where nothing is selected. A
+              every render - including the ones where nothing is selected. A
               `confirmDelete!.id` inside the handler therefore becomes a read
               of `null.id` at render time, because the non-null assertion is
               erased when the TypeScript is compiled and cannot protect

@@ -25,7 +25,7 @@ describe('cn', () => {
   });
 
   it('should handle conflicting classes via twMerge behavior', () => {
-    // twMerge should resolve conflicts — last conflicting class wins
+    // twMerge should resolve conflicts - last conflicting class wins
     const result = cn('px-4', 'px-6');
     expect(result).toBe('px-6');
   });
@@ -45,7 +45,7 @@ describe('cn', () => {
  * A section's label inside a level that has already been chosen.
  *
  * Every A-Level level runs one section per trade, so a picker listing the
- * bare name shows "A, A, A, A, B, B, B, B" — the software developers and the
+ * bare name shows "A, A, A, A, B, B, B, B" - the software developers and the
  * tourism students are indistinguishable, and an admin promoting a class has
  * no way to tell which one they picked.
  */

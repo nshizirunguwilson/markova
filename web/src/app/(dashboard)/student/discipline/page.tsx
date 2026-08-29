@@ -150,7 +150,7 @@ export default function StudentDisciplinePage() {
                         <p className="mt-1 text-xs text-muted">
                           {new Date(inc.date).toLocaleDateString()}
                           {inc.time && ` at ${inc.time}`}
-                          {inc.location && ` — ${inc.location}`}
+                          {inc.location && ` - ${inc.location}`}
                         </p>
                         <p className="mt-1 text-xs text-muted">
                           By {inc.recordedBy.firstName} {inc.recordedBy.lastName}

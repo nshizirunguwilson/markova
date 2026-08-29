@@ -6,8 +6,8 @@ import { Fragment } from "react";
  * The words of a message, with links made clickable.
  *
  * A teacher pasting a link to a past paper and everybody having to retype it
- * is the whole problem. Detection is deliberately narrow — `http://`,
- * `https://`, a bare `www.`, and email addresses — rather than anything that
+ * is the whole problem. Detection is deliberately narrow - `http://`,
+ * `https://`, a bare `www.`, and email addresses - rather than anything that
  * looks vaguely like a domain: "See you at 9.30am" contains no link, and a
  * greedy matcher turns "9.30am" into one.
  *

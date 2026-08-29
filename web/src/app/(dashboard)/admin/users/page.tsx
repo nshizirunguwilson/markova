@@ -324,7 +324,7 @@ export default function UsersPage() {
                           {classDisplayName(user.student.classSection)}
                         </span>
                       ) : (
-                        <span className="text-sm text-muted">—</span>
+                        <span className="text-sm text-muted">-</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -362,7 +362,7 @@ export default function UsersPage() {
           <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted">
-                Showing {(meta.page - 1) * meta.limit + 1}–
+                Showing {(meta.page - 1) * meta.limit + 1}-
                 {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
               </p>
               <select

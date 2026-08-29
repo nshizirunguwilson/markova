@@ -34,7 +34,7 @@ import MarksPage from "./page";
 
 /**
  * A draft class: marks worked out but not released, and no report cards
- * issued. Both flags are set explicitly — a class whose marks are a draft
+ * issued. Both flags are set explicitly - a class whose marks are a draft
  * cannot have issued cards, since the card carries the marks.
  */
 const unpublished = [
@@ -60,7 +60,7 @@ const unpublished = [
   },
 ];
 
-/** Marks released, report cards not yet issued — the middle stage. */
+/** Marks released, report cards not yet issued - the middle stage. */
 const published = unpublished.map((r) => ({ ...r, isPublished: true }));
 
 const routes = {
@@ -341,7 +341,7 @@ describe("taking published results back", () => {
       });
     });
 
-    // Withdrawing the document leaves the marks alone — they are separate.
+    // Withdrawing the document leaves the marks alone - they are separate.
     it("withdraws an issued card without touching the marks", async () => {
       await mount(published.map((r: any) => ({ ...r, reportCardPublished: true })));
       await click(reportCardButton());
@@ -550,12 +550,12 @@ describe("results across every band", () => {
     expect(c).not.toBe(f);
   });
 
-  it("draws em dashes for a student nothing has been computed for", async () => {
+  it("draws dashes for a student nothing has been computed for", async () => {
     await mount(banded);
 
     const row = rowFor("b-5");
     // Rank, total, average and grade: four blanks, not four zeroes.
-    expect(within(row).getAllByText(/^—/).length).toBeGreaterThanOrEqual(3);
+    expect(within(row).getAllByText(/^-/).length).toBeGreaterThanOrEqual(3);
   });
 
   it("averages the class over the blanks without going NaN", async () => {

@@ -125,7 +125,7 @@ export default function TeacherHomeworkPage() {
                 return (
                   <TableRow key={hw.id}>
                     <TableCell className="font-medium">{hw.title}</TableCell>
-                    <TableCell>{hw.subject?.name ?? "—"}</TableCell>
+                    <TableCell>{hw.subject?.name ?? "-"}</TableCell>
                     <TableCell>{classDisplayName(hw.classSection)}</TableCell>
                     <TableCell>
                       <Badge variant={isPastDue ? "danger" : "default"}>
@@ -187,14 +187,14 @@ export default function TeacherHomeworkPage() {
                             type="number"
                             min="0"
                             max={viewingHw.maxMarks}
-                            placeholder="—"
+                            placeholder="-"
                             className="w-16 rounded border border-input px-2 py-1 text-sm"
                             onBlur={(e) => {
                               if (e.target.value) {
                                 gradeSubmission.mutate({ id: sub.id, marks: Number(e.target.value) });
                               }
                             }}
-                           aria-label="—"/>
+                           aria-label="-"/>
                         )}
                       </TableCell>
                       <TableCell>
@@ -233,7 +233,7 @@ export default function TeacherHomeworkPage() {
               <option value="">Select...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {classDisplayName(a.classSection)} — {a.subject?.name ?? "Subject"}
+                  {classDisplayName(a.classSection)} - {a.subject?.name ?? "Subject"}
                 </option>
               ))}
             </select>

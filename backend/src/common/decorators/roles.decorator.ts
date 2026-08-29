@@ -5,7 +5,7 @@ export const ROLES_KEY = 'roles';
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
 /**
- * Every role there is — for routes that are open to anyone signed in.
+ * Every role there is - for routes that are open to anyone signed in.
  *
  * Endpoints that serve a person their own data (their notifications, their
  * threads, their own user record) used to spell out

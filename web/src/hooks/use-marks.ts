@@ -117,8 +117,8 @@ export function usePublishTermResults() {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success(
         variables?.isPublished === false
-          ? "Results unpublished — students and parents can no longer see them"
-          : "Results published — students and parents can now see them",
+          ? "Results unpublished - students and parents can no longer see them"
+          : "Results published - students and parents can now see them",
       );
     },
     onError: (e: unknown) => toast.error(errorMessage(e, "Publish failed")),
@@ -141,8 +141,8 @@ export function usePublishReportCards() {
       qc.invalidateQueries({ queryKey: ["term-results"] });
       toast.success(
         variables?.isPublished === false
-          ? "Report cards withdrawn — students and parents can no longer open them"
-          : "Report cards issued — students and parents can now open them",
+          ? "Report cards withdrawn - students and parents can no longer open them"
+          : "Report cards issued - students and parents can now open them",
       );
     },
     onError: (e: unknown) =>

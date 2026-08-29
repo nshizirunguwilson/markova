@@ -112,18 +112,18 @@ describe("today's attendance on the dashboard", () => {
     );
   });
 
-  it("shows an em dash before the figures arrive", async () => {
+  it("shows a dash before the figures arrive", async () => {
     mount({ "/attendance/dashboard": () => new Promise(() => {}) });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
-  it("shows an em dash when nothing was recorded today", async () => {
+  it("shows a dash when nothing was recorded today", async () => {
     mount({ "/attendance/dashboard": attendance(null) });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   it("shows nought rather than dividing by nothing on an empty school", async () => {
@@ -144,11 +144,11 @@ describe("today's attendance on the dashboard", () => {
 });
 
 describe("the headline counts", () => {
-  it("draws an em dash for a figure the API did not send", async () => {
+  it("draws a dash for a figure the API did not send", async () => {
     mount({ "/dashboard/stats": {} });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/undefined/);
   });
 });

@@ -93,7 +93,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Rotate old backups — keep last RETENTION_DAYS days
+# Rotate old backups - keep last RETENTION_DAYS days
 # ---------------------------------------------------------------------------
 DELETED=$(find "$BACKUP_DIR" -name "markova_*.sql.gz" -type f -mtime +"$RETENTION_DAYS" -print -delete | wc -l | tr -d ' ')
 if [ "$DELETED" -gt 0 ]; then

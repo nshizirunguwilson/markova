@@ -318,8 +318,8 @@ describe('one dataset as a CSV', () => {
  *
  * The register is exported flat and the names are joined back afterwards, so
  * a student who has since left has a row with nothing to join to. The row
- * still belongs on the sheet — dropping it would make the export disagree with
- * the register it came from — but it must not carry the word undefined.
+ * still belongs on the sheet - dropping it would make the export disagree with
+ * the register it came from - but it must not carry the word undefined.
  */
 describe('exporting a register for students who have left', () => {
   let prisma: ReturnType<typeof createMockPrisma>;

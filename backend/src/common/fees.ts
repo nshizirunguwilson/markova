@@ -5,7 +5,7 @@
  * that decides whether a child is shown their own results. Rules that carry
  * that weight should be readable end to end and testable without a schema.
  *
- * Money is held in Rwandan francs, which have no minor unit — there are no
+ * Money is held in Rwandan francs, which have no minor unit - there are no
  * centimes to lose, and every amount in this file is a whole franc.
  */
 
@@ -33,7 +33,7 @@ export type FeeRelief = {
  *
  * A boarder pays for the bed and the meals; a day student pays for the bus.
  * One structure describes the class, and where the student sleeps decides
- * which of its lines they see — so moving a student into the dormitory in
+ * which of its lines they see - so moving a student into the dormitory in
  * March changes what their next invoice says without anybody editing a price.
  */
 export function chargesFor<T extends FeeCharge>(
@@ -72,7 +72,7 @@ export type FeeStanding = {
   total: number;
   paid: number;
   waived: number;
-  /** What is left to find. Never negative — an overpayment is not a debt. */
+  /** What is left to find. Never negative - an overpayment is not a debt. */
   balance: number;
   /** Paid, waived, or a mixture that covers the whole invoice. */
   cleared: boolean;
@@ -86,7 +86,7 @@ export type FeeStanding = {
  * A waiver counts exactly as a payment does. That is the whole point of
  * having them: without it a sponsored child could never be shown their own
  * results, and the only way round would be to record a payment that never
- * happened — which is worse than the problem it solves.
+ * happened - which is worse than the problem it solves.
  *
  * The balance is floored at zero. An overpayment is a credit the school owes
  * the family, not a debt, and showing it as a negative balance beside four

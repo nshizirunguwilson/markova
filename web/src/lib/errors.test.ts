@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { AxiosError } from "axios";
 import { errorMessage } from "./errors";
 
-/** An axios error with no response — the shape of a refused connection. */
+/** An axios error with no response - the shape of a refused connection. */
 const transportError = (code?: string) => {
   const e = new AxiosError("Network Error", code);
   return e;

@@ -37,7 +37,7 @@ export default tseslint.config(
        * clean checkout and the CI lint step could never pass.
        *
        * Treating the whole family consistently means the lint gate now fails on
-       * real problems instead of being permanently red. Do not add new `any` —
+       * real problems instead of being permanently red. Do not add new `any` -
        * type the row or payload you are touching.
        */
       '@typescript-eslint/no-explicit-any': 'off',
@@ -49,7 +49,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-enum-comparison': 'warn',
 
       // A leading underscore is the conventional marker for "deliberately
-      // unused" — required parameters kept for signature compatibility.
+      // unused" - required parameters kept for signature compatibility.
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -64,7 +64,7 @@ export default tseslint.config(
   },
   {
     // `expect(mockPrisma.user.findFirst).toHaveBeenCalled()` passes a method
-    // reference around, which is exactly what unbound-method flags — and is
+    // reference around, which is exactly what unbound-method flags - and is
     // exactly how Jest assertions are written. Off for specs only.
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
     rules: {

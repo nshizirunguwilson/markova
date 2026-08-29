@@ -888,7 +888,7 @@ describe('AcademicService', () => {
     /**
      * A subject's row on the admin page has to say whether anyone teaches it,
      * whether it is on a timetable, and whether marks have been recorded
-     * against it — deleting one that has marks is refused, so the page needs
+     * against it - deleting one that has marks is refused, so the page needs
      * to know before the button is pressed rather than after.
      */
     it('counts what each subject is being used for', async () => {

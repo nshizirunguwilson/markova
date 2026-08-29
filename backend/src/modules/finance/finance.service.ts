@@ -27,7 +27,7 @@ import type {
  * A term's bill is raised once from the class price list and then frozen: the
  * lines are copied onto the invoice rather than referenced, so a price
  * changed in March cannot rewrite a bill sent in January. Everything after
- * that is entries against it — money in, and amounts the school has decided
+ * that is entries against it - money in, and amounts the school has decided
  * not to collect.
  *
  * Nothing here edits or deletes an entry. A receipt typed twice is voided and
@@ -432,7 +432,7 @@ export class FinanceService {
       order by it without a second copy of the arithmetic.
 
       The rows arrive from the query in name order and this sort is stable, so
-      everybody level on balance — every settled account, in particular — stays
+      everybody level on balance - every settled account, in particular - stays
       alphabetical and is still scannable by eye.
     */
     matching.sort(

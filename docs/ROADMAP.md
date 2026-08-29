@@ -1,4 +1,4 @@
-# Markova — Status, Fixes & Roadmap
+# Markova - Status, Fixes & Roadmap
 
 _Last updated: 2026-06-06. Maintained alongside a full test pass of the system._
 
@@ -17,7 +17,7 @@ library, messaging, notifications, reports and admin operations.
 docker compose up -d                 # Postgres :5434, Redis :6380
 cd backend
 npx prisma migrate deploy            # apply schema (first time / after pull)
-npx prisma db seed                   # load demo data — RE-RUN ON DEMO DAY for fresh dates
+npx prisma db seed                   # load demo data - RE-RUN ON DEMO DAY for fresh dates
 npm run start                        # API on :3000
 
 # new terminal
@@ -62,9 +62,9 @@ login response as `devOtp`, so you never have to wait for an email.
 
 | # | Area | Symptom | Fix | Commit |
 |---|---|---|---|---|
-| 1 | Demo accounts | All non-parent demo logins returned “Invalid credentials” | Stale data — passwords had drifted from prior testing; restored, and the reworked seed prevents recurrence | (data + seed) |
+| 1 | Demo accounts | All non-parent demo logins returned “Invalid credentials” | Stale data - passwords had drifted from prior testing; restored, and the reworked seed prevents recurrence | (data + seed) |
 | 2 | RBAC | 16 teacher/student/parent pages broke: term/year selectors 403, parent children never loaded, message recipient picker 403 | Opened read-only `/academic/years` & `/terms` to all roles; allowed users to GET their own `/users/:id`; added scoped `GET /messaging/contacts` | `eef1401` |
-| 3 | Admin dashboard | “Total Users” and “Subjects” cards blank (`—`) | Added `totalUsers`/`totalSubjects` to the dashboard analytics response | `7d26421` |
+| 3 | Admin dashboard | “Total Users” and “Subjects” cards blank (`-`) | Added `totalUsers`/`totalSubjects` to the dashboard analytics response | `7d26421` |
 | 4 | Library analytics | “Overdue” showed 0 while 17 loans were overdue | Counted `status='OVERDUE'` (loans never get that status); now counts active-past-due | `7d26421` |
 | 5 | Charts | Student “Performance Comparison” and admin “Attendance by Class” bar charts rendered empty | Percentage-height bars sat in an auto-height column; wrapped each in a flex track so heights resolve | `7d26421` |
 | 6 | Demo data | Ugandan/Luganda names; stale fixed dates (mass-overdue loans, empty “today”); seed not re-runnable | Rwandan names/phones/address; date-relative; idempotent (TRUNCATE-first); demo accounts skip forced password change | `c24a267` |
@@ -72,7 +72,7 @@ login response as `devOtp`, so you never have to wait for an email.
 
 ---
 
-## 2b. Round 2 — bugs found by clicking through every feature as a user
+## 2b. Round 2 - bugs found by clicking through every feature as a user
 
 A second pass drove the actual UI (forms, buttons, search, uploads, exports,
 theme/settings, report publishing, term lifecycle) for all five roles. These are
@@ -80,17 +80,17 @@ the features that "passed tests" but didn't actually work:
 
 | # | Area | Symptom | Fix | Commit |
 |---|---|---|---|---|
-| 8 | Password reset | Login linked to `/forgot-password`, but the page (and `/reset-password`) didn't exist — a dead link | Built both pages; email a real reset *link* with the full token | `a26b957` |
+| 8 | Password reset | Login linked to `/forgot-password`, but the page (and `/reset-password`) didn't exist - a dead link | Built both pages; email a real reset *link* with the full token | `a26b957` |
 | 9 | Login errors | A wrong password fired a false "session expired" toast and reloaded the page, so "Invalid credentials" never showed | Stop the 401 interceptor from hijacking `/auth/*` endpoints | `a26b957` |
-| 10 | Branding | Changing school name / theme colour only affected report cards — the app hardcoded "Markova" and a fixed colour | Public branding endpoint + BrandProvider; name + colour now apply app-wide and live | `453a5f3` |
+| 10 | Branding | Changing school name / theme colour only affected report cards - the app hardcoded "Markova" and a fixed colour | Public branding endpoint + BrandProvider; name + colour now apply app-wide and live | `453a5f3` |
 | 11 | Term lifecycle | The close/reopen-term lock button did nothing (web sent PATCH, backend maps POST → 404) | Switch hooks to POST | `96500cc` |
 | 12 | Edit profile | Every role's profile "Save" hit a non-existent `PATCH /auth/profile` (404) | Added the endpoint | `96500cc` |
 | 13 | Student pickers | Discipline (admin+teacher) and Generate-Document asked for a raw student **UUID** | Reusable Level→Section→Student picker | `01c7f42` |
-| 14 | Add Book | Every "Add Book" failed with 400 — the form sent `shelfLocation`, absent from the model/DTO | Added `shelf_location` (schema + migration + DTOs) | `64c1475` |
+| 14 | Add Book | Every "Add Book" failed with 400 - the form sent `shelfLocation`, absent from the model/DTO | Added `shelf_location` (schema + migration + DTOs) | `64c1475` |
 | 15 | Data export | "Marks"/"Attendance" exports downloaded the *user* list, and capped at one page | Route each export to its endpoint, paginate, flatten correct columns | `fb08c1e` |
-| 16 | Teacher marks/homework | Teachers could not enter marks at all (and homework assign sent `subjectId: undefined`) — the page read `assignment.subject.id`, which the API doesn't return | Use the flat `assignment.subjectId`/`classSectionId` | `dcc8c25` |
+| 16 | Teacher marks/homework | Teachers could not enter marks at all (and homework assign sent `subjectId: undefined`) - the page read `assignment.subject.id`, which the API doesn't return | Use the flat `assignment.subjectId`/`classSectionId` | `dcc8c25` |
 | 17 | Mobile (Expo) | Profile edit (`PUT /users/:id`), photo upload (`POST /users/:id/photo`) and notification read (`PATCH …/read`) all hit admin-only / wrong-method routes → 403/404 for normal users | Use `PATCH /auth/profile`; relax photo upload to self-or-admin; switch notification read to `PUT` | `d64f103` |
-| 18 | Mobile student dashboard | On the iPhone 15 Pro simulator the student's home screen showed "You do not have permission to access this resource" — it fetched librarian-only `/library/analytics` | Gate that query with `enabled` so it only runs for librarians | `3739263` |
+| 18 | Mobile student dashboard | On the iPhone 15 Pro simulator the student's home screen showed "You do not have permission to access this resource" - it fetched librarian-only `/library/analytics` | Gate that query with `enabled` so it only runs for librarians | `3739263` |
 
 Interactive coverage now verified working: form login + OTP, wrong-password
 feedback, forgot→reset→login, logout; admin users (search/filter/paginate/sort/
@@ -104,9 +104,9 @@ messaging compose (contact picker → create → send).
 
 ---
 
-## 2c. Round 3 — full-CRUD completeness pass
+## 2c. Round 3 - full-CRUD completeness pass
 
-Goal for this round: no new features — make sure **add / edit / delete / view**
+Goal for this round: no new features - make sure **add / edit / delete / view**
 of every managed entity works 100% in the UI, the API and the tests. A
 Create→Read→Update→Delete certification was run against the API for all 13
 entities (subject, class level, section, assessment type, year, term, timetable,
@@ -116,7 +116,7 @@ edit *forms* were driven in the browser. Two real bugs surfaced:
 | # | Area | Symptom | Fix | Commit |
 |---|---|---|---|---|
 | 19 | Single mark create | `POST /marks` 500'd whenever a mark already existed for that student/subject/term/assessment (unique-constraint violation) | Upsert on that key, like batch entry already did | `c6d5e31` |
-| 20 | Admin homework edit | Editing a homework always failed "Validation failed" — the Section select lost its value when options loaded after `reset()`, and the update sent recipient fields the DTO rejects | Controlled section select bound to form state; update sends only editable content fields; recipient selects disabled in edit mode | `8759520` |
+| 20 | Admin homework edit | Editing a homework always failed "Validation failed" - the Section select lost its value when options loaded after `reset()`, and the update sent recipient fields the DTO rejects | Controlled section select bound to form state; update sends only editable content fields; recipient selects disabled in edit mode | `8759520` |
 
 Plus a product decision implemented: **students are blocked from the mobile app**
 (staff + parents only), verified on the iPhone 15 Pro simulator (`6a7975d`).
@@ -127,7 +127,7 @@ class-level delete confirmed end-to-end in the browser.
 
 ---
 
-## 2d. Round 4 — end-to-end security & data-integrity audit
+## 2d. Round 4 - end-to-end security & data-integrity audit
 
 A full backend audit (every module, schema, migration, DTO, guard) with live
 API/DB probes. Findings and fixes are in [AUDIT_REPORT.md](AUDIT_REPORT.md);
@@ -136,8 +136,8 @@ work landed on branch `audit/security-and-integrity-fixes`. Headline counts:
 
 | # | Sev | Area | Symptom | Fix | Commit |
 |---|---|---|---|---|---|
-| H-1 | HIGH | Analytics | Any student/parent could read **another** student's analytics (grades, rank) — `/analytics/student/:id` & `/parent/child/:id/trends` had no ownership check (200 vs the marks endpoint's 403) | Inject `OwnershipService`; scope teacher analytics to assigned sections (M-9) | `cd55c27` |
-| H-2 | HIGH | Attendance | Re-marking **daily** attendance created a duplicate row instead of updating (NULL `subject_id` never matched the `''` upsert key) — verified 2 rows | NULL-safe find-then-update/create | `d4e3ec5` |
+| H-1 | HIGH | Analytics | Any student/parent could read **another** student's analytics (grades, rank) - `/analytics/student/:id` & `/parent/child/:id/trends` had no ownership check (200 vs the marks endpoint's 403) | Inject `OwnershipService`; scope teacher analytics to assigned sections (M-9) | `cd55c27` |
+| H-2 | HIGH | Attendance | Re-marking **daily** attendance created a duplicate row instead of updating (NULL `subject_id` never matched the `''` upsert key) - verified 2 rows | NULL-safe find-then-update/create | `d4e3ec5` |
 | M-10 | MED | Attendance | QR/NFC late check only looked at the minute field (10:05 counted on-time) | Correct 08:30 cutoff helper | `d4e3ec5` |
 | M-3 | MED | Users | Non-transactional create → orphan user if the role record failed | Wrap user + role write in one `$transaction` | `4040693` |
 | M-4 | MED | Discipline | Any parent/student could appeal **any** incident by id | Ownership check before appeal create | `d3f0f3f` |
@@ -148,12 +148,12 @@ work landed on branch `audit/security-and-integrity-fixes`. Headline counts:
 Tests grew from **63 → 124** backend (12 suites) plus the existing 10 web; both
 suites green, `nest build` + `next build` clean, server boots warning-free.
 **Deferred for a product decision:** mark scale cap (M-7), student↔student chat
-policy (M-8), forced-password-change enforcement (M-11) — see the report's Open
+policy (M-8), forced-password-change enforcement (M-11) - see the report's Open
 Questions.
 
 > **Correction to a prior note:** `backend/.env` is **gitignored and was never
 > committed** (verified against git history). The earlier claim of a "committed
-> Brevo SMTP key" was wrong — there is no secret in the repo or its history.
+> Brevo SMTP key" was wrong - there is no secret in the repo or its history.
 > Still rotate any key that lived in a local `.env` and keep `NODE_ENV=production`
 > so `devOtp`/`devToken` are suppressed.
 
@@ -161,26 +161,26 @@ Questions.
 
 ## 3. What was tested and is verified working
 
-**Auth** — all 5 role logins, OTP flow, refresh, change/reset password endpoints, lockout &
+**Auth** - all 5 role logins, OTP flow, refresh, change/reset password endpoints, lockout &
 rate-limit configuration.
-**API** — every read endpoint across all roles returns 2xx (no 500s); RBAC denies cross-role
+**API** - every read endpoint across all roles returns 2xx (no 500s); RBAC denies cross-role
 access (e.g. a parent cannot read another student).
-**Web** — all **53** role pages load with **zero** console/page/API errors (automated crawl).
-**Write flows** — create user, single + batch marks, bulk attendance, create homework,
+**Web** - all **53** role pages load with **zero** console/page/API errors (automated crawl).
+**Write flows** - create user, single + batch marks, bulk attendance, create homework,
 discipline incident, library checkout/return, create conversation + send message, calculate
-term & year results — all succeed with the exact payloads the web sends.
-**Multi-actor flows** — discipline incident → parent appeal → admin review; student homework
+term & year results - all succeed with the exact payloads the web sends.
+**Multi-actor flows** - discipline incident → parent appeal → admin review; student homework
 submit → teacher grade; help ticket → admin status update.
-**Reports** — term report card **PDF** (Puppeteer) and HTML render.
-**Realtime** — WebSocket `/chat`: JWT connect, presence, online users, live `newMessage`
-broadcast, typing indicators, read receipts — all pass.
-**Notifications** — create → unread badge increments → mark read / mark-all-read.
-**Admin ops** — settings upsert, onboarding persist, logo/photo upload + public serving,
+**Reports** - term report card **PDF** (Puppeteer) and HTML render.
+**Realtime** - WebSocket `/chat`: JWT connect, presence, online users, live `newMessage`
+broadcast, typing indicators, read receipts - all pass.
+**Notifications** - create → unread badge increments → mark read / mark-all-read.
+**Admin ops** - settings upsert, onboarding persist, logo/photo upload + public serving,
 single + bulk ID cards, CSV bulk import, promotion (with correct retain/promote logic).
-**Mobile** — Run on the **iPhone 15 Pro simulator** (Expo Go, SDK 55): student login →
+**Mobile** - Run on the **iPhone 15 Pro simulator** (Expo Go, SDK 55): student login →
 dashboard works, and the Messages, Alerts and Profile tabs render real data. Four
 API-contract bugs were fixed (#17 + #18 below). Typechecks clean, bundles (iOS export OK).
-**Baseline** — backend `nest build` + 63 Jest tests pass; web `next build` + 10 Vitest pass.
+**Baseline** - backend `nest build` + 63 Jest tests pass; web `next build` + 10 Vitest pass.
 
 ---
 
@@ -192,11 +192,11 @@ API-contract bugs were fixed (#17 + #18 below). Typechecks clean, bundles (iOS e
   submit homework, etc.) haven't each been clicked through on-device, push notifications
   need a real device (not Expo Go), and on a physical phone the API URL must point at the
   host LAN IP, not `localhost` (the simulator shares the host network so `localhost` works).
-- **Email/OTP depends on Brevo SMTP credits.** If they run out, OTP emails stop — but the
+- **Email/OTP depends on Brevo SMTP credits.** If they run out, OTP emails stop - but the
   `devOtp` field and backend console always have the code in development.
 - **Attendance dashboard defaults to today** → empty on weekends/holidays. Pick a recent
   weekday, or re-seed on a weekday.
-- **No audit-log UI** yet — the `audit_logs` table is populated but only queryable via SQL.
+- **No audit-log UI** yet - the `audit_logs` table is populated but only queryable via SQL.
 - **`forcePasswordChange` is reset by the seed.** Demo accounts are exempt; if you re-seed,
   the exemption is preserved automatically.
 - **Push notifications** require a real device + Expo push token; not exercised here.
@@ -205,20 +205,20 @@ API-contract bugs were fixed (#17 + #18 below). Typechecks clean, bundles (iOS e
 
 ## 5. Roadmap (post-demo, prioritised)
 
-### P1 — correctness & polish
+### P1 - correctness & polish
 - [ ] On-device mobile pass: login, view marks, register push token, receive a push.
 - [ ] Make the attendance dashboard fall back to the most recent date with data when today is empty.
 - [ ] Audit a few more admin forms for raw-ID inputs (timetable, marks filters) the way Add User was fixed.
 - [ ] Add an `IN_APP` notification type (the bell currently reuses EMAIL/PUSH types).
 
-### P2 — features the schema already implies
+### P2 - features the schema already implies
 - [ ] Audit-log viewer page for admins.
 - [ ] Exam-schedule UI surface (endpoints exist).
 - [ ] Transfer letter / transcript / certificate document templates (endpoint exists; verify output).
 - [ ] Wire chronic-absenteeism “Notify parents” and library overdue reminders to the email queue with delivery confirmation.
 
-### P3 — hardening & ops
-- [ ] Move secrets out of `backend/.env` (SMTP creds, JWT secrets) into real environment config and rotate any key used locally. (Note: `.env` is gitignored and was never committed — there is no key in git history.)
+### P3 - hardening & ops
+- [ ] Move secrets out of `backend/.env` (SMTP creds, JWT secrets) into real environment config and rotate any key used locally. (Note: `.env` is gitignored and was never committed - there is no key in git history.)
 - [ ] Add a retry/queue for outbound email (Brevo) so an SMTP outage doesn't silently drop OTP/notification mail (audit L-1).
 - [ ] Decide the deferred policy questions: mark-scale cap (M-7), student↔student chat (M-8), forced-password-change enforcement (M-11).
 - [ ] Backfill service specs for messaging / reports / school-config / help (0% in this round).

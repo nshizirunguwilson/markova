@@ -3,8 +3,8 @@ import { classDisplayName } from "@/lib/utils";
 /**
  * Telling two people with the same name apart.
  *
- * A school of fourteen hundred children has several of every common name —
- * four Alines, three Kezas — and a list of bare names is unusable the moment
+ * A school of fourteen hundred children has several of every common name -
+ * four Alines, three Kezas - and a list of bare names is unusable the moment
  * that happens. The class is what a teacher would ask for, so it is what
  * appears beside the name.
  *
@@ -35,7 +35,7 @@ export function personName(person: Person | null | undefined): string {
 
 /**
  * The line under the name: the class for a student, the role for everybody
- * else. Empty when there is nothing worth saying — a bare "Student" under a
+ * else. Empty when there is nothing worth saying - a bare "Student" under a
  * student's name is noise.
  */
 export function personDetail(person: Person | null | undefined): string {
@@ -56,7 +56,7 @@ export function personDetail(person: Person | null | undefined): string {
 
 /**
  * Name and detail as one string, for the places that have a single line to
- * work with — a chip, a search result, a title attribute.
+ * work with - a chip, a search result, a title attribute.
  */
 export function personLabel(person: Person | null | undefined): string {
   const detail = personDetail(person);

@@ -238,7 +238,7 @@ export default function PocketMoneyPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted">{it.class ?? "—"}</TableCell>
+                    <TableCell className="text-muted">{it.class ?? "-"}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {it.studentIdNumber}
                     </TableCell>
@@ -264,7 +264,7 @@ export default function PocketMoneyPage() {
         {!isLoading && meta.totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {(meta.page - 1) * meta.limit + 1}–
+              Showing {(meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">

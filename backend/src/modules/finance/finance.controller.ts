@@ -30,8 +30,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 /**
  * School fees.
  *
- * Two audiences, and the split runs through every route here. The office —
- * the bursar and the head — set prices, raise bills and take money. A family
+ * Two audiences, and the split runs through every route here. The office -
+ * the bursar and the head - set prices, raise bills and take money. A family
  * sees one account, its own, and cannot see the roll or anybody else's
  * balance.
  *

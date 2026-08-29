@@ -18,7 +18,7 @@ export interface Notification {
    */
   isRead: boolean;
   /**
-   * What the notice is ABOUT — see backend/src/common/notification-target.ts.
+   * What the notice is ABOUT - see backend/src/common/notification-target.ts.
    * `type` above is only the channel it went out on, which is what the bell
    * used to try to route on.
    */

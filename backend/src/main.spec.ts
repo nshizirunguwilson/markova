@@ -89,7 +89,7 @@ describe('bootstrap', () => {
    * `fetch()` from the dashboard was refused by the browser.
    *
    * An <img> does not care, which is why pictures always looked fine. What
-   * broke was everything that reads the bytes — a voice note's waveform is
+   * broke was everything that reads the bytes - a voice note's waveform is
    * decoded with fetch + AudioContext, so every one of them drew a flat line
    * instead of the sound in it.
    */

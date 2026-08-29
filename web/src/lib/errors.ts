@@ -3,7 +3,7 @@ import { AxiosError } from "axios";
 /**
  * A message worth showing a person.
  *
- * `fallback` is what to say when the request genuinely failed on its merits —
+ * `fallback` is what to say when the request genuinely failed on its merits -
  * a rejected password, a wrong OTP, an expired link. It is deliberately NOT
  * used for transport failures: telling someone to "check your credentials"
  * when the API is simply unreachable sends them hunting for a problem that is

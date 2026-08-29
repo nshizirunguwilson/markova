@@ -208,7 +208,7 @@ describe('MessagingGateway', () => {
     /**
      * Addressed to the other participants' own rooms, not to `conv:<id>`.
      * A conversation started after somebody connected is not in their room
-     * set, so presence — like read receipts and typing — went missing for
+     * set, so presence - like read receipts and typing - went missing for
      * exactly the threads people had just opened.
      */
     it('tells the people they share conversations with', async () => {
@@ -411,7 +411,7 @@ describe('MessagingGateway', () => {
   describe('read receipts', () => {
     /**
      * The sender has to be told, and they are only in `conv:<id>` if the
-     * conversation already existed when they connected — so a read receipt on
+     * conversation already existed when they connected - so a read receipt on
      * a thread somebody had just started never arrived at all.
      */
     it('tells every participant which messages were read, and by whom', async () => {

@@ -45,7 +45,7 @@ export class ReportsController {
    * Ownership, then timing, then fees.
    *
    * Whose child it is has always been checked. Whether the school has issued
-   * the card was not — so a student could read their report card, as data, as
+   * the card was not - so a student could read their report card, as data, as
    * HTML or as a PDF, before it was released. Staff are never gated: they
    * have to read the thing before issuing it.
    *
@@ -77,8 +77,8 @@ export class ReportsController {
    *
    * An annual report is the three terms added up, so it is held while any of
    * them is owed on. Whether the year's report has been "issued" is not a
-   * separate state the way a term card's is — it is built from term results
-   * that were issued one by one — so ownership and fees are the two checks.
+   * separate state the way a term card's is - it is built from term results
+   * that were issued one by one - so ownership and fees are the two checks.
    */
   private async assertMayReadYear(
     user: { id: string; role: string },

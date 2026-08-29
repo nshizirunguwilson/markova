@@ -445,7 +445,7 @@ export class MarksService {
    * One student's results for a term.
    *
    * `viewerRole` decides whether unpublished figures come back at all. Staff
-   * need to read them before releasing — that is the whole point of a draft —
+   * need to read them before releasing - that is the whole point of a draft -
    * but a student or a parent must not, and until this argument existed they
    * did: the route checked that the right family was asking and then handed
    * over marks the school had not published. A term appeared on the student's
@@ -514,7 +514,7 @@ export class MarksService {
   }
 
   /**
-   * Release the marks — the subject breakdown, average and position — to the
+   * Release the marks - the subject breakdown, average and position - to the
    * students of a class and their parents.
    *
    * This is not the same act as issuing the report card. A school routinely
@@ -542,7 +542,7 @@ export class MarksService {
   /**
    * Issue (or withdraw) the report cards for a class.
    *
-   * Refused while the marks are unpublished, because the card carries them —
+   * Refused while the marks are unpublished, because the card carries them -
    * issuing one would put in front of a family precisely the figures the
    * school has not released.
    */
@@ -856,7 +856,7 @@ export class MarksService {
     const term = await this.prisma.term.findUnique({ where: { id: termId } });
     if (!term) throw new NotFoundException('Term not found');
     if (term.isClosed) {
-      throw new ForbiddenException('Cannot modify marks — term is closed');
+      throw new ForbiddenException('Cannot modify marks - term is closed');
     }
   }
 
@@ -869,7 +869,7 @@ export class MarksService {
 
   /**
    * What a student starts each term on. Forty a term, a hundred and twenty a
-   * year — see common/conduct.ts for why it is marked per term at all.
+   * year - see common/conduct.ts for why it is marked per term at all.
    */
   private async getStartingDisciplinePoints(): Promise<number> {
     const config = await this.prisma.schoolConfig.findUnique({

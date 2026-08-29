@@ -3,7 +3,7 @@
 import { useAuthStore } from "@/stores/auth-store";
 import { StudentPerformance } from "@/components/student-performance";
 
-// A student's own performance profile — the same view their teachers see.
+// A student's own performance profile - the same view their teachers see.
 export default function StudentAnalyticsPage() {
   const user = useAuthStore((s) => s.user);
 

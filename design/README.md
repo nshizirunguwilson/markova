@@ -15,12 +15,12 @@ token file or a colour pair that fails WCAG AA fails the build.
 
 The brand navy `#1B4F72` and its four relatives were already shared by both
 clients and are unchanged. Everything else was previously two different
-palettes — web had inherited Tailwind's default gray/emerald/amber ramp while
+palettes - web had inherited Tailwind's default gray/emerald/amber ramp while
 mobile used Slate + Flat-UI. They are now one set, chosen on two rules:
 
 1. **Slate neutrals**, because they carry a blue bias that sits under a navy
    brand without the muddy cast a neutral grey gives.
-2. **Every pairing meets WCAG 2.1 AA** — 4.5:1 for text, 3:1 for control
+2. **Every pairing meets WCAG 2.1 AA** - 4.5:1 for text, 3:1 for control
    boundaries. `scripts/check-contrast.mjs` asserts all 27 pairings.
 
 The previous semantic colours all failed that second rule as text:
@@ -35,7 +35,7 @@ Each semantic colour has a `…Wash` partner for badge backgrounds; the pair is
 checked against each other too, not just against white.
 
 `muted` moved from `#64748B` to `#5F6E85` for one reason: at `#64748B` it scored
-4.34:1 against `surfaceMuted`, which is exactly where it gets used most — table
+4.34:1 against `surfaceMuted`, which is exactly where it gets used most - table
 headers. The darker value clears 4.5:1 on every surface token in the system.
 
 ## Radius
@@ -50,7 +50,7 @@ remapped to preserve their existing pixels exactly:
 
 ## Type
 
-Both clients use **Poppins** at 400/500/600/700 — web through `next/font`,
+Both clients use **Poppins** at 400/500/600/700 - web through `next/font`,
 mobile through `expo-font` and `@expo-google-fonts/poppins`. The scale
 (12/14/16/18/20/24/30) already matched Tailwind's defaults and is now declared
 once in `tokens.json`.
@@ -78,8 +78,8 @@ icon slots from `brand/noText.png` so they stay in step if the artwork changes;
 the exported lockups and the mobile assets are authored, not generated, and the
 script leaves them alone.
 
-The source artwork is navy on transparent, so any slot with a navy ground —
-the iOS home-screen icon, the maskable PWA icon — is recoloured white first.
+The source artwork is navy on transparent, so any slot with a navy ground -
+the iOS home-screen icon, the maskable PWA icon - is recoloured white first.
 Getting that wrong produces a navy mark on a navy square, which is invisible
 rather than obviously broken, so check the output rather than assuming.
 
@@ -88,11 +88,11 @@ rather than obviously broken, so check the output rather than assuming.
 `<Logo />` (`web/src/components/ui/logo.tsx`) and `<Logo />`
 (`mobile/src/components/Logo.tsx`) both render the school's uploaded
 `logo_url` when one exists and fall back to Markova's mark when it does not.
-Every surface goes through those two components — sidebar, both login screens,
-ID cards, PDF report headers and the mobile header — so a school that uploads a
+Every surface goes through those two components - sidebar, both login screens,
+ID cards, PDF report headers and the mobile header - so a school that uploads a
 crest gets it everywhere at once.
 
 A school logo is user-uploaded and can point at a file that no longer exists,
 so both components fall back to the Markova mark on a load error rather than
 leaving a broken image. Pass `productOnly` where the product's own identity is
-wanted regardless of tenant — app chrome, the about screen.
+wanted regardless of tenant - app chrome, the about screen.

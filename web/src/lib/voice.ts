@@ -7,7 +7,7 @@
  * The recording formats, best first.
  *
  * Opus in WebM is what Chrome and Firefox record and is far the smallest for
- * speech — a minute is about 500KB. Safari records neither, and gives back
+ * speech - a minute is about 500KB. Safari records neither, and gives back
  * MP4/AAC instead, so both have to be offered or half a school cannot record
  * at all. Every one of these is on the API's accepted list.
  */
@@ -21,7 +21,7 @@ const RECORDING_FORMATS = [
 
 /**
  * The format this browser will actually record in, or null when it cannot
- * record at all — an old browser, or a page not served over HTTPS, where
+ * record at all - an old browser, or a page not served over HTTPS, where
  * `MediaRecorder` is simply absent.
  */
 export function recordingMimeType(
@@ -51,7 +51,7 @@ export function extensionForRecording(mimeType: string): string {
 /** How long a voice note may run before it stops itself. */
 export const MAX_VOICE_SECONDS = 5 * 60;
 
-/** "0:07", "1:42", "12:05" — the way every player writes a length. */
+/** "0:07", "1:42", "12:05" - the way every player writes a length. */
 export function clockDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const whole = Math.floor(seconds);
@@ -63,7 +63,7 @@ export function clockDuration(seconds: number): string {
  * How many bars a waveform is drawn with.
  *
  * Fewer than it was. Forty bars inside a bubble a few hundred pixels wide
- * gave each one about two pixels of room, which is not a bar — it is a dotted
+ * gave each one about two pixels of room, which is not a bar - it is a dotted
  * line, and that is exactly what it looked like. Twenty-eight bars at 3px
  * with a 2px gap reads as a waveform at the size a voice note is actually
  * drawn.
@@ -76,7 +76,7 @@ export const WAVEFORM_BARS = 28;
  * The samples are divided into as many buckets as there are bars and each
  * bucket's loudest moment becomes one bar. Peak rather than average, because
  * an average over several thousand samples of speech flattens into a nearly
- * straight line — the shape people recognise as a voice comes from the peaks.
+ * straight line - the shape people recognise as a voice comes from the peaks.
  *
  * Heights come back between 0 and 1, scaled so the loudest bar in the clip is
  * full height. A voice note recorded quietly should look like a voice note,
@@ -128,7 +128,7 @@ export function barHeight(peak: number): string {
 
 /**
  * How far through the clip a given bar sits, so the bars behind the playhead
- * can be coloured and the ones ahead left grey — the way every voice note in
+ * can be coloured and the ones ahead left grey - the way every voice note in
  * every messaging app shows progress.
  */
 export function barsPlayed(progress: number, bars = WAVEFORM_BARS): number {

@@ -221,14 +221,14 @@ export default function AdminClassesPage() {
     (levels ?? []).forEach((level: any) => {
       const sections = level.sections || [];
       if (sections.length === 0) {
-        rows.push({ _level: level.name, _trade: "—", _section: "—", _students: "—" });
+        rows.push({ _level: level.name, _trade: "-", _section: "-", _students: "-" });
       } else {
         sections.forEach((s: any) => {
           rows.push({
             _level: level.name,
-            _trade: s.trade?.code ?? "—",
+            _trade: s.trade?.code ?? "-",
             _section: s.name,
-            _students: s._count?.students ?? "—",
+            _students: s._count?.students ?? "-",
           });
         });
       }
@@ -306,7 +306,7 @@ export default function AdminClassesPage() {
                     <TableRow key={s.id}>
                       {isALevel && (
                         <TableCell>
-                          <span className="font-medium">{s.trade?.code ?? "—"}</span>
+                          <span className="font-medium">{s.trade?.code ?? "-"}</span>
                           <span className="ml-2 text-xs text-muted">{s.trade?.name}</span>
                         </TableCell>
                       )}
@@ -438,7 +438,7 @@ export default function AdminClassesPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setDeleteTarget({ type: "trade", id: t.id, name: `${t.code} — ${t.name}` })}
+                    onClick={() => setDeleteTarget({ type: "trade", id: t.id, name: `${t.code} - ${t.name}` })}
                     aria-label={`Delete trade ${t.code}`}
                   >
                     <Trash2 className="h-4 w-4 text-danger" />
@@ -527,7 +527,7 @@ export default function AdminClassesPage() {
                 <option value="">Select a trade…</option>
                 {(trades ?? []).map((t: any) => (
                   <option key={t.id} value={t.id}>
-                    {t.code} — {t.name}
+                    {t.code} - {t.name}
                   </option>
                 ))}
               </select>

@@ -45,7 +45,7 @@ import {
  *
  * The bursar's whole morning is on this page: who has paid, who has not, and
  * how far off the ones who have not are. So it is a roll of students rather
- * than a page of class totals — a class total answers a question the school
+ * than a page of class totals - a class total answers a question the school
  * asks once a term, and this answers the one it is asked forty times a day.
  *
  * The summary strip above it is deliberately four figures and no chart. What
@@ -113,7 +113,7 @@ export default function FeeRegisterPage() {
     <div>
       <PageHeader
         title="School fees"
-        description="What each family has been billed for this term, and what has come in — largest balances first"
+        description="What each family has been billed for this term, and what has come in - largest balances first"
         actions={<TermPicker value={termId} onChange={setTermId} />}
       />
 
@@ -315,13 +315,13 @@ export default function FeeRegisterPage() {
                           </Link>
                         </TableCell>
                         <TableCell className="text-sm text-muted">
-                          {classDisplayName(row.student.classSection) || "—"}
+                          {classDisplayName(row.student.classSection) || "-"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {s ? money(s.total) : "—"}
+                          {s ? money(s.total) : "-"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {s ? money(s.paid) : "—"}
+                          {s ? money(s.paid) : "-"}
                           {s && s.waived > 0 && (
                             <span className="block text-xs text-muted">
                               + {money(s.waived)} waived
@@ -333,7 +333,7 @@ export default function FeeRegisterPage() {
                             s && s.balance > 0 ? "text-danger" : ""
                           }`}
                         >
-                          {s ? money(s.balance) : "—"}
+                          {s ? money(s.balance) : "-"}
                         </TableCell>
                         <TableCell>
                           <div className="min-w-[8rem]">
@@ -359,7 +359,7 @@ export default function FeeRegisterPage() {
         {pages > 1 && (
           <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
             <p className="text-sm text-muted">
-              {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
+              {(page - 1) * limit + 1}-{Math.min(page * limit, total)} of {total}
             </p>
             <div className="flex gap-2">
               <Button

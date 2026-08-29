@@ -178,7 +178,7 @@ export class UsersService {
               classSectionId: true,
               status: true,
               // The students list has a Gender column and the export has a
-              // gender field. Without this both read "—" for every row.
+              // gender field. Without this both read "-" for every row.
               gender: true,
               classSection: {
                 select: {
@@ -255,8 +255,8 @@ export class UsersService {
         updatedAt: true,
         // The profile page shows and edits all of these. They were absent
         // from this select, so the National ID and Nationality fields opened
-        // empty for everybody and a staff member's own registration code —
-        // TCH-…, PAR-…, LIB-…, ADM-… — never appeared anywhere.
+        // empty for everybody and a staff member's own registration code -
+        // TCH-…, PAR-…, LIB-…, ADM-… - never appeared anywhere.
         code: true,
         nationalId: true,
         nationality: true,
@@ -432,7 +432,7 @@ export class UsersService {
       }
     }
 
-    // Students need a section up front — fail before any write.
+    // Students need a section up front - fail before any write.
     if (dto.role === Role.STUDENT && !dto.classSectionId) {
       throw new BadRequestException('classSectionId is required for students');
     }

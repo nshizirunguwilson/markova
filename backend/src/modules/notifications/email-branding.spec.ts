@@ -23,8 +23,8 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * The logo on an outgoing email.
  *
  * Gmail strips `data:` URIs, so the mark is sent as an embedded attachment
- * instead. On a deployment where the bundled asset is not on disk — a trimmed
- * container image, or a volume mounted over `assets` — the header falls back
+ * instead. On a deployment where the bundled asset is not on disk - a trimmed
+ * container image, or a volume mounted over `assets` - the header falls back
  * to the school's name in plain text rather than a broken image.
  */
 describe('the header on an email the school sends', () => {

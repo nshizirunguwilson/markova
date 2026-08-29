@@ -31,7 +31,7 @@ export type DeliveryStatus = "SENT" | "DELIVERED" | "READ";
  *
  * Words rather than ticks. One tick against two, and two grey against two
  * blue, is a convention people learn from one particular app and then argue
- * about — a parent looking at a message to the school should not have to know
+ * about - a parent looking at a message to the school should not have to know
  * it. An unknown status reads as "Sent", which is the one thing that is
  * certainly true of a message that exists.
  */
@@ -45,12 +45,12 @@ export function deliveryLabel(status: string | undefined): "Sent" | "Delivered" 
  * Who sent the last message in a thread, as the inbox line labels it.
  *
  * The viewer reads as "You", because seeing your own name quoted back at you
- * in your own inbox is a small but constant jar — every other messaging app
+ * in your own inbox is a small but constant jar - every other messaging app
  * says "You". Anyone else is named, which is what makes a group thread
  * readable at a glance.
  *
  * The id to compare is `senderUserId`. `sender` is a two-field projection of
- * the user — `{ firstName, lastName }` and nothing else — so reading an id off
+ * the user - `{ firstName, lastName }` and nothing else - so reading an id off
  * it silently compares undefined and every message ends up attributed by name.
  * Checked against a live `GET /messaging/conversations`.
  */
@@ -73,8 +73,8 @@ export function lastMessagePrefix(
 /**
  * What a message reads as in a one-line preview.
  *
- * A voice note is stored under the name it was recorded as —
- * `voice-note-2026-08-29-05-47-12.weba` — which is a filename, not a
+ * A voice note is stored under the name it was recorded as -
+ * `voice-note-2026-08-29-05-47-12.weba` - which is a filename, not a
  * sentence. In the inbox it filled the line and told nobody anything; the
  * only useful thing to say is that it is a voice message.
  *

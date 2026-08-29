@@ -180,7 +180,7 @@ export default function ActivitiesPage() {
                     </TableCell>
                     <TableCell className="text-sm">{when(a.startsAt)}</TableCell>
                     <TableCell className="text-sm text-muted">
-                      {a.location ?? "—"}
+                      {a.location ?? "-"}
                     </TableCell>
                     <TableCell className="text-sm text-muted">
                       {audienceOf(a)}
@@ -208,7 +208,7 @@ export default function ActivitiesPage() {
         {!isLoading && meta.totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {(meta.page - 1) * meta.limit + 1}–
+              Showing {(meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">

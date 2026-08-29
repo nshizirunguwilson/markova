@@ -27,7 +27,7 @@ export const YEAR_CONDUCT_MARK = TERM_CONDUCT_MARK * TERMS_IN_YEAR;
  *
  * Incidents take points off; merits put them back. Held inside 0 and 40:
  * a term cannot end below nothing, and a merit cannot lift a student above a
- * clean sheet — the recognition still stands on the record either way, which
+ * clean sheet - the recognition still stands on the record either way, which
  * is what the merit is really for.
  */
 export function termConduct(
@@ -71,10 +71,10 @@ export function conductPercentage(
   return Math.round((points / outOf) * 100);
 }
 
-/** "32 / 40 (80%)" — the way a conduct mark is written on a report. */
+/** "32 / 40 (80%)" - the way a conduct mark is written on a report. */
 export function conductLabel(points: number, outOf: number): string {
   const pct = conductPercentage(points, outOf);
-  return pct === null ? '–' : `${points} / ${outOf} (${pct}%)`;
+  return pct === null ? '-' : `${points} / ${outOf} (${pct}%)`;
 }
 
 /**
@@ -86,7 +86,7 @@ export function conductLabel(points: number, outOf: number): string {
  * moment the scale was not a hundred.
  */
 export function conductRemark(percentage: number | null): string {
-  if (percentage === null) return '–';
+  if (percentage === null) return '-';
   if (percentage >= 95) return 'Excellent';
   if (percentage >= 85) return 'Very good';
   if (percentage >= 70) return 'Good';

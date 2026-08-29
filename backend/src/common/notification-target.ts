@@ -1,7 +1,7 @@
 /**
  * What a notification is ABOUT, as opposed to how it was sent.
  *
- * `Notification.type` is the channel — SMS, EMAIL, PUSH — and the bell used to
+ * `Notification.type` is the channel - SMS, EMAIL, PUSH - and the bell used to
  * route off it, which is why clicking a notification never went anywhere: no
  * channel name has ever contained the word "attendance". `relatedEntityType`
  * is the subject, and these are the values it may take. Written once and

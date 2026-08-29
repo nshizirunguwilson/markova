@@ -55,7 +55,7 @@ export const ACCEPTED_ATTACHMENTS = [
  * A mime type without its parameters.
  *
  * A browser recording announces itself as `audio/webm;codecs=opus`, and an
- * allow-list matching exactly — which is the only kind worth having — does
+ * allow-list matching exactly - which is the only kind worth having - does
  * not contain that string. Without this every voice note recorded in Chrome
  * or Firefox was refused by its own check.
  */
@@ -95,7 +95,7 @@ const EXTENSION_KINDS: Record<string, AttachmentKind> = {
  *
  * A message carries a URL, not a mime type, and the extension on that URL was
  * chosen by the API from the verified type rather than by whoever uploaded it
- * — so it is trustworthy in a way a filename normally is not. Anything not in
+ * - so it is trustworthy in a way a filename normally is not. Anything not in
  * the table is a document, which is the treatment that always works: a row
  * with a name and a download.
  */
@@ -104,7 +104,7 @@ export function kindOfUrl(fileUrl: string | null | undefined): AttachmentKind {
   return (ext && EXTENSION_KINDS[ext]) || "document";
 }
 
-/** "10 MB", "1.5 MB", "800 KB" — a size in words a person reads. */
+/** "10 MB", "1.5 MB", "800 KB" - a size in words a person reads. */
 export function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < MB) return `${Math.round(bytes / 1024)} KB`;
