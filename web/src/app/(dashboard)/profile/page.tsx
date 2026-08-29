@@ -8,9 +8,12 @@ import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { Card, Button } from "@/components/ui";
-import { User, Mail, Phone, Shield, Lock } from "lucide-react";
+import { User, Mail, Phone, Shield, Lock, PenLine, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
+
+/** Roles that put their name under a document the school issues. */
+const SIGNS_SOMETHING = ["ADMIN", "HEAD_TEACHER", "TEACHER"];
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -39,6 +42,44 @@ export default function ProfilePage() {
     },
     onError: (e: any) =>
       toast.error(e.response?.data?.message || "Failed to update profile"),
+  });
+
+  /**
+   * The person's own signature.
+   *
+   * Only ever their own: the API refuses it from anybody else, including an
+   * administrator, and it is worth saying why on the page rather than only in
+   * an error. A signature uploaded by somebody else is not a signature, it is
+   * the school's name written in another person's hand, and a report card is
+   * countersigned on exactly that distinction.
+   */
+  const uploadSignature = useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("signature", file);
+      return (
+        await api.post(`/users/${user?.id}/signature`, body, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data as { signatureUrl: string };
+    },
+    onSuccess: (data) => {
+      setUser({ ...user!, signatureUrl: data.signatureUrl });
+      toast.success("Signature saved");
+    },
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Could not save the signature"),
+  });
+
+  const removeSignature = useMutation({
+    mutationFn: async () =>
+      (await api.delete(`/users/${user?.id}/signature`)).data,
+    onSuccess: () => {
+      setUser({ ...user!, signatureUrl: null });
+      toast.success("Signature removed");
+    },
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Could not remove the signature"),
   });
 
   const changePassword = useMutation({
@@ -326,6 +367,92 @@ export default function ProfilePage() {
           </div>
         )}
       </Card>
+
+      {/*
+        Offered only to the people who sign something. A parent or a student
+        has nothing to countersign, and a control that does nothing is a
+        control that teaches people to ignore controls.
+      */}
+      {SIGNS_SOMETHING.includes(user.role) && (
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-foreground">
+                My signature
+              </h3>
+              <p className="mt-0.5 text-sm text-muted">
+                Printed where you sign a report card. Yours alone: nobody else
+                can upload or remove it, not even an administrator.
+              </p>
+            </div>
+          </div>
+
+          {user.signatureUrl ? (
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <img
+                  src={resolveUploadUrl(user.signatureUrl) ?? undefined}
+                  alt="Your signature"
+                  className="h-16 w-auto max-w-[260px] object-contain"
+                />
+              </div>
+              <div className="flex gap-2">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    aria-label="Replace my signature"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadSignature.mutate(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="inline-flex items-center rounded-lg border border-input px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted">
+                    <PenLine className="mr-1.5 h-4 w-4" /> Replace
+                  </span>
+                </label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeSignature.mutate()}
+                  isLoading={removeSignature.isPending}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Remove
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center">
+              <p className="text-sm text-muted">
+                No signature yet. Documents will print your name over a line
+                for you to sign by hand.
+              </p>
+              <label className="mt-3 inline-block cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  aria-label="Upload my signature"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadSignature.mutate(f);
+                    e.target.value = "";
+                  }}
+                />
+                <span className="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-dark">
+                  <PenLine className="mr-1.5 h-4 w-4" /> Upload a signature
+                </span>
+              </label>
+              <p className="mt-3 text-xs text-muted">
+                A photograph or scan of your signature on white paper. PNG with
+                a transparent background prints best.
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

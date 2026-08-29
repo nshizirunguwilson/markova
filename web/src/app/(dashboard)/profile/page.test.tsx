@@ -297,6 +297,110 @@ describe("uploading a photo", () => {
   });
 });
 
+/**
+ * A signature is not a photograph.
+ *
+ * A photograph is a fact about a person that the school records, and the
+ * office may replace anybody's. A signature is an act by them, and one
+ * uploaded by somebody else is the school's name written in another person's
+ * hand. A report card is countersigned on exactly that distinction, so the
+ * page says whose it is rather than leaving it to an error message.
+ */
+describe("your own signature", () => {
+  const withSignature = {
+    ...me,
+    signatureUrl: "/uploads/signatures/aline.png",
+  };
+
+  const mountAs = async (
+    role: "TEACHER" | "STUDENT" | "PARENT" | "ADMIN" | "HEAD_TEACHER",
+    user: Record<string, unknown> = {},
+  ) => {
+    renderPage(ProfilePage, {
+      role,
+      user: { id: "user-1", firstName: "Aline", lastName: "Uwase", ...user },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  };
+
+  it("offers it to the people who sign something", async () => {
+    await mountAs("TEACHER");
+    expect(screen.getByText(/My signature/i)).toBeInTheDocument();
+  });
+
+  it("offers it to the head teacher, who countersigns every card", async () => {
+    await mountAs("HEAD_TEACHER");
+    expect(screen.getByText(/My signature/i)).toBeInTheDocument();
+  });
+
+  // A control that does nothing teaches people to ignore controls.
+  it.each(["STUDENT", "PARENT"] as const)(
+    "does not offer it to a %s, who signs nothing",
+    async (role) => {
+      await mountAs(role);
+      expect(screen.queryByText(/My signature/i)).not.toBeInTheDocument();
+    },
+  );
+
+  it("says plainly that nobody else can touch it", async () => {
+    await mountAs("TEACHER");
+    expect(document.body.textContent).toMatch(/not even an administrator/i);
+  });
+
+  it("sends the chosen file to the signing person's own record", async () => {
+    await mountAs("TEACHER");
+    const input = screen.getByLabelText(/Upload my signature/i);
+    const file = new File(["ink"], "sig.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/users/user-1/signature",
+        expect.any(FormData),
+        expect.anything(),
+      ),
+    );
+  });
+
+  /**
+   * A card printed with a line and a name is still a valid document, which is
+   * the form every one of these took before the system existed. Saying so
+   * stops the empty state reading as a fault.
+   */
+  it("says what happens while there is none", async () => {
+    await mountAs("TEACHER");
+    expect(document.body.textContent).toMatch(/over a line for you to sign/i);
+  });
+
+  it("shows the one already uploaded", async () => {
+    await mountAs("TEACHER", withSignature);
+    expect(screen.getByAltText(/Your signature/i)).toBeInTheDocument();
+  });
+
+  it("offers to replace or remove it once there is one", async () => {
+    await mountAs("TEACHER", withSignature);
+    expect(screen.getByLabelText(/Replace my signature/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button").find((b) => /Remove/.test(b.textContent ?? "")),
+    ).toBeTruthy();
+  });
+
+  it("takes it down when asked", async () => {
+    await mountAs("TEACHER", withSignature);
+    await act(async () => {
+      fireEvent.click(
+        screen
+          .getAllByRole("button")
+          .find((b) => /Remove/.test(b.textContent ?? ""))!,
+      );
+    });
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith("/users/user-1/signature"),
+    );
+  });
+});
+
 describe("every control on the profile", () => {
   it("is safe to use", async () => {
     await mount();

@@ -11,6 +11,11 @@ export interface User {
   firstName: string;
   lastName: string;
   photoUrl: string | null;
+  /* The person's own signature, uploaded from their own profile. Distinct
+     from the school's, which lives in the branding settings: a report card
+     carries a class teacher's mark and a head teacher's, and one file shared
+     between them would put the same hand under both names. */
+  signatureUrl?: string | null;
   forcePasswordChange: boolean;
   // Flattened from student/teacher relations (set by getProfile)
   studentId?: string;
