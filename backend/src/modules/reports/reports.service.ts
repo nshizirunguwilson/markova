@@ -1712,48 +1712,20 @@ export class ReportsService implements OnModuleDestroy {
       ? `Aggregate = sum of points over all ${data.subjects.length} modules taken this term (${data.subjects.length} × 6 = ${data.result?.aggregateMax ?? ''}). In national examinations NESA counts a fixed set of papers with a maximum aggregate of 60.`
       : 'Aggregate = sum of points from the 9 core subjects only, as in national examinations (maximum 54).';
 
-    const scaleTable = (title: string, rows: string[][]) => `
-      <div>
-        <h4>${title}</h4>
-        <table class="scale">
-          ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
-        </table>
-      </div>`;
+    /*
+      The grading scale is no longer printed here.
 
-    const coreScaleRows = [
-      [
-        'Marks %',
-        '70-100',
-        '65-69',
-        '60-64',
-        '50-59',
-        '40-49',
-        '20-39',
-        '0-19',
-      ],
-      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
-      ['Points', '6', '5', '4', '3', '2', '1', '0'],
-    ];
-    const electiveScaleRows = [
-      [
-        'Marks %',
-        '80-100',
-        '75-79',
-        '70-74',
-        '65-69',
-        '60-64',
-        '50-59',
-        '0-49',
-      ],
-      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
-      ['Points', '6', '5', '4', '3', '2', '1', '0'],
-    ];
+      It is identical on every card the school will ever issue, so a fifth of
+      each sheet went on something that never changes, and a reader wanting
+      it had to find a card first. Worse, it was a second copy of the numbers:
+      literal arrays typed out beside the arithmetic that produced the grades
+      on the same page, which is exactly how a printed scale comes to
+      disagree with the marks above it.
 
-    const legend = isALevel
-      ? scaleTable('Module scale (all modules)', coreScaleRows) +
-        `<div class="note"><h4>Competence</h4>Practical mark 70-100 = Competent.<br>Below 70 = Not Yet Competent.<br>Certificates require at least grade E in practicals.</div>`
-      : scaleTable('Core subject scale', coreScaleRows) +
-        scaleTable('Elective (non-core) scale', electiveScaleRows);
+      It now lives at /grading, built from the same constants the marks are
+      computed with, and the room it freed is what keeps this sheet to one
+      page with the signatures on it.
+    */
 
     const verifyStrip = data.verification
       ? `
@@ -1843,14 +1815,6 @@ export class ReportsService implements OnModuleDestroy {
       .comments .box span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:4px; }
       .sigs{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px; font-size:10.5px; color:#5b6b7b; text-align:center; }
       .sigs div{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
-      .legend{ margin-top:auto; border-top:1px solid rgba(21,37,54,.09); padding-top:6px; display:flex; gap:14px; align-items:flex-start; }
-      .legend > div{ flex:1 1 0; min-width:0; }
-      table.scale{ width:100%; }
-      .legend h4, .note h4{ margin:0 0 6px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; font-weight:600; }
-      table.scale{ border-collapse:collapse; font-size:10px; }
-      table.scale td{ border:1px solid rgba(21,37,54,.09); padding:3px 7px; text-align:center; font-variant-numeric:tabular-nums; }
-      table.scale tr:first-child td{ background:#eef4f9; font-weight:600; color:${navy}; }
-      .legend .note{ font-size:10.5px; color:#5b6b7b; max-width:26ch; }
       .verify-strip{ margin-top:6px; display:none; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
       .verify-strip .qr{ width:17mm; height:17mm; flex:0 0 17mm; }
       .verify-strip .qr img{ width:100%; height:100%; display:block; }
@@ -1925,7 +1889,6 @@ export class ReportsService implements OnModuleDestroy {
         <div>Parent / Guardian</div>
       </div>
 
-      <div class="legend">${legend}</div>
       ${verifyStrip}
     </div>
     </body></html>`;

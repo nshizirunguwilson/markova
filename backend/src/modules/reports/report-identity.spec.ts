@@ -168,6 +168,31 @@ describe('who the report card belongs to', () => {
     expect(html).not.toMatch(/94 \/ 95 days/);
   });
 
+  /**
+   * The scale is identical on every card the school will ever issue, so
+   * printing it on all of them spent a fifth of each sheet on something that
+   * never changes. It lives at /grading now, built from the same constants
+   * the marks are computed with rather than from a second copy of them.
+   */
+  it('no longer prints the grading scale on every card', async () => {
+    const html = await card();
+    expect(html).not.toContain('class="legend"');
+    expect(html).not.toContain('Module scale');
+    expect(html).not.toContain('Core subject scale');
+  });
+
+  /**
+   * The sheet is clipped to a single page on purpose. Removing the legend is
+   * what bought the room, and nothing may spend it again: a report card that
+   * runs to two pages is a report card whose second page gets lost.
+   */
+  it('stays one page', async () => {
+    const html = await card();
+    expect(html).toContain('height:296.5mm');
+    expect(html).toContain('overflow:hidden');
+    expect(html).toContain('@page{ size:A4; margin:0; }');
+  });
+
   it('keeps the facts that say which record this is', async () => {
     const html = await card();
     expect(html).toContain('STD-2026-231419-167');
