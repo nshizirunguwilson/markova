@@ -25,14 +25,30 @@ The symptom to watch for: a change you can see in the source, cannot see in
 the browser, and cannot explain. Check what is served before you go looking
 for a bug in the code.
 
-## The one command
+## It should not happen any more
+
+`npm run dev` now clears `.next` before it starts. The wedged build was
+costing more than the cache was saving: four separate times a change was on
+disk, correct and tested, and simply not being served — and each time it read
+as a broken feature rather than a broken build.
 
 ```bash
-cd web && npm run dev:fresh
+cd web && npm run dev        # clears the cache, then starts
+cd web && npm run dev:fresh  # the same thing, kept for muscle memory
+cd web && npm run dev:cached # keeps the cache: faster start, stale risk
 ```
 
-That clears `.next` and starts the dev server. Do this before concluding a
-change did not work.
+What that costs: `.next/dev/cache` is around 2.3GB on this app, so the first
+compile after a start is slower. `dev:cached` is there for when you are
+restarting repeatedly and know you have not touched CSS — but if something
+looks wrong after using it, this document is why.
+
+## When you are on an older checkout
+
+If the server is already running, do not clear `.next` underneath it: the
+delete and the running process fight, and what you get is a *partly* stale
+build, which is harder to spot than a wholly stale one. Stop the server
+first.
 
 ## How to tell that is what you are looking at
 
