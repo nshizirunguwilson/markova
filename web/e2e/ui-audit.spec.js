@@ -1347,6 +1347,84 @@ test('chat: the composer offers record or send, never both', async (browser) => 
   await ctx.close();
 });
 
+
+/**
+ * A thread is something you link somebody to, reload, and come back to from a
+ * notification. All three want a real address rather than a query string on a
+ * page that is otherwise identical for every conversation.
+ */
+test('chat: a conversation has an address of its own', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('input[placeholder*="Type a message"]');
+  await page.waitForTimeout(800);
+
+  const opened = new URL(page.url()).pathname;
+  assert(
+    /^\/messages\/[0-9a-f-]{36}$/.test(opened),
+    `opening a thread gave ${opened}, not /messages/<id>`,
+  );
+  assert(!page.url().includes('?conversation='), 'the query string is still there');
+
+  // And that address stands on its own: loaded cold it opens the same thread.
+  await visit(page, opened);
+  const survived = await page.evaluate(
+    () => !!document.querySelector('input[placeholder*="Type a message"]'),
+  );
+  assert(survived, 'the thread does not survive a reload of its own URL');
+  await ctx.close();
+});
+
+/**
+ * Focus is easily lost — you click a message to reply, scroll, come back from
+ * another tab — and then the first thing you type disappears.
+ */
+test('chat: typing anywhere lands in the message field', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/messages');
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  const field = 'input[placeholder*="Type a message"]';
+  await page.waitForSelector(field);
+  await page.waitForTimeout(800);
+
+  // Opening a thread should already have put the cursor there.
+  assert(
+    await page.evaluate((s) => document.activeElement === document.querySelector(s), field),
+    'opening a thread did not focus the field',
+  );
+
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('x');
+  await page.waitForTimeout(300);
+  assert(
+    await page.evaluate((s) => document.activeElement === document.querySelector(s), field),
+    'typing did not bring focus back to the field',
+  );
+
+  // A shortcut is not typing.
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+k');
+  await page.waitForTimeout(300);
+  assert(
+    !(await page.evaluate((s) => document.activeElement === document.querySelector(s), field)),
+    'a shortcut was treated as typing',
+  );
+  await ctx.close();
+});
+
 // ── runner ───────────────────────────────────────────────────────────────────
 (async () => {
   const only = process.argv[2]; // optional substring filter

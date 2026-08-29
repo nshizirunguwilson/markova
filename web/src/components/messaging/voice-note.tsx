@@ -150,11 +150,12 @@ export function VoiceNote({
         }}
       />
 
+      <div className="flex flex-shrink-0 flex-col items-center">
       <button
         type="button"
         onClick={toggle}
         aria-label={playing ? "Pause voice note" : "Play voice note"}
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+        className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
           mine
             ? "bg-on-primary/20 text-on-primary hover:bg-on-primary/30"
             : "bg-primary text-on-primary hover:opacity-90"
@@ -167,16 +168,36 @@ export function VoiceNote({
         )}
       </button>
 
-      <div className="min-w-0 flex-1">
         {/*
-          The bars. A div rather than a slider because the audio element is
-          the real control — this is the visible half of it, and the button
-          beside it is what a keyboard reaches.
+          The length sits under the button that plays it, not under the bars.
+
+          The bars are the one part of this that means anything across its
+          width — they are a picture of the sound from start to finish — so
+          hanging a number under them cuts that picture short and leaves the
+          control column looking unfinished. Under the button the number has
+          a column of its own, and the bars get the full width they are for.
         */}
+        <span
+          className={`mt-1 block text-center text-[0.6875rem] tabular-nums ${
+            mine ? "text-on-primary/70" : "text-muted"
+          }`}
+        >
+          {/* Counting up while it plays, its full length when it is not —
+              the same as every voice note anybody has used. */}
+          {clockDuration(playing || at > 0 ? at : length)}
+        </span>
+      </div>
+
+      {/*
+        The bars. A div rather than a slider because the audio element is
+        the real control — this is the visible half of it, and the button
+        beside it is what a keyboard reaches.
+      */}
+      <div className="min-w-0 flex-1">
         <div
           onClick={seekTo}
           role="presentation"
-          className="flex h-7 cursor-pointer items-center gap-[2px]"
+          className="flex h-9 cursor-pointer items-center gap-[2px]"
         >
           {bars.map((peak, i) => (
             <span
@@ -194,16 +215,6 @@ export function VoiceNote({
             />
           ))}
         </div>
-
-        <span
-          className={`mt-0.5 block text-[0.6875rem] tabular-nums ${
-            mine ? "text-on-primary/70" : "text-muted"
-          }`}
-        >
-          {/* Counting up while it plays, its full length when it is not —
-              the same as every voice note anybody has used. */}
-          {clockDuration(playing || at > 0 ? at : length)}
-        </span>
       </div>
     </div>
   );

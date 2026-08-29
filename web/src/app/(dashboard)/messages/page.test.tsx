@@ -7,7 +7,9 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
-    searchParams: { current: new URLSearchParams() },
+    // Which thread is open is the route now, not a query string.
+    routeParams: { current: {} as { conversationId?: string } },
+    pathname: { current: "/messages" },
     chat: {
       connected: true,
       sendMessage: fn(),
@@ -38,8 +40,9 @@ vi.mock("@/hooks/use-debounce", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
-  usePathname: () => "/messages",
-  useSearchParams: () => h.searchParams.current,
+  usePathname: () => h.pathname.current,
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => h.routeParams.current,
 }));
 vi.mock("@/stores/chat-store", () => ({
   useChatStore: (selector?: (s: unknown) => unknown) =>
@@ -3308,13 +3311,177 @@ describe("after sending", () => {
  * were just told about.
  */
 describe("arriving from a notification", () => {
-  it("opens the thread named in the URL", async () => {
-    h.searchParams.current = new URLSearchParams("conversation=conv-1");
+  afterEach(() => {
+    h.routeParams.current = {};
+    h.pathname.current = "/messages";
+  });
+
+  it("opens the thread the route names", async () => {
+    h.routeParams.current = { conversationId: "conv-1" };
+    h.pathname.current = "/messages/conv-1";
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
 
     // The thread opens without anybody clicking the inbox.
     expect(await screen.findByText(/Muraho neza/)).toBeInTheDocument();
-    h.searchParams.current = new URLSearchParams();
+  });
+
+  /*
+    A thread is something you link somebody to and reload, so it has an
+    address of its own rather than a query string on a shared page.
+  */
+  it("gives a conversation its own address when one is opened", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(h.router.push).toHaveBeenCalledWith("/messages/conv-1");
+  });
+
+  // Every role re-exports this page under its own path, so a conversation is
+  // appended to whichever one the reader is actually on.
+  it("keeps a role's own path when opening a thread", async () => {
+    h.pathname.current = "/admin/messages";
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(h.router.push).toHaveBeenCalledWith("/admin/messages/conv-1");
+  });
+
+  it("goes back to the inbox when the thread is closed", async () => {
+    h.routeParams.current = { conversationId: "conv-1" };
+    h.pathname.current = "/messages/conv-1";
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await screen.findByText(/Muraho neza/);
+
+    const back = screen.queryAllByRole("button").find((b) =>
+      /back/i.test(b.getAttribute("aria-label") ?? ""),
+    );
+    if (!back) return;
+    await userEvent.setup({ delay: null }).click(back);
+
+    expect(h.router.push).toHaveBeenCalledWith("/messages");
+  });
+});
+
+/**
+ * Focus is easily lost — you click a message to reply, scroll with the mouse,
+ * come back from another tab — and then the first thing you type disappears.
+ * Typing simply puts you in the field, the way it does in WhatsApp.
+ */
+describe("typing anywhere in the thread", () => {
+  async function openThread() {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    const field = await screen.findByPlaceholderText(/type a message/i);
+    field.blur();
+    return field;
+  }
+
+  it("puts the cursor in the field when a letter is pressed", async () => {
+    const field = await openThread();
+    expect(field).not.toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "a" });
+
+    expect(field).toHaveFocus();
+  });
+
+  // Anything with a modifier is a shortcut, not typing.
+  it.each([
+    ["Meta", { key: "k", metaKey: true }],
+    ["Control", { key: "r", ctrlKey: true }],
+    ["Alt", { key: "a", altKey: true }],
+  ])("leaves a %s shortcut alone", async (_n, event) => {
+    const field = await openThread();
+    fireEvent.keyDown(document, event);
+    expect(field).not.toHaveFocus();
+  });
+
+  // Named keys are longer than one character, which is how they are excluded.
+  it.each([["Enter"], ["Tab"], ["ArrowUp"], ["Escape"], ["Backspace"]])(
+    "leaves %s alone",
+    async (key) => {
+      const field = await openThread();
+      fireEvent.keyDown(document, { key });
+      expect(field).not.toHaveFocus();
+    },
+  );
+
+  // Something already typed into another field belongs where it is.
+  it("does not steal from the search box", async () => {
+    const field = await openThread();
+    const search = screen.getByPlaceholderText(/search people/i);
+    search.focus();
+
+    fireEvent.keyDown(search, { key: "a", bubbles: true });
+
+    expect(search).toHaveFocus();
+    expect(field).not.toHaveFocus();
+  });
+});
+
+/**
+ * At the moment of sending, the new bubble is not in the thread yet and its
+ * height is not in `scrollHeight` — so scrolling then lands on the bottom as
+ * it was a moment ago, which is one message short.
+ */
+describe("landing on the true bottom after sending", () => {
+  it("scrolls again once the message has rendered", async () => {
+    // Over REST, so sending invalidates the thread and the new message is
+    // refetched — which is what makes the thread grow after the send.
+    h.chat.connected = false;
+    const sent = {
+      id: "m-2",
+      conversationId: "conv-1",
+      senderUserId: "user-1",
+      sender: { id: "user-1", firstName: "Wilson", lastName: "Nshizirungu" },
+      content: "Mwaramutse",
+      createdAt: "2026-08-21T09:05:00Z",
+    };
+    let delivered = false;
+    serve(h.api, {
+      ...routes,
+      // Empty until the message is sent, so the thread genuinely grows.
+      "/messaging/conversations/conv-1/messages": () =>
+        delivered
+          ? [sent, ...(routes["/messaging/conversations/conv-1/messages"] as unknown[])]
+          : routes["/messaging/conversations/conv-1/messages"],
+      "/messaging/messages": () => {
+        delivered = true;
+        return sent;
+      },
+    });
+
+    renderPage(MessagesPage, { role: "ADMIN", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    const user = userEvent.setup({ delay: null });
+    await user.click(screen.getByText(/Aline/));
+    await screen.findByText(/Muraho neza/);
+
+    const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
+    Object.defineProperty(list, "clientHeight", { value: 600, configurable: true });
+    // The thread as it stands before the message lands, and the reader is
+    // scrolled well up it — which is where answering an old message leaves you.
+    Object.defineProperty(list, "scrollHeight", {
+      configurable: true,
+      get: () => (delivered ? 1400 : 1000),
+    });
+    list.scrollTop = 0;
+
+    await user.type(screen.getByPlaceholderText(/type a message/i), "Mwaramutse");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+
+    // Not 1000, which is where the bottom was when Send was pressed.
+    await waitFor(() => expect(list.scrollTop).toBe(1400), { timeout: 4000 });
+    h.chat.connected = true;
   });
 });

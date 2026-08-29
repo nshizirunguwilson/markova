@@ -26,6 +26,8 @@ export interface QuotedFor {
 export function quotedSummary(message: QuotedFor | null | undefined): string {
   if (!message) return "";
   const kind = message.contentType ?? "TEXT";
+  // Its stored filename is not a sentence; what it is, is a voice message.
+  if (kind === "VOICE") return "Voice message";
   if (kind === "FILE") return message.content?.trim() || "Attachment";
   return message.content?.trim() || "";
 }

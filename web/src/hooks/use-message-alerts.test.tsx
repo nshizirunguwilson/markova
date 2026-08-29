@@ -98,7 +98,7 @@ describe("being told about a message from elsewhere in the system", () => {
 
     h.toast.mock.calls[0][1].action.onClick();
 
-    expect(h.router.push).toHaveBeenCalledWith("/messages?conversation=conv-1");
+    expect(h.router.push).toHaveBeenCalledWith("/messages/conv-1");
   });
 
   it("falls back to the inbox when the message names no thread", async () => {

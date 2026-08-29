@@ -151,16 +151,18 @@ export function useMessageAlerts() {
       const body = alertBody();
 
       /*
-        Opening the notice opens the thread it came from, not just the inbox:
-        the conversation id rides along in the URL, and the chat page reads it
-        and selects that conversation. Landing on a list and having to find
-        the person again is a second search for something you were already
-        told about.
+        Opening the notice opens the thread it came from, not just the inbox.
+        Landing on a list and having to find the person again is a second
+        search for something you were already told about.
+
+        `/messages/<id>` is the thread's own address, so this is the same link
+        anybody would get by opening the conversation themselves — nothing
+        about it says it came from a notification.
       */
       const openThread = () =>
         router.push(
           message.conversationId
-            ? `/messages?conversation=${encodeURIComponent(message.conversationId)}`
+            ? `/messages/${encodeURIComponent(message.conversationId)}`
             : "/messages",
         );
 
