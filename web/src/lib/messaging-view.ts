@@ -12,21 +12,21 @@
  * How far apart two messages from one person can be and still read as one
  * remark.
  *
- * Two minutes. Five was too loose — a run could span a whole conversation's
+ * Three minutes. Five was too loose — a run could span a whole conversation's
  * worth of pauses — and one was too tight, breaking a run whenever somebody
  * happened to type across the turn of a minute.
  *
  * The run is labelled with its *last* message's time, which is when the
- * remark finished. That is the trade this window buys: a group can now cover
- * two clock readings, so the label is the end of the run rather than true of
- * every message under it. Two minutes is short enough that the difference is
- * never material, and it keeps runs from shattering over a boundary nobody
- * can see.
+ * remark finished. That is the trade this window buys: a group can cover more
+ * than one clock reading, so the label is the end of the run rather than true
+ * of every message under it. Three minutes is short enough that the
+ * difference is never material, and it keeps runs from shattering over a
+ * boundary nobody can see.
  *
  * It is also why the clock shows no seconds: at this resolution they would be
  * noise on the busiest line of the screen.
  */
-export const GROUP_WINDOW_MS = 2 * 60 * 1000;
+export const GROUP_WINDOW_MS = 3 * 60 * 1000;
 
 export interface ViewMessage {
   id: string;
