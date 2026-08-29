@@ -14,7 +14,10 @@ describe("getNavigation", () => {
 
   it.each(ROLES)("keeps every %s link inside that role's subtree", (role) => {
     const own = `/${role.toLowerCase()}`;
-    const shared = ["/messages", "/help", "/profile"];
+    /* Pages that belong to nobody in particular. Grading is reference
+       material: how a mark becomes a grade is the same answer whoever asks,
+       so it is one page rather than a copy per role. */
+    const shared = ["/messages", "/help", "/profile", "/grading"];
     for (const href of hrefsFor(role)) {
       const allowed =
         href.startsWith(own) || shared.some((s) => href.startsWith(s));
@@ -93,4 +96,104 @@ describe("getNavigation", () => {
   it("falls back to the admin menu for an unknown role", () => {
     expect(getNavigation("NOPE" as Role)).toEqual(getNavigation("ADMIN"));
   });
+});
+
+/**
+ * The roles that share pages under /admin.
+ *
+ * A bursar, a patron and a head teacher are not administrators, and their
+ * menus are checked separately because the rule above does not fit them: the
+ * fee register, the pocket money book and the report cards live under /admin
+ * as one copy rather than as a second prefix holding the same code.
+ *
+ * What has to hold instead is narrower and more important: each of them
+ * reaches exactly the pages of that job, and nothing else in /admin.
+ */
+describe("the roles that share pages under /admin", () => {
+  const SHARED: [Role, string[]][] = [
+    ["BURSAR", ["/admin/finance"]],
+    ["PATRON", ["/admin/pocket-money", "/admin/health", "/admin/activities"]],
+    /* The patron and the matron share one menu: the same job on opposite
+       sides of the school. */
+    ["MATRON", ["/admin/pocket-money", "/admin/health", "/admin/activities"]],
+    ["NURSE", ["/admin/health"]],
+    [
+      "HEAD_TEACHER",
+      [
+        "/admin/report-cards",
+        "/admin/marks",
+        "/admin/classes",
+        "/admin/timetable",
+        "/admin/teachers",
+        "/admin/attendance",
+      ],
+    ],
+  ];
+
+  it.each(SHARED)("gives %s a menu", (role) => {
+    expect(hrefsFor(role).length).toBeGreaterThan(0);
+  });
+
+  it.each(SHARED)("keeps %s to the admin pages of that job", (role, allowed) => {
+    for (const href of hrefsFor(role).filter((h) => h.startsWith("/admin"))) {
+      expect(
+        allowed.some((a) => href.startsWith(a)),
+        `${role} menu links to ${href}`,
+      ).toBe(true);
+    }
+  });
+
+  it.each(SHARED)("lists no duplicate destinations for %s", (role) => {
+    const hrefs = hrefsFor(role);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  /**
+   * The head teacher runs the academic side and nothing else. Fees, the sick
+   * bay and the dormitories belong to other posts, and a menu that offered
+   * them would be a menu inviting a 403.
+   */
+  it("keeps the head teacher out of the money and the welfare pages", () => {
+    const hrefs = hrefsFor("HEAD_TEACHER");
+    for (const forbidden of [
+      "/admin/finance",
+      "/admin/health",
+      "/admin/pocket-money",
+      "/boarding",
+      "/nurse",
+      "/admin/users",
+      "/admin/settings",
+    ]) {
+      expect(hrefs.some((h) => h.startsWith(forbidden))).toBe(false);
+    }
+  });
+
+  // The one screen they open every morning in exam season.
+  it("leads the head teacher with the cards waiting on them", () => {
+    expect(hrefsFor("HEAD_TEACHER")[0]).toBe("/admin/report-cards");
+  });
+});
+
+/**
+ * Everybody who reads a mark can reach the page that explains one.
+ *
+ * It came off the report card, where it was printed identically on every
+ * sheet the school ever issued. It has to be somewhere a reader can find it,
+ * and "somewhere" means the menu of every role that sees a grade.
+ */
+describe("the grading page", () => {
+  it.each(["ADMIN", "TEACHER", "STUDENT", "PARENT", "HEAD_TEACHER"] as Role[])(
+    "is in the %s menu",
+    (role) => {
+      expect(hrefsFor(role)).toContain("/grading");
+    },
+  );
+
+  // A bursar, a patron and a nurse never see a grade, so it would be noise.
+  it.each(["BURSAR", "PATRON", "NURSE", "LIBRARIAN"] as Role[])(
+    "is not in the %s menu",
+    (role) => {
+      expect(hrefsFor(role)).not.toContain("/grading");
+    },
+  );
 });

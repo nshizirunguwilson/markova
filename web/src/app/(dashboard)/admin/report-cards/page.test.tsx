@@ -20,7 +20,13 @@ vi.mock("next/navigation", () => ({
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve, serveFailure } from "@/test/page";
-import { classLevel, classSection, populatedRoutes, termResult } from "@/test/fixtures";
+import {
+  classLevel,
+  classSection,
+  populatedRoutes,
+  term,
+  termResult,
+} from "@/test/fixtures";
 
 import ReportCardsPage from "./page";
 
@@ -180,6 +186,123 @@ describe("what the class is waiting on", () => {
  * rather than to a card: what is being certified is that the set is
  * consistent, and half a confirmed class certifies nothing.
  */
+/**
+ * The rows themselves, and what they say when the record is thin.
+ */
+describe("each child's row", () => {
+  it("carries the figures a comment is written against", async () => {
+    await mount();
+    expect(document.body.textContent).toMatch(/82\.4%/);
+    expect(document.body.textContent).toMatch(/A · 3 of 2/);
+  });
+
+  /*
+    A student with nothing worked out yet still gets a row: their comment is
+    the one most likely to be missing, and a row that vanishes is a child
+    nobody notices was left out.
+  */
+  it("shows a student whose figures are not worked out yet", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": [
+        {
+          ...rows[1],
+          average: null,
+          letterGrade: null,
+          rank: null,
+          isPublished: false,
+        },
+      ],
+    });
+    await mount();
+    expect(screen.getByText(/Jean Bosco Habimana/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/null|NaN/);
+  });
+
+  // A row with no name is a row nobody can act on, so it says so.
+  it("names a student the API sent nothing for", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": [{ ...rows[1], student: undefined }],
+    });
+    renderPage(ReportCardsPage, { role: "HEAD_TEACHER" });
+    await landOnAClass();
+    await waitFor(() =>
+      expect(screen.getByText(/Unnamed student/)).toBeInTheDocument(),
+    );
+  });
+
+  it("counts the marks still to be released", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": [rows[0], { ...rows[1], isPublished: false }],
+    });
+    await mount();
+    expect(document.body.textContent).toMatch(/1 of 2 released/);
+  });
+
+  it("counts the cards already issued", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": [
+        { ...rows[0], dosConfirmed: true },
+        { ...rows[1], dosConfirmed: true, reportCardPublished: false },
+      ],
+    });
+    await mount();
+    expect(document.body.textContent).toMatch(/1 of 2 issued/);
+  });
+
+  it("says the cards have gone out when they all have", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": rows.map((r) => ({
+        ...r,
+        dosConfirmed: true,
+        reportCardPublished: true,
+      })),
+    });
+    await mount();
+    expect(document.body.textContent).toMatch(/Issued to families/);
+  });
+});
+
+/**
+ * A head teacher is as often looking back at last term as at this one, so the
+ * term the page opens on is a default rather than a fixture.
+ */
+describe("narrowing to a term", () => {
+  it("asks for the term that was chosen", async () => {
+    serve(h.api, {
+      ...routes,
+      "/academic/terms": [
+        { ...term, id: "term-1", name: "Term 1", isCurrent: true },
+        { ...term, id: "term-2", name: "Term 2", isCurrent: false },
+      ],
+    });
+    await mount();
+    h.api.get.mockClear();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/^Term$/i), {
+        target: { value: "term-2" },
+      });
+    });
+    await waitFor(() =>
+      expect(h.api.get).toHaveBeenCalledWith(
+        "/marks/term-results/class",
+        expect.objectContaining({
+          params: expect.objectContaining({ termId: "term-2" }),
+        }),
+      ),
+    );
+  });
+
+  it("opens on the term the school is in", async () => {
+    await mount();
+    expect(screen.getByLabelText(/^Term$/i)).toHaveValue("term-1");
+  });
+});
+
 describe("the head teacher's check", () => {
   it("is offered to the head teacher", async () => {
     await mount("HEAD_TEACHER");
@@ -332,6 +455,37 @@ describe("who writes in which box", () => {
     });
     await mount("TEACHER");
     expect(document.body.textContent).toMatch(/Ask for it to be handed back/i);
+  });
+
+  it("saves the head teacher's comment in their own box", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/term-results/class": [rows[1]],
+      "/marks/term-results/tr-2/comment": {},
+    });
+    await mount("HEAD_TEACHER");
+    await click(button(/^Write$/));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Head teacher's comment/i), {
+        target: { value: "A sound term. Promoted." },
+      });
+    });
+    await click(button(/^Save$/));
+    await waitFor(() =>
+      expect(h.api.put).toHaveBeenCalledWith(
+        "/marks/term-results/tr-2/comment",
+        { headmasterComment: "A sound term. Promoted." },
+      ),
+    );
+  });
+
+  it("closes the head teacher's box without saving when cancelled", async () => {
+    serve(h.api, { ...routes, "/marks/term-results/class": [rows[1]] });
+    await mount("HEAD_TEACHER");
+    await click(button(/^Write$/));
+    await click(button(/^Cancel$/));
+    await waitFor(() => expect(button(/^Save$/)).toBeFalsy());
+    expect(h.api.put).not.toHaveBeenCalled();
   });
 
   it("saves what was written against that student's result", async () => {

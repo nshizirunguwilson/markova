@@ -337,6 +337,85 @@ describe("DashboardShell and the welfare roles", () => {
 });
 
 /**
+ * The head teacher, whose post is the academic side.
+ *
+ * They are not an administrator, so the rest of /admin is closed to them, but
+ * the report cards, the mark book and the staff pages are the job. Those live
+ * under /admin as one copy rather than as a second prefix holding the same
+ * code, which is the same arrangement the bursar and the boarding staff have.
+ */
+describe("DashboardShell and the head teacher", () => {
+  const land = (path: string, role = "HEAD_TEACHER") => {
+    h.pathname.current = path;
+    signIn(role as "ADMIN");
+    localStorage.setItem("access_token", "good");
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+  };
+
+  /* The queue itself, for the same reason the bursar's home is the register:
+     a summary in front of the one screen they open every morning would be a
+     click to nowhere. */
+  it("lands on the cards waiting on them, not on a dashboard of counts", async () => {
+    land("/teacher/marks");
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith("/admin/report-cards"),
+    );
+  });
+
+  it.each([
+    "/admin/report-cards",
+    "/admin/marks",
+    "/admin/classes",
+    "/admin/timetable",
+    "/admin/teachers",
+    "/admin/attendance",
+  ])("lets them onto %s, which is the post", async (path) => {
+    land(path);
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  // Money, welfare and the account roll belong to other posts.
+  it.each([
+    "/admin/users",
+    "/admin/settings",
+    "/admin/finance",
+    "/admin/health",
+    "/boarding",
+    "/nurse",
+  ])("sends them off %s, which is not", async (path) => {
+    land(path);
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith("/admin/report-cards"),
+    );
+  });
+
+  /**
+   * The class teachers write on the report cards screen, so they reach it
+   * too. It is one page shared rather than two copies, because the failure
+   * it replaces is precisely two people disagreeing about whether a class is
+   * finished.
+   */
+  it("lets a class teacher onto the report cards they write on", async () => {
+    land("/admin/report-cards", "TEACHER");
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it.each(["STUDENT", "PARENT", "BURSAR", "NURSE"])(
+    "keeps a %s off the report cards screen",
+    async (role) => {
+      land("/admin/report-cards", role);
+      await waitFor(() => expect(h.router.replace).toHaveBeenCalled());
+    },
+  );
+});
+
+/**
  * Motion on the content region.
  *
  * The most-seen transition in the app is a page swapping its spinner for

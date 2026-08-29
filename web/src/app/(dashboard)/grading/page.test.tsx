@@ -164,6 +164,37 @@ describe("the scales", () => {
     expect(document.body.textContent).toContain("80-100%");
   });
 
+  /**
+   * The letter's own colour, so a reader finds their band before reading it.
+   * A pass and a fail must not be the same colour on a page whose whole job
+   * is telling somebody which of the two they got.
+   */
+  it("colours the bands so a pass and a fail do not look alike", async () => {
+    const graded = {
+      ...scale,
+      scales: [
+        {
+          ...scale.scales[0],
+          rows: [
+            { range: "70-100", letter: "A", points: 6, remark: "Excellent" },
+            { range: "50-59", letter: "D", points: 3, remark: "Satisfactory" },
+            { range: "20-39", letter: "S", points: 1, remark: "Fair" },
+            { range: "0-19", letter: "F", points: 0, remark: "Fail" },
+          ],
+        },
+        scale.scales[1],
+      ],
+    };
+    serve(h.api, { ...routes, "/academic/grading-scale": graded });
+    await mount();
+    const classOf = (letter: string) =>
+      screen.getAllByText(letter)[0].getAttribute("class") ?? "";
+    expect(classOf("A")).toContain("text-success");
+    expect(classOf("D")).toContain("text-foreground");
+    expect(classOf("S")).toContain("text-warning");
+    expect(classOf("F")).toContain("text-danger");
+  });
+
   it("says what each letter means rather than only naming it", async () => {
     await mount();
     expect(screen.getAllByText("Excellent").length).toBeGreaterThan(0);

@@ -386,6 +386,92 @@ describe("your own signature", () => {
     ).toBeTruthy();
   });
 
+  /**
+   * The API refuses a signature from anybody but its owner, and it says so in
+   * a sentence. Repeating that sentence is more use than a house line: the
+   * person reading it is usually an administrator finding out that this is
+   * the one thing they cannot do on somebody's behalf.
+   */
+  it("repeats what the server said when it refuses one", async () => {
+    await mountAs("TEACHER");
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: {
+          message:
+            "A signature can only be uploaded by the person it belongs to.",
+        },
+      },
+    });
+    const input = screen.getByLabelText(/Upload my signature/i);
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { files: [new File(["ink"], "sig.png", { type: "image/png" })] },
+      });
+    });
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "A signature can only be uploaded by the person it belongs to.",
+      ),
+    );
+  });
+
+  it("says so when taking one down fails", async () => {
+    await mountAs("TEACHER", withSignature);
+    h.api.delete.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 500, data: {} },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen
+          .getAllByRole("button")
+          .find((b) => /Remove/.test(b.textContent ?? ""))!,
+      );
+    });
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+  });
+
+  // Choosing nothing in the file dialog is not an upload.
+  it("sends nothing when the file dialog is dismissed", async () => {
+    await mountAs("TEACHER");
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Upload my signature/i), {
+        target: { files: [] },
+      });
+    });
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the replace dialog is dismissed", async () => {
+    await mountAs("TEACHER", withSignature);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Replace my signature/i), {
+        target: { files: [] },
+      });
+    });
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("replaces the one already there", async () => {
+    await mountAs("TEACHER", withSignature);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Replace my signature/i), {
+        target: {
+          files: [new File(["ink"], "new.png", { type: "image/png" })],
+        },
+      });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/users/user-1/signature",
+        expect.any(FormData),
+        expect.anything(),
+      ),
+    );
+  });
+
   it("takes it down when asked", async () => {
     await mountAs("TEACHER", withSignature);
     await act(async () => {
