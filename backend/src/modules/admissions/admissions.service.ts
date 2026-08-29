@@ -278,7 +278,9 @@ export class AdmissionsService {
             id: true,
             name: true,
             entryPoint: true,
-            classLevel: { select: { name: true } },
+            /* The level's id as well: the offer picker narrows the class list
+               to the level the intake is for. */
+            classLevel: { select: { id: true, name: true } },
           },
         },
         trade: { select: { code: true, name: true } },

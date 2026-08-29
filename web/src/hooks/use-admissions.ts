@@ -48,6 +48,9 @@ export interface QueueRow {
   province: string | null;
   examMark: number | null;
   examTotal: number | null;
+  /* A transfer has no exam mark to show, so the row shows where they are
+     coming from instead. */
+  previousSchool: string | null;
   submittedAt: string;
   sinceAt: string;
   offerExpiresAt: string | null;
@@ -56,7 +59,9 @@ export interface QueueRow {
     id: string;
     name: string;
     entryPoint: EntryPoint;
-    classLevel: { name: string };
+    /* The level's id as well as its name: the offer picker narrows the class
+       list to the level the intake is for. */
+    classLevel: { id: string; name: string };
   };
   trade: { code: string; name: string } | null;
 }
@@ -107,7 +112,6 @@ export interface ApplicationDetail extends QueueRow {
   sector: string | null;
   cell: string | null;
   village: string | null;
-  previousSchool: string | null;
   fundingDetail: string | null;
   bloodType: string | null;
   allergies: string | null;
