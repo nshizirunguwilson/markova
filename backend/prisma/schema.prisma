@@ -27,6 +27,13 @@ enum Role {
   BURSAR
   /// School nurse. Sees health records; sees nothing academic.
   NURSE
+  /// Head teacher, the Director of Studies in a Rwandan school. Runs the
+  /// academic side: confirms every report card before the principal issues
+  /// it, writes the head teacher's comment on each one, and manages the
+  /// teaching staff's timetable and attendance. Distinct from SpecialRole.DOS,
+  /// which marks a teacher who also holds the duty; this is somebody whose
+  /// whole post it is.
+  HEAD_TEACHER
 }
 
 enum SpecialRole {
@@ -160,6 +167,12 @@ model User {
   firstName           String    @map("first_name")
   lastName            String    @map("last_name")
   photoUrl            String?   @map("photo_url")
+  /// The person's own signature, uploaded from their own profile, printed
+  /// where a document needs their name under a line. Deliberately not the
+  /// school's signature from the branding settings: a report card carries a
+  /// class teacher's and a head teacher's marks, and one file shared between
+  /// them would put the same hand under both.
+  signatureUrl        String?   @map("signature_url")
   isActive            Boolean   @default(true) @map("is_active")
   forcePasswordChange Boolean   @default(true) @map("force_password_change")
   lastLoginAt         DateTime? @map("last_login_at")
@@ -172,6 +185,7 @@ model User {
   auditLogs               AuditLog[]
   pocketMoneyEntries      PocketMoneyTransaction[]   @relation("PocketMoneyRecordedBy")
   activitiesCreated       Activity[]                 @relation("ActivityCreatedBy")
+  reportCardsConfirmed    TermResult[]               @relation("ReportCardsConfirmed")
   activityConsents        ActivityParticipant[]      @relation("ActivityConsentBy")
   student                 Student?
   teacher                 Teacher?
@@ -604,10 +618,19 @@ model TermResult {
   reportCardPublished   Boolean   @default(false) @map("report_card_published")
   reportCardPublishedAt DateTime? @map("report_card_published_at")
 
+  /// Checked and stood behind by the head teacher, which is the step between
+  /// the comments being written and the principal issuing the card. A school
+  /// that issues without it has nobody who read the sheet before the family
+  /// did, so `publishReportCards` refuses until this is set.
+  dosConfirmed     Boolean   @default(false) @map("dos_confirmed")
+  dosConfirmedAt   DateTime? @map("dos_confirmed_at")
+  dosConfirmedById String?   @map("dos_confirmed_by_id")
+
   student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classSection ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
   term         Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
   verification ReportVerification?
+  dosConfirmedBy User?             @relation("ReportCardsConfirmed", fields: [dosConfirmedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, classSectionId, termId])
   @@index([classSectionId, termId])

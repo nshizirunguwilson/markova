@@ -162,6 +162,58 @@ export function useUpdateTermResultComment() {
   });
 }
 
+/**
+ * The head teacher standing behind a class's cards, or handing them back.
+ *
+ * The step between the comments being written and the principal issuing the
+ * cards. Handing a class back withdraws any card already issued from it, so
+ * the line says so rather than confirming a write nobody asked about.
+ */
+export function useConfirmReportCards() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Payload) =>
+      (await api.post("/marks/report-cards/confirm", data)).data,
+    onSuccess: (_data: unknown, variables: Payload) => {
+      qc.invalidateQueries({ queryKey: ["term-results"] });
+      toast.success(
+        variables?.isConfirmed === false
+          ? "Handed back to the class teacher, and any cards already issued are withdrawn"
+          : "Confirmed - the principal can now issue these cards",
+      );
+    },
+    onError: (e: unknown) =>
+      toast.error(errorMessage(e, "Could not change the confirmation")),
+  });
+}
+
+/**
+ * Two drafted comments for one child, from the marks on their card.
+ *
+ * Fetched on demand rather than with the class: thirty drafts nobody asked
+ * for is thirty round trips to answer a question the reviewer may not have,
+ * and a suggestion that arrives before it is wanted reads as a decision the
+ * system has already made.
+ */
+export function useSuggestComments() {
+  return useMutation({
+    mutationFn: async ({
+      studentId,
+      termId,
+    }: {
+      studentId: string;
+      termId: string;
+    }) =>
+      (
+        await api.get(`/reports/term/${studentId}/comment-suggestions`, {
+          params: { termId },
+        })
+      ).data as { classTeacher: string; headTeacher: string },
+    onError: (e: unknown) =>
+      toast.error(errorMessage(e, "Could not draft a comment")),
+  });
+}
+
 // ─── Year Results ────────────────────────────────────────────────────────────
 
 export function useYearResults(classSectionId?: string, academicYearId?: string) {

@@ -822,6 +822,36 @@ describe('MarksService', () => {
       ).rejects.toThrow(/4 of this class/);
     });
 
+    /**
+     * The head teacher's check is what the principal is signing on the
+     * strength of. A school that issues without it has nobody who read a
+     * sheet whole before the family did.
+     */
+    it('refuses until the head teacher has confirmed the class', async () => {
+      // Marks all out, but three cards still waiting on the head teacher.
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
+
+      await expect(
+        service.publishReportCards({
+          classSectionId: 'section-1',
+          termId: 'term-1',
+          isPublished: true,
+        }),
+      ).rejects.toThrow(/head teacher has not confirmed/i);
+      expect(prisma.termResult.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('says how many are still waiting on that check', async () => {
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
+      await expect(
+        service.publishReportCards({
+          classSectionId: 'section-1',
+          termId: 'term-1',
+          isPublished: true,
+        }),
+      ).rejects.toThrow(/3 of these cards/);
+    });
+
     // Withdrawing needs no such check: taking a document back is always safe.
     it('withdraws them without asking about the marks', async () => {
       prisma.termResult.updateMany.mockResolvedValue({ count: 32 });
@@ -836,6 +866,125 @@ describe('MarksService', () => {
       const data = prisma.termResult.updateMany.mock.calls[0][0].data;
       expect(data.reportCardPublished).toBe(false);
       expect(data.reportCardPublishedAt).toBeNull();
+    });
+  });
+
+  /**
+   * The head teacher's check.
+   *
+   * The step between the comments being written and the principal issuing
+   * the cards, and the only point at which somebody reads a sheet whole
+   * before a family does.
+   *
+   * It is applied to a class rather than to a card on purpose: what is being
+   * certified is that the set is consistent - the same term, the same
+   * marking, the same standard applied to thirty children - and half a
+   * confirmed class certifies nothing.
+   */
+  describe("the head teacher's confirmation", () => {
+    it('records who confirmed it and when', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
+
+      await service.confirmReportCards(
+        { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+        'head-1',
+      );
+
+      const data = prisma.termResult.updateMany.mock.calls[0][0].data;
+      expect(data.dosConfirmed).toBe(true);
+      expect(data.dosConfirmedById).toBe('head-1');
+      expect(data.dosConfirmedAt).toBeInstanceOf(Date);
+    });
+
+    it('confirms the whole class in one act', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
+
+      await service.confirmReportCards(
+        { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+        'head-1',
+      );
+
+      expect(prisma.termResult.updateMany.mock.calls[0][0].where).toEqual({
+        classSectionId: 'section-1',
+        termId: 'term-1',
+      });
+    });
+
+    // There is nothing to confirm until the figures are settled.
+    it('refuses while any of the marks are unpublished', async () => {
+      prisma.termResult.count.mockResolvedValueOnce(5);
+
+      await expect(
+        service.confirmReportCards(
+          { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+          'head-1',
+        ),
+      ).rejects.toThrow(/Publish the marks first/);
+    });
+
+    /**
+     * A card with no comment on it is a card the class teacher has not
+     * finished, and confirming it would put the head teacher's name to an
+     * empty box.
+     */
+    it('refuses a card the class teacher has not written on', async () => {
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(7);
+
+      await expect(
+        service.confirmReportCards(
+          { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+          'head-1',
+        ),
+      ).rejects.toThrow(/7 of these cards have no class teacher/);
+    });
+
+    it('counts an empty comment as no comment', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
+      await service.confirmReportCards(
+        { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+        'head-1',
+      );
+      expect(prisma.termResult.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ teacherComment: null }, { teacherComment: '' }],
+          }),
+        }),
+      );
+    });
+
+    /**
+     * Handing a class back withdraws any card already issued from it.
+     * Leaving one out would mean a family holding a card the head teacher
+     * has just said is not right.
+     */
+    it('takes back any card already issued when it hands a class back', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
+
+      await service.confirmReportCards(
+        { classSectionId: 'section-1', termId: 'term-1', isConfirmed: false },
+        'head-1',
+      );
+
+      const data = prisma.termResult.updateMany.mock.calls[0][0].data;
+      expect(data.dosConfirmed).toBe(false);
+      expect(data.dosConfirmedAt).toBeNull();
+      expect(data.dosConfirmedById).toBeNull();
+      expect(data.reportCardPublished).toBe(false);
+      expect(data.reportCardPublishedAt).toBeNull();
+    });
+
+    // Handing work back is always safe, so nothing is checked first.
+    it('hands a class back without asking anything of it', async () => {
+      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
+      await service.confirmReportCards(
+        { classSectionId: 'section-1', termId: 'term-1', isConfirmed: false },
+        'head-1',
+      );
+      expect(prisma.termResult.count).not.toHaveBeenCalled();
     });
   });
 

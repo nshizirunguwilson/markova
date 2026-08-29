@@ -41,6 +41,7 @@ import {
   BulkExamScheduleDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
+import { gradingExplained } from '../../common/grading-explained';
 import { RolesGuard } from '../../common/guards';
 
 // Read-only reference data (academic calendar, subjects, sections, etc.) is
@@ -48,6 +49,9 @@ import { RolesGuard } from '../../common/guards';
 // ADMIN-only; only the GET handlers below use this.
 const ALL_ROLES = [
   'ADMIN',
+  // The head teacher runs the academic side, so the calendar, the classes
+  // and the timetable are the vocabulary of the post rather than a courtesy.
+  'HEAD_TEACHER',
   'TEACHER',
   'STUDENT',
   'PARENT',
@@ -63,6 +67,22 @@ const ALL_ROLES = [
 @ApiBearerAuth()
 export class AcademicController {
   constructor(private readonly service: AcademicService) {}
+
+  /**
+   * How a mark becomes a grade.
+   *
+   * Reference material rather than a record, so it takes no parameters and
+   * touches no table. Open to every role because everybody it explains
+   * things to has to be able to read it: a parent asking why 68% is a B, a
+   * student working out what an aggregate is, a new teacher checking which
+   * scale an elective is marked on.
+   */
+  @Get('grading-scale')
+  @Roles(...ALL_ROLES)
+  @ApiOperation({ summary: 'How marks, grades, aggregates and conduct work' })
+  gradingScale() {
+    return gradingExplained();
+  }
 
   // ─── ACADEMIC YEARS ─────────────────────────────────────────────────────────
 
@@ -170,7 +190,16 @@ export class AcademicController {
    * toast. Writing a class stays with the administrator below.
    */
   @Get('class-levels')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'LIBRARIAN',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'List all class levels with sections' })
   findAllClassLevels() {
     return this.service.findAllClassLevels();
@@ -237,7 +266,16 @@ export class AcademicController {
 
   /** As above: the vocabulary, not the marks. */
   @Get('sections')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'LIBRARIAN',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'List all class sections' })
   findAllSections(@Query('classLevelId') classLevelId?: string) {
     return this.service.findAllSections(classLevelId);

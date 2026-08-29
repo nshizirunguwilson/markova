@@ -34,7 +34,7 @@ export default defineConfig({
         // between runs, so a threshold set exactly at the measurement would
         // fail CI at random.
         //
-        // Measured 97.60 / 96.17 / 97.13 / 98.14 on 29 August 2026.
+        // Measured 97.63 / 96.20 / 97.17 / 98.16 on 30 August 2026.
         statements: 97,
         branches: 96,
         functions: 97,

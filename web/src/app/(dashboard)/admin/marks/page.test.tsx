@@ -62,6 +62,9 @@ const unpublished = [
 
 /** Marks released, report cards not yet issued - the middle stage. */
 const published = unpublished.map((r) => ({ ...r, isPublished: true }));
+/* Marks out and the head teacher's check done, which is what a class looks
+   like at the moment the principal may issue it. */
+const confirmed = published.map((r) => ({ ...r, dosConfirmed: true }));
 
 const routes = {
   ...populatedRoutes,
@@ -311,13 +314,50 @@ describe("taking published results back", () => {
       expect(reportCardButton()).toBeDisabled();
     });
 
-    it("allows issuing once the marks are published", async () => {
-      await mount(published);
+    it("allows issuing once the class has been confirmed", async () => {
+      await mount(confirmed);
       expect(reportCardButton()).not.toBeDisabled();
     });
 
-    it("asks before issuing, and says what it means", async () => {
+    /**
+     * The head teacher's check is what the principal signs on the strength
+     * of, and the API refuses without it. A button that looked available and
+     * then threw would be the page inviting an admin to do something the
+     * school does not allow.
+     */
+    it("refuses to issue before the head teacher has confirmed", async () => {
       await mount(published);
+      expect(reportCardButton()).toBeDisabled();
+    });
+
+    it("says so when it is the head teacher who is holding it up", async () => {
+      await mount(published);
+      expect(reportCardButton()).toHaveAttribute(
+        "title",
+        expect.stringMatching(/head teacher has not confirmed/i),
+      );
+    });
+
+    it("says so when it is the marks that are holding it up", async () => {
+      await mount();
+      expect(reportCardButton()).toHaveAttribute(
+        "title",
+        expect.stringMatching(/Publish the marks first/i),
+      );
+    });
+
+    it("counts how many cards are still waiting on that check", async () => {
+      await mount(published);
+      expect(document.body.textContent).toMatch(/2 of 2 waiting/);
+    });
+
+    it("says so when the class has been confirmed", async () => {
+      await mount(confirmed);
+      expect(document.body.textContent).toMatch(/stands behind them/i);
+    });
+
+    it("asks before issuing, and says what it means", async () => {
+      await mount(confirmed);
       await click(reportCardButton());
 
       const dialog = await screen.findByRole("dialog");
@@ -325,7 +365,7 @@ describe("taking published results back", () => {
     });
 
     it("issues the chosen class and term once confirmed", async () => {
-      await mount(published);
+      await mount(confirmed);
       await click(reportCardButton());
       h.api.post.mockClear();
       await click(
@@ -343,7 +383,9 @@ describe("taking published results back", () => {
 
     // Withdrawing the document leaves the marks alone - they are separate.
     it("withdraws an issued card without touching the marks", async () => {
-      await mount(published.map((r: any) => ({ ...r, reportCardPublished: true })));
+      await mount(
+        confirmed.map((r: any) => ({ ...r, reportCardPublished: true })),
+      );
       await click(reportCardButton());
 
       const dialog = await screen.findByRole("dialog");

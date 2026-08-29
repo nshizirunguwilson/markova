@@ -31,6 +31,7 @@ const ACCOUNTS = {
   MATRON: { email: 'matron@markova.edu', password: PASS },
   NURSE: { email: 'nurse@markova.edu', password: PASS },
   BURSAR: { email: 'bursar@markova.edu', password: PASS },
+  HEAD_TEACHER: { email: 'headteacher@markova.edu', password: PASS },
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -139,6 +140,27 @@ async function settled(page) {
 // ── tiny test harness ────────────────────────────────────────────────────────
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
+
+/**
+ * Land on a class on the report cards screen.
+ *
+ * The two selects cannot be filled back to back: choosing a level fetches
+ * that level's classes, and a select given a value it has no option for keeps
+ * the one it had. And the page is served before React attaches, so the fill
+ * is retried until it takes.
+ */
+async function pickAClass(page, termName) {
+  await page.waitForSelector('#rc-level', { timeout: 30000 });
+  for (let i = 0; i < 25; i++) {
+    await page.selectOption('#rc-level', { index: 1 }).catch(() => {});
+    await wait(400);
+    if ((await page.$$eval('#rc-section option', (o) => o.length)) > 1) break;
+  }
+  await page.selectOption('#rc-section', { index: 1 });
+  if (termName) await page.selectOption('#rc-term', { label: termName });
+  await wait(2500);
+}
+
 function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -192,7 +214,9 @@ test('auth: after logout, back button does not show an authenticated page', asyn
   await visit(page, `/student`);
   await page.waitForTimeout(1000);
   // Real logout: user menu → Sign Out → confirm (this also clears the auth store)
-  await page.locator('header button').filter({ hasText: /STUDENT/ }).first().click();
+  /* The badge carries the school's word for a role, not the API's enum:
+     "Student", not STUDENT. */
+  await page.locator('header button').filter({ hasText: /Student/i }).first().click();
   await page.waitForTimeout(300);
   await page.click('button:has-text("Sign Out")');
   await page.click('[role=dialog] button:has-text("Sign Out")');
@@ -233,6 +257,14 @@ const RBAC = [
   ['BURSAR', '/admin/reports'], ['BURSAR', '/nurse'], ['BURSAR', '/boarding'],
   ['TEACHER', '/admin/finance'], ['STUDENT', '/admin/finance'],
   ['PARENT', '/admin/finance'], ['NURSE', '/admin/finance'],
+  // The head teacher runs the academic side. Money, the sick bay, the
+  // dormitories and the account roll belong to other posts.
+  ['HEAD_TEACHER', '/admin/finance'], ['HEAD_TEACHER', '/admin/users'],
+  ['HEAD_TEACHER', '/admin/settings'], ['HEAD_TEACHER', '/boarding'],
+  ['HEAD_TEACHER', '/nurse'],
+  // The report cards screen is the class teacher's and the head teacher's.
+  ['STUDENT', '/admin/report-cards'], ['PARENT', '/admin/report-cards'],
+  ['BURSAR', '/admin/report-cards'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
@@ -1813,6 +1845,160 @@ test('admissions: the public form names the documents before a family starts', a
   const body = await page.innerText('body');
   assert(/birth certificate/i.test(body), 'the form does not say a birth certificate is needed');
   assert(/photograph/i.test(body), 'the form does not mention a photograph');
+  await ctx.close();
+});
+
+
+/**
+ * The report card, and the four hands it passes through.
+ *
+ * A card is written on by a class teacher, confirmed by a head teacher and
+ * issued by the principal, and until these three worked on one screen nobody
+ * could see whether a class was ready - "ready" being a fact about all four
+ * steps at once. What is checked here is the division of labour that makes
+ * the countersignature mean something, against the seeded roll rather than a
+ * fixture.
+ */
+test('report cards: the pipeline shows every step a class is waiting on', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/admin/report-cards');
+  await pickAClass(page);
+
+  const body = await page.innerText('body');
+  for (const step of ['MARKS', 'CLASS TEACHER', 'HEAD TEACHER', 'ISSUED']) {
+    assert(body.includes(step), `the pipeline is missing "${step}"`);
+  }
+  assert(/of \d+ written|Confirmed/.test(body), `no counts on the strip: ${body.slice(0, 200)}`);
+  await ctx.close();
+});
+
+/**
+ * Two people writing about the same child must not produce one comment in two
+ * hands, and the way that is guaranteed is that they are asked different
+ * questions: the class teacher writes about the work, the head teacher about
+ * standing and what happens next.
+ */
+test('report cards: the two comments are two different comments', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/admin/report-cards');
+  await pickAClass(page, 'Term 1');
+  await page.waitForSelector('text=CLASS TEACHER\'S COMMENT', { timeout: 30000 });
+
+  const pairs = await page.$$eval('.rounded-lg.border.border-border.p-3', (boxes) =>
+    boxes.map((b) => b.innerText.replace(/^[A-Z' ]+\n/, '').trim()),
+  );
+  const written = pairs.filter((t) => t.length > 40);
+  assert(written.length >= 2, `expected written comments, got ${written.length}`);
+  assert(written[0] !== written[1], 'the two comments on a card are identical');
+  await ctx.close();
+});
+
+/**
+ * Nothing is written to the record by asking for a draft. A suggestion that
+ * saved itself would be a comment nobody read, under a name somebody has to
+ * stand behind.
+ */
+test('report cards: a suggestion fills the box and saves nothing', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/admin/report-cards');
+  await pickAClass(page);
+  await page.waitForSelector('button:has-text("Write")', { timeout: 30000 });
+
+  await page.locator('button', { hasText: /^Write$/ }).first().click();
+  await page.waitForSelector('textarea', { timeout: 15000 });
+  const before = await page.locator('textarea').first().inputValue();
+
+  const saves = [];
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && r.url().includes('/comment')) saves.push(r.url());
+  });
+  await page.locator('button', { hasText: /Suggest/ }).click();
+  await page.waitForFunction(
+    (b) => (document.querySelector('textarea')?.value ?? '') !== b,
+    before,
+    { timeout: 20000 },
+  );
+
+  const after = await page.locator('textarea').first().inputValue();
+  assert(after.length > 40, `the draft did not reach the box: "${after}"`);
+  assert(saves.length === 0, 'asking for a draft wrote to the record');
+  await ctx.close();
+});
+
+/**
+ * The class teacher writes about the work; the head teacher does not write
+ * that comment for them, and neither of them may write the other's. Two
+ * people saying the same thing in two hands is one opinion, not a check.
+ */
+test('report cards: neither writer may fill the other\'s box', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/admin/report-cards');
+  await pickAClass(page);
+  await page.waitForSelector('text=HEAD TEACHER', { timeout: 30000 });
+
+  const body = await page.innerText('body');
+  assert(
+    /Only the head teacher writes here/.test(body),
+    'a class teacher was offered the head teacher\'s box',
+  );
+  // And they do not certify their own work.
+  assert(
+    (await page.getByRole('button', { name: /Confirm the class/ }).count()) === 0,
+    'a class teacher was offered the confirmation',
+  );
+  await ctx.close();
+});
+
+/**
+ * How a mark becomes a grade. It came off the report card, where it was
+ * printed identically on every sheet the school ever issued, so it has to be
+ * findable somewhere a family will actually look.
+ */
+test('grading: a family can look up why a mark is the grade it is', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'PARENT');
+  await visit(page, '/grading');
+  await page.waitForSelector('text=Core scale', { timeout: 30000 });
+
+  const body = await page.innerText('body');
+  for (const thing of ['Core scale', 'Elective scale', 'Competent', 'aggregate']) {
+    assert(body.includes(thing), `the grading page is missing "${thing}"`);
+  }
+  // Read off the same constants the marks are computed with.
+  assert(/70-100%/.test(body), 'the core scale does not show its top band');
+  await ctx.close();
+});
+
+/**
+ * A signature is not a photograph. The office may replace anybody's portrait;
+ * a signature uploaded by somebody else is the school's name written in
+ * another person's hand, and a report card is countersigned on exactly that
+ * distinction.
+ */
+test('profile: a signature is offered only to the people who sign', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const teacher = await authedPage(ctx, 'TEACHER');
+  await visit(teacher, '/profile');
+  await teacher.waitForSelector('text=My signature', { timeout: 30000 });
+  assert(
+    /not even an administrator/i.test(await teacher.innerText('body')),
+    'the profile does not say whose signature it is',
+  );
+
+  const student = await authedPage(ctx, 'STUDENT');
+  await visit(student, '/profile');
+  await student.waitForFunction(
+    () => document.body.innerText.includes('My Profile'),
+    { timeout: 30000 },
+  );
+  assert(
+    !(await student.innerText('body')).includes('My signature'),
+    'a student, who signs nothing, was offered a signature',
+  );
   await ctx.close();
 });
 

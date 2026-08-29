@@ -106,6 +106,21 @@ export function useCommitPromotion() {
 
 // ─── Class Levels ───────────────────────────────────────────────────────────
 
+/**
+ * How a mark becomes a grade.
+ *
+ * Reference material rather than a record, so it is cached hard: it changes
+ * when the school changes its scales, which is once a curriculum reform, and
+ * refetching it on every focus would be asking a settled question repeatedly.
+ */
+export function useGradingScale() {
+  return useQuery({
+    queryKey: ["grading-scale"],
+    queryFn: async () => (await api.get("/academic/grading-scale")).data,
+    staleTime: Infinity,
+  });
+}
+
 export function useClassLevels() {
   return useQuery({
     queryKey: ["class-levels"],

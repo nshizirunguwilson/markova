@@ -49,6 +49,10 @@ import {
   sanitizeColor,
   watermark,
 } from '../../common/html';
+import {
+  suggestComments,
+  type CommentFacts,
+} from '../../common/report-comments';
 
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -162,13 +166,38 @@ export class ReportsService implements OnModuleDestroy {
       ? await this.ensureVerification(termResult.id)
       : null;
 
+    /* The teacher of the class they sat in that term, by the same argument
+       as the class size below. */
     const classTeacherRole = await this.prisma.teacherRole.findFirst({
-      where: { role: 'CLASS_TEACHER', classSectionId: student.classSectionId },
+      where: {
+        role: 'CLASS_TEACHER',
+        classSectionId: termResult?.classSectionId ?? student.classSectionId,
+      },
       include: {
         teacher: {
-          include: { user: { select: { firstName: true, lastName: true } } },
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                signatureUrl: true,
+              },
+            },
+          },
         },
       },
+    });
+
+    /*
+      The head teacher who signs. One post, so one active holder of the role;
+      a school between head teachers prints the line and no name, which is
+      what an unsigned card should look like rather than a blank the reader
+      cannot account for.
+    */
+    const headTeacher = await this.prisma.user.findFirst({
+      where: { role: 'HEAD_TEACHER', isActive: true },
+      select: { firstName: true, lastName: true, signatureUrl: true },
+      orderBy: { createdAt: 'asc' },
     });
 
     const [attendanceTotal, attendancePresent] = await Promise.all([
@@ -208,8 +237,19 @@ export class ReportsService implements OnModuleDestroy {
       restored._sum.points ?? 0,
     );
 
+    /*
+      The class this child was actually in that term, not the one they are in
+      now.
+
+      `student.classSectionId` is their current place, so a report card for a
+      past year counted the class they were promoted into: a Senior 3 card
+      printed "1 of 30" because the reader is now in a Senior 4 of thirty,
+      while the ranks on that same sheet ran 1 to 26. The result carries the
+      section it was computed against, and that is the one to count.
+    */
+    const classSectionId = termResult?.classSectionId ?? student.classSectionId;
     const classResults = await this.prisma.termResult.findMany({
-      where: { classSectionId: student.classSectionId, termId },
+      where: { classSectionId, termId },
     });
     const classAverage =
       classResults.length > 0
@@ -239,6 +279,20 @@ export class ReportsService implements OnModuleDestroy {
       term: { name: term.name, academicYear: term.academicYear.name },
       classTeacher: classTeacherRole
         ? `${classTeacherRole.teacher.user.firstName} ${classTeacherRole.teacher.user.lastName}`
+        : null,
+      /*
+        Each signature comes off its own owner's profile, never off the
+        school's branding settings. The school has one signature, which is
+        right for a letter the school sends; a report card carries two
+        different people's marks, and one file shared between them would put
+        the same hand under both names.
+      */
+      signatures: {
+        classTeacher: classTeacherRole?.teacher.user.signatureUrl ?? null,
+        headTeacher: headTeacher?.signatureUrl ?? null,
+      },
+      headTeacher: headTeacher
+        ? `${headTeacher.firstName} ${headTeacher.lastName}`
         : null,
       attendance: { present: attendancePresent, total: attendanceTotal },
       /*
@@ -1345,6 +1399,67 @@ export class ReportsService implements OnModuleDestroy {
     };
   }
 
+  /**
+   * Two drafted comments for one report card.
+   *
+   * Assembled from `getTermReportData`, which is the same call that renders
+   * the sheet. That is the whole point of putting this here rather than in
+   * the marks module: a comment that reflects "what is on the report card"
+   * has to be built from what is on the report card, and a second reading of
+   * the marks is a second reading that can disagree with the first.
+   *
+   * The previous term's average is the one fact the card itself does not
+   * carry, and it is worth fetching: a 58% that was 48% last term is a
+   * different conversation from a 58% that was 68%.
+   */
+  async suggestReportComments(studentId: string, termId: string) {
+    const data = await this.getTermReportData(studentId, termId);
+
+    const term = await this.prisma.term.findUnique({
+      where: { id: termId },
+      select: { startDate: true, academicYearId: true },
+    });
+    const previous = term
+      ? await this.prisma.termResult.findFirst({
+          where: {
+            studentId,
+            term: {
+              academicYearId: term.academicYearId,
+              startDate: { lt: term.startDate },
+            },
+          },
+          orderBy: { term: { startDate: 'desc' } },
+          select: { average: true },
+        })
+      : null;
+
+    const facts: CommentFacts = {
+      studentId,
+      // The name the child is spoken to by, not the whole record.
+      firstName:
+        String(data.student.name || '').split(/\s+/)[0] || 'This student',
+      average: data.result?.average ?? null,
+      letterGrade: data.result?.letterGrade ?? null,
+      rank: data.result?.rank ?? null,
+      classSize: data.classStats.totalStudents,
+      aggregate: data.result?.aggregate ?? null,
+      aggregateMax: data.result?.aggregateMax ?? null,
+      previousAverage: previous?.average ?? null,
+      subjects: data.subjects.map((s: any) => ({
+        name: s.subject,
+        total: s.total,
+        grade: s.grade,
+        competence: s.competence,
+      })),
+      conduct:
+        data.conduct?.points === null || data.conduct?.points === undefined
+          ? null
+          : { points: data.conduct.points, outOf: data.conduct.outOf },
+    };
+
+    return suggestComments(facts);
+  }
+
   private groupMarksBySubject(marks: any[]) {
     const map = new Map<
       string,
@@ -1506,6 +1621,26 @@ export class ReportsService implements OnModuleDestroy {
       ? `<img class="crest-img" src="${logo}" alt="" />`
       : `<div class="crest">${initials}</div>`;
 
+    /*
+      The child's own photograph, inlined rather than linked. A remote fetch
+      inside the PDF renderer is the slowest and least reliable moment to
+      discover a file has moved, and the crest already refuses to take one.
+      No fallback portrait: initials in the frame say "we have no photograph
+      of this child" honestly, where a silhouette says nothing at all.
+    */
+    const portrait = logoDataUri(data.student.photoUrl, { fallback: null });
+    /* First name and family name, not the first two words: plenty of Rwandan
+       students carry two given names, and "Kevin Hirwa Kwizera" initialled
+       from the left reads KH rather than KK. */
+    const nameWords = String(data.student.name || '')
+      .split(/\s+/)
+      .filter(Boolean);
+    const studentInitials = [nameWords[0], nameWords[nameWords.length - 1]]
+      .filter(Boolean)
+      .map((w: string) => w[0])
+      .join('')
+      .toUpperCase();
+
     const regTail = String(data.student.studentIdNumber || '')
       .split('-')
       .pop();
@@ -1518,10 +1653,36 @@ export class ReportsService implements OnModuleDestroy {
     const info = (label: string, value: string) =>
       `<div><span>${label}</span><b>${value}</b></div>`;
 
-    const attendance =
-      data.attendance && data.attendance.total > 0
-        ? `${data.attendance.present} / ${data.attendance.total} days (${Math.round((data.attendance.present / data.attendance.total) * 100)}%)`
-        : '-';
+    /*
+      A signature block: the mark above the line, the name and the role below
+      it. The image sits in a fixed box whether or not there is one to draw,
+      so the three blocks stay level and a card with two signatures on it is
+      not a card with a step in the middle.
+
+      A person who has uploaded nothing gets the line and their name, which is
+      a card waiting to be signed by hand - still a valid document, and the
+      form every one of these was before the system existed.
+    */
+    const signedBy = (
+      role: string,
+      person: string | null,
+      signature: string | null | undefined,
+    ) => {
+      const inked = signature
+        ? logoDataUri(signature, { fallback: null })
+        : null;
+      return `<div class="sig">
+        <div class="ink">${inked ? `<img src="${inked}" alt="" />` : ''}</div>
+        <div class="line">${escapeHtml(role)}${person ? `<b>${escapeHtml(person)}</b>` : ''}</div>
+      </div>`;
+    };
+
+    /*
+      Attendance is no longer printed here. It is a record of the term, not a
+      fact about who this child is, and it sat in the identity fields saying
+      neither. The register still holds it and the year report still carries
+      it; the card is the wrong place to read it from.
+    */
 
     /*
       Conduct as a mark out of forty and as a percentage, rather than as a
@@ -1692,48 +1853,20 @@ export class ReportsService implements OnModuleDestroy {
       ? `Aggregate = sum of points over all ${data.subjects.length} modules taken this term (${data.subjects.length} × 6 = ${data.result?.aggregateMax ?? ''}). In national examinations NESA counts a fixed set of papers with a maximum aggregate of 60.`
       : 'Aggregate = sum of points from the 9 core subjects only, as in national examinations (maximum 54).';
 
-    const scaleTable = (title: string, rows: string[][]) => `
-      <div>
-        <h4>${title}</h4>
-        <table class="scale">
-          ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}
-        </table>
-      </div>`;
+    /*
+      The grading scale is no longer printed here.
 
-    const coreScaleRows = [
-      [
-        'Marks %',
-        '70-100',
-        '65-69',
-        '60-64',
-        '50-59',
-        '40-49',
-        '20-39',
-        '0-19',
-      ],
-      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
-      ['Points', '6', '5', '4', '3', '2', '1', '0'],
-    ];
-    const electiveScaleRows = [
-      [
-        'Marks %',
-        '80-100',
-        '75-79',
-        '70-74',
-        '65-69',
-        '60-64',
-        '50-59',
-        '0-49',
-      ],
-      ['Grade', 'A', 'B', 'C', 'D', 'E', 'S', 'F'],
-      ['Points', '6', '5', '4', '3', '2', '1', '0'],
-    ];
+      It is identical on every card the school will ever issue, so a fifth of
+      each sheet went on something that never changes, and a reader wanting
+      it had to find a card first. Worse, it was a second copy of the numbers:
+      literal arrays typed out beside the arithmetic that produced the grades
+      on the same page, which is exactly how a printed scale comes to
+      disagree with the marks above it.
 
-    const legend = isALevel
-      ? scaleTable('Module scale (all modules)', coreScaleRows) +
-        `<div class="note"><h4>Competence</h4>Practical mark 70-100 = Competent.<br>Below 70 = Not Yet Competent.<br>Certificates require at least grade E in practicals.</div>`
-      : scaleTable('Core subject scale', coreScaleRows) +
-        scaleTable('Elective (non-core) scale', electiveScaleRows);
+      It now lives at /grading, built from the same constants the marks are
+      computed with, and the room it freed is what keeps this sheet to one
+      page with the signatures on it.
+    */
 
     const verifyStrip = data.verification
       ? `
@@ -1778,7 +1911,23 @@ export class ReportsService implements OnModuleDestroy {
       .title-band{ margin:10px 0 12px; background:#eef4f9; border:1px solid rgba(21,37,54,.09); text-align:center; padding:7px 12px; border-radius:4px; }
       .title-band .t{ font-size:14.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:${navy}; }
       .title-band .s{ font-size:11px; color:#5b6b7b; margin-top:2px; }
-      .info{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 18px; font-size:11.5px; margin-bottom:12px; }
+      /*
+        Who this card belongs to, as one block rather than as two of eight
+        equal fields.
+
+        A card is handed over in a stack of thirty, and the first thing a
+        parent does is confirm it is their child's. The name previously
+        carried exactly the weight of "Class size", which made identity the
+        hardest thing on the sheet to find and the wrong card the easiest
+        mistake to make. The photograph settles it without reading.
+      */
+      .ident{ display:flex; align-items:center; gap:14px; margin-bottom:12px; padding:8px 12px; border:1px solid rgba(21,37,54,.09); border-left:4px solid ${navy}; border-radius:4px; background:#f8fbfd; }
+      .portrait{ width:24mm; height:29mm; flex:0 0 24mm; border:1px solid rgba(21,37,54,.16); border-radius:3px; overflow:hidden; background:#eef4f9; display:flex; align-items:center; justify-content:center; }
+      .portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .portrait span{ font-size:22px; font-weight:700; color:${navy}; letter-spacing:.04em; }
+      .who{ flex:1; min-width:0; }
+      .who .nm{ font-size:22px; font-weight:700; color:${navy}; letter-spacing:.01em; line-height:1.15; margin-bottom:8px; }
+      .info{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px 18px; font-size:11.5px; }
       .info div span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:2px; }
       .info div b{ font-weight:600; }
       table.marks{ border-collapse:collapse; width:100%; font-size:11.5px; }
@@ -1806,15 +1955,12 @@ export class ReportsService implements OnModuleDestroy {
       .comments .box{ border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:7px 10px; }
       .comments .box span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:4px; }
       .sigs{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px; font-size:10.5px; color:#5b6b7b; text-align:center; }
-      .sigs div{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
-      .legend{ margin-top:auto; border-top:1px solid rgba(21,37,54,.09); padding-top:6px; display:flex; gap:14px; align-items:flex-start; }
-      .legend > div{ flex:1 1 0; min-width:0; }
-      table.scale{ width:100%; }
-      .legend h4, .note h4{ margin:0 0 6px; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; font-weight:600; }
-      table.scale{ border-collapse:collapse; font-size:10px; }
-      table.scale td{ border:1px solid rgba(21,37,54,.09); padding:3px 7px; text-align:center; font-variant-numeric:tabular-nums; }
-      table.scale tr:first-child td{ background:#eef4f9; font-weight:600; color:${navy}; }
-      .legend .note{ font-size:10.5px; color:#5b6b7b; max-width:26ch; }
+      /* The ink box is a fixed height whether or not it holds anything, so
+         three blocks stay level and a signed card has no step in the middle. */
+      .sigs .ink{ height:13mm; display:flex; align-items:flex-end; justify-content:center; }
+      .sigs .ink img{ max-height:13mm; max-width:100%; object-fit:contain; display:block; }
+      .sigs .line{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
+      .sigs .line b{ display:block; color:#1c2733; font-weight:600; margin-top:1px; }
       .verify-strip{ margin-top:6px; display:none; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
       .verify-strip .qr{ width:17mm; height:17mm; flex:0 0 17mm; }
       .verify-strip .qr img{ width:100%; height:100%; display:block; }
@@ -1847,15 +1993,22 @@ export class ReportsService implements OnModuleDestroy {
         <div class="s">${escapeHtml(data.term.academicYear)} School Year${sectorLine}</div>
       </div>
 
-      <div class="info">
-        ${info('Student name', escapeHtml(data.student.name))}
-        ${info('Registration No', escapeHtml(data.student.studentIdNumber))}
-        ${info('Class', escapeHtml(data.student.class))}
-        ${info('Class size', `${data.classStats.totalStudents} students`)}
-        ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
-        ${info('Term', escapeHtml(data.term.name))}
-        ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '-')}
-        ${info('Attendance', attendance)}
+      <div class="ident">
+        <div class="portrait">${
+          portrait
+            ? `<img src="${portrait}" alt="" />`
+            : `<span>${escapeHtml(studentInitials)}</span>`
+        }</div>
+        <div class="who">
+          <div class="nm">${escapeHtml(data.student.name)}</div>
+          <div class="info">
+            ${info('Registration No', escapeHtml(data.student.studentIdNumber))}
+            ${info('Class', escapeHtml(data.student.class))}
+            ${isALevel ? info('Trade section', `${escapeHtml(data.student.trade?.name || '')} (${escapeHtml(data.student.trade?.code || '')})`) : info('Level', 'Ordinary Level (O-Level)')}
+            ${info('Term', escapeHtml(data.term.name))}
+            ${info('Class teacher', data.classTeacher ? escapeHtml(data.classTeacher) : '-')}
+          </div>
+        </div>
       </div>
 
       <table class="marks">
@@ -1877,12 +2030,11 @@ export class ReportsService implements OnModuleDestroy {
       </div>
 
       <div class="sigs">
-        <div>Class Teacher${data.classTeacher ? `<br>${escapeHtml(data.classTeacher)}` : ''}</div>
-        <div>Head Teacher</div>
-        <div>Parent / Guardian</div>
+        ${signedBy('Class Teacher', data.classTeacher, data.signatures?.classTeacher)}
+        ${signedBy('Head Teacher', data.headTeacher, data.signatures?.headTeacher)}
+        ${signedBy('Parent / Guardian', null, null)}
       </div>
 
-      <div class="legend">${legend}</div>
       ${verifyStrip}
     </div>
     </body></html>`;

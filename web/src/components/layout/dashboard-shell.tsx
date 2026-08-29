@@ -38,6 +38,11 @@ export function homeFor(role: string): string {
   // worth building: the one screen they open every morning is the roll of who
   // has paid, and a summary page in front of it would be a click to nowhere.
   if (role === "BURSAR") return "/admin/finance";
+  /* The head teacher's home is the queue itself, for the same reason the
+     bursar's is the register: the one screen they open every morning is the
+     set of cards waiting on their check, and a summary in front of it would
+     be a click to nowhere. */
+  if (role === "HEAD_TEACHER") return "/admin/report-cards";
   return `/${role.toLowerCase()}`;
 }
 
@@ -56,6 +61,21 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
   // The fee pages are the bursar's whole job, and the head reads them too.
   // One copy under /admin rather than a second prefix holding the same code.
   finance: ["BURSAR"],
+  /*
+    The academic side, which is the head teacher's post.
+
+    One screen for the report cards, shared with the class teachers who write
+    on it: everybody involved in a card works from the same page and sees the
+    same state, rather than each role holding a private copy that can disagree
+    with the others about whether a class is ready.
+  */
+  "report-cards": ["HEAD_TEACHER", "TEACHER"],
+  timetable: ["HEAD_TEACHER"],
+  attendance: ["HEAD_TEACHER"],
+  teachers: ["HEAD_TEACHER"],
+  marks: ["HEAD_TEACHER"],
+  classes: ["HEAD_TEACHER"],
+  reports: ["HEAD_TEACHER"],
 };
 
 /** Which roles may see this path, or undefined when it is open to all. */

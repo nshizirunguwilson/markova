@@ -42,6 +42,7 @@ const queries: QueryCase[] = [
   { name: "useTerms (all)", hook: () => academic.useTerms(), url: "/academic/terms" },
   { name: "useTerms (by year)", hook: () => academic.useTerms("year-1"), url: "academicYearId=year-1" },
   { name: "useClassLevels", hook: () => academic.useClassLevels(), url: "/academic/class-levels" },
+  { name: "useGradingScale", hook: () => academic.useGradingScale(), url: "/academic/grading-scale" },
   { name: "useTrades", hook: () => academic.useTrades(), url: "/academic/trades" },
   { name: "useSections (all)", hook: () => academic.useSections(), url: "/academic/sections" },
   { name: "useSections (by level)", hook: () => academic.useSections("level-1"), url: "level-1" },

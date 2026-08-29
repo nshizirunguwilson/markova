@@ -44,7 +44,12 @@ import {
   gradeFor,
   overallGrade,
   MAX_POINTS_PER_SUBJECT,
+  COMPETENCE_THRESHOLD,
 } from '../src/common/grading';
+import {
+  suggestComments,
+  type CommentSubject,
+} from '../src/common/report-comments';
 import { NotificationSubject } from '../src/common/notification-target';
 
 const prisma = new PrismaClient();
@@ -664,10 +669,12 @@ async function main() {
   console.log('  🧹 Existing data cleared');
 
   // Reserve the documented demo names and addresses before any generation.
-  ['Wilson Nshizirungu', 'Josiane Mutoni'].forEach((n) => {
-    const [f, l] = n.split(' ');
-    claimFullName(f, l);
-  });
+  ['Wilson Nshizirungu', 'Josiane Mutoni', 'Speciose Mukarugwiza'].forEach(
+    (n) => {
+      const [f, l] = n.split(' ');
+      claimFullName(f, l);
+    },
+  );
   [
     'aline.uwase@markova.edu',
     'student1@markova.edu',
@@ -675,6 +682,7 @@ async function main() {
     'patron@markova.edu',
     'matron@markova.edu',
     'nurse@markova.edu',
+    'headteacher@markova.edu',
   ].forEach((e) => usedEmails.add(e));
 
   // ─── SCHOOL CONFIG ──────────────────────────────────────────────────────────
@@ -870,10 +878,28 @@ async function main() {
       lastName: 'Nsengiyumva',
       born: '1979-09-24',
     },
+    /*
+      The head teacher, the Director of Studies. Runs the academic side:
+      confirms every report card before the principal issues it, writes the
+      head teacher's comment on each one, and keeps the teaching staff's
+      timetable and attendance. One post, so one account.
+    */
+    {
+      email: 'headteacher@markova.edu',
+      phone: '+250788000025',
+      code: `HTC-${new Date().getFullYear()}-001`,
+      role: Role.HEAD_TEACHER,
+      gender: Gender.FEMALE,
+      firstName: 'Speciose',
+      lastName: 'Mukarugwiza',
+      born: '1976-02-08',
+    },
   ];
 
   /** Kept so the fee ledger can record who took each payment. */
   let bursarUser: any = null;
+  /** Kept so the head teacher can be given a signature to sign cards with. */
+  let headTeacherUser: any = null;
 
   for (const person of boardingStaff) {
     const created = await prisma.user.create({
@@ -894,8 +920,9 @@ async function main() {
       },
     });
     if (person.role === Role.BURSAR) bursarUser = created;
+    if (person.role === Role.HEAD_TEACHER) headTeacherUser = created;
   }
-  console.log('  ✅ Patron, matron, nurse and bursar seeded');
+  console.log('  ✅ Patron, matron, nurse, bursar and head teacher seeded');
 
   // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
   // The official term windows as published by the Ministry of Education. The
@@ -2094,9 +2121,18 @@ async function main() {
 
   const strength = new Map<string, number>(); // per student|subject
   const allPeople = [
-    ...enrolled.map((e) => ({ student: e.student, placements: e.placements })),
+    ...enrolled.map((e) => ({
+      student: e.student,
+      user: e.user,
+      placements: e.placements,
+    })),
     ...alumni,
   ];
+
+  /* The name a child is spoken to by, for the comments drafted below. */
+  const nameOfStudent = new Map<string, string>(
+    allPeople.map((p) => [p.student.id, p.user.firstName as string]),
+  );
 
   for (const { student, placements } of allPeople) {
     const baseline = 45 + rand(41);
@@ -2223,9 +2259,19 @@ async function main() {
   }
 
   const termResultRows: any[] = [];
+  /* Each term's average, so the next term's head teacher comment can say
+     which way a child is moving rather than only where they stand. */
+  const averageByStudentTerm = new Map<string, number>();
   for (let yearIdx = 0; yearIdx < allYears.length; yearIdx++)
-  for (const term of allYears[yearIdx].terms.filter(termBegun))
+  for (const [termIdx, term] of allYears[yearIdx].terms
+    .filter(termBegun)
+    .entries())
   for (const meta of sectionMetas) {
+    // The term before this one in the same year, where there is one.
+    const priorTerm =
+      termIdx > 0
+        ? allYears[yearIdx].terms.filter(termBegun)[termIdx - 1]
+        : null;
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
     // The term in progress stays a draft; everything before it is finished.
@@ -2244,8 +2290,12 @@ async function main() {
       let subjectCount = 0;
       let aggregate = 0;
       let aggregateMax = 0;
+      /* Kept so each card can be commented on the way a real one is: from
+         the subjects it actually prints. */
+      const commentSubjects: CommentSubject[] = [];
       for (const [subjectId, subjectRows] of bySubject) {
-        const scope = subjectById.get(subjectId)!.scope as SubjectScope;
+        const subject = subjectById.get(subjectId)!;
+        const scope = subject.scope as SubjectScope;
         const total = computeSubjectTotal(
           scope,
           subjectRows.map((r) => ({
@@ -2257,6 +2307,14 @@ async function main() {
         if (total === null) continue;
         totalMarks += total;
         subjectCount++;
+        commentSubjects.push({
+          name: subject.name,
+          total,
+          grade: gradeFor(scope, total).letter,
+          competence: total >= COMPETENCE_THRESHOLD
+            ? 'COMPETENT'
+            : 'NOT_YET_COMPETENT',
+        });
         if (countsTowardAggregate(scope)) {
           aggregate += gradeFor(scope, total).points;
           aggregateMax += MAX_POINTS_PER_SUBJECT;
@@ -2285,14 +2343,60 @@ async function main() {
         publishedAt: isCurrentResultTerm ? null : new Date(),
         reportCardPublished: !isCurrentResultTerm,
         reportCardPublishedAt: isCurrentResultTerm ? null : new Date(),
+        /* A card cannot be issued without the head teacher's check, so a
+           seeded database where the past terms are issued and unconfirmed
+           would be a state the system itself refuses to produce. */
+        dosConfirmed: !isCurrentResultTerm,
+        dosConfirmedAt: isCurrentResultTerm ? null : new Date(),
+        /* The subjects and the conduct this card was worked out from, so the
+           comments below can be written from what the card prints. */
+        _subjects: commentSubjects,
+        _firstName: nameOfStudent.get(student.id) ?? 'This student',
       });
     }
 
     computed.sort((a, b) => b.average - a.average);
+    /*
+      Both comments on every finished card, drafted the way the school drafts
+      them: from the subjects the card prints, in the two registers the two
+      writers actually use.
+
+      One canned sentence on the top student and nothing on the other
+      twenty-nine was the previous demo, and it showed a family exactly what
+      an unread report card looks like. The head teacher's check needs a
+      class teacher's comment on every card anyway, so a seed that leaves
+      them blank seeds a class that could never have been confirmed.
+    */
     computed.forEach((r, i) => {
       r.rank = i + 1;
-      if (i === 0) r.teacherComment = 'Excellent work, keep leading the class.';
+      if (isCurrentResultTerm) return;
+      const previous = priorTerm
+        ? (averageByStudentTerm.get(`${r.studentId}|${priorTerm.id}`) ?? null)
+        : null;
+      const both = suggestComments({
+        studentId: r.studentId,
+        firstName: r._firstName,
+        average: r.average,
+        letterGrade: r.letterGrade,
+        rank: r.rank,
+        classSize: computed.length,
+        aggregate: r.aggregate,
+        aggregateMax: r.aggregateMax,
+        previousAverage: previous,
+        subjects: r._subjects,
+        conduct: null,
+      });
+      r.teacherComment = both.classTeacher;
+      r.headmasterComment = both.headTeacher;
     });
+    // The term's averages, for next term's comment to compare against.
+    for (const r of computed) {
+      averageByStudentTerm.set(`${r.studentId}|${term.id}`, r.average);
+    }
+    for (const r of computed) {
+      delete r._subjects;
+      delete r._firstName;
+    }
     termResultRows.push(...computed);
   }
   for (let i = 0; i < termResultRows.length; i += 5000) {
@@ -4636,6 +4740,154 @@ async function main() {
     );
   }
   console.log(`  ✅ ${photoRows.length} profile avatars generated and linked`);
+
+  // ─── SIGNATURES ─────────────────────────────────────────────────────────────
+  //
+  // A handwritten mark for each person who signs a document, generated the
+  // same way the avatars are: a real file on disk, served by the API, through
+  // the same pipeline an uploaded signature uses.
+  //
+  // Only the people who actually sign something get one. A student's card
+  // carries a class teacher's mark and a head teacher's, and giving every
+  // account a signature would say the school holds one for six hundred
+  // children, which is not a thing any school does.
+  //
+  // The stroke is derived from the name, so two people never sign alike -
+  // which is the whole point of a countersignature, and the one property a
+  // seeded demo could most easily undermine.
+  const signaturesDir = join(uploadsDir, 'signatures');
+  rmSync(signaturesDir, { recursive: true, force: true });
+  mkdirSync(signaturesDir, { recursive: true });
+
+  const signatureSvg = (first: string, last: string, key: number): string => {
+    /*
+      Every number below is read off the hash of the person's id, so a mark is
+      theirs and stays theirs across reseeds.
+
+      Two earlier attempts are worth recording. The first varied each control
+      point by ten or twenty units and produced forty-eight signatures in one
+      unmistakable hand, which is exactly the failure a countersignature
+      exists to prevent, seeded into the demo. The second varied them widely
+      and produced forty-eight smooth waves - all different, none of them
+      reading as writing.
+
+      What makes a scrawl read as a name is not variety, it is structure: a
+      tall opening capital, a run of much smaller letters after it, an
+      occasional descender below the line, and a stroke through the lot. So
+      that is what is drawn, and the hash decides the proportions.
+    */
+    let n = key >>> 0;
+    const next = (spread: number, base = 0) => {
+      n = (n * 1103515245 + 12345) >>> 0;
+      return base + ((n >>> 8) % spread);
+    };
+
+    const baseline = 84;
+    const capital = next(26, 46); // how far the opening stroke rises
+    const body = next(9, 11); // how tall the letters after it are
+    const letters = 6 + next(5); // how many of them
+    const slant = next(10, -4);
+
+    /*
+      The opening capital, in one of four shapes.
+      
+      A single shape with varied numbers is what the previous attempt did,
+      and forty-eight signatures all opening on the same tall arch is a
+      pattern the eye catches immediately. Real capitals differ in kind, not
+      only in size: a loop, a crossed stem, a rounded bowl, a plain upstroke.
+    */
+    const capitalKind = key % 4;
+    let d = `M20 ${baseline}`;
+    let capitalEnd: number;
+    if (capitalKind === 0) {
+      // A tall loop that crosses itself, like an L or a J.
+      d += ` C ${next(8, 4)} ${baseline - capital}, ${next(16, 34)} ${baseline - capital - next(12, 6)}, ${next(10, 44)} ${baseline - Math.floor(capital / 3)}`;
+      d += ` S ${next(10, 22)} ${baseline + next(6, 2)}, ${next(12, 54)} ${baseline}`;
+      capitalEnd = 20 + next(12, 54);
+    } else if (capitalKind === 1) {
+      // A stem with a bowl on it, like a P or a B.
+      d += ` L ${28 + next(6)} ${baseline - capital}`;
+      d += ` q ${next(12, 22)} ${next(8, 2)}, ${next(8, 2)} ${Math.floor(capital / 2)}`;
+      d += ` q ${next(8, -14)} ${next(6, 6)}, ${next(10, -18)} ${next(6, 2)}`;
+      capitalEnd = 20 + next(14, 40);
+    } else if (capitalKind === 2) {
+      // A rounded bowl, like a C, G or O.
+      d += ` q ${next(6, -6)} ${-capital}, ${next(14, 26)} ${-capital + next(8, 4)}`;
+      d += ` q ${next(12, 20)} ${next(8, 6)}, ${next(8, -4)} ${capital - next(10, 4)}`;
+      capitalEnd = 20 + next(12, 44);
+    } else {
+      // A plain steep upstroke and back down, like an M or an N.
+      d += ` L ${26 + next(8)} ${baseline - capital}`;
+      d += ` L ${38 + next(10)} ${baseline - next(12, 4)}`;
+      d += ` L ${52 + next(8)} ${baseline - capital + next(10, 4)}`;
+      d += ` L ${62 + next(8)} ${baseline}`;
+      capitalEnd = 20 + next(10, 52);
+    }
+
+    /* Then the small letters, each a loop about a sixth the height of the
+       capital, drifting along the slant of the hand. */
+    let x = capitalEnd;
+    const step = Math.floor((330 - x) / letters);
+    for (let i = 0; i < letters; i++) {
+      const rise = body + next(7);
+      const dip = next(5);
+      const y = baseline + Math.floor((slant * i) / letters);
+      d += ` q ${Math.floor(step / 2)} ${-rise}, ${step} ${dip}`;
+      x += step;
+    }
+
+    /* A descender on some hands, the long exit stroke on all of them. */
+    if (key % 4 === 0) {
+      d += ` q ${next(10, 8)} ${next(14, 18)}, ${next(14, -6)} ${next(10, 6)}`;
+    }
+    d += ` L ${x + next(30, 34)} ${baseline + slant - next(10, 4)}`;
+
+    /* The stroke through the middle that a lot of people finish on. Not
+       everybody does it, so not every seeded signature has one. */
+    const cross =
+      key % 3 !== 0
+        ? `<path d="M ${next(40, 44)} ${baseline + next(8, 14)} L ${next(70, 210)} ${baseline + next(8, 6)}" stroke-width="3" opacity="0.85"/>`
+        : '';
+
+    const initials = `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="130" viewBox="0 0 420 130">` +
+      `<title>${initials}</title>` +
+      `<g fill="none" stroke="#132b45" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="${d}" stroke-width="${3.5 + (key % 3) * 0.5}"/>` +
+      cross +
+      `</g></svg>`
+    );
+  };
+
+  const signatureRows: { id: string; url: string }[] = [];
+  const giveSignature = (user: any) => {
+    if (!user) return;
+    const file = `${user.id}.svg`;
+    writeFileSync(
+      join(signaturesDir, file),
+      signatureSvg(user.firstName, user.lastName, hashOf(user.id)),
+    );
+    signatureRows.push({ id: user.id, url: `/uploads/signatures/${file}` });
+  };
+  giveSignature(admin);
+  giveSignature(headTeacherUser);
+  /* Every teacher: any of them may be a class teacher next year, and a card
+     that prints a line with no mark on it is the one thing this feature
+     exists to stop. */
+  teacherUsers.forEach((u) => giveSignature(u));
+  for (let i = 0; i < signatureRows.length; i += 500) {
+    const values = signatureRows
+      .slice(i, i + 500)
+      .map((r) => `('${r.id}'::text, '${r.url}'::text)`)
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET signature_url = v.p FROM (VALUES ${values}) AS v(id, p) WHERE u.id = v.id`,
+    );
+  }
+  console.log(
+    `  ✅ ${signatureRows.length} signatures generated for the people who sign`,
+  );
 
   // ─── SIGNS OF LIFE (created dates, last logins) ─────────────────────────────
   // The school adopted Markova a week before the 2024-25 year opened: staff

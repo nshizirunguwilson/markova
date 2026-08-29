@@ -25,6 +25,10 @@ import {
   Receipt,
   Landmark,
   Inbox,
+  FileCheck,
+  School,
+  CalendarCheck,
+  Scale,
 } from "lucide-react";
 import type { Role } from "@/types";
 
@@ -61,6 +65,7 @@ const adminNav: NavSection[] = [
       { label: "Classes", href: "/admin/classes", icon: Backpack },
       { label: "Timetable", href: "/admin/timetable", icon: Clock },
       { label: "Marks", href: "/admin/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Report Cards", href: "/admin/reports", icon: FileText },
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
       { label: "Promotion", href: "/admin/promotion", icon: ArrowUpCircle },
@@ -106,6 +111,10 @@ const teacherNav: NavSection[] = [
     title: "Teaching",
     items: [
       { label: "Marks Entry", href: "/teacher/marks", icon: ClipboardList },
+      /* Where a class teacher writes the comment on each card. The same
+         screen the head teacher confirms from, shared rather than copied. */
+      { label: "Report cards", href: "/admin/report-cards", icon: FileCheck },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Assessments", href: "/teacher/homework", icon: FileText },
     ],
   },
@@ -143,6 +152,7 @@ const studentNav: NavSection[] = [
     title: "Academics",
     items: [
       { label: "My Marks", href: "/student/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Report Card", href: "/student/reports", icon: FileText },
       { label: "School Fees", href: "/student/fees", icon: Landmark },
       { label: "My Work", href: "/student/homework", icon: BookOpen },
@@ -171,6 +181,7 @@ const parentNav: NavSection[] = [
     title: "My Children",
     items: [
       { label: "Marks", href: "/parent/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Attendance", href: "/parent/attendance", icon: Calendar },
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
@@ -292,9 +303,50 @@ const bursarNav: NavSection[] = [
   },
 ];
 
+/**
+ * The head teacher, the Director of Studies.
+ *
+ * Ordered by how often the post touches each thing rather than by module:
+ * the report cards waiting on their check are the daily job in exam season,
+ * the mark book is what they read to make that check, and the staff pages
+ * are the rest of the week. Nothing about fees, the sick bay or the
+ * dormitories, none of which is theirs.
+ */
+const headTeacherNav: NavSection[] = [
+  {
+    items: [
+      { label: "Report cards", href: "/admin/report-cards", icon: FileCheck },
+    ],
+  },
+  {
+    title: "Academic",
+    items: [
+      { label: "Marks", href: "/admin/marks", icon: ClipboardList },
+      { label: "Classes", href: "/admin/classes", icon: School },
+      { label: "Timetable", href: "/admin/timetable", icon: CalendarDays },
+      { label: "Grading", href: "/grading", icon: Scale },
+    ],
+  },
+  {
+    title: "Staff",
+    items: [
+      { label: "Teachers", href: "/admin/teachers", icon: Users },
+      { label: "Attendance", href: "/admin/attendance", icon: CalendarCheck },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [{ label: "Messages", href: "/messages", icon: MessageSquare }],
+  },
+  {
+    items: [{ label: "Help", href: "/help", icon: HelpCircle }],
+  },
+];
+
 export function getNavigation(role: Role): NavSection[] {
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,
+    HEAD_TEACHER: headTeacherNav,
     TEACHER: teacherNav,
     STUDENT: studentNav,
     PARENT: parentNav,

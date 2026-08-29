@@ -23,6 +23,7 @@ import {
   CalculateYearResultDto,
   UpdateTermResultCommentDto,
   PublishTermResultsDto,
+  ConfirmReportCardsDto,
   PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
@@ -72,14 +73,14 @@ export class MarksController {
   }
 
   @Get()
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query marks with filters' })
   findAll(@Query() query: QueryMarksDto) {
     return this.service.findAll(query);
   }
 
   @Get('completion')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get grading completion tracker' })
   getCompletion(
     @Query('classSectionId') classSectionId: string,
@@ -130,7 +131,7 @@ export class MarksController {
   }
 
   @Get('term-results/class')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get term results for a class' })
   getTermResults(
     @Query('classSectionId') classSectionId: string,
@@ -140,7 +141,7 @@ export class MarksController {
   }
 
   @Get('term-results/student/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term result for a student' })
   async getStudentTermResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -159,13 +160,35 @@ export class MarksController {
   }
 
   @Put('term-results/:id/comment')
-  @Roles('ADMIN', 'TEACHER')
+  // The head teacher writes one of the two comments, so they reach the same
+  // endpoint the class teacher does.
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Update teacher/headmaster comment on term result' })
   updateComment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTermResultCommentDto,
   ) {
     return this.service.updateTermResultComment(id, dto);
+  }
+
+  /**
+   * The head teacher standing behind a class's cards, or handing them back.
+   *
+   * The admin is allowed here as well, because a school where the head
+   * teacher is away for a fortnight still has to issue report cards, and a
+   * gate nobody can open in an emergency is a gate people learn to route
+   * around permanently.
+   */
+  @Post('report-cards/confirm')
+  @Roles('HEAD_TEACHER', 'ADMIN')
+  @ApiOperation({
+    summary: "Confirm a class's report cards, or hand them back",
+  })
+  confirmReportCards(
+    @Body() dto: ConfirmReportCardsDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.confirmReportCards(dto, user.id);
   }
 
   @Post('report-cards/publish')
@@ -194,7 +217,7 @@ export class MarksController {
   }
 
   @Get('year-results/class')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get year results for a class' })
   getYearResults(
     @Query('classSectionId') classSectionId: string,
@@ -224,7 +247,7 @@ export class MarksController {
   // ── Report Card ─────────────────────────────────────────────────────────
 
   @Get('report-card/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get full report card data for a student' })
   async getReportCard(
     @Param('studentId', ParseUUIDPipe) studentId: string,

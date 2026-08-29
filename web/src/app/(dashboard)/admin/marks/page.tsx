@@ -104,6 +104,18 @@ export default function AdminMarksPage() {
     results?.length > 0 &&
     results.some((r: any) => r.reportCardPublished);
 
+  /*
+    The head teacher's check, which sits between the two. Issuing is refused
+    until it is done, so an Issue button that looked available and then threw
+    would be the page telling an admin to try something the school does not
+    allow. It says why instead.
+  */
+  const confirmed =
+    results?.length > 0 && results.every((r: any) => r.dosConfirmed);
+  const awaitingConfirmation = results?.length
+    ? results.filter((r: any) => !r.dosConfirmed).length
+    : 0;
+
   // The most recent calculation across the class. Recalculating unchanged
   // marks produces identical numbers, so this is the only thing that tells
   // an admin the button did anything.
@@ -216,7 +228,7 @@ export default function AdminMarksPage() {
 
       {/* Summary Stats */}
       {results && results.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
           <Card>
             <p className="text-xs text-muted">Students</p>
             <p className="text-2xl font-bold text-foreground">{results.length}</p>
@@ -276,6 +288,19 @@ export default function AdminMarksPage() {
             </div>
           </Card>
           <Card>
+            <p className="text-xs text-muted">Head teacher</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">
+              {confirmed
+                ? "Confirmed"
+                : `${awaitingConfirmation} of ${results.length} waiting`}
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              {confirmed
+                ? "The head teacher has read these cards and stands behind them."
+                : "A card is issued on the strength of this check."}
+            </p>
+          </Card>
+          <Card>
             <p className="text-xs text-muted">Report cards</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
               {cardsIssued ? "Issued" : cardsPartlyIssued ? "Partly issued" : "Not issued"}
@@ -285,11 +310,15 @@ export default function AdminMarksPage() {
                 aria-label={cardsIssued ? "Withdraw report cards" : "Issue report cards"}
                 size="sm"
                 variant={cardsIssued ? "danger" : "primary"}
-                disabled={!cardsIssued && !isPublished}
+                disabled={!cardsIssued && (!isPublished || !confirmed)}
                 title={
-                  !cardsIssued && !isPublished
-                    ? "Publish the marks first - a report card carries them"
-                    : undefined
+                  cardsIssued
+                    ? undefined
+                    : !isPublished
+                      ? "Publish the marks first - a report card carries them"
+                      : !confirmed
+                        ? "The head teacher has not confirmed this class yet"
+                        : undefined
                 }
                 onClick={() => {
                   setConfirmMessage(

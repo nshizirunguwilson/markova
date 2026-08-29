@@ -128,6 +128,12 @@ export const WATERMARK_WIDTH = '90%';
  *   `filter: grayscale(1)` because a navy mark at any opacity tints the text
  *   over it towards blue. Grey takes contrast away evenly instead, which is
  *   what a watermark is supposed to do.
+ *
+ * It is hidden on screen and shown only in print, which is the same rule the
+ * verification QR follows and for the same reason: a watermark is a property
+ * of the issued document, not of the preview somebody reads it in. Chrome
+ * renders a PDF through its print stylesheet, so print covers the download
+ * too, and the reader looking at a card in the browser gets a clean sheet.
  */
 export function watermark(
   stampUrl?: string | null,
@@ -143,6 +149,9 @@ export function watermark(
   return {
     css: `
       .watermark{
+        /* On paper only. Shown in print and in the generated PDF, hidden in
+           an on-screen preview, exactly as the verification strip is. */
+        display:none;
         position:fixed; top:50%; left:50%;
         width:${WATERMARK_WIDTH}; transform:translate(-50%,-50%);
         opacity:${WATERMARK_OPACITY}; filter:grayscale(1);
@@ -152,6 +161,7 @@ export function watermark(
         -webkit-print-color-adjust:exact; print-color-adjust:exact;
       }
       .watermark img{ width:100%; display:block; }
+      @media print{ .watermark{ display:block; } }
       /* Everything the reader came for sits above it. */
       .sheet, .page{ position:relative; z-index:1; }
     `,

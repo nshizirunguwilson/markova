@@ -247,6 +247,9 @@ export class UsersService {
         firstName: true,
         lastName: true,
         photoUrl: true,
+        // The profile page shows it, and the report card prints it where a
+        // class teacher or head teacher has to sign.
+        signatureUrl: true,
         isActive: true,
         forcePasswordChange: true,
         lastLoginAt: true,
@@ -748,6 +751,28 @@ export class UsersService {
     });
 
     return { photoUrl };
+  }
+
+  /**
+   * The person's own signature, as distinct from the school's.
+   *
+   * The branding settings hold one signature for the whole school, which is
+   * right for a letter the school sends. A report card is not that: it
+   * carries a class teacher's mark and a head teacher's mark, and one file
+   * shared between them would put the same hand under both names.
+   */
+  async updateSignature(id: string, signatureUrl: string | null) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { signatureUrl },
+    });
+
+    return { signatureUrl };
   }
 
   // ─── BULK IMPORT ────────────────────────────────────────────────────────────

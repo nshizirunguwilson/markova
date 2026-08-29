@@ -534,6 +534,9 @@ export class AuthService {
         firstName: true,
         lastName: true,
         photoUrl: true,
+        // The profile page shows and manages it, and the report card prints
+        // it where this person has to sign.
+        signatureUrl: true,
         isActive: true,
         forcePasswordChange: true,
         lastLoginAt: true,
