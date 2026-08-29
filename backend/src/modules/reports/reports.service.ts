@@ -43,7 +43,12 @@ import {
  * fallbacks below only cover the common local-development installs, on Linux
  * as well as macOS.
  */
-import { escapeHtml, logoDataUri, sanitizeColor } from '../../common/html';
+import {
+  escapeHtml,
+  logoDataUri,
+  sanitizeColor,
+  watermark,
+} from '../../common/html';
 
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -1484,6 +1489,7 @@ export class ReportsService implements OnModuleDestroy {
   // The approved A4 report card. One full-bleed 210x297mm sheet; layout,
   // colors and structure are locked to the design signed off in review.
   private renderTermReportHtml(data: any, qrDataUri: string | null): string {
+    const mark = watermark(data.school?.stampUrl);
     // Already defaulted by sanitizeColor when the school set nothing.
     const navy = data.school.primaryColor;
     const logo = logoDataUri(data.school.logoUrl);
@@ -1822,7 +1828,9 @@ export class ReportsService implements OnModuleDestroy {
       /* Verification only matters on paper: shown in print and the generated
          PDF, hidden in on-screen previews. */
       @media print{ .verify-strip{ display:flex; } }
+    ${mark.css}
     </style></head><body>
+    ${mark.html}
     <div class="sheet">
       <div class="off">
         ${crest}
@@ -1916,6 +1924,7 @@ export class ReportsService implements OnModuleDestroy {
    * in all four.
    */
   private renderYearReportHtml(data: any): string {
+    const mark = watermark(data.school?.stampUrl);
     const navy = data.school.primaryColor;
     const logo = logoDataUri(data.school.logoUrl);
     const terms: string[] = data.terms ?? [];
@@ -2057,7 +2066,9 @@ export class ReportsService implements OnModuleDestroy {
       .sigs{ display:flex; gap:26px; margin-top:26px; font-size:9.5px; color:#5b6b7b; }
       .sigs div{ flex:1; border-top:1px solid #a9b6c2; padding-top:5px; text-align:center; }
       .note{ margin-top:12px; font-size:8.5px; color:#7c8b99; }
+    ${mark.css}
     </style></head><body>
+    ${mark.html}
     <div class="sheet">
       <div class="head">
         ${logo ? `<img class="crest" src="${logo}" alt="">` : `<div class="crest-fallback">${initials}</div>`}
@@ -2143,6 +2154,7 @@ export class ReportsService implements OnModuleDestroy {
     // Already defaulted by sanitizeColor when the school set nothing.
     const navy = school.primaryColor;
     const logo = logoDataUri(school.logoUrl);
+    const mark = watermark(school.stampUrl);
     // No house-logo fallback for these two. A school that has uploaded neither
     // had Markova's mark printed where the stamp and the signature belong, so
     // every letter went out signed by a logo, twice.
@@ -2224,7 +2236,9 @@ export class ReportsService implements OnModuleDestroy {
       .stamp-placeholder{ position:absolute; right:6px; bottom:2px; width:92px; height:92px; border:1px dashed rgba(21,37,54,.28); border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:8.5px; letter-spacing:.08em; color:#a3b1bd; text-transform:uppercase; }
 
       .foot{ margin-top:auto; padding-top:10px; border-top:1px solid rgba(21,37,54,.12); font-size:9px; color:#8394a4; display:flex; justify-content:space-between; }
+    ${mark.css}
     </style></head><body>
+      ${mark.html}
       <div class="sheet">
         <div class="off">
           ${crest}
