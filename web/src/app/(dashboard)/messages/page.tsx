@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
@@ -21,7 +21,12 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Plus, Search, Send, ArrowLeft, ChevronDown, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { deliveryLabel, formatLastSeen, lastMessagePrefix } from "@/lib/presence";
+import {
+  deliveryLabel,
+  formatLastSeen,
+  lastMessagePrefix,
+  messagePreview,
+} from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
 import { personDetail, personMatches, personName } from "@/lib/person";
 import { QuotedMessage } from "@/components/messaging/quoted-message";
@@ -59,17 +64,57 @@ const SETTLING_PX = 600;
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
-  const [selectedConv, setSelectedConv] = useState<string | null>(null);
   /*
-    A notice about a new message opens this page with the thread it came from
-    named in the URL. Honoured once, when it changes: after that the person is
-    driving, and re-selecting on every render would fight them every time they
-    clicked a different conversation.
+    Which conversation is open is the URL, not state.
+
+    It used to be a query string — `/messages?conversation=<id>` — which made
+    every thread the same page wearing a parameter. A thread is something you
+    link somebody to, reload, and come back to from a notification, so it has
+    an address of its own: `/messages/<id>`, and the back button walks the
+    conversations you actually visited.
+
+    Reading it from the route rather than mirroring it into state means there
+    is one answer to "which thread is this", and it survives a reload.
   */
-  const askedForConv = useSearchParams().get("conversation");
+  const router = useRouter();
+  const pathname = usePathname();
+  const routeParams = useParams<{ conversationId?: string }>();
+  const routeConv = routeParams?.conversationId ?? null;
+
+  /*
+    The route is the source of truth, and this follows it.
+
+    Held in state as well so that opening a conversation shows it at once
+    rather than after a navigation settles — clicking a name and watching the
+    old thread sit there for a beat is the kind of lag that makes an app feel
+    like a website. The effect below keeps the two in step: a reload, a
+    notification and the back button all arrive as a route change, and the
+    view follows.
+  */
+  const [selectedConv, setSelectedConv] = useState<string | null>(routeConv);
   useEffect(() => {
-    if (askedForConv) setSelectedConv(askedForConv);
-  }, [askedForConv]);
+    setSelectedConv(routeConv);
+  }, [routeConv]);
+
+  /**
+   * The messages path this role is on, without any conversation on the end.
+   *
+   * Every role re-exports this page under its own path — `/admin/messages`,
+   * `/parent/messages` — so a conversation has to be appended to whichever
+   * one the reader is actually on, or opening a thread would throw them into
+   * another role's section of the app.
+   */
+  const messagesBase = pathname.replace(/\/[^/]*$/, (tail) =>
+    tail === "/messages" ? tail : "",
+  );
+
+  const openConversation = useCallback(
+    (id: string | null) => {
+      setSelectedConv(id);
+      router.push(id ? `${messagesBase}/${id}` : messagesBase);
+    },
+    [router, messagesBase],
+  );
   const { data: messages } = useMessages(selectedConv || undefined);
   const sendMessageRest = useSendMessage();
   const createConv = useCreateConversation();
@@ -201,6 +246,8 @@ export default function MessagesPage() {
 
   /** The thread whose bottom we have already jumped to. */
   const landedOn = useRef<string | null>(null);
+  /** Set while waiting for a message of your own to render, so it can be followed. */
+  const followingOwn = useRef(false);
 
   /**
    * Follow the bottom of the thread.
@@ -241,6 +288,24 @@ export default function MessagesPage() {
       return;
     }
 
+
+    /*
+      Something you sent yourself always wins. `followingOwn` is armed when a
+      message leaves and cleared here, once the message it was armed for has
+      actually rendered — arming it is the only way to land on the true
+      bottom, because at the moment of sending the new bubble is not in the
+      thread yet and its height is not in `scrollHeight`.
+    */
+    if (followingOwn.current) {
+      followingOwn.current = false;
+      const toBottom = () => {
+        list.scrollTop = list.scrollHeight;
+      };
+      toBottom();
+      // And again after layout, for a message that wraps onto a second line.
+      requestAnimationFrame(toBottom);
+      return;
+    }
 
     const nearBottom =
       list.scrollHeight - list.scrollTop - list.clientHeight < NEAR_BOTTOM_PX;
@@ -319,6 +384,52 @@ export default function MessagesPage() {
     composerRef.current?.focus();
   }, [selectedConv]);
 
+  /**
+   * Start typing anywhere in the thread and the words go in the field.
+   *
+   * The field is focused when a thread opens, but focus is easily lost — you
+   * click a message to reply, scroll with the mouse, come back from another
+   * tab — and then the first thing you type disappears. Rather than hunting
+   * for the box, typing simply puts you in it, the way it does in WhatsApp.
+   *
+   * Only for a key that would actually produce a character. Anything with a
+   * modifier is a shortcut (⌘K, ⌘R, copy, paste), and anything already typed
+   * into a field, a textarea or an editable element belongs where it is.
+   */
+  useEffect(() => {
+    if (!selectedConv) return;
+
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // A single printable character. Named keys — Enter, Tab, ArrowUp — are
+      // longer than one character, so this excludes them by construction.
+      if (e.key.length !== 1) return;
+
+      const on = document.activeElement as HTMLElement | null;
+      const tag = on?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        on?.isContentEditable
+      ) {
+        return;
+      }
+
+      const field = composerRef.current;
+      if (!field) return;
+      /*
+        Focus, and let the keystroke land on its own. Appending it here as
+        well would type it twice — the browser still delivers the character
+        to whatever holds focus once this handler returns.
+      */
+      field.focus();
+    }
+
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectedConv]);
+
   /** Back to the newest message. */
   const jumpToBottom = useCallback(() => {
     const list = messageListRef.current;
@@ -336,10 +447,16 @@ export default function MessagesPage() {
     reader away — and your own message is the one exception to that.
   */
   const followOwnMessage = useCallback(() => {
-    requestAnimationFrame(() => {
-      const list = messageListRef.current;
-      if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
-    });
+    /*
+      Armed rather than done here. At this moment the message has left but has
+      not come back through the cache, so it is not in the thread and not in
+      `scrollHeight` — scrolling now lands on the bottom as it was a moment
+      ago, which is a message short. The effect above finishes the job when
+      the bubble actually appears.
+    */
+    followingOwn.current = true;
+    const list = messageListRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, []);
 
   // Handle typing indicator
@@ -520,7 +637,7 @@ export default function MessagesPage() {
       {
         onSuccess: (conv: any) => {
           setShowNewModal(false);
-          setSelectedConv(conv.id);
+          openConversation(conv.id);
           setSelectedUserIds([]);
           setNewConvName("");
           setUserSearch("");
@@ -681,7 +798,7 @@ export default function MessagesPage() {
               return (
                 <button
                   key={conv.id}
-                  onClick={() => setSelectedConv(conv.id)}
+                  onClick={() => openConversation(conv.id)}
                   aria-current={active ? "true" : undefined}
                   aria-label={unread ? `${name}, ${conv.unreadCount} unread` : name}
                   className={`relative flex w-full items-start gap-3 px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50 ${
@@ -755,7 +872,7 @@ export default function MessagesPage() {
                         {conv.lastMessage ? (
                           <>
                             {lastMessagePrefix(conv.lastMessage, user?.id)}
-                            {conv.lastMessage.content}
+                            {messagePreview(conv.lastMessage)}
                           </>
                         ) : (
                           <span className="italic text-muted">No messages yet</span>
@@ -809,7 +926,7 @@ export default function MessagesPage() {
             <div className="flex items-center gap-3 border-b border-border px-4 py-3">
               <button
                 aria-label="Go back"
-                onClick={() => setSelectedConv(null)}
+                onClick={() => openConversation(null)}
                 className="-ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface-muted hover:text-foreground md:hidden"
               >
                 <ArrowLeft className="h-[18px] w-[18px]" />
