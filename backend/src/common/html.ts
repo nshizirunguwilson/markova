@@ -91,3 +91,66 @@ export function logoDataUri(
   }
   return null;
 }
+
+/**
+ * How faint the watermark is printed.
+ *
+ * Six per cent. The mark sits at 90% of the page width directly behind body
+ * text, so this number is the whole difference between stationery and an
+ * unreadable report card. At twelve the navy comes out around 3:1 against the
+ * black text over it, which is under the line for body copy; at three it has
+ * all but vanished by the time a page comes off a school printer.
+ *
+ * Nothing in the build will catch a regression here. The accessibility audit
+ * reads web pages and never opens a PDF, so this constant is the only thing
+ * standing between a school and a document nobody can read.
+ */
+export const WATERMARK_OPACITY = 0.06;
+
+/** How much of the page width the mark spans. */
+export const WATERMARK_WIDTH = '90%';
+
+/**
+ * The school's stamp, printed across the middle of every document it issues.
+ *
+ * Returns the markup and the stylesheet for it, or empty strings when the
+ * school has uploaded no stamp. There is no house fallback on purpose: a
+ * school with no stamp of its own would otherwise have Markova's mark printed
+ * across its report cards, which is the same mistake the letterhead already
+ * refuses to make with the signature.
+ *
+ * Two details carry the whole thing:
+ *
+ *   `position: fixed` rather than absolute, because Chrome repeats a fixed
+ *   element on every printed page and a transcript runs to three or four. An
+ *   absolutely positioned mark appears on page one and nowhere else.
+ *
+ *   `filter: grayscale(1)` because a navy mark at any opacity tints the text
+ *   over it towards blue. Grey takes contrast away evenly instead, which is
+ *   what a watermark is supposed to do.
+ */
+export function watermark(
+  stampUrl?: string | null,
+  opts: { uploadDir?: string; exists?: (p: string) => boolean; read?: (p: string) => Buffer } = {},
+): { css: string; html: string } {
+  const stamp = logoDataUri(stampUrl, { ...opts, fallback: null });
+  if (!stamp) return { css: '', html: '' };
+
+  return {
+    css: `
+      .watermark{
+        position:fixed; top:50%; left:50%;
+        width:${WATERMARK_WIDTH}; transform:translate(-50%,-50%);
+        opacity:${WATERMARK_OPACITY}; filter:grayscale(1);
+        z-index:0; pointer-events:none;
+        /* Chrome drops backgrounds and low-opacity art from a print unless
+           told otherwise, and the PDF renderer is a print. */
+        -webkit-print-color-adjust:exact; print-color-adjust:exact;
+      }
+      .watermark img{ width:100%; display:block; }
+      /* Everything the reader came for sits above it. */
+      .sheet, .page{ position:relative; z-index:1; }
+    `,
+    html: `<div class="watermark" aria-hidden="true"><img src="${stamp}" alt="" /></div>`,
+  };
+}

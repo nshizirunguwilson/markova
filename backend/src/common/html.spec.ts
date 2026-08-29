@@ -1,4 +1,10 @@
-import { escapeHtml, logoDataUri, sanitizeColor } from './html';
+import {
+  WATERMARK_OPACITY,
+  escapeHtml,
+  logoDataUri,
+  sanitizeColor,
+  watermark,
+} from './html';
 
 /**
  * Turning a school's own data into a page.
@@ -185,5 +191,85 @@ describe('logoDataUri', () => {
 
   it('gives nothing at all rather than a broken image', () => {
     expect(logoDataUri(null, opts([]))).toBeNull();
+  });
+});
+
+/**
+ * The stamp printed across every document the school issues.
+ *
+ * The opacity is the whole thing. Nothing in the build catches a regression
+ * here, because the accessibility audit reads web pages and never opens a
+ * PDF, so these cases are the only guard on a document staying readable.
+ */
+describe('the document watermark', () => {
+  const stamped = (url = '/uploads/branding/stamp.png') =>
+    watermark(url, { exists: () => true, read: () => Buffer.from('x') });
+
+  it('prints the stamp the school uploaded', () => {
+    expect(stamped().html).toContain('data:image/png;base64,');
+  });
+
+  it('spans 90% of the page width, centred both ways', () => {
+    const { css } = stamped();
+    expect(css).toContain('width:90%');
+    expect(css).toContain('top:50%');
+    expect(css).toContain('left:50%');
+    expect(css).toContain('translate(-50%,-50%)');
+  });
+
+  it('prints at six per cent', () => {
+    expect(stamped().css).toContain(`opacity:${WATERMARK_OPACITY}`);
+    expect(WATERMARK_OPACITY).toBe(0.06);
+  });
+
+  /*
+    A navy mark at any opacity tints the text over it towards blue. Grey takes
+    contrast away evenly, which is what a watermark is for.
+  */
+  it('prints grey rather than in the school colour', () => {
+    expect(stamped().css).toContain('grayscale(1)');
+  });
+
+  /**
+   * Chrome repeats a fixed element on every printed page. An absolutely
+   * positioned mark appears on page one and nowhere else, and a transcript
+   * runs to three or four.
+   */
+  it('is fixed, so it repeats on every page of a long document', () => {
+    expect(stamped().css).toContain('position:fixed');
+    expect(stamped().css).not.toContain('position:absolute');
+  });
+
+  // Chrome drops low-opacity art from a print unless told otherwise, and the
+  // PDF renderer is a print.
+  it('asks the renderer to keep it', () => {
+    expect(stamped().css).toContain('print-color-adjust:exact');
+  });
+
+  it('sits behind the content rather than over it', () => {
+    const { css } = stamped();
+    expect(css).toContain('z-index:0');
+    expect(css).toContain('.sheet, .page{ position:relative; z-index:1; }');
+  });
+
+  it('is hidden from anything reading the document aloud', () => {
+    expect(stamped().html).toContain('aria-hidden="true"');
+  });
+
+  /**
+   * No house fallback, deliberately. A school with no stamp of its own would
+   * otherwise have Markova's mark printed across its report cards, which is
+   * the mistake the letterhead already refuses to make with the signature.
+   */
+  it('draws nothing at all when the school has uploaded no stamp', () => {
+    expect(watermark(null)).toEqual({ css: '', html: '' });
+    expect(watermark(undefined)).toEqual({ css: '', html: '' });
+  });
+
+  it('draws nothing when the stamp is recorded but gone from disk', () => {
+    expect(watermark('/uploads/branding/gone.png', { exists: () => false })).toEqual({
+      css: '',
+      html: '',
+    });
   });
 });
