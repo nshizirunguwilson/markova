@@ -1,5 +1,9 @@
 import { ForbiddenException } from '@nestjs/common';
-import { FeeGateService, FEE_GATE_CONFIG_KEY } from './fee-gate.service';
+import {
+  FeeGateService,
+  FEE_GATE_CONFIG_KEY,
+  FEE_REFUSAL_REASON,
+} from './fee-gate.service';
 
 /**
  * The rule that decides whether a child is shown their own results.
@@ -191,6 +195,33 @@ describe('FeeGateService', () => {
       await expect(
         gate.assertYearReleased('PARENT', 'stu-1', 'year-1'),
       ).resolves.toBeUndefined();
+    });
+
+    /**
+     * A report card can be refused for two quite different things — not
+     * issued yet, or held over the fees — and they need different screens.
+     * The refusal carries a name for itself so the page telling them apart
+     * does not have to match on the wording of a sentence.
+     */
+    it('names the refusal, so a screen can tell it from any other 403', async () => {
+      const thrown = await gate
+        .assertReleased('STUDENT', 'stu-1', 'term-1')
+        .catch((e: { getResponse(): Record<string, unknown> }) =>
+          e.getResponse(),
+        );
+      expect(thrown).toMatchObject({
+        reason: FEE_REFUSAL_REASON,
+        detail: { balance: 75000 },
+      });
+    });
+
+    it('names it on a year refusal too', async () => {
+      const thrown = await gate
+        .assertYearReleased('PARENT', 'stu-1', 'year-1')
+        .catch((e: { getResponse(): Record<string, unknown> }) =>
+          e.getResponse(),
+        );
+      expect(thrown).toMatchObject({ reason: FEE_REFUSAL_REASON });
     });
   });
 });

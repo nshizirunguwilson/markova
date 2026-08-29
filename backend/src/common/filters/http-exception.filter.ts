@@ -21,6 +21,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'An unexpected error occurred';
     let error = 'Internal Server Error';
     let errors: string[] | undefined;
+    /**
+     * A machine-readable name for the refusal, when the thrower gave one.
+     *
+     * Two different 403s can reach the same screen — a report card that has
+     * not been issued, and one held because the fees are owed — and they need
+     * different pages. Matching on the message text to tell them apart breaks
+     * the first time somebody rewords it, so a refusal that a client has to
+     * distinguish carries a `reason` instead, and this passes it through.
+     */
+    let reason: string | undefined;
+    let detail: Record<string, unknown> | undefined;
 
     /**
      * A unique-constraint clash is the user's mistake, not the server's.
@@ -59,6 +70,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
           errors = resp.message;
           message = 'Validation failed';
         }
+        if (typeof resp.reason === 'string') {
+          reason = resp.reason;
+          if (resp.detail && typeof resp.detail === 'object') {
+            detail = resp.detail as Record<string, unknown>;
+          }
+        }
       }
     }
 
@@ -79,6 +96,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       error,
       ...(errors && { errors }),
+      ...(reason && { reason }),
+      ...(detail && { detail }),
       timestamp: new Date().toISOString(),
     });
   }

@@ -6,6 +6,14 @@ import { feeStanding, formatRwf, withholdingReason } from './fees';
 export const FEE_GATE_CONFIG_KEY = 'fees_block_results';
 
 /**
+ * What a refusal over fees is called on the wire.
+ *
+ * Clients switch on this rather than on the message, so the sentence can be
+ * reworded — or translated — without breaking the screen that reads it.
+ */
+export const FEE_REFUSAL_REASON = 'FEES_OUTSTANDING';
+
+/**
  * Whether a term's results may be read yet.
  *
  * A Rwandan school withholds a report card until the term's fees are settled,
@@ -94,10 +102,27 @@ export class FeeGateService {
     };
   }
 
-  /** The same question, as a guard on an endpoint. */
+  /**
+   * The same question, as a guard on an endpoint.
+   *
+   * The refusal carries a `reason` as well as a sentence. A report card can
+   * be refused for two quite different things — not issued yet, or held over
+   * the fees — and the screen that catches it has to tell a family which,
+   * without matching on the wording of a message somebody may reword.
+   */
   async assertReleased(role: string, studentId: string, termId: string) {
     const withheld = await this.withholdingFor(role, studentId, termId);
-    if (withheld) throw new ForbiddenException(withheld.message);
+    if (withheld) throw this.refusal(withheld);
+  }
+
+  private refusal(withheld: { balance: number; message: string }) {
+    return new ForbiddenException({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: withheld.message,
+      reason: FEE_REFUSAL_REASON,
+      detail: { balance: withheld.balance },
+    });
   }
 
   /**
@@ -152,6 +177,6 @@ export class FeeGateService {
       studentId,
       academicYearId,
     );
-    if (withheld) throw new ForbiddenException(withheld.message);
+    if (withheld) throw this.refusal(withheld);
   }
 }

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -206,5 +207,50 @@ describe('a duplicate value that reached the filter', () => {
       ),
     );
     expect(body.message).toMatch(/already belongs to Aline Uwase/);
+  });
+  /**
+   * A refusal that a client has to tell apart from another refusal.
+   *
+   * A report card can come back 403 because it has not been issued yet, or
+   * because the term's fees are owed, and those need different screens. The
+   * thrower names the refusal and the filter passes that name through, so the
+   * page reading it never has to match on the wording of a message.
+   */
+  describe('a named refusal', () => {
+    it('passes the name and its detail through', () => {
+      const { body } = run(
+        new ForbiddenException({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'This term’s results are held until the fees are settled.',
+          reason: 'FEES_OUTSTANDING',
+          detail: { balance: 75000 },
+        }),
+      );
+      expect(body).toMatchObject({
+        statusCode: 403,
+        reason: 'FEES_OUTSTANDING',
+        detail: { balance: 75000 },
+      });
+    });
+
+    // Nothing else grows a `reason` it never asked for.
+    it('leaves an ordinary refusal without one', () => {
+      const { body } = run(new ForbiddenException('Forbidden resource'));
+      expect(body).not.toHaveProperty('reason');
+      expect(body).not.toHaveProperty('detail');
+    });
+
+    it('ignores a detail that is not an object', () => {
+      const { body } = run(
+        new ForbiddenException({
+          message: 'no',
+          reason: 'FEES_OUTSTANDING',
+          detail: 'not an object',
+        }),
+      );
+      expect(body).toMatchObject({ reason: 'FEES_OUTSTANDING' });
+      expect(body).not.toHaveProperty('detail');
+    });
   });
 });

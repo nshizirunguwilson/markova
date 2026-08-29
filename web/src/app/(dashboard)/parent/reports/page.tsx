@@ -9,6 +9,8 @@ import {
 } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import { useTermReport } from "@/hooks/use-reports";
+import { WithheldNotice } from "@/components/finance/withheld-notice";
+import { withheldFrom } from "@/lib/withheld";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { Clock, FileText, Printer } from "lucide-react";
@@ -30,7 +32,12 @@ export default function ParentReportsPage() {
   const { data: report, isLoading, error } = useTermReport(selectedChild, termId);
   // The school issues report cards after results are finalised, so the API
   // refuses until then. A normal state, not a fault.
-  const notIssued = (error as any)?.response?.status === 403;
+  /**
+   * Held over the fees, which is not the same as not issued. Both arrive as
+   * a 403; only one of them is something a family can do anything about.
+   */
+  const withheld = withheldFrom(error);
+  const notIssued = !withheld && (error as any)?.response?.status === 403;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -101,6 +108,14 @@ export default function ParentReportsPage() {
       </div>
 
       {isLoading && <div className="text-center py-8"><Spinner /></div>}
+
+      {withheld && !isLoading && (
+        <WithheldNotice
+          withheld={withheld}
+          feesHref="/parent/fees"
+          what="report cards"
+        />
+      )}
 
       {notIssued && !isLoading && (
         <Card>

@@ -8,6 +8,7 @@ import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, Clock, Users } from "lucide-react";
 import api from "@/lib/api";
+import { WithheldNotice } from "@/components/finance/withheld-notice";
 
 interface Child {
   id: string; // student ID
@@ -56,6 +57,13 @@ export default function ParentMarksPage() {
   // The school releases marks when it is ready; until then the API withholds
   // them and says so. A normal state for a parent to land on, not a fault.
   const notReleased = !!data && data.published === false;
+  /**
+   * Held over unpaid fees, which is a different thing from not released.
+   *
+   * Not released is the school still working; held is something the family
+   * can act on, so it is said differently and it names the amount.
+   */
+  const withheld = data?.withheld;
 
   const subjectMap = useMemo(() => {
     const map = new Map<string, { subject: string; assessments: any[]; average: number }>();
@@ -137,6 +145,8 @@ export default function ParentMarksPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : withheld ? (
+        <WithheldNotice withheld={withheld} feesHref="/parent/fees" what="marks" />
       ) : (
         <>
           {/* Summary */}
