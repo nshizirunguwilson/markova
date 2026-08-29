@@ -898,6 +898,8 @@ async function main() {
 
   /** Kept so the fee ledger can record who took each payment. */
   let bursarUser: any = null;
+  /** Kept so the head teacher can be given a signature to sign cards with. */
+  let headTeacherUser: any = null;
 
   for (const person of boardingStaff) {
     const created = await prisma.user.create({
@@ -918,8 +920,9 @@ async function main() {
       },
     });
     if (person.role === Role.BURSAR) bursarUser = created;
+    if (person.role === Role.HEAD_TEACHER) headTeacherUser = created;
   }
-  console.log('  ✅ Patron, matron, nurse and bursar seeded');
+  console.log('  ✅ Patron, matron, nurse, bursar and head teacher seeded');
 
   // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
   // The official term windows as published by the Ministry of Education. The
@@ -4737,6 +4740,154 @@ async function main() {
     );
   }
   console.log(`  ✅ ${photoRows.length} profile avatars generated and linked`);
+
+  // ─── SIGNATURES ─────────────────────────────────────────────────────────────
+  //
+  // A handwritten mark for each person who signs a document, generated the
+  // same way the avatars are: a real file on disk, served by the API, through
+  // the same pipeline an uploaded signature uses.
+  //
+  // Only the people who actually sign something get one. A student's card
+  // carries a class teacher's mark and a head teacher's, and giving every
+  // account a signature would say the school holds one for six hundred
+  // children, which is not a thing any school does.
+  //
+  // The stroke is derived from the name, so two people never sign alike -
+  // which is the whole point of a countersignature, and the one property a
+  // seeded demo could most easily undermine.
+  const signaturesDir = join(uploadsDir, 'signatures');
+  rmSync(signaturesDir, { recursive: true, force: true });
+  mkdirSync(signaturesDir, { recursive: true });
+
+  const signatureSvg = (first: string, last: string, key: number): string => {
+    /*
+      Every number below is read off the hash of the person's id, so a mark is
+      theirs and stays theirs across reseeds.
+
+      Two earlier attempts are worth recording. The first varied each control
+      point by ten or twenty units and produced forty-eight signatures in one
+      unmistakable hand, which is exactly the failure a countersignature
+      exists to prevent, seeded into the demo. The second varied them widely
+      and produced forty-eight smooth waves - all different, none of them
+      reading as writing.
+
+      What makes a scrawl read as a name is not variety, it is structure: a
+      tall opening capital, a run of much smaller letters after it, an
+      occasional descender below the line, and a stroke through the lot. So
+      that is what is drawn, and the hash decides the proportions.
+    */
+    let n = key >>> 0;
+    const next = (spread: number, base = 0) => {
+      n = (n * 1103515245 + 12345) >>> 0;
+      return base + ((n >>> 8) % spread);
+    };
+
+    const baseline = 84;
+    const capital = next(26, 46); // how far the opening stroke rises
+    const body = next(9, 11); // how tall the letters after it are
+    const letters = 6 + next(5); // how many of them
+    const slant = next(10, -4);
+
+    /*
+      The opening capital, in one of four shapes.
+      
+      A single shape with varied numbers is what the previous attempt did,
+      and forty-eight signatures all opening on the same tall arch is a
+      pattern the eye catches immediately. Real capitals differ in kind, not
+      only in size: a loop, a crossed stem, a rounded bowl, a plain upstroke.
+    */
+    const capitalKind = key % 4;
+    let d = `M20 ${baseline}`;
+    let capitalEnd: number;
+    if (capitalKind === 0) {
+      // A tall loop that crosses itself, like an L or a J.
+      d += ` C ${next(8, 4)} ${baseline - capital}, ${next(16, 34)} ${baseline - capital - next(12, 6)}, ${next(10, 44)} ${baseline - Math.floor(capital / 3)}`;
+      d += ` S ${next(10, 22)} ${baseline + next(6, 2)}, ${next(12, 54)} ${baseline}`;
+      capitalEnd = 20 + next(12, 54);
+    } else if (capitalKind === 1) {
+      // A stem with a bowl on it, like a P or a B.
+      d += ` L ${28 + next(6)} ${baseline - capital}`;
+      d += ` q ${next(12, 22)} ${next(8, 2)}, ${next(8, 2)} ${Math.floor(capital / 2)}`;
+      d += ` q ${next(8, -14)} ${next(6, 6)}, ${next(10, -18)} ${next(6, 2)}`;
+      capitalEnd = 20 + next(14, 40);
+    } else if (capitalKind === 2) {
+      // A rounded bowl, like a C, G or O.
+      d += ` q ${next(6, -6)} ${-capital}, ${next(14, 26)} ${-capital + next(8, 4)}`;
+      d += ` q ${next(12, 20)} ${next(8, 6)}, ${next(8, -4)} ${capital - next(10, 4)}`;
+      capitalEnd = 20 + next(12, 44);
+    } else {
+      // A plain steep upstroke and back down, like an M or an N.
+      d += ` L ${26 + next(8)} ${baseline - capital}`;
+      d += ` L ${38 + next(10)} ${baseline - next(12, 4)}`;
+      d += ` L ${52 + next(8)} ${baseline - capital + next(10, 4)}`;
+      d += ` L ${62 + next(8)} ${baseline}`;
+      capitalEnd = 20 + next(10, 52);
+    }
+
+    /* Then the small letters, each a loop about a sixth the height of the
+       capital, drifting along the slant of the hand. */
+    let x = capitalEnd;
+    const step = Math.floor((330 - x) / letters);
+    for (let i = 0; i < letters; i++) {
+      const rise = body + next(7);
+      const dip = next(5);
+      const y = baseline + Math.floor((slant * i) / letters);
+      d += ` q ${Math.floor(step / 2)} ${-rise}, ${step} ${dip}`;
+      x += step;
+    }
+
+    /* A descender on some hands, the long exit stroke on all of them. */
+    if (key % 4 === 0) {
+      d += ` q ${next(10, 8)} ${next(14, 18)}, ${next(14, -6)} ${next(10, 6)}`;
+    }
+    d += ` L ${x + next(30, 34)} ${baseline + slant - next(10, 4)}`;
+
+    /* The stroke through the middle that a lot of people finish on. Not
+       everybody does it, so not every seeded signature has one. */
+    const cross =
+      key % 3 !== 0
+        ? `<path d="M ${next(40, 44)} ${baseline + next(8, 14)} L ${next(70, 210)} ${baseline + next(8, 6)}" stroke-width="3" opacity="0.85"/>`
+        : '';
+
+    const initials = `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="130" viewBox="0 0 420 130">` +
+      `<title>${initials}</title>` +
+      `<g fill="none" stroke="#132b45" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="${d}" stroke-width="${3.5 + (key % 3) * 0.5}"/>` +
+      cross +
+      `</g></svg>`
+    );
+  };
+
+  const signatureRows: { id: string; url: string }[] = [];
+  const giveSignature = (user: any) => {
+    if (!user) return;
+    const file = `${user.id}.svg`;
+    writeFileSync(
+      join(signaturesDir, file),
+      signatureSvg(user.firstName, user.lastName, hashOf(user.id)),
+    );
+    signatureRows.push({ id: user.id, url: `/uploads/signatures/${file}` });
+  };
+  giveSignature(admin);
+  giveSignature(headTeacherUser);
+  /* Every teacher: any of them may be a class teacher next year, and a card
+     that prints a line with no mark on it is the one thing this feature
+     exists to stop. */
+  teacherUsers.forEach((u) => giveSignature(u));
+  for (let i = 0; i < signatureRows.length; i += 500) {
+    const values = signatureRows
+      .slice(i, i + 500)
+      .map((r) => `('${r.id}'::text, '${r.url}'::text)`)
+      .join(',');
+    await prisma.$executeRawUnsafe(
+      `UPDATE users u SET signature_url = v.p FROM (VALUES ${values}) AS v(id, p) WHERE u.id = v.id`,
+    );
+  }
+  console.log(
+    `  ✅ ${signatureRows.length} signatures generated for the people who sign`,
+  );
 
   // ─── SIGNS OF LIFE (created dates, last logins) ─────────────────────────────
   // The school adopted Markova a week before the 2024-25 year opened: staff
