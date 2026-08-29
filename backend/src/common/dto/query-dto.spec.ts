@@ -23,6 +23,10 @@ import { PocketMoneyQueryDto } from '../../modules/pocket-money/dto';
 import { IdCardRegistryQueryDto } from '../../modules/reports/dto';
 import { QueryIncidentsDto } from '../../modules/discipline/dto';
 import { QueryAnalyticsDto } from '../../modules/analytics/dto';
+import {
+  AdmissionQueryDto,
+  SaveIntakeDto,
+} from '../../modules/admissions/dto';
 
 /**
  * Query strings.
@@ -56,6 +60,7 @@ const PAGED: [string, any][] = [
   ['merits', QueryMeritsDto],
   ['pocket money', PocketMoneyQueryDto],
   ['ID cards', IdCardRegistryQueryDto],
+  ['applications', AdmissionQueryDto],
 ];
 
 describe.each(PAGED)('the %s query', (_name, cls) => {
@@ -222,5 +227,40 @@ describe('a bulk register', () => {
         records: [{ status: 'PRESENT' }],
       }),
     ).toContain('records');
+  });
+});
+
+/**
+ * A round's places arrive from a form as text like every other field, and the
+ * number is what the desk subtracts offers from. A string here would make
+ * "places left" read 80 minus 6 as "806".
+ */
+describe('opening a round', () => {
+  it('reads the places out of the text a form sends', () => {
+    const dto: any = parse(SaveIntakeDto, {
+      academicYearId: 'year-1',
+      classLevelId: 'level-1',
+      entryPoint: 'SENIOR_ONE',
+      name: 'Senior 1 intake, 2026',
+      places: '80',
+      opensAt: '2026-06-01',
+      closesAt: '2026-08-15',
+    });
+    expect(dto.places).toBe(80);
+    expect(typeof dto.places).toBe('number');
+  });
+
+  it('refuses a round with fewer than no places', () => {
+    expect(
+      errorsOn(SaveIntakeDto, {
+        academicYearId: 'year-1',
+        classLevelId: 'level-1',
+        entryPoint: 'SENIOR_ONE',
+        name: 'Senior 1 intake, 2026',
+        places: '-5',
+        opensAt: '2026-06-01',
+        closesAt: '2026-08-15',
+      }),
+    ).toContain('places');
   });
 });

@@ -519,6 +519,48 @@ describe('AdmissionsService', () => {
       expect(missing).toBe(wrongDob);
     });
 
+    /**
+     * What a family is shown is deliberately narrow: their own progress and
+     * their own offer. It carries the reason a decision was given, because
+     * that is what they are owed, and nothing about anybody else.
+     */
+    it('tells the family where they are, in words they can act on', async () => {
+      prisma.application.findUnique
+        .mockResolvedValueOnce(application())
+        .mockResolvedValueOnce({
+          ...application(),
+          intake: {
+            entryPoint: 'SENIOR_ONE',
+            name: 'Senior 1 intake, 2026',
+            classLevel: { name: 'Senior 1' },
+          },
+          documents: [{ kind: 'BIRTH_CERTIFICATE', verifiedAt: new Date() }],
+          offers: [{ expiresAt: new Date('2099-01-01'), isBoarder: true }],
+          events: [
+            {
+              toStatus: 'REJECTED',
+              createdAt: new Date('2026-06-10'),
+              reason: 'Below the mark for this intake',
+            },
+          ],
+        });
+      const out = await service.publicStatus('APP-2026-0417', '2013-04-02');
+      expect(out.applicant).toBe('Aline Uwase');
+      /* Named the way a family will go looking for them, not by the enum. */
+      expect(out.stillNeeded).toContain('Passport photograph');
+      expect(out.history[0].reason).toBe('Below the mark for this intake');
+      expect(out.offer).toBeTruthy();
+    });
+
+    it('says so when the application vanishes between the two reads', async () => {
+      prisma.application.findUnique
+        .mockResolvedValueOnce(application())
+        .mockResolvedValueOnce(null);
+      await expect(
+        service.publicStatus('APP-2026-0417', '2013-04-02'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
     it('reads a reference typed in lower case', async () => {
       prisma.application.findUnique.mockResolvedValue(null);
       await service.publicStatus('app-2026-0417', '2013-04-02').catch(() => null);
@@ -675,6 +717,32 @@ describe('AdmissionsService', () => {
       await expect(service.verifyDocument('doc-1', 'a')).rejects.toThrow(
         /already been checked/i,
       );
+    });
+
+    it('files a document against the application it belongs to', async () => {
+      prisma.application.findUnique.mockResolvedValue(application());
+      prisma.applicationDocument.create.mockResolvedValue({ id: 'doc-9' });
+      await service.attachDocument(
+        'app-1',
+        'PASSPORT_PHOTO' as never,
+        '/uploads/admissions/photo.png',
+        'photo.png',
+      );
+      expect(prisma.applicationDocument.create).toHaveBeenCalledWith({
+        data: {
+          applicationId: 'app-1',
+          kind: 'PASSPORT_PHOTO',
+          fileUrl: '/uploads/admissions/photo.png',
+          fileName: 'photo.png',
+        },
+      });
+    });
+
+    it('refuses a document for an application that is not there', async () => {
+      prisma.application.findUnique.mockResolvedValue(null);
+      await expect(
+        service.attachDocument('nope', 'PASSPORT_PHOTO' as never, '/f', 'f'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('says so when the document is not there', async () => {
@@ -839,6 +907,24 @@ describe('AdmissionsService', () => {
       const [intake] = await service.intakes();
       expect(intake.placesLeft).toBe(24);
       expect(intake.total).toBe(46);
+    });
+
+    /**
+     * The public list. A round a family cannot apply to today has no business
+     * on the form, whether it has not opened yet or has already closed.
+     */
+    it('offers a family only the rounds open today', async () => {
+      prisma.admissionIntake.findMany.mockResolvedValue([]);
+      await service.openIntakes();
+      expect(prisma.admissionIntake.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isOpen: true,
+            opensAt: { lte: expect.any(Date) },
+            closesAt: { gte: expect.any(Date) },
+          }),
+        }),
+      );
     });
 
     it('refuses a round that closes before it opens', async () => {
