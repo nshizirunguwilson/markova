@@ -131,6 +131,19 @@ describe('the stamp printed across every document', () => {
       expect(await render()).toContain('print-color-adjust:exact');
     });
 
+    /**
+     * A watermark is a property of the issued document, not of the preview
+     * somebody reads it in. It follows the same rule the verification strip
+     * does: hidden on screen, drawn in print. Chrome renders a PDF through
+     * its print stylesheet, so the download carries it too.
+     */
+    it('is kept off the screen and drawn only on paper', async () => {
+      const html = await render();
+      const css = html.slice(html.indexOf('.watermark{'));
+      expect(css.slice(0, css.indexOf('}'))).toContain('display:none');
+      expect(html).toContain('@media print{ .watermark{ display:block; } }');
+    });
+
     it('keeps the content above it', async () => {
       expect(await render()).toContain('z-index:1');
     });
