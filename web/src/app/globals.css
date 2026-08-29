@@ -151,7 +151,28 @@ body {
    four is four arrows pointing at the same person.
    ────────────────────────────────────────────────────────────────────────── */
 
+/*
+  Squircle corners, on the chat surfaces only.
+
+  A rounded rectangle is an arc spliced onto two straight edges, and the join
+  is a real discontinuity — the curvature jumps from nothing to everything at
+  a point. `corner-shape: squircle` draws a superellipse instead, where the
+  curvature eases in, which is the shape Apple's icons and iOS sheets use and
+  the reason they look softer at the same radius.
+
+  Purely additive: a browser that does not know the property ignores it and
+  keeps the plain `border-radius` underneath. There is no fallback to write,
+  and nothing to feature-detect.
+
+  Held to the chat for now, so it can be judged against the rest of the app
+  sitting next to it rather than everywhere at once.
+*/
+.squircle {
+  corner-shape: squircle;
+}
+
 .bubble {
+  corner-shape: squircle;
   position: relative;
   /*
     Sixteen, not eighteen, and it is arithmetic rather than taste: a corner
@@ -219,5 +240,6 @@ body {
 .motion-flash {
   animation: flash 1.2s var(--ease-standard) both;
 }
+
 
 

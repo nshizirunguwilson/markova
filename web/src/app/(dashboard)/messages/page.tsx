@@ -1329,7 +1329,7 @@ export default function MessagesPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                  <div className="squircle flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                     <input
                       ref={fileInputRef}
                       type="file"
