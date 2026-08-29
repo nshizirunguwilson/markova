@@ -11,7 +11,7 @@ jest.mock('puppeteer-core', () => ({
  * The annual report and the school's year summary.
  *
  * A term report answers "how was this term". These answer "how was the year,
- * and what happens next" — the question a parent has in July and the one a
+ * and what happens next" - the question a parent has in July and the one a
  * promotion decision is argued from.
  */
 describe('the annual report for one student', () => {
@@ -19,16 +19,55 @@ describe('the annual report for one student', () => {
   let service: ReportsService;
 
   const terms = [
-    { id: 't1', name: 'Term 1', startDate: new Date('2025-09-01'), endDate: new Date('2025-12-15') },
-    { id: 't2', name: 'Term 2', startDate: new Date('2026-01-10'), endDate: new Date('2026-04-05') },
-    { id: 't3', name: 'Term 3', startDate: new Date('2026-04-20'), endDate: new Date('2026-07-10') },
+    {
+      id: 't1',
+      name: 'Term 1',
+      startDate: new Date('2025-09-01'),
+      endDate: new Date('2025-12-15'),
+    },
+    {
+      id: 't2',
+      name: 'Term 2',
+      startDate: new Date('2026-01-10'),
+      endDate: new Date('2026-04-05'),
+    },
+    {
+      id: 't3',
+      name: 'Term 3',
+      startDate: new Date('2026-04-20'),
+      endDate: new Date('2026-07-10'),
+    },
   ];
 
   /** A subject's marks for one term, at the weights the term card uses. */
-  const marksFor = (termId: string, subject: string, cat1: number, cat2: number, exam: number) => [
-    { termId, score: cat1, maxScore: 20, subject: { name: subject, scope: 'O_CORE' }, assessmentType: { name: 'CAT 1' } },
-    { termId, score: cat2, maxScore: 20, subject: { name: subject, scope: 'O_CORE' }, assessmentType: { name: 'CAT 2' } },
-    { termId, score: exam, maxScore: 100, subject: { name: subject, scope: 'O_CORE' }, assessmentType: { name: 'End of Term Exam' } },
+  const marksFor = (
+    termId: string,
+    subject: string,
+    cat1: number,
+    cat2: number,
+    exam: number,
+  ) => [
+    {
+      termId,
+      score: cat1,
+      maxScore: 20,
+      subject: { name: subject, scope: 'O_CORE' },
+      assessmentType: { name: 'CAT 1' },
+    },
+    {
+      termId,
+      score: cat2,
+      maxScore: 20,
+      subject: { name: subject, scope: 'O_CORE' },
+      assessmentType: { name: 'CAT 2' },
+    },
+    {
+      termId,
+      score: exam,
+      maxScore: 100,
+      subject: { name: subject, scope: 'O_CORE' },
+      assessmentType: { name: 'End of Term Exam' },
+    },
   ];
 
   beforeEach(() => {
@@ -45,7 +84,10 @@ describe('the annual report for one student', () => {
         trade: null,
       },
     });
-    prisma.academicYear.findUnique.mockResolvedValue({ id: 'year-1', name: '2025-2026' });
+    prisma.academicYear.findUnique.mockResolvedValue({
+      id: 'year-1',
+      name: '2025-2026',
+    });
     prisma.term.findMany.mockResolvedValue(terms);
     prisma.termResult.findMany.mockResolvedValue([]);
     prisma.yearResult.findFirst.mockResolvedValue({
@@ -120,7 +162,9 @@ describe('the annual report for one student', () => {
    * from that term's own incidents and merits.
    */
   it('adds the three terms of conduct up to a hundred and twenty', async () => {
-    prisma.disciplineIncident.aggregate.mockResolvedValue({ _sum: { pointsDeducted: 4 } });
+    prisma.disciplineIncident.aggregate.mockResolvedValue({
+      _sum: { pointsDeducted: 4 },
+    });
     prisma.meritAward.aggregate.mockResolvedValue({ _sum: { points: 0 } });
 
     const data = await service.getYearReportData('student-1', 'year-1');

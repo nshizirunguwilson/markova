@@ -33,7 +33,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      {/* Logo — the school's own uploaded logo when set, otherwise Markova's mark */}
+      {/* Logo - the school's own uploaded logo when set, otherwise Markova's mark */}
       <div className="flex h-16 items-center justify-center border-b border-border px-5">
         {/* The uploaded logo carries the school name itself, so it stands
             alone; BrandMark keeps the name as the image's alt text. */}

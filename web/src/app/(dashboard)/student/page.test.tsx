@@ -59,7 +59,7 @@ const bar = () => document.querySelector("[style*='width']")!.className;
 
 /**
  * Conduct is marked out of forty for the term, not out of a hundred for the
- * year — a student who lost points in September should not still be carrying
+ * year - a student who lost points in September should not still be carrying
  * them in July. See src/lib/conduct.ts.
  */
 describe("the conduct bar", () => {

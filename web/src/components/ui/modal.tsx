@@ -108,7 +108,7 @@ export function Modal({
   // Deliberately wider than the Tailwind name suggests. A "lg" form modal at
   // max-w-lg took up a third of a laptop screen and made two-column fields
   // stack for no reason; every size here is shifted up so a form modal reads
-  // as roughly two thirds of the viewport. `sm` stays narrow — it is the
+  // as roughly two thirds of the viewport. `sm` stays narrow - it is the
   // confirm dialog, and a wide "are you sure?" looks broken.
   const sizes = {
     sm: "max-w-md",
@@ -126,7 +126,7 @@ export function Modal({
 
     A dialog is visually a sibling of the whole app, and it was a descendant
     of <main>. That worked only for as long as nothing above it created a
-    stacking context — and then something did: the page fade animates
+    stacking context - and then something did: the page fade animates
     opacity, which creates one. The dialog was trapped inside it, so the
     sidebar (a sibling of <main>, at z-40) painted straight over the top of
     it and the backdrop dimmed only the content column.
@@ -138,7 +138,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/*
         The backdrop fades and the panel rises. A dialog that simply exists on
-        the next frame reads as a jump cut — the eye has to find it, because
+        the next frame reads as a jump cut - the eye has to find it, because
         nothing told it where it came from.
 
         A plain dim rather than a blur. Blurring a whole page of dense text

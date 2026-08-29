@@ -57,7 +57,7 @@ Ordered by visual weight, most prominent first.
 | # | Element | Source | Notes |
 | --- | --- | --- | --- |
 | 1 | Guardian phone | First linked parent's `phone` | Labelled "In case of emergency". The number that matters when a child's card is found. |
-| 2 | Blood type | `student.bloodType` | Present for 739 of 1,229 students. Must degrade to blank, not to "—". |
+| 2 | Blood type | `student.bloodType` | Present for 739 of 1,229 students. Must degrade to blank, not to "-". |
 | 3 | "If found" block | `school_address`, `school_phone` | "If found, please return to: <address> · <phone>". |
 | 4 | School contact | `school_email`, `school_phone`, `school_website` | |
 | 5 | Verification line | Generated | Short human-readable code beneath the QR, so someone without a phone can type it. |
@@ -90,7 +90,7 @@ server checks. The honest position:
 
 **Nothing printed on a card can be uncopyable.** A photocopier reproduces a QR
 code as faithfully as it reproduces a signature. Any design that claims
-otherwise is relying on physical measures — holograms, microtext, UV ink — which
+otherwise is relying on physical measures - holograms, microtext, UV ink - which
 are a printing decision, not a software one.
 
 What a signed QR plus a server check *does* give, which a signature never did:
@@ -203,7 +203,7 @@ distinguish anything.
 The code looks up these elements **by `id`** and replaces their contents.
 Everything else in the file is left exactly as designed.
 
-### Front — `design/id-card-front.svg`
+### Front - `design/id-card-front.svg`
 
 | Element id | Type | Replaced with |
 | --- | --- | --- |
@@ -211,13 +211,13 @@ Everything else in the file is left exactly as designed.
 | `student-photo-fallback` | `<g>` | Shown only when there is no photo |
 | `student-name` | `<text>` | Full name |
 | `student-id` | `<text>` | `STD-2025-231419-167` |
-| `student-level` | `<text>` | `Senior 1` — omit the element to omit the field |
+| `student-level` | `<text>` | `Senior 1` - omit the element to omit the field |
 | `card-validity` | `<text>` | `Valid to 30 Jun 2026` |
 | `school-name` | `<text>` | From config |
 | `school-logo` | `<image>` | `href` set to the logo URL |
 | `qr-code` | `<g>` | Replaced wholesale with the generated QR |
 
-### Back — `design/id-card-back.svg`
+### Back - `design/id-card-back.svg`
 
 | Element id | Type | Replaced with |
 | --- | --- | --- |
@@ -244,9 +244,9 @@ Rules for the designer:
 
 Printed as `STD-<year>-<ABC>-<DEF>`, for example `STD-2025-231419-167`.
 
-**`year`** — the year the student enrolled, four digits.
+**`year`** - the year the student enrolled, four digits.
 
-**`ABC`** — three two-digit numbers, each the position of a letter in the
+**`ABC`** - three two-digit numbers, each the position of a letter in the
 alphabet (A=01 … Z=26), taken from the student's own name:
 
 | Name parts | A | B | C |
@@ -264,7 +264,7 @@ Aaron Prince Mahoro Irakoze   A=01  I=09  M=13   ->  010913
 Calvin Aidan Nshuti           C=03  N=14  A=01   ->  031401
 ```
 
-**`DEF`** — three digits from `HMAC-SHA256(school_secret, year|ABC|student)`.
+**`DEF`** - three digits from `HMAC-SHA256(school_secret, year|ABC|student)`.
 Only the server can compute it, so a student cannot invent an ID that passes a
 gate scanner.
 
@@ -284,9 +284,9 @@ These have to be settled before the card can be produced in full:
 
 1. **`WEB_URL` must be set to the public host** before cards are printed, or
    every QR will point at `http://localhost:3001` and verify nowhere.
-2. **Level on the card** — reprint annually, or drop it and rely on validity.
+2. **Level on the card** - reprint annually, or drop it and rely on validity.
    See the warning in section 2.
-3. **Card stock and printer** — decides whether bleed is honoured and whether
+3. **Card stock and printer** - decides whether bleed is honoured and whether
    two-sided printing is available. If the school prints on a home printer,
    the back should be designed to be optional.
 

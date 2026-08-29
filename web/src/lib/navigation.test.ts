@@ -50,7 +50,7 @@ describe("getNavigation", () => {
 
   /**
    * The welfare staff. Their Dashboard link pointed at /admin, which the
-   * shell bounces them straight back out of — a menu item that could not be
+   * shell bounces them straight back out of - a menu item that could not be
    * clicked, on the first row of the sidebar.
    */
   it.each([

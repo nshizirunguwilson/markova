@@ -2,7 +2,7 @@
 // generation and school-email suggestion.
 
 // NIDA 16-digit layout: status | birth year | gender | birth order |
-// issuance count | security code — spaced as printed on the physical card.
+// issuance count | security code - spaced as printed on the physical card.
 export const NID_GROUPS = [1, 4, 1, 7, 1, 2];
 
 export function nidDigits(value: string): string {

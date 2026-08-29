@@ -712,7 +712,7 @@ describe("a school where nobody has an account yet", () => {
 });
 
 describe("a student the office has not put in a class", () => {
-  it("draws an em dash rather than leaving the column blank", async () => {
+  it("draws a dash rather than leaving the column blank", async () => {
     serve(h.api, {
       ...routes,
       "/pocket-money/overview": {
@@ -723,7 +723,7 @@ describe("a student the office has not put in a class", () => {
     renderPage(PocketMoneyPage, { role: "ADMIN" });
 
     const row = (await screen.findByText("Divine Niyonkuru")).closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
   });
 });
 

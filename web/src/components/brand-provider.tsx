@@ -17,7 +17,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "";
  * anywhere.
  *
  * The washes are derived rather than fixed, or a school that chose maroon
- * would keep Markova's blue sidebar highlight — but they are derived to hold
+ * would keep Markova's blue sidebar highlight - but they are derived to hold
  * WCAG AA rather than by a fixed mix, because the fixed mix that suits a navy
  * leaves a mid-green's badge text at 4.23:1. When the colour cannot support a
  * readable wash at all, the designed neutrals are left in place; see
@@ -78,7 +78,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
   }, [primaryColor]);
 
   useEffect(() => {
-    if (schoolName) document.title = `${schoolName} — School Management`;
+    if (schoolName) document.title = `${schoolName} - School Management`;
   }, [schoolName]);
 
   return <>{children}</>;

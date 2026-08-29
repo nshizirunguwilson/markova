@@ -1,4 +1,4 @@
-# Attendance Feature Design — Mobile App
+# Attendance Feature Design - Mobile App
 
 **Date**: 2026-03-22
 **Status**: Approved
@@ -9,10 +9,10 @@ Hybrid NFC + Manual List attendance for teachers on the mobile app. Uses existin
 
 ## Backend Changes
 
-1. **Add `nfcCardId` to Student model** — nullable unique field storing raw NFC UID string
-2. **`PATCH /api/users/students/:studentId/nfc-card`** (ADMIN, TEACHER) — Register NFC card
-3. **`GET /api/attendance/class-students?classSectionId=X`** — Student list with nfcCardId for local cache
-4. **`POST /api/attendance/nfc-scan`** — Match on nfcCardId instead of studentIdNumber
+1. **Add `nfcCardId` to Student model** - nullable unique field storing raw NFC UID string
+2. **`PATCH /api/users/students/:studentId/nfc-card`** (ADMIN, TEACHER) - Register NFC card
+3. **`GET /api/attendance/class-students?classSectionId=X`** - Student list with nfcCardId for local cache
+4. **`POST /api/attendance/nfc-scan`** - Match on nfcCardId instead of studentIdNumber
 
 ## Mobile Flow
 
@@ -25,7 +25,7 @@ Hybrid NFC + Manual List attendance for teachers on the mobile app. Uses existin
 
 ### Offline Support
 - Cache class student list (with nfcCardIds) locally
-- NFC scans match against local cache — no network needed
+- NFC scans match against local cache - no network needed
 - Queue attendance records locally, sync when online
 
 ## Key Decisions

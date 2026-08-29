@@ -6,13 +6,13 @@ import { useSyncExternalStore } from "react";
  * Midnight this morning, as a timestamp.
  *
  * The wall clock is external mutable state, so reading `Date.now()` straight
- * from a render body is impure — two renders of the same data can disagree, and
+ * from a render body is impure - two renders of the same data can disagree, and
  * the React Compiler rightly rejects it. `useSyncExternalStore` is the
  * supported way to read a source like this.
  *
  * The snapshot is bucketed to the start of the day, which serves the only thing
  * callers need it for ("how many days until this book is due") and keeps the
- * value referentially stable between renders — a snapshot that changed on every
+ * value referentially stable between renders - a snapshot that changed on every
  * call would loop forever.
  */
 

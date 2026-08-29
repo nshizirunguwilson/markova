@@ -247,7 +247,7 @@ describe("every dashboard page survives being used on bad data", () => {
  *
  * A `select` that forgot an `include`, a teacher who was deactivated, a loan
  * whose borrower record went: the API answers with the row and nothing hanging
- * off it. Every page is written with `x?.y || "—"` guards for that, and this is
+ * off it. Every page is written with `x?.y || "-"` guards for that, and this is
  * the pass that runs them. A blank screen here is the failure that tells a
  * teacher their marks are gone.
  */
@@ -301,7 +301,7 @@ describe("every dashboard page survives being used while things go badly", () =>
  * The same pages for records that were only half filled in.
  *
  * Every optional field blank: no phone, no category, no room, no comment, no
- * total. Almost every column in this app is written as `value ?? "—"`, and a
+ * total. Almost every column in this app is written as `value ?? "-"`, and a
  * fixture set where everything is filled in never draws one of them.
  */
 describe("every dashboard page survives half-filled records", () => {

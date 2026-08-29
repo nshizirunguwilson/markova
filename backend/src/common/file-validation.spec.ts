@@ -198,7 +198,7 @@ describe('file validation', () => {
 
     /**
      * A plain Error is not an HttpException, so Nest's multer wrapper hands it
-     * through untouched and the client sees a bare 500 — indistinguishable
+     * through untouched and the client sees a bare 500 - indistinguishable
      * from the server being down. Every refused logo read as "Failed to
      * upload"; it has to say what was wrong with the file.
      */
@@ -388,7 +388,7 @@ describe('file validation', () => {
   /**
    * A browser recording announces itself as `audio/webm;codecs=opus`. The
    * lists are exact, which is the point of them, so the parameters have to
-   * come off before the lookup — without this every voice note recorded in
+   * come off before the lookup - without this every voice note recorded in
    * Chrome or Firefox was refused.
    */
   describe('a type that arrives with its codec attached', () => {
@@ -421,7 +421,7 @@ describe('file validation', () => {
 
   /**
    * Replacing a school's stamp used to unlink the old one on the spot. That
-   * is fine right up until somebody replaces the wrong thing — at which point
+   * is fine right up until somebody replaces the wrong thing - at which point
    * the only copy of a mark drawn once and used for years is gone, with no
    * undo and nothing in the trash.
    */

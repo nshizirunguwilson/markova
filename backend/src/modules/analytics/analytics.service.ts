@@ -381,7 +381,7 @@ export class AnalyticsService {
    * Analytics reads raw marks rather than the calculated results, so it
    * bypassed publication entirely: a student could open their own Analytics
    * page and read subject scores the school had not released, days before
-   * they appeared anywhere else. Staff are unrestricted — checking figures
+   * they appeared anywhere else. Staff are unrestricted - checking figures
    * before release is the point of a draft.
    */
   private async releasedTermIds(
@@ -448,7 +448,7 @@ export class AnalyticsService {
     ]);
 
     // Class averages come from the class the student actually sat in each
-    // term — a Senior 2 term compares against that year's Senior 2 class.
+    // term - a Senior 2 term compares against that year's Senior 2 class.
     const pairs = ownResults.map((r) => ({
       termId: r.termId,
       classSectionId: r.classSectionId,

@@ -71,7 +71,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
                 // ECharts omits the marker on a series it has no swatch for,
                 // and the series name on a point outside every series.
                 `${p.marker ?? ""} ${p.seriesName ?? ""}: <b>${
-                  p.value == null ? "–" : Number(p.value).toFixed(1) + "%"
+                  p.value == null ? "-" : Number(p.value).toFixed(1) + "%"
                 }</b>`,
             )
             .join("<br/>");
@@ -145,7 +145,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
           // is how the Rwandan A-Level marksheet records module credits.
           const points = s.points == null ? "" : ` (${s.points} points)`;
           return `<b>${s.name ?? ""}</b><br/>${s.total ?? 0}% · Grade ${
-            s.grade ?? "–"
+            s.grade ?? "-"
           }${points}`;
         },
       },
@@ -171,8 +171,8 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
               // A subject the school has entered only partly still gets a
               // label; a dash says "not marked yet", where the bare value
               // wrote the word "undefined" across the chart.
-              const total = s.total ?? "–";
-              const grade = s.grade ?? "–";
+              const total = s.total ?? "-";
+              const grade = s.grade ?? "-";
               return `${total}%  ${grade}`;
             },
           },
@@ -244,7 +244,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
             const cell = p?.data?.value ?? p?.data;
             const [x, y, v] = Array.isArray(cell) ? cell : [];
             if (x === undefined || y === undefined || !terms[x]) return "";
-            return `<b>${subjects[y] ?? ""}</b> · ${terms[x].termName ?? ""} ${terms[x].yearName ?? ""}<br/>${v ?? 0}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "–"}`;
+            return `<b>${subjects[y] ?? ""}</b> · ${terms[x].termName ?? ""} ${terms[x].yearName ?? ""}<br/>${v ?? 0}% · Grade ${gradeAt.get(`${x}|${y}`) ?? "-"}`;
         },
       },
       series: [
@@ -285,22 +285,22 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
   const chips = [
     {
       label: "Average",
-      value: latest?.average != null ? `${latest.average.toFixed(1)}%` : "–",
+      value: latest?.average != null ? `${latest.average.toFixed(1)}%` : "-",
       sub: latest?.letterGrade ? `Grade ${latest.letterGrade}` : "",
     },
     {
       label: "Position",
-      value: latest?.rank ? `${latest.rank}` : "–",
-      sub: `of ${latest?.classSize ?? s?.classSize ?? "–"}`,
+      value: latest?.rank ? `${latest.rank}` : "-",
+      sub: `of ${latest?.classSize ?? s?.classSize ?? "-"}`,
     },
     {
       label: "Aggregate",
-      value: latest?.aggregate ?? "–",
+      value: latest?.aggregate ?? "-",
       sub: latest?.aggregateMax ? `/ ${latest.aggregateMax}` : "",
     },
     {
       label: "Attendance",
-      value: latest?.attendancePct != null ? `${latest.attendancePct}%` : "–",
+      value: latest?.attendancePct != null ? `${latest.attendancePct}%` : "-",
       sub: latest?.termName ?? "",
     },
     {
@@ -309,7 +309,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
       // alone does not say whether thirty-two is good.
       value:
         s?.disciplinePoints == null
-          ? "–"
+          ? "-"
           : `${s.disciplinePoints} / ${TERM_CONDUCT_MARK}`,
       sub:
         s?.disciplinePoints == null

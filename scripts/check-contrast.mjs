@@ -70,7 +70,7 @@ chartCategorical.values.forEach((hex, i) => {
 });
 
 let failed = 0;
-console.log('WCAG contrast — design/tokens.json\n');
+console.log('WCAG contrast - design/tokens.json\n');
 for (const [label, fg, bg, min] of checks) {
   const r = ratio(c(fg), c(bg));
   const ok = r >= min;

@@ -235,7 +235,7 @@ export default function AdminHomeworkPage() {
         ...hw,
         _class: classDisplayName(hw.classSection),
         _teacher: `${hw.teacher?.firstName || ""} ${hw.teacher?.lastName || ""}`.trim(),
-        _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "—",
+        _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-",
       })),
     });
   };
@@ -340,7 +340,7 @@ export default function AdminHomeworkPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="info">{hw.subject?.name || "—"}</Badge>
+                    <Badge variant="info">{hw.subject?.name || "-"}</Badge>
                   </TableCell>
                   <TableCell>
                     {classDisplayName(hw.classSection)}
@@ -349,9 +349,9 @@ export default function AdminHomeworkPage() {
                     {hw.teacher?.firstName} {hw.teacher?.lastName}
                   </TableCell>
                   <TableCell>
-                    {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "—"}
+                    {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-"}
                   </TableCell>
-                  <TableCell>{hw.maxMarks ?? "—"}</TableCell>
+                  <TableCell>{hw.maxMarks ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button aria-label="Edit" variant="ghost" size="sm" onClick={() => handleEdit(hw)}>
@@ -372,7 +372,7 @@ export default function AdminHomeworkPage() {
       {!isLoading && meta.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted">
-            Showing {(meta.page - 1) * meta.limit + 1}–
+            Showing {(meta.page - 1) * meta.limit + 1}-
             {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
           </p>
           <div className="flex gap-2">

@@ -9,7 +9,7 @@ export const FEE_GATE_CONFIG_KEY = 'fees_block_results';
  * What a refusal over fees is called on the wire.
  *
  * Clients switch on this rather than on the message, so the sentence can be
- * reworded — or translated — without breaking the screen that reads it.
+ * reworded - or translated - without breaking the screen that reads it.
  */
 export const FEE_REFUSAL_REASON = 'FEES_OUTSTANDING';
 
@@ -19,7 +19,7 @@ export const FEE_REFUSAL_REASON = 'FEES_OUTSTANDING';
  * A Rwandan school withholds a report card until the term's fees are settled,
  * and this is that rule. It is deliberately narrow: it answers one question,
  * for one student, for one term, and it is the only place in the system that
- * decides it — a rule this consequential must not be re-implemented once per
+ * decides it - a rule this consequential must not be re-implemented once per
  * endpoint that needs it.
  *
  * Three things it will not do:
@@ -98,7 +98,7 @@ export class FeeGateService {
       balance: reason.balance,
       message: `This term’s results are held until the school fees are settled. ${formatRwf(
         reason.balance,
-      )} is still outstanding — the fees page shows what has been paid, and the school office can help.`,
+      )} is still outstanding - the fees page shows what has been paid, and the school office can help.`,
     };
   }
 
@@ -106,8 +106,8 @@ export class FeeGateService {
    * The same question, as a guard on an endpoint.
    *
    * The refusal carries a `reason` as well as a sentence. A report card can
-   * be refused for two quite different things — not issued yet, or held over
-   * the fees — and the screen that catches it has to tell a family which,
+   * be refused for two quite different things - not issued yet, or held over
+   * the fees - and the screen that catches it has to tell a family which,
    * without matching on the wording of a message somebody may reword.
    */
   async assertReleased(role: string, studentId: string, termId: string) {
@@ -163,7 +163,7 @@ export class FeeGateService {
       balance: owed,
       message: `This year’s report is held until the school fees are settled. ${formatRwf(
         owed,
-      )} is still outstanding across the year — the fees page shows what has been paid, and the school office can help.`,
+      )} is still outstanding across the year - the fees page shows what has been paid, and the school office can help.`,
     };
   }
 

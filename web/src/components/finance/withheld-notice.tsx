@@ -15,7 +15,7 @@ export interface Withheld {
  * Why this term's results are not here.
  *
  * A school withholding a report card over unpaid fees is a normal thing in
- * Rwanda, and the page has to read that way — a held term explained, not an
+ * Rwanda, and the page has to read that way - a held term explained, not an
  * error. The three things a family needs are all here: that it is the fees,
  * how much, and where to go next. A padlock and "access denied" would have
  * them phoning the school to find out which of those it is.
@@ -46,13 +46,13 @@ export function WithheldNotice({
           </h2>
           {/*
             Full strength, not a faded variant. The amber on its own wash is
-            4.58:1 — over the line but not by much — and dimming it to 90%
+            4.58:1 - over the line but not by much - and dimming it to 90%
             drops it to 3.89:1, which fails AA on the one paragraph a family
             has to be able to read.
           */}
           <p className="mt-1 text-sm text-warning">
             {money(withheld.balance)} is still outstanding for this term. The{" "}
-            {what} open as soon as the balance reaches nil — nothing else is
+            {what} open as soon as the balance reaches nil - nothing else is
             needed, and nothing has been lost.
           </p>
           <p className="mt-2 text-sm text-warning">

@@ -78,7 +78,7 @@ describe("the roll", () => {
 
   /*
     The order is fixed and there is no column to click, so the page has to say
-    what it is — a reader who assumes alphabetical will think the roll is
+    what it is - a reader who assumes alphabetical will think the roll is
     wrong.
   */
   it("says the roll is ordered by what is owed", async () => {
@@ -355,7 +355,7 @@ describe("narrowing the roll", () => {
 
   /*
     Typing is debounced, so the search reaches the API once the typing stops
-    rather than once per keystroke — four hundred rows per letter otherwise.
+    rather than once per keystroke - four hundred rows per letter otherwise.
   */
   it("searches for what was typed", async () => {
     await mount();

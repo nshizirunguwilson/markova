@@ -29,7 +29,7 @@ export class AttendanceService {
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STUDENT ATTENDANCE — MANUAL
+  // STUDENT ATTENDANCE - MANUAL
   // ═══════════════════════════════════════════════════════════════════════════
 
   async markAttendance(dto: MarkAttendanceDto, markedByUserId: string) {
@@ -72,7 +72,7 @@ export class AttendanceService {
    * Insert-or-update a single attendance row keyed on
    * (studentId, date, type, subjectId). A Prisma upsert on the compound unique
    * cannot be used for *daily* attendance because subjectId is NULL there, and
-   * Postgres treats NULLs in a unique index as distinct — so an upsert keyed on
+   * Postgres treats NULLs in a unique index as distinct - so an upsert keyed on
    * '' never matches the stored NULL row and silently inserts a duplicate.
    * We therefore look the row up explicitly (NULL-safe) and update it if present.
    */
@@ -147,7 +147,7 @@ export class AttendanceService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STUDENT ATTENDANCE — QR SCAN
+  // STUDENT ATTENDANCE - QR SCAN
   // ═══════════════════════════════════════════════════════════════════════════
 
   async processQrScan(dto: QrScanDto, markedByUserId: string) {
@@ -277,7 +277,7 @@ export class AttendanceService {
   /**
    * A daily check-in is "late" once the clock passes 08:30. The previous check
    * (`getHours() >= 8 && getMinutes() > 30`) only looked at the minute field, so
-   * 09:10 or 10:05 were wrongly counted on-time while 08:31–08:59 were late.
+   * 09:10 or 10:05 were wrongly counted on-time while 08:31-08:59 were late.
    */
   private isAfterDailyCutoff(now: Date): boolean {
     const h = now.getHours();

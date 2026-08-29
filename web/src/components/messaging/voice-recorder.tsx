@@ -16,7 +16,7 @@ import {
  * Recording a voice note.
  *
  * Press to start, and the field is replaced by the recorder: a red dot that
- * counts, the sound of your own voice drawn as it goes in, and two ways out —
+ * counts, the sound of your own voice drawn as it goes in, and two ways out -
  * throw it away or send it. Nothing is uploaded until send is pressed, so a
  * recording nobody meant to make never leaves the machine.
  *
@@ -38,7 +38,7 @@ export function VoiceRecorder({
 }: {
   /** A finished recording, ready to be sent as a message. */
   onRecorded: (file: File, seconds: number) => void;
-  /** Recording has actually begun — the microphone was allowed. */
+  /** Recording has actually begun - the microphone was allowed. */
   onStart?: () => void;
   onCancel: () => void;
   disabled?: boolean;
@@ -46,7 +46,7 @@ export function VoiceRecorder({
    * Stand down: there is something to send, so Send has the end of the row.
    *
    * Hidden rather than unmounted, so a recording already running is not torn
-   * out from under somebody who starts typing mid-sentence — the recorder
+   * out from under somebody who starts typing mid-sentence - the recorder
    * still owns the row until it is sent or thrown away.
    */
   hidden?: boolean;
@@ -144,12 +144,12 @@ export function VoiceRecorder({
     recorder.start();
     setRecording(true);
     // Only now, after permission was granted and the recorder actually
-    // started — the composer must not hide its field for a recording that
+    // started - the composer must not hide its field for a recording that
     // was refused.
     onStart?.();
 
     /*
-      The live meter. An analyser on the same stream, read once a frame — the
+      The live meter. An analyser on the same stream, read once a frame - the
       recording itself is untouched by this, so a browser that cannot do it
       still records perfectly well.
     */
@@ -247,7 +247,7 @@ export function VoiceRecorder({
   /*
     Deliberately narrow. Recording used to take the whole composer, which put
     a forty-bar meter across the width of the window for what is a small,
-    momentary control — it read as the app having changed mode rather than as
+    momentary control - it read as the app having changed mode rather than as
     a button being held. It now sits at about a third, the size it needs to
     say "recording, this long, throw away or send".
   */
@@ -257,7 +257,7 @@ export function VoiceRecorder({
 
       As the last child of the composer it used to lay out from the left, so
       pressing a button on the right made the recorder appear on the other
-      side of the row — the control looked like it had jumped away from the
+      side of the row - the control looked like it had jumped away from the
       hand that pressed it. `ml-auto` keeps it under the same finger.
     */
     <div className="ml-auto flex w-[min(22rem,60%)] items-center gap-2 px-1">

@@ -2,7 +2,7 @@
  * Printing a document from the page it is already on.
  *
  * `window.open` + `document.write` was the old route, and it cost a popup:
- * a second tab appeared, printed, and was left behind for the user to close —
+ * a second tab appeared, printed, and was left behind for the user to close -
  * or was blocked outright by the browser, which reads as a Print button that
  * does nothing. A hidden same-origin iframe prints from the current page and
  * cleans itself up.
@@ -82,7 +82,7 @@ export function printHtml(html: string, options: PrintOptions = {}): boolean {
   doc.body.appendChild(frame);
 
   // onload has usually not fired yet, so this reports that the frame was
-  // successfully attached — the failure this guards against is a document
+  // successfully attached - the failure this guards against is a document
   // that would not take it at all.
   return printed || !!frame.parentNode;
 }

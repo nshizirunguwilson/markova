@@ -193,7 +193,7 @@ describe('UsersController', () => {
  * Who may read the directory.
  *
  * A nurse recording a clinic visit has to find the student first, and this
- * route was the only way to do it — so the "New visit" form had a student box
+ * route was the only way to do it - so the "New visit" form had a student box
  * that answered 403 on every keystroke. Opening the directory to her outright
  * would hand over every teacher's and parent's email and phone.
  */

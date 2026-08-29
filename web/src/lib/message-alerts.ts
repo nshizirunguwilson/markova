@@ -33,7 +33,7 @@ export interface IncomingMessage {
  * Should this message put a notice on the screen?
  *
  * No for your own messages, which you just sent. And no anywhere on the chat
- * page at all — not merely in the thread it landed in.
+ * page at all - not merely in the thread it landed in.
  *
  * That is wider than it first looks, and deliberately so: on the chat page
  * the inbox on the left already moves the conversation to the top, bolds it
@@ -75,7 +75,7 @@ export function alertTitle(message: IncomingMessage): string {
  * What it says: that a message arrived, and nothing about what is in it.
  *
  * A notice is read by whoever is looking at the screen, which in a school is
- * not always the person the message is for — a laptop on a desk in a staff
+ * not always the person the message is for - a laptop on a desk in a staff
  * room, a screen shared in a meeting, a parent's phone handed to a child. A
  * message about a child's discipline record or a parent's fees has no
  * business appearing in the corner of any of them.

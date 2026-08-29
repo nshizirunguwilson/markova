@@ -4,7 +4,7 @@
  *
  *   node scripts/build-brand-assets.mjs
  *
- * Source of truth (hand-authored, committed — do not generate these):
+ * Source of truth (hand-authored, committed - do not generate these):
  *   brand/noText.png     the mark alone: graduation cap, tassel and pencil
  *   brand/text.png       the wordmark
  *   brand/allBeside.png  horizontal lockup
@@ -44,7 +44,7 @@ const trimmed = () => sharp(MARK).trim();
  * Centre the mark on a square canvas, covering `ratio` of the edge.
  *
  * The source artwork is navy on transparent, so anything drawn on a navy
- * ground must be recoloured white first — otherwise the mark disappears into
+ * ground must be recoloured white first - otherwise the mark disappears into
  * its own background.
  */
 async function square(size, ratio, { background, white } = {}) {
@@ -132,10 +132,10 @@ const jobs = [
 
 for (const job of jobs) {
   writeFileSync(join(root, job.out), await job.make());
-  console.log(`  written  ${job.out}  — ${job.note}`);
+  console.log(`  written  ${job.out}  - ${job.note}`);
 }
 
 console.log(`\n${jobs.length} icon slots re-derived from brand/noText.png.`);
 console.log(
-  'mobile/assets and web/public/brand/logo-*.png are exported artwork — left untouched.',
+  'mobile/assets and web/public/brand/logo-*.png are exported artwork - left untouched.',
 );

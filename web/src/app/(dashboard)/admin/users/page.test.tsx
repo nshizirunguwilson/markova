@@ -593,10 +593,10 @@ describe("records with pieces missing", () => {
     expect(row.textContent).not.toContain("null");
   });
 
-  it("draws an em dash for a student in no class", async () => {
+  it("draws a dash for a student in no class", async () => {
     await mountUntidy();
     const row = screen.getByText(/Keza/).closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
   });
 
   it("marks a deactivated account as inactive", async () => {
@@ -797,7 +797,7 @@ describe("clearing the role filter", () => {
 });
 
 describe("a student who is in a class", () => {
-  it("names it rather than drawing an em dash", async () => {
+  it("names it rather than drawing a dash", async () => {
     serve(h.api, {
       ...routes,
       "/users": page([
@@ -814,7 +814,7 @@ describe("a student who is in a class", () => {
 
     const row = (await screen.findByText(/Keza/)).closest("tr")!;
     expect(within(row).getByText(/Senior 1/)).toBeInTheDocument();
-    expect(within(row).queryByText("—")).toBeNull();
+    expect(within(row).queryByText("-")).toBeNull();
   });
 });
 

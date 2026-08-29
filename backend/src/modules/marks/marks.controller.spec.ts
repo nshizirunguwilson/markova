@@ -227,7 +227,7 @@ describe('MarksController', () => {
  * What a student is allowed to see before the school has released it.
  *
  * The route always checked that the right family was asking. It never checked
- * whether the school had published anything — so a term appeared on a
+ * whether the school had published anything - so a term appeared on a
  * student's page the moment a teacher typed the marks in, days before the
  * school meant to release them.
  */

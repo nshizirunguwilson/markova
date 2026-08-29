@@ -141,7 +141,7 @@ describe('HttpExceptionFilter', () => {
  *
  * Services are expected to check first and refuse with a message naming the
  * holder. When one forgets, Prisma's P2002 used to fall through as a raw 500
- * reading "An unexpected error occurred" — which tells an admin nothing and
+ * reading "An unexpected error occurred" - which tells an admin nothing and
  * looks like an outage rather than a duplicate they can fix.
  */
 describe('a duplicate value that reached the filter', () => {

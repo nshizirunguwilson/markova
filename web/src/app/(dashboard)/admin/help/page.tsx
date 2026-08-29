@@ -154,7 +154,7 @@ export default function AdminHelpPage() {
                     <TableRow key={faq.id}>
                       <TableCell>{faq.displayOrder}</TableCell>
                       <TableCell className="font-medium">{faq.title}</TableCell>
-                      <TableCell>{faq.category || "—"}</TableCell>
+                      <TableCell>{faq.category || "-"}</TableCell>
                       <TableCell>
                         <Badge className={faq.isPublished ? "bg-success-wash text-success" : "bg-surface-muted text-muted"}>
                           {faq.isPublished ? "Yes" : "No"}
@@ -244,7 +244,7 @@ export default function AdminHelpPage() {
                         </div>
                       </TableCell>
                       <TableCell>{ticket.user?.firstName} {ticket.user?.lastName}</TableCell>
-                      <TableCell>{ticket.category || "—"}</TableCell>
+                      <TableCell>{ticket.category || "-"}</TableCell>
                       <TableCell>
                         <Badge className={statusColor(ticket.status)}>{ticket.status}</Badge>
                       </TableCell>

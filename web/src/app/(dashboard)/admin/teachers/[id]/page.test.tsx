@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { renderPage, serve } from "@/test/page";
+import { cellTexts, renderPage, serve } from "@/test/page";
 import { populatedRoutes } from "@/test/fixtures";
 
 import TeacherDetailPage, { currentLesson } from "./page";
@@ -143,13 +143,13 @@ describe("who this teacher is", () => {
   it("says which class they are class teacher of", async () => {
     await mount();
     await screen.findByText(/Aline Uwase/);
-    expect(screen.getAllByText(/Class Teacher — Senior 2 B/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Class Teacher - Senior 2 B/).length).toBeGreaterThan(0);
   });
 
   it("names a department role that belongs to no class", async () => {
     await mount();
     await screen.findByText(/Aline Uwase/);
-    expect(screen.getByText(/Head of Department — Sciences/)).toBeInTheDocument();
+    expect(screen.getByText(/Head of Department - Sciences/)).toBeInTheDocument();
   });
 
   // Every one of these is optional on the record, and a half-filled staff
@@ -174,7 +174,7 @@ describe("who this teacher is", () => {
     expect(document.body.textContent).not.toMatch(/undefined|NaN/);
     expect(screen.getByText("Never")).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   it("shows where they live when the record says", async () => {
@@ -279,11 +279,11 @@ describe("what they teach", () => {
     const row = screen
       .getAllByRole("row")
       .find((r) => /Senior 3 C/.test(r.textContent ?? ""));
-    expect(row?.textContent).toMatch(/—/);
+    expect(cellTexts(row!)).toContain("-");
   });
 
-  // The same subject taught to the same class twice — two assignments in two
-  // academic years — is one badge, not two.
+  // The same subject taught to the same class twice - two assignments in two
+  // academic years - is one badge, not two.
   it("does not repeat a subject within a class", async () => {
     await mount({
       ...teacher,
@@ -375,7 +375,7 @@ describe("the class they are in", () => {
 
 /**
  * The arithmetic on its own. The schema counts Monday as 1 through Sunday as
- * 7, and JavaScript counts Sunday as 0 — the classic off-by-one here sends
+ * 7, and JavaScript counts Sunday as 0 - the classic off-by-one here sends
  * somebody to the wrong classroom.
  */
 describe("working out which period it is", () => {

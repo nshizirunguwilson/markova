@@ -163,7 +163,7 @@ export function useClassAttendance(classSectionId?: string, date?: string) {
  * The students in one class section.
  *
  * Reads the attendance module's class roster rather than `GET /users`, which is
- * an ADMIN-only endpoint — it returned 403 for every teacher, so marks entry,
+ * an ADMIN-only endpoint - it returned 403 for every teacher, so marks entry,
  * attendance, discipline logging and NFC registration all showed an empty class.
  *
  * That route answers with a flat row, so it is mapped back into the nested

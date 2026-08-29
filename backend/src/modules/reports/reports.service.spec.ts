@@ -700,7 +700,7 @@ describe('the summary an office reads back after a card action', () => {
 
   /**
    * A student admitted mid-term is on the roll before they are placed. They
-   * cannot be ISSUED a card in that state — the card prints the class — but
+   * cannot be ISSUED a card in that state - the card prints the class - but
    * an existing card can still be suspended, and that answer has to read
    * properly rather than carrying a blank where the level goes.
    */

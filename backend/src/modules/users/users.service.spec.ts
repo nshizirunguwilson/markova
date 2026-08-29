@@ -623,7 +623,7 @@ describe('UsersService', () => {
      * `create` has always refused a clash; `update` did not, so editing
      * somebody onto an address another account held raised a raw Prisma
      * unique-constraint error that reached the browser as "An unexpected
-     * error occurred" — with a 500 in the server log and nothing an admin
+     * error occurred" - with a 500 in the server log and nothing an admin
      * could act on.
      */
     describe('an email or phone another account already holds', () => {
@@ -808,7 +808,7 @@ describe('updating every field a student record carries', () => {
     firstName: 'Keza',
     lastName: 'Uwimana',
     isActive: true,
-    // 1 | 2012 | 7 | 2901978 | 0 | 78 — the birth year and the female digit
+    // 1 | 2012 | 7 | 2901978 | 0 | 78 - the birth year and the female digit
     // both agree with the profile below, which update() now insists on.
     nationalId: '1201272901978078',
     nationality: 'Rwandan',
@@ -1186,7 +1186,7 @@ describe('creating a record with everything on it', () => {
 
     const written = prisma.student.create.mock.calls[0][0].data;
     // Nulls, not empty strings: the reports read these back and an empty
-    // string prints as a blank line where "–" belongs.
+    // string prints as a blank line where "-" belongs.
     expect(written).toMatchObject({
       dateOfBirth: null,
       gender: null,

@@ -2,7 +2,7 @@
  * A play triangle that sits in the middle of whatever contains it.
  *
  * The usual triangle icons are drawn inside their box so that the *bounding
- * box* is centred, which leaves the shape itself looking left of centre — a
+ * box* is centred, which leaves the shape itself looking left of centre - a
  * triangle's weight is toward its base, not its tip. Every icon set works
  * around this the same way, by nudging it right with a margin, and every
  * nudge is somebody's guess: ours was 4px on a 24px icon, which overshot and

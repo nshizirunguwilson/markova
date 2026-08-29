@@ -90,7 +90,7 @@ describe("checkout and return survive a thin response", () => {
  * Pulling the rows out of a paginated answer.
  *
  * The library endpoints send `{ data, meta }`, and reading `.length` straight
- * off that envelope gives `undefined` — which every "no results" branch in
+ * off that envelope gives `undefined` - which every "no results" branch in
  * the app treats as empty. That is how the librarian's catalogue came to say
  * "No books found" over a library of 56, while its own header counted them
  * correctly from a different endpoint.

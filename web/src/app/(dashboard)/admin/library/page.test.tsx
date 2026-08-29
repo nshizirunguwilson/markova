@@ -1138,7 +1138,7 @@ describe("the library when the data is not tidy", () => {
     expect(screen.getByLabelText("Shelf Location")).toHaveValue("");
   });
 
-  it("shows an em dash where a book has no ISBN or category", async () => {
+  it("shows a dash where a book has no ISBN or category", async () => {
     serve(h.api, {
       ...routes,
       "/library/books": [
@@ -1148,7 +1148,7 @@ describe("the library when the data is not tidy", () => {
     renderPage(LibraryPage, { role: "ADMIN" });
 
     const row = (await screen.findByText("Untitled Donation")).closest("tr")!;
-    expect(within(row).getAllByText("—")).toHaveLength(2);
+    expect(within(row).getAllByText("-")).toHaveLength(2);
   });
 
   it("refuses to save a book with no title and no author", async () => {
@@ -1342,7 +1342,7 @@ describe("importing a CSV of books", () => {
     expect(await screen.findByText(/1 book will be imported/i)).toBeInTheDocument();
     const row = screen.getByText("Imbonezamubano").closest("tr")!;
     // No isbn column at all, and no quantity: one copy, no ISBN.
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
     expect(within(row).getByText("1")).toBeInTheDocument();
   });
 
@@ -1470,7 +1470,7 @@ describe("importing a CSV of books", () => {
     await user.upload(input, csv("title,author,isbn\nImbonezamubano,Uwase Aline,"));
 
     const row = (await screen.findByText("Imbonezamubano")).closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
   });
 
   it("falls back to one copy when the quantity cell is not a number", async () => {

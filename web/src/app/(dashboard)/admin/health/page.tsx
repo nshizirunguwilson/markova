@@ -297,7 +297,7 @@ export default function HealthPage() {
         {!isLoading && tab === "book" && meta.totalPages > 1 && (
           <div className="mt-4 flex items-center justify-between">
             <p className="text-sm text-muted">
-              Showing {(meta.page - 1) * meta.limit + 1}–
+              Showing {(meta.page - 1) * meta.limit + 1}-
               {Math.min(meta.page * meta.limit, meta.total)} of {meta.total}
             </p>
             <div className="flex gap-2">
@@ -812,7 +812,7 @@ function EmergencyCardModal({
             <p className="font-mono text-lg">
               {form.emergencyContactPhone ||
                 student.parentStudents?.[0]?.parent?.phone ||
-                "—"}
+                "-"}
             </p>
           </div>
 

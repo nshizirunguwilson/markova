@@ -74,7 +74,7 @@ export default function AdminReportsPage() {
    * Whether to read the last term as the whole year.
    *
    * A term report answers "how was this term". Choosing the final term of a
-   * year offers the other question too — how the whole year went — because
+   * year offers the other question too - how the whole year went - because
    * that is the moment somebody asks it, and it needs no separate page of
    * its own to be reached from.
    */
@@ -434,7 +434,7 @@ export default function AdminReportsPage() {
 
             {/*
               Only on the last term of a year, because that is the moment
-              somebody asks how the whole year went — and asking it of Term 1
+              somebody asks how the whole year went - and asking it of Term 1
               would mean answering with a third of a year.
             */}
             {onFinalTerm && (
@@ -522,7 +522,7 @@ export default function AdminReportsPage() {
                         <TableCell>
                           {r.data?.result?.average != null
                             ? `${r.data.result.average.toFixed(1)}%`
-                            : "—"}
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           <Badge variant={
@@ -532,10 +532,10 @@ export default function AdminReportsPage() {
                               ? "info"
                               : "warning"
                           }>
-                            {r.data?.result?.letterGrade || "—"}
+                            {r.data?.result?.letterGrade || "-"}
                           </Badge>
                         </TableCell>
-                        <TableCell>{r.data?.result?.rank || "—"} / {r.data?.classStats?.totalStudents || "—"}</TableCell>
+                        <TableCell>{r.data?.result?.rank || "-"} / {r.data?.classStats?.totalStudents || "-"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
                             <Button
@@ -820,7 +820,7 @@ export default function AdminReportsPage() {
                   </Button>
                 </div>
               </div>
-              {/* The same A4 sheet the PDF is, scaled to fit — the old preview
+              {/* The same A4 sheet the PDF is, scaled to fit - the old preview
                   was a free-height iframe, so the letter was shown at a size it
                   is never printed at. */}
               <A4Preview html={documentHtml} title="Document preview" />

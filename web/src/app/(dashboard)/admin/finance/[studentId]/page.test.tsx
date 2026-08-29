@@ -229,11 +229,14 @@ describe("what the counter shows", () => {
       },
     });
     await mount();
-    expect(document.body.textContent).toMatch(/—/);
+    // The balance itself, not merely a hyphen somewhere on the page.
+    expect(
+      [...document.querySelectorAll("p")].map((p) => p.textContent?.trim()),
+    ).toContain("-");
   });
 
   /*
-    A link into this page need not carry a term — a bookmark, or a message
+    A link into this page need not carry a term - a bookmark, or a message
     from the office. The picker falls back to the current one rather than the
     page opening on nothing.
   */
@@ -324,8 +327,8 @@ describe("taking a payment", () => {
   });
 
   /*
-    The reference is a different thing for each method — a deposit slip, a
-    MoMo message, a cheque stub — and one generic "Reference" is what gets the
+    The reference is a different thing for each method - a deposit slip, a
+    MoMo message, a cheque stub - and one generic "Reference" is what gets the
     wrong number typed into it.
   */
   it("asks for the reference by the name of whatever they are holding", async () => {

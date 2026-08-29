@@ -962,7 +962,7 @@ describe("producing a document", () => {
       });
 
       // A real PDF from the render endpoint, not the raw HTML saved under a
-      // .html name — that opened in a browser and printed at whatever size
+      // .html name - that opened in a browser and printed at whatever size
       // the browser felt like rather than A4.
       await waitFor(() => expect(clicks[0]).toBe("Transfer Letter.pdf"));
       const call = h.api.post.mock.calls.find(([url]: any[]) =>
@@ -1374,10 +1374,10 @@ describe("a generated class with gaps in it", () => {
     expect(screen.getByText("Student 1")).toBeInTheDocument();
   });
 
-  it("leaves an em dash where there is no average", async () => {
+  it("leaves a dash where there is no average", async () => {
     await generatePatchy();
     const row = screen.getByText("Student 1").closest("tr")!;
-    expect(row.textContent).toContain("—");
+    expect(row.textContent).toContain("-");
   });
 
   it("colours each grade band differently", async () => {
@@ -1386,7 +1386,7 @@ describe("a generated class with gaps in it", () => {
     const badgeFor = (name: string) => {
       const row = screen.getByText(name).closest("tr")!;
       return Array.from(row.querySelectorAll("span")).find((s) =>
-        /^[A-F]$|^—$/.test((s.textContent ?? "").trim()),
+        /^[A-F]$|^-$/.test((s.textContent ?? "").trim()),
       )!;
     };
 
@@ -1947,7 +1947,7 @@ describe("dismissing the pack dialog mid-run", () => {
 
 /**
  * A term report answers "how was this term". Choosing the last term of a year
- * offers the other question too — how the whole year went — because that is
+ * offers the other question too - how the whole year went - because that is
  * the moment somebody asks it.
  */
 describe("reading the last term as a whole year", () => {

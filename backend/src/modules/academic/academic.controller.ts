@@ -161,7 +161,7 @@ export class AcademicController {
   // ─── CLASS LEVELS ───────────────────────────────────────────────────────────
 
   /**
-   * The school's own list of classes. Read-only, and not academic data —
+   * The school's own list of classes. Read-only, and not academic data -
    * it is the vocabulary every page uses to filter by class.
    *
    * The boarding staff and the nurse need it for exactly that: the pocket

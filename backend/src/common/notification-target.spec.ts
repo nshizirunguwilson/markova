@@ -8,7 +8,7 @@ import {
  * What a notification is about.
  *
  * The bell used to decide where to send a reader by looking at
- * `Notification.type`, which is the channel — SMS, EMAIL or PUSH. No channel
+ * `Notification.type`, which is the channel - SMS, EMAIL or PUSH. No channel
  * name has ever contained the word "attendance", so every notification in the
  * system opened nothing at all when clicked.
  */
@@ -31,8 +31,8 @@ describe('the subject of a notification', () => {
   });
 
   /**
-   * Everything written before the column was filled in — and the whole demo
-   * seed — carries no subject. Leaving those inert would mean the bell worked
+   * Everything written before the column was filled in - and the whole demo
+   * seed - carries no subject. Leaving those inert would mean the bell worked
    * only for notices raised after the fix.
    */
   it('falls back to what the title says', () => {
@@ -48,7 +48,7 @@ describe('the subject of a notification', () => {
   });
 
   // "Report card published" is a report card, not marks, and both words are
-  // in the title — so the order the patterns are tried in matters.
+  // in the title - so the order the patterns are tried in matters.
   it('prefers the more specific reading of an ambiguous title', () => {
     expect(notificationSubject({ title: 'Report card published' })).toBe(
       NotificationSubject.REPORT_CARD,

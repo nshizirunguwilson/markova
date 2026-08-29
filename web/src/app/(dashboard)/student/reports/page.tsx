@@ -30,7 +30,7 @@ export default function StudentReportsPage() {
   /**
    * Issuing the report card is a decision the school takes after the marks
    * are out, so the API refuses it until then. That is a normal state, not a
-   * fault — this reads as "not issued yet" rather than an error the student
+   * fault - this reads as "not issued yet" rather than an error the student
    * has to interpret.
    */
   /**
@@ -146,7 +146,7 @@ export default function StudentReportsPage() {
         <Card className="p-6 space-y-4">
           <div className="flex justify-between items-center">
             <CardTitle>
-              {report.student?.name} — {report.term?.name}
+              {report.student?.name} - {report.term?.name}
             </CardTitle>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleView} disabled={busy !== ""}>
@@ -167,15 +167,15 @@ export default function StudentReportsPage() {
           <div className="grid grid-cols-3 gap-4">
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Average</p>
-              <p className="text-xl font-bold text-primary">{report.result?.average != null ? `${report.result.average.toFixed(1)}%` : "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.average != null ? `${report.result.average.toFixed(1)}%` : "-"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Grade</p>
-              <p className="text-xl font-bold text-primary">{report.result?.letterGrade ?? "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.result?.letterGrade ?? "-"}</p>
             </Card>
             <Card className="p-3 bg-accent">
               <p className="text-xs text-foreground-muted">Rank</p>
-              <p className="text-xl font-bold text-primary">{report.classStats?.rank ? `#${report.classStats.rank}` : "—"}</p>
+              <p className="text-xl font-bold text-primary">{report.classStats?.rank ? `#${report.classStats.rank}` : "-"}</p>
             </Card>
           </div>
 

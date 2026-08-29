@@ -30,7 +30,7 @@ export default function StudentDashboard() {
   const activeLoans = loansList.filter((l: any) => !l.returnedAt);
   /*
     Conduct is marked out of forty for the term, not out of a hundred for the
-    year — see src/lib/conduct.ts. A student with no record yet is on a clean
+    year - see src/lib/conduct.ts. A student with no record yet is on a clean
     sheet, which is the full mark rather than nothing.
   */
   const disciplinePoints =

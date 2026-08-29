@@ -81,7 +81,7 @@ export default function TeacherDashboard() {
                 >
                   <div>
                     <span className="text-sm font-medium text-foreground">
-                      {a.subject?.name ?? "—"}
+                      {a.subject?.name ?? "-"}
                     </span>
                     <span className="mx-2 text-muted">|</span>
                     <span className="text-sm text-muted">

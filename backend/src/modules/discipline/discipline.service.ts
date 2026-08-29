@@ -242,7 +242,7 @@ export class DisciplineService {
     if (!incident) throw new NotFoundException('Incident not found');
 
     // A student/parent may only appeal an incident for their own/their child's
-    // record — not an arbitrary incident id.
+    // record - not an arbitrary incident id.
     await this.ownership.verifyStudentAccess(
       submittedByUserId,
       role,

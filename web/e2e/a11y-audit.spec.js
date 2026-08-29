@@ -77,7 +77,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * `/auth/login` allows ten attempts a minute. This audit signs in as eight
- * roles, so running it beside the browser suite spends that window — and a
+ * roles, so running it beside the browser suite spends that window - and a
  * throttled reply carries no `sessionId`, which used to surface as
  * "sessionId must be a string" rather than as the rate limit it is.
  */
@@ -118,7 +118,7 @@ async function login(role, attempt = 0) {
  * A flat 500ms after `domcontentloaded` was a race, and it lost often enough
  * to matter: three runs of this suite in a row reported twenty contrast
  * failures on one page, then nothing at all, then two missing document
- * titles somewhere else. Every one of those was a skeleton being scanned —
+ * titles somewhere else. Every one of those was a skeleton being scanned -
  * grey placeholder bars really do fail contrast, and the title really is
  * absent until the route resolves.
  *

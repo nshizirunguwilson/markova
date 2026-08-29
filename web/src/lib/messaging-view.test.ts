@@ -100,8 +100,8 @@ describe("labelling the day a message was sent", () => {
 describe("how long a run may pause for", () => {
   /*
     The one place the window's value is stated. Everything else about grouping
-    is written in terms of the constant, so this is what has to be changed —
-    deliberately — when the policy changes.
+    is written in terms of the constant, so this is what has to be changed -
+    deliberately - when the policy changes.
   */
   it("is three minutes", () => {
     expect(GROUP_WINDOW_MS).toBe(3 * 60 * 1000);
@@ -270,7 +270,7 @@ describe("grouping a thread the way it is read", () => {
       me,
       now,
     );
-    // Both have a null sender, so they are the same run — which is right:
+    // Both have a null sender, so they are the same run - which is right:
     // there is nothing to tell them apart by.
     expect(blocks[0].groups).toHaveLength(1);
   });

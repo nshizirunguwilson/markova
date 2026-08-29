@@ -375,7 +375,7 @@ describe("the subjects tab with nothing in it", () => {
     expect(await screen.findByText(/Subjects \(0\)/)).toBeInTheDocument();
   });
 
-  it("draws an em dash for a subject with no category", async () => {
+  it("draws a dash for a subject with no category", async () => {
     serve(h.api, {
       ...populatedRoutes,
       "/academic/subjects": [
@@ -385,7 +385,7 @@ describe("the subjects tab with nothing in it", () => {
     renderWithProviders(<SubjectsTab />);
 
     const row = (await screen.findByText("Entrepreneurship")).closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
   });
 
   it("marks a deactivated subject as inactive", async () => {
@@ -422,11 +422,11 @@ describe("the subjects tab with nothing in it", () => {
 });
 
 describe("the academic tab before a year is opened", () => {
-  it("draws an em dash where the current year's name would be", async () => {
+  it("draws a dash where the current year's name would be", async () => {
     serve(h.api, { ...populatedRoutes, "/academic/years": [] });
     renderWithProviders(<AcademicTab />);
 
-    expect(await screen.findByText(/Terms \(—\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/Terms \(-\)/)).toBeInTheDocument();
   });
 
   it("refuses a term that ends before it starts", async () => {

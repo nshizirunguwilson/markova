@@ -41,7 +41,7 @@ export function StepTerms() {
               <CheckCircle2 className="h-5 w-5 text-success" />
               <span className="font-medium">{t.name}</span>
               <span className="text-sm text-muted">
-                {new Date(t.startDate).toLocaleDateString()} — {new Date(t.endDate).toLocaleDateString()}
+                {new Date(t.startDate).toLocaleDateString()} - {new Date(t.endDate).toLocaleDateString()}
               </span>
               {t.isCurrent && <Badge variant="success">Current</Badge>}
             </div>

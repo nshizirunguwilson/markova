@@ -6,8 +6,8 @@ import { useTerms } from "@/hooks/use-academic";
 /**
  * Which term the fee screens are about.
  *
- * Every question a bursar is asked is about one term — "has she paid for this
- * term", "what is still out for Term 2" — so the term is the first thing on
+ * Every question a bursar is asked is about one term - "has she paid for this
+ * term", "what is still out for Term 2" - so the term is the first thing on
  * every one of these pages and the last thing to change on its own. It opens
  * on the current term and stays wherever it is put.
  *

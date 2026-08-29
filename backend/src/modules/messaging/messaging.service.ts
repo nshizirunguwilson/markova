@@ -216,7 +216,7 @@ export class MessagingService {
    * The class groups this person belongs in, made sure of before their
    * conversations are listed.
    *
-   * A student has one — their own class. A class teacher has one per class
+   * A student has one - their own class. A class teacher has one per class
    * they answer for. Everybody else has none, and pays nothing for the
    * check.
    */
@@ -324,7 +324,7 @@ export class MessagingService {
   /**
    * What a quoted message needs to show.
    *
-   * The line of text, who said it, and what kind of thing it was — enough to
+   * The line of text, who said it, and what kind of thing it was - enough to
    * draw the bar above a reply without loading the whole message a second
    * time. Not nested further: a reply to a reply quotes the message it
    * answers, not the whole chain behind it.
@@ -473,13 +473,13 @@ export class MessagingService {
    * Who a person may start a conversation with.
    *
    * Staff may reach anybody. A student may reach the staff, and their own
-   * classmates — the people they already sit with all day. A parent reaches
+   * classmates - the people they already sit with all day. A parent reaches
    * the staff only: a school messaging tool that lets one parent look up
    * another parent's number is a different product.
    *
    * "Their class" rather than "every student in the school" is the line that
    * matters. Fourteen hundred children able to search each other by name is a
-   * safeguarding problem, and it is not the thing being asked for — being
+   * safeguarding problem, and it is not the thing being asked for - being
    * unable to message the person at the next desk is.
    */
   async getContacts(userId: string, search?: string) {
@@ -493,7 +493,7 @@ export class MessagingService {
     if (!me) return { data: [] };
 
     // Every role that works for the school. Derived from the enum rather than
-    // listed, so a role added later is reachable the day it exists — the
+    // listed, so a role added later is reachable the day it exists - the
     // hand-written version had already gone stale twice.
     const STUDENTS_AND_FAMILY: string[] = [Role.STUDENT, Role.PARENT];
     const STAFF = Object.values(Role).filter(
@@ -611,7 +611,7 @@ export class MessagingService {
    * Everyone this user shares a conversation with.
    *
    * Presence is only ever reported between people who share a conversation,
-   * so this is the whole audience for one user's online state — and equally,
+   * so this is the whole audience for one user's online state - and equally,
    * the only presence that user is entitled to be told about.
    */
   async getConversationPartnerIds(userId: string): Promise<string[]> {

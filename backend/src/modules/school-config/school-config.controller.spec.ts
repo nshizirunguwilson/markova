@@ -135,7 +135,7 @@ describe('SchoolConfigController', () => {
 
     /**
      * Without this the handler dereferenced `file.filename` on undefined and
-     * the request came back as a bare 500 — the same thing the settings page
+     * the request came back as a bare 500 - the same thing the settings page
      * shows when the API is down, so "Failed to upload logo" told an admin
      * nothing about what to do next.
      */

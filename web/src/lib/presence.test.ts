@@ -141,8 +141,8 @@ describe("labelling the last message in a thread", () => {
 });
 
 /**
- * A voice note is stored under the name it was recorded as —
- * `voice-note-2026-08-29-05-47-12.weba` — which is a filename, not a
+ * A voice note is stored under the name it was recorded as -
+ * `voice-note-2026-08-29-05-47-12.weba` - which is a filename, not a
  * sentence. In the inbox it filled the line and told nobody anything.
  */
 describe("what a message reads as in a preview", () => {

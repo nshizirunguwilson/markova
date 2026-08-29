@@ -12,8 +12,8 @@
  * How far apart two messages from one person can be and still read as one
  * remark.
  *
- * Three minutes. Five was too loose — a run could span a whole conversation's
- * worth of pauses — and one was too tight, breaking a run whenever somebody
+ * Three minutes. Five was too loose - a run could span a whole conversation's
+ * worth of pauses - and one was too tight, breaking a run whenever somebody
  * happened to type across the turn of a minute.
  *
  * The run is labelled with its *last* message's time, which is when the

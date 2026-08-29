@@ -12,8 +12,8 @@ wrong.
 ## The shape it takes with CSS
 
 The third time was the confusing one, because it was **partial**. The
-Tailwind-generated utilities were current — classes added the same hour were
-in the stylesheet — while the hand-written rules in `globals.css` were a
+Tailwind-generated utilities were current - classes added the same hour were
+in the stylesheet - while the hand-written rules in `globals.css` were a
 round behind. So the page looked *almost* right, and the one thing that had
 changed was the one thing missing.
 
@@ -29,7 +29,7 @@ for a bug in the code.
 
 `npm run dev` now clears `.next` before it starts. The wedged build was
 costing more than the cache was saving: four separate times a change was on
-disk, correct and tested, and simply not being served — and each time it read
+disk, correct and tested, and simply not being served - and each time it read
 as a broken feature rather than a broken build.
 
 ```bash
@@ -40,7 +40,7 @@ cd web && npm run dev:cached # keeps the cache: faster start, stale risk
 
 What that costs: `.next/dev/cache` is around 2.3GB on this app, so the first
 compile after a start is slower. `dev:cached` is there for when you are
-restarting repeatedly and know you have not touched CSS — but if something
+restarting repeatedly and know you have not touched CSS - but if something
 looks wrong after using it, this document is why.
 
 ## When you are on an older checkout
@@ -62,11 +62,11 @@ CSS=$(curl -s http://localhost:3001/admin/users | grep -o '/_next/static/[^"]*\.
 curl -s "http://localhost:3001$CSS" | grep -c "the-class-you-added"
 ```
 
-`0` means the server never built your change — no amount of reloading the
+`0` means the server never built your change - no amount of reloading the
 browser will help, because the bytes it is being handed are old. Anything
 above `0` means the CSS is fine and the problem is elsewhere.
 
-For a rule you cannot grep for by class name — a pseudo-element, say — ask the
+For a rule you cannot grep for by class name - a pseudo-element, say - ask the
 browser what it computed instead. `web/e2e/ui-audit.spec.js` does this for the
 message bubbles, which is why a stale stylesheet now fails the audit rather
 than waiting to be noticed:
@@ -87,7 +87,7 @@ done
 ## Why a browser reload is not enough
 
 The dev server sends `Cache-Control: no-cache, must-revalidate`, so the
-browser does ask again on every load — and is handed the same stale bytes. The
+browser does ask again on every load - and is handed the same stale bytes. The
 staleness is on the server, not in the browser cache, which is why
 Cmd+Shift+R does not fix it and why restarting sometimes does not either:
 Turbopack reuses what is already in `.next`.

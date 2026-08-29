@@ -12,7 +12,7 @@ export class ScheduledTasksService {
     private readonly attendanceService: AttendanceService,
   ) {}
 
-  /** Daily at 8 AM — remind borrowers of books due within 2 days */
+  /** Daily at 8 AM - remind borrowers of books due within 2 days */
   @Cron('0 8 * * *')
   async handleLibraryDueReminders() {
     this.logger.log('Running library due reminders...');
@@ -27,7 +27,7 @@ export class ScheduledTasksService {
     }
   }
 
-  /** Monday at 9 AM — alert parents of chronically absent students */
+  /** Monday at 9 AM - alert parents of chronically absent students */
   @Cron('0 9 * * 1')
   async handleChronicAbsenteeismAlerts() {
     this.logger.log('Running chronic absenteeism alerts...');

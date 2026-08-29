@@ -136,7 +136,7 @@ export default function TeacherMarksPage() {
           // Dropped one at a time, as it lands. The queue used to be cleared
           // in one go and only when every entry succeeded, so one failure
           // among ten left the nine that had gone through queued to be sent
-          // again — overwriting anything corrected elsewhere in between.
+          // again - overwriting anything corrected elsewhere in between.
           await deletePendingMark(id);
           successCount++;
         } catch {
@@ -151,7 +151,7 @@ export default function TeacherMarksPage() {
       if (successCount === pending.length) {
         toast.success(`All ${successCount} offline entries synced`);
       } else {
-        toast.warning(`Synced ${successCount}/${pending.length} — retrying failed ones later`);
+        toast.warning(`Synced ${successCount}/${pending.length} - retrying failed ones later`);
       }
     } catch {
       // IndexedDB access failed
@@ -208,7 +208,7 @@ export default function TeacherMarksPage() {
         .then((count) => {
           setPendingCount(count);
           setScores((prev) => prev.map((s) => ({ ...s, dirty: false })));
-          toast.info("Saved to device — will sync when connected");
+          toast.info("Saved to device - will sync when connected");
         })
         .catch(() => toast.error("Failed to save offline"));
       return;
@@ -266,7 +266,7 @@ export default function TeacherMarksPage() {
               <option value="">Select assignment...</option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {classDisplayName(a.classSection)} — {a.subject?.name ?? "Subject"}
+                  {classDisplayName(a.classSection)} - {a.subject?.name ?? "Subject"}
                 </option>
               ))}
             </select>
@@ -364,7 +364,7 @@ export default function TeacherMarksPage() {
                         max="100"
                         value={entry.score}
                         onChange={(e) => handleScoreChange(i, e.target.value)}
-                        placeholder="—"
+                        placeholder="-"
                         className={`w-24 rounded-lg border px-3 py-1.5 text-sm focus:outline-none ${
                           entry.dirty
                             ? "border-warning bg-warning/5"
@@ -382,7 +382,7 @@ export default function TeacherMarksPage() {
                             }
                           }
                         }}
-                       aria-label="—"/>
+                       aria-label="-"/>
                     </td>
                     <td className="py-2">
                       {entry.score !== "" ? (

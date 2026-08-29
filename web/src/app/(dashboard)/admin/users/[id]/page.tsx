@@ -322,31 +322,31 @@ export default function UserDetailPage() {
                   <InfoField
                     icon={Mail}
                     label="Email"
-                    value={user.email || "—"}
+                    value={user.email || "-"}
                   />
                   <InfoField
                     icon={Phone}
                     label="Phone"
-                    value={user.phone || "—"}
+                    value={user.phone || "-"}
                   />
                   <InfoField
                     icon={Shield}
                     label="National ID"
-                    value={user.nationalId ? formatNid(user.nationalId) : "—"}
+                    value={user.nationalId ? formatNid(user.nationalId) : "-"}
                   />
                   <InfoField
                     label="Nationality"
-                    value={user.nationality || "—"}
+                    value={user.nationality || "-"}
                   />
                   {!user.student && (
                     <>
-                      <InfoField label="Gender" value={user.gender || "—"} />
+                      <InfoField label="Gender" value={user.gender || "-"} />
                       <InfoField
                         label="Date of Birth"
                         value={
                           user.dateOfBirth
                             ? new Date(user.dateOfBirth).toLocaleDateString()
-                            : "—"
+                            : "-"
                         }
                       />
                     </>
@@ -378,7 +378,7 @@ export default function UserDetailPage() {
                 />
                 <InfoField
                   label="Gender"
-                  value={user.student.gender || "—"}
+                  value={user.student.gender || "-"}
                 />
                 <InfoField
                   label="Status"
@@ -395,7 +395,7 @@ export default function UserDetailPage() {
                       ? new Date(
                           user.student.dateOfBirth
                         ).toLocaleDateString()
-                      : "—"
+                      : "-"
                   }
                 />
                 <InfoField
@@ -403,14 +403,14 @@ export default function UserDetailPage() {
                   value={
                     user.student.enrollmentDate
                       ? new Date(user.student.enrollmentDate).toLocaleDateString()
-                      : "—"
+                      : "-"
                   }
                 />
               </div>
             </Card>
           )}
 
-          {/* Residence & family — the SDMS side of the record */}
+          {/* Residence & family - the SDMS side of the record */}
           {user.student && (
             <Card>
               <CardTitle>Residence, Family & Health</CardTitle>
@@ -464,20 +464,20 @@ export default function UserDetailPage() {
                       value={
                         [user.student.province, user.student.district, user.student.sector, user.student.cell, user.student.village]
                           .filter(Boolean)
-                          .join(" · ") || "—"
+                          .join(" · ") || "-"
                       }
                     />
                     <InfoField
                       label="Boarding"
                       value={user.student.isBoarder ? "Boarder" : "Day student"}
                     />
-                    <InfoField label="Father" value={user.student.fatherName || "—"} />
-                    <InfoField label="Mother" value={user.student.motherName || "—"} />
+                    <InfoField label="Father" value={user.student.fatherName || "-"} />
+                    <InfoField label="Mother" value={user.student.motherName || "-"} />
                     <InfoField label="Disability" value={user.student.disability || "None"} />
-                    <InfoField label="Religion" value={user.student.religion || "—"} />
-                    <InfoField label="Insurance (Mutuelle)" value={user.student.insuranceNumber || "—"} />
-                    <InfoField label="Previous School" value={user.student.previousSchool || "—"} />
-                    <InfoField label="Blood Type" value={user.student.bloodType || "—"} />
+                    <InfoField label="Religion" value={user.student.religion || "-"} />
+                    <InfoField label="Insurance (Mutuelle)" value={user.student.insuranceNumber || "-"} />
+                    <InfoField label="Previous School" value={user.student.previousSchool || "-"} />
+                    <InfoField label="Blood Type" value={user.student.bloodType || "-"} />
                     <InfoField label="Allergies" value={user.student.allergies || "None"} />
                     <InfoField label="Medical Conditions" value={user.student.medicalConditions || "None"} />
                   </>
@@ -505,9 +505,9 @@ export default function UserDetailPage() {
                       <label htmlFor="f-qualification" className="mb-1.5 block text-sm font-medium text-foreground">Qualification</label>
                       <select id="f-qualification" {...register("qualification")} className={selectCls}>
                         <option value="">Select...</option>
-                        <option value="A0">A0 — Bachelor&apos;s degree</option>
-                        <option value="A1">A1 — Diploma</option>
-                        <option value="A2">A2 — Secondary certificate</option>
+                        <option value="A0">A0 - Bachelor&apos;s degree</option>
+                        <option value="A1">A1 - Diploma</option>
+                        <option value="A2">A2 - Secondary certificate</option>
                       </select>
                     </div>
                     <Input id="rssbNumber" label="RSSB Number" {...register("rssbNumber")} />
@@ -521,18 +521,18 @@ export default function UserDetailPage() {
                     />
                     <InfoField
                       label="Qualification"
-                      value={user.teacher.qualification || "—"}
+                      value={user.teacher.qualification || "-"}
                     />
                     <InfoField
                       label="RSSB Number"
-                      value={user.teacher.rssbNumber || "—"}
+                      value={user.teacher.rssbNumber || "-"}
                     />
                     <InfoField
                       label="Hired"
                       value={
                         user.teacher.hireDate
                           ? new Date(user.teacher.hireDate).toLocaleDateString()
-                          : "—"
+                          : "-"
                       }
                     />
                   </>
@@ -546,7 +546,7 @@ export default function UserDetailPage() {
                       {user.teacher.roles.map((r: any) => (
                         <Badge key={r.id} variant="info">
                           {r.role}
-                          {r.department ? ` — ${r.department}` : ""}
+                          {r.department ? ` - ${r.department}` : ""}
                         </Badge>
                       ))}
                     </div>
@@ -571,10 +571,10 @@ export default function UserDetailPage() {
                         {ps.student?.user?.firstName} {ps.student?.user?.lastName}
                       </p>
                       <p className="text-sm text-muted">
-                        {classDisplayName(ps.student.classSection)} — {ps.relationship}
+                        {classDisplayName(ps.student.classSection)} - {ps.relationship}
                       </p>
                     </div>
-                    <Badge>{ps.student.studentIdNumber || "—"}</Badge>
+                    <Badge>{ps.student.studentIdNumber || "-"}</Badge>
                   </div>
                 ))}
               </div>

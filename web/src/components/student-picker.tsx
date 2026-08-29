@@ -27,8 +27,8 @@ const MAX_RESULTS = 8;
 /**
  * Find one student by typing.
  *
- * This used to be three dependent dropdowns — Level, then Section, then
- * Student — which meant that finding Keza required knowing which class she is
+ * This used to be three dependent dropdowns - Level, then Section, then
+ * Student - which meant that finding Keza required knowing which class she is
  * in before you could look her up, and cost three interactions and two
  * network round trips whichever way you went. Anyone who knew the name
  * outright still had to walk the hierarchy to reach it.
@@ -36,7 +36,7 @@ const MAX_RESULTS = 8;
  * The search behind this accepts a name, a student id (`STD-2026-14`) or a
  * class ("Senior 2 A") in the one box, so a person who knows any one of those
  * things can type it. Results name the class alongside each student, which is
- * what disambiguates two students who share a name — the thing the cascade
+ * what disambiguates two students who share a name - the thing the cascade
  * was really there to do.
  */
 export function StudentPicker({ value, onChange, label = "Student" }: Props) {
@@ -74,8 +74,8 @@ export function StudentPicker({ value, onChange, label = "Student" }: Props) {
   );
 
   // What was picked is kept rather than looked up again, because the next
-  // search will not contain them. A `value` that arrived from the parent —
-  // a form being reset, or a saved choice — is matched against the results
+  // search will not contain them. A `value` that arrived from the parent -
+  // a form being reset, or a saved choice - is matched against the results
   // instead.
   const chosen: Option | null = !value
     ? null

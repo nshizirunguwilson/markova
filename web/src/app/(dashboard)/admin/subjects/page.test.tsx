@@ -399,7 +399,7 @@ describe("adding a subject", () => {
  *
  * The form used to offer name, category and max marks. Scope was never asked
  * for, so every subject was created as an O-Level core paper whatever it
- * really was — and a trade module, which needs a trade, could not be created
+ * really was - and a trade module, which needs a trade, could not be created
  * from this page at all.
  */
 describe("what the form can actually set", () => {
@@ -525,7 +525,7 @@ describe("what the form can actually set", () => {
 describe("editing a subject", () => {
   /**
    * A subject with marks against it cannot be deleted, only deactivated, so
-   * the Active tick is the only way to retire one — and it only makes sense
+   * the Active tick is the only way to retire one - and it only makes sense
    * on something that already exists.
    */
   it("offers Active on an edit but not on a new subject", async () => {
@@ -823,12 +823,12 @@ describe("a school that has entered no subjects", () => {
 describe("a subject with only a name", () => {
   const bare = [{ id: "subject-9", name: "Entrepreneurship" }];
 
-  it("draws an em dash for the category", async () => {
+  it("draws a dash for the category", async () => {
     serve(h.api, { "/academic/subjects": bare });
     renderPage(SubjectsPage, { role: "ADMIN" });
 
     const row = (await screen.findByText("Entrepreneurship")).closest("tr")!;
-    expect(row.textContent).toContain("—");
+    expect(row.textContent).toContain("-");
   });
 
   it("shows the usual hundred as the ceiling", async () => {

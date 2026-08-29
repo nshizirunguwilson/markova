@@ -1731,7 +1731,7 @@ describe("walking a student through every step in order", () => {
     await fillAll();
     await clickContinue();
 
-    // 2 · Academic — the label now reaches its control
+    // 2 · Academic - the label now reaches its control
     await waitFor(() => expect(atStep("Academic")).toBe(true));
     expect(screen.getByLabelText(/class level/i)).toBeInTheDocument();
     await fillAll();
@@ -1742,7 +1742,7 @@ describe("walking a student through every step in order", () => {
     await fillAll();
     await clickContinue();
 
-    // 4 · Family & health — the step that was being skipped
+    // 4 · Family & health - the step that was being skipped
     await waitFor(() => expect(atStep("Family & health")).toBe(true));
 
     // And nothing was created on the way here.
@@ -1751,7 +1751,7 @@ describe("walking a student through every step in order", () => {
 
   /**
    * A step that refuses to move in silence is indistinguishable from a dead
-   * button, and the check can fail on a field belonging to an earlier step —
+   * button, and the check can fail on a field belonging to an earlier step -
    * where there is nothing on screen to see.
    */
   it("focuses the field at fault rather than sitting there", async () => {

@@ -2,7 +2,7 @@
 // white card surface (CVD separation, normal-vision floor, contrast).
 
 export const viz = {
-  // Categorical slots, fixed order — assigned by entity, never cycled.
+  // Categorical slots, fixed order - assigned by entity, never cycled.
   series: [
     "#2a78d6",
     "#008300",
@@ -19,7 +19,7 @@ export const viz = {
   band: "#cde2fb",
   // Attendance states (blue/amber/red passes every check incl. contrast).
   attendance: { present: "#2a78d6", late: "#c98500", absent: "#d03b3b" },
-  // Enrollment pair — magenta is sub-3:1 on white, so bars carry direct labels.
+  // Enrollment pair - magenta is sub-3:1 on white, so bars carry direct labels.
   gender: { male: "#2a78d6", female: "#e87ba4" },
   ink: "#1a1a2e",
   muted: "#6b7280",

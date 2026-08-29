@@ -8,7 +8,7 @@ const api = axios.create({
   },
 });
 
-// Request interceptor — attach JWT
+// Request interceptor - attach JWT
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
@@ -24,7 +24,7 @@ api.interceptors.request.use(
 
 // Auth endpoints whose own 4xx responses are handled by the calling form
 // (wrong password, wrong OTP, expired reset link, …). These must NOT trigger
-// the session-refresh / redirect logic below — otherwise a failed login looks
+// the session-refresh / redirect logic below - otherwise a failed login looks
 // like an "expired session" and the page reloads before the real error shows.
 const AUTH_ENDPOINTS = [
   "/auth/login",
@@ -34,7 +34,7 @@ const AUTH_ENDPOINTS = [
   "/auth/reset-password",
 ];
 
-// Response interceptor — handle 401 and refresh
+// Response interceptor - handle 401 and refresh
 //
 // The refresh is single-flight: the backend rotates refresh tokens and treats
 // a second use of the same token as a replay attack (it deactivates the whole
@@ -76,7 +76,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       const refreshToken = localStorage.getItem("refresh_token");
-      // Not logged in — nothing to refresh. Reject quietly; route guards handle
+      // Not logged in - nothing to refresh. Reject quietly; route guards handle
       // sending the user to /login. Avoids a redirect loop on public pages.
       if (!refreshToken) {
         return Promise.reject(error);

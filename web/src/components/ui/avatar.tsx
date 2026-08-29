@@ -30,7 +30,7 @@ export function Avatar({
   };
 
   // API-stored photos are root-relative (/uploads/...) and live on the API
-  // origin, not the web one — resolve before rendering.
+  // origin, not the web one - resolve before rendering.
   const resolved = resolveUploadUrl(src);
 
   if (resolved) {

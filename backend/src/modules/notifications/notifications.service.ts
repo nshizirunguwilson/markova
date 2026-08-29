@@ -33,7 +33,7 @@ export class NotificationsService implements OnModuleInit {
     return [{ filename: 'markova-logo.png', path: LOGO_PATH, cid: LOGO_CID }];
   }
 
-  /** Branded blue header band — white logo when available, else the name. */
+  /** Branded blue header band - white logo when available, else the name. */
   private emailHeader(fromName: string): string {
     const inner = existsSync(LOGO_PATH)
       ? `<img src="cid:${LOGO_CID}" alt="${fromName}" style="height: 34px; width: auto; display: block; margin: 0 auto;" />`
@@ -176,7 +176,7 @@ export class NotificationsService implements OnModuleInit {
         }
       }
     } else if (dto.type === 'SMS' || dto.type === 'PUSH') {
-      // SMS/PUSH require per-user API calls — send in parallel
+      // SMS/PUSH require per-user API calls - send in parallel
       const sendPromises = dto.userIds.map(
         (userId) =>
           dto.type === 'SMS'
@@ -238,7 +238,7 @@ export class NotificationsService implements OnModuleInit {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async registerPushToken(userId: string, token: string, platform: string) {
-    // Upsert — same token might be re-registered on app restart
+    // Upsert - same token might be re-registered on app restart
     await this.prisma.pushToken.upsert({
       where: { token },
       update: { userId, platform, updatedAt: new Date() },
@@ -325,7 +325,7 @@ export class NotificationsService implements OnModuleInit {
   async sendSMSToPhone(phone: string, message: string) {
     if (!this.twilioClient) {
       this.logger.log(
-        `[SMS] Twilio not configured — would send to ${phone}: ${message}`,
+        `[SMS] Twilio not configured - would send to ${phone}: ${message}`,
       );
       return;
     }
@@ -386,7 +386,7 @@ export class NotificationsService implements OnModuleInit {
   ) {
     if (!this.transporter) {
       this.logger.log(
-        `[Email] SMTP not configured — would send to ${email}: ${subject}`,
+        `[Email] SMTP not configured - would send to ${email}: ${subject}`,
       );
       return;
     }

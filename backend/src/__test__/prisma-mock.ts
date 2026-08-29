@@ -89,7 +89,7 @@ export function createMockPrisma(): MockPrisma & PrismaService {
         `aggregate` answers with a shape rather than with nothing.
 
         Prisma always returns `{ _sum: {...} }`, and callers read straight
-        through it — `result._sum.points` is the normal way to use it. A bare
+        through it - `result._sum.points` is the normal way to use it. A bare
         `jest.fn()` hands back undefined, so every spec that did not happen to
         stub this particular call died on a TypeError inside code that was
         working perfectly well. Specs that care still override it.

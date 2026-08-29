@@ -16,7 +16,7 @@ import { renderPage, serve, serveNever } from "@/test/page";
 import BoardingDashboard, { frw, whenIs } from "./page";
 
 /**
- * The shapes below were captured from the running API — `/clinic/visits`
+ * The shapes below were captured from the running API - `/clinic/visits`
  * answers `{ data, meta }`, `/clinic/summary` answers a flat object with
  * `repeatVisitors`, and `/pocket-money/overview` answers `{ items, totalHeld,
  * meta }` rather than a bare array.
@@ -73,7 +73,7 @@ const activity = {
   description: null,
   location: "Gisozi",
   // Tomorrow at 9am local, computed as a calendar day rather than "+26
-  // hours" — which lands two days out when the suite runs late in the
+  // hours" - which lands two days out when the suite runs late in the
   // evening, and made this pass or fail depending on the clock.
   startsAt: (() => {
     const d = new Date();
@@ -144,7 +144,7 @@ describe("saying when something happens", () => {
 
 /**
  * A patron or matron opens this at the start of a shift. The question is
- * "what changed while I was off" — not a wall of statistics.
+ * "what changed while I was off" - not a wall of statistics.
  */
 describe("the boarding dashboard", () => {
   it("greets the person by name", async () => {
@@ -246,7 +246,7 @@ describe("the boarding dashboard", () => {
   });
 
   /**
-   * The API can answer thinly — a school with no clinic records yet, an
+   * The API can answer thinly - a school with no clinic records yet, an
    * activity nobody set a location for. A dashboard that only works on a full
    * response is a dashboard that breaks on day one of a new school.
    */

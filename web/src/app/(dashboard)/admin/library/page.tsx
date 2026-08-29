@@ -321,8 +321,8 @@ export default function AdminLibraryPage() {
                     <TableRow key={b.id}>
                       <TableCell className="font-medium">{b.title}</TableCell>
                       <TableCell>{b.author}</TableCell>
-                      <TableCell><span className="font-mono text-sm">{b.isbn || "—"}</span></TableCell>
-                      <TableCell>{b.category || "—"}</TableCell>
+                      <TableCell><span className="font-mono text-sm">{b.isbn || "-"}</span></TableCell>
+                      <TableCell>{b.category || "-"}</TableCell>
                       <TableCell>{b.quantity}</TableCell>
                       <TableCell>
                         <Badge variant={b.availableCount > 0 ? "success" : "danger"}>
@@ -764,7 +764,7 @@ function BulkImportBooksModal({
                   <TableRow key={i}>
                     <TableCell className="font-medium">{b.title}</TableCell>
                     <TableCell>{b.author}</TableCell>
-                    <TableCell><span className="font-mono text-sm">{b.isbn || "—"}</span></TableCell>
+                    <TableCell><span className="font-mono text-sm">{b.isbn || "-"}</span></TableCell>
                     <TableCell>{b.quantity}</TableCell>
                   </TableRow>
                 ))}

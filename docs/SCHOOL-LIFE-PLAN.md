@@ -135,14 +135,14 @@ when they are ill at 2am.
 
 ### What it has to hold
 
-1. **A standing record** — allergies, chronic conditions, blood type, insurance.
+1. **A standing record** - allergies, chronic conditions, blood type, insurance.
    Partly there already on `Student`, unused.
-2. **Clinic visits** — who came in, what for, what was done, who saw them, and
+2. **Clinic visits** - who came in, what for, what was done, who saw them, and
    whether they went back to class or home.
-3. **Medication** — the one that matters most. A student on daily medication is
+3. **Medication** - the one that matters most. A student on daily medication is
    relying on the matron remembering. A record of *administered*, not merely
    *prescribed*, is the difference between a system and a promise.
-4. **Parent notification** — a parent must be told their child went to the
+4. **Parent notification** - a parent must be told their child went to the
    clinic. Not next term. That day.
 
 ### The insight
@@ -207,22 +207,22 @@ Missing, in order of how much a school will feel it:
    to the 14th." Currently impossible, and it is the single most common thing a
    school needs to say.
 2. **Attachments.** A photo of a notice, a PDF of a timetable.
-3. **Managing a group after it exists** — adding and removing people.
+3. **Managing a group after it exists** - adding and removing people.
 
 ---
 
 ## Build order, and why
 
-1. **Assessments** — the rename is agreed and the list needs paging. Small, and
+1. **Assessments** - the rename is agreed and the list needs paging. Small, and
    it clears an agreed decision off the board.
-2. **Pocket money** — the highest-value item. It replaces a paper ledger, opens
+2. **Pocket money** - the highest-value item. It replaces a paper ledger, opens
    two new roles, and uses the ID card already built.
-3. **Events and activities** — visible on a demo, and consent is a real
+3. **Events and activities** - visible on a demo, and consent is a real
    safeguarding gap.
-4. **Health** — narrower audience, but the emergency card is the kind of thing
+4. **Health** - narrower audience, but the emergency card is the kind of thing
    that justifies a whole system.
-5. **Behaviour merits** — small change, large effect on how the system reads.
-6. **Messaging: parent broadcast** — the one gap a school hits weekly.
+5. **Behaviour merits** - small change, large effect on how the system reads.
+6. **Messaging: parent broadcast** - the one gap a school hits weekly.
 
 Each lands as its own commit with tests. Anything not finished will be named
 explicitly rather than left to look complete.

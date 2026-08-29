@@ -66,7 +66,7 @@ const SETTLING_PX = 600;
  *
  * A fixed distance, not a fraction of the view. It was three quarters of the
  * screen height, which on a normal window meant scrolling up nearly five
- * hundred pixels before the way back appeared — by which point you have
+ * hundred pixels before the way back appeared - by which point you have
  * already given up on it and started dragging.
  *
  * 240px is about two messages: far enough that the newest one is genuinely
@@ -82,7 +82,7 @@ export default function MessagesPage() {
   /*
     Which conversation is open is the URL, not state.
 
-    It used to be a query string — `/messages?conversation=<id>` — which made
+    It used to be a query string - `/messages?conversation=<id>` - which made
     every thread the same page wearing a parameter. A thread is something you
     link somebody to, reload, and come back to from a notification, so it has
     an address of its own: `/messages/<id>`, and the back button walks the
@@ -97,8 +97,8 @@ export default function MessagesPage() {
    * The address, split into the messages path this role is on and the thread
    * on the end of it.
    *
-   * Every role re-exports this screen under its own path — `/admin/messages`,
-   * `/parent/messages` — so a conversation has to be appended to whichever
+   * Every role re-exports this screen under its own path - `/admin/messages`,
+   * `/parent/messages` - so a conversation has to be appended to whichever
    * one the reader is actually on, or opening a thread would throw them into
    * another role's section of the app.
    *
@@ -120,7 +120,7 @@ export default function MessagesPage() {
     The route is the source of truth, and this follows it.
 
     Held in state as well so that opening a conversation shows it at once
-    rather than after a navigation settles — clicking a name and watching the
+    rather than after a navigation settles - clicking a name and watching the
     old thread sit there for a beat is the kind of lag that makes an app feel
     like a website. The effect below keeps the two in step: a reload, a
     notification and the back button all arrive as a route change, and the
@@ -144,7 +144,7 @@ export default function MessagesPage() {
    *
    * `pushState` is supported for exactly this, and `usePathname` follows it,
    * so the back button, a reload and a link shared with somebody else all
-   * still land on the right thread — without a navigation for a move that
+   * still land on the right thread - without a navigation for a move that
    * never leaves the page.
    */
   const openConversation = useCallback(
@@ -185,7 +185,7 @@ export default function MessagesPage() {
    * The file chosen but not yet sent.
    *
    * Held rather than sent on choosing, so a caption can be typed with it and
-   * so the wrong file can be taken back before anybody sees it — both of
+   * so the wrong file can be taken back before anybody sees it - both of
    * which is what every messaging app does and therefore what people expect.
    */
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -211,7 +211,7 @@ export default function MessagesPage() {
   // True between the keystroke and the answer: either the 300ms debounce has
   // not caught up yet, or the request for that term is still in the air.
   // Deliberately not `isFetching`, which is also true for a background
-  // refetch — results already on screen should not blink away.
+  // refetch - results already on screen should not blink away.
   const searchingUsers =
     userSearch.trim() !== debouncedUserSearch.trim() ||
     (contactsPending && !usersData);
@@ -246,7 +246,7 @@ export default function MessagesPage() {
   // `status` is the sender's own tick and is not what tells us whether THIS
   // user has read a message: a message can be READ because somebody else in
   // the group opened it. `reads` is the per-user record, so that is what
-  // decides — without it, opening a group thread somebody else had already
+  // decides - without it, opening a group thread somebody else had already
   // read left it unread for this user for good.
   useEffect(() => {
     if (!selectedConv || !chatStore.connected || !user?.id) return;
@@ -262,13 +262,13 @@ export default function MessagesPage() {
 
 
   // The endpoint returns newest first; a thread is read oldest first. Grouped
-  // here rather than in the markup so the rules can be checked on their own —
+  // here rather than in the markup so the rules can be checked on their own -
   // see lib/messaging-view.ts.
   /**
    * The id of the newest message the last render knew about.
    *
    * Only a message that arrives while you are looking at the thread rises in.
-   * Animating every group on open would be a staggered list entrance — a
+   * Animating every group on open would be a staggered list entrance - a
    * hundred bubbles fading up on a thread you scrolled back through, which
    * delays reading and reads as the page loading twice.
    */
@@ -317,13 +317,13 @@ export default function MessagesPage() {
    *
    * Opening a thread jumps, straight to the end and without animating.
    * Smooth-scrolling on open aimed at the scroll height as it was when the
-   * animation began, and the thread was still laying out underneath it — the
+   * animation began, and the thread was still laying out underneath it - the
    * last message ended up half-hidden behind the composer, which is not where
    * any chat leaves you.
    *
    * After that it follows: a message or a typing notice arriving scrolls the
    * view down gently. The typing notice is a row like any other, so it has to
-   * be a dependency — without it the notice appears below the fold and the
+   * be a dependency - without it the notice appears below the fold and the
    * reader sees a sliver of it, or nothing.
    *
    * Somebody who has scrolled up to read is left where they are. Being yanked
@@ -356,7 +356,7 @@ export default function MessagesPage() {
     /*
       Something you sent yourself always wins. `followingOwn` is armed when a
       message leaves and cleared here, once the message it was armed for has
-      actually rendered — arming it is the only way to land on the true
+      actually rendered - arming it is the only way to land on the true
       bottom, because at the moment of sending the new bubble is not in the
       thread yet and its height is not in `scrollHeight`.
     */
@@ -377,8 +377,8 @@ export default function MessagesPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     /*
-      `selectedConversation` is a dependency because the thread pane — and so
-      the element being scrolled — does not exist until the inbox request has
+      `selectedConversation` is a dependency because the thread pane - and so
+      the element being scrolled - does not exist until the inbox request has
       answered. On a cold load the messages arrived first, this effect ran
       with nothing to scroll, and nothing ever changed again to make it run a
       second time: the thread sat at its first message until you scrolled it
@@ -393,7 +393,7 @@ export default function MessagesPage() {
    * A photograph, a video or a voice note takes up no height until it has
    * loaded, so the jump on opening aims at a height that is about to grow. A
    * thread ending in a picture landed two hundred pixels short of its own last
-   * message, which is exactly the bug the instant jump was meant to fix — only
+   * message, which is exactly the bug the instant jump was meant to fix - only
    * caused by the media rather than by the animation.
    *
    * A ResizeObserver rather than load handlers on each element: it catches the
@@ -416,7 +416,7 @@ export default function MessagesPage() {
         the thread grows. That matters on a cold load of a thread's own URL:
         nine pictures and voice notes arrive at once and push the end of the
         conversation two thousand pixels away, which is far past any
-        reasonable "nearly at the bottom" allowance — so a distance-based
+        reasonable "nearly at the bottom" allowance - so a distance-based
         rule alone left the reader stranded at the top of the thread.
 
         After the reader has scrolled, the allowance applies again: media
@@ -436,7 +436,7 @@ export default function MessagesPage() {
     /*
       A gesture, not a scroll event. The pinning above moves `scrollTop`
       itself, and a `scroll` listener could not tell that from the reader
-      reaching for the wheel — it would unpin on the very first frame.
+      reaching for the wheel - it would unpin on the very first frame.
     */
     const release = () => {
       holdingBottom.current = false;
@@ -484,7 +484,7 @@ export default function MessagesPage() {
     second time to start is a step that exists for no reason.
 
     Skipped on a touch screen, where focusing a field throws the keyboard up
-    over the conversation the moment it opens — the opposite of helpful.
+    over the conversation the moment it opens - the opposite of helpful.
   */
   useEffect(() => {
     if (!selectedConv) return;
@@ -497,9 +497,9 @@ export default function MessagesPage() {
   /**
    * Start typing anywhere in the thread and the words go in the field.
    *
-   * The field is focused when a thread opens, but focus is easily lost — you
+   * The field is focused when a thread opens, but focus is easily lost - you
    * click a message to reply, scroll with the mouse, come back from another
-   * tab — and then the first thing you type disappears. Rather than hunting
+   * tab - and then the first thing you type disappears. Rather than hunting
    * for the box, typing simply puts you in it, the way it does in WhatsApp.
    *
    * Only for a key that would actually produce a character. Anything with a
@@ -511,7 +511,7 @@ export default function MessagesPage() {
 
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      // A single printable character. Named keys — Enter, Tab, ArrowUp — are
+      // A single printable character. Named keys - Enter, Tab, ArrowUp - are
       // longer than one character, so this excludes them by construction.
       if (e.key.length !== 1) return;
 
@@ -530,7 +530,7 @@ export default function MessagesPage() {
       if (!field) return;
       /*
         Focus, and let the keystroke land on its own. Appending it here as
-        well would type it twice — the browser still delivers the character
+        well would type it twice - the browser still delivers the character
         to whatever holds focus once this handler returns.
       */
       field.focus();
@@ -553,14 +553,14 @@ export default function MessagesPage() {
     This matters most for a reply: answering a message means scrolling up to
     find it, and without this you send from up there and never see your own
     message land. The thread only follows new arrivals when you are already
-    near the bottom — deliberately, so an incoming message does not yank a
-    reader away — and your own message is the one exception to that.
+    near the bottom - deliberately, so an incoming message does not yank a
+    reader away - and your own message is the one exception to that.
   */
   const followOwnMessage = useCallback(() => {
     /*
       Armed rather than done here. At this moment the message has left but has
       not come back through the cache, so it is not in the thread and not in
-      `scrollHeight` — scrolling now lands on the bottom as it was a moment
+      `scrollHeight` - scrolling now lands on the bottom as it was a moment
       ago, which is a message short. The effect above finishes the job when
       the bubble actually appears.
     */
@@ -589,7 +589,7 @@ export default function MessagesPage() {
    * Choosing a file to attach.
    *
    * Refused here, before a byte is uploaded, when it is the wrong kind or too
-   * large — somebody on a mobile line should not push fifty megabytes up only
+   * large - somebody on a mobile line should not push fifty megabytes up only
    * to be told it was never going to fit. The API checks again regardless;
    * this is about not wasting the person's time and data.
    */
@@ -676,7 +676,7 @@ export default function MessagesPage() {
     /*
       The attachment goes up first, because the message cannot be stored
       without the URL it points at. Everything is cleared only once that has
-      worked — a failed upload leaves the file and the caption where they
+      worked - a failed upload leaves the file and the caption where they
       were, so the person can try again rather than retyping.
     */
     let attachment: { fileUrl: string; fileName: string } | null = null;
@@ -848,8 +848,8 @@ export default function MessagesPage() {
         scans this for a name, and rounded tiles with their own edges give
         every row a frame competing with the next one.
 
-        Selected and unread are two different questions — "where am I" and
-        "what is waiting" — so they get two different devices and can be true
+        Selected and unread are two different questions - "where am I" and
+        "what is waiting" - so they get two different devices and can be true
         at once. Selection is a quiet change of ground, because it is
         permanent while you read. Unread is weight, full-strength preview
         text, and a count.
@@ -874,8 +874,8 @@ export default function MessagesPage() {
           Finding a thread in a long list.
 
           Searches who a conversation is with, not what was said in it. That
-          is the question somebody actually has open — "where is the thread
-          with Aline" — and it is answerable instantly from what is already
+          is the question somebody actually has open - "where is the thread
+          with Aline" - and it is answerable instantly from what is already
           on screen, with no request and no waiting.
         */}
         <div className="px-4 pb-3">
@@ -1027,7 +1027,7 @@ export default function MessagesPage() {
         {selectedConv && selectedConversation ? (
           <>
             {/*
-              The header answers one question — who am I talking to, and are
+              The header answers one question - who am I talking to, and are
               they here. The conversation's type used to be printed beside the
               name as the raw enum ("ONE ON _ONE"), which is a database value,
               not a thing to tell a teacher.
@@ -1193,7 +1193,7 @@ export default function MessagesPage() {
                               Each message gets its own row, and its own reply
                               control beside it. It used to sit once under the
                               whole run, which meant two messages in a row left
-                              the first one unanswerable — you could only ever
+                              the first one unanswerable - you could only ever
                               reply to the last thing somebody said.
                             */
                             <div
@@ -1218,7 +1218,7 @@ export default function MessagesPage() {
                                   className="mb-1"
                                 />
                               )}
-                              {/* The file first, its caption under it —
+                              {/* The file first, its caption under it -
                                   the order every messaging app uses, because
                                   the caption is about the file. */}
                               {/* A voice note plays where it sits; every
@@ -1305,7 +1305,7 @@ export default function MessagesPage() {
               One field, one focus ring. The attach and send controls sit
               inside the same bordered container and on the same baseline as
               the text, rather than as two loose circles either side of a pill
-              — three separate shapes for what is one action.
+              - three separate shapes for what is one action.
             */}
             <div className="border-t border-border p-3">
               {selectedConversation.type === "BROADCAST" &&
@@ -1427,7 +1427,7 @@ export default function MessagesPage() {
                       /*
                         No ring of its own. The row around it already draws one
                         on focus-within, and the app-wide `:focus-visible` rule
-                        was adding a second inside it — two outlines for one
+                        was adding a second inside it - two outlines for one
                         cursor. `focus-visible:` rather than `focus:`, because
                         the global rule is on `:focus-visible` and a bare
                         `focus:` variant never reaches it.
@@ -1444,7 +1444,7 @@ export default function MessagesPage() {
 
                       Two buttons sitting side by side would make you pick
                       between them every time, when the state of the field has
-                      already picked. Spaces do not count as typing — a
+                      already picked. Spaces do not count as typing - a
                       stray space should not take the microphone away.
 
                       While recording, the recorder takes the whole row: a
@@ -1552,7 +1552,7 @@ export default function MessagesPage() {
             {userSearch.trim() && (
               <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-surface">
                 {/* The query is debounced by 300ms, so between the keystroke
-                    and the answer this used to read "No users found" — which
+                    and the answer this used to read "No users found" - which
                     is a claim about the school's roll, not about the request
                     still being in the air. */}
                 {searchingUsers ? (

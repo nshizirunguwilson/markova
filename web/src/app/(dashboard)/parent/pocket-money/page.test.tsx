@@ -316,7 +316,7 @@ describe("more than one child", () => {
  * a blank rather than the word "undefined" against their child's money.
  */
 describe("a statement line nobody signed", () => {
-  it("draws an em dash where the name would be", async () => {
+  it("draws a dash where the name would be", async () => {
     await mount({
       "/pocket-money/student/student-1/statement": {
         data: [
@@ -336,7 +336,7 @@ describe("a statement line nobody signed", () => {
     });
 
     const row = (await screen.findByText("Mobile money top-up")).closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
     expect(row.textContent).not.toMatch(/undefined|null/);
   });
 });

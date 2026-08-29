@@ -158,7 +158,7 @@ export default function LoginPage() {
     } catch (err: any) {
       const msg = errorMessage(err, "Could not resend code");
       toast.error(msg);
-      // Server-side cooldown hit — reflect a wait on the button
+      // Server-side cooldown hit - reflect a wait on the button
       if (err.response?.status === 429 && resendCooldown <= 0) {
         setResendCooldown(RESEND_COOLDOWN_SECONDS);
       }
@@ -327,7 +327,7 @@ export default function LoginPage() {
                 </span>
               ) : (
                 <span className="text-danger">
-                  Your code has expired — request a new one below.
+                  Your code has expired - request a new one below.
                 </span>
               )}
             </p>

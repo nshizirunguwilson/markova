@@ -157,8 +157,8 @@ describe('flushing the queue when the signal comes back', () => {
   });
 
   /**
-   * A register the server rejects outright — a deleted class, a term that
-   * closed — will be rejected again forever. Three attempts, then it goes,
+   * A register the server rejects outright - a deleted class, a term that
+   * closed - will be rejected again forever. Three attempts, then it goes,
    * because a queue that never empties blocks every later register behind it.
    */
   it('gives up on one the server keeps refusing', async () => {

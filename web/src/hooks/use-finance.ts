@@ -266,7 +266,7 @@ export function useRaiseInvoices() {
       }
       toast.success(
         r.withoutStructure > 0
-          ? `${r.raised} invoices raised. ${r.withoutStructure} students were skipped — their class level has no fee structure yet.`
+          ? `${r.raised} invoices raised. ${r.withoutStructure} students were skipped - their class level has no fee structure yet.`
           : `${r.raised} invoices raised.`,
       );
     },

@@ -175,7 +175,7 @@ describe("what each row has to show", () => {
     expect(row.textContent).toMatch(/Senior 1/);
   });
 
-  // The list query has to select `gender`, or this reads "—" for everyone.
+  // The list query has to select `gender`, or this reads "-" for everyone.
   it("shows their gender, not a dash", async () => {
     await mount();
     const row = screen.getByText(/Divine/).closest("tr")!;

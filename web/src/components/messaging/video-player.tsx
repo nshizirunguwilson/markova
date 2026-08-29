@@ -14,7 +14,7 @@ import { clockDuration } from "@/lib/voice";
  * every browser, and in a chat bubble they look like a piece of somebody
  * else's application dropped into the conversation. These are the school's:
  * the same brand colour as everything around them, the same type, and only
- * the four things anybody uses on a clip in a chat — play, a scrub bar, mute,
+ * the four things anybody uses on a clip in a chat - play, a scrub bar, mute,
  * and open it larger.
  *
  * `preload="metadata"` still: enough to know how long it is and draw the

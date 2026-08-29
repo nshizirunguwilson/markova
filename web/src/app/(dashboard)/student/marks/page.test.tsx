@@ -135,13 +135,13 @@ describe("a term with marks in it", () => {
 });
 
 describe("a term the school has only half finished", () => {
-  it("draws em dashes where the result has no numbers yet", async () => {
+  it("draws dashes where the result has no numbers yet", async () => {
     mount({ result: { average: null, letterGrade: null, rank: null }, marks: [] });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
-    expect(await screen.findByText("—%")).toBeInTheDocument();
+    expect(await screen.findByText("-%")).toBeInTheDocument();
     // Grade and rank both blank as well.
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows only the teacher's comment when the head teacher has not written", async () => {

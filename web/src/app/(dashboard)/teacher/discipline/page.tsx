@@ -96,7 +96,7 @@ export default function TeacherDisciplinePage() {
                     <TableCell className="font-medium">
                       {`${inc.student?.user?.firstName ?? ""} ${
                         inc.student?.user?.lastName ?? ""
-                      }`.trim() || "—"}
+                      }`.trim() || "-"}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm">{inc.description}</TableCell>
                     <TableCell><Badge variant="danger">-{inc.pointsDeducted}</Badge></TableCell>

@@ -36,8 +36,8 @@ const HTML = "<html><body><h1>Report</h1></body></html>";
 
 /**
  * `termReport` is the real shape of `GET /reports/term/:studentId`, copied
- * from a live response. Serving a TermResult row here instead — which is what
- * this used to do — meant the page was tested against data the endpoint never
+ * from a live response. Serving a TermResult row here instead - which is what
+ * this used to do - meant the page was tested against data the endpoint never
  * returns, so a card rendering blank subject names still passed.
  */
 const routes = {
@@ -340,8 +340,8 @@ describe("opening and closing the official card", () => {
 /**
  * What the card actually renders.
  *
- * The page was written against a shape the endpoint does not return —
- * `report.termName`, a top-level `report.average`, `s.subjectName` — and its
+ * The page was written against a shape the endpoint does not return -
+ * `report.termName`, a top-level `report.average`, `s.subjectName` - and its
  * fixture was shaped to match the page rather than the API. Every assertion
  * passed while the real card showed a dash for the average, a dash for the
  * grade, a dash for the position, and a column of subject rows with no names.
@@ -358,7 +358,7 @@ describe("the card a student reads", () => {
   it("names the student and the term", async () => {
     await shown();
     await waitFor(() =>
-      expect(screen.getByText(/Divine Niyonkuru — Term 1/)).toBeInTheDocument(),
+      expect(screen.getByText(/Divine Niyonkuru - Term 1/)).toBeInTheDocument(),
     );
   });
 

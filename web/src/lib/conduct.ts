@@ -34,7 +34,7 @@ export function conductPercentage(
  * same thing for a term out of forty and a year out of a hundred and twenty.
  */
 export function conductRemark(percentage: number | null): string {
-  if (percentage === null) return "–";
+  if (percentage === null) return "-";
   if (percentage >= 95) return "Excellent";
   if (percentage >= 85) return "Very good";
   if (percentage >= 70) return "Good";
@@ -45,7 +45,7 @@ export function conductRemark(percentage: number | null): string {
 /**
  * The colour a conduct bar is drawn in. Three bands rather than five, because
  * a bar is read at a glance and five shades of it are not distinguishable at
- * that speed — the word beside it carries the detail.
+ * that speed - the word beside it carries the detail.
  */
 export function conductTone(percentage: number | null): string {
   /*

@@ -280,7 +280,7 @@ describe("paging", () => {
   it("shows the range and page count", async () => {
     serve(h.api, { ...routes, "/activities": paged });
     renderPage(ActivitiesPage, { role: "ADMIN" });
-    await waitFor(() => expect(screen.getByText(/1–25 of 60/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/1-25 of 60/)).toBeInTheDocument());
     expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
   });
 
@@ -908,9 +908,9 @@ describe("an activity entered without its details", () => {
     return screen.getByText("Reading hour").closest("tr")!;
   }
 
-  it("draws an em dash where no place was named", async () => {
+  it("draws a dash where no place was named", async () => {
     const row = await mountThin();
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
   });
 
   it("says nobody is signed up rather than leaving the count blank", async () => {

@@ -1,4 +1,4 @@
-# Markova — Feature Outline & Testing Guide
+# Markova - Feature Outline & Testing Guide
 
 This document has two parts:
 
@@ -9,7 +9,7 @@ Use Part A when you need a quick map of what the system does. Use Part B when yo
 
 ---
 
-# Part A — Feature Outline
+# Part A - Feature Outline
 
 ## A1. Authentication & Access
 
@@ -122,7 +122,7 @@ Use Part A when you need a quick map of what the system does. Use Part B when yo
 ---
 
 
-# Part B — Testing & Usage Walkthrough
+# Part B - Testing & Usage Walkthrough
 
 ## 1. Setting up before testing
 
@@ -165,7 +165,7 @@ PGPASSWORD=password psql -h localhost -p 5434 -U markova -d markova \
 
 ### 1.3 About OTPs in development
 
-The seeded SMTP config is real (Brevo), so emails go out for real. **For testing, you don't need to wait for the email** — the API response includes a `devOtp` field, and the backend prints `OTP for <email>: <code>` to its console. Both work.
+The seeded SMTP config is real (Brevo), so emails go out for real. **For testing, you don't need to wait for the email** - the API response includes a `devOtp` field, and the backend prints `OTP for <email>: <code>` to its console. Both work.
 
 ---
 
@@ -289,11 +289,11 @@ For each (year, term, subject, class-level, class-section, assessment-type, time
 
 **Expected:** 201, item appears. Edit and delete work the same way (200).
 
-**Special — timetable:**
+**Special - timetable:**
 - DTO: `classSectionId`, `subjectId`, `teacherId`, `dayOfWeek` (1=Mon … 7=Sun), `startTime`, `endTime`, optional `room`.
 - No `termId` field.
 
-**Special — exams:**
+**Special - exams:**
 - Field is `examDate` (not `date`).
 - No `name` field.
 
@@ -365,7 +365,7 @@ For each (year, term, subject, class-level, class-section, assessment-type, time
 
 ### 3.7 Homework `/admin/homework`
 
-Admin can list and delete. Teachers create homework — see §4.
+Admin can list and delete. Teachers create homework - see §4.
 
 ### 3.8 Library `/admin/library`
 
@@ -380,7 +380,7 @@ Admin can list and delete. Teachers create homework — see §4.
 
 **Expected:** 201. The book's `availableCount` decreases by one. A loan row appears under **Active loans**.
 
-**Common pitfall:** if the student has an overdue ACTIVE loan, the checkout returns **400 — Cannot borrow — has overdue books**. Return their overdue book first.
+**Common pitfall:** if the student has an overdue ACTIVE loan, the checkout returns **400 - Cannot borrow - has overdue books**. Return their overdue book first.
 
 **Return**
 1. Open the loan → **Return**.
@@ -398,7 +398,7 @@ Admin can list and delete. Teachers create homework — see §4.
 
 **Expected:**
 - Message persists.
-- If the recipient is online, the message appears in their conversation in **real time** (verified — websocket on `/chat` namespace).
+- If the recipient is online, the message appears in their conversation in **real time** (verified - websocket on `/chat` namespace).
 - If offline, they see it on next refresh, and get a push/email notification depending on their preferences.
 
 ### 3.10 Notifications `/admin/notifications` (and bell icon)
@@ -428,7 +428,7 @@ Admin can list and delete. Teachers create homework — see §4.
 **Expected:** payload with one card per student (the web app renders these to PDF client-side).
 
 **Other documents**
-- Transfer letter, transcript, certificate — `Documents → Generate`.
+- Transfer letter, transcript, certificate - `Documents → Generate`.
 
 ### 3.12 ID cards `/admin/id-cards`
 
@@ -456,8 +456,8 @@ Per-key edits (school name, motto, theme color, grading scale, etc.). Upload log
 
 ### 3.16 Help `/admin/help`
 
-- **FAQs** (admin-only) — create, edit, delete.
-- **Tickets** — incoming support requests from any user.
+- **FAQs** (admin-only) - create, edit, delete.
+- **Tickets** - incoming support requests from any user.
 - Update ticket status to OPEN / IN_PROGRESS / RESOLVED / CLOSED.
 
 ### 3.17 Analytics `/admin/analytics`
@@ -472,7 +472,7 @@ Per-key edits (school name, motto, theme color, grading scale, etc.). Upload log
 
 ### 3.18 Audit logs
 
-All sensitive mutations are logged automatically (interceptor on `marks`, `attendance`, `users`, etc.). Currently there is no dedicated audit-log UI page — query the `audit_logs` table directly:
+All sensitive mutations are logged automatically (interceptor on `marks`, `attendance`, `users`, etc.). Currently there is no dedicated audit-log UI page - query the `audit_logs` table directly:
 
 ```bash
 PGPASSWORD=password psql -h localhost -p 5434 -U markova -d markova \
@@ -491,7 +491,7 @@ Shows: assigned classes, today's timetable, recent submissions, pending marks.
 
 ### 4.2 Marks entry `/teacher/marks`
 
-Same flow as admin — but only for classes/subjects assigned to this teacher.
+Same flow as admin - but only for classes/subjects assigned to this teacher.
 
 ### 4.3 Attendance `/teacher/attendance`
 
@@ -521,7 +521,7 @@ Real-time chat with admin, other teachers, parents (of their students), and stud
 
 ### 4.7 Analytics `/teacher/analytics`
 
-Performance of teacher's own classes — averages by subject, by class, trends.
+Performance of teacher's own classes - averages by subject, by class, trends.
 
 ### 4.8 Profile `/teacher/profile`
 
@@ -543,11 +543,11 @@ Read-only view of own marks by term, by subject. Term result card view.
 
 ### 5.3 Attendance `/student/attendance`
 
-Personal attendance log — daily and by subject.
+Personal attendance log - daily and by subject.
 
 ### 5.4 Discipline `/student/discipline`
 
-Read-only — students see their own incidents and current discipline points.
+Read-only - students see their own incidents and current discipline points.
 
 ### 5.5 Homework `/student/homework`
 
@@ -620,7 +620,7 @@ Full CRUD on the library catalog.
 
 - Active loans tab.
 - Overdue tab.
-- **Send reminders** — emails students with overdue books.
+- **Send reminders** - emails students with overdue books.
 
 ### 7.3 Checkout / Return
 
@@ -711,27 +711,27 @@ Currently verified: bundles cleanly (5.2 MB), TypeScript clean. Runtime flows (l
 
 Run these in order:
 
-1. ✅ `docker compose ps` — both containers `Up`.
+1. ✅ `docker compose ps` - both containers `Up`.
 2. ✅ `curl -fsS http://localhost:3000/api/health` returns `"status":"ok"` and both `database` + `redis` checks green.
-3. ✅ Open `http://localhost:3001/login` — login form renders.
+3. ✅ Open `http://localhost:3001/login` - login form renders.
 4. ✅ Login as admin, land on `/admin`, see seeded numbers (330 students / 30 teachers / 562 users / 15 subjects).
 5. ✅ `/admin/students` lists 30 students.
 6. ✅ Open one student → report card PDF downloads.
 7. ✅ Open `/admin/messages` → real-time send/receive works.
 8. ✅ Sign out, sign in as student, see own data only.
 
-If any of these fail, do not demo — fix first.
+If any of these fail, do not demo - fix first.
 
 ---
 
 ## 11. Known limitations (be upfront about these)
 
-- **Email delivery** relies on the SMTP provider (Brevo). If credits run out, OTP messages won't arrive — but the dev `devOtp` field and backend logs always have the code.
+- **Email delivery** relies on the SMTP provider (Brevo). If credits run out, OTP messages won't arrive - but the dev `devOtp` field and backend logs always have the code.
 - **Mobile app** is bundled but runtime flows are unverified end-to-end. Treat the mobile UI as alpha until first device test.
-- **Audit logs** have no dashboard UI yet — query the table directly.
+- **Audit logs** have no dashboard UI yet - query the table directly.
 - **Photo upload on user profile** uses the same pattern as logo upload (verified) but the per-user endpoint isn't independently smoke-tested.
 - **Promotion logic** depends on year results being calculated first.
-- **Demo data is date-relative.** The seed anchors everything to "today": the current term contains today, attendance covers the last ~10 weekdays, and only 3 loans are intentionally overdue. The seed is idempotent — re-run `npx prisma db seed` any time (especially on demo day) to refresh dates. Note the attendance dashboard defaults to today, so it's empty on weekends.
+- **Demo data is date-relative.** The seed anchors everything to "today": the current term contains today, attendance covers the last ~10 weekdays, and only 3 loans are intentionally overdue. The seed is idempotent - re-run `npx prisma db seed` any time (especially on demo day) to refresh dates. Note the attendance dashboard defaults to today, so it's empty on weekends.
 
 ---
 
@@ -739,13 +739,13 @@ If any of these fail, do not demo — fix first.
 
 | Symptom | First place to look |
 |---|---|
-| 401 on every request | Token expired — log in again or call `/api/auth/refresh` |
-| 403 | Wrong role for this endpoint — check `@Roles(...)` on the controller |
+| 401 on every request | Token expired - log in again or call `/api/auth/refresh` |
+| 403 | Wrong role for this endpoint - check `@Roles(...)` on the controller |
 | 400 "validation failed" | Check the DTO in `backend/src/modules/<mod>/dto/` |
-| 404 | Path typo — `grep -i <thing> /tmp/routes.txt` (regenerate with backend startup logs) |
-| 500 | Look at `backend` console — Prisma errors usually explain the column or constraint |
+| 404 | Path typo - `grep -i <thing> /tmp/routes.txt` (regenerate with backend startup logs) |
+| 500 | Look at `backend` console - Prisma errors usually explain the column or constraint |
 | Realtime not working | Confirm client connects to `http://host:3000/chat` (note the `/chat` namespace) |
-| Login OTP not arriving | Check `backend` console — OTP always printed there |
+| Login OTP not arriving | Check `backend` console - OTP always printed there |
 | Uploaded image 404 on display | Re-verify the file is in `backend/uploads/<subdir>/<uuid>.png` |
 
 ---

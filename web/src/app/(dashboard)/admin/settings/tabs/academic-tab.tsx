@@ -56,7 +56,7 @@ export function AcademicTab() {
             <div key={y.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
               <span className="font-medium">{y.name}</span>
               <span className="text-sm text-muted">
-                {new Date(y.startDate).toLocaleDateString()} — {new Date(y.endDate).toLocaleDateString()}
+                {new Date(y.startDate).toLocaleDateString()} - {new Date(y.endDate).toLocaleDateString()}
               </span>
               {y.isCurrent && <Badge variant="success">Current</Badge>}
             </div>
@@ -73,20 +73,20 @@ export function AcademicTab() {
           <Button aria-label="Add" type="submit" size="sm" isLoading={createYear.isPending}><Plus className="h-4 w-4" /></Button>
         </form>
         <p className="mt-2 text-xs text-muted">
-          Leave &quot;Make current&quot; off to prepare a future year — the whole school switches to the current year.
+          Leave &quot;Make current&quot; off to prepare a future year - the whole school switches to the current year.
         </p>
       </Card>
 
       {/* Terms */}
       <Card>
-        <CardTitle>Terms ({currentYear?.name || "—"})</CardTitle>
+        <CardTitle>Terms ({currentYear?.name || "-"})</CardTitle>
         <div className="mt-4 space-y-2 mb-4">
           {terms?.map((t: any) => (
             <div key={t.id} className="flex items-center justify-between rounded-lg border border-border p-3">
               <div className="flex items-center gap-3">
                 <span className="font-medium">{t.name}</span>
                 <span className="text-sm text-muted">
-                  {new Date(t.startDate).toLocaleDateString()} — {new Date(t.endDate).toLocaleDateString()}
+                  {new Date(t.startDate).toLocaleDateString()} - {new Date(t.endDate).toLocaleDateString()}
                 </span>
                 {t.isCurrent && <Badge variant="success">Current</Badge>}
                 {t.isClosed && <Badge variant="danger">Closed</Badge>}

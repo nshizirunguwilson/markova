@@ -63,7 +63,7 @@ describe("a video with controls of our own", () => {
 
   /*
     That big target does the same thing as the play button in the bar, so it
-    is kept out of the accessibility tree — two identical controls with no way
+    is kept out of the accessibility tree - two identical controls with no way
     to tell them apart is worse than one.
   */
   it("announces only one play control", () => {

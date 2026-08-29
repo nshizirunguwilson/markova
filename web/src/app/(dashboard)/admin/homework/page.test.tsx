@@ -645,12 +645,12 @@ describe("an assessment recorded before the school had its details straight", ()
     "/homework": { data: [bare], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } },
   };
 
-  it("draws an em dash for the subject, due date and marks", async () => {
+  it("draws a dash for the subject, due date and marks", async () => {
     serve(h.api, withBare);
     renderPage(AdminHomeworkPage, { role: "ADMIN" });
 
     const row = (await screen.findByText("Old exercise")).closest("tr")!;
-    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(within(row).getAllByText("-").length).toBeGreaterThanOrEqual(3);
   });
 
   it("opens it for editing with the blanks left blank", async () => {
@@ -671,7 +671,7 @@ describe("an assessment recorded before the school had its details straight", ()
     expect(screen.getByLabelText("Class Level")).toHaveValue("");
   });
 
-  it("exports it with an em dash where the due date should be", async () => {
+  it("exports it with a dash where the due date should be", async () => {
     serve(h.api, withBare);
     renderPage(AdminHomeworkPage, { role: "ADMIN" });
     await screen.findByText("Old exercise");
@@ -690,7 +690,7 @@ describe("an assessment recorded before the school had its details straight", ()
     await click(csv);
 
     const [, payload] = h.exportData.mock.calls.at(-1)! as [string, any];
-    expect(payload.data[0]._dueDate).toBe("—");
+    expect(payload.data[0]._dueDate).toBe("-");
     expect(payload.data[0]._teacher).toBe("");
   });
 });

@@ -221,7 +221,7 @@ export default function AdminSubjectsPage() {
       data: filtered.map((s: any) => ({
         ...s,
         _scope: scopeLabel(s.scope),
-        _trade: s.trade ? `${s.trade.code} — ${s.trade.name}` : "",
+        _trade: s.trade ? `${s.trade.code} - ${s.trade.name}` : "",
         _level: s.classLevel?.name ?? "All levels",
         _teachers: s._count?.teacherSubjectClasses ?? 0,
         _status: s.isActive === false ? "Inactive" : "Active",
@@ -290,7 +290,7 @@ export default function AdminSubjectsPage() {
           >
             <option value="">All trades</option>
             {trades?.map((t: any) => (
-              <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
+              <option key={t.id} value={t.id}>{t.code} - {t.name}</option>
             ))}
           </select>
         </div>
@@ -349,7 +349,7 @@ export default function AdminSubjectsPage() {
                         {s.trade ? (
                           <span title={s.trade.name}>{s.trade.code}</span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted">-</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -358,7 +358,7 @@ export default function AdminSubjectsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <p className="text-xs">{meta?.weighting ?? "—"}</p>
+                        <p className="text-xs">{meta?.weighting ?? "-"}</p>
                         <p className="text-[11px] text-muted">
                           Out of {s.maxMarks ?? 100} · {meta?.scale}
                         </p>
@@ -393,7 +393,7 @@ export default function AdminSubjectsPage() {
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted">
-            Showing {(currentPage - 1) * PER_PAGE + 1}–
+            Showing {(currentPage - 1) * PER_PAGE + 1}-
             {Math.min(currentPage * PER_PAGE, filtered.length)} of {filtered.length}
           </p>
           <div className="flex gap-2">
@@ -466,7 +466,7 @@ export default function AdminSubjectsPage() {
             >
               {SUBJECT_SCOPES.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.stage} — {s.label}
+                  {s.stage} - {s.label}
                 </option>
               ))}
             </select>
@@ -495,7 +495,7 @@ export default function AdminSubjectsPage() {
                   {info?.requiresTrade ? "Select a trade..." : "Not a trade module"}
                 </option>
                 {trades?.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
+                  <option key={t.id} value={t.id}>{t.code} - {t.name}</option>
                 ))}
               </select>
               {errors.tradeId && <p className="mt-1 text-xs text-danger">{errors.tradeId.message}</p>}
@@ -527,7 +527,7 @@ export default function AdminSubjectsPage() {
               <span>
                 Active
                 <span className="ml-1 text-xs text-muted">
-                  — a subject with marks against it cannot be deleted, only deactivated
+                  - a subject with marks against it cannot be deleted, only deactivated
                 </span>
               </span>
             </label>

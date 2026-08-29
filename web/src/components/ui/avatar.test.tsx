@@ -22,7 +22,7 @@ describe("what an avatar shows", () => {
     expect(screen.getByText("MU")).toBeInTheDocument();
   });
 
-  // A row with no person behind it at all — a group thread, a placeholder.
+  // A row with no person behind it at all - a group thread, a placeholder.
   it("falls back to a plain icon with no initials either", () => {
     const { container } = render(<Avatar />);
     expect(container.querySelector("svg")).toBeInTheDocument();

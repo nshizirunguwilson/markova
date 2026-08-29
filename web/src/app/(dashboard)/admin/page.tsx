@@ -170,37 +170,37 @@ export default function AdminDashboard() {
   const statCards = [
     {
       label: "Total Students",
-      value: dashboard?.totalStudents ?? "—",
+      value: dashboard?.totalStudents ?? "-",
       icon: GraduationCap,
       color: "text-primary bg-accent-light",
     },
     {
       label: "Total Teachers",
-      value: dashboard?.totalTeachers ?? "—",
+      value: dashboard?.totalTeachers ?? "-",
       icon: UserCheck,
       color: "text-success bg-success-wash",
     },
     {
       label: "Total Users",
-      value: dashboard?.totalUsers ?? "—",
+      value: dashboard?.totalUsers ?? "-",
       icon: Users,
       color: "text-violet-600 bg-violet-50",
     },
     {
       label: "Subjects",
-      value: dashboard?.totalSubjects ?? "—",
+      value: dashboard?.totalSubjects ?? "-",
       icon: BookOpen,
       color: "text-warning bg-warning-wash",
     },
     {
       label: "Attendance Today",
-      value: attendance?.overall ? `${attendanceRate}%` : "—",
+      value: attendance?.overall ? `${attendanceRate}%` : "-",
       icon: Calendar,
       color: "text-cyan-600 bg-cyan-50",
     },
     {
       label: "Books on Loan",
-      value: library?.activeLoans ?? "—",
+      value: library?.activeLoans ?? "-",
       icon: Library,
       color: "text-warning bg-warning-wash",
     },
@@ -283,7 +283,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Attendance Rate (Today)</span>
               <span className="text-sm font-semibold text-foreground">
-                {attendance?.overall ? `${attendanceRate}%` : "—"}
+                {attendance?.overall ? `${attendanceRate}%` : "-"}
               </span>
             </div>
             <div className="h-2 rounded-full bg-surface-muted">
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Library: books out</span>
               <span className="text-sm font-semibold text-foreground">
-                {library?.activeLoans ?? "—"}
+                {library?.activeLoans ?? "-"}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -314,7 +314,7 @@ export default function AdminDashboard() {
           {
             target: "[data-guide='stat-cards']",
             title: "School Overview",
-            content: "These cards show real-time stats for your school — students, teachers, and attendance at a glance.",
+            content: "These cards show real-time stats for your school - students, teachers, and attendance at a glance.",
           },
           {
             target: "[data-guide='quick-actions']",

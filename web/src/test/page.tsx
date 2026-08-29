@@ -140,6 +140,18 @@ export async function settled() {
   );
 }
 
+/**
+ * The trimmed text of each cell in a row.
+ *
+ * For the many tables that draw a bare "-" where a record has no value. A row
+ * merely *containing* a hyphen proves nothing - student numbers and dates are
+ * full of them - so what these cases check is a cell holding the placeholder
+ * and nothing else.
+ */
+export function cellTexts(row: Element): string[] {
+  return [...row.querySelectorAll("td")].map((c) => c.textContent?.trim() ?? "");
+}
+
 /** True when the rendered page shows this text, case-insensitively. */
 export function showsText(pattern: RegExp) {
   return (document.body.textContent ?? "").match(pattern) !== null;

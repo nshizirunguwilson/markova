@@ -151,8 +151,8 @@ export default function LibrarianBooksPage() {
                 <TableRow key={book.id}>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
-                  <TableCell><Badge>{book.category || "—"}</Badge></TableCell>
-                  <TableCell className="text-xs font-mono">{book.isbn || "—"}</TableCell>
+                  <TableCell><Badge>{book.category || "-"}</Badge></TableCell>
+                  <TableCell className="text-xs font-mono">{book.isbn || "-"}</TableCell>
                   <TableCell>{book.quantity}</TableCell>
                   <TableCell>
                     <Badge variant={book.availableCount > 0 ? "success" : "danger"}>

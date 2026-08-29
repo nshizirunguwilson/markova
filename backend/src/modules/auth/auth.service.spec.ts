@@ -165,7 +165,7 @@ describe('AuthService', () => {
      * Signing in must not wait on the mail server.
      *
      * The code is in Redis before the email is attempted, so the session is
-     * valid whether or not the message ever arrives — and the sender swallows
+     * valid whether or not the message ever arrives - and the sender swallows
      * its own failures, so awaiting it could not tell the caller anything.
      * Against a configured SMTP host that await cost about two seconds on
      * every single sign-in, with the user watching a spinner.
@@ -300,7 +300,7 @@ describe('AuthService', () => {
       const user = makeUser();
       mockPrisma.user.findFirst.mockResolvedValue(user);
 
-      // Simulate a locked account — lockedUntil is in the future
+      // Simulate a locked account - lockedUntil is in the future
       const lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       mockRedis.get.mockResolvedValue(
         JSON.stringify({ count: 5, lockedUntil }),
@@ -431,7 +431,7 @@ describe('AuthService', () => {
       mockJwt.verify.mockReturnValue({ sub: user.id, role: user.role });
       mockPrisma.userSession.findFirst.mockResolvedValue(session);
       mockPrisma.user.findUnique.mockResolvedValue(user);
-      // Redis NX lock fails — another request is already refreshing
+      // Redis NX lock fails - another request is already refreshing
       mockRedis.set.mockResolvedValue(null);
 
       await expect(service.refreshToken({ refreshToken })).rejects.toThrow(

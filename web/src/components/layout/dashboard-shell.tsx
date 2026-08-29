@@ -91,7 +91,7 @@ export function DashboardShell({
       (!!allowedRoles && !allowedRoles.includes(user.role)));
 
   // A signed-in user landing on another role's page is sent to their own
-  // dashboard. This is the real guard — the API still enforces data access,
+  // dashboard. This is the real guard - the API still enforces data access,
   // but a student should never even reach /admin/* by typing the URL.
   useEffect(() => {
     if (roleMismatch && user) {
@@ -103,7 +103,7 @@ export function DashboardShell({
   useSocketConnection();
 
   // A message that arrives while somebody is entering marks is otherwise
-  // invisible — the thread updates on a page nobody is looking at.
+  // invisible - the thread updates on a page nobody is looking at.
   useMessageAlerts();
 
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
@@ -148,7 +148,7 @@ export function DashboardShell({
     return null;
   }
 
-  // Wrong role for this route — render nothing while the effect above redirects.
+  // Wrong role for this route - render nothing while the effect above redirects.
   if (roleMismatch) {
     return null;
   }
@@ -171,7 +171,7 @@ export function DashboardShell({
         Keyed on the route so each page fades in as it arrives.
 
         Opacity only, and only 150ms: the content is in the document from the
-        first frame, so nothing is delayed and nothing moves — a reader's eye
+        first frame, so nothing is delayed and nothing moves - a reader's eye
         does not have to track anything. That is the difference between this
         and a sliding route transition, which does make an app people use all
         day feel slower.
@@ -180,8 +180,8 @@ export function DashboardShell({
         the most-seen transition in the whole app and was a hard cut.
 
         The route, not the pathname. Rebuilding on every URL change meant a
-        page that changes its own address — the chat, which puts the open
-        thread in the URL — was destroyed and faded back in every time you
+        page that changes its own address - the chat, which puts the open
+        thread in the URL - was destroyed and faded back in every time you
         clicked a conversation, taking its scroll position and anything you
         had half written with it. That flash was the whole page being thrown
         away, not a transition.

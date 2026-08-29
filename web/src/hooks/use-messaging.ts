@@ -20,7 +20,7 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations"],
     queryFn: async () => (await api.get("/messaging/conversations")).data,
-    // No polling — real-time updates come via WebSocket
+    // No polling - real-time updates come via WebSocket
   });
 }
 
@@ -29,7 +29,7 @@ export function useMessages(conversationId?: string) {
     queryKey: ["messages", conversationId],
     queryFn: async () => (await api.get(`/messaging/conversations/${conversationId}/messages`)).data,
     enabled: !!conversationId,
-    // No polling — real-time updates come via WebSocket
+    // No polling - real-time updates come via WebSocket
   });
 }
 

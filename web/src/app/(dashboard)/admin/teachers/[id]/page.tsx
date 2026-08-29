@@ -98,7 +98,7 @@ export default function TeacherDetailPage() {
     const byClass = new Map<string, { section: any; subjects: string[]; students: number }>();
     for (const a of assignments) {
       // Nothing to group a row without a class by, and nothing to show for it
-      // either — the row would render as a blank class name.
+      // either - the row would render as a blank class name.
       const key = a.classSection?.id;
       if (!key) continue;
       const entry = byClass.get(key) ?? {
@@ -195,8 +195,8 @@ export default function TeacherDetailPage() {
               {(teacher?.roles ?? []).map((r: any) => (
                 <Badge key={r.id} variant="info">
                   {SPECIAL_ROLE_LABEL[r.role] ?? r.role}
-                  {r.classSection ? ` — ${classDisplayName(r.classSection)}` : ""}
-                  {r.department ? ` — ${r.department}` : ""}
+                  {r.classSection ? ` - ${classDisplayName(r.classSection)}` : ""}
+                  {r.department ? ` - ${r.department}` : ""}
                 </Badge>
               ))}
             </div>
@@ -223,7 +223,7 @@ export default function TeacherDetailPage() {
               ? classTeacherOf
                   .map((r: any) => classDisplayName(r.classSection))
                   .join(", ")
-              : "—"
+              : "-"
           }
           icon={GraduationCap}
         />
@@ -281,7 +281,7 @@ export default function TeacherDetailPage() {
                       <TableRow key={c.section?.id ?? classDisplayName(c.section)}>
                         <TableCell className="font-medium">
                           <span className="flex items-center gap-2">
-                            {classDisplayName(c.section) || "—"}
+                            {classDisplayName(c.section) || "-"}
                             {classTeacherOf.some(
                               (r: any) => r.classSection?.id === c.section?.id,
                             ) && <Badge variant="info">Class teacher</Badge>}
@@ -294,7 +294,7 @@ export default function TeacherDetailPage() {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell>{c.students || "—"}</TableCell>
+                        <TableCell>{c.students || "-"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -328,7 +328,7 @@ export default function TeacherDetailPage() {
                           }`}
                         >
                           <span className="font-mono text-xs text-muted">
-                            {row.startTime}–{row.endTime}
+                            {row.startTime}-{row.endTime}
                           </span>
                           <span className="font-medium">{row.subject?.name}</span>
                           <span className="text-muted">
@@ -355,8 +355,8 @@ export default function TeacherDetailPage() {
           <Card>
             <CardTitle>Contact</CardTitle>
             <div className="mt-3 space-y-3">
-              <Field icon={Mail} label="Email" value={user.email || "—"} />
-              <Field icon={Phone} label="Phone" value={user.phone || "—"} />
+              <Field icon={Mail} label="Email" value={user.email || "-"} />
+              <Field icon={Phone} label="Phone" value={user.phone || "-"} />
               {residence && (
                 <Field icon={MapPin} label="Residence" value={residence} />
               )}
@@ -368,16 +368,16 @@ export default function TeacherDetailPage() {
             <div className="mt-3 space-y-3">
               <Field
                 label="Status"
-                value={(teacher?.employmentStatus || "—").replace("_", " ")}
+                value={(teacher?.employmentStatus || "-").replace("_", " ")}
               />
-              <Field label="Qualification" value={teacher?.qualification || "—"} />
-              <Field label="RSSB number" value={teacher?.rssbNumber || "—"} />
+              <Field label="Qualification" value={teacher?.qualification || "-"} />
+              <Field label="RSSB number" value={teacher?.rssbNumber || "-"} />
               <Field
                 label="Hired"
                 value={
                   teacher?.hireDate
                     ? new Date(teacher.hireDate).toLocaleDateString()
-                    : "—"
+                    : "-"
                 }
               />
             </div>
@@ -389,16 +389,16 @@ export default function TeacherDetailPage() {
               <Field
                 icon={Shield}
                 label="National ID"
-                value={user.nationalId ? formatNid(user.nationalId) : "—"}
+                value={user.nationalId ? formatNid(user.nationalId) : "-"}
               />
-              <Field label="Nationality" value={user.nationality || "—"} />
-              <Field label="Gender" value={user.gender || "—"} />
+              <Field label="Nationality" value={user.nationality || "-"} />
+              <Field label="Gender" value={user.gender || "-"} />
               <Field
                 label="Date of birth"
                 value={
                   user.dateOfBirth
                     ? new Date(user.dateOfBirth).toLocaleDateString()
-                    : "—"
+                    : "-"
                 }
               />
             </div>

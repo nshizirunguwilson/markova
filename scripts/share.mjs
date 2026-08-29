@@ -36,7 +36,7 @@ const LOCAL_API = "http://localhost:3000/api";
  * The API's address, worked out from the web one.
  *
  * Every forwarding tool that gives a hostname per port encodes the port in
- * it — `<id>-3001.<region>.devtunnels.ms`, `<id>-3001.ngrok.io` — so the API
+ * it - `<id>-3001.<region>.devtunnels.ms`, `<id>-3001.ngrok.io` - so the API
  * address is the same name with 3000 in place of 3001. Where the port is not
  * in the hostname there is nothing to infer, and the caller is asked.
  */
@@ -74,7 +74,7 @@ export function readEnv(contents, key) {
  * The origins the API should answer, with the forwarded one added.
  *
  * Added, not substituted: whatever is already in the file is there because
- * somebody put it there — a phone on the LAN, a second machine — and losing
+ * somebody put it there - a phone on the LAN, a second machine - and losing
  * it while sharing would break their setup silently.
  */
 export function mergeOrigins(existing, ...wanted) {
@@ -151,7 +151,7 @@ function main() {
   console.log(local ? "Back to localhost.\n" : "Sharing.\n");
   console.log(`  web/.env.local  NEXT_PUBLIC_API_URL = ${apiUrl}`);
   console.log(`  backend/.env    CORS_ORIGINS        = ${origins}\n`);
-  console.log("Restart both servers — NEXT_PUBLIC_* is read at build time,");
+  console.log("Restart both servers - NEXT_PUBLIC_* is read at build time,");
   console.log("so the web app will keep using the old address until it is.\n");
   if (!local) {
     console.log(`  Forward 3001 AND 3000, and set both to public visibility.`);

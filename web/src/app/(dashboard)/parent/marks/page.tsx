@@ -154,16 +154,16 @@ export default function ParentMarksPage() {
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Card>
                 <p className="text-xs text-muted">Average</p>
-                <p className="text-2xl font-bold text-primary">{result.average?.toFixed(1) || "—"}%</p>
+                <p className="text-2xl font-bold text-primary">{result.average?.toFixed(1) || "-"}%</p>
               </Card>
               <Card>
                 <p className="text-xs text-muted">Grade</p>
-                <p className="text-2xl font-bold text-foreground">{result.letterGrade || "—"}</p>
+                <p className="text-2xl font-bold text-foreground">{result.letterGrade || "-"}</p>
               </Card>
               <Card>
                 <p className="text-xs text-muted">Class Rank</p>
                 <p className="text-2xl font-bold text-foreground">
-                  {result.rank ? `#${result.rank}` : "—"}
+                  {result.rank ? `#${result.rank}` : "-"}
                 </p>
               </Card>
               <Card>

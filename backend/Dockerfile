@@ -31,7 +31,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 
 # Uploaded logos, stamps, signatures and photos live here. Mount a volume over
-# it in production — a container rebuild otherwise discards the school's crest.
+# it in production - a container rebuild otherwise discards the school's crest.
 RUN mkdir -p /app/uploads
 VOLUME ["/app/uploads"]
 

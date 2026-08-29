@@ -14,8 +14,8 @@ import { errorMessage } from "@/lib/errors";
 /**
  * The rows out of a paginated response.
  *
- * The library endpoints answer `{ data, meta }` — the envelope from
- * PaginatedResponse — and reading `.length` straight off that gives
+ * The library endpoints answer `{ data, meta }` - the envelope from
+ * PaginatedResponse - and reading `.length` straight off that gives
  * `undefined`, which every "no results" branch in the app treats as empty.
  * The librarian's catalogue said "No books found" over a library of 56 for
  * exactly that reason, while its own header counted them correctly from a

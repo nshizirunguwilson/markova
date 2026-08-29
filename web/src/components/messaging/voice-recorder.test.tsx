@@ -190,7 +190,7 @@ describe("recording a voice note", () => {
 
   /*
     The stop button and the discard button both act on a recorder that may
-    already have stopped itself — at five minutes, or because the browser
+    already have stopped itself - at five minutes, or because the browser
     took the microphone away. Neither must throw.
   */
   it("copes with a recorder that has already stopped itself", async () => {

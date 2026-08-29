@@ -20,7 +20,7 @@ export function useUsers(filters: UserFilters = {}) {
   return useQuery({
     queryKey: ["users", filters],
     queryFn: async () => {
-      // Send every set filter — hand-picking keys here is how filters get
+      // Send every set filter - hand-picking keys here is how filters get
       // silently dropped when a new one is added.
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(filters)) {

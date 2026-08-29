@@ -34,8 +34,8 @@ import { FamilyFees } from "./family-fees";
  * A family's own account.
  *
  * The page has nothing to act on, so what it owes the reader is an
- * explanation: what is owed, what has already been paid, and — where a term
- * is holding results back — that the two are the same question. A family told
+ * explanation: what is owed, what has already been paid, and - where a term
+ * is holding results back - that the two are the same question. A family told
  * only that they are blocked has nowhere to go with it.
  */
 

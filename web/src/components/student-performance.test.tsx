@@ -39,7 +39,7 @@ const term = (yearName: string, termName: string, average: number, classAverage:
   aggregate: 12,
   aggregateMax: 30,
   attendancePct: 95,
-  // The endpoint names these `name`, `total`, `grade` and `points` — the
+  // The endpoint names these `name`, `total`, `grade` and `points` - the
   // component reads exactly those. The fixture used to say `subjectName` and
   // `score`, so the chart was drawn from undefined values and the test still
   // passed. Same trap the report card page fell into.
@@ -276,7 +276,7 @@ describe("a profile with pieces missing", () => {
     expect(await screen.findByText("Software Development")).toBeInTheDocument();
   });
 
-  it("draws an en dash for attendance nobody has recorded", async () => {
+  it("draws a dash for attendance nobody has recorded", async () => {
     serve(h.api, {
       "/analytics/student": profile([
         { ...term("2026-2027", "Term 1", 82, 68), attendancePct: null },
@@ -286,7 +286,7 @@ describe("a profile with pieces missing", () => {
     await screen.findByRole("heading", { name: /Divine/ });
 
     const chip = screen.getByText("Attendance").closest("div")!;
-    expect(chip.textContent).toContain("–");
+    expect(chip.textContent).toContain("-");
   });
 
   it("shows the attendance percentage when there is one", async () => {

@@ -2,7 +2,7 @@
  * Where a notification should take the reader.
  *
  * The bell used to decide by looking at `Notification.type`, which is the
- * channel the notice went out on — SMS, EMAIL or PUSH. No channel name has
+ * channel the notice went out on - SMS, EMAIL or PUSH. No channel name has
  * ever contained the word "attendance", so every branch was dead and clicking
  * a notification only ever marked it read. What a notice is ABOUT lives on
  * `relatedEntityType` (see backend/src/common/notification-target.ts).
@@ -43,7 +43,7 @@ export interface NotificationLike {
  *
  * Mirrors the server's own fallback: every row written before the subject
  * column was filled in, and the whole demo seed, has nothing to route on.
- * Ordered most specific first — "report card published" is a report card, not
+ * Ordered most specific first - "report card published" is a report card, not
  * marks, and both words appear in it.
  */
 const TITLE_HINTS: [RegExp, NotificationSubject][] = [

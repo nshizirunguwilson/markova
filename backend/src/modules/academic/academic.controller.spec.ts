@@ -14,7 +14,7 @@ import {
  *
  * Fifty routes over eleven kinds of thing, and most of them are the same four
  * verbs. The risk that comes with that shape is a copied route left pointing
- * at the neighbouring service method — deleting a term where it meant to
+ * at the neighbouring service method - deleting a term where it meant to
  * delete a class. So every one is checked by name.
  */
 describe('AcademicController', () => {
@@ -452,7 +452,7 @@ describe('AcademicController', () => {
  * This is the vocabulary every page filters by, not academic data. The
  * boarding staff and the nurse were left out of it, so the pocket money
  * register and the activity list came back empty behind a "Forbidden
- * resource" toast — a page that looked broken rather than restricted.
+ * resource" toast - a page that looked broken rather than restricted.
  */
 describe('AcademicController class list access', () => {
   const rolesOn = (method: string): string[] =>

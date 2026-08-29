@@ -6,8 +6,8 @@ export const FEE_REFUSAL_REASON = "FEES_OUTSTANDING";
 /**
  * Read a held term out of a failed request.
  *
- * A report card comes back 403 for two quite different reasons — the school
- * has not issued it yet, or the term's fees are owed — and the two need
+ * A report card comes back 403 for two quite different reasons - the school
+ * has not issued it yet, or the term's fees are owed - and the two need
  * different pages. The API names the second one, so this switches on the name
  * rather than on the wording of a message somebody may one day reword or
  * translate.

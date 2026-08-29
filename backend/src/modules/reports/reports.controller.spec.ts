@@ -359,7 +359,7 @@ describe('VerifyController', () => {
  * A report card a student is not meant to have yet.
  *
  * Issuing the card is a separate decision from releasing the marks, and these
- * three routes hand over the very same document — as data, as a page and as a
+ * three routes hand over the very same document - as data, as a page and as a
  * PDF. Gating one and not the others would leave the other two as open doors.
  */
 describe('a report card that has not been issued', () => {

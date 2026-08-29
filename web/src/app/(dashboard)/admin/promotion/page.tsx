@@ -62,7 +62,7 @@ export default function AdminPromotionPage() {
    * The school's six levels in order: Senior 1-3 (O-Level) then Level 3-5
    * (TVET / A-Level), which is ClassLevel.order 1..6. A promotion only ever
    * moves a student up that ladder, so the destination list is every level
-   * above the source — "Senior 2 → Senior 1" used to be one click away.
+   * above the source - "Senior 2 → Senior 1" used to be one click away.
    */
   const ladder = useMemo(
     () =>
@@ -81,7 +81,7 @@ export default function AdminPromotionPage() {
   /**
    * The destination, derived during render rather than synced in an effect
    * (the same shape the marks page uses): the admin's explicit choice wins,
-   * otherwise the next level up — which is the answer nine times in ten.
+   * otherwise the next level up - which is the answer nine times in ten.
    * They can still pick a further one, Senior 3 to Level 4 say.
    */
   const toLevelId = toLevelChoice || nextLevel?.id || "";
@@ -182,7 +182,7 @@ export default function AdminPromotionPage() {
         <PageHeader
           title="Student Promotion"
           description={<>Review each student&apos;s results and discipline, then promote or retain
-          them — the system recommends, you decide.</>}
+          them - the system recommends, you decide.</>}
         />
       </div>
 
@@ -253,7 +253,7 @@ export default function AdminPromotionPage() {
                   {promotableLevels.map((l: any) => (
                     <option key={l.id} value={l.id}>
                       {l.name}
-                      {nextLevel && l.id === nextLevel.id ? " — next level" : ""}
+                      {nextLevel && l.id === nextLevel.id ? " - next level" : ""}
                     </option>
                   ))}
                 </select>
@@ -271,7 +271,7 @@ export default function AdminPromotionPage() {
                 {isFinalLevel ? (
                   <p className="text-xs text-warning">
                     {fromLevel?.name} is the last level in the school. These
-                    students complete their studies rather than move up — mark
+                    students complete their studies rather than move up - mark
                     the ones who did not finish as Retain.
                   </p>
                 ) : fromLevel ? (

@@ -72,7 +72,7 @@ export function QuotedMessage({
       : "border-primary bg-primary/10"
   } ${className}`;
 
-  // Tapping a quote goes to what it answers — the reason a quote is worth
+  // Tapping a quote goes to what it answers - the reason a quote is worth
   // having once the conversation has moved on.
   if (onJump) {
     return (

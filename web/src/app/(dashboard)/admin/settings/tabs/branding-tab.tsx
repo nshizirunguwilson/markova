@@ -79,7 +79,7 @@ export function BrandingTab() {
       }
       toast.success(`${type} updated`);
     } catch (e) {
-      // The server says which types it takes and why this one was refused —
+      // The server says which types it takes and why this one was refused -
       // far more use than a flat "Failed to upload logo".
       toast.error(errorMessage(e, `Failed to upload ${type}`));
     } finally {

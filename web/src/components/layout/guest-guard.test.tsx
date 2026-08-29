@@ -149,8 +149,8 @@ describe("GuestGuard exemptions", () => {
 /**
  * The welfare roles.
  *
- * A patron and a matron share /boarding — the same job on opposite sides of
- * the school — and the nurse has /nurse. Before those existed both were sent
+ * A patron and a matron share /boarding - the same job on opposite sides of
+ * the school - and the nurse has /nurse. Before those existed both were sent
  * to a working page under /admin instead.
  */
 describe("GuestGuard and the welfare roles", () => {

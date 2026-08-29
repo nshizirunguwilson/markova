@@ -132,14 +132,14 @@ describe("what a student has already given back", () => {
     expect(within(row).getAllByText(/\d/).length).toBeGreaterThan(0);
   });
 
-  it("leaves an em dash where a lost book was never returned", async () => {
+  it("leaves a dash where a lost book was never returned", async () => {
     mount([
       dueIn(-60, { id: "loan-lost", status: "LOST", returnedAt: null }),
     ]);
 
     await screen.findByText("Borrowing History");
     const row = screen.getByText("LOST").closest("tr")!;
-    expect(within(row).getByText("—")).toBeInTheDocument();
+    expect(within(row).getByText("-")).toBeInTheDocument();
     // A lost book is not a success, whatever colour a returned one gets.
     expect(screen.getByText("LOST").className).not.toBe(
       screen.queryByText("RETURNED")?.className,

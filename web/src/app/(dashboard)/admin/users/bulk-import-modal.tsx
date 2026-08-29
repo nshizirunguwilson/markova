@@ -222,7 +222,7 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
           </div>
         )}
 
-        {/* Credentials — shown once, right after a successful import */}
+        {/* Credentials - shown once, right after a successful import */}
         {credentials.length > 0 && (
           <div className="rounded-lg border border-primary/30 bg-accent-light/50 p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-primary">

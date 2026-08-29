@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 // A plain .mjs script, imported here for the helpers it exports. Getting
 // these wrong fails silently on somebody else's machine, which is the worst
-// place to find out — so they are tested here rather than left to a manual run.
+// place to find out - so they are tested here rather than left to a manual run.
 import {
   apiUrlFrom,
   mergeOrigins,
@@ -16,7 +16,7 @@ import {
  * The web app is not self-contained: the browser it runs in calls the API
  * directly, so forwarding 3001 alone gives a visitor a login page whose every
  * request goes to *their* localhost:3000. Getting the derived API address
- * wrong produces exactly that failure, silently, on somebody else's machine —
+ * wrong produces exactly that failure, silently, on somebody else's machine -
  * which is the worst place to find out.
  */
 describe("working out the API address from the forwarded web one", () => {
@@ -65,7 +65,7 @@ describe("working out the API address from the forwarded web one", () => {
 });
 
 /**
- * Both settings live in files that hold other things — JWT secrets, the
+ * Both settings live in files that hold other things - JWT secrets, the
  * database URL. Rewriting them wholesale would take somebody's whole
  * configuration with it.
  */
@@ -104,7 +104,7 @@ describe("writing one setting into an env file", () => {
  * The list of origins the API answers.
  *
  * Added to, not replaced: whatever is already in the file is there because
- * somebody put it there — a phone on the LAN, a second machine — and dropping
+ * somebody put it there - a phone on the LAN, a second machine - and dropping
  * it while sharing would break their setup silently, on the day they are
  * least able to debug it.
  */

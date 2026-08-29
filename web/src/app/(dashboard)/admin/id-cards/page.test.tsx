@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { renderPage, serve, serveFailure } from "@/test/page";
+import { cellTexts, renderPage, serve, serveFailure } from "@/test/page";
 import { classLevel, classSection, populatedRoutes } from "@/test/fixtures";
 
 import IdCardsPage from "./page";
@@ -133,7 +133,7 @@ describe("the registry", () => {
 
   it("leaves a dash where there is no issue date", async () => {
     await mount();
-    expect(rowFor(/Keza Mutesi/).textContent).toMatch(/—/);
+    expect(cellTexts(rowFor(/Keza Mutesi/))).toContain("-");
   });
 
   it("does not go blank when the registry fails to load", async () => {

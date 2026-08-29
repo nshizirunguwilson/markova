@@ -116,7 +116,7 @@ export class MessagingController {
     const message = await this.service.sendMessage(dto, user.id);
     await this.gateway.broadcastNewMessage(dto.conversationId, message);
     // The socket carries text only, so anything with an attachment comes
-    // through here — and this path never checked delivery, leaving every
+    // through here - and this path never checked delivery, leaving every
     // message with a file on one tick until the recipient next reconnected.
     const delivered = await this.gateway.markDeliveredIfOnline(
       dto.conversationId,
@@ -260,7 +260,7 @@ export class MessagingController {
       /*
         Multer takes one number, so it gets the largest of the four caps and
         the per-kind cap is applied below. A 40MB spreadsheet is refused, but
-        only after it has arrived — which is why the web checks the size
+        only after it has arrived - which is why the web checks the size
         before uploading anything, and this is the backstop.
       */
       limits: { fileSize: MAX_ANY_ATTACHMENT_BYTES },

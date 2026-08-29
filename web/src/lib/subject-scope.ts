@@ -33,7 +33,7 @@ export const SUBJECT_SCOPES: ScopeInfo[] = [
     scale: "Core (A from 70%)",
     countsTowardAggregate: true,
     requiresTrade: false,
-    hint: "One of the nine papers a Senior 1–3 student is certified on.",
+    hint: "One of the nine papers a Senior 1-3 student is certified on.",
   },
   {
     value: "O_ELECTIVE",
@@ -53,7 +53,7 @@ export const SUBJECT_SCOPES: ScopeInfo[] = [
     scale: "Core (A from 70%)",
     countsTowardAggregate: true,
     requiresTrade: false,
-    hint: "Taught across every trade at Level 3–5.",
+    hint: "Taught across every trade at Level 3-5.",
   },
   {
     value: "A_SPECIFIC",
@@ -72,5 +72,5 @@ export function scopeInfo(scope: string | null | undefined): ScopeInfo | null {
 }
 
 export function scopeLabel(scope: string | null | undefined): string {
-  return scopeInfo(scope)?.label ?? "—";
+  return scopeInfo(scope)?.label ?? "-";
 }

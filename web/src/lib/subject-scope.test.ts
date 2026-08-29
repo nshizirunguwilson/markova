@@ -50,8 +50,8 @@ describe("subject scopes", () => {
   });
 
   it("draws a dash for a scope it has never heard of", () => {
-    expect(scopeLabel("SOMETHING_NEW")).toBe("—");
-    expect(scopeLabel(null)).toBe("—");
+    expect(scopeLabel("SOMETHING_NEW")).toBe("-");
+    expect(scopeLabel(null)).toBe("-");
     expect(scopeInfo(undefined)).toBeNull();
   });
 });

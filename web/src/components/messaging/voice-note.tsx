@@ -19,7 +19,7 @@ import {
  *
  * One button, a row of bars showing the shape of the speech, and the length.
  * The bars behind the playhead are filled and the ones ahead are not, and
- * clicking anywhere in the row jumps to that point — which is the only way to
+ * clicking anywhere in the row jumps to that point - which is the only way to
  * skip back over a sentence you missed without starting again.
  *
  * The bars are the real audio, not a decoration. They are worked out by
@@ -33,7 +33,7 @@ import {
  *
  * A thread scrolled up and down would otherwise decode the same clip every
  * time it came back into view. The length is kept alongside the bars because
- * it comes from the same decode — a WebM recording reports its own length as
+ * it comes from the same decode - a WebM recording reports its own length as
  * Infinity until it has been seeked, so this is often the only place the real
  * one is known.
  */
@@ -65,7 +65,7 @@ export function VoiceNote({
   /*
     Decoding the clip to find its shape. Deliberately best effort: a browser
     with no AudioContext, a file that will not decode, or a network that drops
-    all leave the flat bars in place, and the clip still plays — the waveform
+    all leave the flat bars in place, and the clip still plays - the waveform
     is how it looks, not whether it works.
   */
   useEffect(() => {
@@ -169,7 +169,7 @@ export function VoiceNote({
 
       {/*
         The bars. A div rather than a slider because the audio element is
-        the real control — this is the visible half of it, and the button
+        the real control - this is the visible half of it, and the button
         beside it is what a keyboard reaches.
       */}
       <div className="min-w-0 flex-1">
@@ -200,7 +200,7 @@ export function VoiceNote({
         The length goes at the end of the row, in the space the bars leave.
 
         The bars are a fixed count at a fixed width, so a bubble sized for the
-        widest of them always ends with a gap on the right — and the length
+        widest of them always ends with a gap on the right - and the length
         was sitting on a line of its own underneath, making the bubble taller
         for a number that already had somewhere to be. One row now: press it,
         scrub it, read how long it is.
@@ -210,7 +210,7 @@ export function VoiceNote({
           mine ? "text-on-primary/70" : "text-muted"
         }`}
       >
-        {/* Counting up while it plays, its full length when it is not —
+        {/* Counting up while it plays, its full length when it is not -
             the same as every voice note anybody has used. */}
         {clockDuration(playing || at > 0 ? at : length)}
       </span>

@@ -591,7 +591,7 @@ describe('MarksService', () => {
 
     /*
       Conduct across the year is each term's mark out of forty added up and
-      read as a percentage of what those terms are worth — a hundred and
+      read as a percentage of what those terms are worth - a hundred and
       twenty over three terms. Read from the incidents of each term, not from
       the running field on the student.
     */
@@ -745,7 +745,7 @@ describe('MarksService', () => {
 
     /**
      * The report card carries the marks, so withdrawing them has to withdraw
-     * it too — otherwise the document would keep publishing through the back
+     * it too - otherwise the document would keep publishing through the back
      * door exactly the figures the school just took back.
      */
     it('withdraws the report card along with the marks', async () => {
@@ -777,7 +777,7 @@ describe('MarksService', () => {
 
   /**
    * Issuing the report card, which a school does after deliberation and once
-   * the head teacher's comments are written — routinely days after the marks
+   * the head teacher's comments are written - routinely days after the marks
    * themselves went out.
    */
   describe('issuing the report cards', () => {

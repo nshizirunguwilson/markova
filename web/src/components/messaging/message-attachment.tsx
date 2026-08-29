@@ -118,7 +118,7 @@ export function MessageAttachment({
 
   if (kind === "video") {
     /*
-      In the bubble a clip is a still with a play button on it — it does not
+      In the bubble a clip is a still with a play button on it - it does not
       play here at all. It used to, and expanding it then started a second
       copy from the beginning while the small one carried on playing behind
       the overlay: two soundtracks at once, and the position thrown away.
@@ -199,7 +199,7 @@ export function MessageAttachment({
     );
   }
 
-  // Everything else: a named row. The name is the whole point — a recipient
+  // Everything else: a named row. The name is the whole point - a recipient
   // offered "a1b2c3.pdf" does not know what they have been sent.
   return (
     <a

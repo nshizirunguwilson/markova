@@ -931,7 +931,7 @@ describe("records the joins came back short on", () => {
     expect(await screen.findByText("COMMUNITY_CLEANUP")).toBeInTheDocument();
   });
 
-  it("draws an em dash where no praise ratio could be worked out", async () => {
+  it("draws a dash where no praise ratio could be worked out", async () => {
     serve(h.api, {
       ...routes,
       "/discipline/merits/summary": {
@@ -948,6 +948,6 @@ describe("records the joins came back short on", () => {
     await click(tab(/^Merits$/));
 
     const ratio = await screen.findByText("Praise per incident");
-    expect(ratio.parentElement!.textContent).toContain("—");
+    expect(ratio.parentElement!.textContent).toContain("-");
   });
 });

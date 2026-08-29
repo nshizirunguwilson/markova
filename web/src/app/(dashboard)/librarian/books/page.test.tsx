@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { renderPage, serve, serveFailure } from "@/test/page";
+import { cellTexts, renderPage, serve, serveFailure } from "@/test/page";
 import { book } from "@/test/fixtures";
 
 import BooksPage from "./page";
@@ -43,7 +43,7 @@ const outOfStock = {
 };
 
 const routes = {
-  // `{ data, meta }` — the envelope PaginatedResponse actually sends. A bare
+  // `{ data, meta }` - the envelope PaginatedResponse actually sends. A bare
   // array here is what let this page ship saying "No books found" over a
   // library of 56 while every test passed.
   "/library/books": {
@@ -125,7 +125,7 @@ describe("the catalogue", () => {
   it("leaves a dash where a book has no category or ISBN", async () => {
     await mount();
     const row = screen.getByText(/Imigani/).closest("tr")!;
-    expect(row.textContent).toMatch(/—/);
+    expect(cellTexts(row)).toContain("-");
   });
 
   it("says so when the shelves are empty", async () => {
@@ -480,7 +480,7 @@ describe("removing a book", () => {
  * The catalogue said "No books found" over a library of 56.
  *
  * `/library/books` answers `{ data, meta }`, and this page read `.length`
- * straight off that envelope — `undefined`, which the empty branch treats as
+ * straight off that envelope - `undefined`, which the empty branch treats as
  * nothing. Its own header counted the books correctly the whole time, from a
  * different endpoint, so the page contradicted itself.
  */

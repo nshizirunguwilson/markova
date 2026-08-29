@@ -17,7 +17,7 @@ import {
  *
  * Off until asked for, deliberately. A permission prompt that appears the
  * moment somebody opens the chat is the prompt everybody denies, and a denied
- * permission cannot be asked for again — so this is a button they press when
+ * permission cannot be asked for again - so this is a button they press when
  * they have decided they want it.
  *
  * It sits in the chat rather than in Settings because that is where somebody

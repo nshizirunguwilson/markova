@@ -496,7 +496,7 @@ describe('DisciplineService', () => {
       expect(record.student.percentage).toBe(100);
     });
 
-    // Forty a term is the default now, not a hundred for the whole year —
+    // Forty a term is the default now, not a hundred for the whole year -
     // see src/common/conduct.ts for why conduct is marked per term.
     it('falls back to forty when the school never set one', async () => {
       prisma.schoolConfig.findUnique.mockResolvedValue(null);

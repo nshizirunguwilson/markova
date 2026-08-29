@@ -93,7 +93,7 @@ export default function AdminAnalyticsPage() {
             return [
               `<b>${r.className ?? ""}</b> · ${r.studentCount ?? 0} students`,
               `Average <b>${num(r.averageScore, 1)}%</b>`,
-              `Range ${num(r.lowest, 0)}% – ${num(r.highest, 0)}%`,
+              `Range ${num(r.lowest, 0)}% - ${num(r.highest, 0)}%`,
             ].join("<br/>");
         },
       },

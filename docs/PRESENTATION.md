@@ -1,4 +1,4 @@
-# 🎤 Markova — Presentation Runbook
+# 🎤 Markova - Presentation Runbook
 
 Everything you need to stand up the system and demo it, in order.
 
@@ -12,21 +12,21 @@ Everything you need to stand up the system and demo it, in order.
 
 Open **3 terminal tabs** and run one block per tab.
 
-### Tab 1 — Database (Postgres + Redis)
+### Tab 1 - Database (Postgres + Redis)
 ```bash
 cd /Users/wilson/Work/markova
 docker compose up -d        # postgres on :5434, redis on :6380
 ```
 
-### Tab 2 — Backend API (NestJS, port 3000)
+### Tab 2 - Backend API (NestJS, port 3000)
 ```bash
 cd /Users/wilson/Work/markova/backend
 npm run start:dev           # API at http://localhost:3000/api
 ```
 Wait for `Nest application successfully started`.
-**Keep this tab visible during login — the OTP codes print here.**
+**Keep this tab visible during login - the OTP codes print here.**
 
-### Tab 3 — Web app (Next.js, port 3001)
+### Tab 3 - Web app (Next.js, port 3001)
 ```bash
 cd /Users/wilson/Work/markova/web
 npm run dev                 # http://localhost:3001
@@ -57,7 +57,7 @@ Then open **http://localhost:3001** in the browser.
 | **Teacher** | `aline.uwase@markova.academy` | Yes |
 | **Librarian** | `librarian@markova.academy` | Yes |
 | **Parent** | `+250788100000` (phone login) | Yes |
-| **Student** | `student1@markova.academy` | **No — logs straight in** |
+| **Student** | `student1@markova.academy` | **No - logs straight in** |
 
 ### The OTP trick (important for the live demo)
 Admin / Teacher / Parent / Librarian get a 6-digit one-time code.
@@ -74,7 +74,7 @@ It is emailed, but you don't need email:
 
 ---
 
-## D. Mobile app (optional — only if showing it)
+## D. Mobile app (optional - only if showing it)
 
 Open the iPhone 15 Pro simulator first, then:
 ```bash
@@ -82,7 +82,7 @@ cd /Users/wilson/Work/markova/mobile
 npm run ios                 # or: npx expo start  then press "i"
 ```
 
-- Log in as **teacher / parent / librarian / admin** — these work on mobile.
+- Log in as **teacher / parent / librarian / admin** - these work on mobile.
 - **Students are blocked on mobile by design.** Logging in as a student shows:
   *"The mobile app is for staff and parents. Students, please use the web portal."*
   (This is an intended feature to demo, not a bug.)
@@ -93,7 +93,7 @@ npm run ios                 # or: npx expo start  then press "i"
 ## E. Reset to clean demo data (only if needed)
 
 The seeded data is **date-relative** (current term, recent attendance), so it looks
-current automatically — you usually do **not** need to reseed. Only run this if you've
+current automatically - you usually do **not** need to reseed. Only run this if you've
 messed up the data while practising:
 
 ```bash
@@ -101,8 +101,8 @@ cd /Users/wilson/Work/markova/backend
 npx prisma migrate deploy   # ensure the schema is applied
 npx prisma db seed          # wipes + reseeds: 330 students, 30 teachers, 15 subjects (Rwandan names)
 ```
-Takes ~30–60s. Re-run before the presentation if you've been clicking around a lot.
-**Do not run this mid-presentation** — it wipes data.
+Takes ~30-60s. Re-run before the presentation if you've been clicking around a lot.
+**Do not run this mid-presentation** - it wipes data.
 
 ---
 
@@ -135,11 +135,11 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3001/login   # 200
 | Health shows `db: error` | Run `docker compose up -d`, give Postgres ~10s. |
 | Port already in use (3000 / 3001) | Kill the lingering process: `lsof -ti:3000 \| xargs kill` (or `:3001`). |
 | OTP says "expired" | It lasts 5 min. Just log in again and grab the fresh code from Tab 2. |
-| Data looks wrong / empty | Reseed (Section E) — but never mid-presentation. |
+| Data looks wrong / empty | Reseed (Section E) - but never mid-presentation. |
 
 ---
 
-## I. Reference — ports & services
+## I. Reference - ports & services
 
 | Service | Port | Notes |
 |---|---|---|
@@ -155,15 +155,15 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3001/login   # 200
 
 ## J. Suggested demo flow (optional script)
 
-1. **Admin** — show the dashboard, students/teachers lists, settings (school name, color theme),
+1. **Admin** - show the dashboard, students/teachers lists, settings (school name, color theme),
    onboarding, promotion, publish a report card.
-2. **Teacher** — enter marks, take attendance, assign + grade homework, message a parent.
-3. **Parent** — view a child's marks/attendance/report card, raise an appeal.
-4. **Student** — view marks, submit homework, browse the library.
-5. **Librarian** — check a book out and back in, show overdue loans.
-6. **Mobile** — quick login as a teacher; show the student-block message.
+2. **Teacher** - enter marks, take attendance, assign + grade homework, message a parent.
+3. **Parent** - view a child's marks/attendance/report card, raise an appeal.
+4. **Student** - view marks, submit homework, browse the library.
+5. **Librarian** - check a book out and back in, show overdue loans.
+6. **Mobile** - quick login as a teacher; show the student-block message.
 
 ---
 
-*Tip: do a full dry run the night before — start all three tabs, log in as each role, and
+*Tip: do a full dry run the night before - start all three tabs, log in as each role, and
 confirm the OTP shows in Tab 2.*

@@ -43,7 +43,7 @@ export function DataExportTab() {
     }
   };
 
-  // The CSV is assembled server-side — one request regardless of table size,
+  // The CSV is assembled server-side - one request regardless of table size,
   // so big datasets (marks, attendance) don't hit pagination or rate limits.
   const handleExport = async (key: string) => {
     setLoading(key);
@@ -66,14 +66,14 @@ export function DataExportTab() {
       <CardTitle>Data Export</CardTitle>
       <p className="mt-1 text-sm text-muted">Download data as CSV files</p>
 
-      {/* Full export — everything the system holds, as one ZIP of CSVs */}
+      {/* Full export - everything the system holds, as one ZIP of CSVs */}
       <div className="mt-6 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
         <div className="flex items-center gap-3">
           <Archive className="h-5 w-5 text-primary" />
           <div>
             <p className="font-medium text-foreground">Export everything</p>
             <p className="text-xs text-muted">
-              A complete backup of all system data — one CSV per table, bundled in a ZIP.
+              A complete backup of all system data - one CSV per table, bundled in a ZIP.
             </p>
           </div>
         </div>

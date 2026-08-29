@@ -23,7 +23,7 @@ describe("a file inside a message", () => {
   });
 
   /*
-    In the bubble a clip is a still with a play button on it — it does not
+    In the bubble a clip is a still with a play button on it - it does not
     play here at all. It used to, and expanding it then started a second copy
     from the beginning while the small one carried on playing behind the
     overlay: two soundtracks at once.

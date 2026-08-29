@@ -126,8 +126,8 @@ export function competenceFor(pct: number | null): Competence | null {
  * it depends on what the subject has:
  *
  * - A practical module with a practical mark is judged on that mark. That is
- *   what the practical is for — it is the assessment that asks whether the
- *   learner can do the work — and judging it on a total three fifths made of
+ *   what the practical is for - it is the assessment that asks whether the
+ *   learner can do the work - and judging it on a total three fifths made of
  *   written papers would say something else.
  * - Everything else is judged on its term total, which is the only measure of
  *   the subject there is.

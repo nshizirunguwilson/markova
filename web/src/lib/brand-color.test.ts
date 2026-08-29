@@ -96,7 +96,7 @@ describe("the wash a colour reads on", () => {
   });
 
   /**
-   * Some hues cannot reach a high bar against any tint of themselves — a
+   * Some hues cannot reach a high bar against any tint of themselves - a
    * mid-green tops out around 5.9:1 even on pure white. The answer is then
    * the palest thing there is, not a darker mix that fails by more.
    */
@@ -136,7 +136,7 @@ describe("the palette a school's colour implies", () => {
     );
   });
 
-  // The washes sit next to each other — a badge on a hovered row — so they
+  // The washes sit next to each other - a badge on a hovered row - so they
   // have to be distinguishable, not just both readable.
   it.each(COLOURS)("keeps the two washes apart for %s", (_name, hex) => {
     const p = brandPalette(hex);
@@ -158,7 +158,7 @@ describe("the palette a school's colour implies", () => {
 
   /**
    * The palest wash is what every table header sits on, and those use
-   * `--color-muted` — a fixed neutral, not the brand colour. Deriving the
+   * `--color-muted` - a fixed neutral, not the brand colour. Deriving the
    * wash against the brand alone left that pairing at 4.49:1, one hundredth
    * short, on every list page in the app.
    */
@@ -249,7 +249,7 @@ describe("choosing text for a solid brand fill", () => {
 
   /**
    * The palette derives everything from the readable form of the colour, so
-   * `onPrimary` is chosen against the fill that will actually be drawn — not
+   * `onPrimary` is chosen against the fill that will actually be drawn - not
    * against the raw hex the school typed.
    */
   it("is chosen against the fill the palette actually uses", () => {
@@ -265,7 +265,7 @@ describe("choosing text for a solid brand fill", () => {
  * `--color-primary` is not only a fill. It is the colour of every link, every
  * active label and every brand-coloured caption in the app, all on white. A
  * school picking a mid-green gets 4.18:1 there and fails AA on every page at
- * once, with no way of knowing — the colour looks perfectly good.
+ * once, with no way of knowing - the colour looks perfectly good.
  */
 describe("keeping the school's colour readable as text", () => {
   it("leaves a colour that already passes exactly as it was typed", () => {

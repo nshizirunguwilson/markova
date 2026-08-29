@@ -39,8 +39,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * Sign a role in, waiting out the throttle rather than falling over it.
  *
  * `/auth/login` allows ten attempts a minute. Running this suite twice in
- * quick succession — or beside the accessibility audit, which signs in as
- * every role of its own — spends that, and the throttled reply carries no
+ * quick succession - or beside the accessibility audit, which signs in as
+ * every role of its own - spends that, and the throttled reply carries no
  * `sessionId`. The old code posted `verify-otp` with `sessionId: undefined`
  * anyway, so a rate limit was reported as "sessionId must be a string": an
  * error that says nothing about what actually happened.
@@ -74,7 +74,7 @@ async function apiLogin(role, attempt = 0) {
   return r2.json();
 }
 
-// Log in each role ONCE and reuse the tokens — the backend rate-limits
+// Log in each role ONCE and reuse the tokens - the backend rate-limits
 // login/verify-otp to 10/min, so a fresh login per test would 429 mid-suite.
 const tokenCache = {};
 async function getTokens(role) {
@@ -101,7 +101,7 @@ async function authedPage(ctx, role) {
  * Go to a page and wait for it to be usable.
  *
  * Deliberately not `networkidle`. Every authenticated page in this app opens
- * a socket.io connection and keeps it open, so the network never goes quiet —
+ * a socket.io connection and keeps it open, so the network never goes quiet -
  * and `networkidle` waits for exactly that. It settles often enough to look
  * fine and fails under load, which is how this suite came to report a
  * different set of failures on every run, none of them about the code.
@@ -121,7 +121,7 @@ async function visit(page, route, timeout = 60000) {
  * `domcontentloaded` fires before React has asked for anything, so a test
  * reading a table straight after it sees an empty one. The pages here show a
  * spinner while their queries are in flight and remove it when the data
- * lands, so its absence — over a body that has painted something — is the
+ * lands, so its absence - over a body that has painted something - is the
  * signal that the page is ready to be read.
  */
 async function settled(page) {
@@ -293,7 +293,7 @@ test('form: create subject persists and appears after reload (no duplicate on do
   await page.click('button:has-text("Add Subject")');
   await page.waitForSelector('[role=dialog]');
   await page.fill('[role=dialog] input[placeholder*="Mathematics"]', name);
-  // double-click Create fast — button disables on isLoading, so only one row
+  // double-click Create fast - button disables on isLoading, so only one row
   const create = page.locator('[role=dialog] button:has-text("Create")');
   await create.click();
   await create.click({ timeout: 500 }).catch(() => {});
@@ -303,7 +303,7 @@ test('form: create subject persists and appears after reload (no duplicate on do
 
   // Search for it rather than expecting it on the first page. The list pages
   // in the browser and this name sorts last, so as the school's subject list
-  // grew the new row moved off page one — and the test began reporting a
+  // grew the new row moved off page one - and the test began reporting a
   // successful create as a failed one.
   await page
     .locator('input[placeholder*="Search subjects"]')
@@ -415,7 +415,7 @@ for (const [role, route, width] of RESP) {
  * Visit every route the suite touches, once, before any of it is timed.
  *
  * The dev server compiles a route the first time it is asked for, and that
- * can take longer than a test's own navigation timeout — so a route nobody
+ * can take longer than a test's own navigation timeout - so a route nobody
  * had warmed failed on the clock rather than on its behaviour, and passed on
  * the next run because the first attempt had compiled it. Every route below
  * appears in a test; add to it when you add one.
@@ -502,11 +502,11 @@ test('form: Add User wizard reaches every student step without creating anyone',
   await advance();
   assert((await stepNow()).includes('Academic'), 'Account should lead to Academic');
 
-  // Academic — the class list only loads once a level is chosen.
+  // Academic - the class list only loads once a level is chosen.
   const selects = page.locator('[role="dialog"] select');
 
   // The levels arrive from the API after the step renders, and the classes
-  // only after a level is chosen — and not every level has a class in it.
+  // only after a level is chosen - and not every level has a class in it.
   // Waiting on a fixed level is therefore a wait that can never finish, so
   // each is tried until one yields classes.
   const optionCount = (i) =>
@@ -550,7 +550,7 @@ test('form: Add User wizard reaches every student step without creating anyone',
   await advance();
   assert((await stepNow()).includes('Identity'), 'Academic should lead to Identity & residence');
 
-  // Identity & residence — the step the wizard used to submit from.
+  // Identity & residence - the step the wizard used to submit from.
   await page.fill('#nationality', 'Rwandan').catch(() => {});
   await advance();
   assert(
@@ -613,7 +613,7 @@ for (const [role, home, greeting] of [
 
 /**
  * Their Dashboard link used to point at /admin, which the shell bounces them
- * straight back out of — an unclickable item on the first row of the sidebar.
+ * straight back out of - an unclickable item on the first row of the sidebar.
  */
 test('welfare: the sidebar Dashboard link goes somewhere they may go', async (browser) => {
   const ctx = await browser.newContext();
@@ -634,7 +634,7 @@ test('welfare: the sidebar Dashboard link goes somewhere they may go', async (br
 
 /**
  * The nurse recording a clinic visit has to find the student first, and the
- * only route that searches students was ADMIN-only — so the "New visit" form
+ * only route that searches students was ADMIN-only - so the "New visit" form
  * had a student box that answered 403 on every keystroke.
  */
 test('welfare: the nurse can find a student to record a visit against', async (browser) => {
@@ -735,7 +735,7 @@ test('motion: the design tokens reach the browser and drive the animations', asy
  * And every one of them stops for somebody who has asked it to.
  *
  * The global `prefers-reduced-motion` rule is the whole accessibility story
- * for this feature, so it is worth asserting rather than assuming — it is one
+ * for this feature, so it is worth asserting rather than assuming - it is one
  * `!important` away from silently not applying.
  */
 test('motion: everything collapses for a reader who asked for less', async (browser) => {
@@ -760,7 +760,7 @@ test('motion: everything collapses for a reader who asked for less', async (brow
  * A dialog covers the whole application, not just the column it was opened
  * from.
  *
- * It used to be rendered where it was written — inside `<main>` — which was
+ * It used to be rendered where it was written - inside `<main>` - which was
  * fine until something above it created a stacking context. The page fade
  * animates opacity, which creates one, and the dialog was trapped: the
  * sidebar painted over its left edge and the backdrop dimmed only the middle
@@ -797,7 +797,7 @@ test('modal: the backdrop covers the sidebar, not just the content', async (brow
  * Opening a thread lands on the end of it.
  *
  * It used to scroll smoothly, which aims at the scroll height as it was when
- * the animation began — while the thread was still wrapping its messages
+ * the animation began - while the thread was still wrapping its messages
  * underneath it. The last message came to rest half-hidden behind the
  * composer, which is not where any chat leaves you. jsdom lays nothing out,
  * so only a real browser can tell.
@@ -904,7 +904,7 @@ test('messaging: a student can reach their classmates and the staff', async (bro
 /**
  * The group a class already has.
  *
- * Nobody creates it and nobody is invited to it — it is made sure of when a
+ * Nobody creates it and nobody is invited to it - it is made sure of when a
  * student's conversations are listed, which is the moment they would notice
  * it missing.
  */
@@ -1007,7 +1007,7 @@ test('chat: the composer offers a file and a voice note', async (browser) => {
 /**
  * The shortcut every tool with a search box has. The browser's own Ctrl+K
  * focuses the address bar, so this only works if the page says it handled the
- * key — which is a thing only a real browser can prove.
+ * key - which is a thing only a real browser can prove.
  */
 test('search: Cmd+K puts the cursor in the page search', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -1394,7 +1394,7 @@ test('chat: a conversation has an address of its own', async (browser) => {
  * School fees, and the results they hold up.
  *
  * The gate is the consequential part of this feature: it decides whether a
- * child is shown their own record. So it is checked from both sides — that a
+ * child is shown their own record. So it is checked from both sides - that a
  * family behind on the term is told so, in a way they can act on, and that
  * the same term opens for the office that has to read it either way.
  */
@@ -1526,7 +1526,7 @@ test('fees: money never stops staff reading a mark book', async (browser) => {
  * The address is written with the History API rather than pushed through the
  * router, and the shell keys its fade on the route rather than on the URL.
  * With either of those undone, clicking a conversation destroyed the whole
- * messaging surface and faded a fresh one in — the flash people reported,
+ * messaging surface and faded a fresh one in - the flash people reported,
  * and with it the scroll position and anything half written in the composer.
  *
  * Checked by marking the surface and looking for the mark again: a mark that
@@ -1560,8 +1560,8 @@ test('chat: opening a thread keeps the screen it is on', async (browser) => {
 });
 
 /**
- * Focus is easily lost — you click a message to reply, scroll, come back from
- * another tab — and then the first thing you type disappears.
+ * Focus is easily lost - you click a message to reply, scroll, come back from
+ * another tab - and then the first thing you type disappears.
  */
 test('chat: typing anywhere lands in the message field', async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -1696,7 +1696,7 @@ test('chat: bubbles carry squircle corners where supported', async (browser) => 
 
     Retrying quietly would turn a real regression into an intermittent one
     nobody chases. So a test that passes second time is counted as passed and
-    named at the end as flaky — the suite stays green and stays honest about
+    named at the end as flaky - the suite stays green and stays honest about
     which tests it had to ask twice.
   */
   for (const t of tests) {
@@ -1711,7 +1711,7 @@ test('chat: bubbles carry squircle corners where supported', async (browser) => 
         await t.fn(browser);
         console.log(`  PASS  ${t.name}  (on retry)`);
         pass++;
-        flaky.push(`${t.name} — first attempt: ${first.message.split('\n')[0]}`);
+        flaky.push(`${t.name} - first attempt: ${first.message.split('\n')[0]}`);
       } catch (e) {
         console.log(`  FAIL  ${t.name}\n        ${e.message}`);
         fail++;

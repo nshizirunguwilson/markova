@@ -76,10 +76,10 @@ Two of them are worth knowing about:
 `useApi.ts` holds 105 hooks that are all one of two shapes. Hand-writing a spec
 for each would rot within a month, so there are two tables:
 
-- **`useApi.queries.spec.ts`** — for each read: the url it asks for, the
+- **`useApi.queries.spec.ts`** - for each read: the url it asks for, the
   parameters it sends, that a failure reaches the screen, and that it does not
   fire at all before it has the id it needs.
-- **`useApi.mutations.spec.ts`** — for each write: the method and url, the body,
+- **`useApi.mutations.spec.ts`** - for each write: the method and url, the body,
   that a refusal reaches the screen, and **which caches it clears**. That last
   one is the bug people describe as "I saved it but nothing changed", which is
   far harder to report than an outright failure.

@@ -16,8 +16,8 @@ import { MessagingService } from './messaging.service';
 @WebSocketGateway({
   cors: {
     // The same list the HTTP server uses, and the same default. This said
-    // `http://localhost:3000` — the API's own origin, which never opens a
-    // socket — so with CORS_ORIGINS unset the REST calls worked and the chat
+    // `http://localhost:3000` - the API's own origin, which never opens a
+    // socket - so with CORS_ORIGINS unset the REST calls worked and the chat
     // silently would not connect.
     origin: (
       process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:8081'
@@ -55,7 +55,7 @@ export class MessagingGateway
    * Everyone in a conversation, addressed by their personal room.
    *
    * `conv:<id>` rooms are joined once, at connection time, so a conversation
-   * created after a socket connected does not contain that socket — which is
+   * created after a socket connected does not contain that socket - which is
    * why read receipts, typing and presence all went missing for exactly the
    * conversations people had just started. A user's own `user:<id>` room is
    * always current, so everything that has to reach a participant goes
@@ -83,7 +83,7 @@ export class MessagingGateway
    *
    * Shared with the REST route: an attachment goes over HTTP rather than the
    * socket (the socket carries text only), and that path never ran this at
-   * all — so a message with a file stayed on one tick until the recipient
+   * all - so a message with a file stayed on one tick until the recipient
    * next reconnected.
    */
   async markDeliveredIfOnline(
@@ -167,8 +167,8 @@ export class MessagingGateway
       //
       // Only the people they share a conversation with. This list used to be
       // every socket connected to the server, which both told a student who
-      // else in the school was at their desk and — because the corrections
-      // that follow (`presenceChange`) are limited to conversation partners —
+      // else in the school was at their desk and - because the corrections
+      // that follow (`presenceChange`) are limited to conversation partners -
       // left a green dot next to a stranger lit until the page was reloaded.
       const partners =
         await this.messagingService.getConversationPartnerIds(userId);
@@ -367,7 +367,7 @@ export class MessagingGateway
     const convIds = await this.messagingService.getUserConversationIds(userId);
     if (convIds.length === 0) return;
 
-    // Addressed to the people, not the conversation rooms — and de-duplicated,
+    // Addressed to the people, not the conversation rooms - and de-duplicated,
     // so somebody sharing four conversations with this user is told once
     // rather than four times.
     const rooms = new Set<string>();

@@ -5,7 +5,7 @@ import { QueryProvider } from "@/lib/query-provider";
 import { BrandProvider } from "@/components/brand-provider";
 import "./globals.css";
 
-// The shared type family — mobile loads the same four weights via expo-font.
+// The shared type family - mobile loads the same four weights via expo-font.
 // See design/tokens.json → font.
 const poppins = Poppins({
   variable: "--font-poppins",

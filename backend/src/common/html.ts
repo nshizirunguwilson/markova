@@ -4,8 +4,8 @@ import { extname, join } from 'path';
 /**
  * Turning values into HTML safely.
  *
- * Everything a school types — its own name, a student's name, a discipline
- * note — ends up inside a report card that is rendered to a page and then to a
+ * Everything a school types - its own name, a student's name, a discipline
+ * note - ends up inside a report card that is rendered to a page and then to a
  * PDF. A page is a program, so none of it can go in raw.
  */
 

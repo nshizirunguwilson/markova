@@ -124,7 +124,7 @@ describe("being told about a message from elsewhere in the system", () => {
     expect(h.toast).not.toHaveBeenCalled();
   });
 
-  // Not merely the thread you have open — anywhere on the chat page. The
+  // Not merely the thread you have open - anywhere on the chat page. The
   // inbox on the left already says a message arrived.
   it("says nothing about another thread while on the chat page", async () => {
     h.pathname.current = "/messages";

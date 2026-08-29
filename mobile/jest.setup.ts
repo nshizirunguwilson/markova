@@ -2,7 +2,7 @@
  * What the phone provides that a test runner does not.
  *
  * Everything stubbed here is a native module: it exists on a device and has no
- * JavaScript implementation to fall back on. The stubs are deliberately thin —
+ * JavaScript implementation to fall back on. The stubs are deliberately thin -
  * enough for a screen to render and for a test to assert what was asked of the
  * device, and no more.
  */

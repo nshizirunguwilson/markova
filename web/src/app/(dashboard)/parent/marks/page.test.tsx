@@ -195,9 +195,9 @@ describe("the marks themselves", () => {
     expect(bar("Mathematics")).not.toBe(bar("Kinyarwanda"));
   });
 
-  it("draws em dashes for a result with no numbers on it", async () => {
+  it("draws dashes for a result with no numbers on it", async () => {
     mount(single, { result: { average: null, letterGrade: null, rank: null }, marks: [] });
-    expect(await screen.findByText("—%")).toBeInTheDocument();
+    expect(await screen.findByText("-%")).toBeInTheDocument();
   });
 
   it("says plainly when a term has no marks", async () => {

@@ -62,7 +62,7 @@ export class UsersController {
    * students and nothing else.
    *
    * A nurse recording a clinic visit has to find the student first, and the
-   * only way to do that was this route — which refused her, so the "New
+   * only way to do that was this route - which refused her, so the "New
    * visit" form had a student box that could never be filled. Opening the
    * whole directory to her instead would hand over every teacher's and
    * parent's email and phone number, which is not hers to read.

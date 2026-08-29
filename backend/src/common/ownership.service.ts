@@ -43,7 +43,7 @@ export class OwnershipService {
       return;
     }
 
-    // Unknown role — deny by default
+    // Unknown role - deny by default
     throw new ForbiddenException('Access denied');
   }
 

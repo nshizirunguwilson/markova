@@ -26,7 +26,7 @@ vi.mock("sonner", () => ({ toast: h.toast }));
 
 // The people picker waits 300ms of real time before searching. This file runs
 // beside a hundred others, and under that load a 300ms timer is not a 300ms
-// wait — these tests were losing a four second race on it. The delay itself
+// wait - these tests were losing a four second race on it. The delay itself
 // is covered in hooks/use-debounce.test.ts; what belongs here is what the
 // picker does once the answer arrives.
 vi.mock("@/hooks/use-debounce", () => ({
@@ -41,7 +41,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => h.pathname.current,
   useSearchParams: () => new URLSearchParams(),
   // Which thread is open is read off the pathname, not from a route
-  // parameter — see the screen's own note on why.
+  // parameter - see the screen's own note on why.
   useParams: () => ({}),
 }));
 vi.mock("@/stores/chat-store", () => ({
@@ -111,7 +111,7 @@ beforeEach(() => {
  * Everything is looked up again on each retry. The list re-renders as the
  * debounced search settles and the modal's own node is replaced with it, so
  * a dialog captured once and a button found in an earlier tick are both
- * liable to be detached by the time they are used — the click then lands on
+ * liable to be detached by the time they are used - the click then lands on
  * a node that is no longer in the document and nothing happens.
  */
 async function pickFromList(
@@ -179,8 +179,8 @@ describe("sending a message", () => {
   });
 
   // An empty send would post a blank bubble into someone's thread. There is
-  // no Send to press while the field is empty — the microphone has that
-  // place — so what has to hold is that nothing leaves.
+  // no Send to press while the field is empty - the microphone has that
+  // place - so what has to hold is that nothing leaves.
   it("refuses to send an empty message", async () => {
     await openConversation();
     expect(screen.queryByRole("button", { name: /send message/i })).toBeNull();
@@ -604,7 +604,7 @@ describe("group threads", () => {
  *
  * Words, not ticks: one tick against two, and grey against blue, is a code
  * borrowed from one particular app, and a parent messaging the school should
- * not have to know it. It appears on your own messages only — the same line
+ * not have to know it. It appears on your own messages only - the same line
  * under someone else's would read as though you had sent it.
  */
 describe("the state of a message you sent", () => {
@@ -1086,7 +1086,7 @@ describe("who is typing", () => {
   /**
    * The notice is drawn under the last message, so the thread has to follow
    * it down. Left out of the scroll effect it sat below the fold and only
-   * the person doing the typing ever saw it in full — their own keystrokes
+   * the person doing the typing ever saw it in full - their own keystrokes
    * were sending messages, and those did move the view.
    */
   it("does not jump a reader who has scrolled up", async () => {
@@ -1095,7 +1095,7 @@ describe("who is typing", () => {
       await openWithTyping(["Aline"]);
       await screen.findByText(/Aline is typing/);
       const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
-      // Let the landing finish — it settles on the next frame, and scrolling
+      // Let the landing finish - it settles on the next frame, and scrolling
       // up before that would be undone by it rather than by the follow.
       await new Promise((r) => setTimeout(r, 80));
 
@@ -1188,7 +1188,7 @@ describe("who is typing", () => {
   /**
    * Opening a thread lands on the end of it. Not smoothly: a smooth scroll
    * aims at the scroll height as it was when the animation began, and the
-   * thread is still wrapping its messages underneath it — which left the last
+   * thread is still wrapping its messages underneath it - which left the last
    * message half-hidden behind the composer.
    */
   it("lands on the bottom when the thread opens", async () => {
@@ -1784,7 +1784,7 @@ describe("runs of messages from one person", () => {
   /**
    * The tail is what tells a chat bubble from a box: it points at whoever
    * said it, so the eye knows which side a message came from before reading
-   * a word. Only the first bubble of a run carries one — four bubbles from
+   * a word. Only the first bubble of a run carries one - four bubbles from
    * one person do not need four arrows.
    */
   /**
@@ -1908,7 +1908,7 @@ describe("runs of messages from one person", () => {
       /Staff/,
     );
     await screen.findByText("Muraho");
-    // Once, above the run — not on the bubble.
+    // Once, above the run - not on the bubble.
     expect(screen.getAllByText("Aline Uwase").length).toBeGreaterThan(0);
   });
 
@@ -1934,7 +1934,7 @@ describe("runs of messages from one person", () => {
  * Motion in the thread.
  *
  * A message that arrives while you are reading rises in. Everything already
- * in the thread when you opened it does not — animating a hundred bubbles up
+ * in the thread when you opened it does not - animating a hundred bubbles up
  * on a thread you scrolled back through is a staggered list entrance: it
  * delays reading and looks like the page loading twice.
  */
@@ -1997,7 +1997,7 @@ describe("a message arriving while you watch", () => {
 /**
  * Finding a thread in a long inbox.
  *
- * Searches who a conversation is with, not what was said in it — that is the
+ * Searches who a conversation is with, not what was said in it - that is the
  * question somebody has open ("where is the thread with Aline"), and it is
  * answerable from what is already on screen without a request.
  */
@@ -2077,7 +2077,7 @@ describe("searching the inbox for a person", () => {
 
   /**
    * Finding nothing is a different answer from having nothing, and the way
-   * back has to be offered — otherwise an empty inbox looks broken.
+   * back has to be offered - otherwise an empty inbox looks broken.
    */
   it("says who it could not find, and offers the way back", async () => {
     await openInbox();
@@ -2159,7 +2159,7 @@ describe("telling two people with the same name apart", () => {
  * Answering a particular message.
  *
  * A reply that does not show what it answers is a reply nobody can follow
- * once the conversation has moved on — which is the whole reason the quote
+ * once the conversation has moved on - which is the whole reason the quote
  * exists.
  */
 describe("replying to a message", () => {
@@ -2276,7 +2276,7 @@ describe("replying to a message", () => {
     await screen.findByText("Yego");
     scrolled.mockClear();
 
-    // Inside the thread, not the inbox row — whose preview also says
+    // Inside the thread, not the inbox row - whose preview also says
     // "Muraho".
     const thread = document.querySelector(".overflow-y-auto.px-4")!;
     const quote = Array.from(thread.querySelectorAll("button")).find((b) =>
@@ -2291,7 +2291,7 @@ describe("replying to a message", () => {
 });
 
 /**
- * The edges of replying — the shapes the API can send that the happy path
+ * The edges of replying - the shapes the API can send that the happy path
  * never produces.
  */
 describe("replies that are not straightforward", () => {
@@ -2330,7 +2330,7 @@ describe("replies that are not straightforward", () => {
   /**
    * The original was deleted after being answered. The database sets the
    * link to null rather than removing the reply, so the answer survives with
-   * nothing to quote — and has to draw.
+   * nothing to quote - and has to draw.
    */
   it("draws a reply whose original has gone", async () => {
     await openThread([msg("m-2", "u-3", "Yego", { replyTo: null })]);
@@ -2355,7 +2355,7 @@ describe("replies that are not straightforward", () => {
       (b.textContent ?? "").includes("Muraho"),
     )!;
 
-    // Older messages are not loaded, so there is nothing to scroll to — and
+    // Older messages are not loaded, so there is nothing to scroll to - and
     // clicking must not throw.
     await user.click(quote);
     expect(screen.getByText("Yego")).toBeInTheDocument();
@@ -2534,7 +2534,7 @@ describe("attaching a file", () => {
     );
   });
 
-  // The socket carries text only, so anything with a file goes by REST —
+  // The socket carries text only, so anything with a file goes by REST -
   // after the upload, because the message cannot be stored without the URL.
   it("uploads first, then sends the message pointing at it", async () => {
     await openConversation();
@@ -2570,8 +2570,8 @@ describe("attaching a file", () => {
   // so the person can try again rather than retyping.
   /*
     A file with no caption is stored under its own name. When the API answers
-    without one — which it should not, but a message with an empty body is
-    better than one that never sends — the message still goes.
+    without one - which it should not, but a message with an empty body is
+    better than one that never sends - the message still goes.
   */
   it("still sends when the upload comes back without a name", async () => {
     await openConversation();
@@ -2683,7 +2683,7 @@ describe("a photograph in a thread", () => {
 
 /**
  * A voice note is finished the moment recording stops, so it goes straight
- * out — asking somebody to press send twice for one recording is a step
+ * out - asking somebody to press send twice for one recording is a step
  * nobody expects.
  */
 describe("a voice note in a thread", () => {
@@ -2837,7 +2837,7 @@ describe("sending a voice note", () => {
   /*
     The size cap applies to a recording as much as to a chosen file. Five
     minutes of speech is nowhere near it, so this only happens to a recorder
-    that has gone wrong — but a wrong recorder should be refused here rather
+    that has gone wrong - but a wrong recorder should be refused here rather
     than half way through an upload.
   */
   it("refuses a recording over the size cap", async () => {
@@ -2983,8 +2983,8 @@ describe("naming people in the picker", () => {
 describe("keeping the thread landed while media settles", () => {
   /**
    * Stands the observer up and hands back the callback, so the settling can be
-   * driven with a thread of a known size. jsdom lays nothing out — every
-   * element is zero by zero — so the geometry is stated rather than measured.
+   * driven with a thread of a known size. jsdom lays nothing out - every
+   * element is zero by zero - so the geometry is stated rather than measured.
    */
   async function openWithWatcher() {
     const observed: Element[] = [];
@@ -3026,7 +3026,7 @@ describe("keeping the thread landed while media settles", () => {
    * load the messages usually win.
    *
    * Until the inbox has answered there is no row to build the thread pane
-   * from, so there is no element to scroll — and nothing about the inbox
+   * from, so there is no element to scroll - and nothing about the inbox
    * arriving afterwards would bring the scrolling effects back. The thread
    * sat at its very first message, and only on a first visit: every later one
    * had the inbox cached and both halves were ready together, which is why
@@ -3107,7 +3107,7 @@ describe("keeping the thread landed while media settles", () => {
 
   /**
    * A cold load of a thread's own URL brings nine pictures and voice notes in
-   * at once and pushes the end of the conversation thousands of pixels away —
+   * at once and pushes the end of the conversation thousands of pixels away -
    * far past any reasonable "nearly at the bottom" allowance. A distance rule
    * alone left the reader stranded at the top of the thread.
    */
@@ -3122,7 +3122,7 @@ describe("keeping the thread landed while media settles", () => {
   /*
     Once the reader takes the scroll, media loading below them must not drag
     them off what they are reading. A gesture is what says they have taken it
-    — the pinning sets scrollTop itself, so a scroll event cannot tell the two
+    - the pinning sets scrollTop itself, so a scroll event cannot tell the two
     apart.
   */
   it.each([["wheel"], ["touchmove"]])(
@@ -3176,7 +3176,7 @@ describe("keeping the thread landed while media settles", () => {
   // image three screens below them finished loading.
   /*
     A reader takes the scroll with a gesture. Setting `scrollTop` alone is
-    what the pinning itself does, so it cannot be the signal — a thread that
+    what the pinning itself does, so it cannot be the signal - a thread that
     unpinned on its own writes would never reach the bottom at all.
   */
   it("leaves a reader who has scrolled up where they are", async () => {
@@ -3214,7 +3214,7 @@ describe("keeping the thread landed while media settles", () => {
 
 /**
  * The reply control used to sit once under a whole run, which meant two
- * messages in a row left the first one unanswerable — you could only ever
+ * messages in a row left the first one unanswerable - you could only ever
  * reply to the last thing somebody said.
  */
 describe("replying to one message out of several", () => {
@@ -3496,7 +3496,7 @@ describe("arriving from a notification", () => {
    * The address is written, not navigated to.
    *
    * A router push changes the route segment, and Next answers that by
-   * unmounting this screen and mounting a new one — so the thread you clicked
+   * unmounting this screen and mounting a new one - so the thread you clicked
    * was drawn and then, a frame or two later, the whole surface was torn down
    * and rebuilt around it. That rebuild is the flash, and it takes the scroll
    * position and a half-written reply with it.
@@ -3542,8 +3542,8 @@ describe("arriving from a notification", () => {
 });
 
 /**
- * Focus is easily lost — you click a message to reply, scroll with the mouse,
- * come back from another tab — and then the first thing you type disappears.
+ * Focus is easily lost - you click a message to reply, scroll with the mouse,
+ * come back from another tab - and then the first thing you type disappears.
  * Typing simply puts you in the field, the way it does in WhatsApp.
  */
 describe("typing anywhere in the thread", () => {
@@ -3602,13 +3602,13 @@ describe("typing anywhere in the thread", () => {
 
 /**
  * At the moment of sending, the new bubble is not in the thread yet and its
- * height is not in `scrollHeight` — so scrolling then lands on the bottom as
+ * height is not in `scrollHeight` - so scrolling then lands on the bottom as
  * it was a moment ago, which is one message short.
  */
 describe("landing on the true bottom after sending", () => {
   it("scrolls again once the message has rendered", async () => {
     // Over REST, so sending invalidates the thread and the new message is
-    // refetched — which is what makes the thread grow after the send.
+    // refetched - which is what makes the thread grow after the send.
     h.chat.connected = false;
     const sent = {
       id: "m-2",
@@ -3641,7 +3641,7 @@ describe("landing on the true bottom after sending", () => {
     const list = document.querySelector(".overflow-y-auto.px-4") as HTMLElement;
     Object.defineProperty(list, "clientHeight", { value: 600, configurable: true });
     // The thread as it stands before the message lands, and the reader is
-    // scrolled well up it — which is where answering an old message leaves you.
+    // scrolled well up it - which is where answering an old message leaves you.
     Object.defineProperty(list, "scrollHeight", {
       configurable: true,
       get: () => (delivered ? 1400 : 1000),
