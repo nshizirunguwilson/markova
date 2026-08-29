@@ -170,9 +170,29 @@ export class ReportsService implements OnModuleDestroy {
       where: { role: 'CLASS_TEACHER', classSectionId: student.classSectionId },
       include: {
         teacher: {
-          include: { user: { select: { firstName: true, lastName: true } } },
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                signatureUrl: true,
+              },
+            },
+          },
         },
       },
+    });
+
+    /*
+      The head teacher who signs. One post, so one active holder of the role;
+      a school between head teachers prints the line and no name, which is
+      what an unsigned card should look like rather than a blank the reader
+      cannot account for.
+    */
+    const headTeacher = await this.prisma.user.findFirst({
+      where: { role: 'HEAD_TEACHER', isActive: true },
+      select: { firstName: true, lastName: true, signatureUrl: true },
+      orderBy: { createdAt: 'asc' },
     });
 
     const [attendanceTotal, attendancePresent] = await Promise.all([
@@ -243,6 +263,20 @@ export class ReportsService implements OnModuleDestroy {
       term: { name: term.name, academicYear: term.academicYear.name },
       classTeacher: classTeacherRole
         ? `${classTeacherRole.teacher.user.firstName} ${classTeacherRole.teacher.user.lastName}`
+        : null,
+      /*
+        Each signature comes off its own owner's profile, never off the
+        school's branding settings. The school has one signature, which is
+        right for a letter the school sends; a report card carries two
+        different people's marks, and one file shared between them would put
+        the same hand under both names.
+      */
+      signatures: {
+        classTeacher: classTeacherRole?.teacher.user.signatureUrl ?? null,
+        headTeacher: headTeacher?.signatureUrl ?? null,
+      },
+      headTeacher: headTeacher
+        ? `${headTeacher.firstName} ${headTeacher.lastName}`
         : null,
       attendance: { present: attendancePresent, total: attendanceTotal },
       /*
@@ -1601,6 +1635,30 @@ export class ReportsService implements OnModuleDestroy {
       `<div><span>${label}</span><b>${value}</b></div>`;
 
     /*
+      A signature block: the mark above the line, the name and the role below
+      it. The image sits in a fixed box whether or not there is one to draw,
+      so the three blocks stay level and a card with two signatures on it is
+      not a card with a step in the middle.
+
+      A person who has uploaded nothing gets the line and their name, which is
+      a card waiting to be signed by hand - still a valid document, and the
+      form every one of these was before the system existed.
+    */
+    const signedBy = (
+      role: string,
+      person: string | null,
+      signature: string | null | undefined,
+    ) => {
+      const inked = signature
+        ? logoDataUri(signature, { fallback: null })
+        : null;
+      return `<div class="sig">
+        <div class="ink">${inked ? `<img src="${inked}" alt="" />` : ''}</div>
+        <div class="line">${escapeHtml(role)}${person ? `<b>${escapeHtml(person)}</b>` : ''}</div>
+      </div>`;
+    };
+
+    /*
       Attendance is no longer printed here. It is a record of the term, not a
       fact about who this child is, and it sat in the identity fields saying
       neither. The register still holds it and the year report still carries
@@ -1878,7 +1936,12 @@ export class ReportsService implements OnModuleDestroy {
       .comments .box{ border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:7px 10px; }
       .comments .box span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:4px; }
       .sigs{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px; font-size:10.5px; color:#5b6b7b; text-align:center; }
-      .sigs div{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
+      /* The ink box is a fixed height whether or not it holds anything, so
+         three blocks stay level and a signed card has no step in the middle. */
+      .sigs .ink{ height:13mm; display:flex; align-items:flex-end; justify-content:center; }
+      .sigs .ink img{ max-height:13mm; max-width:100%; object-fit:contain; display:block; }
+      .sigs .line{ border-top:1px dotted rgba(21,37,54,.16); padding-top:6px; }
+      .sigs .line b{ display:block; color:#1c2733; font-weight:600; margin-top:1px; }
       .verify-strip{ margin-top:6px; display:none; gap:12px; align-items:center; border:1px solid rgba(21,37,54,.09); border-radius:4px; padding:6px 10px; background:#f8fbfd; }
       .verify-strip .qr{ width:17mm; height:17mm; flex:0 0 17mm; }
       .verify-strip .qr img{ width:100%; height:100%; display:block; }
@@ -1948,9 +2011,9 @@ export class ReportsService implements OnModuleDestroy {
       </div>
 
       <div class="sigs">
-        <div>Class Teacher${data.classTeacher ? `<br>${escapeHtml(data.classTeacher)}` : ''}</div>
-        <div>Head Teacher</div>
-        <div>Parent / Guardian</div>
+        ${signedBy('Class Teacher', data.classTeacher, data.signatures?.classTeacher)}
+        ${signedBy('Head Teacher', data.headTeacher, data.signatures?.headTeacher)}
+        ${signedBy('Parent / Guardian', null, null)}
       </div>
 
       ${verifyStrip}
