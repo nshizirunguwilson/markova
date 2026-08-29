@@ -49,6 +49,9 @@ import { RolesGuard } from '../../common/guards';
 // ADMIN-only; only the GET handlers below use this.
 const ALL_ROLES = [
   'ADMIN',
+  // The head teacher runs the academic side, so the calendar, the classes
+  // and the timetable are the vocabulary of the post rather than a courtesy.
+  'HEAD_TEACHER',
   'TEACHER',
   'STUDENT',
   'PARENT',
@@ -187,7 +190,16 @@ export class AcademicController {
    * toast. Writing a class stays with the administrator below.
    */
   @Get('class-levels')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'LIBRARIAN',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'List all class levels with sections' })
   findAllClassLevels() {
     return this.service.findAllClassLevels();
@@ -254,7 +266,16 @@ export class AcademicController {
 
   /** As above: the vocabulary, not the marks. */
   @Get('sections')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'LIBRARIAN',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'List all class sections' })
   findAllSections(@Query('classLevelId') classLevelId?: string) {
     return this.service.findAllSections(classLevelId);

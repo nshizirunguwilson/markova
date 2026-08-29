@@ -60,14 +60,14 @@ export class AttendanceController {
   }
 
   @Get()
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query attendance records' })
   findAll(@Query() query: QueryAttendanceDto) {
     return this.service.findAll(query);
   }
 
   @Get('class')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get class attendance for a date' })
   getClassAttendance(
     @Query('classSectionId', new ParseUUIDPipe()) classSectionId: string,
@@ -82,7 +82,7 @@ export class AttendanceController {
   // ── Student Summary ─────────────────────────────────────────────────────
 
   @Get('student-summary')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student attendance summary' })
   async getStudentSummary(
     @Query('studentId') studentId: string,
@@ -122,21 +122,21 @@ export class AttendanceController {
   // ── Teacher Attendance ──────────────────────────────────────────────────
 
   @Post('teacher')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Mark teacher attendance' })
   markTeacherAttendance(@Body() dto: MarkTeacherAttendanceDto) {
     return this.service.markTeacherAttendance(dto);
   }
 
   @Post('teacher/qr-scan')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Process teacher QR scan' })
   teacherQrScan(@Body() dto: TeacherQrScanDto) {
     return this.service.processTeacherQrScan(dto);
   }
 
   @Get('teacher')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Get teacher attendance for a date' })
   getTeacherAttendance(@Query('date') date: string) {
     if (!date) {
@@ -148,7 +148,7 @@ export class AttendanceController {
   // ── Chronic Absenteeism ─────────────────────────────────────────────────
 
   @Get('chronic')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Get chronically absent students' })
   getChronic(
     @Query('classSectionId') classSectionId?: string,
@@ -172,7 +172,7 @@ export class AttendanceController {
   // ── Dashboard ───────────────────────────────────────────────────────────
 
   @Get('dashboard')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Get real-time attendance dashboard data' })
   getDashboard(@Query('date') date?: string) {
     return this.service.getDashboardData(date);

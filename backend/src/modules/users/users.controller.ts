@@ -82,13 +82,22 @@ export class UsersController {
    * overwritten before the service sees it.
    */
   @Get()
-  @Roles('ADMIN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'PATRON', 'MATRON', 'NURSE')
   @ApiOperation({ summary: 'List all users with filters and pagination' })
   async findAll(
     @Query() query: QueryUserDto,
     @CurrentUser() current: { role: string },
   ) {
     if (current.role === 'ADMIN') return this.usersService.findAll(query);
+    /*
+      The head teacher manages the teaching staff, so the directory they see
+      is the staffroom - not the whole roll, and not the students the welfare
+      staff are narrowed to. Imposed here rather than trusted from the query,
+      the same way the welfare staff's narrowing is.
+    */
+    if (current.role === 'HEAD_TEACHER') {
+      return this.usersService.findAll({ ...query, role: Role.TEACHER });
+    }
     return this.usersService.findAll({ ...query, role: Role.STUDENT });
   }
 

@@ -93,7 +93,7 @@ export class ReportsController {
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
   @Throttle({ default: { ttl: 60000, limit: 240 } })
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card data' })
   async getTermReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -131,7 +131,7 @@ export class ReportsController {
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
   @Throttle({ default: { ttl: 60000, limit: 240 } })
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term report card as HTML' })
   async getTermReportHtml(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -146,7 +146,7 @@ export class ReportsController {
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
   @Throttle({ default: { ttl: 60000, limit: 240 } })
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Download term report card as PDF' })
   async getTermReportPdf(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -175,7 +175,7 @@ export class ReportsController {
   }
 
   @Get('year/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get year report data' })
   async getYearReport(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -189,7 +189,7 @@ export class ReportsController {
   @Get('year/:studentId/html')
   // Bulk class downloads fetch these one per student, like the term cards.
   @Throttle({ default: { ttl: 60000, limit: 240 } })
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get the annual report as HTML' })
   async getYearReportHtml(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -202,7 +202,7 @@ export class ReportsController {
 
   @Get('year/:studentId/pdf')
   @Throttle({ default: { ttl: 60000, limit: 240 } })
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Download the annual report as PDF' })
   async getYearReportPdf(
     @Param('studentId', ParseUUIDPipe) studentId: string,

@@ -314,4 +314,31 @@ describe('UsersController and the welfare staff', () => {
     await controller.findAll({ role: 'TEACHER' } as never, { role: 'ADMIN' });
     expect(service.findAll).toHaveBeenCalledWith({ role: 'TEACHER' });
   });
+
+  /**
+   * The head teacher manages the teaching staff, so what they see is the
+   * staffroom. Not the whole roll, which would hand over every parent's
+   * phone number, and not the students the welfare staff are narrowed to,
+   * which is not the register they work in.
+   */
+  it('gives the head teacher the staffroom', async () => {
+    await controller.findAll({ role: 'PARENT' } as never, {
+      role: 'HEAD_TEACHER',
+    });
+    expect(service.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ role: Role.TEACHER }),
+    );
+  });
+
+  it('keeps the head teacher out of the parent list they asked for', async () => {
+    await controller.findAll({ role: 'PARENT', search: 'Keza' } as never, {
+      role: 'HEAD_TEACHER',
+    });
+    expect(service.findAll).not.toHaveBeenCalledWith(
+      expect.objectContaining({ role: Role.PARENT }),
+    );
+    expect(service.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'Keza' }),
+    );
+  });
 });

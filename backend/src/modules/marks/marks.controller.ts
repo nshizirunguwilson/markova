@@ -73,14 +73,14 @@ export class MarksController {
   }
 
   @Get()
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query marks with filters' })
   findAll(@Query() query: QueryMarksDto) {
     return this.service.findAll(query);
   }
 
   @Get('completion')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get grading completion tracker' })
   getCompletion(
     @Query('classSectionId') classSectionId: string,
@@ -131,7 +131,7 @@ export class MarksController {
   }
 
   @Get('term-results/class')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get term results for a class' })
   getTermResults(
     @Query('classSectionId') classSectionId: string,
@@ -141,7 +141,7 @@ export class MarksController {
   }
 
   @Get('term-results/student/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term result for a student' })
   async getStudentTermResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -217,7 +217,7 @@ export class MarksController {
   }
 
   @Get('year-results/class')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get year results for a class' })
   getYearResults(
     @Query('classSectionId') classSectionId: string,
@@ -247,7 +247,7 @@ export class MarksController {
   // ── Report Card ─────────────────────────────────────────────────────────
 
   @Get('report-card/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get full report card data for a student' })
   async getReportCard(
     @Param('studentId', ParseUUIDPipe) studentId: string,
