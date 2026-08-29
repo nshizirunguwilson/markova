@@ -157,6 +157,18 @@ export default function MessagesPage() {
     },
     [messagesBase],
   );
+  /**
+   * The open thread's own row in the inbox.
+   *
+   * Declared up here because the scrolling effects below depend on it: the
+   * thread pane is only rendered once this is found, so until the inbox has
+   * loaded there is no list element for them to scroll. It arrives from a
+   * different request than the messages do, and on a cold load it is usually
+   * the later of the two.
+   */
+  const selectedConversation = conversations?.find(
+    (c: any) => c.id === selectedConv,
+  );
   const { data: messages } = useMessages(selectedConv || undefined);
   const sendMessageRest = useSendMessage();
   const createConv = useCreateConversation();
@@ -364,7 +376,16 @@ export default function MessagesPage() {
     if (nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, typingNames.length, selectedConv]);
+    /*
+      `selectedConversation` is a dependency because the thread pane — and so
+      the element being scrolled — does not exist until the inbox request has
+      answered. On a cold load the messages arrived first, this effect ran
+      with nothing to scroll, and nothing ever changed again to make it run a
+      second time: the thread sat at its first message until you scrolled it
+      down by hand. Every later visit worked, because by then the inbox was
+      cached and both were ready together.
+    */
+  }, [messages, typingNames.length, selectedConv, selectedConversation]);
 
   /**
    * Keep the bottom of the thread at the bottom while it is still settling.
@@ -436,7 +457,9 @@ export default function MessagesPage() {
       list.removeEventListener("touchmove", release);
       list.removeEventListener("keydown", onKey);
     };
-  }, [selectedConv, threadBlocks.length]);
+    // `selectedConversation` for the same reason as above: no pane, no list
+    // to observe, and nothing that would bring this effect back.
+  }, [selectedConv, selectedConversation, threadBlocks.length]);
 
   /**
    * Watch how far from the bottom the reader is, so the jump-down button can
@@ -734,7 +757,6 @@ export default function MessagesPage() {
     );
   };
 
-  const selectedConversation = conversations?.find((c: any) => c.id === selectedConv);
 
   const getConvName = (conv: any) => {
     if (conv.name) return conv.name;

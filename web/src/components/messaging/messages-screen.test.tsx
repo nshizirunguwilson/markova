@@ -3021,6 +3021,71 @@ describe("keeping the thread landed while media settles", () => {
     return { list, say, fire: () => act(() => fire()) };
   }
 
+  /**
+   * The thread and the inbox come from two different requests, and on a cold
+   * load the messages usually win.
+   *
+   * Until the inbox has answered there is no row to build the thread pane
+   * from, so there is no element to scroll — and nothing about the inbox
+   * arriving afterwards would bring the scrolling effects back. The thread
+   * sat at its very first message, and only on a first visit: every later one
+   * had the inbox cached and both halves were ready together, which is why
+   * this survived so long.
+   */
+  it("lands the thread even when the inbox answers after the messages", async () => {
+    // jsdom measures nothing, so the thread is given a height to land at.
+    const height = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollHeight",
+    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get: () => 5000,
+    });
+
+    let release: () => void = () => {};
+    const inbox = new Promise<void>((r) => {
+      release = r;
+    });
+    let threadArrived = false;
+    h.pathname.current = "/messages/conv-1";
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": () => {
+        threadArrived = true;
+        return routes["/messaging/conversations/conv-1/messages"];
+      },
+      "/messaging/conversations": async () => {
+        await inbox;
+        return [conversation];
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+
+    // The messages are in hand, and there is still no pane to put them in.
+    await waitFor(() => expect(threadArrived).toBe(true));
+    // Let the thread's own answer land in the page while the inbox is still
+    // out. That interleaving is the whole point of this test.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await act(async () => {
+      release();
+      await inbox;
+    });
+    const thread = await screen.findByText(/Muraho neza/);
+
+    const list = thread.closest(".overflow-y-auto") as HTMLElement;
+    expect(list).toBeTruthy();
+    await waitFor(() => expect(list.scrollTop).toBe(5000));
+
+    if (height) {
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", height);
+    }
+    h.pathname.current = "/messages";
+  });
+
   it("watches the thread's own size", async () => {
     const { list } = await openWithWatcher();
     expect(list).toBeTruthy();
