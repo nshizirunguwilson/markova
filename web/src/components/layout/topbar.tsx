@@ -35,6 +35,7 @@ import { notificationHref } from "@/lib/notification-target";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { labelForRole } from "@/types";
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -408,7 +409,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                 {user?.firstName} {user?.lastName}
               </p>
               <Badge variant={roleBadgeVariant[user?.role || "ADMIN"]}>
-                {user?.role}
+                {labelForRole(user?.role)}
               </Badge>
             </div>
             <ChevronDown

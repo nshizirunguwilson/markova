@@ -31,6 +31,7 @@ import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
 import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
 import { PageHeader } from "@/components/layout/page-header";
+import { labelForRole } from "@/types";
 
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
@@ -302,7 +303,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={roleBadge[user.role] || "default"}>
-                        {user.role}
+                        {labelForRole(user.role)}
                       </Badge>
                     </TableCell>
                     <TableCell>

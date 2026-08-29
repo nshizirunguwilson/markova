@@ -27,6 +27,7 @@ import {
 import { useUser, useUpdateUser } from "@/hooks/use-users";
 import { NationalIdInput } from "@/components/ui/national-id-input";
 import { formatNid, validateNid } from "@/lib/person-form";
+import { labelForRole } from "@/types";
 
 const selectCls =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -219,7 +220,7 @@ export default function UserDetailPage() {
                 {user.firstName} {user.lastName}
               </h1>
               <div className="mt-1 flex items-center gap-2">
-                <Badge variant={roleBadge[user.role]}>{user.role}</Badge>
+                <Badge variant={roleBadge[user.role]}>{labelForRole(user.role)}</Badge>
                 <Badge variant={user.isActive ? "success" : "danger"}>
                   {user.isActive ? "Active" : "Inactive"}
                 </Badge>

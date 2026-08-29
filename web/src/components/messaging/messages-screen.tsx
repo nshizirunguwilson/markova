@@ -35,6 +35,7 @@ import { MessageText } from "@/components/messaging/message-text";
 import { VoiceNote } from "@/components/messaging/voice-note";
 import { VoiceRecorder } from "@/components/messaging/voice-recorder";
 import { NotifyToggle } from "@/components/messaging/notify-toggle";
+import { labelForRole } from "@/types";
 import {
   ACCEPTED_ATTACHMENTS,
   humanSize,
@@ -1655,7 +1656,9 @@ export default function MessagesPage() {
                     <span className="text-sm font-medium text-foreground">
                       {p.user.firstName} {p.user.lastName}
                     </span>
-                    <span className="ml-2 text-xs text-muted">{p.user.role}</span>
+                    <span className="ml-2 text-xs text-muted">
+                      {labelForRole(p.user.role)}
+                    </span>
                   </div>
                   {p.isAdmin && <Badge className="ml-1">Admin</Badge>}
                   <Button

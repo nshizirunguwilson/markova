@@ -11,6 +11,7 @@ import { Card, Button } from "@/components/ui";
 import { User, Mail, Phone, Shield, Lock, PenLine, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
+import { labelForRole } from "@/types";
 
 /** Roles that put their name under a document the school issues. */
 const SIGNS_SOMETHING = ["ADMIN", "HEAD_TEACHER", "TEACHER"];
@@ -156,7 +157,7 @@ export default function ProfilePage() {
               {user.firstName} {user.lastName}
             </h2>
             <span className="inline-block mt-1 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
-              {user.role}
+              {labelForRole(user.role)}
             </span>
           </div>
         </div>
@@ -266,7 +267,7 @@ export default function ProfilePage() {
           <label className="mb-1 block text-sm font-medium text-foreground-muted">
             <Shield className="inline h-4 w-4 mr-1" /> Role
           </label>
-          <p className="text-sm text-foreground">{user.role}</p>
+          <p className="text-sm text-foreground">{labelForRole(user.role)}</p>
         </div>
       </Card>
 

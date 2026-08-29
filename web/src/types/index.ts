@@ -22,6 +22,31 @@ export type Role =
   | "NURSE"
   | "BURSAR";
 
+/**
+ * What each role is called in front of a person.
+ *
+ * The enum is the API's word; this is the school's. Every other role happened
+ * to read acceptably raw, which is why they were printed raw for so long -
+ * and then HEAD_TEACHER arrived with an underscore in it and made the habit
+ * visible. Naming them all here is what stops the next one being a surprise.
+ */
+export const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: "Admin",
+  HEAD_TEACHER: "Head teacher",
+  TEACHER: "Teacher",
+  STUDENT: "Student",
+  PARENT: "Parent",
+  LIBRARIAN: "Librarian",
+  PATRON: "Patron",
+  MATRON: "Matron",
+  NURSE: "Nurse",
+  BURSAR: "Bursar",
+};
+
+/** The label for a role, or the role itself if it is one we do not know. */
+export const labelForRole = (role: string | null | undefined): string =>
+  (role && ROLE_LABEL[role as Role]) || role || "";
+
 export type SpecialRole = "DOS" | "HOD" | "CLASS_TEACHER";
 
 export interface PaginatedResponse<T> {

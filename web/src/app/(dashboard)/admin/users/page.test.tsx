@@ -216,8 +216,10 @@ describe("sorting the list", () => {
     await click(header(/^role/i));
 
     await waitFor(() => {
+      /* The table prints the school's word for a role, not the API's enum:
+         "Head teacher" rather than HEAD_TEACHER. */
       const body = (document.querySelector("tbody")?.textContent ?? "");
-      expect(body.indexOf("PARENT")).toBeLessThan(body.indexOf("TEACHER"));
+      expect(body.indexOf("Parent")).toBeLessThan(body.indexOf("Teacher"));
     });
   });
 
@@ -253,7 +255,7 @@ describe("sorting the list", () => {
 
     await waitFor(() => {
       const body = (document.querySelector("tbody")?.textContent ?? "");
-      expect(body.indexOf("PARENT")).toBeLessThan(body.indexOf("TEACHER"));
+      expect(body.indexOf("Parent")).toBeLessThan(body.indexOf("Teacher"));
     });
   });
 });
