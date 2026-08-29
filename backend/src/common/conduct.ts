@@ -85,11 +85,18 @@ export function conductLabel(points: number, outOf: number): string {
  * to raw points against a hundred-point scale, which quietly became wrong the
  * moment the scale was not a hundred.
  */
+export const CONDUCT_BANDS: { min: number; remark: string }[] = [
+  { min: 95, remark: 'Excellent' },
+  { min: 85, remark: 'Very good' },
+  { min: 70, remark: 'Good' },
+  { min: 50, remark: 'Fair' },
+  { min: 0, remark: 'Poor' },
+];
+
 export function conductRemark(percentage: number | null): string {
   if (percentage === null) return '-';
-  if (percentage >= 95) return 'Excellent';
-  if (percentage >= 85) return 'Very good';
-  if (percentage >= 70) return 'Good';
-  if (percentage >= 50) return 'Fair';
-  return 'Poor';
+  return (
+    CONDUCT_BANDS.find((b) => percentage >= b.min)?.remark ??
+    CONDUCT_BANDS[CONDUCT_BANDS.length - 1].remark
+  );
 }

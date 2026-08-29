@@ -41,6 +41,7 @@ import {
   BulkExamScheduleDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
+import { gradingExplained } from '../../common/grading-explained';
 import { RolesGuard } from '../../common/guards';
 
 // Read-only reference data (academic calendar, subjects, sections, etc.) is
@@ -63,6 +64,22 @@ const ALL_ROLES = [
 @ApiBearerAuth()
 export class AcademicController {
   constructor(private readonly service: AcademicService) {}
+
+  /**
+   * How a mark becomes a grade.
+   *
+   * Reference material rather than a record, so it takes no parameters and
+   * touches no table. Open to every role because everybody it explains
+   * things to has to be able to read it: a parent asking why 68% is a B, a
+   * student working out what an aggregate is, a new teacher checking which
+   * scale an elective is marked on.
+   */
+  @Get('grading-scale')
+  @Roles(...ALL_ROLES)
+  @ApiOperation({ summary: 'How marks, grades, aggregates and conduct work' })
+  gradingScale() {
+    return gradingExplained();
+  }
 
   // ─── ACADEMIC YEARS ─────────────────────────────────────────────────────────
 
