@@ -3040,10 +3040,85 @@ describe("keeping the thread landed while media settles", () => {
     vi.unstubAllGlobals();
   });
 
+  /**
+   * A cold load of a thread's own URL brings nine pictures and voice notes in
+   * at once and pushes the end of the conversation thousands of pixels away —
+   * far past any reasonable "nearly at the bottom" allowance. A distance rule
+   * alone left the reader stranded at the top of the thread.
+   */
+  it("follows the bottom however far the thread grows, before any scrolling", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    say(9000, 600, 0); // the whole thread arrived at once
+    fire();
+    expect(list.scrollTop).toBe(9000);
+    vi.unstubAllGlobals();
+  });
+
+  /*
+    Once the reader takes the scroll, media loading below them must not drag
+    them off what they are reading. A gesture is what says they have taken it
+    — the pinning sets scrollTop itself, so a scroll event cannot tell the two
+    apart.
+  */
+  it.each([["wheel"], ["touchmove"]])(
+    "hands the scroll back after a %s gesture",
+    async (gesture) => {
+      const { list, say, fire } = await openWithWatcher();
+      act(() => {
+        list.dispatchEvent(new Event(gesture, { bubbles: true }));
+      });
+
+      say(9000, 600, 0);
+      fire();
+
+      expect(list.scrollTop).toBe(0);
+      vi.unstubAllGlobals();
+    },
+  );
+
+  it("hands it back when the reader pages up with the keyboard", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    act(() => {
+      list.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "PageUp", bubbles: true }),
+      );
+    });
+
+    say(9000, 600, 0);
+    fire();
+
+    expect(list.scrollTop).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
+  // A key that does not scroll is not the reader taking control.
+  it("keeps following after a key that does not scroll", async () => {
+    const { list, say, fire } = await openWithWatcher();
+    act(() => {
+      list.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "a", bubbles: true }),
+      );
+    });
+
+    say(9000, 600, 0);
+    fire();
+
+    expect(list.scrollTop).toBe(9000);
+    vi.unstubAllGlobals();
+  });
+
   // Somebody who has scrolled up to read must not be yanked down because an
   // image three screens below them finished loading.
+  /*
+    A reader takes the scroll with a gesture. Setting `scrollTop` alone is
+    what the pinning itself does, so it cannot be the signal — a thread that
+    unpinned on its own writes would never reach the bottom at all.
+  */
   it("leaves a reader who has scrolled up where they are", async () => {
     const { list, say, fire } = await openWithWatcher();
+    act(() => {
+      list.dispatchEvent(new Event("wheel", { bubbles: true }));
+    });
     say(4000, 600, 0); // right at the top
     fire();
     expect(list.scrollTop).toBe(0);
