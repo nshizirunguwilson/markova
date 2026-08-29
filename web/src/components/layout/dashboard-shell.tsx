@@ -34,20 +34,28 @@ const ROLES_BY_PREFIX: Record<string, string[]> = {
 export function homeFor(role: string): string {
   if (role === "PATRON" || role === "MATRON") return "/boarding";
   if (role === "NURSE") return "/nurse";
+  // The bursar's home is the register itself. There is no separate dashboard
+  // worth building: the one screen they open every morning is the roll of who
+  // has paid, and a summary page in front of it would be a click to nowhere.
+  if (role === "BURSAR") return "/admin/finance";
   return `/${role.toLowerCase()}`;
 }
 
 /**
  * Pages under /admin that the boarding staff also need.
  *
- * A patron, matron or nurse is not an administrator, and must not reach the
- * rest of /admin. But pocket money and the clinic are their job, and putting
- * them under a second prefix would mean two copies of the same page.
+ * A patron, matron, nurse or bursar is not an administrator, and must not
+ * reach the rest of /admin. But pocket money, the clinic and the fee register
+ * are their jobs, and putting them under a second prefix would mean two
+ * copies of the same page.
  */
 const SHARED_ADMIN_PAGES: Record<string, string[]> = {
   "pocket-money": ["PATRON", "MATRON"],
   health: ["PATRON", "MATRON", "NURSE"],
   activities: ["PATRON", "MATRON"],
+  // The fee pages are the bursar's whole job, and the head reads them too.
+  // One copy under /admin rather than a second prefix holding the same code.
+  finance: ["BURSAR"],
 };
 
 /** Which roles may see this path, or undefined when it is open to all. */
