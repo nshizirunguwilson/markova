@@ -338,15 +338,29 @@ export default function FeeStructurePage() {
             <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
               Cancel
             </Button>
+            {/*
+              The id is read here, not inside the handler.
+
+              The React Compiler hoists what a callback closes over into the
+              dependency check it builds around it, and that check runs on
+              every render — including the ones where nothing is selected. A
+              `confirmDelete!.id` inside the handler therefore becomes a read
+              of `null.id` at render time, because the non-null assertion is
+              erased when the TypeScript is compiled and cannot protect
+              anything. Optional chaining survives into the output and does.
+            */}
             <Button
               variant="danger"
               isLoading={remove.isPending}
-              onClick={() =>
+              disabled={!confirmDelete}
+              onClick={() => {
+                const id = confirmDelete?.id;
+                if (!id) return;
                 remove
-                  .mutateAsync(confirmDelete!.id)
+                  .mutateAsync(id)
                   .then(() => setConfirmDelete(null))
-                  .catch(() => {})
-              }
+                  .catch(() => {});
+              }}
             >
               Remove it
             </Button>

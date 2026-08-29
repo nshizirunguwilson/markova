@@ -111,7 +111,8 @@ export function FamilyFees({
                 {money(
                   owingTerms.reduce((sum, h) => sum + h.standing.balance, 0),
                 )}{" "}
-                outstanding in total. Marks and report cards for those terms
+                outstanding{owingTerms.length > 1 ? " in total" : ""}. Marks and
+                report cards for {owingTerms.length > 1 ? "those terms" : "it"}{" "}
                 open as soon as the balance reaches nil. The school office can
                 help if something here looks wrong.
               </p>

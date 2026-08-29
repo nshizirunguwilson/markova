@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
+import { classDisplayName } from "@/lib/utils";
 import { TermPicker } from "@/components/finance/term-picker";
 import { FeeBar } from "@/components/finance/fee-bar";
 import { useClassLevels, useSections } from "@/hooks/use-academic";
@@ -309,7 +310,7 @@ export default function FeeRegisterPage() {
                           </Link>
                         </TableCell>
                         <TableCell className="text-sm text-muted">
-                          {row.student.classSection?.name ?? "—"}
+                          {classDisplayName(row.student.classSection) || "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {s ? money(s.total) : "—"}

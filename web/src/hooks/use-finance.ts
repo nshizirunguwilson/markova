@@ -47,7 +47,12 @@ export interface FeeRegisterRow {
     firstName: string;
     lastName: string;
     photoUrl: string | null;
-    classSection: { id: string; name: string } | null;
+    classSection: {
+      id: string;
+      name: string;
+      classLevel?: { name: string } | null;
+      trade?: { code: string } | null;
+    } | null;
   };
   standing: FeeStanding | null;
   status: FeeStatus;
@@ -98,7 +103,12 @@ export interface FeeAccount {
     studentIdNumber: string;
     isBoarder: boolean;
     user: { firstName: string; lastName: string; photoUrl: string | null };
-    classSection: { id: string; name: string } | null;
+    classSection: {
+      id: string;
+      name: string;
+      classLevel?: { name: string } | null;
+      trade?: { code: string } | null;
+    } | null;
   };
   invoice: {
     id: string;

@@ -14,6 +14,7 @@ import {
   PageSpinner,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
+import { classDisplayName } from "@/lib/utils";
 import { TermPicker } from "@/components/finance/term-picker";
 import { FeeBar } from "@/components/finance/fee-bar";
 import {
@@ -175,9 +176,9 @@ export default function FeeAccountPage() {
         }
         description={
           student
-            ? `${student.studentIdNumber} · ${student.classSection?.name ?? "no class"} · ${
-                student.isBoarder ? "Boarder" : "Day student"
-              }`
+            ? `${student.studentIdNumber} · ${
+                classDisplayName(student.classSection) || "no class"
+              } · ${student.isBoarder ? "Boarder" : "Day student"}`
             : undefined
         }
         actions={<TermPicker value={termId} onChange={setTermId} />}

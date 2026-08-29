@@ -248,7 +248,17 @@ export class FinanceService {
         studentIdNumber: true,
         isBoarder: true,
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { select: { id: true, name: true } },
+        /* The level and the trade as well as the stream letter: a class
+           called "A" tells a bursar nothing, and "Senior 1 A" is what the
+           school actually calls it. */
+        classSection: {
+          select: {
+            id: true,
+            name: true,
+            classLevel: { select: { name: true } },
+            trade: { select: { code: true } },
+          },
+        },
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -363,7 +373,17 @@ export class FinanceService {
         studentIdNumber: true,
         isBoarder: true,
         user: { select: { firstName: true, lastName: true, photoUrl: true } },
-        classSection: { select: { id: true, name: true } },
+        /* The level and the trade as well as the stream letter: a class
+           called "A" tells a bursar nothing, and "Senior 1 A" is what the
+           school actually calls it. */
+        classSection: {
+          select: {
+            id: true,
+            name: true,
+            classLevel: { select: { name: true } },
+            trade: { select: { code: true } },
+          },
+        },
         feeInvoices: {
           where: { termId },
           select: {
