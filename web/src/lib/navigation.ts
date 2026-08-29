@@ -65,6 +65,7 @@ const adminNav: NavSection[] = [
       { label: "Classes", href: "/admin/classes", icon: Backpack },
       { label: "Timetable", href: "/admin/timetable", icon: Clock },
       { label: "Marks", href: "/admin/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Report Cards", href: "/admin/reports", icon: FileText },
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
       { label: "Promotion", href: "/admin/promotion", icon: ArrowUpCircle },
@@ -110,6 +111,7 @@ const teacherNav: NavSection[] = [
     title: "Teaching",
     items: [
       { label: "Marks Entry", href: "/teacher/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Assessments", href: "/teacher/homework", icon: FileText },
     ],
   },
@@ -147,6 +149,7 @@ const studentNav: NavSection[] = [
     title: "Academics",
     items: [
       { label: "My Marks", href: "/student/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Report Card", href: "/student/reports", icon: FileText },
       { label: "School Fees", href: "/student/fees", icon: Landmark },
       { label: "My Work", href: "/student/homework", icon: BookOpen },
@@ -175,6 +178,7 @@ const parentNav: NavSection[] = [
     title: "My Children",
     items: [
       { label: "Marks", href: "/parent/marks", icon: ClipboardList },
+      { label: "Grading", href: "/grading", icon: Scale },
       { label: "Attendance", href: "/parent/attendance", icon: Calendar },
       { label: "Discipline", href: "/parent/discipline", icon: AlertTriangle },
       { label: "Report Cards", href: "/parent/reports", icon: FileText },
