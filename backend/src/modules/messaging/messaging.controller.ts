@@ -153,14 +153,14 @@ export class MessagingController {
   // hundred families is not something a student sends.
 
   @Post('broadcast/preview')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
   @ApiOperation({ summary: 'How many people an announcement would reach' })
   previewAudience(@Body() dto: PreviewAudienceDto) {
     return this.service.previewAudience(dto);
   }
 
   @Post('broadcast')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
   @ApiOperation({ summary: 'Tell a whole audience at once' })
   async broadcast(@Body() dto: BroadcastDto, @CurrentUser() user: any) {
     const result = await this.service.broadcast(dto, user.id);
@@ -183,6 +183,7 @@ export class MessagingController {
     'PATRON',
     'MATRON',
     'NURSE',
+    'BURSAR',
   )
   @ApiOperation({ summary: 'Who is in this conversation' })
   getParticipants(
@@ -193,7 +194,7 @@ export class MessagingController {
   }
 
   @Post('conversations/:id/participants')
-  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
   @ApiOperation({ summary: 'Add people to a group' })
   addParticipants(
     @Param('id', ParseUUIDPipe) id: string,
@@ -215,6 +216,7 @@ export class MessagingController {
     'PATRON',
     'MATRON',
     'NURSE',
+    'BURSAR',
   )
   @ApiOperation({ summary: 'Remove somebody, or leave the group yourself' })
   removeParticipant(
@@ -226,7 +228,7 @@ export class MessagingController {
   }
 
   @Put('conversations/:id/name')
-  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE')
+  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
   @ApiOperation({ summary: 'Rename a group' })
   rename(
     @Param('id', ParseUUIDPipe) id: string,
@@ -248,6 +250,7 @@ export class MessagingController {
     'PATRON',
     'MATRON',
     'NURSE',
+    'BURSAR',
   )
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @UseInterceptors(

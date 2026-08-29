@@ -7,6 +7,7 @@ import { useStudentTermResult } from "@/hooks/use-marks";
 import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, Clock, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { WithheldNotice } from "@/components/finance/withheld-notice";
 
 export default function StudentMarksPage() {
   const { user } = useAuthStore();
@@ -30,6 +31,14 @@ export default function StudentMarksPage() {
    * like the marks were lost.
    */
   const notReleased = !!data && data.published === false;
+  /**
+   * Held over unpaid fees, which is a different thing from not released.
+   *
+   * Not released is the school still working; held is something the family
+   * can act on. Answered as data rather than as a refusal precisely so this
+   * page can say which it is and how much it would take.
+   */
+  const withheld = data?.withheld;
 
   // Group marks by subject
   const subjectMap = useMemo(() => {
@@ -78,6 +87,8 @@ export default function StudentMarksPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : withheld ? (
+        <WithheldNotice withheld={withheld} feesHref="/student/fees" what="marks" />
       ) : (
         <>
           {/* Summary Cards */}

@@ -16,6 +16,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
+import { FeeGateService } from '../../common/fee-gate.service';
 import {
   GenerateClassReportCardsDto,
   GenerateDocumentDto,
@@ -35,17 +36,23 @@ export class ReportsController {
   constructor(
     private readonly service: ReportsService,
     private readonly ownership: OwnershipService,
+    private readonly feeGate: FeeGateService,
   ) {}
 
   // ── Report Cards ────────────────────────────────────────────────────────
 
   /**
-   * Ownership, then timing.
+   * Ownership, then timing, then fees.
    *
    * Whose child it is has always been checked. Whether the school has issued
    * the card was not — so a student could read their report card, as data, as
    * HTML or as a PDF, before it was released. Staff are never gated: they
    * have to read the thing before issuing it.
+   *
+   * The fee check comes last and is deliberately separate from the issuing
+   * one, because the two say different things to a family. "Not issued yet"
+   * is the school still working; "held until the fees are settled" is
+   * something they can act on, and the message names the amount so they can.
    */
   private async assertMayRead(
     user: { id: string; role: string },
@@ -61,6 +68,25 @@ export class ReportsController {
         'This report card has not been issued yet. It will appear here once the school releases it.',
       );
     }
+
+    await this.feeGate.assertReleased(user.role, studentId, termId);
+  }
+
+  /**
+   * The same, for the annual report.
+   *
+   * An annual report is the three terms added up, so it is held while any of
+   * them is owed on. Whether the year's report has been "issued" is not a
+   * separate state the way a term card's is — it is built from term results
+   * that were issued one by one — so ownership and fees are the two checks.
+   */
+  private async assertMayReadYear(
+    user: { id: string; role: string },
+    studentId: string,
+    academicYearId: string,
+  ) {
+    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.feeGate.assertYearReleased(user.role, studentId, academicYearId);
   }
 
   @Get('term/:studentId')
@@ -133,7 +159,7 @@ export class ReportsController {
     @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayReadYear(user, studentId, academicYearId);
     return this.service.getYearReportData(studentId, academicYearId);
   }
 
@@ -147,7 +173,7 @@ export class ReportsController {
     @Query('academicYearId', ParseUUIDPipe) academicYearId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayReadYear(user, studentId, academicYearId);
     return this.service.generateYearReportHtml(studentId, academicYearId);
   }
 
@@ -161,7 +187,7 @@ export class ReportsController {
     @Res() res: express.Response,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.assertMayReadYear(user, studentId, academicYearId);
     const pdf = await this.service.generateYearReportPdf(
       studentId,
       academicYearId,

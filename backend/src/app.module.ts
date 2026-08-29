@@ -17,6 +17,7 @@ import { LibraryModule } from './modules/library/library.module';
 import { PocketMoneyModule } from './modules/pocket-money/pocket-money.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { ClinicModule } from './modules/clinic/clinic.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { HomeworkModule } from './modules/homework/homework.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -59,6 +60,7 @@ import { AuditLogInterceptor } from './common/interceptors';
     PocketMoneyModule,
     ActivitiesModule,
     ClinicModule,
+    FinanceModule,
     HomeworkModule,
     MessagingModule,
     NotificationsModule,

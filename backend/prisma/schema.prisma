@@ -21,6 +21,10 @@ enum Role {
   PATRON
   /// Girls' boarding mistress. The same duties, for the girls' side.
   MATRON
+  /// Keeps the fee ledger: raises the term's invoices, takes payments at the
+  /// counter, and decides who is carried. Sees the money and the roll, and
+  /// nothing academic — a bursar has no business in a mark book.
+  BURSAR
   /// School nurse. Sees health records; sees nothing academic.
   NURSE
 }
@@ -189,6 +193,10 @@ model User {
   medicationsGiven        MedicationAdministration[] @relation("MedicationGivenBy")
   healthRecordsUpdated    StudentHealthRecord[]      @relation("HealthRecordUpdatedBy")
   meritsAwarded           MeritAward[]               @relation("MeritAwardedBy")
+  feePaymentsRecorded     FeePayment[]               @relation("FeePaymentRecordedBy")
+  feePaymentsVoided       FeePayment[]               @relation("FeePaymentVoidedBy")
+  feeWaiversGranted       FeeWaiver[]                @relation("FeeWaiverGrantedBy")
+  feeWaiversRevoked       FeeWaiver[]                @relation("FeeWaiverRevokedBy")
 
   @@index([role])
   @@index([isActive])
@@ -265,6 +273,8 @@ model Term {
   examSchedules       ExamSchedule[]
   activities          Activity[]
   merits              MeritAward[]
+  feeItems            FeeItem[]
+  feeInvoices         FeeInvoice[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -280,6 +290,7 @@ model ClassLevel {
   sections            ClassSection[]
   subjects            Subject[]
   activityClassLevels ActivityClassLevel[]
+  feeItems            FeeItem[]
 
   @@map("class_levels")
 }
@@ -443,6 +454,7 @@ model Student {
   clinicVisits        ClinicVisit[]
   medications         MedicationAdministration[]
   healthRecord        StudentHealthRecord?
+  feeInvoices         FeeInvoice[]
 
   @@index([classSectionId])
   @@index([status])
@@ -872,7 +884,7 @@ model Message {
   /// Set null rather than cascaded when the original goes: a reply is still a
   /// thing somebody said, and deleting it because the message above it was
   /// removed would take a real sentence out of the conversation.
-  replyToId      String?            @map("reply_to_id")
+  replyToId String? @map("reply_to_id")
 
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User          @relation(fields: [senderUserId], references: [id])
@@ -1350,4 +1362,205 @@ model MeritAward {
   @@index([studentId])
   @@index([termId])
   @@map("merit_awards")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHOOL FEES
+//
+// The ledger a Rwandan school actually keeps: what each family was asked for
+// this term, what has come in against it, and what the school has written off.
+// It lives in a cash book and a bursar's head today, which is why nobody can
+// answer "how much is left on Rose's account" without finding the bursar.
+//
+// Three rules, the same ones the pocket money ledger follows, and for the
+// same reason — it is somebody else's money:
+//
+//  - **A balance is derived, never stored.** It is the invoice total less what
+//    has been paid and what has been waived. A stored balance that drifts from
+//    its entries is how money disappears.
+//  - **Nothing is edited or deleted.** A receipt entered twice is voided, with
+//    a reason and a name against it, so the book stands up months later.
+//  - **What was charged is frozen when it is charged.** Next year's prices
+//    must never rewrite what a family was asked for last year.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Who a fee line is charged to.
+///
+/// A boarder pays for a bed and for meals; a day student pays for the bus.
+/// Holding this on the line rather than in two parallel fee tables means one
+/// structure describes the whole class and each student's total falls out of
+/// where they sleep.
+enum FeeAppliesTo {
+  ALL
+  BOARDER
+  DAY
+}
+
+/// How money reached the school.
+///
+/// Recorded because reconciling a bank statement against a cash book is the
+/// bursar's month-end, and "paid" without a method or a reference is exactly
+/// what makes that impossible.
+enum PaymentMethod {
+  CASH
+  BANK_DEPOSIT
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CHEQUE
+}
+
+/// Why a family is not being asked for part of the fee.
+///
+/// Named rather than a free-text note, because the school is asked every year
+/// how many children it carries and on what grounds.
+enum WaiverKind {
+  /// The school's own bursary, means-tested.
+  BURSARY
+  /// Merit: a place earned rather than bought.
+  SCHOLARSHIP
+  /// A district, government or NGO sponsor pays instead of the family.
+  SPONSORSHIP
+  /// A one-off remission after a bereavement, a fire, a lost harvest.
+  HARDSHIP
+  /// Staff children, and the second and third child of one family.
+  STAFF_CHILD
+}
+
+/// One line the school charges a class level for, in one term.
+///
+/// The price list, not the bill. Editing this changes what future invoices
+/// are raised at and leaves every invoice already issued untouched.
+model FeeItem {
+  id           String       @id @default(uuid())
+  termId       String       @map("term_id")
+  classLevelId String       @map("class_level_id")
+  name         String
+  /// Rwandan francs.
+  amount       Float
+  appliesTo    FeeAppliesTo @default(ALL)
+  /// Where the line sits on a printed invoice. Tuition first, extras last.
+  position     Int          @default(0)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  term       Term       @relation(fields: [termId], references: [id], onDelete: Cascade)
+  classLevel ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
+
+  @@unique([termId, classLevelId, name])
+  @@index([termId])
+  @@map("fee_items")
+}
+
+/// What one student was asked for, for one term.
+///
+/// Raised from the fee items and then frozen: the lines are copied, not
+/// referenced, so a price changed in March cannot rewrite a bill sent in
+/// January. One per student per term, which is what makes "cleared for this
+/// term" a question with a single answer.
+model FeeInvoice {
+  id        String   @id @default(uuid())
+  studentId String   @map("student_id")
+  termId    String   @map("term_id")
+  /// The sum of the lines, held so a list of five hundred students does not
+  /// have to add up five hundred sets of lines to draw one column.
+  total     Float
+  issuedAt  DateTime @default(now()) @map("issued_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term    Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  lines    FeeInvoiceLine[]
+  payments FeePayment[]
+  waivers  FeeWaiver[]
+
+  @@unique([studentId, termId])
+  @@index([termId])
+  @@map("fee_invoices")
+}
+
+/// A line as it stood when the invoice was raised.
+model FeeInvoiceLine {
+  id        String @id @default(uuid())
+  invoiceId String @map("invoice_id")
+  name      String
+  amount    Float
+  position  Int    @default(0)
+
+  invoice FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("fee_invoice_lines")
+}
+
+/// Money received against an invoice.
+///
+/// Never edited and never deleted. A receipt entered twice is voided, which
+/// leaves both the entry and the reason in the book — the correction a bursar
+/// can show an auditor, rather than a row that quietly went missing.
+model FeePayment {
+  id               String        @id @default(uuid())
+  invoiceId        String        @map("invoice_id")
+  /// Printed on the receipt and quoted by the family ever after, so it is
+  /// unique across the school and never reused.
+  receiptNumber    String        @unique @map("receipt_number")
+  /// Rwandan francs, always positive.
+  amount           Float
+  method           PaymentMethod
+  /// The bank slip number, the MoMo transaction id, the cheque number. What
+  /// makes this entry findable in somebody else's records.
+  reference        String?
+  /// When the money changed hands, which is not when it was typed in.
+  paidAt           DateTime      @map("paid_at")
+  note             String?
+  /// Who took it. Null only for entries the system makes itself.
+  recordedByUserId String?       @map("recorded_by_user_id")
+
+  /// A voided receipt stops counting towards the balance but stays in the
+  /// book. All three fields are set together or none of them are.
+  voidedAt       DateTime? @map("voided_at")
+  voidedByUserId String?   @map("voided_by_user_id")
+  voidReason     String?   @map("void_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice    FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recordedBy User?      @relation("FeePaymentRecordedBy", fields: [recordedByUserId], references: [id])
+  voidedBy   User?      @relation("FeePaymentVoidedBy", fields: [voidedByUserId], references: [id])
+
+  @@index([invoiceId, paidAt])
+  @@map("fee_payments")
+}
+
+/// Part of an invoice the school has decided not to collect.
+///
+/// Counts towards clearing the term exactly as a payment does. Without it a
+/// sponsored child could never be shown their own results, and the only way
+/// round would be to record a payment that never happened — which is worse
+/// than the problem.
+model FeeWaiver {
+  id              String     @id @default(uuid())
+  invoiceId       String     @map("invoice_id")
+  kind            WaiverKind
+  /// Rwandan francs. A full bursary is the invoice total; there is no
+  /// separate "everything" flag, so the arithmetic is the same either way.
+  amount          Float
+  /// Required. An unexplained write-off is indistinguishable from a mistake.
+  reason          String
+  grantedByUserId String?    @map("granted_by_user_id")
+
+  /// Withdrawn rather than deleted, for the same reason a receipt is voided.
+  revokedAt       DateTime? @map("revoked_at")
+  revokedByUserId String?   @map("revoked_by_user_id")
+  revokeReason    String?   @map("revoke_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  invoice   FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  grantedBy User?      @relation("FeeWaiverGrantedBy", fields: [grantedByUserId], references: [id])
+  revokedBy User?      @relation("FeeWaiverRevokedBy", fields: [revokedByUserId], references: [id])
+
+  @@index([invoiceId])
+  @@map("fee_waivers")
 }

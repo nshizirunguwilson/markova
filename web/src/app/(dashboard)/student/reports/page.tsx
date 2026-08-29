@@ -14,6 +14,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
+import { WithheldNotice } from "@/components/finance/withheld-notice";
+import { withheldFrom } from "@/lib/withheld";
 import { Clock, Download, Eye, FileText, Printer } from "lucide-react";
 
 export default function StudentReportsPage() {
@@ -31,7 +33,14 @@ export default function StudentReportsPage() {
    * fault — this reads as "not issued yet" rather than an error the student
    * has to interpret.
    */
-  const notIssued = (error as any)?.response?.status === 403;
+  /**
+   * Held over the fees, which is not the same as not issued.
+   *
+   * Both arrive as a 403. Not issued is the school still working; held is
+   * something the family can act on, and the panel for it names the amount.
+   */
+  const withheld = withheldFrom(error);
+  const notIssued = !withheld && (error as any)?.response?.status === 403;
   const [officialHtml, setOfficialHtml] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "view" | "print" | "download">("");
 
@@ -109,6 +118,14 @@ export default function StudentReportsPage() {
       </div>
 
       {isLoading && <div className="text-center py-8"><Spinner /></div>}
+
+      {withheld && !isLoading && (
+        <WithheldNotice
+          withheld={withheld}
+          feesHref="/student/fees"
+          what="report cards"
+        />
+      )}
 
       {notIssued && !isLoading && (
         <Card>

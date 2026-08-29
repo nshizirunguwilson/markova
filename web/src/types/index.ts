@@ -2,8 +2,9 @@
 
 /**
  * PATRON and MATRON are the boarding master and mistress; NURSE runs the
- * clinic. Real jobs in a Rwandan boarding school, not administrators with
- * extra duties, so they get their own logins and their own narrow view.
+ * clinic; BURSAR keeps the fee ledger. Real jobs in a Rwandan boarding
+ * school, not administrators with extra duties, so they get their own logins
+ * and their own narrow view.
  */
 export type Role =
   | "ADMIN"
@@ -13,7 +14,8 @@ export type Role =
   | "LIBRARIAN"
   | "PATRON"
   | "MATRON"
-  | "NURSE";
+  | "NURSE"
+  | "BURSAR";
 
 export type SpecialRole = "DOS" | "HOD" | "CLASS_TEACHER";
 

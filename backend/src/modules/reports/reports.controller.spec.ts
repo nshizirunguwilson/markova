@@ -1,8 +1,10 @@
+import { ForbiddenException } from '@nestjs/common';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { ReportsController } from './reports.controller';
 import { VerifyController } from './verify.controller';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
+import { FeeGateService } from '../../common/fee-gate.service';
 import {
   buildController,
   clearMocks,
@@ -43,6 +45,14 @@ describe('ReportsController', () => {
     'exportEverythingZip',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
+  /* The fee gate answers "nothing is being withheld" unless a test says
+     otherwise, so these cases stay about what they were written for. */
+  const feeGate = {
+    withholdingFor: jest.fn().mockResolvedValue(null),
+    withholdingForYear: jest.fn().mockResolvedValue(null),
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
 
   let run: (c: RouteCase) => Promise<void>;
 
@@ -66,6 +76,7 @@ describe('ReportsController', () => {
     run = await controllerHarness(ReportsController, [
       { token: ReportsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
     ]);
   });
 
@@ -170,6 +181,7 @@ describe('ReportsController', () => {
       buildController(ReportsController, [
         { token: ReportsService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },
+        { token: FeeGateService, name: 'feeGate', mock: feeGate },
       ]);
 
     it('sends a report card as a named PDF', async () => {
@@ -358,12 +370,21 @@ describe('a report card that has not been issued', () => {
     'isReportCardIssued',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
+  /* The fee gate answers "nothing is being withheld" unless a test says
+     otherwise, so these cases stay about what they were written for. */
+  const feeGate = {
+    withholdingFor: jest.fn().mockResolvedValue(null),
+    withholdingForYear: jest.fn().mockResolvedValue(null),
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
 
   const res = () => ({ set: jest.fn(), end: jest.fn() });
   const build = () =>
     buildController(ReportsController, [
       { token: ReportsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
     ]);
 
   beforeEach(() => {
@@ -425,5 +446,142 @@ describe('a report card that has not been issued', () => {
       ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
     ).rejects.toThrow();
     expect(service.isReportCardIssued).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A report card held because the term's fees are owed.
+ *
+ * Separate from the issuing gate above because the two say different things
+ * to a family. "Not issued yet" is the school still working. "Held until the
+ * fees are settled" is something they can act on, and the refusal names the
+ * amount so they can.
+ *
+ * Downloads refuse outright rather than answering softly: there is no page to
+ * render an explanation into, and handing over the file is precisely what
+ * must not happen.
+ */
+describe('a report card held over unpaid fees', () => {
+  const service = mockService([
+    'getTermReportData',
+    'generateTermReportHtml',
+    'generateTermReportPdf',
+    'getYearReportData',
+    'generateYearReportHtml',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+  const feeGate = {
+    withholdingFor: jest.fn().mockResolvedValue(null),
+    withholdingForYear: jest.fn().mockResolvedValue(null),
+    assertReleased: jest.fn(),
+    assertYearReleased: jest.fn(),
+  };
+
+  const held = () =>
+    feeGate.assertReleased.mockRejectedValue(
+      new ForbiddenException('75,000 RWF is still outstanding'),
+    );
+
+  const build = () =>
+    buildController(ReportsController, [
+      { token: ReportsService, name: 'service', mock: service },
+      { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
+    ]);
+
+  beforeEach(() => {
+    clearMocks(service, ownership);
+    feeGate.assertReleased.mockReset().mockResolvedValue(undefined);
+    feeGate.assertYearReleased.mockReset().mockResolvedValue(undefined);
+    service.isReportCardIssued.mockResolvedValue(true);
+    service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF'));
+  });
+
+  it.each(['STUDENT', 'PARENT'])('refuses the data to %s', async (role) => {
+    held();
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role }),
+    ).rejects.toThrow(/still outstanding/);
+    expect(service.getTermReportData).not.toHaveBeenCalled();
+  });
+
+  it('refuses the page as well as the data', async () => {
+    held();
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReportHtml('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      }),
+    ).rejects.toThrow(/still outstanding/);
+    expect(service.generateTermReportHtml).not.toHaveBeenCalled();
+  });
+
+  // The one that matters most: a held card must not be downloadable.
+  it('does not write a byte of the PDF', async () => {
+    held();
+    const ctl: any = await build();
+    const response = { set: jest.fn(), end: jest.fn() };
+    await expect(
+      ctl.getTermReportPdf('student-1', 'term-1', response, {
+        id: 'u-1',
+        role: 'PARENT',
+      }),
+    ).rejects.toThrow(/still outstanding/);
+    expect(service.generateTermReportPdf).not.toHaveBeenCalled();
+    expect(response.end).not.toHaveBeenCalled();
+  });
+
+  it('hands it over once the term is settled', async () => {
+    const ctl: any = await build();
+    await ctl.getTermReport('student-1', 'term-1', {
+      id: 'u-1',
+      role: 'STUDENT',
+    });
+    expect(service.getTermReportData).toHaveBeenCalled();
+  });
+
+  /*
+    The order matters: whose child it is, then whether the card exists, then
+    the money. A stranger must be turned away before being told anything at
+    all about a family's balance.
+  */
+  it('checks whose student it is before the fees', async () => {
+    ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('not yours'));
+    const ctl: any = await build();
+    await expect(
+      ctl.getTermReport('student-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
+    ).rejects.toThrow();
+    expect(feeGate.assertReleased).not.toHaveBeenCalled();
+  });
+
+  describe('the annual report, which is three terms at once', () => {
+    const heldYear = () =>
+      feeGate.assertYearReleased.mockRejectedValue(
+        new ForbiddenException('170,000 RWF is still outstanding'),
+      );
+
+    it('is refused while any of its terms is owed on', async () => {
+      heldYear();
+      const ctl: any = await build();
+      await expect(
+        ctl.getYearReport('student-1', 'year-1', {
+          id: 'u-1',
+          role: 'STUDENT',
+        }),
+      ).rejects.toThrow(/still outstanding/);
+      expect(service.getYearReportData).not.toHaveBeenCalled();
+    });
+
+    it('is handed over once the year is settled', async () => {
+      const ctl: any = await build();
+      await ctl.getYearReport('student-1', 'year-1', {
+        id: 'u-1',
+        role: 'PARENT',
+      });
+      expect(service.getYearReportData).toHaveBeenCalled();
+    });
   });
 });

@@ -52,6 +52,9 @@ const ALL_ROLES = [
   'STUDENT',
   'PARENT',
   'LIBRARIAN',
+  // The bursar's every screen is "this term, this class", so the calendar is
+  // vocabulary they cannot work without.
+  'BURSAR',
 ] as const;
 
 @ApiTags('Academic')
@@ -167,7 +170,7 @@ export class AcademicController {
    * toast. Writing a class stays with the administrator below.
    */
   @Get('class-levels')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
   @ApiOperation({ summary: 'List all class levels with sections' })
   findAllClassLevels() {
     return this.service.findAllClassLevels();
@@ -234,7 +237,7 @@ export class AcademicController {
 
   /** As above: the vocabulary, not the marks. */
   @Get('sections')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN')
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'LIBRARIAN', 'BURSAR')
   @ApiOperation({ summary: 'List all class sections' })
   findAllSections(@Query('classLevelId') classLevelId?: string) {
     return this.service.findAllSections(classLevelId);

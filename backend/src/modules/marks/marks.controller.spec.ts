@@ -1,6 +1,7 @@
 import { MarksController } from './marks.controller';
 import { MarksService } from './marks.service';
 import { OwnershipService } from '../../common/ownership.service';
+import { FeeGateService } from '../../common/fee-gate.service';
 import {
   buildController,
   clearMocks,
@@ -40,6 +41,14 @@ describe('MarksController', () => {
     'isReportCardIssued',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
+  /* The fee gate answers "nothing is being withheld" unless a test says
+     otherwise, so these cases stay about what they were written for. */
+  const feeGate = {
+    withholdingFor: jest.fn().mockResolvedValue(null),
+    withholdingForYear: jest.fn().mockResolvedValue(null),
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
 
   const withTeacherId = { ...teacher, teacherId: 'teacher-1' };
 
@@ -54,6 +63,7 @@ describe('MarksController', () => {
     run = await controllerHarness(MarksController, [
       { token: MarksService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
     ]);
   });
 
@@ -199,6 +209,7 @@ describe('MarksController', () => {
       const run2 = await controllerHarness(MarksController, [
         { token: MarksService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },
+        { token: FeeGateService, name: 'feeGate', mock: feeGate },
       ]);
       await expect(
         run2({
@@ -227,11 +238,20 @@ describe('results a student may not see yet', () => {
     'isReportCardIssued',
   ]);
   const ownership = mockService(['verifyStudentAccess']);
+  /* The fee gate answers "nothing is being withheld" unless a test says
+     otherwise, so these cases stay about what they were written for. */
+  const feeGate = {
+    withholdingFor: jest.fn().mockResolvedValue(null),
+    withholdingForYear: jest.fn().mockResolvedValue(null),
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
 
   const build = () =>
     buildController(MarksController, [
       { token: MarksService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
     ]);
 
   beforeEach(() => {
@@ -313,5 +333,165 @@ describe('results a student may not see yet', () => {
       ctl.getReportCard('student-1', 'term-1', { id: 'u-1', role: 'PARENT' }),
     ).rejects.toThrow();
     expect(service.isReportCardIssued).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Marks held because the term's fees are owed.
+ *
+ * These three routes are what a student's own marks page is built from, so
+ * they report the hold rather than refusing it. A 403 here is a dead end: the
+ * page has nothing to draw and the family is told only that they are blocked.
+ * Answering with `withheld` lets the page name the term, the amount, and
+ * where to go about it.
+ */
+describe('marks held over unpaid fees', () => {
+  const service = mockService([
+    'getStudentTermResult',
+    'getStudentYearResult',
+    'getReportCardData',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+  const withheld = {
+    balance: 75000,
+    message: '75,000 RWF is still outstanding',
+  };
+  const feeGate = {
+    withholdingFor: jest.fn(),
+    withholdingForYear: jest.fn(),
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const build = () =>
+    buildController(MarksController, [
+      { token: MarksService, name: 'service', mock: service },
+      { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate },
+    ]);
+
+  beforeEach(() => {
+    clearMocks(service, ownership);
+    feeGate.withholdingFor.mockReset().mockResolvedValue(null);
+    feeGate.withholdingForYear.mockReset().mockResolvedValue(null);
+    service.isReportCardIssued.mockResolvedValue(true);
+  });
+
+  describe("a term's result", () => {
+    it('is reported as held, with the amount, rather than refused', async () => {
+      feeGate.withholdingFor.mockResolvedValue(withheld);
+      const ctl: any = await build();
+      const answer = await ctl.getStudentTermResult('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      });
+      expect(answer).toEqual({ withheld });
+    });
+
+    // Held means held: none of the figures come back alongside the notice.
+    it('does not read the result at all while it is held', async () => {
+      feeGate.withholdingFor.mockResolvedValue(withheld);
+      const ctl: any = await build();
+      await ctl.getStudentTermResult('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'PARENT',
+      });
+      expect(service.getStudentTermResult).not.toHaveBeenCalled();
+    });
+
+    it('comes back as normal once the term is settled', async () => {
+      const ctl: any = await build();
+      await ctl.getStudentTermResult('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      });
+      expect(service.getStudentTermResult).toHaveBeenCalledWith(
+        'student-1',
+        'term-1',
+        'STUDENT',
+      );
+    });
+
+    it('checks whose student it is before the fees', async () => {
+      ownership.verifyStudentAccess.mockRejectedValueOnce(new Error('no'));
+      const ctl: any = await build();
+      await expect(
+        ctl.getStudentTermResult('student-1', 'term-1', {
+          id: 'u-1',
+          role: 'PARENT',
+        }),
+      ).rejects.toThrow();
+      expect(feeGate.withholdingFor).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a year's result", () => {
+    it('is reported as held while any of its terms is owed on', async () => {
+      feeGate.withholdingForYear.mockResolvedValue(withheld);
+      const ctl: any = await build();
+      const answer = await ctl.getStudentYearResult('student-1', 'year-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      });
+      expect(answer).toEqual({ withheld });
+      expect(service.getStudentYearResult).not.toHaveBeenCalled();
+    });
+
+    it('comes back as normal once the year is settled', async () => {
+      const ctl: any = await build();
+      await ctl.getStudentYearResult('student-1', 'year-1', {
+        id: 'u-1',
+        role: 'PARENT',
+      });
+      expect(service.getStudentYearResult).toHaveBeenCalled();
+    });
+  });
+
+  describe('the report card', () => {
+    /*
+      Issued and held are two different answers, and the page says something
+      different for each: one is the school still working, the other is
+      something the family can act on.
+    */
+    it('is issued but held, not reported as unissued', async () => {
+      feeGate.withholdingFor.mockResolvedValue(withheld);
+      const ctl: any = await build();
+      const answer = await ctl.getReportCard('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      });
+      expect(answer).toEqual({ issued: true, withheld });
+      expect(service.getReportCardData).not.toHaveBeenCalled();
+    });
+
+    it('says unissued when it has not been released, whatever is owed', async () => {
+      service.isReportCardIssued.mockResolvedValue(false);
+      feeGate.withholdingFor.mockResolvedValue(withheld);
+      const ctl: any = await build();
+      const answer = await ctl.getReportCard('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'PARENT',
+      });
+      expect(answer).toEqual({ issued: false });
+    });
+
+    it('hands the card over once the term is settled', async () => {
+      const ctl: any = await build();
+      const answer = await ctl.getReportCard('student-1', 'term-1', {
+        id: 'u-1',
+        role: 'STUDENT',
+      });
+      expect(answer).toMatchObject({ issued: true });
+      expect(service.getReportCardData).toHaveBeenCalled();
+    });
+
+    // Staff read the card to mark and to issue it; money never stops them.
+    it.each(['ADMIN', 'TEACHER'])('is never held for %s', async (role) => {
+      feeGate.withholdingFor.mockResolvedValue(null);
+      const ctl: any = await build();
+      await ctl.getReportCard('student-1', 'term-1', { id: 'u-1', role });
+      expect(service.getReportCardData).toHaveBeenCalled();
+    });
   });
 });
