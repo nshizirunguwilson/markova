@@ -9,24 +9,24 @@
  */
 
 /**
- * A run of messages carries one clock reading, and that reading has to be
- * true of every message under it.
+ * How far apart two messages from one person can be and still read as one
+ * remark.
  *
- * It used to break after five minutes, and showed the run's *last* time. So
- * three messages sent at 11:40, 11:42 and 11:44 sat under a single "11:44" —
- * the label was wrong for two of the three, and there was no way to tell.
+ * Two minutes. Five was too loose — a run could span a whole conversation's
+ * worth of pauses — and one was too tight, breaking a run whenever somebody
+ * happened to type across the turn of a minute.
  *
- * A run now breaks when the clock reading itself changes. Every group then
- * has exactly one honest label by construction, and the cost is only that a
- * pair of messages either side of a minute boundary are drawn as two runs
- * even when seconds apart. That is a cosmetic split; the alternative was a
- * timestamp that lied.
+ * The run is labelled with its *last* message's time, which is when the
+ * remark finished. That is the trade this window buys: a group can now cover
+ * two clock readings, so the label is the end of the run rather than true of
+ * every message under it. Two minutes is short enough that the difference is
+ * never material, and it keeps runs from shattering over a boundary nobody
+ * can see.
  *
- * This is also why the clock shows no seconds: it does not need them. The
- * label is accurate to the minute because the grouping is, and seconds in a
- * conversation are noise nobody reads.
+ * It is also why the clock shows no seconds: at this resolution they would be
+ * noise on the busiest line of the screen.
  */
-export const GROUP_WINDOW_MS = 60 * 1000;
+export const GROUP_WINDOW_MS = 2 * 60 * 1000;
 
 export interface ViewMessage {
   id: string;
@@ -136,16 +136,8 @@ export function groupThread(
 
     const group = block.groups[block.groups.length - 1];
     const last = group?.messages[group.messages.length - 1];
-    /*
-      Same sender is not enough: the run also has to read the same on the
-      clock, or the one label printed under it would be wrong for some of
-      the messages it covers.
-    */
-    const sameMinute =
-      last !== undefined && clockTime(message.createdAt) === clockTime(last.createdAt);
     const withinWindow =
       last !== undefined &&
-      sameMinute &&
       Math.abs(sentAt - new Date(last.createdAt).getTime()) <= GROUP_WINDOW_MS;
 
     if (group && group.senderId === senderId && withinWindow) {

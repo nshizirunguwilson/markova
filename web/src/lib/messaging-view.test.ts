@@ -128,7 +128,7 @@ describe("grouping a thread the way it is read", () => {
     expect(blocks[0].groups).toHaveLength(2);
   });
 
-  it("keeps a run together right up to the edge of the minute", () => {
+  it("keeps a run together well inside the window", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:00"),
@@ -140,27 +140,12 @@ describe("grouping a thread the way it is read", () => {
     expect(blocks[0].groups).toHaveLength(1);
   });
 
-  /**
-   * A run carries one clock reading, and it has to be true of every message
-   * under it. Five minutes of grouping meant three messages at 10:00, 10:02
-   * and 10:04 sat under a single "10:04" — wrong for two of the three, with
-   * nothing on screen to say so.
-   */
-  it("breaks the run when the clock reading changes", () => {
-    const blocks = groupThread(
-      [
-        msg("m-1", her, "2026-08-27T10:00:30"),
-        msg("m-2", her, "2026-08-27T10:01:10"),
-      ],
-      me,
-      now,
-    );
-    expect(blocks[0].groups).toHaveLength(2);
-  });
-
-  // Even seconds apart, if they fall either side of the boundary. That split
-  // is cosmetic; the alternative was a timestamp that lied.
-  it("breaks across a minute boundary even seconds apart", () => {
+  /*
+    A minute boundary is not a boundary anybody can see. Two messages seconds
+    apart are one remark whichever side of it they fall, which is what the
+    two-minute window is for.
+  */
+  it("holds a run together across a minute boundary", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:58"),
@@ -169,22 +154,48 @@ describe("grouping a thread the way it is read", () => {
       me,
       now,
     );
+    expect(blocks[0].groups).toHaveLength(1);
+  });
+
+  it("holds it together right up to two minutes", () => {
+    const blocks = groupThread(
+      [
+        msg("m-1", her, "2026-08-27T10:00:00"),
+        msg("m-2", her, "2026-08-27T10:02:00"),
+      ],
+      me,
+      now,
+    );
+    expect(blocks[0].groups).toHaveLength(1);
+  });
+
+  // Past that they are two remarks, not one.
+  it("breaks the run once the gap is longer than two minutes", () => {
+    const blocks = groupThread(
+      [
+        msg("m-1", her, "2026-08-27T10:00:00"),
+        msg("m-2", her, "2026-08-27T10:02:30"),
+      ],
+      me,
+      now,
+    );
     expect(blocks[0].groups).toHaveLength(2);
   });
 
-  // Which means every group's label is right for everything it covers.
-  it("gives each run a label true of every message in it", () => {
+  // The run is labelled with its last message, which is when the remark
+  // finished. Two minutes is short enough that the difference never matters.
+  it("labels a run by when it finished", () => {
     const blocks = groupThread(
       [
         msg("m-1", her, "2026-08-27T10:00:05"),
-        msg("m-2", her, "2026-08-27T10:00:50"),
+        msg("m-2", her, "2026-08-27T10:01:50"),
       ],
       me,
       now,
     );
     const group = blocks[0].groups[0];
-    const labels = group.messages.map((m) => clockTime(m.createdAt));
-    expect(new Set(labels).size).toBe(1);
+    const last = group.messages[group.messages.length - 1];
+    expect(clockTime(last.createdAt)).toBe("10:01");
   });
 
   it("starts a new day rather than running across midnight", () => {
