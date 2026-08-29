@@ -50,6 +50,16 @@ const photoStorage = diskStorage({
   filename: filenameFor('image', uuidv4, PHOTO_REFUSAL),
 });
 
+const SIGNATURE_REFUSAL = 'Only image files are allowed';
+
+/* Kept apart from the photographs. A signature is the one image on the
+   system that is worth forging, and a directory of its own is what lets it
+   be backed up, audited and swept separately from six hundred portraits. */
+const signatureStorage = diskStorage({
+  destination: './uploads/signatures',
+  filename: filenameFor('image', uuidv4, SIGNATURE_REFUSAL),
+});
+
 @ApiTags('Users')
 @Controller('users')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -158,6 +168,77 @@ export class UsersController {
     );
     const photoUrl = `/uploads/photos/${file.filename}`;
     return this.usersService.updatePhoto(id, photoUrl);
+  }
+
+  /**
+   * Somebody's own signature, uploaded from their own profile.
+   *
+   * Never on another person's behalf, and an administrator gets no exception
+   * here where they have one for photographs. A signature uploaded by
+   * somebody else is not a signature; it is the school's name written in
+   * another person's hand, and a report card is signed on the strength of
+   * exactly that distinction.
+   */
+  @Post(':id/signature')
+  @Roles(...ANY_ROLE)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @UseInterceptors(
+    FileInterceptor('signature', {
+      storage: signatureStorage,
+      fileFilter: fileFilterFor('image', SIGNATURE_REFUSAL),
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload your own signature' })
+  async uploadSignature(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() current: { id: string; role: string },
+  ) {
+    if (current.id !== id) {
+      throw new ForbiddenException(
+        'A signature can only be uploaded by the person it belongs to.',
+      );
+    }
+    if (!file) {
+      throw new Error('Signature file is required');
+    }
+    validateUploadedImage(
+      join(process.cwd(), 'uploads/signatures', file.filename),
+    );
+    const user = await this.usersService.findOne(id);
+    retireStoredFile(
+      user.signatureUrl,
+      { existsSync, mkdirSync, renameSync },
+      (p) => join(process.cwd(), p),
+    );
+    return this.usersService.updateSignature(
+      id,
+      `/uploads/signatures/${file.filename}`,
+    );
+  }
+
+  /** Taking one down, which only its owner may do either. */
+  @Delete(':id/signature')
+  @Roles(...ANY_ROLE)
+  @ApiOperation({ summary: 'Remove your own signature' })
+  async removeSignature(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() current: { id: string; role: string },
+  ) {
+    if (current.id !== id) {
+      throw new ForbiddenException(
+        'A signature can only be removed by the person it belongs to.',
+      );
+    }
+    const user = await this.usersService.findOne(id);
+    retireStoredFile(
+      user.signatureUrl,
+      { existsSync, mkdirSync, renameSync },
+      (p) => join(process.cwd(), p),
+    );
+    return this.usersService.updateSignature(id, null);
   }
 
   @Post('bulk-import')

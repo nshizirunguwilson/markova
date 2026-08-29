@@ -31,6 +31,7 @@ describe('UsersController', () => {
     'update',
     'softDelete',
     'updatePhoto',
+    'updateSignature',
     'bulkImport',
     'getImportTemplate',
   ]);
@@ -39,7 +40,11 @@ describe('UsersController', () => {
 
   beforeEach(async () => {
     clearMocks(service);
-    service.findOne.mockResolvedValue({ id: 'user-1', photoUrl: null });
+    service.findOne.mockResolvedValue({
+      id: 'user-1',
+      photoUrl: null,
+      signatureUrl: null,
+    });
     service.getImportTemplate.mockReturnValue('firstName,lastName\n');
     run = await controllerHarness(UsersController, [
       { token: UsersService, name: 'service', mock: service },
@@ -160,6 +165,76 @@ describe('UsersController', () => {
           calls: 'updatePhoto',
         }),
       ).rejects.toThrow(/required/i);
+    });
+  });
+
+  /**
+   * A signature, unlike a photograph, is nobody else's to upload.
+   *
+   * The office may replace anybody's portrait: a photograph is a fact about a
+   * person that the school records. A signature is not a fact about them, it
+   * is an act by them, and one uploaded by somebody else is the school's name
+   * written in another person's hand. A report card is signed on exactly that
+   * distinction, so the administrator's usual exception is withheld here.
+   */
+  describe('a signature belongs to the person who signs', () => {
+    const blocked = async (call: RouteCase['call']) => {
+      const run2 = await controllerHarness(UsersController, [
+        { token: UsersService, name: 'service', mock: service },
+      ]);
+      await expect(
+        run2({ name: 'blocked', call, calls: 'updateSignature' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.updateSignature).not.toHaveBeenCalled();
+    };
+
+    it('takes the signature of the person uploading it', async () => {
+      await run({
+        name: 'own',
+        call: (c) =>
+          c.uploadSignature(parent.id, { filename: 'sig.png' }, parent),
+        calls: 'updateSignature',
+        withArgs: [parent.id, '/uploads/signatures/sig.png'],
+      });
+    });
+
+    it('refuses somebody else’s', async () => {
+      await blocked((c) =>
+        c.uploadSignature('somebody-else', { filename: 'sig.png' }, parent),
+      );
+    });
+
+    // The one place the office does not get to act on a person's behalf.
+    it('refuses the office too', async () => {
+      await blocked((c) =>
+        c.uploadSignature('user-9', { filename: 'sig.png' }, admin),
+      );
+    });
+
+    it('refuses a request that carried no file', async () => {
+      const run2 = await controllerHarness(UsersController, [
+        { token: UsersService, name: 'service', mock: service },
+      ]);
+      await expect(
+        run2({
+          name: 'no file',
+          call: (c) => c.uploadSignature(admin.id, undefined, admin),
+          calls: 'updateSignature',
+        }),
+      ).rejects.toThrow(/required/i);
+    });
+
+    it('lets somebody take their own down', async () => {
+      await run({
+        name: 'removed',
+        call: (c) => c.removeSignature(parent.id, parent),
+        calls: 'updateSignature',
+        withArgs: [parent.id, null],
+      });
+    });
+
+    it('refuses to take down somebody else’s', async () => {
+      await blocked((c) => c.removeSignature('somebody-else', parent));
     });
   });
 
