@@ -1420,7 +1420,8 @@ export class ReportsService implements OnModuleDestroy {
     const facts: CommentFacts = {
       studentId,
       // The name the child is spoken to by, not the whole record.
-      firstName: String(data.student.name || '').split(/\s+/)[0] || 'This student',
+      firstName:
+        String(data.student.name || '').split(/\s+/)[0] || 'This student',
       average: data.result?.average ?? null,
       letterGrade: data.result?.letterGrade ?? null,
       rank: data.result?.rank ?? null,
@@ -1615,7 +1616,9 @@ export class ReportsService implements OnModuleDestroy {
     /* First name and family name, not the first two words: plenty of Rwandan
        students carry two given names, and "Kevin Hirwa Kwizera" initialled
        from the left reads KH rather than KK. */
-    const nameWords = String(data.student.name || '').split(/\s+/).filter(Boolean);
+    const nameWords = String(data.student.name || '')
+      .split(/\s+/)
+      .filter(Boolean);
     const studentInitials = [nameWords[0], nameWords[nameWords.length - 1]]
       .filter(Boolean)
       .map((w: string) => w[0])

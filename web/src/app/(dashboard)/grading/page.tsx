@@ -141,7 +141,7 @@ export default function GradingPage() {
       <Card>
         <CardTitle className="text-base">What makes up a term mark</CardTitle>
         <p className="mb-4 mt-1 text-sm text-muted">
-          Each subject's total is its assessments at these weights. Different
+          Each subject&apos;s total is its assessments at these weights. Different
           kinds of subject are weighted differently, because a trade module is
           examined in a workshop as well as on paper.
         </p>

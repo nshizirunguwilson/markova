@@ -23,8 +23,7 @@ jest.mock('fs', () => {
   return {
     ...actual,
     existsSync: (p: string) =>
-      nameOf(p) in stub ||
-      (actual.existsSync as (x: unknown) => boolean)(p),
+      nameOf(p) in stub || (actual.existsSync as (x: unknown) => boolean)(p),
     readFileSync: (p: string, ...rest: unknown[]) =>
       nameOf(p) in stub
         ? Buffer.from(stub[nameOf(p)])
@@ -78,7 +77,7 @@ describe('the signatures on a report card', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new ReportsService(prisma as never);
+    service = new ReportsService(prisma);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.student.count.mockResolvedValue(30);
@@ -176,7 +175,9 @@ describe('the signatures on a report card', () => {
     // A parent signs in ink, on paper, after reading it.
     it("leaves the parent's line empty", async () => {
       const html = await card();
-      const parentBlock = html.slice(html.lastIndexOf('Parent / Guardian') - 200);
+      const parentBlock = html.slice(
+        html.lastIndexOf('Parent / Guardian') - 200,
+      );
       expect(parentBlock).not.toContain('<img');
     });
   });

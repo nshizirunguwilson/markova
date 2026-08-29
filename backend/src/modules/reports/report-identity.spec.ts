@@ -41,14 +41,18 @@ describe('who the report card belongs to', () => {
     classSection: {
       name: 'B',
       classLevel: { name: 'Level 3', stage: 'A_LEVEL' },
-      trade: { code: 'AUT', name: 'Automobile Technology', sector: 'Transport' },
+      trade: {
+        code: 'AUT',
+        name: 'Automobile Technology',
+        sector: 'Transport',
+      },
     },
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new ReportsService(prisma as never);
+    service = new ReportsService(prisma);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.student.count.mockResolvedValue(30);

@@ -1,8 +1,4 @@
-import {
-  ASSESSMENT_WEIGHTS,
-  CORE_SCALE,
-  ELECTIVE_SCALE,
-} from './grading';
+import { ASSESSMENT_WEIGHTS, CORE_SCALE, ELECTIVE_SCALE } from './grading';
 import { gradingExplained } from './grading-explained';
 
 /**
@@ -117,7 +113,9 @@ describe('explaining the grading', () => {
     });
 
     it('says not yet rather than failed', () => {
-      expect(explained.competence.notYet).toMatch(/unfinished rather than failed/i);
+      expect(explained.competence.notYet).toMatch(
+        /unfinished rather than failed/i,
+      );
     });
 
     it('says what a trade certificate needs', () => {
@@ -144,7 +142,9 @@ describe('explaining the grading', () => {
   describe('conduct', () => {
     it('says what it is marked out of and how marks come off', () => {
       expect(explained.conduct.outOf).toBe(40);
-      expect(explained.conduct.explanation).toMatch(/starts the term on full marks/i);
+      expect(explained.conduct.explanation).toMatch(
+        /starts the term on full marks/i,
+      );
     });
 
     it('lists the bands the word comes from', () => {
@@ -152,9 +152,9 @@ describe('explaining the grading', () => {
         from: 95,
         remark: 'Excellent',
       });
-      expect(explained.conduct.bands[explained.conduct.bands.length - 1]).toEqual(
-        { from: 0, remark: 'Poor' },
-      );
+      expect(
+        explained.conduct.bands[explained.conduct.bands.length - 1],
+      ).toEqual({ from: 0, remark: 'Poor' });
     });
   });
 });

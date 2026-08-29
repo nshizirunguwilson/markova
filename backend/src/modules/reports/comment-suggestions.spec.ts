@@ -63,7 +63,7 @@ describe('drafting the comments on a card', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new ReportsService(prisma as never);
+    service = new ReportsService(prisma);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.student.count.mockResolvedValue(30);

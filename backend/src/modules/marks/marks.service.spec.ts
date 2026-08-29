@@ -829,9 +829,7 @@ describe('MarksService', () => {
      */
     it('refuses until the head teacher has confirmed the class', async () => {
       // Marks all out, but three cards still waiting on the head teacher.
-      prisma.termResult.count
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(3);
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
 
       await expect(
         service.publishReportCards({
@@ -844,9 +842,7 @@ describe('MarksService', () => {
     });
 
     it('says how many are still waiting on that check', async () => {
-      prisma.termResult.count
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(3);
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
       await expect(
         service.publishReportCards({
           classSectionId: 'section-1',
@@ -934,9 +930,7 @@ describe('MarksService', () => {
      * empty box.
      */
     it('refuses a card the class teacher has not written on', async () => {
-      prisma.termResult.count
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(7);
+      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(7);
 
       await expect(
         service.confirmReportCards(

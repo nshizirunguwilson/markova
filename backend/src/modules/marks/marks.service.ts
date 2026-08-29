@@ -572,7 +572,10 @@ export class MarksService {
          class teacher has not finished, and confirming it would put the head
          teacher's name to an empty box. */
       const uncommented = await this.prisma.termResult.count({
-        where: { ...where, OR: [{ teacherComment: null }, { teacherComment: '' }] },
+        where: {
+          ...where,
+          OR: [{ teacherComment: null }, { teacherComment: '' }],
+        },
       });
       if (uncommented > 0) {
         throw new BadRequestException(

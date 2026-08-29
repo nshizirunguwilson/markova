@@ -117,7 +117,9 @@ export class ReportsController {
    */
   @Get('term/:studentId/comment-suggestions')
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
-  @ApiOperation({ summary: 'Draft the class teacher and head teacher comments' })
+  @ApiOperation({
+    summary: 'Draft the class teacher and head teacher comments',
+  })
   async suggestComments(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Query('termId', ParseUUIDPipe) termId: string,

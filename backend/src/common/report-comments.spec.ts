@@ -135,9 +135,19 @@ describe('the class teacher on the work', () => {
     const out = suggestClassTeacherComment(
       facts({
         subjects: [
-          { name: 'Mathematics', total: 82, grade: 'A', competence: 'COMPETENT' },
+          {
+            name: 'Mathematics',
+            total: 82,
+            grade: 'A',
+            competence: 'COMPETENT',
+          },
           { name: 'English', total: 70, grade: 'A', competence: 'COMPETENT' },
-          { name: 'Physics', total: 41, grade: 'E', competence: 'NOT_YET_COMPETENT' },
+          {
+            name: 'Physics',
+            total: 41,
+            grade: 'E',
+            competence: 'NOT_YET_COMPETENT',
+          },
         ],
       }),
     );
@@ -148,13 +158,20 @@ describe('the class teacher on the work', () => {
     const out = suggestClassTeacherComment(
       facts({
         subjects: [
-          { name: 'Mathematics', total: 68, grade: 'B', competence: 'COMPETENT' },
+          {
+            name: 'Mathematics',
+            total: 68,
+            grade: 'B',
+            competence: 'COMPETENT',
+          },
           { name: 'English', total: 66, grade: 'B', competence: 'COMPETENT' },
           { name: 'Physics', total: 64, grade: 'C', competence: 'COMPETENT' },
         ],
       }),
     );
-    expect(out).not.toMatch(/holding the average down|well behind|The gap is in/);
+    expect(out).not.toMatch(
+      /holding the average down|well behind|The gap is in/,
+    );
   });
 
   it('says what is not yet competent, and says it is unfinished', () => {
