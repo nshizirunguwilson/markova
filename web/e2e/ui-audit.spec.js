@@ -1677,6 +1677,146 @@ test('chat: bubbles carry squircle corners where supported', async (browser) => 
 });
 
 // ── runner ───────────────────────────────────────────────────────────────────
+/**
+ * Admissions.
+ *
+ * A registration desk is only worth anything if a reviewer can tell, without
+ * opening anything, which applications they can decide today. That is what
+ * the two figures on a row are for: how complete it is, and how long it has
+ * been sitting. Both are checked here against the seeded roll rather than a
+ * fixture, because both are worked out over every application in the round.
+ */
+test('admissions: the queue says how complete each application is, and how long it has waited', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/admissions');
+  await page.waitForSelector('a[href^="/admin/admissions/"]:has-text("APP-")', {
+    timeout: 30000,
+  });
+
+  const row = await page
+    .locator('a[href^="/admin/admissions/"]:has-text("APP-")')
+    .first()
+    .innerText();
+  assert(/APP-\d{4}-\d+/.test(row), `no reference on the row: ${row}`);
+  assert(/of \d+ documents|missing \d+|to check/.test(row), `no completeness on the row: ${row}`);
+  assert(/ago|expires|today/.test(row), `no clock on the row: ${row}`);
+
+  // An outstanding offer is a place spent, so the number that decides whether
+  // the school can offer at all is places LEFT.
+  const body = await page.innerText('body');
+  assert(/of \d+ left/.test(body), 'the desk does not say how many places are left');
+  await ctx.close();
+});
+
+/**
+ * The whole decision on one screen.
+ *
+ * A reviewer who has to click through tabs to find the guardian's number, the
+ * documents and the reason the last person gave will decide without them.
+ */
+test('admissions: one application shows the child, the family, the documents and the trail', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/admissions');
+  await page.waitForSelector('a[href^="/admin/admissions/"]:has-text("APP-")', {
+    timeout: 30000,
+  });
+  await page.locator('a[href^="/admin/admissions/"]:has-text("APP-")').first().click();
+  await page.waitForSelector('text=The applicant', { timeout: 30000 });
+
+  const body = await page.innerText('body');
+  for (const heading of ['The applicant', 'The family', 'Documents']) {
+    assert(body.includes(heading), `the application is missing "${heading}"`);
+  }
+  // The number is dialled off this screen, so it has to be a link.
+  assert(
+    (await page.locator('a[href^="tel:+250"]').count()) > 0,
+    'the guardian phone is not callable',
+  );
+  await ctx.close();
+});
+
+/**
+ * Nothing moves without a reason.
+ *
+ * "Why was my child turned away" is a question a school will be asked, and
+ * the answer has to have been written down at the moment it was decided.
+ */
+test('admissions: an application cannot be turned down without a reason', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/admissions');
+  await page.waitForSelector('a[href^="/admin/admissions/"]:has-text("APP-")', {
+    timeout: 30000,
+  });
+  await page.locator('a[href^="/admin/admissions/"]:has-text("APP-")').first().click();
+  await page.waitForSelector('text=The applicant', { timeout: 30000 });
+
+  await page.getByRole('button', { name: /Turn down/ }).first().click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 15000 });
+  const confirm = page
+    .locator('[role="dialog"]')
+    .getByRole('button', { name: /^Turn down$/ });
+  assert(await confirm.isDisabled(), 'an application can be turned down with no reason');
+  await ctx.close();
+});
+
+/**
+ * The family's side.
+ *
+ * Reached without an account, so it is proved by something only the family
+ * knows, and a wrong answer says only that nothing matched: two different
+ * answers would let anybody holding a reference confirm a child's birthday by
+ * guessing at it.
+ */
+test('admissions: a family checks on their own application without an account', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await visit(page, '/admissions');
+  /*
+    Filled until it takes. This page is served before React attaches to it,
+    and text typed into that window sits in the box without ever reaching the
+    state the button reads, so the button stays disabled and the test waits
+    on a click that can never happen. Retrying the fill is what makes the
+    difference between a real assertion and a race.
+  */
+  const check = page.getByRole('button', { name: /Check/ }).first();
+  await check.waitFor({ state: 'visible', timeout: 30000 });
+  for (let i = 0; i < 30 && (await check.isDisabled()); i++) {
+    /* Emptied first: a box already carrying the text from a fill that landed
+       before React attached is one `fill` will consider done and skip. */
+    await page.getByLabel(/Application reference/i).fill('');
+    await page.getByLabel(/Application reference/i).fill('APP-2026-0000');
+    await page.getByLabel(/date of birth/i).fill('');
+    await page.getByLabel(/date of birth/i).fill('2013-04-02');
+    await page.waitForTimeout(500);
+  }
+  assert(!(await check.isDisabled()), 'the lookup never became usable');
+  await check.click();
+  await page.waitForFunction(
+    () => /No application matches/i.test(document.body.innerText),
+    { timeout: 20000 },
+  );
+  await ctx.close();
+});
+
+/**
+ * The public form is reachable and says what it will ask for before it asks.
+ */
+test('admissions: the public form names the documents before a family starts', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await visit(page, '/admissions/apply');
+  // The form itself, not merely the header the page paints first.
+  await page.waitForSelector('text=Family name', { timeout: 30000 });
+  const body = await page.innerText('body');
+  assert(/birth certificate/i.test(body), 'the form does not say a birth certificate is needed');
+  assert(/photograph/i.test(body), 'the form does not mention a photograph');
+  await ctx.close();
+});
+
+
 (async () => {
   const only = process.argv[2]; // optional substring filter
   const browser = await chromium.launch({ headless: true });
