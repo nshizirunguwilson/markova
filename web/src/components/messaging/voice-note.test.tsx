@@ -383,3 +383,38 @@ describe("the size a voice note is drawn at", () => {
     }
   });
 });
+
+/**
+ * The button and the bars are one control — you press it and scrub it — so
+ * the length sits under the pair rather than wedged between them.
+ */
+describe("how a voice note is laid out", () => {
+  it("puts the button and the bars on one row", () => {
+    const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
+    const button = container.querySelector("button")!;
+    const bars = container.querySelector('[role="presentation"]')!;
+    // Same row means a common flex parent holding both.
+    const row = button.parentElement!;
+    expect(row.className).toContain("flex");
+    expect(row.contains(bars)).toBe(true);
+  });
+
+  it("puts the length under that row, not inside it", () => {
+    const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
+    const length = [...container.querySelectorAll("span")].find((e) =>
+      /^\d+:\d\d$/.test(e.textContent ?? ""),
+    )!;
+    const button = container.querySelector("button")!;
+    expect(length.parentElement!.contains(button)).toBe(true);
+    expect(button.parentElement!.contains(length)).toBe(false);
+  });
+
+  // Left, because that is where the eye returns after reading the bars.
+  it("aligns the length to the left", () => {
+    const { container } = render(<VoiceNote fileUrl="/uploads/a.weba" />);
+    const length = [...container.querySelectorAll("span")].find((e) =>
+      /^\d+:\d\d$/.test(e.textContent ?? ""),
+    )!;
+    expect(length.className).not.toContain("text-center");
+  });
+});
