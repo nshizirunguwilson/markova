@@ -116,7 +116,9 @@ describe('refusing a move', () => {
     'will not move to %s without a reason',
     (to) => {
       expect(needsReason(to as ApplicationState)).toBe(true);
-      expect(refuseMove('UNDER_REVIEW', to as ApplicationState)).toMatch(/say why/i);
+      expect(refuseMove('UNDER_REVIEW', to as ApplicationState)).toMatch(
+        /say why/i,
+      );
       expect(
         refuseMove('UNDER_REVIEW', to as ApplicationState, 'Below the mark'),
       ).toBeNull();
@@ -200,7 +202,9 @@ describe('how complete an application is', () => {
   });
 
   it('reports how far through it is', () => {
-    expect(completeness('SENIOR_ONE', all.slice(0, 3)).fraction).toBeCloseTo(0.6);
+    expect(completeness('SENIOR_ONE', all.slice(0, 3)).fraction).toBeCloseTo(
+      0.6,
+    );
   });
 
   it('counts a boarder against the longer list', () => {

@@ -56,7 +56,11 @@ export const TRANSITIONS: Record<ApplicationState, ApplicationState[]> = {
 };
 
 /** Nothing follows these. The application is over, one way or the other. */
-export const TERMINAL: ApplicationState[] = ['ENROLLED', 'REJECTED', 'WITHDRAWN'];
+export const TERMINAL: ApplicationState[] = [
+  'ENROLLED',
+  'REJECTED',
+  'WITHDRAWN',
+];
 
 /**
  * States a decision has to be explained for.
@@ -72,10 +76,7 @@ export const NEEDS_REASON: ApplicationState[] = [
   'WITHDRAWN',
 ];
 
-export function canMove(
-  from: ApplicationState,
-  to: ApplicationState,
-): boolean {
+export function canMove(from: ApplicationState, to: ApplicationState): boolean {
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
 
@@ -179,7 +180,10 @@ export const REQUIRED_DOCUMENTS: Record<EntryPoint, DocumentKind[]> = {
 };
 
 /** Asked of a boarder on top of the rest: the sick bay needs both on day one. */
-export const BOARDER_DOCUMENTS: DocumentKind[] = ['MEDICAL_FORM', 'INSURANCE_CARD'];
+export const BOARDER_DOCUMENTS: DocumentKind[] = [
+  'MEDICAL_FORM',
+  'INSURANCE_CARD',
+];
 
 /** Asked when the family says somebody else is paying. */
 export const FUNDED_DOCUMENT: DocumentKind = 'BURSARY_LETTER';
@@ -288,5 +292,8 @@ export function placesLeft(
   places: number,
   counts: { offered: number; accepted: number; enrolled: number },
 ): number {
-  return Math.max(0, places - counts.offered - counts.accepted - counts.enrolled);
+  return Math.max(
+    0,
+    places - counts.offered - counts.accepted - counts.enrolled,
+  );
 }

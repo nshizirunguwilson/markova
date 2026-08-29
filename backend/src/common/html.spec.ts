@@ -267,7 +267,9 @@ describe('the document watermark', () => {
   });
 
   it('draws nothing when the stamp is recorded but gone from disk', () => {
-    expect(watermark('/uploads/branding/gone.png', { exists: () => false })).toEqual({
+    expect(
+      watermark('/uploads/branding/gone.png', { exists: () => false }),
+    ).toEqual({
       css: '',
       html: '',
     });

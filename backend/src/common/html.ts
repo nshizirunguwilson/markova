@@ -131,7 +131,11 @@ export const WATERMARK_WIDTH = '90%';
  */
 export function watermark(
   stampUrl?: string | null,
-  opts: { uploadDir?: string; exists?: (p: string) => boolean; read?: (p: string) => Buffer } = {},
+  opts: {
+    uploadDir?: string;
+    exists?: (p: string) => boolean;
+    read?: (p: string) => Buffer;
+  } = {},
 ): { css: string; html: string } {
   const stamp = logoDataUri(stampUrl, { ...opts, fallback: null });
   if (!stamp) return { css: '', html: '' };

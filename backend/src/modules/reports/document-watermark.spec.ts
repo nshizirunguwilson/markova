@@ -30,13 +30,12 @@ describe('the stamp printed across every document', () => {
   let service: ReportsService;
 
   /** A school that has uploaded a stamp, unless a case says otherwise. */
-  const branding = (stamp: string | null = '/uploads/branding/stamp.png') =>
-    [
-      { key: 'school_name', value: 'Markova TSS' },
-      { key: 'school_address', value: 'Kigali, Rwanda' },
-      { key: 'primary_color', value: '#1B4F72' },
-      ...(stamp ? [{ key: 'stamp_url', value: stamp }] : []),
-    ];
+  const branding = (stamp: string | null = '/uploads/branding/stamp.png') => [
+    { key: 'school_name', value: 'Markova TSS' },
+    { key: 'school_address', value: 'Kigali, Rwanda' },
+    { key: 'primary_color', value: '#1B4F72' },
+    ...(stamp ? [{ key: 'stamp_url', value: stamp }] : []),
+  ];
 
   const student = {
     id: 'student-1',
@@ -56,7 +55,7 @@ describe('the stamp printed across every document', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new ReportsService(prisma as never);
+    service = new ReportsService(prisma);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.term.findUnique.mockResolvedValue({
