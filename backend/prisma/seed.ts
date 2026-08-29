@@ -22,9 +22,13 @@ import {
   ClinicSeverity,
   ClinicVisitOutcome,
   MeritCategory,
+  FeeAppliesTo,
+  PaymentMethod,
+  WaiverKind,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK } from '../src/common/conduct';
+import { chargesFor, invoiceTotal, nextReceiptNumber } from '../src/common/fees';
 import {
   installBrandingAsset,
   shouldWriteConfig,
@@ -849,10 +853,29 @@ async function main() {
       lastName: 'Ingabire',
       born: '1990-06-18',
     },
+    /*
+      The bursar. Keeps the fee ledger, takes money at the counter and decides
+      who is carried. Seeded here with the rest of the non-teaching staff for
+      the same reason they were: the pages exist, and without an account that
+      can sign in nobody ever sees them.
+    */
+    {
+      email: 'bursar@markova.edu',
+      phone: '+250788000024',
+      code: `BUR-${new Date().getFullYear()}-001`,
+      role: Role.BURSAR,
+      gender: Gender.MALE,
+      firstName: 'Straton',
+      lastName: 'Nsengiyumva',
+      born: '1979-09-24',
+    },
   ];
 
+  /** Kept so the fee ledger can record who took each payment. */
+  let bursarUser: any = null;
+
   for (const person of boardingStaff) {
-    await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         email: person.email,
         phone: person.phone,
@@ -869,8 +892,9 @@ async function main() {
         forcePasswordChange: false, // demo account
       },
     });
+    if (person.role === Role.BURSAR) bursarUser = created;
   }
-  console.log('  ✅ Patron, matron and nurse seeded');
+  console.log('  ✅ Patron, matron, nurse and bursar seeded');
 
   // ─── ACADEMIC YEAR & TERMS (real MINEDUC calendars) ─────────────────────────
   // The official term windows as published by the Ministry of Education. The
@@ -3253,6 +3277,350 @@ async function main() {
   });
   console.log(`  ✅ ${ticketRows.length} support tickets seeded`);
 
+  // ─── SCHOOL FEES ────────────────────────────────────────────────────────────
+  // The ledger a Rwandan day-and-boarding secondary school actually keeps.
+  // Seeded as a real book: a price list per class level, one frozen invoice
+  // per student per term, and entries against it. Nothing here stores a
+  // balance — every figure the app shows is the sum of these rows, which is
+  // the only way the demo can be trusted to behave like the real thing.
+  //
+  // The amounts are ordinary for a Rwandan TSS: tuition rising a little with
+  // the level, boarding and meals for the roughly three in ten who board, and
+  // a bus for some of the day students.
+  const FEE_LINES: {
+    name: string;
+    appliesTo: FeeAppliesTo;
+    base: number;
+    /** Added per level above Senior 1, so Level 5 costs more than Senior 1. */
+    step: number;
+  }[] = [
+    { name: 'Tuition', appliesTo: FeeAppliesTo.ALL, base: 82000, step: 6000 },
+    { name: 'Boarding', appliesTo: FeeAppliesTo.BOARDER, base: 58000, step: 2000 },
+    { name: 'Meals', appliesTo: FeeAppliesTo.BOARDER, base: 44000, step: 1500 },
+    { name: 'Transport', appliesTo: FeeAppliesTo.DAY, base: 24000, step: 0 },
+    { name: 'Materials and practicals', appliesTo: FeeAppliesTo.ALL, base: 12000, step: 2500 },
+    { name: 'Examinations', appliesTo: FeeAppliesTo.ALL, base: 5000, step: 500 },
+  ];
+
+  const feeItemRows: any[] = [];
+  // Every term of the current year, and the year before it, so the demo has a
+  // history to read rather than one live term hanging in space.
+  const billedTerms = [...allYears[1].terms, ...allYears[2].terms].filter(
+    (t: any) => t.startDate <= today,
+  );
+
+  for (const term of billedTerms) {
+    for (const level of classLevels) {
+      FEE_LINES.forEach((line, position) => {
+        feeItemRows.push({
+          termId: term.id,
+          classLevelId: level.id,
+          name: line.name,
+          // Rounded to the nearest 500: nobody bills a family 83,750 RWF.
+          amount:
+            Math.round((line.base + line.step * (level.order - 1)) / 500) * 500,
+          appliesTo: line.appliesTo,
+          position,
+        });
+      });
+    }
+  }
+  await prisma.feeItem.createMany({ data: feeItemRows });
+
+  const feeItems = await prisma.feeItem.findMany({
+    orderBy: [{ position: 'asc' }],
+  });
+  const itemsByTermLevel = new Map<string, any[]>();
+  for (const item of feeItems) {
+    const key = `${item.termId}::${item.classLevelId}`;
+    if (!itemsByTermLevel.has(key)) itemsByTermLevel.set(key, []);
+    itemsByTermLevel.get(key)!.push(item);
+  }
+
+  /*
+    How each family is doing, decided once per student rather than per term,
+    because a family that struggles in January is usually the same family
+    struggling in May. That is what makes the register worth looking at: the
+    same names recur, which is exactly the pattern a bursar chases.
+  */
+  type PayerKind = 'PROMPT' | 'STEADY' | 'LATE' | 'STRUGGLING' | 'SPONSORED';
+  const payerOf = new Map<string, PayerKind>();
+  for (const st of students) {
+    payerOf.set(
+      st.id,
+      // Most families pay. A handful are sponsored outright, and a real tail
+      // is behind — without that tail the gate has nothing to demonstrate.
+      chance(0.04)
+        ? 'SPONSORED'
+        : chance(0.46)
+          ? 'PROMPT'
+          : chance(0.5)
+            ? 'STEADY'
+            : chance(0.55)
+              ? 'LATE'
+              : 'STRUGGLING',
+    );
+  }
+
+  /*
+    The student demo account is put behind on the current term, deliberately.
+
+    Signing in as student1 is how anybody looks at this feature, and a roll
+    where that account happens to be paid up shows nothing. Their past terms
+    settle normally, so the older report cards still open and only the live
+    term is held — which is the behaviour being demonstrated.
+  */
+  const demoStudent = enrolled.find(
+    (e) => e.user.email === 'student1@markova.edu',
+  );
+  if (demoStudent) payerOf.set(demoStudent.student.id, 'STRUGGLING');
+
+  const levelBySection = new Map(
+    sectionMetas.map((m) => [m.section.id, m.level]),
+  );
+
+  const invoiceRows: any[] = [];
+  for (const term of billedTerms) {
+    for (const st of students) {
+      const level = levelBySection.get(st.classSectionId);
+      if (!level) continue;
+      const items = itemsByTermLevel.get(`${term.id}::${level.id}`) ?? [];
+      if (items.length === 0) continue;
+      const charges = chargesFor(items, st.isBoarder);
+      invoiceRows.push({
+        studentId: st.id,
+        termId: term.id,
+        total: invoiceTotal(charges),
+        issuedAt: term.startDate,
+        lines: charges,
+      });
+    }
+  }
+
+  for (let i = 0; i < invoiceRows.length; i += 2000) {
+    await prisma.feeInvoice.createMany({
+      data: invoiceRows.slice(i, i + 2000).map((r) => ({
+        studentId: r.studentId,
+        termId: r.termId,
+        total: r.total,
+        issuedAt: r.issuedAt,
+      })),
+    });
+  }
+
+  const invoices = await prisma.feeInvoice.findMany({
+    select: { id: true, studentId: true, termId: true, total: true },
+  });
+  const invoiceIdBy = new Map(
+    invoices.map((inv) => [`${inv.studentId}::${inv.termId}`, inv.id]),
+  );
+
+  const lineRows: any[] = [];
+  for (const row of invoiceRows) {
+    const id = invoiceIdBy.get(`${row.studentId}::${row.termId}`);
+    if (!id) continue;
+    row.lines.forEach((line: any, position: number) => {
+      lineRows.push({
+        invoiceId: id,
+        name: line.name,
+        amount: line.amount,
+        position,
+      });
+    });
+  }
+  for (let i = 0; i < lineRows.length; i += 5000) {
+    await prisma.feeInvoiceLine.createMany({ data: lineRows.slice(i, i + 5000) });
+  }
+
+  // Money in. Methods weighted the way a Rwandan school actually receives it:
+  // most families pay into the school's bank account, mobile money is common
+  // and growing, and cash still walks through the office door.
+  const PAY_METHODS: PaymentMethod[] = [
+    PaymentMethod.BANK_DEPOSIT,
+    PaymentMethod.BANK_DEPOSIT,
+    PaymentMethod.BANK_DEPOSIT,
+    PaymentMethod.MOBILE_MONEY,
+    PaymentMethod.MOBILE_MONEY,
+    PaymentMethod.CASH,
+    PaymentMethod.BANK_TRANSFER,
+    PaymentMethod.CHEQUE,
+  ];
+
+  const referenceFor = (method: PaymentMethod, when: Date) => {
+    const stamp = `${String(when.getFullYear()).slice(2)}${String(
+      when.getMonth() + 1,
+    ).padStart(2, '0')}${String(when.getDate()).padStart(2, '0')}`;
+    switch (method) {
+      case PaymentMethod.MOBILE_MONEY:
+        return `MP${stamp}.${1000 + rand(9000)}.A${10000 + rand(89999)}`;
+      case PaymentMethod.BANK_DEPOSIT:
+      case PaymentMethod.BANK_TRANSFER:
+        return `BK/${stamp}/${100000 + rand(899999)}`;
+      case PaymentMethod.CHEQUE:
+        return `CHQ ${100000 + rand(899999)}`;
+      default:
+        return null;
+    }
+  };
+
+  /** What share of the bill a family has found, by the kind of payer. */
+  const settledShare = (kind: PayerKind, isPastTerm: boolean): number => {
+    if (kind === 'SPONSORED') return 0; // covered by a waiver, below
+    if (isPastTerm) {
+      // A closed term is nearly always settled: the school does not let a
+      // student sit the next one otherwise. A few stragglers remain.
+      return kind === 'STRUGGLING' && chance(0.45) ? 0.55 + Math.random() * 0.3 : 1;
+    }
+    switch (kind) {
+      case 'PROMPT':
+        return 1;
+      case 'STEADY':
+        return chance(0.65) ? 1 : 0.6 + Math.random() * 0.35;
+      case 'LATE':
+        return 0.35 + Math.random() * 0.4;
+      default:
+        // A real tail has families who have paid nothing at all this term.
+        // Without them the register never shows an untouched account and the
+        // status that matters most to a bursar is never on screen.
+        return chance(0.4) ? 0 : Math.random() * 0.35;
+    }
+  };
+
+  const paymentRows: any[] = [];
+  const waiverRows: any[] = [];
+  let receipt: string | null = null;
+  const currentTermId = currentTerm.id;
+
+  const WAIVERS: { kind: WaiverKind; reason: string }[] = [
+    { kind: WaiverKind.BURSARY, reason: 'School bursary, means-tested by the committee' },
+    { kind: WaiverKind.SCHOLARSHIP, reason: 'Merit scholarship, top of the year group' },
+    { kind: WaiverKind.SPONSORSHIP, reason: 'District bursary, confirmed by the sector office' },
+    { kind: WaiverKind.HARDSHIP, reason: 'Remission after a bereavement in the family' },
+    { kind: WaiverKind.STAFF_CHILD, reason: 'Staff child, half of tuition remitted' },
+  ];
+
+  for (const inv of invoices) {
+    const kind = payerOf.get(inv.studentId) ?? 'STEADY';
+    const isPastTerm = inv.termId !== currentTermId;
+    const term = billedTerms.find((t: any) => t.id === inv.termId);
+    const opened = term ? new Date(term.startDate) : today;
+
+    if (kind === 'SPONSORED') {
+      const w = sample(WAIVERS.slice(0, 4));
+      waiverRows.push({
+        invoiceId: inv.id,
+        kind: w.kind,
+        amount: inv.total,
+        reason: w.reason,
+        grantedByUserId: bursarUser?.id ?? admin.id,
+        createdAt: addDays(opened, 2 + rand(10)),
+      });
+      continue;
+    }
+
+    const isDemoAccount =
+      !!demoStudent && inv.studentId === demoStudent.student.id;
+
+    // A few families carry part of the bill rather than all of it. Not the
+    // demo account: a waiver landing on it would clear the term this seed
+    // exists to leave held.
+    let owedAfterWaiver = inv.total;
+    if (!isDemoAccount && chance(0.05)) {
+      const part = Math.round((inv.total * (0.25 + Math.random() * 0.35)) / 500) * 500;
+      waiverRows.push({
+        invoiceId: inv.id,
+        kind: WaiverKind.STAFF_CHILD,
+        amount: part,
+        reason: WAIVERS[4].reason,
+        grantedByUserId: bursarUser?.id ?? admin.id,
+        createdAt: addDays(opened, 3 + rand(12)),
+      });
+      owedAfterWaiver -= part;
+    }
+
+    /* Every closed term paid off, the live one behind: the older report
+       cards open and only the current one is held. */
+    const share = isDemoAccount
+      ? isPastTerm
+        ? 1
+        : 0.4
+      : settledShare(kind, isPastTerm);
+    let target = Math.round((owedAfterWaiver * share) / 500) * 500;
+    if (target <= 0) continue;
+
+    // Families pay in one, two or three goes across the term.
+    const instalments = share >= 1 ? 1 + rand(2) : 1 + rand(2);
+    let paidSoFar = 0;
+    for (let n = 0; n < instalments && paidSoFar < target; n++) {
+      const last = n === instalments - 1;
+      const amount = last
+        ? target - paidSoFar
+        : Math.round((target / instalments) / 500) * 500;
+      if (amount <= 0) continue;
+      const when = addDays(opened, 2 + n * (12 + rand(20)) + rand(8));
+      // Never dated into the future: a receipt for money not yet received is
+      // the one entry that would make the whole book unreadable.
+      const paidAt = when > today ? today : when;
+      const method = sample(PAY_METHODS);
+      receipt = nextReceiptNumber(receipt, paidAt.getFullYear());
+      paymentRows.push({
+        invoiceId: inv.id,
+        receiptNumber: receipt,
+        amount,
+        method,
+        reference: referenceFor(method, paidAt),
+        paidAt,
+        note: last && share >= 1 ? 'Balance settled' : null,
+        recordedByUserId: bursarUser?.id ?? admin.id,
+        createdAt: paidAt,
+      });
+      paidSoFar += amount;
+    }
+  }
+
+  /*
+    A handful of receipts entered twice and then voided. Every real cash book
+    has them, and they are what proves the balance is the sum of the entries
+    rather than a number somebody typed: a voided row is still on the page and
+    still adds to nothing.
+  */
+  const duplicates = shuffled(paymentRows).slice(0, 6);
+  for (const original of duplicates) {
+    receipt = nextReceiptNumber(receipt, original.paidAt.getFullYear());
+    paymentRows.push({
+      ...original,
+      receiptNumber: receipt,
+      note: null,
+      voidedAt: addDays(original.paidAt, 1 + rand(3)),
+      voidedByUserId: bursarUser?.id ?? admin.id,
+      voidReason: sample([
+        'Entered twice at the counter',
+        'Receipted against the wrong term',
+        'Bank deposit reversed by the bank',
+      ]),
+    });
+  }
+
+  // Sorted by date so the receipt numbers run in the order the money came in,
+  // which is how a numbered book reads and how anybody checks one.
+  paymentRows.sort((a, b) => a.paidAt.getTime() - b.paidAt.getTime());
+  paymentRows.forEach((row, i) => {
+    row.receiptNumber = `RCT-${row.paidAt.getFullYear()}-${String(i + 1).padStart(4, '0')}`;
+  });
+
+  for (let i = 0; i < paymentRows.length; i += 2000) {
+    await prisma.feePayment.createMany({ data: paymentRows.slice(i, i + 2000) });
+  }
+  if (waiverRows.length) {
+    for (let i = 0; i < waiverRows.length; i += 2000) {
+      await prisma.feeWaiver.createMany({ data: waiverRows.slice(i, i + 2000) });
+    }
+  }
+
+  console.log(
+    `  ✅ Fees seeded: ${feeItemRows.length} price lines, ${invoices.length} invoices, ${paymentRows.length} receipts, ${waiverRows.length} waivers`,
+  );
+
   // ─── POCKET MONEY ───────────────────────────────────────────────────────────
   // A boarding school holds cash for its students: a parent hands it over on
   // visiting day and the student draws it down at the canteen. Seeded as a
@@ -4038,6 +4406,7 @@ async function main() {
   console.log('     Teacher   aline.uwase@markova.edu');
   console.log('     Student   student1@markova.edu');
   console.log('     Librarian librarian@markova.edu');
+  console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
 }
 
