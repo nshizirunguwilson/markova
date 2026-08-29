@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "rm -rf .next && next dev --port 3001",
+    "dev:cached": "next dev --port 3001",
     "dev:fresh": "rm -rf .next && next dev --port 3001",
     "build": "next build",
     "start": "next start",
