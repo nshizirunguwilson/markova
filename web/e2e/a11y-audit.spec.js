@@ -37,6 +37,7 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
+  BURSAR: { email: 'bursar@markova.edu', password: PASS },
   PATRON: { email: 'patron@markova.edu', password: PASS },
   MATRON: { email: 'matron@markova.edu', password: PASS },
   NURSE: { email: 'nurse@markova.edu', password: PASS },
@@ -48,19 +49,23 @@ const ROUTES = {
     '/admin/promotion', '/admin/attendance', '/admin/discipline', '/admin/library',
     '/admin/homework', '/admin/messages', '/admin/announcements', '/admin/analytics',
     '/admin/pocket-money', '/admin/health', '/admin/activities', '/admin/settings',
-    '/admin/help', '/admin/onboarding', '/admin/profile'],
+    '/admin/help', '/admin/onboarding', '/admin/profile',
+    '/admin/admissions', '/admin/admissions/intakes'],
   TEACHER: ['/teacher', '/teacher/marks', '/teacher/homework', '/teacher/attendance',
     '/teacher/discipline', '/teacher/messages', '/teacher/announcements',
     '/teacher/activities',
     '/teacher/analytics', '/teacher/profile', '/help'],
   STUDENT: ['/student', '/student/marks', '/student/reports', '/student/homework',
     '/student/attendance', '/student/library', '/student/messages', '/student/analytics',
-    '/student/discipline', '/student/activities', '/student/profile', '/help'],
+    '/student/discipline', '/student/activities', '/student/fees', '/student/profile',
+    '/help'],
   PARENT: ['/parent', '/parent/marks', '/parent/attendance', '/parent/discipline',
     '/parent/reports', '/parent/messages', '/parent/pocket-money', '/parent/health',
-    '/parent/activities', '/parent/analytics', '/parent/profile', '/help'],
+    '/parent/activities', '/parent/analytics', '/parent/fees', '/parent/profile', '/help'],
   LIBRARIAN: ['/librarian', '/librarian/books', '/librarian/loans', '/librarian/messages',
     '/librarian/profile', '/help'],
+  // The bursar keeps the fee ledger and nothing else.
+  BURSAR: ['/admin/finance', '/admin/finance/structure', '/messages', '/help'],
   // The boarding staff and the nurse: their own dashboards, plus the welfare
   // pages under /admin the shell lets them through to.
   PATRON: ['/boarding', '/admin/pocket-money', '/admin/health', '/admin/activities',
@@ -69,7 +74,9 @@ const ROUTES = {
   NURSE: ['/nurse', '/admin/health', '/messages', '/help'],
 };
 
-const PUBLIC_ROUTES = ['/login', '/forgot-password'];
+/* Reached without an account at all: a family applying, and a family
+   checking on what they sent. */
+const PUBLIC_ROUTES = ['/login', '/forgot-password', '/admissions', '/admissions/apply'];
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 

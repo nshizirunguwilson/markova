@@ -180,8 +180,10 @@ export default function AdmissionsDeskPage() {
               }`}
             >
               {b.label}
+              {/* No opacity on the count: dimming the token that is already
+                  the muted one puts it under 4.5:1 on the tab it sits in. */}
               {counts[b.value] != null && (
-                <span className="ml-2 tabular-nums opacity-80">
+                <span className="ml-2 font-medium tabular-nums">
                   {counts[b.value]}
                 </span>
               )}
