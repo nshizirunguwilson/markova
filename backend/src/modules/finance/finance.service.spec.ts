@@ -589,9 +589,10 @@ describe('FinanceService', () => {
         row('c', []),
       ]);
       const result = await service.register({ termId: 'term-1' });
+      // Ordered by what is owed, so the part-paid account leads.
       expect(result.data.map((r: any) => r.status)).toEqual([
-        'CLEARED',
         'PART_PAID',
+        'CLEARED',
         'NOT_INVOICED',
       ]);
     });
@@ -614,7 +615,58 @@ describe('FinanceService', () => {
       expect(result.data[0].student.id).toBe('b');
     });
 
+    /**
+     * A bursar opens this page to find out who to chase, and alphabetical
+     * order buries the four families owing two hundred thousand among six
+     * hundred who owe nothing.
+     */
+    it('puts the biggest debts at the top', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        row('a', [invoice(200000, 190000)]), // owes 10,000
+        row('b', [invoice(200000, 0)]), // owes 200,000
+        row('c', [invoice(200000, 200000)]), // owes nothing
+        row('d', [invoice(200000, 120000)]), // owes 80,000
+      ]);
+      const result = await service.register({ termId: 'term-1' });
+      expect(result.data.map((r: any) => r.standing?.balance)).toEqual([
+        200000, 80000, 10000, 0,
+      ]);
+    });
+
+    /*
+      Everybody level on balance keeps the name order the query returned, so a
+      page of settled accounts is still something a person can read down.
+    */
+    it('leaves accounts level on balance in the order they came', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        row('first', [invoice(1000, 1000)]),
+        row('second', [invoice(1000, 1000)]),
+        row('third', [invoice(1000, 1000)]),
+      ]);
+      const result = await service.register({ termId: 'term-1' });
+      expect(result.data.map((r: any) => r.student.id)).toEqual([
+        'first',
+        'second',
+        'third',
+      ]);
+    });
+
+    // A student nobody has billed owes nothing yet, so they sit with the
+    // settled accounts rather than at the top of the chasing list.
+    it('does not put an unbilled student above a real debt', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        row('unbilled', []),
+        row('owing', [invoice(200000, 0)]),
+      ]);
+      const result = await service.register({ termId: 'term-1' });
+      expect(result.data.map((r: any) => r.student.id)).toEqual([
+        'owing',
+        'unbilled',
+      ]);
+    });
+
     it('pages through the list', async () => {
+      // All level on balance, so paging is not tangled up with the ordering.
       prisma.student.findMany.mockResolvedValue(
         ['a', 'b', 'c'].map((id) => row(id, [invoice(1000, 0)])),
       );

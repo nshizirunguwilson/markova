@@ -422,6 +422,23 @@ export class FinanceService {
        the arithmetic in SQL and letting the two drift apart. */
     const matching = status ? rows.filter((r) => r.status === status) : rows;
 
+    /*
+      Biggest debts first.
+
+      A bursar opens this page to find out who to chase, and alphabetical
+      order buries the four families owing two hundred thousand among six
+      hundred who owe nothing. Sorted here for the same reason it is filtered
+      here: the balance is worked out from the entries, so the database cannot
+      order by it without a second copy of the arithmetic.
+
+      The rows arrive from the query in name order and this sort is stable, so
+      everybody level on balance — every settled account, in particular — stays
+      alphabetical and is still scannable by eye.
+    */
+    matching.sort(
+      (a, b) => (b.standing?.balance ?? 0) - (a.standing?.balance ?? 0),
+    );
+
     return {
       data: matching.slice((page - 1) * limit, page * limit),
       total: matching.length,

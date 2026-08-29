@@ -52,6 +52,11 @@ import {
  * the office needs at a glance is what came in, what is still out, and how
  * many families that is; a doughnut of the same three numbers takes more room
  * and says less.
+ *
+ * The roll comes back ordered by what is owed, biggest first, and the heading
+ * says so. There is no column to click to change that: a fixed order the page
+ * states plainly is easier to trust than one a reader has to discover, and
+ * looking up a particular family is what the search box is for.
  */
 
 const STATUSES: { value: string; label: string }[] = [
@@ -108,7 +113,7 @@ export default function FeeRegisterPage() {
     <div>
       <PageHeader
         title="School fees"
-        description="What each family has been billed for this term, and what has come in"
+        description="What each family has been billed for this term, and what has come in — largest balances first"
         actions={<TermPicker value={termId} onChange={setTermId} />}
       />
 
