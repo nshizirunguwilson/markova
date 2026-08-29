@@ -6,6 +6,9 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), back: fn(), refresh: fn(), prefetch: fn() },
     pathname: { current: "/admin" },
+    // The route below the shell, which is what the content region is keyed
+    // on. Held apart from the pathname because the two can move separately.
+    segments: { current: ["admin"] as string[] },
   };
 });
 
@@ -14,6 +17,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => h.pathname.current,
   useSearchParams: () => new URLSearchParams(),
+  useSelectedLayoutSegments: () => h.segments.current,
 }));
 vi.mock("@/hooks/use-socket", () => ({ useSocketConnection: () => undefined }));
 // The stub reports the props the shell hands it, so the sidebar toggle can be
@@ -49,6 +53,7 @@ beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.router)) m.mockReset();
   h.pathname.current = "/admin";
+  h.segments.current = ["admin"];
   localStorage.clear();
   signOut();
 });
@@ -335,7 +340,7 @@ describe("DashboardShell and the welfare roles", () => {
  * Motion on the content region.
  *
  * The most-seen transition in the app is a page swapping its spinner for
- * data, and it was a hard cut. Opacity only, and keyed on the path so it
+ * data, and it was a hard cut. Opacity only, and keyed on the route so it
  * replays per page — nothing moves, and nothing is delayed, which is what
  * separates this from a sliding route transition in a tool people use all
  * day.
@@ -353,6 +358,53 @@ describe("DashboardShell content motion", () => {
     );
     const main = document.querySelector("#main-content")!;
     expect(main.className).toContain("motion-fade-in");
+  });
+
+  /**
+   * The key is the route, not the address.
+   *
+   * A page that rewrites its own URL without navigating — the chat, which
+   * puts the open thread in the address — was being destroyed and faded back
+   * in on every click, losing its scroll position and anything half written
+   * in the process. That was the whole page being thrown away, not a
+   * transition.
+   */
+  it("keeps the page it has when only the address changes", async () => {
+    h.segments.current = ["messages"];
+    h.pathname.current = "/messages";
+    signIn("ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    const view = render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    const before = document.querySelector("#main-content")!;
+
+    h.pathname.current = "/messages/conv-1";
+    view.rerender(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    expect(document.querySelector("#main-content")).toBe(before);
+  });
+
+  // A real move between pages still gets its fade.
+  it("builds the region again when the route itself changes", async () => {
+    h.segments.current = ["admin"];
+    h.pathname.current = "/admin";
+    signIn("ADMIN");
+    localStorage.setItem("access_token", "good");
+
+    const view = render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    const before = document.querySelector("#main-content")!;
+
+    h.segments.current = ["admin", "students"];
+    h.pathname.current = "/admin/students";
+    view.rerender(wrap(<DashboardShell><Child /></DashboardShell>));
+
+    expect(document.querySelector("#main-content")).not.toBe(before);
   });
 
   // The animation must never gate the content: it fades what is already
