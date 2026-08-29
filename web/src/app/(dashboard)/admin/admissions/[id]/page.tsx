@@ -104,9 +104,9 @@ export default function ApplicationPage() {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
-  const { data: sections } = useSections(
-    data?.intake ? undefined : undefined,
-  );
+  /* Every class, narrowed to the intake's level where the offer is picked.
+     Asking the API per level would refetch each time the modal opens. */
+  const { data: sections } = useSections();
 
   if (isLoading || !data) return <PageSpinner />;
 
@@ -148,10 +148,22 @@ export default function ApplicationPage() {
         title={`${data.firstName} ${data.lastName}`}
         description={
           <span className="font-mono text-xs">
-            {data.reference} · {ENTRY_LABEL[data.intake.entryPoint]} ·{" "}
-            {data.intake.classLevel.name}
-            {data.trade && ` ${data.trade.code}`} ·{" "}
-            {data.isBoarder ? "Boarder" : "Day student"}
+            {[
+              data.reference,
+              /* The door and the level are the same words for a Senior 1
+                 entrant, and "Senior 1 · Senior 1" reads as a fault. */
+              ...(ENTRY_LABEL[data.intake.entryPoint] ===
+              data.intake.classLevel.name
+                ? [data.intake.classLevel.name]
+                : [
+                    ENTRY_LABEL[data.intake.entryPoint],
+                    data.intake.classLevel.name,
+                  ]),
+              data.trade?.code,
+              data.isBoarder ? "Boarder" : "Day student",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         }
         actions={
