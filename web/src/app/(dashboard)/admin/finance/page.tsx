@@ -171,7 +171,7 @@ export default function FeeRegisterPage() {
               <p className="text-sm font-semibold text-warning">
                 {summary?.notInvoiced} students have not been billed for this term
               </p>
-              <p className="mt-0.5 text-xs text-warning/90">
+              <p className="mt-0.5 text-xs text-warning">
                 Raising invoices copies the current fee structure onto a bill
                 for each of them. Anyone already billed is left alone.
               </p>

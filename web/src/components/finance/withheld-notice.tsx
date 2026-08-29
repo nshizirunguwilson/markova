@@ -44,12 +44,18 @@ export function WithheldNotice({
           <h2 className="text-base font-semibold text-warning">
             These {what} are held until the school fees are settled
           </h2>
-          <p className="mt-1 text-sm text-warning/90">
+          {/*
+            Full strength, not a faded variant. The amber on its own wash is
+            4.58:1 — over the line but not by much — and dimming it to 90%
+            drops it to 3.89:1, which fails AA on the one paragraph a family
+            has to be able to read.
+          */}
+          <p className="mt-1 text-sm text-warning">
             {money(withheld.balance)} is still outstanding for this term. The{" "}
             {what} open as soon as the balance reaches nil — nothing else is
             needed, and nothing has been lost.
           </p>
-          <p className="mt-2 text-sm text-warning/90">
+          <p className="mt-2 text-sm text-warning">
             If a payment you have made is not showing, the school office can
             find it from your deposit slip or transaction number.
           </p>

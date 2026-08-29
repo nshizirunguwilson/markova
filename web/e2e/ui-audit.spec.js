@@ -30,6 +30,7 @@ const ACCOUNTS = {
   PATRON: { email: 'patron@markova.edu', password: PASS },
   MATRON: { email: 'matron@markova.edu', password: PASS },
   NURSE: { email: 'nurse@markova.edu', password: PASS },
+  BURSAR: { email: 'bursar@markova.edu', password: PASS },
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -225,6 +226,13 @@ const RBAC = [
   ['NURSE', '/boarding'], ['NURSE', '/admin/pocket-money'], ['NURSE', '/admin/users'],
   ['STUDENT', '/boarding'], ['STUDENT', '/nurse'],
   ['TEACHER', '/boarding'], ['TEACHER', '/nurse'],
+  // The bursar keeps the fee ledger and nothing else. Whose child has paid is
+  // not a teacher's business either, and the staffroom is exactly where that
+  // becomes a child's problem.
+  ['BURSAR', '/admin/users'], ['BURSAR', '/admin/marks'],
+  ['BURSAR', '/admin/reports'], ['BURSAR', '/nurse'], ['BURSAR', '/boarding'],
+  ['TEACHER', '/admin/finance'], ['STUDENT', '/admin/finance'],
+  ['PARENT', '/admin/finance'], ['NURSE', '/admin/finance'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
@@ -1379,6 +1387,104 @@ test('chat: a conversation has an address of its own', async (browser) => {
     () => !!document.querySelector('input[placeholder*="Type a message"]'),
   );
   assert(survived, 'the thread does not survive a reload of its own URL');
+  await ctx.close();
+});
+
+/**
+ * School fees, and the results they hold up.
+ *
+ * The gate is the consequential part of this feature: it decides whether a
+ * child is shown their own record. So it is checked from both sides — that a
+ * family behind on the term is told so, in a way they can act on, and that
+ * the same term opens for the office that has to read it either way.
+ */
+test('fees: the register lists every student, not every class', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'BURSAR');
+  await visit(page, '/admin/finance');
+  /*
+    A real row, not the first `tbody tr`: the table draws its empty state as a
+    row too, so waiting for any row at all catches the page mid-load and reads
+    "no students found" as the answer.
+  */
+  await page.waitForSelector('tbody tr:has-text("STD-")', { timeout: 30000 });
+
+  const rows = await page.locator('tbody tr').count();
+  assert(rows > 1, `the register showed ${rows} rows`);
+
+  // A student number on every row is what makes it a roll of people rather
+  // than a summary of classes.
+  const first = await page.locator('tbody tr').first().innerText();
+  assert(/STD-/.test(first), `no student number in the first row: ${first}`);
+  assert(/RWF/.test(first), `no amount in the first row: ${first}`);
+
+  const body = await page.innerText('body');
+  for (const heading of ['Billed this term', 'Collected', 'Waived', 'Still outstanding']) {
+    assert(body.includes(heading), `the summary is missing "${heading}"`);
+  }
+  await ctx.close();
+});
+
+test('fees: the price list says a boarder and a day student pay differently', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'BURSAR');
+  await visit(page, '/admin/finance/structure');
+  await page.waitForSelector('text=Boarder pays', { timeout: 30000 });
+
+  const body = await page.innerText('body');
+  assert(body.includes('Day student pays'), 'no day total on the price list');
+  // The reassurance that makes this safe to edit mid-term.
+  assert(
+    /prices, not bills/i.test(body),
+    'the price list does not say it is prices rather than bills',
+  );
+  await ctx.close();
+});
+
+/**
+ * The gate itself, from the family's side.
+ *
+ * `student1` is seeded behind on the current term precisely so this can be
+ * checked: their older terms are settled and open, and the live one is held.
+ */
+test('fees: a student behind on the term is told why, and by how much', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'STUDENT');
+
+  await visit(page, '/student/fees');
+  await page.waitForSelector('text=Every term', { timeout: 30000 });
+  const fees = await page.innerText('body');
+  assert(/results are held/i.test(fees), 'the fees page does not mention held results');
+  assert(/RWF/.test(fees), 'the fees page shows no amount');
+
+  await visit(page, '/student/marks');
+  await page.waitForFunction(
+    () => /held until the school fees are settled|Subject Breakdown|not been released/i.test(document.body.innerText),
+    null,
+    { timeout: 30000 },
+  );
+  const marks = await page.innerText('body');
+  assert(
+    /held until the school fees are settled/i.test(marks),
+    'a held term does not say so on the marks page',
+  );
+  // Told, not merely blocked: the amount and the way on are both here.
+  assert(/RWF/.test(marks), 'the held notice names no amount');
+  assert(/See what is owed/i.test(marks), 'the held notice offers no way on');
+  await ctx.close();
+});
+
+// Staff are never held. A school whose teachers cannot read its own marks
+// because a family is behind cannot run.
+test('fees: money never stops staff reading a mark book', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/marks');
+  const body = await page.innerText('body');
+  assert(
+    !/held until the school fees are settled/i.test(body),
+    'a teacher was shown a fee hold',
+  );
   await ctx.close();
 });
 

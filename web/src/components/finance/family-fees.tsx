@@ -113,7 +113,7 @@ export function FamilyFees({
                   ? `${owingTerms[0].term.name} results are held until the fees are settled`
                   : `${owingTerms.length} terms of results are held until the fees are settled`}
               </p>
-              <p className="mt-0.5 text-sm text-warning/90">
+              <p className="mt-0.5 text-sm text-warning">
                 {money(
                   owingTerms.reduce((sum, h) => sum + h.standing.balance, 0),
                 )}{" "}
