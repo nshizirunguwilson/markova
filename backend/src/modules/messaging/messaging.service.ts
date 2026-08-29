@@ -683,6 +683,7 @@ export class MessagingService {
         Role.PATRON,
         Role.MATRON,
         Role.NURSE,
+        Role.BURSAR,
         Role.ADMIN,
       ],
     };
