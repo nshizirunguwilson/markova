@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSelectedLayoutSegments } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSocketConnection } from "@/hooks/use-socket";
 import { useMessageAlerts } from "@/hooks/use-message-alerts";
@@ -65,6 +65,12 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  /*
+    Which page is on screen, as opposed to what the address bar says. A screen
+    that rewrites its own URL without navigating keeps the same route, and so
+    keeps the same key.
+  */
+  const routeKey = useSelectedLayoutSegments().join("/");
   const { user, isAuthenticated, isLoading, setUser, setLoading, logout } =
     useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -154,7 +160,7 @@ export function DashboardShell({
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       <Topbar onToggleSidebar={toggleSidebar} />
       {/*
-        Keyed on the path so each page fades in as it arrives.
+        Keyed on the route so each page fades in as it arrives.
 
         Opacity only, and only 150ms: the content is in the document from the
         first frame, so nothing is delayed and nothing moves — a reader's eye
@@ -164,9 +170,16 @@ export function DashboardShell({
 
         It also softens the moment a page swaps its spinner for data, which is
         the most-seen transition in the whole app and was a hard cut.
+
+        The route, not the pathname. Rebuilding on every URL change meant a
+        page that changes its own address — the chat, which puts the open
+        thread in the URL — was destroyed and faded back in every time you
+        clicked a conversation, taking its scroll position and anything you
+        had half written with it. That flash was the whole page being thrown
+        away, not a transition.
       */}
       <main
-        key={pathname}
+        key={routeKey}
         id="main-content"
         className="motion-fade-in ml-0 md:ml-60 mt-16 p-6"
       >

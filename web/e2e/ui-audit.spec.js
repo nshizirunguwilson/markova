@@ -1383,6 +1383,45 @@ test('chat: a conversation has an address of its own', async (browser) => {
 });
 
 /**
+ * Opening a thread must not rebuild the screen around it.
+ *
+ * The address is written with the History API rather than pushed through the
+ * router, and the shell keys its fade on the route rather than on the URL.
+ * With either of those undone, clicking a conversation destroyed the whole
+ * messaging surface and faded a fresh one in — the flash people reported,
+ * and with it the scroll position and anything half written in the composer.
+ *
+ * Checked by marking the surface and looking for the mark again: a mark that
+ * survives is the same element, which is the only proof that the page was
+ * kept rather than rebuilt to look the same.
+ */
+test('chat: opening a thread keeps the screen it is on', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/messages');
+
+  const surface = 'div.flex.min-h-0.flex-1.overflow-hidden';
+  await page.waitForSelector(surface);
+  await page.evaluate((sel) => {
+    document.querySelector(sel).dataset.kept = 'yes';
+  }, surface);
+
+  await page
+    .locator('button')
+    .filter({ hasText: /Linda|Aaron|Dieudonne|Aline/ })
+    .first()
+    .click();
+  await page.waitForSelector('input[placeholder*="Type a message"]');
+  await page.waitForTimeout(1200);
+
+  assert(
+    (await page.locator('[data-kept="yes"]').count()) === 1,
+    'the messaging surface was torn down and rebuilt when a thread was opened',
+  );
+  await ctx.close();
+});
+
+/**
  * Focus is easily lost — you click a message to reply, scroll, come back from
  * another tab — and then the first thing you type disappears.
  */

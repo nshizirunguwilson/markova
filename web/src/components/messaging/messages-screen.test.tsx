@@ -7,8 +7,6 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
-    // Which thread is open is the route now, not a query string.
-    routeParams: { current: {} as { conversationId?: string } },
     pathname: { current: "/messages" },
     chat: {
       connected: true,
@@ -42,7 +40,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => h.pathname.current,
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => h.routeParams.current,
+  // Which thread is open is read off the pathname, not from a route
+  // parameter — see the screen's own note on why.
+  useParams: () => ({}),
 }));
 vi.mock("@/stores/chat-store", () => ({
   useChatStore: (selector?: (s: unknown) => unknown) =>
@@ -51,7 +51,7 @@ vi.mock("@/stores/chat-store", () => ({
 
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveAll } from "@/test/page";
-import MessagesPage from "./page";
+import MessagesPage from "./messages-screen";
 
 const other = {
   id: "u-3",
@@ -3021,6 +3021,71 @@ describe("keeping the thread landed while media settles", () => {
     return { list, say, fire: () => act(() => fire()) };
   }
 
+  /**
+   * The thread and the inbox come from two different requests, and on a cold
+   * load the messages usually win.
+   *
+   * Until the inbox has answered there is no row to build the thread pane
+   * from, so there is no element to scroll — and nothing about the inbox
+   * arriving afterwards would bring the scrolling effects back. The thread
+   * sat at its very first message, and only on a first visit: every later one
+   * had the inbox cached and both halves were ready together, which is why
+   * this survived so long.
+   */
+  it("lands the thread even when the inbox answers after the messages", async () => {
+    // jsdom measures nothing, so the thread is given a height to land at.
+    const height = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollHeight",
+    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get: () => 5000,
+    });
+
+    let release: () => void = () => {};
+    const inbox = new Promise<void>((r) => {
+      release = r;
+    });
+    let threadArrived = false;
+    h.pathname.current = "/messages/conv-1";
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": () => {
+        threadArrived = true;
+        return routes["/messaging/conversations/conv-1/messages"];
+      },
+      "/messaging/conversations": async () => {
+        await inbox;
+        return [conversation];
+      },
+    });
+    renderPage(MessagesPage, { role: "ADMIN" });
+
+    // The messages are in hand, and there is still no pane to put them in.
+    await waitFor(() => expect(threadArrived).toBe(true));
+    // Let the thread's own answer land in the page while the inbox is still
+    // out. That interleaving is the whole point of this test.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await act(async () => {
+      release();
+      await inbox;
+    });
+    const thread = await screen.findByText(/Muraho neza/);
+
+    const list = thread.closest(".overflow-y-auto") as HTMLElement;
+    expect(list).toBeTruthy();
+    await waitFor(() => expect(list.scrollTop).toBe(5000));
+
+    if (height) {
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", height);
+    }
+    h.pathname.current = "/messages";
+  });
+
   it("watches the thread's own size", async () => {
     const { list } = await openWithWatcher();
     expect(list).toBeTruthy();
@@ -3247,9 +3312,7 @@ describe("getting back to the newest message", () => {
     expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
   });
 
-  // A whole screen up, not a nudge: a button that appears the moment you
-  // touch the wheel is a button that flickers.
-  it("appears once a whole screen has been scrolled past", async () => {
+  it("appears once the newest message is off the screen", async () => {
     const { say } = await openLongThread();
     act(() => say(4000, 600, 0));
     expect(
@@ -3257,9 +3320,24 @@ describe("getting back to the newest message", () => {
     ).toBeInTheDocument();
   });
 
+  /*
+    A fixed distance rather than a fraction of the view. Three quarters of the
+    screen meant scrolling up nearly five hundred pixels before the way back
+    appeared, by which point you have given up on it and started dragging.
+  */
+  it("appears after about two messages, not a whole screen", async () => {
+    const { say } = await openLongThread();
+    act(() => say(2000, 600, 1100)); // 300px from the bottom
+    expect(
+      await screen.findByRole("button", { name: /jump to the newest/i }),
+    ).toBeInTheDocument();
+  });
+
+  // Still not for a nudge, and far enough past the follow distance that it
+  // cannot flicker as the thread trails a new arrival.
   it("does not appear for a small nudge upward", async () => {
     const { say } = await openLongThread();
-    act(() => say(1000, 600, 380));
+    act(() => say(1000, 600, 300)); // 100px from the bottom
     expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
   });
 
@@ -3387,12 +3465,11 @@ describe("after sending", () => {
  */
 describe("arriving from a notification", () => {
   afterEach(() => {
-    h.routeParams.current = {};
     h.pathname.current = "/messages";
+    window.history.replaceState(null, "", "/messages");
   });
 
   it("opens the thread the route names", async () => {
-    h.routeParams.current = { conversationId: "conv-1" };
     h.pathname.current = "/messages/conv-1";
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
@@ -3412,7 +3489,27 @@ describe("arriving from a notification", () => {
 
     await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
-    expect(h.router.push).toHaveBeenCalledWith("/messages/conv-1");
+    expect(window.location.pathname).toBe("/messages/conv-1");
+  });
+
+  /**
+   * The address is written, not navigated to.
+   *
+   * A router push changes the route segment, and Next answers that by
+   * unmounting this screen and mounting a new one — so the thread you clicked
+   * was drawn and then, a frame or two later, the whole surface was torn down
+   * and rebuilt around it. That rebuild is the flash, and it takes the scroll
+   * position and a half-written reply with it.
+   */
+  it("opens a thread without navigating away from the page", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+
+    expect(h.router.push).not.toHaveBeenCalled();
+    expect(h.router.replace).not.toHaveBeenCalled();
   });
 
   // Every role re-exports this page under its own path, so a conversation is
@@ -3425,11 +3522,10 @@ describe("arriving from a notification", () => {
 
     await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
 
-    expect(h.router.push).toHaveBeenCalledWith("/admin/messages/conv-1");
+    expect(window.location.pathname).toBe("/admin/messages/conv-1");
   });
 
   it("goes back to the inbox when the thread is closed", async () => {
-    h.routeParams.current = { conversationId: "conv-1" };
     h.pathname.current = "/messages/conv-1";
     serve(h.api, routes);
     renderPage(MessagesPage, { role: "ADMIN" });
@@ -3441,7 +3537,7 @@ describe("arriving from a notification", () => {
     if (!back) return;
     await userEvent.setup({ delay: null }).click(back);
 
-    expect(h.router.push).toHaveBeenCalledWith("/messages");
+    expect(window.location.pathname).toBe("/messages");
   });
 });
 

@@ -127,8 +127,7 @@ export function VoiceNote({
   };
 
   return (
-    <div className="w-[15rem] max-w-full">
-      <div className="flex items-center gap-2.5">
+    <div className="flex w-[15rem] max-w-full items-center gap-2.5">
       <audio
         ref={audioRef}
         src={href}
@@ -196,19 +195,18 @@ export function VoiceNote({
           ))}
         </div>
       </div>
-      </div>
 
       {/*
-        The length sits under the whole control, aligned to its left edge.
+        The length goes at the end of the row, in the space the bars leave.
 
-        Under the row rather than inside it, because the button and the bars
-        are one thing — a control you press and scrub — and a number wedged
-        between them splits it. Left, because that is where the eye returns
-        after reading the bars, and a centred number under an asymmetric row
-        looks adrift.
+        The bars are a fixed count at a fixed width, so a bubble sized for the
+        widest of them always ends with a gap on the right — and the length
+        was sitting on a line of its own underneath, making the bubble taller
+        for a number that already had somewhere to be. One row now: press it,
+        scrub it, read how long it is.
       */}
       <span
-        className={`mt-1 block text-[0.6875rem] tabular-nums ${
+        className={`flex-shrink-0 text-[0.6875rem] tabular-nums ${
           mine ? "text-on-primary/70" : "text-muted"
         }`}
       >

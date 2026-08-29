@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Avatar, Button, Badge, Spinner, Input, Modal } from "@/components/ui";
@@ -61,6 +61,21 @@ const NEAR_BOTTOM_PX = 120;
  */
 const SETTLING_PX = 600;
 
+/**
+ * How far from the bottom before the jump-down button appears.
+ *
+ * A fixed distance, not a fraction of the view. It was three quarters of the
+ * screen height, which on a normal window meant scrolling up nearly five
+ * hundred pixels before the way back appeared — by which point you have
+ * already given up on it and started dragging.
+ *
+ * 240px is about two messages: far enough that the newest one is genuinely
+ * off screen and the button is worth having, and far enough past
+ * NEAR_BOTTOM_PX that it cannot flicker on and off as the thread follows a
+ * new arrival.
+ */
+const JUMP_VISIBLE_PX = 240;
+
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
@@ -76,10 +91,30 @@ export default function MessagesPage() {
     Reading it from the route rather than mirroring it into state means there
     is one answer to "which thread is this", and it survives a reload.
   */
-  const router = useRouter();
   const pathname = usePathname();
-  const routeParams = useParams<{ conversationId?: string }>();
-  const routeConv = routeParams?.conversationId ?? null;
+
+  /**
+   * The address, split into the messages path this role is on and the thread
+   * on the end of it.
+   *
+   * Every role re-exports this screen under its own path — `/admin/messages`,
+   * `/parent/messages` — so a conversation has to be appended to whichever
+   * one the reader is actually on, or opening a thread would throw them into
+   * another role's section of the app.
+   *
+   * Read from the pathname rather than from route parameters because the URL
+   * is changed below without a navigation, and parameters only move when the
+   * router does.
+   */
+  const [messagesBase, routeConv] = useMemo(() => {
+    const at = pathname.lastIndexOf("/messages");
+    // A trailing slash would make the address below "//<id>", which a browser
+    // reads as another host rather than another path.
+    if (at < 0) return [pathname.replace(/\/+$/, ""), null] as const;
+    const base = pathname.slice(0, at + "/messages".length);
+    const rest = pathname.slice(base.length).replace(/^\//, "");
+    return [base, rest || null] as const;
+  }, [pathname]);
 
   /*
     The route is the source of truth, and this follows it.
@@ -97,23 +132,42 @@ export default function MessagesPage() {
   }, [routeConv]);
 
   /**
-   * The messages path this role is on, without any conversation on the end.
+   * Open a thread, and give it its address.
    *
-   * Every role re-exports this page under its own path — `/admin/messages`,
-   * `/parent/messages` — so a conversation has to be appended to whichever
-   * one the reader is actually on, or opening a thread would throw them into
-   * another role's section of the app.
+   * The URL is written with the History API rather than pushed through the
+   * router. A router push changes the route segment, and Next answers that by
+   * unmounting this screen and mounting a new one: the conversation you had
+   * just clicked was drawn, and then a moment later the whole surface was
+   * torn down and built again around it. That second rebuild is the flash,
+   * and it took the scroll position, the reply you were writing and anything
+   * else held in state down with it.
+   *
+   * `pushState` is supported for exactly this, and `usePathname` follows it,
+   * so the back button, a reload and a link shared with somebody else all
+   * still land on the right thread — without a navigation for a move that
+   * never leaves the page.
    */
-  const messagesBase = pathname.replace(/\/[^/]*$/, (tail) =>
-    tail === "/messages" ? tail : "",
-  );
-
   const openConversation = useCallback(
     (id: string | null) => {
       setSelectedConv(id);
-      router.push(id ? `${messagesBase}/${id}` : messagesBase);
+      const next = id ? `${messagesBase}/${id}` : messagesBase;
+      if (window.location.pathname !== next) {
+        window.history.pushState(null, "", next);
+      }
     },
-    [router, messagesBase],
+    [messagesBase],
+  );
+  /**
+   * The open thread's own row in the inbox.
+   *
+   * Declared up here because the scrolling effects below depend on it: the
+   * thread pane is only rendered once this is found, so until the inbox has
+   * loaded there is no list element for them to scroll. It arrives from a
+   * different request than the messages do, and on a cold load it is usually
+   * the later of the two.
+   */
+  const selectedConversation = conversations?.find(
+    (c: any) => c.id === selectedConv,
   );
   const { data: messages } = useMessages(selectedConv || undefined);
   const sendMessageRest = useSendMessage();
@@ -322,7 +376,16 @@ export default function MessagesPage() {
     if (nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, typingNames.length, selectedConv]);
+    /*
+      `selectedConversation` is a dependency because the thread pane — and so
+      the element being scrolled — does not exist until the inbox request has
+      answered. On a cold load the messages arrived first, this effect ran
+      with nothing to scroll, and nothing ever changed again to make it run a
+      second time: the thread sat at its first message until you scrolled it
+      down by hand. Every later visit worked, because by then the inbox was
+      cached and both were ready together.
+    */
+  }, [messages, typingNames.length, selectedConv, selectedConversation]);
 
   /**
    * Keep the bottom of the thread at the bottom while it is still settling.
@@ -394,7 +457,9 @@ export default function MessagesPage() {
       list.removeEventListener("touchmove", release);
       list.removeEventListener("keydown", onKey);
     };
-  }, [selectedConv, threadBlocks.length]);
+    // `selectedConversation` for the same reason as above: no pane, no list
+    // to observe, and nothing that would bring this effect back.
+  }, [selectedConv, selectedConversation, threadBlocks.length]);
 
   /**
    * Watch how far from the bottom the reader is, so the jump-down button can
@@ -406,7 +471,7 @@ export default function MessagesPage() {
 
     const check = () => {
       const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
-      setScrolledUp(gap > list.clientHeight * 0.75);
+      setScrolledUp(gap > JUMP_VISIBLE_PX);
     };
     check();
     list.addEventListener("scroll", check, { passive: true });
@@ -692,7 +757,6 @@ export default function MessagesPage() {
     );
   };
 
-  const selectedConversation = conversations?.find((c: any) => c.id === selectedConv);
 
   const getConvName = (conv: any) => {
     if (conv.name) return conv.name;

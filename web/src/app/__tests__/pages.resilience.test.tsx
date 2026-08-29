@@ -69,7 +69,7 @@ import Help from "@/app/(dashboard)/help/page";
 import LibrarianBooks from "@/app/(dashboard)/librarian/books/page";
 import LibrarianLoans from "@/app/(dashboard)/librarian/loans/page";
 import Librarian from "@/app/(dashboard)/librarian/page";
-import Messages from "@/app/(dashboard)/messages/page";
+import Messages from "@/app/(dashboard)/messages/[[...conversation]]/page";
 import ParentAnalytics from "@/app/(dashboard)/parent/analytics/page";
 import ParentAttendance from "@/app/(dashboard)/parent/attendance/page";
 import ParentDiscipline from "@/app/(dashboard)/parent/discipline/page";
