@@ -3247,9 +3247,7 @@ describe("getting back to the newest message", () => {
     expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
   });
 
-  // A whole screen up, not a nudge: a button that appears the moment you
-  // touch the wheel is a button that flickers.
-  it("appears once a whole screen has been scrolled past", async () => {
+  it("appears once the newest message is off the screen", async () => {
     const { say } = await openLongThread();
     act(() => say(4000, 600, 0));
     expect(
@@ -3257,9 +3255,24 @@ describe("getting back to the newest message", () => {
     ).toBeInTheDocument();
   });
 
+  /*
+    A fixed distance rather than a fraction of the view. Three quarters of the
+    screen meant scrolling up nearly five hundred pixels before the way back
+    appeared, by which point you have given up on it and started dragging.
+  */
+  it("appears after about two messages, not a whole screen", async () => {
+    const { say } = await openLongThread();
+    act(() => say(2000, 600, 1100)); // 300px from the bottom
+    expect(
+      await screen.findByRole("button", { name: /jump to the newest/i }),
+    ).toBeInTheDocument();
+  });
+
+  // Still not for a nudge, and far enough past the follow distance that it
+  // cannot flicker as the thread trails a new arrival.
   it("does not appear for a small nudge upward", async () => {
     const { say } = await openLongThread();
-    act(() => say(1000, 600, 380));
+    act(() => say(1000, 600, 300)); // 100px from the bottom
     expect(screen.queryByRole("button", { name: /jump to the newest/i })).toBeNull();
   });
 

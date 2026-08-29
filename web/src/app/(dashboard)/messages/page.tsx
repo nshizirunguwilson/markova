@@ -61,6 +61,21 @@ const NEAR_BOTTOM_PX = 120;
  */
 const SETTLING_PX = 600;
 
+/**
+ * How far from the bottom before the jump-down button appears.
+ *
+ * A fixed distance, not a fraction of the view. It was three quarters of the
+ * screen height, which on a normal window meant scrolling up nearly five
+ * hundred pixels before the way back appeared — by which point you have
+ * already given up on it and started dragging.
+ *
+ * 240px is about two messages: far enough that the newest one is genuinely
+ * off screen and the button is worth having, and far enough past
+ * NEAR_BOTTOM_PX that it cannot flicker on and off as the thread follows a
+ * new arrival.
+ */
+const JUMP_VISIBLE_PX = 240;
+
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { data: conversations, isLoading } = useConversations();
@@ -406,7 +421,7 @@ export default function MessagesPage() {
 
     const check = () => {
       const gap = list.scrollHeight - list.scrollTop - list.clientHeight;
-      setScrolledUp(gap > list.clientHeight * 0.75);
+      setScrolledUp(gap > JUMP_VISIBLE_PX);
     };
     check();
     list.addEventListener("scroll", check, { passive: true });
