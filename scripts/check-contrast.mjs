@@ -13,7 +13,20 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { color, chartCategorical } = JSON.parse(readFileSync(join(root, 'design/tokens.json'), 'utf8'));
-const c = (name) => color[name].value;
+
+/*
+  Every pairing is checked twice, once per palette.
+
+  A dark theme is not the light one inverted: the fills that carry white text
+  on paper are pale on a dark ground and carry near-black instead, and a
+  neutral that reads on white can vanish on navy. Checking only the light
+  palette would have let the whole dark theme ship unreadable, which is the
+  failure mode this file exists to prevent.
+*/
+const PALETTES = ['light', 'dark'];
+let palette = 'light';
+const c = (name) =>
+  palette === 'dark' ? (color[name].dark ?? color[name].value) : color[name].value;
 
 const toRgb = (h) => {
   const n = parseInt(h.replace('#', ''), 16);
@@ -46,18 +59,19 @@ const checks = [
   ['primary on background', 'primary', 'background', 4.5],
   ['primary on accent', 'primary', 'accent', 4.5],
   ['primary on accentLight', 'primary', 'accentLight', 4.5],
-  ['white on primary', 'white', 'primary', 4.5],
-  ['white on primaryDark', 'white', 'primaryDark', 4.5],
+  ['onPrimary on primary', 'onPrimary', 'primary', 4.5],
+  ['onPrimary on primaryDark', 'onPrimary', 'primaryDark', 4.5],
   ['success on surface', 'success', 'surface', 4.5],
   ['success on successWash', 'success', 'successWash', 4.5],
-  ['white on success', 'white', 'success', 4.5],
+  ['onSuccess on success', 'onSuccess', 'success', 4.5],
   ['warning on surface', 'warning', 'surface', 4.5],
   ['warning on warningWash', 'warning', 'warningWash', 4.5],
-  ['white on warning', 'white', 'warning', 4.5],
+  ['onWarning on warning', 'onWarning', 'warning', 4.5],
   ['danger on surface', 'danger', 'surface', 4.5],
   ['danger on dangerWash', 'danger', 'dangerWash', 4.5],
-  ['white on danger', 'white', 'danger', 4.5],
+  ['onDanger on danger', 'onDanger', 'danger', 4.5],
   ['info on infoWash', 'info', 'infoWash', 4.5],
+  ['foregroundMuted on background', 'foregroundMuted', 'background', 4.5],
   ['borderInput on surface', 'borderInput', 'surface', 3.0],
   ['borderInput on background', 'borderInput', 'background', 3.0],
   ['primaryLight focus ring on surface', 'primaryLight', 'surface', 3.0],
@@ -70,18 +84,27 @@ chartCategorical.values.forEach((hex, i) => {
 });
 
 let failed = 0;
+let run = 0;
 console.log('WCAG contrast - design/tokens.json\n');
-for (const [label, fg, bg, min] of checks) {
-  const r = ratio(c(fg), c(bg));
-  const ok = r >= min;
-  if (!ok) failed++;
-  console.log(
-    `  ${ok ? 'PASS' : 'FAIL'}  ${r.toFixed(2).padStart(6)}:1  (min ${min})  ${label}`,
-  );
+for (const which of PALETTES) {
+  palette = which;
+  console.log(`  ${which.toUpperCase()}`);
+  for (const [label, fg, bg, min] of checks) {
+    // The chart palettes are one set of fills, not two: they are the same
+    // hues on either ground, and both are checked against the light text.
+    const r = ratio(c(fg), c(bg));
+    const ok = r >= min;
+    run++;
+    if (!ok) failed++;
+    console.log(
+      `    ${ok ? 'PASS' : 'FAIL'}  ${r.toFixed(2).padStart(6)}:1  (min ${min})  ${label}`,
+    );
+  }
+  console.log('');
 }
 
 if (failed) {
-  console.error(`\n${failed} contrast check(s) failed.`);
+  console.error(`${failed} contrast check(s) failed.`);
   process.exit(1);
 }
-console.log(`\nAll ${checks.length} contrast checks passed.`);
+console.log(`All ${run} contrast checks passed across ${PALETTES.length} palettes.`);

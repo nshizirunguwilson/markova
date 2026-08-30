@@ -87,13 +87,46 @@ function buildWebCss() {
     .map((name) => `  --brand-${kebab(name)}: ${tokens.color[name].value};`)
     .join('\n');
 
-  const colors = colorEntries
-    .map(([name, t]) =>
-      runtime.includes(name)
-        ? `  --color-${kebab(name)}: var(--brand-${kebab(name)});`
-        : `  --color-${kebab(name)}: ${t.value};`,
-    )
+  /*
+    Every colour is emitted as a variable now, not only the brand ones.
+
+    `@theme inline` bakes a literal into each utility, which is cheaper to
+    paint and was the right trade while the app was light-only. A theme the
+    reader can switch needs the indirection: `bg-surface` has to resolve to
+    whatever `--tone-surface` currently is, so that redefining it under
+    `prefers-color-scheme` or `[data-theme]` repaints the app rather than
+    doing nothing at all. Brand keeps its own `--brand-*` names because
+    BrandProvider sets those per school at runtime.
+  */
+  const tone = (name) => (runtime.includes(name) ? `--brand-${kebab(name)}` : `--tone-${kebab(name)}`);
+
+  const lightVars = colorEntries
+    .filter(([name]) => !runtime.includes(name))
+    .map(([name, t]) => `  --tone-${kebab(name)}: ${t.value};`)
     .join('\n');
+
+  /*
+    The dark palette, in the three states a reader can actually be in.
+
+    "System" stamps nothing on the document, so the media query alone decides
+    it; an explicit choice stamps `data-theme`, and each block is written so
+    the explicit choice wins in both directions. A colour defined only inside
+    one of these blocks would be undefined in the un-stamped state, which is
+    the classic unreadable-page bug, so the light values above are always the
+    complete set and these only redefine.
+  */
+  const darkVars = colorEntries
+    .filter(([, t]) => t.dark !== undefined)
+    .map(([name, t]) => `  ${tone(name)}: ${t.dark};`)
+    .join('\n');
+
+  const colors = colorEntries
+    .map(([name]) => `  --color-${kebab(name)}: var(${tone(name)});`)
+    .join('\n');
+
+  /** One more level in, for the block nested inside the media query. */
+  const indent = (block) =>
+    block.split('\n').map((line) => (line ? `  ${line}` : line)).join('\n');
 
   const radii = radiusEntries
     .map(([name, px]) => `  --radius-${name}: ${px === 9999 ? '9999px' : `${px}px`};`)
@@ -104,9 +137,32 @@ function buildWebCss() {
     .join('\n');
 
   return `${BANNER()}
-/* The school's own colours, overridable at runtime by BrandProvider. */
+/* The school's own colours, overridable at runtime by BrandProvider, and the
+   neutral and semantic tones the theme switches between. */
 :root {
 ${brandVars}
+${lightVars}
+  color-scheme: light;
+}
+
+/* System: nothing is stamped on the document, so the OS decides. Guarded so
+   that a reader who explicitly chose light keeps light on a dark OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+${indent(darkVars)}
+    color-scheme: dark;
+  }
+}
+
+/* An explicit choice, which wins in both directions. */
+:root[data-theme='dark'] {
+${darkVars}
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+${lightVars}
+  color-scheme: light;
 }
 
 @theme inline {
