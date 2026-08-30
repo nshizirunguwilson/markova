@@ -26,6 +26,7 @@ export type NotificationSubject =
   | "MERIT"
   | "BOOK_LOAN"
   | "MESSAGE"
+  | "MENTION"
   | "ANNOUNCEMENT"
   | "ACTIVITY"
   | "CLINIC"
@@ -54,6 +55,7 @@ const TITLE_HINTS: [RegExp, NotificationSubject][] = [
   [/discipline|incident|appeal|suspension/i, "DISCIPLINE"],
   [/merit|good news|recognised/i, "MERIT"],
   [/librar|book|overdue|borrow/i, "BOOK_LOAN"],
+  [/mentioned you/i, "MENTION"],
   [/message/i, "MESSAGE"],
   [/announcement/i, "ANNOUNCEMENT"],
   [/activity|club|trip/i, "ACTIVITY"],
@@ -118,6 +120,25 @@ const ROUTES: Record<NotificationSubject, Partial<Record<Role, string>>> = {
     STUDENT: "/student/messages",
     PARENT: "/parent/messages",
     LIBRARIAN: "/librarian/messages",
+    HEAD_TEACHER: "/messages",
+    BURSAR: "/messages",
+    PATRON: "/messages",
+    MATRON: "/messages",
+    NURSE: "/messages",
+  },
+  /* Somebody was named. It opens the same place a message does - the point
+     of a mention is to get the reader to the conversation. */
+  MENTION: {
+    ADMIN: "/admin/messages",
+    TEACHER: "/teacher/messages",
+    STUDENT: "/student/messages",
+    PARENT: "/parent/messages",
+    LIBRARIAN: "/librarian/messages",
+    HEAD_TEACHER: "/messages",
+    BURSAR: "/messages",
+    PATRON: "/messages",
+    MATRON: "/messages",
+    NURSE: "/messages",
   },
   ANNOUNCEMENT: {
     ADMIN: "/admin/announcements",
@@ -180,5 +201,17 @@ export function notificationHref(
   if (!href) return null;
 
   const id = notification?.relatedEntityId?.trim();
-  return id ? `${href}?highlight=${encodeURIComponent(id)}` : href;
+  if (!id) return href;
+
+  /*
+    A conversation has an address of its own - `/messages/<id>` - so a
+    notification about one opens the thread rather than the inbox with the
+    thread highlighted somewhere in it. That is the whole point of keeping
+    the notification: somebody who missed the toast clicks this an hour later
+    and lands on the message, not on a list to search through.
+  */
+  if (subject === "MESSAGE" || subject === "MENTION") {
+    return `${href}/${encodeURIComponent(id)}`;
+  }
+  return `${href}?highlight=${encodeURIComponent(id)}`;
 }
