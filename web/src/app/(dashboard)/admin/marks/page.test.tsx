@@ -330,12 +330,26 @@ describe("taking published results back", () => {
       expect(reportCardButton()).toBeDisabled();
     });
 
-    it("says so when it is the head teacher who is holding it up", async () => {
+    /**
+     * Addressed to the person reading it. This page is the Director of
+     * Studies' now, so "the head teacher has not confirmed this class" was
+     * the screen talking about the reader in the third person.
+     */
+    it("says so when it is their own check holding it up", async () => {
       await mount(published);
       expect(reportCardButton()).toHaveAttribute(
         "title",
-        expect.stringMatching(/head teacher has not confirmed/i),
+        expect.stringMatching(/You have not confirmed/i),
       );
+    });
+
+    /* And offers the way to do it, beside the comments rather than as a
+       second button here that would skip reading them. */
+    it("points at where the confirming happens", async () => {
+      await mount(published);
+      expect(
+        screen.getByText(/Read and confirm them/i).closest("a"),
+      ).toHaveAttribute("href", "/admin/report-cards");
     });
 
     it("says so when it is the marks that are holding it up", async () => {
@@ -353,7 +367,8 @@ describe("taking published results back", () => {
 
     it("says so when the class has been confirmed", async () => {
       await mount(confirmed);
-      expect(document.body.textContent).toMatch(/stands behind them/i);
+      expect(document.body.textContent).toMatch(/You have read these cards/i);
+      expect(screen.queryByText(/Read and confirm them/i)).not.toBeInTheDocument();
     });
 
     it("asks before issuing, and says what it means", async () => {

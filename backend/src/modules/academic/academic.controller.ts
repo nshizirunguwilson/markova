@@ -47,6 +47,15 @@ import { RolesGuard } from '../../common/guards';
 // Read-only reference data (academic calendar, subjects, sections, etc.) is
 // needed by every role to populate term/year selectors and labels. Writes stay
 // ADMIN-only; only the GET handlers below use this.
+/*
+  Read-only reference data. Beyond this list, the Director of Studies also
+  reaches the subjects, the assignments, the timetable and the exam schedule -
+  and writes the last three, because who teaches what, when lessons run and
+  when exams sit is the academic side they run. Those keep the principal as
+  well: setting up a school year is institutional work, and this is about the
+  DOS being able to do the job rather than about taking more off the
+  principal.
+*/
 const ALL_ROLES = [
   'ADMIN',
   // The head teacher runs the academic side, so the calendar, the classes
@@ -308,7 +317,7 @@ export class AcademicController {
   // ─── SUBJECTS ───────────────────────────────────────────────────────────────
 
   @Get('subjects')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'List all subjects' })
   findAllSubjects(
     @Query('scope') scope?: string,
@@ -354,7 +363,7 @@ export class AcademicController {
   // ─── ASSESSMENT TYPES ───────────────────────────────────────────────────────
 
   @Get('assessment-types')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'List all assessment types' })
   findAllAssessmentTypes() {
     return this.service.findAllAssessmentTypes();
@@ -377,7 +386,7 @@ export class AcademicController {
   // ─── TEACHER-SUBJECT-CLASS ASSIGNMENTS ──────────────────────────────────────
 
   @Get('assignments')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'List teacher-subject-class assignments' })
   findAllAssignments(
     @Query('teacherId') teacherId?: string,
@@ -392,21 +401,21 @@ export class AcademicController {
   }
 
   @Post('assignments')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Create teacher-subject-class assignment' })
   createAssignment(@Body() dto: CreateAssignmentDto) {
     return this.service.createAssignment(dto);
   }
 
   @Post('assignments/bulk')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Bulk create assignments' })
   bulkCreateAssignments(@Body() dto: BulkAssignmentDto) {
     return this.service.bulkCreateAssignments(dto);
   }
 
   @Delete('assignments/:id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Delete assignment' })
   deleteAssignment(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.deleteAssignment(id);
@@ -415,7 +424,7 @@ export class AcademicController {
   // ─── TIMETABLE ─────────────────────────────────────────────────────────────
 
   @Get('timetable')
-  @Roles('ADMIN', 'TEACHER', 'PARENT', 'STUDENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'PARENT', 'STUDENT')
   @ApiOperation({ summary: 'Get timetable for a class section' })
   findTimetable(
     @Query('classSectionId', ParseUUIDPipe) classSectionId: string,
@@ -425,21 +434,21 @@ export class AcademicController {
   }
 
   @Get('timetable/teacher/:teacherId')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get timetable for a specific teacher' })
   findTeacherTimetable(@Param('teacherId', ParseUUIDPipe) teacherId: string) {
     return this.service.findTeacherTimetable(teacherId);
   }
 
   @Post('timetable')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Create a timetable entry' })
   createTimetable(@Body() dto: CreateTimetableDto) {
     return this.service.createTimetable(dto);
   }
 
   @Put('timetable/:id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Update a timetable entry' })
   updateTimetable(
     @Param('id', ParseUUIDPipe) id: string,
@@ -449,14 +458,14 @@ export class AcademicController {
   }
 
   @Delete('timetable/:id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Delete a timetable entry' })
   deleteTimetable(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.deleteTimetable(id);
   }
 
   @Post('timetable/bulk')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Bulk create timetable entries' })
   bulkCreateTimetable(@Body() dto: BulkTimetableDto) {
     return this.service.bulkCreateTimetable(dto);
@@ -465,7 +474,7 @@ export class AcademicController {
   // ─── EXAM SCHEDULES ──────────────────────────────────────────────────────────
 
   @Get('exams')
-  @Roles('ADMIN', 'TEACHER', 'PARENT', 'STUDENT')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'PARENT', 'STUDENT')
   @ApiOperation({ summary: 'Get exam schedules' })
   findExamSchedules(
     @Query('classSectionId') classSectionId?: string,
@@ -475,14 +484,14 @@ export class AcademicController {
   }
 
   @Post('exams')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Create exam schedule entry' })
   createExamSchedule(@Body() dto: CreateExamScheduleDto) {
     return this.service.createExamSchedule(dto);
   }
 
   @Put('exams/:id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Update exam schedule entry' })
   updateExamSchedule(
     @Param('id', ParseUUIDPipe) id: string,
@@ -492,14 +501,14 @@ export class AcademicController {
   }
 
   @Delete('exams/:id')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Delete exam schedule entry' })
   deleteExamSchedule(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.deleteExamSchedule(id);
   }
 
   @Post('exams/bulk')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'HEAD_TEACHER')
   @ApiOperation({ summary: 'Bulk create exam schedule entries' })
   bulkCreateExamSchedules(@Body() dto: BulkExamScheduleDto) {
     return this.service.bulkCreateExamSchedules(dto);

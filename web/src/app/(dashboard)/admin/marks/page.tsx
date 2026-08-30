@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   Card,
@@ -287,18 +288,39 @@ export default function AdminMarksPage() {
               </Button>
             </div>
           </Card>
+          {/*
+            Addressed to the person reading it. This page is the Director of
+            Studies' now, so "the head teacher has not confirmed this class"
+            was the screen talking about the reader in the third person and
+            offering them no way to do the thing it was waiting for.
+          */}
           <Card>
-            <p className="text-xs text-muted">Head teacher</p>
+            <p className="text-xs text-muted">Your check</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
               {confirmed
                 ? "Confirmed"
                 : `${awaitingConfirmation} of ${results.length} waiting`}
             </p>
-            <p className="mt-2 text-xs text-muted">
-              {confirmed
-                ? "The head teacher has read these cards and stands behind them."
-                : "A card is issued on the strength of this check."}
-            </p>
+            {confirmed ? (
+              <p className="mt-2 text-xs text-muted">
+                You have read these cards and stand behind them.
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 text-xs text-muted">
+                  A card is issued on the strength of this check.
+                </p>
+                {/* Confirming happens beside the comments, which is the
+                    point of confirming: there is one place to do it rather
+                    than a second button here that skips reading them. */}
+                <Link
+                  href="/admin/report-cards"
+                  className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                >
+                  Read and confirm them
+                </Link>
+              </>
+            )}
           </Card>
           <Card>
             <p className="text-xs text-muted">Report cards</p>
@@ -317,7 +339,7 @@ export default function AdminMarksPage() {
                     : !isPublished
                       ? "Publish the marks first - a report card carries them"
                       : !confirmed
-                        ? "The head teacher has not confirmed this class yet"
+                        ? "You have not confirmed this class yet"
                         : undefined
                 }
                 onClick={() => {
