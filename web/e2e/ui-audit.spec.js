@@ -157,13 +157,24 @@ const PNG_PIXEL = Buffer.from(
  * is retried until it takes.
  */
 async function pickAClass(page, termName) {
-  await page.waitForSelector('#rc-level', { timeout: 30000 });
+  await page.waitForSelector('#rc-section', { timeout: 30000 });
+  /*
+    One picker now, not two. The classes a person may write on are asked for
+    rather than filtered on the screen, so a class teacher is offered their
+    own class and nothing else - and the level picker that existed to make a
+    list of twenty-eight manageable had nothing left to narrow.
+
+    Still retried: the select is painted before its classes arrive, and a
+    change fired into that window sets a value the element has no option for.
+  */
   for (let i = 0; i < 25; i++) {
-    await page.selectOption('#rc-level', { index: 1 }).catch(() => {});
+    if ((await page.$$eval('#rc-section option', (o) => o.length)) > 0) break;
     await wait(400);
-    if ((await page.$$eval('#rc-section option', (o) => o.length)) > 1) break;
   }
-  await page.selectOption('#rc-section', { index: 1 });
+  const options = await page.$$eval('#rc-section option', (o) =>
+    o.map((x) => x.value).filter(Boolean),
+  );
+  if (options.length) await page.selectOption('#rc-section', options[0]);
   if (termName) await page.selectOption('#rc-term', { label: termName });
   await wait(2500);
 }
@@ -272,6 +283,9 @@ const RBAC = [
   // The report cards screen is the class teacher's and the head teacher's.
   ['STUDENT', '/admin/report-cards'], ['PARENT', '/admin/report-cards'],
   ['BURSAR', '/admin/report-cards'],
+  // The Director of Studies' own dashboard is theirs and the principal's.
+  ['TEACHER', '/head-teacher'], ['STUDENT', '/head-teacher'],
+  ['PARENT', '/head-teacher'], ['BURSAR', '/head-teacher'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
@@ -2104,6 +2118,154 @@ test('profile: a file that is not a photograph is refused before it is sent', as
     /JPG, PNG, GIF or WEBP/.test(await page.innerText('body')),
     'the refusal does not say which formats to choose from',
   );
+  await ctx.close();
+});
+
+
+/**
+ * The Director of Studies' morning.
+ *
+ * Their day is spent unblocking a pipeline they do not run themselves, so the
+ * question that starts it is "what is stuck, and on whom" - and every row has
+ * to answer both halves. A dashboard of counts nobody can act on is a page
+ * people stop opening.
+ */
+test('dos: signing in lands the head teacher somewhere that exists', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/head-teacher');
+  await page.waitForSelector('text=Academic overview', { timeout: 30000 });
+  assert(
+    !/Page Not Found/i.test(await page.innerText('body')),
+    'the head teacher landed on a 404',
+  );
+  await ctx.close();
+});
+
+test('dos: every class names what is holding it up and whose move it is', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/head-teacher');
+  await page.waitForSelector('text=Where each class is', { timeout: 30000 });
+
+  const body = await page.innerText('body');
+  /* Case-insensitive: the label is uppercased by the stylesheet, and
+     innerText returns what is drawn rather than what is written. */
+  assert(
+    /waiting on your check/i.test(body),
+    'the page does not say what is waiting on them',
+  );
+  assert(
+    /Marks|Comments|Waiting|Issued/.test(body),
+    'no class says what is holding it up',
+  );
+  /* Whose move it is, named as a person: "awaiting confirmation" is a state,
+     "You" is somebody who can do something about it before lunchtime. */
+  assert(
+    /You|Class teacher|Subject teachers|The office|The principal/.test(body),
+    'no class names whose move it is',
+  );
+  await ctx.close();
+});
+
+/**
+ * Mentioning somebody, in a group and nowhere else.
+ *
+ * In a conversation between two people there is exactly one person a message
+ * could be addressed to, so a mention carries no information - and a picker
+ * that leads to a refusal is worse than no picker.
+ */
+test('chat: an at sign offers the people in a group', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/messages');
+  await page.getByText("Messages", { exact: true }).first().waitFor({ timeout: 30000 });
+
+  // A group rather than the first thread in the list.
+  const group = page.locator('button', { hasText: /Senior|Staff|Sports/ }).first();
+  await group.click();
+  await page.waitForSelector('input[aria-label="Type a message..."]', { timeout: 30000 });
+  await wait(1500);
+
+  const box = page.locator('input[aria-label="Type a message..."]');
+  await box.click();
+  await box.type('@', { delay: 40 });
+  await page.waitForSelector('[role="option"]', { timeout: 15000 });
+  const names = await page.locator('[role="option"]').allTextContents();
+  assert(names.length > 0, 'the picker offered nobody');
+  assert(
+    names.every((n) => n.trim().length > 1),
+    `a nameless row in the picker: ${JSON.stringify(names)}`,
+  );
+  await ctx.close();
+});
+
+/**
+ * The box holds what the writer meant; the person is resolved when it is
+ * sent. A uuid appearing in the middle of somebody's sentence is not a
+ * compose experience, and a uuid in the inbox line is not a preview.
+ */
+test('chat: a mention shows a name and never an id', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/messages');
+  await page.getByText("Messages", { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.locator('button', { hasText: /Senior|Staff|Sports/ }).first().click();
+  await page.waitForSelector('input[aria-label="Type a message..."]', { timeout: 30000 });
+  await wait(1500);
+
+  const box = page.locator('input[aria-label="Type a message..."]');
+  await box.click();
+  await box.type('@', { delay: 40 });
+  await page.waitForSelector('[role="option"]', { timeout: 15000 });
+  const chosen = (await page.locator('[role="option"]').first().textContent()).trim();
+  await page.locator('[role="option"]').first().click();
+  await wait(400);
+
+  const typed = await box.inputValue();
+  assert(typed.includes(chosen), `the name did not reach the box: "${typed}"`);
+  assert(
+    !/[0-9a-f]{8}-[0-9a-f]{4}-/i.test(typed),
+    `a uuid reached the compose box: "${typed}"`,
+  );
+
+  await box.type('please check this', { delay: 15 });
+  await box.press('Enter');
+  await wait(2500);
+
+  // Nowhere on the screen - not the bubble, not the inbox line under it.
+  const body = await page.innerText('body');
+  assert(
+    !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(body),
+    'a uuid is visible somewhere on the messages screen',
+  );
+  assert(body.includes(`@${chosen}`), 'the mention is not shown as a name');
+  await ctx.close();
+});
+
+/**
+ * A message that arrives while somebody is elsewhere leaves something behind.
+ * A toast is gone the moment it fades, so missing one used to mean losing the
+ * message entirely.
+ */
+test('chat: the unread badges count what is actually waiting', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/messages');
+  await page.getByText("Messages", { exact: true }).first().waitFor({ timeout: 30000 });
+  await wait(2000);
+
+  /* The badge read a field the API has never sent, so it showed nothing at
+     all until this was fixed. Its own number is what proves it now reads the
+     right one. */
+  const badge = page
+    .locator('a[href$="/messages"] span, nav span')
+    .filter({ hasText: /^\d+\+?$/ })
+    .first();
+  const count = await badge.count();
+  assert(count > 0, 'the Messages badge shows no number at all');
+  const shown = (await badge.textContent()).trim();
+  assert(/^\d{1,2}\+?$/.test(shown), `unexpected badge text: "${shown}"`);
   await ctx.close();
 });
 
