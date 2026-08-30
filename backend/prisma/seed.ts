@@ -2258,6 +2258,41 @@ async function main() {
     }
   }
 
+/**
+ * How far the term in progress has come, class by class.
+ *
+ * Report cards run four gates: the marks are released, the class teacher
+ * writes on every card, the DOS reads the class and confirms it, then the
+ * cards are issued. The seed used to leave every class in the current term at
+ * the first gate, on the reasoning that a demo should show the pipeline from
+ * the start rather than hand over a finished school.
+ *
+ * That was right about the intent and wrong in practice. A class with no
+ * comments cannot be confirmed, and only its own class teacher can write
+ * them, so the DOS signing in to a fresh database found every one of the
+ * school's classes stuck at the same gate, no report card issuable anywhere,
+ * and no class on which the two controls that are theirs did anything.
+ *
+ * So the current term is spread across the gates instead. Every stage is
+ * somewhere on the dashboard, some classes are waiting on the DOS and some
+ * on somebody else, and both of the DOS's own controls have a class to act
+ * on the moment they sign in.
+ */
+type CardStage = 'DRAFT' | 'WRITING' | 'TO_CHECK' | 'TO_ISSUE' | 'ISSUED';
+
+function currentTermStage(sectionIndex: number): CardStage {
+  switch (sectionIndex % 5) {
+    case 0:
+      return 'TO_CHECK';
+    case 1:
+      return 'TO_ISSUE';
+    case 2:
+      return 'WRITING';
+    default:
+      return 'DRAFT';
+  }
+}
+
   const termResultRows: any[] = [];
   /* Each term's average, so the next term's head teacher comment can say
      which way a child is moving rather than only where they stand. */
@@ -2274,8 +2309,14 @@ async function main() {
         : null;
     const classStudents = membership.get(occKey(yearIdx, meta.section.id)) ?? [];
     const computed: any[] = [];
-    // The term in progress stays a draft; everything before it is finished.
+    // Everything before the term in progress is finished business; the term
+    // in progress is spread across the gates, class by class.
     const isCurrentResultTerm = term.id === currentTerm.id;
+    const stage: CardStage = isCurrentResultTerm
+      ? currentTermStage(sectionMetas.indexOf(meta))
+      : 'ISSUED';
+    const marksOut = stage !== 'DRAFT';
+    const checked = stage === 'TO_ISSUE' || stage === 'ISSUED';
 
     for (const student of classStudents) {
       const rows = marksByStudentTerm.get(`${student.id}|${term.id}`) ?? [];
@@ -2334,20 +2375,20 @@ async function main() {
         calculatedAt: new Date(),
         /**
          * Past terms are finished business: marks out, report cards issued.
-         * The term in progress is left as a draft so the demo shows the
-         * pipeline honestly - an admin can work out the results, release the
-         * marks, then issue the cards, and watch a student's page change at
-         * each step. Publishing everything up front hid the whole flow.
+         * The term in progress sits wherever its class has got to, so the
+         * demo shows the pipeline honestly - the results are worked out, the
+         * marks released, the comments written, the class confirmed and then
+         * the cards issued, and a student's page changes at each step.
          */
-        isPublished: !isCurrentResultTerm,
-        publishedAt: isCurrentResultTerm ? null : new Date(),
-        reportCardPublished: !isCurrentResultTerm,
-        reportCardPublishedAt: isCurrentResultTerm ? null : new Date(),
+        isPublished: marksOut,
+        publishedAt: marksOut ? new Date() : null,
+        reportCardPublished: stage === 'ISSUED',
+        reportCardPublishedAt: stage === 'ISSUED' ? new Date() : null,
         /* A card cannot be issued without the head teacher's check, so a
-           seeded database where the past terms are issued and unconfirmed
+           seeded database carrying an issued card that nobody confirmed
            would be a state the system itself refuses to produce. */
-        dosConfirmed: !isCurrentResultTerm,
-        dosConfirmedAt: isCurrentResultTerm ? null : new Date(),
+        dosConfirmed: checked,
+        dosConfirmedAt: checked ? new Date() : null,
         /* The subjects and the conduct this card was worked out from, so the
            comments below can be written from what the card prints. */
         _subjects: commentSubjects,
@@ -2369,7 +2410,12 @@ async function main() {
     */
     computed.forEach((r, i) => {
       r.rank = i + 1;
-      if (isCurrentResultTerm) return;
+      // Nothing to write on until the marks are out.
+      if (stage === 'DRAFT') return;
+      /* A class the teacher is part way through, so the DOS dashboard has a
+         row that is genuinely somebody else's move rather than only rows
+         waiting on them. */
+      if (stage === 'WRITING' && i % 5 >= 3) return;
       const previous = priorTerm
         ? (averageByStudentTerm.get(`${r.studentId}|${priorTerm.id}`) ?? null)
         : null;
@@ -2387,7 +2433,11 @@ async function main() {
         conduct: null,
       });
       r.teacherComment = both.classTeacher;
-      r.headmasterComment = both.headTeacher;
+      /* The head teacher's comment is the DOS's own work, so it is written
+         only on the classes they have already been through. Leaving it blank
+         on the ones awaiting their check is what gives them something to do
+         when they open the report cards. */
+      r.headmasterComment = checked ? both.headTeacher : null;
     });
     // The term's averages, for next term's comment to compare against.
     for (const r of computed) {
