@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  activeToken,
+  applyPick,
+  stillMentioned,
+  suggest,
+  toWire,
+  /* Renamed at the door: TypeScript's own `Pick` is in every file, and a
+     local type that shadows it is a trap for whoever edits this next. */
+  type Pick as MentionPick,
+} from "@/lib/mention-draft";
 import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -571,9 +581,71 @@ export default function MessagesPage() {
   }, []);
 
   // Handle typing indicator
+  /*
+    Mentioning somebody, in a group or a broadcast.
+
+    Not in a direct message: there is exactly one person a message could be
+    addressed to, so a mention carries no information and only adds a
+    notification for something already being read. The API refuses one there,
+    and offering a picker that leads to a refusal is worse than not offering
+    it.
+  */
+  const canMention =
+    !!selectedConversation && selectedConversation.type !== "ONE_ON_ONE";
+
+  /** Everybody in the room but the reader: nobody mentions themselves. */
+  const mentionable = useMemo(() => {
+    if (!canMention) return [];
+    return ((selectedConversation?.participants ?? []) as any[])
+      .map((p) => p?.user)
+      .filter((u) => u?.id && u.id !== user?.id)
+      .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+  }, [canMention, selectedConversation, user?.id]);
+
+  /* Who was actually chosen, as opposed to text that merely looks like a
+     name. Only these become mentions when the message is sent. */
+  const [picks, setPicks] = useState<MentionPick[]>([]);
+  const [mentionAt, setMentionAt] = useState<number | null>(null);
+  const [highlighted, setHighlighted] = useState(0);
+
+  const token =
+    canMention && mentionAt !== null
+      ? activeToken(messageText, mentionAt)
+      : null;
+  const options = useMemo(
+    () => (token ? suggest(mentionable, token.query) : []),
+    [token, mentionable],
+  );
+  const picking = !!token && options.length > 0;
+
+  const choose = useCallback(
+    (person: { id: string; name: string }) => {
+      const caret = mentionAt ?? messageText.length;
+      const out = applyPick(messageText, caret, person);
+      setMessageText(out.text);
+      setPicks((was) => [...was, out.pick]);
+      setMentionAt(null);
+      setHighlighted(0);
+      /* Back to the box with the caret after the name, so the next word is
+         typed where it belongs rather than at the end of the message. */
+      requestAnimationFrame(() => {
+        const el = composerRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(out.caret, out.caret);
+      });
+    },
+    [mentionAt, messageText],
+  );
+
   const handleInputChange = useCallback(
-    (value: string) => {
+    (value: string, caret?: number) => {
       setMessageText(value);
+      setMentionAt(caret ?? value.length);
+      setHighlighted(0);
+      /* A pick whose name has been deleted is not a mention any more, so the
+         list does not grow for the life of the message. */
+      setPicks((was) => stillMentioned(value, was));
       if (selectedConv && chatStore.connected) {
         chatStore.startTyping(selectedConv);
 
@@ -670,7 +742,11 @@ export default function MessagesPage() {
     // send the same file twice.
     if (uploadPercent !== null) return;
 
-    const text = messageText;
+    /* The names in the box become people here, from what was picked rather
+       than from what the text looks like. A name typed by hand stays plain
+       text: guessing which of two Alines was meant is how a message reaches
+       somebody it was not for. */
+    const text = toWire(messageText, stillMentioned(messageText, picks));
     const replyToId = replyingTo?.id;
     const file = pendingFile;
 
@@ -697,6 +773,8 @@ export default function MessagesPage() {
     }
 
     setMessageText("");
+    setPicks([]);
+    setMentionAt(null);
     setReplyingTo(null);
     setPendingFile(null);
     followOwnMessage();
@@ -1394,7 +1472,7 @@ export default function MessagesPage() {
                     </div>
                   )}
 
-                  <div className="squircle flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                  <div className="squircle relative flex items-center gap-1 rounded-xl border border-border bg-surface px-1.5 py-1 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -1415,16 +1493,85 @@ export default function MessagesPage() {
                       </button>
                     )}
 
+                    {/*
+                      Who can be mentioned, over the composer rather than
+                      under it: the composer sits at the foot of the screen,
+                      and a list opening downwards would be off the bottom.
+                    */}
+                    {picking && (
+                      <ul
+                        role="listbox"
+                        aria-label="People you can mention"
+                        className="absolute bottom-full left-0 z-20 mb-2 max-h-56 w-64 overflow-y-auto rounded-lg border border-border bg-surface py-1 shadow-popover"
+                      >
+                        {options.map((person, i) => (
+                          <li key={person.id}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={i === highlighted}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                choose(person);
+                              }}
+                              onMouseEnter={() => setHighlighted(i)}
+                              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                                i === highlighted
+                                  ? "bg-accent-light text-foreground"
+                                  : "text-foreground-muted"
+                              }`}
+                            >
+                              {person.name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
                     {!recordingVoice && (
                     <>
                     <input
                       ref={composerRef}
                       type="text"
                       value={messageText}
-                      onChange={(e) => handleInputChange(e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange(
+                          e.target.value,
+                          e.target.selectionStart ?? undefined,
+                        )
+                      }
                       placeholder="Type a message..."
                       aria-label="Type a message..."
-                      onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                      /* The picker owns the arrows and Enter while it is
+                         open, so choosing a name does not send the message
+                         half-written. */
+                      onKeyDown={(e) => {
+                        if (picking) {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setHighlighted((i) => (i + 1) % options.length);
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setHighlighted(
+                              (i) => (i - 1 + options.length) % options.length,
+                            );
+                            return;
+                          }
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            e.preventDefault();
+                            choose(options[highlighted]);
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setMentionAt(null);
+                            return;
+                          }
+                        }
+                        if (e.key === "Enter") handleSend();
+                      }}
                       /*
                         No ring of its own. The row around it already draws one
                         on focus-within, and the app-wide `:focus-visible` rule

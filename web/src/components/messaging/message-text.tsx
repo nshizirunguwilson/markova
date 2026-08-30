@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { splitMentions } from "@/lib/mention-draft";
 
 /**
  * The words of a message, with links made clickable.
@@ -58,13 +59,61 @@ export function linkPieces(text: string): Piece[] {
 export function MessageText({
   text,
   mine,
+  meId,
 }: {
   text: string;
   /** Inside one of your own bubbles the ground is the brand colour. */
   mine?: boolean;
+  /**
+   * Who is reading. A mention of you is the whole reason mentions exist, and
+   * it has to be told apart from a mention of somebody else in the same
+   * sentence - otherwise a busy group is a wall of highlights that says
+   * nothing about whether any of them wants you.
+   */
+  meId?: string;
 }) {
+  /* The stored form carries the person's id so a mention survives a rename.
+     A reader must never see it, so the text is split before anything is
+     drawn and only the name goes on screen. */
+  const parts = splitMentions(text);
+
   return (
     <p className="whitespace-pre-wrap break-words text-[0.875rem] leading-relaxed">
+      {parts.map((part, p) =>
+        part.kind === "mention" ? (
+          <span
+            key={`m${p}`}
+            /* Two weights of highlight. Somebody else being named is
+               context; you being named is a thing to answer, so it carries a
+               ground of its own rather than only a colour. */
+            className={
+              part.userId === meId
+                ? mine
+                  ? "rounded bg-white/25 px-1 font-semibold"
+                  : "rounded bg-warning-wash px-1 font-semibold text-warning"
+                : mine
+                  ? "font-semibold opacity-90"
+                  : "font-semibold text-primary"
+            }
+          >
+            {part.text}
+          </span>
+        ) : (
+          <MentionFreeText
+            key={`t${p}`}
+            text={part.text}
+            mine={mine}
+          />
+        ),
+      )}
+    </p>
+  );
+}
+
+/** The stretches between mentions, where links are still made clickable. */
+function MentionFreeText({ text, mine }: { text: string; mine?: boolean }) {
+  return (
+    <>
       {linkPieces(text).map((piece, i) =>
         piece.href ? (
           <a
@@ -85,6 +134,6 @@ export function MessageText({
           <Fragment key={i}>{piece.text}</Fragment>
         ),
       )}
-    </p>
+    </>
   );
 }
