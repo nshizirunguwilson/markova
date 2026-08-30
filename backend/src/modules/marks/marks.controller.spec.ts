@@ -60,6 +60,7 @@ describe('MarksController', () => {
     'getTermResults',
     'getStudentTermResult',
     'updateTermResultComment',
+    'classesForComments',
     'publishTermResults',
     'calculateYearResults',
     'getYearResults',
@@ -160,9 +161,22 @@ describe('MarksController', () => {
     },
     {
       name: 'a class teacher’s comment',
-      call: (c) => c.updateComment('res-1', { comment: 'Good term' }),
+      /* Who is writing travels with it: the service decides whether a
+         teacher is the class teacher of the class this card belongs to. */
+      call: (c) =>
+        c.updateComment('res-1', { teacherComment: 'Good term' }, withTeacherId),
       calls: 'updateTermResultComment',
-      withArgs: ['res-1', { comment: 'Good term' }],
+      withArgs: [
+        'res-1',
+        { teacherComment: 'Good term' },
+        { role: 'TEACHER', teacherId: 'teacher-1' },
+      ],
+    },
+    {
+      name: 'the classes whose cards this person may write on',
+      call: (c) => c.commentClasses(withTeacherId),
+      calls: 'classesForComments',
+      withArgs: [{ role: 'TEACHER', teacherId: 'teacher-1' }],
     },
     {
       name: 'a term published',

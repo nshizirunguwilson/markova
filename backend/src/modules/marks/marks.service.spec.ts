@@ -869,6 +869,179 @@ describe('MarksService', () => {
     });
   });
 
+/**
+   * Who may write in which box.
+   *
+   * The whole point of a card carrying two comments is that two different
+   * people wrote them. A subject teacher who taught this child Mathematics
+   * saw one subject of eleven and is not the person who reports on their
+   * term; the head teacher reads every sheet, which is the post.
+   */
+  describe('writing a comment on a card', () => {
+    const onSection = (classSectionId = 'section-1') =>
+      prisma.termResult.findUnique.mockResolvedValue({
+        id: 'res-1',
+        classSectionId,
+      });
+
+    beforeEach(() => {
+      prisma.termResult.update.mockResolvedValue({});
+      onSection();
+    });
+
+    it('lets the class teacher of that class write theirs', async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'role-1' });
+      await service.updateTermResultComment(
+        'res-1',
+        { teacherComment: 'A good term.' },
+        { role: 'TEACHER', teacherId: 'teacher-1' },
+      );
+      expect(prisma.termResult.update).toHaveBeenCalled();
+    });
+
+    it('asks whether they are the class teacher of this very class', async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'role-1' });
+      await service.updateTermResultComment(
+        'res-1',
+        { teacherComment: 'A good term.' },
+        { role: 'TEACHER', teacherId: 'teacher-1' },
+      );
+      expect(prisma.teacherRole.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            role: 'CLASS_TEACHER',
+            teacherId: 'teacher-1',
+            classSectionId: 'section-1',
+          },
+        }),
+      );
+    });
+
+    /* A subject teacher saw one subject of eleven. The comment is about the
+       whole child, and it is not theirs to write. */
+    it('refuses a teacher who is not the class teacher of it', async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue(null);
+      await expect(
+        service.updateTermResultComment(
+          'res-1',
+          { teacherComment: 'A good term.' },
+          { role: 'TEACHER', teacherId: 'teacher-9' },
+        ),
+      ).rejects.toThrow(/not the class teacher of this class/i);
+      expect(prisma.termResult.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses a teacher writing in the head teacher's box", async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'role-1' });
+      await expect(
+        service.updateTermResultComment(
+          'res-1',
+          { headmasterComment: 'Promoted.' },
+          { role: 'TEACHER', teacherId: 'teacher-1' },
+        ),
+      ).rejects.toThrow(/written by the head teacher/i);
+    });
+
+    /* Reading every child's sheet is the post: they confirm each one before
+       it is issued. A comment they could not write on half the school would
+       be a countersignature they could not give. */
+    it('lets the head teacher write theirs on any class', async () => {
+      await service.updateTermResultComment(
+        'res-1',
+        { headmasterComment: 'Promoted.' },
+        { role: 'HEAD_TEACHER' },
+      );
+      expect(prisma.termResult.update).toHaveBeenCalled();
+      expect(prisma.teacherRole.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("refuses the head teacher writing in the class teacher's box", async () => {
+      await expect(
+        service.updateTermResultComment(
+          'res-1',
+          { teacherComment: 'A good term.' },
+          { role: 'HEAD_TEACHER' },
+        ),
+      ).rejects.toThrow(/written by the class teacher/i);
+    });
+
+    // A school with the head teacher away for a fortnight still issues cards.
+    it('lets the office write either', async () => {
+      await service.updateTermResultComment(
+        'res-1',
+        { teacherComment: 'A good term.', headmasterComment: 'Promoted.' },
+        { role: 'ADMIN' },
+      );
+      expect(prisma.termResult.update).toHaveBeenCalled();
+    });
+
+    it('says so when the card is not there', async () => {
+      prisma.termResult.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateTermResultComment('nope', { teacherComment: 'x' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  /**
+   * Which classes a person is offered.
+   *
+   * Asked for rather than filtered on the screen, so the picker never offers
+   * a class whose save would be refused.
+   */
+  describe('the classes whose cards you may write on', () => {
+    it('gives a class teacher their own class and no other', async () => {
+      prisma.teacherRole.findMany.mockResolvedValue([
+        { classSectionId: 'section-1' },
+      ]);
+      prisma.classSection.findMany.mockResolvedValue([]);
+      await service.classesForComments({
+        role: 'TEACHER',
+        teacherId: 'teacher-1',
+      });
+      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ['section-1'] } } }),
+      );
+    });
+
+    /* An honest empty list. Falling back to the whole school would offer
+       twenty-eight classes they cannot act on. */
+    it('gives a teacher who leads no class an empty list', async () => {
+      prisma.teacherRole.findMany.mockResolvedValue([]);
+      prisma.classSection.findMany.mockResolvedValue([]);
+      await service.classesForComments({
+        role: 'TEACHER',
+        teacherId: 'teacher-9',
+      });
+      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [] } } }),
+      );
+    });
+
+    it('drops a special role that names no class', async () => {
+      prisma.teacherRole.findMany.mockResolvedValue([
+        { classSectionId: null },
+        { classSectionId: 'section-2' },
+      ]);
+      prisma.classSection.findMany.mockResolvedValue([]);
+      await service.classesForComments({
+        role: 'TEACHER',
+        teacherId: 'teacher-1',
+      });
+      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ['section-2'] } } }),
+      );
+    });
+
+    it.each(['HEAD_TEACHER', 'ADMIN'])('gives a %s the school', async (role) => {
+      prisma.classSection.findMany.mockResolvedValue([]);
+      await service.classesForComments({ role });
+      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+  });
+
   /**
    * The head teacher's check.
    *
