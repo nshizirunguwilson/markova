@@ -61,9 +61,10 @@ export class MarksService {
       );
     }
 
-    // Admin without a teacher profile: find the teacher assigned to this subject+class
+    /* The head teacher has no teacher profile of their own, so a mark they
+       enter is credited to whoever teaches that subject to that class. */
     let resolvedTeacherId = teacherId;
-    if (!resolvedTeacherId && role === 'ADMIN') {
+    if (!resolvedTeacherId && role === 'HEAD_TEACHER') {
       const assignment = await this.prisma.teacherSubjectClass.findFirst({
         where: { subjectId: dto.subjectId, classSectionId: dto.classSectionId },
       });
@@ -119,7 +120,9 @@ export class MarksService {
       include: { subject: true, term: true },
     });
     if (!mark) throw new NotFoundException('Mark not found');
-    if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
+    /* A subject teacher edits their own marks; the head teacher edits any,
+       because correcting the mark book across the school is the post. */
+    if (role !== 'HEAD_TEACHER' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only edit your own marks');
     }
     await this.ensureTermOpen(mark.termId);
@@ -169,9 +172,10 @@ export class MarksService {
     });
     if (!subject) throw new NotFoundException('Subject not found');
 
-    // Admin without a teacher profile: find the teacher assigned to this subject+class
+    /* The head teacher has no teacher profile of their own, so a mark they
+       enter is credited to whoever teaches that subject to that class. */
     let resolvedTeacherId = teacherId;
-    if (!resolvedTeacherId && role === 'ADMIN') {
+    if (!resolvedTeacherId && role === 'HEAD_TEACHER') {
       const assignment = await this.prisma.teacherSubjectClass.findFirst({
         where: { subjectId: dto.subjectId, classSectionId: dto.classSectionId },
       });
@@ -513,8 +517,9 @@ export class MarksService {
    *   comment they could not write on half the school would be a
    *   countersignature they could not give.
    *
-   * The admin may write either, because a school where the head teacher is
-   * away for a fortnight still has to issue report cards.
+   * There is no exception for the principal. Report cards, marks and
+   * attendance are the Director of Studies' to run, so a comment is written
+   * by one of the two people whose name appears under it and by nobody else.
    */
   async updateTermResultComment(
     id: string,
@@ -524,7 +529,7 @@ export class MarksService {
     const result = await this.prisma.termResult.findUnique({ where: { id } });
     if (!result) throw new NotFoundException('Term result not found');
 
-    if (actor && actor.role !== 'ADMIN') {
+    if (actor) {
       if (dto.teacherComment !== undefined && actor.role !== 'TEACHER') {
         throw new ForbiddenException(
           "The class teacher's comment is written by the class teacher.",

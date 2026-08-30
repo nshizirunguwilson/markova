@@ -200,11 +200,11 @@ describe('MarksService', () => {
      * have nobody attached. It is attributed to whoever teaches that subject
      * to that class, which is who a parent would ask about it.
      */
-    it('attributes an admin’s entry to whoever teaches the class', async () => {
+    it('attributes the head teacher’s entry to whoever teaches the class', async () => {
       prisma.teacherSubjectClass.findFirst.mockResolvedValue({
         teacherId: 'teacher-9',
       });
-      await service.create(mark, null, 'ADMIN');
+      await service.create(mark, null, 'HEAD_TEACHER');
       expect(prisma.mark.upsert.mock.calls[0][0].update.teacherId).toBe(
         'teacher-9',
       );
@@ -273,9 +273,9 @@ describe('MarksService', () => {
 
     // An admin corrects a mark when a teacher has left the school, which is
     // a real thing that happens mid-term.
-    it('lets an admin correct anybody’s', async () => {
+    it('lets the head teacher correct anybody’s', async () => {
       await expect(
-        service.update('mark-1', { score: 18 }, null, 'ADMIN'),
+        service.update('mark-1', { score: 18 }, null, 'HEAD_TEACHER'),
       ).resolves.toBeDefined();
     });
 
@@ -965,14 +965,27 @@ describe('MarksService', () => {
       ).rejects.toThrow(/written by the class teacher/i);
     });
 
-    // A school with the head teacher away for a fortnight still issues cards.
-    it('lets the office write either', async () => {
-      await service.updateTermResultComment(
-        'res-1',
-        { teacherComment: 'A good term.', headmasterComment: 'Promoted.' },
-        { role: 'ADMIN' },
-      );
-      expect(prisma.termResult.update).toHaveBeenCalled();
+    /**
+     * No exception for the principal. Report cards are the Director of
+     * Studies' to run, so a comment is written by one of the two people whose
+     * name appears under it and by nobody else - the principal writing either
+     * would be a signature belonging to somebody who did not write it.
+     */
+    it('refuses the principal both boxes', async () => {
+      await expect(
+        service.updateTermResultComment(
+          'res-1',
+          { teacherComment: 'A good term.' },
+          { role: 'ADMIN' },
+        ),
+      ).rejects.toThrow(/written by the class teacher/i);
+      await expect(
+        service.updateTermResultComment(
+          'res-1',
+          { headmasterComment: 'Promoted.' },
+          { role: 'ADMIN' },
+        ),
+      ).rejects.toThrow(/written by the head teacher/i);
     });
 
     it('says so when the card is not there', async () => {
@@ -1033,16 +1046,15 @@ describe('MarksService', () => {
       );
     });
 
-    it.each(['HEAD_TEACHER', 'ADMIN'])(
-      'gives a %s the school',
-      async (role) => {
-        prisma.classSection.findMany.mockResolvedValue([]);
-        await service.classesForComments({ role });
-        expect(prisma.classSection.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({ where: {} }),
-        );
-      },
-    );
+    /* The head teacher reads every child's sheet: they confirm each card
+       before it is issued, which cannot be done a class at a time. */
+    it('gives the head teacher the school', async () => {
+      prisma.classSection.findMany.mockResolvedValue([]);
+      await service.classesForComments({ role: 'HEAD_TEACHER' });
+      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
   });
 
   /**
@@ -1422,14 +1434,15 @@ describe('a whole class entered at once', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  // An admin entering marks on a teacher's behalf has no teacher profile of
-  // their own, so the mark is filed against whoever teaches that class.
-  it('files an admin entry against the teacher of that class', async () => {
+  // The head teacher entering marks on a teacher's behalf has no teacher
+  // profile of their own, so the mark is filed against whoever teaches that
+  // class rather than against nobody.
+  it('files the head teacher entry against the teacher of that class', async () => {
     prisma.teacherSubjectClass.findFirst.mockResolvedValue({
       teacherId: 'teacher-9',
     });
 
-    await service.batchEntry(batch, null, 'ADMIN');
+    await service.batchEntry(batch, null, 'HEAD_TEACHER');
 
     expect(prisma.mark.upsert.mock.calls[0][0].create.teacherId).toBe(
       'teacher-9',
@@ -1438,7 +1451,7 @@ describe('a whole class entered at once', () => {
 
   it('refuses when nobody teaches that subject to that class', async () => {
     await expect(
-      service.batchEntry(batch as never, null, 'ADMIN'),
+      service.batchEntry(batch as never, null, 'HEAD_TEACHER'),
     ).rejects.toThrow(BadRequestException);
   });
 
