@@ -662,13 +662,19 @@ export class MarksService {
 
       /* Nothing to stand behind. A card with no comment on it is a card the
          class teacher has not finished, and confirming it would put the head
-         teacher's name to an empty box. */
-      const uncommented = await this.prisma.termResult.count({
-        where: {
-          ...where,
-          OR: [{ teacherComment: null }, { teacherComment: '' }],
-        },
+         teacher's name to an empty box.
+
+         Counted in memory rather than as a `where` because a box holding a
+         space is a box nobody wrote in, and no useful Prisma filter says
+         that. It was the difference between a printed card with an empty
+         comment and one the school had actually read. */
+      const comments = await this.prisma.termResult.findMany({
+        where,
+        select: { teacherComment: true },
       });
+      const uncommented = comments.filter(
+        (c) => !c.teacherComment || c.teacherComment.trim() === '',
+      ).length;
       if (uncommented > 0) {
         throw new BadRequestException(
           `${uncommented} of these cards have no class teacher's comment yet. A card is not ready to confirm until it has been written on.`,

@@ -1070,6 +1070,14 @@ describe('MarksService', () => {
    * confirmed class certifies nothing.
    */
   describe("the head teacher's confirmation", () => {
+    /* A class every teacher has written on, which is what the gates below
+       are the exceptions to. Each test that is about a gate overrides it. */
+    beforeEach(() => {
+      prisma.termResult.findMany.mockResolvedValue([
+        { teacherComment: 'Good term.' },
+      ]);
+    });
+
     it('records who confirmed it and when', async () => {
       prisma.termResult.count.mockResolvedValue(0);
       prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
@@ -1117,8 +1125,14 @@ describe('MarksService', () => {
      * finished, and confirming it would put the head teacher's name to an
      * empty box.
      */
+    const comments = (...written: (string | null)[]) =>
+      prisma.termResult.findMany.mockResolvedValue(
+        written.map((teacherComment) => ({ teacherComment })),
+      );
+
     it('refuses a card the class teacher has not written on', async () => {
-      prisma.termResult.count.mockResolvedValueOnce(0).mockResolvedValueOnce(7);
+      prisma.termResult.count.mockResolvedValue(0);
+      comments('Good term.', null, null, null, null, null, null, null);
 
       await expect(
         service.confirmReportCards(
@@ -1130,18 +1144,43 @@ describe('MarksService', () => {
 
     it('counts an empty comment as no comment', async () => {
       prisma.termResult.count.mockResolvedValue(0);
-      prisma.termResult.updateMany.mockResolvedValue({ count: 30 });
-      await service.confirmReportCards(
+      comments('Good term.', '');
+
+      await expect(
+        service.confirmReportCards(
+          { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+          'head-1',
+        ),
+      ).rejects.toThrow(/1 of these cards have no class teacher/);
+    });
+
+    /*
+      And a box holding a space, which the filter this used to run could not
+      see. It was the difference between a printed card with an empty comment
+      box and one the school had actually read.
+    */
+    it('counts a comment of whitespace as no comment', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      comments('Good term.', '   \n');
+
+      await expect(
+        service.confirmReportCards(
+          { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
+          'head-1',
+        ),
+      ).rejects.toThrow(/1 of these cards have no class teacher/);
+    });
+
+    it('confirms a class every teacher has written on', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      comments('Good term.', 'Works hard.');
+      prisma.termResult.updateMany.mockResolvedValue({ count: 2 });
+
+      const out = await service.confirmReportCards(
         { classSectionId: 'section-1', termId: 'term-1', isConfirmed: true },
         'head-1',
       );
-      expect(prisma.termResult.count).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: [{ teacherComment: null }, { teacherComment: '' }],
-          }),
-        }),
-      );
+      expect(out.isConfirmed).toBe(true);
     });
 
     /**
