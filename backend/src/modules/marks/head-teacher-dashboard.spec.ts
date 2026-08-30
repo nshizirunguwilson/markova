@@ -124,6 +124,21 @@ describe('whose move it is', () => {
     expect(OWNER_OF.AWAITING_CONFIRMATION).toBe('You');
   });
 
+  /*
+    Issuing moved to the DOS along with the rest of the academic side, so the
+    last step is theirs too. Naming the principal here was worse than untidy:
+    the principal has no route that issues a card, so a class sat in that
+    state pointing at somebody who could not clear it, and the DOS had no
+    reason to look at it again.
+  */
+  it('says the head teacher again on the step that is now also theirs', () => {
+    expect(OWNER_OF.AWAITING_ISSUE).toBe('You');
+  });
+
+  it('names nobody who cannot act on the step it names', () => {
+    expect(Object.values(OWNER_OF)).not.toContain('The principal');
+  });
+
   it('gives a finished class nobody to chase', () => {
     expect(OWNER_OF.DONE).toBe('');
   });

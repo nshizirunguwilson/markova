@@ -193,9 +193,10 @@ export function useCommentClasses() {
 /**
  * The head teacher standing behind a class's cards, or handing them back.
  *
- * The step between the comments being written and the principal issuing the
- * cards. Handing a class back withdraws any card already issued from it, so
- * the line says so rather than confirming a write nobody asked about.
+ * The step between the comments being written and the cards going out: the
+ * DOS reads them and puts their name to them. Handing a class back withdraws
+ * any card already issued from it, so the line says so rather than
+ * confirming a write nobody asked about.
  */
 export function useConfirmReportCards() {
   const qc = useQueryClient();
@@ -207,7 +208,7 @@ export function useConfirmReportCards() {
       toast.success(
         variables?.isConfirmed === false
           ? "Handed back to the class teacher, and any cards already issued are withdrawn"
-          : "Confirmed - the principal can now issue these cards",
+          : "Confirmed. You can issue these cards now",
       );
     },
     onError: (e: unknown) =>

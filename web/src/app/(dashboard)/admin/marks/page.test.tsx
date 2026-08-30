@@ -343,6 +343,30 @@ describe("taking published results back", () => {
       );
     });
 
+    /**
+     * The bug this page shipped with. The check is the last of four gates,
+     * and this page only knew about that one: on a class whose comments were
+     * not written it still said "you have not confirmed", and the confirm
+     * button it pointed at was one the API refuses until every card has been
+     * written on. On a fresh school that was every class, so the report cards
+     * could not be issued and nothing on the screen said why.
+     */
+    it("blames the comments, not the check, when the comments are missing", async () => {
+      await mount(published.map((r) => ({ ...r, teacherComment: null })));
+      expect(reportCardButton()).toBeDisabled();
+      expect(reportCardButton()).toHaveAttribute(
+        "title",
+        expect.stringMatching(/no class teacher's comment yet/i),
+      );
+    });
+
+    /* And says it in the page as well as the tooltip: a disabled button whose
+       reason is only in a title is a reason nobody on a touchscreen reads. */
+    it("gives the reason on the page, not only on hover", async () => {
+      await mount(published.map((r) => ({ ...r, teacherComment: "   " })));
+      expect(document.body.textContent).toMatch(/no class teacher's comment yet/i);
+    });
+
     /* And offers the way to do it, beside the comments rather than as a
        second button here that would skip reading them. */
     it("points at where the confirming happens", async () => {

@@ -44,7 +44,7 @@ import {
  *
  *   The class teacher writes the comment about the work.
  *   The head teacher writes theirs, then confirms the class.
- *   The principal issues, which the marks page still does.
+ *   The DOS issues, which the marks page still does.
  *
  * They share it rather than each holding a copy, because the failure this
  * replaces is precisely two people disagreeing about whether a class is
@@ -371,8 +371,8 @@ export default function ReportCardsPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {all(counts.confirmed)
-                      ? "The principal can issue these cards. Handing them back withdraws any that have already gone out."
-                      : "Confirming says you have read these cards and stand behind them. The principal issues on that."}
+                      ? "You can issue these cards now. Handing them back withdraws any that have already gone out."
+                      : "Confirming says you have read these cards and stand behind them. Issuing them is the next step."}
                   </p>
                 </div>
                 {all(counts.confirmed) ? (

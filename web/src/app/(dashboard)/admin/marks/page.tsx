@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { toLocalDateString } from "@/lib/utils";
+import { checkCard, issueBlocker, tally } from "@/lib/report-card-step";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminMarksPage() {
@@ -110,12 +111,15 @@ export default function AdminMarksPage() {
     until it is done, so an Issue button that looked available and then threw
     would be the page telling an admin to try something the school does not
     allow. It says why instead.
+
+    Counted through one helper because the API enforces four gates and this
+    page used to know about one: whatever was really holding a class up, it
+    reported the check, and sent people to a confirm button the API would
+    refuse because the comments were not written.
   */
-  const confirmed =
-    results?.length > 0 && results.every((r: any) => r.dosConfirmed);
-  const awaitingConfirmation = results?.length
-    ? results.filter((r: any) => !r.dosConfirmed).length
-    : 0;
+  const counts = tally(results);
+  const check = checkCard(counts);
+  const blocked = issueBlocker(counts);
 
   // The most recent calculation across the class. Recalculating unchanged
   // marks produces identical numbers, so this is the only thing that tells
@@ -297,29 +301,20 @@ export default function AdminMarksPage() {
           <Card>
             <p className="text-xs text-muted">Your check</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {confirmed
-                ? "Confirmed"
-                : `${awaitingConfirmation} of ${results.length} waiting`}
+              {check.heading}
             </p>
-            {confirmed ? (
-              <p className="mt-2 text-xs text-muted">
-                You have read these cards and stand behind them.
-              </p>
-            ) : (
-              <>
-                <p className="mt-2 text-xs text-muted">
-                  A card is issued on the strength of this check.
-                </p>
-                {/* Confirming happens beside the comments, which is the
-                    point of confirming: there is one place to do it rather
-                    than a second button here that skips reading them. */}
-                <Link
-                  href="/admin/report-cards"
-                  className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
-                >
-                  Read and confirm them
-                </Link>
-              </>
+            <p className="mt-2 text-xs text-muted">{check.detail}</p>
+            {/* Confirming happens beside the comments, which is the point of
+                confirming: there is one place to do it rather than a second
+                button here that skips reading them. The link is offered only
+                where going there would let somebody finish something. */}
+            {check.action && (
+              <Link
+                href={check.action.href}
+                className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+              >
+                {check.action.label}
+              </Link>
             )}
           </Card>
           <Card>
@@ -332,15 +327,14 @@ export default function AdminMarksPage() {
                 aria-label={cardsIssued ? "Withdraw report cards" : "Issue report cards"}
                 size="sm"
                 variant={cardsIssued ? "danger" : "primary"}
-                disabled={!cardsIssued && (!isPublished || !confirmed)}
-                title={
-                  cardsIssued
-                    ? undefined
-                    : !isPublished
-                      ? "Publish the marks first - a report card carries them"
-                      : !confirmed
-                        ? "You have not confirmed this class yet"
-                        : undefined
+                disabled={!cardsIssued && blocked !== null}
+                /* Named on the button rather than only in the toast that
+                   follows a refused request, and given as a title as well as
+                   a description so it is not carried by the greyed-out
+                   colour alone. */
+                title={cardsIssued ? undefined : (blocked ?? undefined)}
+                aria-describedby={
+                  !cardsIssued && blocked ? "issue-blocked" : undefined
                 }
                 onClick={() => {
                   setConfirmMessage(
@@ -363,6 +357,11 @@ export default function AdminMarksPage() {
                 )}
               </Button>
             </div>
+            {!cardsIssued && blocked && (
+              <p id="issue-blocked" className="mt-2 text-xs text-muted">
+                {blocked}
+              </p>
+            )}
           </Card>
         </div>
       )}
