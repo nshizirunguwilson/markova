@@ -158,3 +158,4 @@ cd mobile && npx tsc --noEmit
 - `design/README.md` - the design system
 - `docs/deployment-guide.md` - production deployment
 - `docs/FEATURE-GUIDE.md` - what the product does
+- `docs/REPORT-CARD-PIPELINE.md` - how a report card gets issued, and how to work on it
