@@ -7,7 +7,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
-import { Card, Button } from "@/components/ui";
+import { Card, Button, PhotoPicker } from "@/components/ui";
 import { User, Mail, Phone, Shield, Lock, PenLine, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
@@ -31,6 +31,41 @@ export default function ProfilePage() {
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
+  });
+
+  /**
+   * The photograph, which is the one thing on this page other people see.
+   *
+   * The store is updated on success rather than waiting for a refetch: the
+   * topbar draws from the same user, and an avatar that stays stale until
+   * the next navigation reads as an upload that did not work.
+   */
+  const uploadPhoto = useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("photo", file);
+      return (
+        await api.post(`/users/${user?.id}/photo`, body, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data as { photoUrl: string };
+    },
+    onSuccess: (data) => {
+      setUser({ ...user!, photoUrl: data.photoUrl });
+      toast.success("Photo updated");
+    },
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Could not save the photo"),
+  });
+
+  const removePhoto = useMutation({
+    mutationFn: async () => (await api.delete(`/users/${user?.id}/photo`)).data,
+    onSuccess: () => {
+      setUser({ ...user!, photoUrl: null });
+      toast.success("Photo removed - your initials are shown instead");
+    },
+    onError: (e: any) =>
+      toast.error(e.response?.data?.message || "Could not remove the photo"),
   });
 
   const updateProfile = useMutation({
@@ -136,31 +171,29 @@ export default function ProfilePage() {
         description="Manage your account details"
       />
 
-      {/* Avatar & Name Header */}
-      <Card className="p-6">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            {user.photoUrl ? (
-              <img
-                src={resolveUploadUrl(user.photoUrl) ?? undefined}
-                alt={user.firstName}
-                className="h-20 w-20 rounded-full object-cover border-2 border-primary/20"
-              />
-            ) : (
-              <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold">
-                {initials}
-              </div>
-            )}
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              {user.firstName} {user.lastName}
-            </h2>
-            <span className="inline-block mt-1 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
-              {labelForRole(user.role)}
-            </span>
-          </div>
+      {/* Who this is, and the one thing on the page other people see. */}
+      <Card className="p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            {user.firstName} {user.lastName}
+          </h2>
+          <span className="inline-block mt-1 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
+            {labelForRole(user.role)}
+          </span>
         </div>
+        <PhotoPicker
+          photoUrl={user.photoUrl}
+          initials={initials}
+          name={`${user.firstName} ${user.lastName}`.trim()}
+          saving={uploadPhoto.isPending}
+          removing={removePhoto.isPending}
+          /* `mutateAsync` rather than `mutate`: the picker settles back to
+             its resting state on success and holds the chosen file on
+             failure, and it can only tell the two apart from the promise. */
+          onSave={(file) => uploadPhoto.mutateAsync(file)}
+          onRemove={() => removePhoto.mutate()}
+          onRefuse={(why) => toast.error(why)}
+        />
       </Card>
 
       {/* Profile Details */}

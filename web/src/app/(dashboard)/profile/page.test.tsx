@@ -773,10 +773,152 @@ describe("a profile with almost nothing on it", () => {
       user: { firstName: "Aline", lastName: "Uwase", photoUrl: "/uploads/avatars/a.png" },
     });
 
-    const photo = await screen.findByAltText("Aline");
+    /* The whole name, not the first: a screen reader announcing "Aline"
+       beside four other Alines has said nothing. */
+    const photo = await screen.findByAltText("Aline Uwase");
     expect(photo.getAttribute("src")).toContain("/uploads/avatars/a.png");
     // The initials circle is gone: never both.
     expect(screen.queryByText("AU")).toBeNull();
+  });
+});
+
+/**
+ * The photograph is the one thing on this page other people see, and every
+ * role has one. It is the same control for all of them: the profile is a
+ * single page that each role's route re-exports.
+ */
+describe("your own photograph", () => {
+  const mountAs = async (
+    role: "TEACHER" | "STUDENT" | "PARENT" | "ADMIN" | "HEAD_TEACHER",
+    user: Record<string, unknown> = {},
+  ) => {
+    renderPage(ProfilePage, {
+      role,
+      user: { id: "user-1", firstName: "Aline", lastName: "Uwase", ...user },
+    });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  };
+
+  const chooseFile = async (name = "me.jpg", type = "image/jpeg") => {
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Choose a photo/i), {
+        target: { files: [new File(["x"], name, { type })] },
+      });
+    });
+  };
+
+  const press = async (name: RegExp) => {
+    const b = screen.getAllByRole("button").find((x) => name.test(x.textContent ?? ""));
+    expect(b).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(b as HTMLElement);
+    });
+  };
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:chosen");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it.each(["TEACHER", "STUDENT", "PARENT", "ADMIN", "HEAD_TEACHER"] as const)(
+    "is offered to a %s",
+    async (role) => {
+      await mountAs(role);
+      expect(screen.getByLabelText(/Add a photo for Aline Uwase/i)).toBeInTheDocument();
+    },
+  );
+
+  it("sends the chosen file to their own record", async () => {
+    await mountAs("STUDENT");
+    await chooseFile();
+    await press(/Save photo/);
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/users/user-1/photo",
+        expect.any(FormData),
+        expect.anything(),
+      ),
+    );
+  });
+
+  /* Nothing crosses the connection until it is saved: the preview is the
+     point of the step. */
+  it("uploads nothing merely by choosing", async () => {
+    await mountAs("STUDENT");
+    await chooseFile();
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The topbar draws from the same user, so an avatar that stays stale until
+   * the next navigation reads as an upload that did not work.
+   */
+  it("shows the new photograph at once", async () => {
+    await mountAs("TEACHER");
+    h.api.post.mockResolvedValue({
+      data: { photoUrl: "/uploads/photos/new.png" },
+    });
+    await chooseFile();
+    await press(/Save photo/);
+    await waitFor(() =>
+      expect(h.toast.success).toHaveBeenCalledWith("Photo updated"),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByAltText("Aline Uwase").getAttribute("src"),
+      ).toContain("/uploads/photos/new.png"),
+    );
+  });
+
+  it("takes one down when asked", async () => {
+    await mountAs("TEACHER", { photoUrl: "/uploads/photos/a.png" });
+    await press(/Remove/);
+    await waitFor(() =>
+      expect(h.api.delete).toHaveBeenCalledWith("/users/user-1/photo"),
+    );
+  });
+
+  // A record with no photograph is a real state, so the line says what now.
+  it("says what stands in for it once it is gone", async () => {
+    await mountAs("TEACHER", { photoUrl: "/uploads/photos/a.png" });
+    await press(/Remove/);
+    await waitFor(() =>
+      expect(h.toast.success).toHaveBeenCalledWith(
+        expect.stringMatching(/initials are shown instead/i),
+      ),
+    );
+  });
+
+  it("refuses a file that is not a photograph, without asking the API", async () => {
+    await mountAs("TEACHER");
+    await chooseFile("notes.pdf", "application/pdf");
+    expect(h.toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/not a photograph/i),
+    );
+    expect(h.api.post).not.toHaveBeenCalled();
+  });
+
+  it("repeats what the server said when it refuses one", async () => {
+    await mountAs("TEACHER");
+    h.api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 400, data: { message: "Only image files are allowed" } },
+    });
+    await chooseFile();
+    await press(/Save photo/);
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Only image files are allowed"),
+    );
+  });
+
+  it("says so when taking one down fails", async () => {
+    await mountAs("TEACHER", { photoUrl: "/uploads/photos/a.png" });
+    h.api.delete.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 500, data: {} },
+    });
+    await press(/Remove/);
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
   });
 });
 
