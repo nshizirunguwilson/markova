@@ -282,13 +282,18 @@ export function suggestHeadTeacherComment(facts: CommentFacts): string {
   if (band === 'strong') {
     clauses.push(
       place
-        ? [`A strong term, placed ${place}.`, `Placed ${place}. Excellent.`][v(2)]
+        ? [`A strong term, placed ${place}.`, `Placed ${place}. Excellent.`][
+            v(2)
+          ]
         : `A strong term.`,
     );
   } else if (band === 'solid') {
     clauses.push(
       place
-        ? [`A sound term, placed ${place}.`, `Placed ${place}, with room to climb.`][v(2)]
+        ? [
+            `A sound term, placed ${place}.`,
+            `Placed ${place}, with room to climb.`,
+          ][v(2)]
         : `A sound term overall.`,
     );
   } else if (band === 'fair') {

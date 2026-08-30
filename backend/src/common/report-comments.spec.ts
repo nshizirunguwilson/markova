@@ -181,8 +181,18 @@ describe('the class teacher on the work', () => {
     const out = suggestClassTeacherComment(
       facts({
         subjects: [
-          { name: 'Mathematics', total: 78, grade: 'A', competence: 'COMPETENT' },
-          { name: 'English', total: 66, grade: 'B', competence: 'NOT_YET_COMPETENT' },
+          {
+            name: 'Mathematics',
+            total: 78,
+            grade: 'A',
+            competence: 'COMPETENT',
+          },
+          {
+            name: 'English',
+            total: 66,
+            grade: 'B',
+            competence: 'NOT_YET_COMPETENT',
+          },
         ],
       }),
     );
@@ -379,10 +389,7 @@ describe('how long a comment may run', () => {
       ].flatMap((conduct) =>
         [null, 48, 78].flatMap((previousAverage) => {
           const f = facts({ average, conduct, previousAverage });
-          return [
-            suggestClassTeacherComment(f),
-            suggestHeadTeacherComment(f),
-          ];
+          return [suggestClassTeacherComment(f), suggestHeadTeacherComment(f)];
         }),
       ),
     );

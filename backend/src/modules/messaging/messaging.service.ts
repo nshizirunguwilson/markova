@@ -406,7 +406,7 @@ export class MessagingService {
       (p) => p.userId,
     );
     const refusal = refuseMention(dto.content ?? '', {
-      conversationType: (conversation?.type ?? 'GROUP') as never,
+      conversationType: conversation?.type ?? 'GROUP',
       participantIds,
       senderIsAdmin: (conversation?.participants ?? []).some(
         (p) => p.userId === senderUserId && p.isAdmin,
@@ -642,7 +642,10 @@ export class MessagingService {
       this.prisma.messageMention.count({
         where: {
           userId,
-          message: { reads: { none: { userId } }, senderUserId: { not: userId } },
+          message: {
+            reads: { none: { userId } },
+            senderUserId: { not: userId },
+          },
         },
       }),
     ]);

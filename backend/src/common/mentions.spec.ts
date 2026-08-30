@@ -25,9 +25,9 @@ const at = (id: string, name: string) => `@[${name}](${id})`;
 
 describe('reading a message for who it names', () => {
   it('finds the person behind the name', () => {
-    expect(parseMentions(`${at(ALINE, 'Aline Uwase')} can you check this`)).toEqual(
-      [{ userId: ALINE, display: 'Aline Uwase' }],
-    );
+    expect(
+      parseMentions(`${at(ALINE, 'Aline Uwase')} can you check this`),
+    ).toEqual([{ userId: ALINE, display: 'Aline Uwase' }]);
   });
 
   it('finds several', () => {
@@ -69,6 +69,18 @@ describe('reading a message for who it names', () => {
   it('reads an id written in either case', () => {
     expect(parseMentions(at(ALINE.toUpperCase(), 'Aline'))[0].userId).toBe(
       ALINE,
+    );
+  });
+
+  /* The pattern is global. `matchAll` clones it, but a shared global regex is
+     a standing trap - `.test` on one advances `lastIndex` and makes every
+     other call answer false. Asking twice is what proves it does not. */
+  it('gives the same answer every time it is asked', () => {
+    const text = `${at(ALINE, 'Aline Uwase')} hello`;
+    expect(parseMentions(text)).toEqual(parseMentions(text));
+    expect(plainText(text)).toBe(plainText(text));
+    expect(mentionsEveryone('@everyone hi')).toBe(
+      mentionsEveryone('@everyone hi'),
     );
   });
 
@@ -206,9 +218,9 @@ describe('who a message notifies', () => {
   });
 
   it('never tells the sender about their own message', () => {
-    expect(whoToNotify(`${at(ALINE, 'me')} ${at(JEAN, 'Jean')}`, room)).toEqual([
-      JEAN,
-    ]);
+    expect(whoToNotify(`${at(ALINE, 'me')} ${at(JEAN, 'Jean')}`, room)).toEqual(
+      [JEAN],
+    );
   });
 
   it('tells the room when the room is addressed', () => {
@@ -232,8 +244,8 @@ describe('who a message notifies', () => {
   });
 
   it('tells one person once, however often they are named', () => {
-    expect(whoToNotify(`${at(JEAN, 'Jean')} ${at(JEAN, 'Jean')}`, room)).toEqual(
-      [JEAN],
-    );
+    expect(
+      whoToNotify(`${at(JEAN, 'Jean')} ${at(JEAN, 'Jean')}`, room),
+    ).toEqual([JEAN]);
   });
 });

@@ -1476,7 +1476,7 @@ describe('MessagingService mentions', () => {
     });
 
   const send = (content: string, from = ALINE) =>
-    service.sendMessage({ conversationId: 'c1', content } as never, from);
+    service.sendMessage({ conversationId: 'c1', content }, from);
 
   beforeEach(async () => {
     jest.clearAllMocks();

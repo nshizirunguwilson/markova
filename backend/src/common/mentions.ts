@@ -90,10 +90,7 @@ export function plainText(content: string): string {
 }
 
 export type MentionRefusal =
-  | 'NOT_A_GROUP'
-  | 'NOT_A_PARTICIPANT'
-  | 'EVERYONE_NEEDS_ADMIN'
-  | null;
+  'NOT_A_GROUP' | 'NOT_A_PARTICIPANT' | 'EVERYONE_NEEDS_ADMIN' | null;
 
 /**
  * Why this message's mentions cannot be sent, or null when they can.
@@ -131,10 +128,7 @@ export function refuseMention(
 }
 
 /** What to tell the sender, in words that say which choice to change. */
-export const MENTION_REFUSAL: Record<
-  Exclude<MentionRefusal, null>,
-  string
-> = {
+export const MENTION_REFUSAL: Record<Exclude<MentionRefusal, null>, string> = {
   NOT_A_GROUP:
     'Mentions only work in groups and broadcasts. In a direct message there is only one person to address.',
   NOT_A_PARTICIPANT:

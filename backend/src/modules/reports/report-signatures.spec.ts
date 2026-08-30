@@ -234,7 +234,9 @@ describe('the signatures on a report card', () => {
         guardian('/uploads/signatures/aline.png'),
       );
       const html = await card();
-      const parentBlock = html.slice(html.lastIndexOf('Parent / Guardian') - 400);
+      const parentBlock = html.slice(
+        html.lastIndexOf('Parent / Guardian') - 400,
+      );
       expect(parentBlock).toContain('<img');
     });
 

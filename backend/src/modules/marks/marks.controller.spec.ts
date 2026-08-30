@@ -80,7 +80,6 @@ describe('MarksController', () => {
 
   const dashboard = { overview: jest.fn().mockResolvedValue({ classes: [] }) };
 
-
   const withTeacherId = { ...teacher, teacherId: 'teacher-1' };
 
   let run: (c: RouteCase) => Promise<void>;
@@ -91,7 +90,10 @@ describe('MarksController', () => {
     // gate itself is checked in its own describe below.
     service.isReportCardIssued.mockResolvedValue(true);
     service.getReportCardData.mockResolvedValue({ school: {} });
-    run = await controllerHarness(MarksController, wiring({ service, ownership, feeGate, dashboard }));
+    run = await controllerHarness(
+      MarksController,
+      wiring({ service, ownership, feeGate, dashboard }),
+    );
   });
 
   const cases: RouteCase[] = [
@@ -164,7 +166,11 @@ describe('MarksController', () => {
       /* Who is writing travels with it: the service decides whether a
          teacher is the class teacher of the class this card belongs to. */
       call: (c) =>
-        c.updateComment('res-1', { teacherComment: 'Good term' }, withTeacherId),
+        c.updateComment(
+          'res-1',
+          { teacherComment: 'Good term' },
+          withTeacherId,
+        ),
       calls: 'updateTermResultComment',
       withArgs: [
         'res-1',
@@ -246,7 +252,10 @@ describe('MarksController', () => {
       ownership.verifyStudentAccess.mockRejectedValueOnce(
         new Error('Forbidden'),
       );
-      const run2 = await controllerHarness(MarksController, wiring({ service, ownership, feeGate, dashboard }));
+      const run2 = await controllerHarness(
+        MarksController,
+        wiring({ service, ownership, feeGate, dashboard }),
+      );
       await expect(
         run2({
           name: 'blocked',

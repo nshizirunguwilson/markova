@@ -869,7 +869,7 @@ describe('MarksService', () => {
     });
   });
 
-/**
+  /**
    * Who may write in which box.
    *
    * The whole point of a card carrying two comments is that two different
@@ -1033,13 +1033,16 @@ describe('MarksService', () => {
       );
     });
 
-    it.each(['HEAD_TEACHER', 'ADMIN'])('gives a %s the school', async (role) => {
-      prisma.classSection.findMany.mockResolvedValue([]);
-      await service.classesForComments({ role });
-      expect(prisma.classSection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
-      );
-    });
+    it.each(['HEAD_TEACHER', 'ADMIN'])(
+      'gives a %s the school',
+      async (role) => {
+        prisma.classSection.findMany.mockResolvedValue([]);
+        await service.classesForComments({ role });
+        expect(prisma.classSection.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: {} }),
+        );
+      },
+    );
   });
 
   /**

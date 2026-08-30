@@ -56,7 +56,12 @@ describe('what is holding a class up', () => {
   it('names releasing them once they are all in', () => {
     expect(
       blockerFor(
-        progress({ marksReleased: 12, commentsWritten: 0, confirmed: 0, issued: 0 }),
+        progress({
+          marksReleased: 12,
+          commentsWritten: 0,
+          confirmed: 0,
+          issued: 0,
+        }),
       ),
     ).toBe('MARKS_NOT_RELEASED');
   });
@@ -87,8 +92,9 @@ describe('what is holding a class up', () => {
     zero comments are written.
   */
   it('leaves an empty class alone', () => {
-    expect(blockerFor(progress({ students: 0, marksReleased: 0, confirmed: 0 })))
-      .toBe('DONE');
+    expect(
+      blockerFor(progress({ students: 0, marksReleased: 0, confirmed: 0 })),
+    ).toBe('DONE');
   });
 
   /* A class nobody is assigned to teach cannot be judged on its marks, and
@@ -137,7 +143,7 @@ describe('the morning view', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new HeadTeacherDashboardService(prisma as never);
+    service = new HeadTeacherDashboardService(prisma);
 
     prisma.term.findFirst.mockResolvedValue({
       id: 'term-1',
@@ -292,7 +298,7 @@ describe('the staffroom this morning', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
-    service = new HeadTeacherDashboardService(prisma as never);
+    service = new HeadTeacherDashboardService(prisma);
     prisma.term.findFirst.mockResolvedValue({
       id: 'term-1',
       name: 'Term 2',

@@ -140,7 +140,9 @@ describe('who the report card belongs to', () => {
    */
   it('sets the marks table small enough for a long curriculum', async () => {
     const html = await card();
-    expect(html).toContain('table.marks{ border-collapse:collapse; width:100%; font-size:10px; }');
+    expect(html).toContain(
+      'table.marks{ border-collapse:collapse; width:100%; font-size:10px; }',
+    );
   });
 
   it('prints the photograph beside it', async () => {
