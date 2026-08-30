@@ -413,7 +413,16 @@ describe("DashboardShell and the head teacher", () => {
     expect(h.router.replace).not.toHaveBeenCalled();
   });
 
-  it.each(["STUDENT", "PARENT", "BURSAR", "NURSE"])(
+  /**
+   * The principal is on this list too, which is the whole point of item one:
+   * report cards are the Director of Studies' to run.
+   *
+   * It is worth naming separately because it is where the first attempt got
+   * it wrong. The screen was listed among the pages *shared* with `/admin`,
+   * and that map adds roles to the prefix's own rather than replacing them -
+   * so the principal quietly kept it while every menu said otherwise.
+   */
+  it.each(["STUDENT", "PARENT", "BURSAR", "NURSE", "ADMIN"])(
     "keeps a %s off the report cards screen",
     async (role) => {
       land("/admin/report-cards", role);

@@ -46,8 +46,11 @@ const ACCOUNTS = {
 
 const ROUTES = {
   ADMIN: ['/admin', '/admin/users', '/admin/students', '/admin/teachers', '/admin/subjects',
-    '/admin/classes', '/admin/timetable', '/admin/marks', '/admin/reports', '/admin/id-cards',
-    '/admin/promotion', '/admin/attendance', '/admin/discipline', '/admin/library',
+    /* Marks, the register and report card generation moved to the Director
+       of Studies, and the shell redirects the principal off them - scanning
+       them here would quietly be scanning the dashboard instead. */
+    '/admin/classes', '/admin/timetable', '/admin/id-cards',
+    '/admin/promotion', '/admin/discipline', '/admin/library',
     '/admin/homework', '/admin/messages', '/admin/announcements', '/admin/analytics',
     '/admin/pocket-money', '/admin/health', '/admin/activities', '/admin/settings',
     '/admin/help', '/admin/onboarding', '/admin/profile',
@@ -71,7 +74,8 @@ const ROUTES = {
   // The bursar keeps the fee ledger and nothing else.
   BURSAR: ['/admin/finance', '/admin/finance/structure', '/messages', '/help'],
   // The head teacher runs the academic side and nothing else.
-  HEAD_TEACHER: ['/head-teacher', '/admin/report-cards', '/admin/marks', '/admin/classes',
+  HEAD_TEACHER: ['/head-teacher', '/admin/report-cards', '/admin/marks', '/admin/reports',
+    '/admin/classes',
     '/admin/timetable', '/admin/teachers', '/admin/attendance', '/grading',
     '/profile', '/messages', '/help'],
   // The boarding staff and the nurse: their own dashboards, plus the welfare

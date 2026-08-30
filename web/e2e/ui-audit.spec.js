@@ -286,6 +286,14 @@ const RBAC = [
   // The Director of Studies' own dashboard is theirs and the principal's.
   ['TEACHER', '/head-teacher'], ['STUDENT', '/head-teacher'],
   ['PARENT', '/head-teacher'], ['BURSAR', '/head-teacher'],
+  /*
+    The academic side moved off the principal's desk entirely. These still
+    live under /admin because a second prefix would be a second copy of the
+    same screens, so the guard is what keeps them out - and a page that loads
+    and then 403s on every request is worse than a redirect.
+  */
+  ['ADMIN', '/admin/marks'], ['ADMIN', '/admin/attendance'],
+  ['ADMIN', '/admin/reports'], ['ADMIN', '/admin/report-cards'],
 ];
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
@@ -2266,6 +2274,52 @@ test('chat: the unread badges count what is actually waiting', async (browser) =
   assert(count > 0, 'the Messages badge shows no number at all');
   const shown = (await badge.textContent()).trim();
   assert(/^\d{1,2}\+?$/.test(shown), `unexpected badge text: "${shown}"`);
+  await ctx.close();
+});
+
+
+/**
+ * Who runs the academic side.
+ *
+ * Report cards, marks and attendance belong to the Director of Studies. The
+ * menu has to agree with the API: a principal offered the mark book and then
+ * refused by every request is worse off than one never offered it.
+ */
+test('dos: the mark book and the register are the head teacher\'s', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+
+  for (const [path, expect_] of [
+    ['/admin/marks', /Marks/i],
+    ['/admin/attendance', /Attendance/i],
+    ['/admin/reports', /Report/i],
+  ]) {
+    await visit(page, path);
+    await page.waitForFunction(
+      () => document.body.innerText.length > 200,
+      { timeout: 30000 },
+    );
+    const body = await page.innerText('body');
+    assert(!/Page Not Found/i.test(body), `the head teacher was refused ${path}`);
+    assert(expect_.test(body), `${path} did not render as itself`);
+  }
+  await ctx.close();
+});
+
+test('dos: the principal is not offered the mark book at all', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin');
+  await page.waitForFunction(
+    () => document.body.innerText.length > 200,
+    { timeout: 30000 },
+  );
+  /* The sidebar, not the whole page: "Marks" appears in a dashboard tile that
+     is about something else. */
+  const menu = await page.locator('nav, aside').first().innerText();
+  for (const gone of [/^Marks$/m, /^Attendance$/m, /Report Cards/]) {
+    assert(!gone.test(menu), `the principal is still offered ${gone}`);
+  }
   await ctx.close();
 });
 

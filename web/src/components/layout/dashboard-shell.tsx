@@ -59,7 +59,6 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
     same state, rather than each role holding a private copy that can disagree
     with the others about whether a class is ready.
   */
-  "report-cards": ["HEAD_TEACHER", "TEACHER"],
   timetable: ["HEAD_TEACHER"],
   teachers: ["HEAD_TEACHER"],
   classes: ["HEAD_TEACHER"],
@@ -78,6 +77,11 @@ const MOVED_TO_HEAD_TEACHER: Record<string, string[]> = {
   marks: ["HEAD_TEACHER"],
   attendance: ["HEAD_TEACHER"],
   reports: ["HEAD_TEACHER"],
+  /* The class teachers write on this one, so they reach it too - but the
+     principal does not. It belongs here rather than in the shared map above,
+     because that map adds roles to the prefix's own and this one replaces
+     them: listed there, the principal kept it. */
+  "report-cards": ["HEAD_TEACHER", "TEACHER"],
 };
 
 /** Which roles may see this path, or undefined when it is open to all. */
