@@ -570,23 +570,53 @@ describe("Topbar notification age", () => {
 });
 
 describe("Topbar account menu", () => {
-  it("goes to the profile page for the signed-in role", async () => {
+  const openProfile = async (role: string) => {
     const { act, fireEvent } = await import("@testing-library/react");
-    mount("TEACHER");
+    mount(role as "ADMIN");
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-
     await act(async () => {
       fireEvent.click(screen.getByText(/Aline/));
     });
     const profile = screen
       .getAllByRole("button")
       .find((b) => /profile/i.test(b.textContent ?? ""));
-    if (!profile) return;
+    expect(profile).toBeTruthy();
     await act(async () => {
-      fireEvent.click(profile);
+      fireEvent.click(profile as HTMLElement);
     });
+  };
 
-    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher/profile"));
+  /**
+   * One profile route, for every role.
+   *
+   * This used to be built from the role name, which worked for the five
+   * roles that happen to have a page of their own and sent everybody else
+   * somewhere that does not exist: /bursar/profile, /nurse/profile,
+   * /head_teacher/profile. The shell bounced them straight back to their
+   * dashboard, so their own profile - the only place they can change their
+   * password or their photograph - could not be opened from the one menu
+   * that offers it.
+   */
+  it.each([
+    "ADMIN",
+    "TEACHER",
+    "STUDENT",
+    "PARENT",
+    "LIBRARIAN",
+    "HEAD_TEACHER",
+    "BURSAR",
+    "NURSE",
+    "PATRON",
+    "MATRON",
+  ])("takes a %s to their own profile", async (role) => {
+    await openProfile(role);
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/profile"));
+  });
+
+  // The bug in one line: no role builds a path out of its own name any more.
+  it("never routes to a path built from the role name", async () => {
+    await openProfile("HEAD_TEACHER");
+    expect(h.router.push).not.toHaveBeenCalledWith("/head_teacher/profile");
   });
 
   // Backing out of signing out must leave the session alone.
