@@ -61,6 +61,10 @@ const checks = [
   ['primary on accentLight', 'primary', 'accentLight', 4.5],
   ['onPrimary on primary', 'onPrimary', 'primary', 4.5],
   ['onPrimary on primaryDark', 'onPrimary', 'primaryDark', 4.5],
+  /* The secondary button is a solid primaryLight fill carrying onPrimary, so
+     that pairing is text, not decoration. It was never checked, and shipped
+     at 3.97:1 until the theme work made every fill declare its text colour. */
+  ['onPrimary on primaryLight', 'onPrimary', 'primaryLight', 4.5],
   ['success on surface', 'success', 'surface', 4.5],
   ['success on successWash', 'success', 'successWash', 4.5],
   ['onSuccess on success', 'onSuccess', 'success', 4.5],
