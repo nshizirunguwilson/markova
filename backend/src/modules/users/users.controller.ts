@@ -96,7 +96,20 @@ export class UsersController {
       the same way the welfare staff's narrowing is.
     */
     if (current.role === 'HEAD_TEACHER') {
-      return this.usersService.findAll({ ...query, role: Role.TEACHER });
+      /*
+        Their directory is the staffroom, but the roll is theirs to read too:
+        they run the academic side, and the student pickers on their own
+        pages - generating a document, looking a child up - go through this
+        route. Forcing TEACHER on every request meant those boxes could never
+        be filled, and the page said "no student matches" for a name the
+        school plainly has.
+
+        So the narrowing keeps its point, which is that the whole directory
+        (every parent's phone number) is not theirs, while the two lists that
+        are stay reachable. Asked for anything else, they still get staff.
+      */
+      const asked = query.role === Role.STUDENT ? Role.STUDENT : Role.TEACHER;
+      return this.usersService.findAll({ ...query, role: asked });
     }
     return this.usersService.findAll({ ...query, role: Role.STUDENT });
   }
