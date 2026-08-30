@@ -3656,3 +3656,232 @@ describe("landing on the true bottom after sending", () => {
     h.chat.connected = true;
   });
 });
+
+/**
+ * Mentioning somebody.
+ *
+ * Groups and broadcasts only: in a conversation between two people there is
+ * exactly one person a message could be addressed to, so a mention carries no
+ * information and only adds a notification for something already being read.
+ *
+ * And the box holds what the writer meant - "@Aline Uwase, can you check
+ * this" - while the person they picked is remembered beside it. A uuid in the
+ * middle of somebody's sentence is not a compose experience.
+ */
+describe("mentioning somebody in a group", () => {
+  const ALINE = "11111111-1111-1111-1111-111111111111";
+  const JEAN = "22222222-2222-2222-2222-222222222222";
+
+  const groupConv = {
+    id: "conv-g",
+    type: "GROUP",
+    name: "Senior 1 A",
+    participants: [
+      { user: { id: "user-1", firstName: "Me", lastName: "Myself" } },
+      { user: { id: ALINE, firstName: "Aline", lastName: "Uwase" } },
+      { user: { id: JEAN, firstName: "Jean Bosco", lastName: "Habimana" } },
+    ],
+    lastMessage: { content: "Muraho", createdAt: "2026-08-21T09:00:00Z" },
+    unreadCount: 0,
+  };
+
+  const groupRoutes = {
+    ...routes,
+    "/messaging/conversations": [groupConv],
+    "/messaging/conversations/conv-g/messages": [
+      {
+        id: "gm-1",
+        conversationId: "conv-g",
+        senderUserId: ALINE,
+        sender: { id: ALINE, firstName: "Aline", lastName: "Uwase" },
+        content: "Muraho neza",
+        createdAt: "2026-08-21T09:00:00Z",
+      },
+    ],
+  };
+
+  async function openGroup(extra: Record<string, unknown> = {}) {
+    serve(h.api, { ...groupRoutes, ...extra });
+    renderPage(MessagesPage, { role: "TEACHER", user: { id: "user-1" } });
+    await waitFor(() =>
+      expect(screen.getByText(/Senior 1 A/)).toBeInTheDocument(),
+    );
+    await userEvent
+      .setup({ delay: null })
+      .click(screen.getByText(/Senior 1 A/));
+    await waitFor(() =>
+      expect(screen.getByText(/Muraho neza/)).toBeInTheDocument(),
+    );
+  }
+
+  const box = () => screen.getByLabelText(/Type a message/i);
+
+  const type = async (text: string) => {
+    await act(async () => {
+      fireEvent.change(box(), { target: { value: text } });
+    });
+  };
+
+  it("offers the people in the room once an at sign is typed", async () => {
+    await openGroup();
+    await type("@");
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Aline Uwase/ })).toBeInTheDocument();
+  });
+
+  // Nobody mentions themselves.
+  it("never offers the person doing the typing", async () => {
+    await openGroup();
+    await type("@");
+    await screen.findByRole("listbox");
+    expect(screen.queryByRole("option", { name: /Me Myself/ })).toBeNull();
+  });
+
+  it("narrows as the name is typed", async () => {
+    await openGroup();
+    await type("@ali");
+    await screen.findByRole("listbox");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+  });
+
+  /**
+   * In a direct message a mention adds nothing, the API refuses one, and a
+   * picker that leads to a refusal is worse than no picker.
+   */
+  it("offers nobody in a one to one conversation", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "TEACHER", user: { id: "user-1" } });
+    await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
+    await userEvent.setup({ delay: null }).click(screen.getByText(/Aline/));
+    await waitFor(() =>
+      expect(screen.getByText(/Muraho neza/)).toBeInTheDocument(),
+    );
+    await type("@");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  /* A uuid appearing in the middle of somebody's sentence is not a compose
+     experience. The box holds the name; the person is remembered beside it. */
+  it("puts the name in the box and never the id", async () => {
+    await openGroup();
+    await type("@ali");
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: /Aline Uwase/ }));
+    });
+    expect((box() as HTMLInputElement).value).toBe("@Aline Uwase ");
+    expect((box() as HTMLInputElement).value).not.toContain(ALINE);
+  });
+
+  it("closes the picker once somebody is chosen", async () => {
+    await openGroup();
+    await type("@ali");
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: /Aline Uwase/ }));
+    });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  /**
+   * The picker owns Enter while it is open. Without this, choosing a name
+   * sends the message half-written, which is the first thing anybody does.
+   */
+  it("chooses with Enter rather than sending the message", async () => {
+    await openGroup();
+    await type("@ali");
+    await screen.findByRole("listbox");
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    expect((box() as HTMLInputElement).value).toBe("@Aline Uwase ");
+    expect(h.api.post).not.toHaveBeenCalledWith(
+      "/messaging/messages",
+      expect.anything(),
+    );
+  });
+
+  it("moves through the list with the arrows", async () => {
+    await openGroup();
+    await type("@");
+    await screen.findByRole("listbox");
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "ArrowDown" });
+    });
+    const options = screen.getAllByRole("option");
+    expect(options[1].getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("gets out of the way on Escape", async () => {
+    await openGroup();
+    await type("@");
+    await screen.findByRole("listbox");
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Escape" });
+    });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  /**
+   * The person is resolved when the message is sent, from what was picked
+   * rather than from what the text looks like.
+   */
+  it("sends the person behind the name that was chosen", async () => {
+    await openGroup({ "/messaging/messages": { id: "new" } });
+    await type("@ali");
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: /Aline Uwase/ }));
+    });
+    await act(async () => {
+      fireEvent.change(box(), {
+        target: { value: "@Aline Uwase can you check this" },
+      });
+    });
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/messages",
+        expect.objectContaining({
+          content: `@[Aline Uwase](${ALINE}) can you check this`,
+        }),
+      ),
+    );
+  });
+
+  /**
+   * The safe failure. A name typed by hand rather than chosen is ambiguous,
+   * and guessing which of two Alines was meant is how a message reaches
+   * somebody it was not for.
+   */
+  it("sends a typed name as plain text, mentioning nobody", async () => {
+    await openGroup({ "/messaging/messages": { id: "new" } });
+    await type("@Aline Uwase hello");
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/messages",
+        expect.objectContaining({ content: "@Aline Uwase hello" }),
+      ),
+    );
+  });
+
+  it("forgets a pick whose name was deleted again", async () => {
+    await openGroup({ "/messaging/messages": { id: "new" } });
+    await type("@ali");
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("option", { name: /Aline Uwase/ }));
+    });
+    await type("never mind");
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/messaging/messages",
+        expect.objectContaining({ content: "never mind" }),
+      ),
+    );
+  });
+});

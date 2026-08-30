@@ -49,6 +49,7 @@ const modelNames = [
   'conversationParticipant',
   'message',
   'messageRead',
+  'messageMention',
   'notification',
   'supportTicket',
   'faqArticle',

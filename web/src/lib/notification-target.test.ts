@@ -137,3 +137,73 @@ describe("the page a notification opens", () => {
     }
   });
 });
+
+/**
+ * A message somebody missed.
+ *
+ * The whole reason a notification is kept rather than shown once and lost: a
+ * person who was not looking clicks this an hour later, and it has to land
+ * them on the message rather than on an inbox to search through.
+ */
+describe("a notification about a conversation", () => {
+  const conv = "conv-1";
+
+  it("opens the thread itself, not the inbox", () => {
+    expect(
+      notificationHref(
+        { relatedEntityType: "MESSAGE", relatedEntityId: conv },
+        "TEACHER",
+      ),
+    ).toBe("/teacher/messages/conv-1");
+  });
+
+  it("does the same for being mentioned", () => {
+    expect(
+      notificationHref(
+        { relatedEntityType: "MENTION", relatedEntityId: conv },
+        "PARENT",
+      ),
+    ).toBe("/parent/messages/conv-1");
+  });
+
+  /* The roles with no messages page of their own read the shared one. A
+     notification a bursar cannot open is a bell that lies to them. */
+  it.each(["HEAD_TEACHER", "BURSAR", "NURSE", "PATRON", "MATRON"])(
+    "opens for a %s too",
+    (role) => {
+      expect(
+        notificationHref(
+          { relatedEntityType: "MENTION", relatedEntityId: conv },
+          role as never,
+        ),
+      ).toBe("/messages/conv-1");
+    },
+  );
+
+  it("falls back to the inbox when it names no conversation", () => {
+    expect(
+      notificationHref({ relatedEntityType: "MESSAGE" }, "TEACHER"),
+    ).toBe("/teacher/messages");
+  });
+
+  /* An older row written before the subject column was filled in still has
+     to route on what it says. */
+  it("reads an older mention from its own words", () => {
+    expect(
+      notificationHref(
+        { title: "Aline mentioned you in Senior 1 A", relatedEntityId: conv },
+        "TEACHER",
+      ),
+    ).toBe("/teacher/messages/conv-1");
+  });
+
+  // Everything else still highlights a row rather than opening an address.
+  it("leaves other subjects highlighting a row", () => {
+    expect(
+      notificationHref(
+        { relatedEntityType: "HOMEWORK", relatedEntityId: "hw-1" },
+        "STUDENT",
+      ),
+    ).toContain("highlight=hw-1");
+  });
+});

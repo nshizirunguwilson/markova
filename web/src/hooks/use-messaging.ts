@@ -65,8 +65,19 @@ export function useMarkRead() {
   });
 }
 
+/**
+ * How much is waiting, and how much of it names you.
+ *
+ * Two numbers, because they are read differently: an unread message in a
+ * class group of thirty is something to get to, and a mention is somebody
+ * waiting on an answer.
+ *
+ * Typed, because the untyped version read `.count` from a response that has
+ * always answered `unreadCount` - so the sidebar badge silently read zero
+ * and has never appeared.
+ */
 export function useUnreadMessageCount() {
-  return useQuery({
+  return useQuery<{ unreadCount: number; mentionCount: number }>({
     queryKey: ["unread-messages"],
     queryFn: async () => (await api.get("/messaging/unread")).data,
     // Light fallback polling every 60s in case socket disconnects

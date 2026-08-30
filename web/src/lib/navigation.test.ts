@@ -198,9 +198,24 @@ describe("the roles that share pages under /admin", () => {
     }
   });
 
-  // The one screen they open every morning in exam season.
-  it("leads the head teacher with the cards waiting on them", () => {
-    expect(hrefsFor("HEAD_TEACHER")[0]).toBe("/admin/report-cards");
+  /**
+   * The overview first, and the report cards straight after it.
+   *
+   * The overview answers "what is stuck and on whom"; the report cards are
+   * where they act on the half of that answer which is theirs. Anything else
+   * between the two would be a page they scroll past every morning.
+   */
+  it("leads the head teacher with what is stuck, then where to act", () => {
+    expect(hrefsFor("HEAD_TEACHER").slice(0, 2)).toEqual([
+      "/head-teacher",
+      "/admin/report-cards",
+    ]);
+  });
+
+  /* Their own subtree, so the rule about staying inside it holds without an
+     exception for the dashboard. */
+  it("keeps the dashboard inside their own subtree", () => {
+    expect(hrefsFor("HEAD_TEACHER")).toContain("/head-teacher");
   });
 });
 

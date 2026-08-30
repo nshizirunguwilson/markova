@@ -27,7 +27,16 @@ describe('MessagingService', () => {
     },
     student: { findMany: jest.fn() },
     parentStudent: { findMany: jest.fn() },
-    notification: { createMany: jest.fn() },
+    /* A message now leaves a trail behind it: an entry per conversation that
+       is added to rather than duplicated, and its own entry for a mention. */
+    notification: {
+      createMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+    messageMention: { count: jest.fn() },
     message: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -1418,5 +1427,328 @@ describe('MessagingService replying to a message', () => {
     expect(included.replyTo.select).toEqual(
       expect.objectContaining({ content: true, sender: expect.anything() }),
     );
+  });
+});
+
+/**
+ * Mentioning somebody, and what a message leaves behind.
+ *
+ * Two things the chat could not do before. A mention decided at compose time
+ * so it survives a rename and cannot address somebody who is not in the room;
+ * and a trail in the notification menu, so missing a toast no longer means
+ * losing the message.
+ */
+describe('MessagingService mentions', () => {
+  let service: MessagingService;
+
+  const ALINE = '11111111-1111-1111-1111-111111111111';
+  const JEAN = '22222222-2222-2222-2222-222222222222';
+  const ROSE = '33333333-3333-3333-3333-333333333333';
+  const at = (id: string, name: string) => `@[${name}](${id})`;
+
+  const prisma: any = {
+    conversation: { findUnique: jest.fn() },
+    conversationParticipant: { findFirst: jest.fn() },
+    message: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+    messageRead: { createMany: jest.fn() },
+    messageMention: { count: jest.fn() },
+    notification: {
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+  };
+
+  /** A group with three people in it, sent to by Aline. */
+  const room = (over: Record<string, unknown> = {}) =>
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'c1',
+      type: 'GROUP',
+      name: 'Senior 1 A',
+      createdByUserId: ALINE,
+      participants: [
+        { userId: ALINE, isAdmin: false },
+        { userId: JEAN, isAdmin: false },
+        { userId: ROSE, isAdmin: false },
+      ],
+      ...over,
+    });
+
+  const send = (content: string, from = ALINE) =>
+    service.sendMessage({ conversationId: 'c1', content }, from);
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma.conversationParticipant.findFirst.mockResolvedValue({ id: 'p1' });
+    prisma.notification.findFirst.mockResolvedValue(null);
+    prisma.message.create.mockResolvedValue({
+      id: 'm1',
+      content: 'x',
+      sender: { firstName: 'Aline' },
+    });
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MessagingService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get(MessagingService);
+  });
+
+  const created = () => prisma.message.create.mock.calls[0][0].data;
+
+  describe('recording who was named', () => {
+    it('stores a row for the person mentioned', async () => {
+      room();
+      await send(`${at(JEAN, 'Jean Bosco')} can you check this`);
+      expect(created().mentions.create).toEqual([
+        { userId: JEAN, viaEveryone: false },
+      ]);
+    });
+
+    /* Written with the message rather than after it, so a message can never
+       exist carrying markup that notified nobody. */
+    it('writes them in the same call as the message', async () => {
+      room();
+      await send(at(JEAN, 'Jean'));
+      expect(created()).toHaveProperty('mentions');
+      expect(prisma.message.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('never names the sender in their own message', async () => {
+      room();
+      await send(`${at(ALINE, 'me')} and ${at(JEAN, 'Jean')}`);
+      expect(created().mentions.create).toEqual([
+        { userId: JEAN, viaEveryone: false },
+      ]);
+    });
+
+    /* A reader is owed the difference between being asked and being one of
+       thirty. */
+    it('marks the room being addressed as different from being named', async () => {
+      room({
+        participants: [
+          { userId: ALINE, isAdmin: true },
+          { userId: JEAN, isAdmin: false },
+        ],
+      });
+      await send('@everyone bring your books');
+      expect(created().mentions.create).toEqual([
+        { userId: JEAN, viaEveryone: true },
+      ]);
+    });
+
+    it('records nothing for an ordinary message', async () => {
+      room();
+      await send('bring your books tomorrow');
+      expect(created().mentions.create).toEqual([]);
+    });
+  });
+
+  /**
+   * Refused rather than quietly stripped: a mention silently turned into
+   * plain text is the sender believing somebody was told when nobody was.
+   */
+  describe('refusing one that cannot work', () => {
+    it('refuses a mention in a direct message', async () => {
+      room({ type: 'ONE_ON_ONE' });
+      await expect(send(at(JEAN, 'Jean'))).rejects.toThrow(
+        /only work in groups/i,
+      );
+      expect(prisma.message.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses one naming somebody who is not in the room', async () => {
+      room({
+        participants: [
+          { userId: ALINE, isAdmin: false },
+          { userId: JEAN, isAdmin: false },
+        ],
+      });
+      await expect(send(at(ROSE, 'Rose'))).rejects.toThrow(
+        /not in this conversation/i,
+      );
+    });
+
+    it('refuses everyone from somebody who does not run the room', async () => {
+      room();
+      await expect(send('@everyone please read')).rejects.toThrow(
+        /administrator of this conversation/i,
+      );
+    });
+
+    it('allows it from somebody who does', async () => {
+      room({
+        participants: [
+          { userId: ALINE, isAdmin: true },
+          { userId: JEAN, isAdmin: false },
+        ],
+      });
+      await expect(send('@everyone please read')).resolves.toBeDefined();
+    });
+
+    it('leaves an ordinary message in a direct conversation alone', async () => {
+      room({ type: 'ONE_ON_ONE' });
+      await expect(send('are you free at four')).resolves.toBeDefined();
+    });
+  });
+
+  /**
+   * What is left behind for anybody who was not looking.
+   *
+   * One entry per conversation, added to rather than duplicated: a person in
+   * a busy class group would otherwise have two hundred entries by lunchtime,
+   * and a bell nobody opens is a bell that notifies nobody.
+   */
+  describe('the trail a message leaves', () => {
+    it('leaves one for everybody in the room but the sender', async () => {
+      room();
+      await send('bring your books');
+      const told = prisma.notification.create.mock.calls.map(
+        (c: any) => c[0].data.userId,
+      );
+      expect(told.sort()).toEqual([JEAN, ROSE].sort());
+    });
+
+    it('says where it came from and what it said', async () => {
+      room();
+      prisma.message.create.mockResolvedValue({
+        id: 'm1',
+        content: 'bring your books',
+        sender: { firstName: 'Aline' },
+      });
+      await send('bring your books');
+      const [{ data }] = prisma.notification.create.mock.calls[0];
+      expect(data.title).toContain('Senior 1 A');
+      expect(data.message).toBe('bring your books');
+    });
+
+    it('adds to the entry already there rather than making another', async () => {
+      room();
+      prisma.notification.findFirst.mockResolvedValue({ id: 'n1', count: 3 });
+      await send('and one more thing');
+      expect(prisma.notification.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'n1' },
+          data: expect.objectContaining({ count: 4 }),
+        }),
+      );
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('counts them in the line it shows', async () => {
+      room();
+      prisma.notification.findFirst.mockResolvedValue({ id: 'n1', count: 3 });
+      await send('and one more thing');
+      const [{ data }] = prisma.notification.update.mock.calls[0];
+      expect(data.title).toBe('4 new messages in Senior 1 A');
+    });
+
+    /**
+     * A mention is never rolled up. Being named is directed at you
+     * personally, and burying it under "12 new messages" is exactly how it
+     * gets missed.
+     */
+    it('gives a mention its own entry, not a count', async () => {
+      room();
+      prisma.notification.findFirst.mockResolvedValue({ id: 'n1', count: 8 });
+      await send(at(JEAN, 'Jean Bosco'));
+      const forJean = prisma.notification.create.mock.calls.find(
+        (c: any) => c[0].data.userId === JEAN,
+      );
+      expect(forJean[0].data.relatedEntityType).toBe('MENTION');
+      expect(forJean[0].data.title).toMatch(/mentioned you/i);
+    });
+
+    it('still rolls up for everybody who was not named', async () => {
+      room();
+      await send(at(JEAN, 'Jean Bosco'));
+      const forRose = prisma.notification.create.mock.calls.find(
+        (c: any) => c[0].data.userId === ROSE,
+      );
+      expect(forRose[0].data.relatedEntityType).toBe('MESSAGE');
+    });
+
+    // A uuid in a notification is nothing a person can read.
+    it('shows the name rather than the markup', async () => {
+      room();
+      prisma.message.create.mockResolvedValue({
+        id: 'm1',
+        content: `${at(JEAN, 'Jean Bosco')} please check`,
+        sender: { firstName: 'Aline' },
+      });
+      await send(at(JEAN, 'Jean Bosco'));
+      for (const [{ data }] of prisma.notification.create.mock.calls) {
+        expect(data.message).not.toContain(JEAN);
+        expect(data.message).toContain('@Jean Bosco');
+      }
+    });
+  });
+
+  /**
+   * Opening the conversation clears what it left in the bell. A notification
+   * still sitting there for a thread somebody has just read is a bell that
+   * cries wolf, and a bell that cries wolf is one people stop opening.
+   */
+  describe('reading the conversation', () => {
+    beforeEach(() => {
+      prisma.message.findMany.mockResolvedValue([]);
+    });
+
+    it('clears what that conversation left behind', async () => {
+      await service.markAsRead('c1', JEAN);
+      expect(prisma.notification.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: JEAN,
+            isRead: false,
+            relatedEntityId: 'c1',
+          }),
+          data: { isRead: true },
+        }),
+      );
+    });
+
+    /* The point of a mention is to get somebody to the message, and they are
+       now looking at it. */
+    it('clears the mentions with it', async () => {
+      await service.markAsRead('c1', JEAN);
+      const [{ where }] = prisma.notification.updateMany.mock.calls[0];
+      expect(where.relatedEntityType.in).toEqual(['MESSAGE', 'MENTION']);
+    });
+  });
+
+  /**
+   * Two numbers rather than one: an unread message in a group of thirty is
+   * something to get to, a mention is somebody waiting on an answer. One
+   * badge makes the second invisible inside the first.
+   */
+  describe('how much is waiting', () => {
+    it('counts messages and mentions apart', async () => {
+      prisma.message.count = jest.fn().mockResolvedValue(12);
+      prisma.messageMention.count.mockResolvedValue(2);
+      expect(await service.unreadSummary(JEAN)).toEqual({
+        unreadCount: 12,
+        mentionCount: 2,
+      });
+    });
+
+    it('never counts a mention the reader has already read', async () => {
+      prisma.message.count = jest.fn().mockResolvedValue(0);
+      prisma.messageMention.count.mockResolvedValue(0);
+      await service.unreadSummary(JEAN);
+      const [{ where }] = prisma.messageMention.count.mock.calls[0];
+      expect(where.message.reads).toEqual({ none: { userId: JEAN } });
+    });
+
+    // Mentioning yourself is not somebody waiting on you.
+    it('never counts a mention in the reader’s own message', async () => {
+      prisma.message.count = jest.fn().mockResolvedValue(0);
+      prisma.messageMention.count.mockResolvedValue(0);
+      await service.unreadSummary(JEAN);
+      const [{ where }] = prisma.messageMention.count.mock.calls[0];
+      expect(where.message.senderUserId).toEqual({ not: JEAN });
+    });
   });
 });

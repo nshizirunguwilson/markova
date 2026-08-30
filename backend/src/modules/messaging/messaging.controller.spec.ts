@@ -31,7 +31,7 @@ describe('MessagingController', () => {
     'getMessages',
     'sendMessage',
     'markAsRead',
-    'getUnreadCount',
+    'unreadSummary',
     'getContacts',
     'previewAudience',
     'broadcast',
@@ -95,7 +95,7 @@ describe('MessagingController', () => {
     {
       name: 'my unread count',
       call: (c) => c.getUnreadCount(parent),
-      calls: 'getUnreadCount',
+      calls: 'unreadSummary',
       withArgs: [parent.id],
     },
     {

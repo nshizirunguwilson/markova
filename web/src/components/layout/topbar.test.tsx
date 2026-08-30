@@ -58,7 +58,7 @@ beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.router)) m.mockReset();
   serve(h.api, {
-    "/notifications/unread": { count: 1 },
+    "/notifications/unread": { unreadCount: 1 },
     "/notifications": notifications,
   });
   localStorage.clear();
@@ -364,7 +364,7 @@ describe("Topbar notification routing", () => {
   // land in the same one.
   it("takes a message notification to that role's inbox", async () => {
     serve(h.api, {
-      "/notifications/unread": { count: 1 },
+      "/notifications/unread": { unreadCount: 1 },
       "/notifications": [
         {
           id: "n-3",
@@ -408,7 +408,7 @@ describe("Topbar notification routing", () => {
    */
   it("works out where an older notice belongs from its title", async () => {
     serve(h.api, {
-      "/notifications/unread": { count: 1 },
+      "/notifications/unread": { unreadCount: 1 },
       "/notifications": [
         {
           id: "n-4",
@@ -465,7 +465,7 @@ describe("Topbar notification routing", () => {
   // still close cleanly rather than navigating to a made-up path.
   it("stays put for a notification with no page behind it", async () => {
     serve(h.api, {
-      "/notifications/unread": { count: 1 },
+      "/notifications/unread": { unreadCount: 1 },
       "/notifications": [
         { id: "n-4", title: "School closed", body: "Friday", isRead: false, type: "GENERAL" },
       ],
@@ -508,7 +508,7 @@ describe("Topbar notification age", () => {
   async function openWith(createdAt: string) {
     const { act, fireEvent } = await import("@testing-library/react");
     serve(h.api, {
-      "/notifications/unread": { count: 1 },
+      "/notifications/unread": { unreadCount: 1 },
       "/notifications": [
         { id: "n-1", title: "Marks published", body: "Term 1", isRead: false, type: "MARKS", createdAt },
       ],
@@ -661,7 +661,7 @@ describe("Topbar read and unread notifications", () => {
 
   async function openBell(rows: unknown[]) {
     serve(h.api, {
-      "/notifications/unread": { count: 1 },
+      "/notifications/unread": { unreadCount: 1 },
       "/notifications": rows,
     });
     mount();
@@ -706,9 +706,14 @@ describe("Topbar read and unread notifications", () => {
 });
 
 describe("Topbar unread badge", () => {
-  async function withCount(count: number) {
+  /*
+    The shape `/notifications/unread` actually answers with. This said
+    `{ count }` and the bell read `.count` to match, so the test proved a
+    badge that has never once appeared in the running app.
+  */
+  async function withCount(unreadCount: number) {
     serve(h.api, {
-      "/notifications/unread": { count },
+      "/notifications/unread": { unreadCount },
       "/notifications": notifications,
     });
     mount();

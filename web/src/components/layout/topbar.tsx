@@ -36,6 +36,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { labelForRole } from "@/types";
+import { badgeCount, badgeLabel } from "@/lib/badge-count";
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -73,7 +74,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   const { data: notifications } = useNotifications();
   const markAllRead = useMarkAllRead();
   const markRead = useMarkRead();
-  const unreadCount = unreadData?.count ?? 0;
+  const unreadCount = unreadData?.unreadCount ?? 0;
 
   // --- Logout confirmation ---
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -303,13 +304,20 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen(!notifOpen)}
-            aria-label="Notifications"
+            aria-label={
+              unreadCount > 0
+                ? `Notifications, ${badgeLabel(unreadCount, "unread")}`
+                : "Notifications"
+            }
             className="relative rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground transition-colors"
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
-                {unreadCount > 99 ? "99+" : unreadCount}
+              <span
+                aria-hidden="true"
+                className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white"
+              >
+                {badgeCount(unreadCount)}
               </span>
             )}
           </button>

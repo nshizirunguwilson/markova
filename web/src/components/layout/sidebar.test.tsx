@@ -107,10 +107,19 @@ describe("before the profile has loaded", () => {
  * no sound, just a number that is there when you next look at the sidebar.
  */
 describe("how many messages are waiting", () => {
-  function withUnread(count: number) {
+  /*
+    The shape `/messaging/unread` actually answers with.
+
+    This fixture used to say `{ count }`, which the API has never sent, and
+    the sidebar read `.count` to match - so the test proved the badge worked
+    against a response nobody serves, while the real badge read undefined and
+    never appeared once. A fixture shaped to the code rather than to the API
+    is a test that cannot fail.
+  */
+  function withUnread(unreadCount: number, mentionCount = 0) {
     h.api.get.mockImplementation(async (path: string) =>
       path.includes("/messaging/unread")
-        ? { data: { count } }
+        ? { data: { unreadCount, mentionCount } }
         : { data: [] },
     );
     return show("ADMIN");
@@ -126,6 +135,30 @@ describe("how many messages are waiting", () => {
     expect(
       await screen.findByLabelText(/3 unread messages/i),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * A mention is somebody waiting on an answer, which is not the same as one
+   * more message in a group of thirty. The row has space for one number, so
+   * the badge changes colour rather than growing a second.
+   */
+  it("marks the badge differently when something mentions you", async () => {
+    withUnread(7, 2);
+    const badge = await screen.findByText("7");
+    expect(badge.className).toContain("bg-danger");
+  });
+
+  it("says so too, for anyone not reading the screen", async () => {
+    withUnread(7, 2);
+    expect(
+      await screen.findByLabelText(/2 mentioning you/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the ordinary colour when nothing mentions you", async () => {
+    withUnread(7);
+    const badge = await screen.findByText("7");
+    expect(badge.className).toContain("bg-primary");
   });
 
   it("counts one message in the singular", async () => {

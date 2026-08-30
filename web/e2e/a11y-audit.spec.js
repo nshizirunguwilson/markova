@@ -71,7 +71,7 @@ const ROUTES = {
   // The bursar keeps the fee ledger and nothing else.
   BURSAR: ['/admin/finance', '/admin/finance/structure', '/messages', '/help'],
   // The head teacher runs the academic side and nothing else.
-  HEAD_TEACHER: ['/admin/report-cards', '/admin/marks', '/admin/classes',
+  HEAD_TEACHER: ['/head-teacher', '/admin/report-cards', '/admin/marks', '/admin/classes',
     '/admin/timetable', '/admin/teachers', '/admin/attendance', '/grading',
     '/profile', '/messages', '/help'],
   // The boarding staff and the nurse: their own dashboards, plus the welfare

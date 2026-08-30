@@ -2,6 +2,7 @@ import { MarksController } from './marks.controller';
 import { MarksService } from './marks.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { FeeGateService } from '../../common/fee-gate.service';
+import { HeadTeacherDashboardService } from './head-teacher-dashboard.service';
 import {
   buildController,
   clearMocks,
@@ -9,8 +10,34 @@ import {
   mockService,
   parent,
   teacher,
+  type Provided,
   type RouteCase,
 } from '../../test/controller';
+
+/**
+ * What the controller needs to start.
+ *
+ * One helper because there were four lists of this, in four describes, and
+ * adding a dependency to the controller broke three of them one at a time.
+ * The controller's dependencies are a fact about the controller, not about
+ * whichever block happens to be building it.
+ */
+type Mocks = Record<string, jest.Mock>;
+const wiring = (mocks: {
+  service: Mocks;
+  ownership: Mocks;
+  feeGate: Mocks;
+  dashboard?: Mocks;
+}): Provided[] => [
+  { token: MarksService, name: 'service', mock: mocks.service },
+  { token: OwnershipService, name: 'ownership', mock: mocks.ownership },
+  { token: FeeGateService, name: 'feeGate', mock: mocks.feeGate },
+  {
+    token: HeadTeacherDashboardService,
+    name: 'dashboard',
+    mock: mocks.dashboard ?? { overview: jest.fn() },
+  },
+];
 
 /**
  * Marks routes.
@@ -33,6 +60,7 @@ describe('MarksController', () => {
     'getTermResults',
     'getStudentTermResult',
     'updateTermResultComment',
+    'classesForComments',
     'publishTermResults',
     'calculateYearResults',
     'getYearResults',
@@ -50,21 +78,22 @@ describe('MarksController', () => {
     assertYearReleased: jest.fn().mockResolvedValue(undefined),
   };
 
+  const dashboard = { overview: jest.fn().mockResolvedValue({ classes: [] }) };
+
   const withTeacherId = { ...teacher, teacherId: 'teacher-1' };
 
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
-    clearMocks(service, ownership);
+    clearMocks(service, ownership, dashboard);
     // Issued by default, so the route cases exercise the normal path; the
     // gate itself is checked in its own describe below.
     service.isReportCardIssued.mockResolvedValue(true);
     service.getReportCardData.mockResolvedValue({ school: {} });
-    run = await controllerHarness(MarksController, [
-      { token: MarksService, name: 'service', mock: service },
-      { token: OwnershipService, name: 'ownership', mock: ownership },
-      { token: FeeGateService, name: 'feeGate', mock: feeGate },
-    ]);
+    run = await controllerHarness(
+      MarksController,
+      wiring({ service, ownership, feeGate, dashboard }),
+    );
   });
 
   const cases: RouteCase[] = [
@@ -134,9 +163,26 @@ describe('MarksController', () => {
     },
     {
       name: 'a class teacher’s comment',
-      call: (c) => c.updateComment('res-1', { comment: 'Good term' }),
+      /* Who is writing travels with it: the service decides whether a
+         teacher is the class teacher of the class this card belongs to. */
+      call: (c) =>
+        c.updateComment(
+          'res-1',
+          { teacherComment: 'Good term' },
+          withTeacherId,
+        ),
       calls: 'updateTermResultComment',
-      withArgs: ['res-1', { comment: 'Good term' }],
+      withArgs: [
+        'res-1',
+        { teacherComment: 'Good term' },
+        { role: 'TEACHER', teacherId: 'teacher-1' },
+      ],
+    },
+    {
+      name: 'the classes whose cards this person may write on',
+      call: (c) => c.commentClasses(withTeacherId),
+      calls: 'classesForComments',
+      withArgs: [{ role: 'TEACHER', teacherId: 'teacher-1' }],
     },
     {
       name: 'a term published',
@@ -206,11 +252,10 @@ describe('MarksController', () => {
       ownership.verifyStudentAccess.mockRejectedValueOnce(
         new Error('Forbidden'),
       );
-      const run2 = await controllerHarness(MarksController, [
-        { token: MarksService, name: 'service', mock: service },
-        { token: OwnershipService, name: 'ownership', mock: ownership },
-        { token: FeeGateService, name: 'feeGate', mock: feeGate },
-      ]);
+      const run2 = await controllerHarness(
+        MarksController,
+        wiring({ service, ownership, feeGate, dashboard }),
+      );
       await expect(
         run2({
           name: 'blocked',
@@ -248,11 +293,7 @@ describe('results a student may not see yet', () => {
   };
 
   const build = () =>
-    buildController(MarksController, [
-      { token: MarksService, name: 'service', mock: service },
-      { token: OwnershipService, name: 'ownership', mock: ownership },
-      { token: FeeGateService, name: 'feeGate', mock: feeGate },
-    ]);
+    buildController(MarksController, wiring({ service, ownership, feeGate }));
 
   beforeEach(() => {
     clearMocks(service, ownership);
@@ -365,11 +406,7 @@ describe('marks held over unpaid fees', () => {
   };
 
   const build = () =>
-    buildController(MarksController, [
-      { token: MarksService, name: 'service', mock: service },
-      { token: OwnershipService, name: 'ownership', mock: ownership },
-      { token: FeeGateService, name: 'feeGate', mock: feeGate },
-    ]);
+    buildController(MarksController, wiring({ service, ownership, feeGate }));
 
   beforeEach(() => {
     clearMocks(service, ownership);

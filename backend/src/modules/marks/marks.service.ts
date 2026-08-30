@@ -497,9 +497,63 @@ export class MarksService {
     return { result, marks, published: result?.isPublished ?? false };
   }
 
-  async updateTermResultComment(id: string, dto: UpdateTermResultCommentDto) {
+  /**
+   * Writing one of the two comments on a card.
+   *
+   * Who may write where is the whole point of there being two boxes, so it
+   * is settled here rather than left to the screen:
+   *
+   *   A teacher writes the class teacher's comment, and only on the class
+   *   they are the class teacher of. A subject teacher who taught this child
+   *   Mathematics is not the person who reports on their term - they saw one
+   *   subject of eleven, and the comment is about the whole child.
+   *
+   *   The head teacher writes their own, on any card. Reading every child's
+   *   sheet is the post: they confirm each one before it is issued, and a
+   *   comment they could not write on half the school would be a
+   *   countersignature they could not give.
+   *
+   * The admin may write either, because a school where the head teacher is
+   * away for a fortnight still has to issue report cards.
+   */
+  async updateTermResultComment(
+    id: string,
+    dto: UpdateTermResultCommentDto,
+    actor?: { role: string; teacherId?: string },
+  ) {
     const result = await this.prisma.termResult.findUnique({ where: { id } });
     if (!result) throw new NotFoundException('Term result not found');
+
+    if (actor && actor.role !== 'ADMIN') {
+      if (dto.teacherComment !== undefined && actor.role !== 'TEACHER') {
+        throw new ForbiddenException(
+          "The class teacher's comment is written by the class teacher.",
+        );
+      }
+      if (
+        dto.headmasterComment !== undefined &&
+        actor.role !== 'HEAD_TEACHER'
+      ) {
+        throw new ForbiddenException(
+          "The head teacher's comment is written by the head teacher.",
+        );
+      }
+      if (actor.role === 'TEACHER') {
+        const isClassTeacher = await this.prisma.teacherRole.findFirst({
+          where: {
+            role: 'CLASS_TEACHER',
+            teacherId: actor.teacherId,
+            classSectionId: result.classSectionId,
+          },
+          select: { id: true },
+        });
+        if (!isClassTeacher) {
+          throw new ForbiddenException(
+            'You are not the class teacher of this class.',
+          );
+        }
+      }
+    }
 
     return this.prisma.termResult.update({
       where: { id },
@@ -511,6 +565,39 @@ export class MarksService {
           headmasterComment: dto.headmasterComment,
         }),
       },
+    });
+  }
+
+  /**
+   * The classes a person may work on report cards for.
+   *
+   * A class teacher sees their own class and no other, which is what stops
+   * the picker offering twenty-eight classes they cannot act on and then
+   * refusing the one they choose. Everybody else who reaches this screen -
+   * the head teacher, the admin - sees the school.
+   */
+  async classesForComments(actor: { role: string; teacherId?: string }) {
+    let where = {};
+
+    if (actor.role === 'TEACHER') {
+      /* TeacherRole carries the section as a plain id rather than a relation,
+         so the classes are gathered first and the sections filtered by them.
+         A teacher who is class teacher of nothing gets an empty list, which
+         is the honest answer rather than the whole school. */
+      const roles = await this.prisma.teacherRole.findMany({
+        where: { role: 'CLASS_TEACHER', teacherId: actor.teacherId },
+        select: { classSectionId: true },
+      });
+      const ids = roles
+        .map((r) => r.classSectionId)
+        .filter((id): id is string => !!id);
+      where = { id: { in: ids } };
+    }
+
+    return this.prisma.classSection.findMany({
+      where,
+      include: { classLevel: true, trade: true },
+      orderBy: [{ classLevel: { order: 'asc' } }, { name: 'asc' }],
     });
   }
 

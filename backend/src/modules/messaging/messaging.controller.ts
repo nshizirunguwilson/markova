@@ -133,11 +133,20 @@ export class MessagingController {
     return this.service.markAsRead(dto.conversationId, user.id);
   }
 
+  /**
+   * How much is waiting, and how much of it names you.
+   *
+   * Two numbers, because they are read differently: an unread message in a
+   * class group of thirty is something to get to, a mention is somebody
+   * waiting on an answer. One badge makes the second invisible inside the
+   * first. `unreadCount` keeps its name and meaning, so nothing reading it
+   * had to change.
+   */
   @Get('unread')
   @Roles(...ANY_ROLE)
-  @ApiOperation({ summary: 'Get total unread count' })
+  @ApiOperation({ summary: 'Unread messages, and how many mention you' })
   getUnreadCount(@CurrentUser() user: any) {
-    return this.service.getUnreadCount(user.id);
+    return this.service.unreadSummary(user.id);
   }
 
   @Get('contacts')

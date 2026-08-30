@@ -1,3 +1,4 @@
+import { plainText as plainMentions } from "./mention-draft";
 /**
  * How long ago someone was last online, in words.
  *
@@ -89,5 +90,9 @@ export function messagePreview(
 ): string {
   if (!message) return "";
   if (message.contentType === "VOICE") return "Voice message";
-  return message.content ?? "";
+  /* Mentions are stored with the person's id beside the name, so a mention
+     survives a rename. The id is machinery: this line is read by a person,
+     and it shows "@Aline Uwase" rather than a uuid in the middle of a
+     sentence. */
+  return plainMentions(message.content ?? "");
 }

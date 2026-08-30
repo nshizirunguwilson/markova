@@ -9,6 +9,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageSpinner } from "@/components/ui/spinner";
 import api from "@/lib/api";
+import { homeFor } from "@/lib/navigation";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -28,23 +29,12 @@ const ROLES_BY_PREFIX: Record<string, string[]> = {
   // copies of one page.
   boarding: ["PATRON", "MATRON"],
   nurse: ["NURSE"],
+  /* The Director of Studies' own dashboard. The admin reads it too: a
+     principal covering an absent head teacher needs the same view, and a
+     page one account in the school can open is one that goes unread the week
+     they are away. */
+  "head-teacher": ["HEAD_TEACHER", "ADMIN"],
 };
-
-/** Where a role lands when it has no business on the page it asked for. */
-export function homeFor(role: string): string {
-  if (role === "PATRON" || role === "MATRON") return "/boarding";
-  if (role === "NURSE") return "/nurse";
-  // The bursar's home is the register itself. There is no separate dashboard
-  // worth building: the one screen they open every morning is the roll of who
-  // has paid, and a summary page in front of it would be a click to nowhere.
-  if (role === "BURSAR") return "/admin/finance";
-  /* The head teacher's home is the queue itself, for the same reason the
-     bursar's is the register: the one screen they open every morning is the
-     set of cards waiting on their check, and a summary in front of it would
-     be a click to nowhere. */
-  if (role === "HEAD_TEACHER") return "/admin/report-cards";
-  return `/${role.toLowerCase()}`;
-}
 
 /**
  * Pages under /admin that the boarding staff also need.

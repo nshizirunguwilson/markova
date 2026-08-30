@@ -30,6 +30,7 @@ import {
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { HeadTeacherDashboardService } from './head-teacher-dashboard.service';
 
 @ApiTags('Marks')
 @Controller('marks')
@@ -39,6 +40,7 @@ export class MarksController {
   constructor(
     private readonly service: MarksService,
     private readonly ownership: OwnershipService,
+    private readonly dashboard: HeadTeacherDashboardService,
     private readonly feeGate: FeeGateService,
   ) {}
 
@@ -167,8 +169,42 @@ export class MarksController {
   updateComment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTermResultCommentDto,
+    @CurrentUser() user: any,
   ) {
-    return this.service.updateTermResultComment(id, dto);
+    return this.service.updateTermResultComment(id, dto, {
+      role: user.role,
+      teacherId: user.teacherId,
+    });
+  }
+
+  /**
+   * The classes this person may write report card comments for.
+   *
+   * A class teacher's own class and no other. Asked for rather than filtered
+   * on the screen, so the picker never offers a class the save would refuse.
+   */
+  @Get('report-cards/classes')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @ApiOperation({ summary: 'Classes whose report cards you may write on' })
+  commentClasses(@CurrentUser() user: any) {
+    return this.service.classesForComments({
+      role: user.role,
+      teacherId: user.teacherId,
+    });
+  }
+
+  /**
+   * What the Director of Studies opens in the morning.
+   *
+   * The admin may read it too: a principal covering for an absent head
+   * teacher needs the same view, and a page only one account in the school
+   * can open is a page that goes unread the week they are away.
+   */
+  @Get('head-teacher/overview')
+  @Roles('HEAD_TEACHER', 'ADMIN')
+  @ApiOperation({ summary: "The Director of Studies' morning view" })
+  headTeacherOverview(@Query('termId') termId?: string) {
+    return this.dashboard.overview(termId);
   }
 
   /**

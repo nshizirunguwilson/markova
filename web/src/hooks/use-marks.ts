@@ -163,6 +163,34 @@ export function useUpdateTermResultComment() {
 }
 
 /**
+ * What the Director of Studies opens in the morning.
+ *
+ * Refetched on focus rather than on a timer: this is a page somebody leaves
+ * open on a second screen and glances at, and a stale count of what is
+ * waiting on them is worse than no count.
+ */
+export function useHeadTeacherOverview(termId?: string) {
+  return useQuery({
+    queryKey: ["head-teacher-overview", termId],
+    queryFn: async () =>
+      (
+        await api.get("/marks/head-teacher/overview", {
+          params: termId ? { termId } : undefined,
+        })
+      ).data,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** The classes whose report cards this person may write on. */
+export function useCommentClasses() {
+  return useQuery({
+    queryKey: ["report-card-classes"],
+    queryFn: async () => (await api.get("/marks/report-cards/classes")).data,
+  });
+}
+
+/**
  * The head teacher standing behind a class's cards, or handing them back.
  *
  * The step between the comments being written and the principal issuing the

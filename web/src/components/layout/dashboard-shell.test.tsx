@@ -352,17 +352,24 @@ describe("DashboardShell and the head teacher", () => {
     render(wrap(<DashboardShell><Child /></DashboardShell>));
   };
 
-  /* The queue itself, for the same reason the bursar's home is the register:
-     a summary in front of the one screen they open every morning would be a
-     click to nowhere. */
-  it("lands on the cards waiting on them, not on a dashboard of counts", async () => {
+  /**
+   * A dashboard of their own, unlike the bursar's.
+   *
+   * The bursar has none because their question is "who has not paid" and the
+   * register answers it. The head teacher's day is spent unblocking a
+   * pipeline they do not run themselves, so the question that starts it -
+   * what is stuck, and on whom - is genuinely spread across four screens and
+   * worth answering in one.
+   */
+  it("lands on the dashboard that answers what is stuck", async () => {
     land("/teacher/marks");
     await waitFor(() =>
-      expect(h.router.replace).toHaveBeenCalledWith("/admin/report-cards"),
+      expect(h.router.replace).toHaveBeenCalledWith("/head-teacher"),
     );
   });
 
   it.each([
+    "/head-teacher",
     "/admin/report-cards",
     "/admin/marks",
     "/admin/classes",
@@ -388,7 +395,7 @@ describe("DashboardShell and the head teacher", () => {
   ])("sends them off %s, which is not", async (path) => {
     land(path);
     await waitFor(() =>
-      expect(h.router.replace).toHaveBeenCalledWith("/admin/report-cards"),
+      expect(h.router.replace).toHaveBeenCalledWith("/head-teacher"),
     );
   });
 
@@ -413,6 +420,25 @@ describe("DashboardShell and the head teacher", () => {
       await waitFor(() => expect(h.router.replace).toHaveBeenCalled());
     },
   );
+
+  /* A path with no rule is open to every signed-in account, so the dashboard
+     needs one of its own rather than relying on nobody guessing the URL. */
+  it.each(["STUDENT", "PARENT", "TEACHER", "BURSAR"])(
+    "keeps a %s off the dashboard itself",
+    async (role) => {
+      land("/head-teacher", role);
+      await waitFor(() => expect(h.router.replace).toHaveBeenCalled());
+    },
+  );
+
+  // The principal covering for them reads the same page.
+  it("lets the admin read it", async () => {
+    land("/head-teacher", "ADMIN");
+    await waitFor(() =>
+      expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
 });
 
 /**

@@ -191,7 +191,7 @@ describe('drafting the comments on a card', () => {
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.termResult.findFirst.mockResolvedValue(null);
     const out = await draft();
-    expect(out.classTeacher).toMatch(/not yet complete/i);
+    expect(out.classTeacher).toMatch(/not yet marked/i);
     expect(out.headTeacher).toMatch(/incomplete/i);
   });
 
