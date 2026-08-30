@@ -13,9 +13,9 @@ import { classDisplayName } from '../../common/class-name';
  *
  * The DOS is different. Their day is spent unblocking a pipeline they do not
  * run themselves - subject teachers enter marks, class teachers write
- * comments, the principal issues - and the question that starts it is "what
- * is stuck, and on whom". That question is genuinely spread across four
- * screens today, which is what makes it worth answering in one.
+ * comments, and the DOS confirms and issues - and the question that starts
+ * it is "what is stuck, and on whom". That question is genuinely spread
+ * across four screens today, which is what makes it worth answering in one.
  *
  * So every number here is something they can act on this morning, and each
  * one names who the action falls to:
@@ -80,7 +80,7 @@ export const OWNER_OF: Record<Blocker, string> = {
   MARKS_NOT_RELEASED: 'The office',
   COMMENTS_NOT_WRITTEN: 'Class teacher',
   AWAITING_CONFIRMATION: 'You',
-  AWAITING_ISSUE: 'The principal',
+  AWAITING_ISSUE: 'You',
   DONE: '',
 };
 
