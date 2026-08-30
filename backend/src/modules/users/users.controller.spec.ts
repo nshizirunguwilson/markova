@@ -154,6 +154,85 @@ describe('UsersController', () => {
       });
     });
 
+    /**
+     * Taking a photograph down is a change somebody may legitimately want,
+     * not only a way to undo a mistake: a record with no photograph is a
+     * real state, and the avatar falls back to initials everywhere it is
+     * drawn.
+     */
+    it('lets somebody take their own photo down', async () => {
+      await run({
+        name: 'removed',
+        call: (c) => c.removePhoto(parent.id, parent),
+        calls: 'updatePhoto',
+        withArgs: [parent.id, null],
+      });
+    });
+
+    it('lets the office take anybody’s down', async () => {
+      await run({
+        name: 'admin removes',
+        call: (c) => c.removePhoto('user-9', admin),
+        calls: 'updatePhoto',
+        withArgs: ['user-9', null],
+      });
+    });
+
+    it('refuses to take somebody else’s down', async () => {
+      const run2 = await controllerHarness(UsersController, [
+        { token: UsersService, name: 'service', mock: service },
+      ]);
+      await expect(
+        run2({
+          name: 'blocked',
+          call: (c) => c.removePhoto('somebody-else', parent),
+          calls: 'updatePhoto',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.updatePhoto).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The file being replaced is moved aside rather than deleted.
+     *
+     * Somebody uploading over the wrong person's record should not destroy
+     * the only copy of their photograph, so the old one is looked for and
+     * retired. Nothing is written here - the path does not exist under the
+     * test's working directory - but the lookup is what proves the old file
+     * is not simply abandoned.
+     */
+    it.each([
+      [
+        'a photo being replaced',
+        (c: any) => c.uploadPhoto('user-1', { filename: 'b.png' }, admin),
+      ],
+      ['a photo being removed', (c: any) => c.removePhoto('user-1', admin)],
+    ])('looks for the old file when %s', async (_name, call) => {
+      service.findOne.mockResolvedValue({
+        id: 'user-1',
+        photoUrl: '/uploads/photos/old.png',
+        signatureUrl: null,
+      });
+      await run({ name: 'retires', call, calls: 'updatePhoto' });
+      expect(service.findOne).toHaveBeenCalledWith('user-1');
+    });
+
+    it.each([
+      [
+        'replaced',
+        (c: any) => c.uploadSignature(admin.id, { filename: 'b.png' }, admin),
+      ],
+      ['removed', (c: any) => c.removeSignature(admin.id, admin)],
+    ])('looks for the old signature when one is %s', async (_name, call) => {
+      service.findOne.mockResolvedValue({
+        id: admin.id,
+        photoUrl: null,
+        signatureUrl: '/uploads/signatures/old.png',
+      });
+      await run({ name: 'retires', call, calls: 'updateSignature' });
+      expect(service.findOne).toHaveBeenCalledWith(admin.id);
+    });
+
     it('refuses a photo request that carried no file', async () => {
       const run2 = await controllerHarness(UsersController, [
         { token: UsersService, name: 'service', mock: service },

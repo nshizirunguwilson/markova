@@ -141,6 +141,13 @@ async function settled(page) {
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
+/** The smallest thing the API will accept as a photograph. */
+const PNG_PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+
 /**
  * Land on a class on the report cards screen.
  *
@@ -1998,6 +2005,104 @@ test('profile: a signature is offered only to the people who sign', async (brows
   assert(
     !(await student.innerText('body')).includes('My signature'),
     'a student, who signs nothing, was offered a signature',
+  );
+  await ctx.close();
+});
+
+
+/**
+ * The profile photograph.
+ *
+ * Every role has one, and every role reaches it through the same page: the
+ * profile is one route that each role's own path re-exports. That mattered
+ * more than it sounds - the account menu used to build the path out of the
+ * role name, so a bursar, a nurse and the head teacher were sent to a page
+ * that does not exist and bounced straight back to their dashboard.
+ */
+test('profile: every role reaches their own profile from the account menu', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  for (const role of ['HEAD_TEACHER', 'BURSAR', 'NURSE', 'STUDENT']) {
+    const page = await authedPage(ctx, role);
+    await visit(page, '/profile');
+    await page.waitForSelector('input[aria-label="Choose a photo"]', { timeout: 30000 });
+    assert(
+      page.url().endsWith('/profile'),
+      `${role} was bounced off their own profile to ${page.url()}`,
+    );
+    await page.close();
+  }
+  await ctx.close();
+});
+
+/**
+ * The preview is the point of the whole step.
+ *
+ * The frame is round and crops to the centre, and a photograph taken on a
+ * phone almost never is. Nothing crosses the connection until Save, so
+ * somebody sees the crop before the school stores it rather than finding out
+ * from the topbar afterwards.
+ */
+test('profile: a chosen photo is previewed before anything is uploaded', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'STUDENT');
+  await visit(page, '/profile');
+  await page.waitForSelector('input[aria-label="Choose a photo"]', { timeout: 30000 });
+
+  const uploads = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('/photo')) uploads.push(r.url());
+  });
+
+  await page.setInputFiles('input[aria-label="Choose a photo"]', {
+    name: 'me.png',
+    mimeType: 'image/png',
+    buffer: PNG_PIXEL,
+  });
+  await page.waitForSelector('img[alt="The photograph you chose"]', { timeout: 15000 });
+  assert(uploads.length === 0, 'choosing a photo uploaded it before Save was pressed');
+
+  const body = await page.innerText('body');
+  assert(/cropped to a circle/i.test(body), 'the preview does not say the picture is cropped');
+  assert(body.includes('me.png'), 'the preview does not name the file that was chosen');
+
+  await page.getByRole('button', { name: /Save photo/ }).click();
+  await page.waitForFunction(
+    () => /Change photo/.test(document.body.innerText),
+    { timeout: 20000 },
+  );
+  assert(uploads.length === 1, `expected one upload, saw ${uploads.length}`);
+  await ctx.close();
+});
+
+/**
+ * Refused here rather than after crossing a school's connection. The API
+ * refuses the wrong type correctly, but a person who picked a document
+ * should be told at once, and told which formats to choose from.
+ */
+test('profile: a file that is not a photograph is refused before it is sent', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/profile');
+  await page.waitForSelector('input[aria-label="Choose a photo"]', { timeout: 30000 });
+
+  const uploads = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('/photo')) uploads.push(r.url());
+  });
+
+  await page.setInputFiles('input[aria-label="Choose a photo"]', {
+    name: 'notes.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4'),
+  });
+  await page.waitForFunction(
+    () => /not a photograph/i.test(document.body.innerText),
+    { timeout: 15000 },
+  );
+  assert(uploads.length === 0, 'a refused file was uploaded anyway');
+  assert(
+    /JPG, PNG, GIF or WEBP/.test(await page.innerText('body')),
+    'the refusal does not say which formats to choose from',
   );
   await ctx.close();
 });

@@ -12,6 +12,7 @@ export {
 } from "./table";
 export { Badge } from "./badge";
 export { Avatar } from "./avatar";
+export { PhotoPicker } from "./photo-picker";
 export { Spinner, PageSpinner } from "./spinner";
 export { ExportDropdown } from "./export-dropdown";
 export { TooltipGuide } from "./tooltip-guide";

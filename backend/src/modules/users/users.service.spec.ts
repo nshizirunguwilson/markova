@@ -373,6 +373,62 @@ describe('UsersService', () => {
         }),
       );
     });
+
+    /* A record with no photograph is a real state, not an error one: the
+       avatar falls back to initials everywhere it is drawn. */
+    it('clears the photo when there is to be none', async () => {
+      prisma.user.update.mockResolvedValue({ photoUrl: null });
+      const out = await service.updatePhoto('u-1', null);
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({
+        photoUrl: null,
+      });
+      expect(out).toEqual({ photoUrl: null });
+    });
+
+    it('refuses a photo for somebody who does not exist', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.updatePhoto('nope', '/a.png')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    /**
+     * The signature is kept apart from the school's own, which lives in the
+     * branding settings. A report card carries a class teacher's mark and a
+     * head teacher's, and one file shared between them would put the same
+     * hand under both names.
+     */
+    it('stores a signature against the person who signs', async () => {
+      prisma.user.update.mockResolvedValue({});
+      const out = await service.updateSignature(
+        'u-1',
+        '/uploads/signatures/a.png',
+      );
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u-1' },
+          data: { signatureUrl: '/uploads/signatures/a.png' },
+        }),
+      );
+      expect(out).toEqual({ signatureUrl: '/uploads/signatures/a.png' });
+    });
+
+    // Taking one down leaves the card printing a line and a name, which is
+    // the form every report card took before the system existed.
+    it('clears a signature when it is taken down', async () => {
+      prisma.user.update.mockResolvedValue({});
+      await service.updateSignature('u-1', null);
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({
+        signatureUrl: null,
+      });
+    });
+
+    it('refuses a signature for somebody who does not exist', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.updateSignature('nope', '/a.png')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   /**

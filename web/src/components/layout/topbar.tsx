@@ -425,7 +425,20 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
               <button
                 onClick={() => {
                   setDropdownOpen(false);
-                  router.push(`/${user?.role?.toLowerCase()}/profile`);
+                  /*
+                    One profile route for everybody.
+
+                    This used to build the path from the role, which worked
+                    for the five roles that happen to have a page of their
+                    own and sent a bursar to /bursar/profile, a nurse to
+                    /nurse/profile and the head teacher to
+                    /head_teacher/profile - none of which exist, so the
+                    shell bounced them back to their dashboard and their own
+                    profile was unreachable from the only menu that offers
+                    it. /profile is the real page; the per-role routes are
+                    re-exports of it.
+                  */
+                  router.push("/profile");
                 }}
                 className="flex w-full items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent-light"
               >

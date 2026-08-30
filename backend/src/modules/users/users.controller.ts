@@ -180,6 +180,37 @@ export class UsersController {
   }
 
   /**
+   * Taking a photograph down.
+   *
+   * The same rule the upload above carries: your own always, anybody's if
+   * you are the office. A record with no photograph is a real state - the
+   * avatar falls back to initials everywhere it is drawn - so this is a
+   * change somebody may legitimately want rather than only a way to undo a
+   * mistake.
+   */
+  @Delete(':id/photo')
+  @Roles(...ANY_ROLE)
+  @ApiOperation({ summary: 'Remove a profile photo' })
+  async removePhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() current: { id: string; role: string },
+  ) {
+    if (current.role !== 'ADMIN' && current.id !== id) {
+      throw new ForbiddenException('You can only update your own photo');
+    }
+    /* Moved aside rather than deleted, exactly as replacing one is: somebody
+       clearing the wrong person's record should not destroy the only copy of
+       their photograph. */
+    const user = await this.usersService.findOne(id);
+    retireStoredFile(
+      user.photoUrl,
+      { existsSync, mkdirSync, renameSync },
+      (p) => join(process.cwd(), p),
+    );
+    return this.usersService.updatePhoto(id, null);
+  }
+
+  /**
    * Somebody's own signature, uploaded from their own profile.
    *
    * Never on another person's behalf, and an administrator gets no exception
