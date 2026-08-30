@@ -142,7 +142,7 @@ export function TooltipGuide({ id, steps, onComplete }: TooltipGuideProps) {
             )}
             <button aria-label="Next"
               onClick={next}
-              className="flex items-center text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-light font-medium"
+              className="flex items-center text-xs bg-primary text-on-primary px-3 py-1.5 rounded-lg hover:bg-primary-light font-medium"
             >
               {currentStep < steps.length - 1 ? (
                 <>Next <ChevronRight className="h-3 w-3 ml-0.5" /></>

@@ -42,7 +42,7 @@ export default function LibrarianDashboard() {
       label: "Books given out",
       value: analytics?.totalCheckouts ?? 0,
       icon: BarChart3,
-      color: "text-violet-600 bg-violet-50",
+      color: "text-info bg-info-wash",
     },
   ];
 

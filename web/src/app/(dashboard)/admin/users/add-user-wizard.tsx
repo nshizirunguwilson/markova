@@ -504,7 +504,7 @@ export function AddUserWizard({
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
                   i < step
-                    ? "bg-primary text-white"
+                    ? "bg-primary text-on-primary"
                     : i === step
                       ? "border-2 border-primary text-primary"
                       : "border border-border text-muted"

@@ -392,13 +392,13 @@ export default function AdminPromotionPage() {
                         <div className="inline-flex overflow-hidden rounded-lg border border-border">
                           <button
                             onClick={() => setDecision(s.studentId, "PROMOTE")}
-                            className={`px-3 py-1 text-xs font-medium ${d === "PROMOTE" ? "bg-success text-white" : "bg-surface text-muted hover:bg-muted/10"}`}
+                            className={`px-3 py-1 text-xs font-medium ${d === "PROMOTE" ? "bg-success text-on-success" : "bg-surface text-muted hover:bg-muted/10"}`}
                           >
                             Promote
                           </button>
                           <button
                             onClick={() => setDecision(s.studentId, "RETAIN")}
-                            className={`px-3 py-1 text-xs font-medium ${d === "RETAIN" ? "bg-danger text-white" : "bg-surface text-muted hover:bg-muted/10"}`}
+                            className={`px-3 py-1 text-xs font-medium ${d === "RETAIN" ? "bg-danger text-on-danger" : "bg-surface text-muted hover:bg-muted/10"}`}
                           >
                             Retain
                           </button>

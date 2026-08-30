@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuthStore } from "@/stores/auth-store";
+import { ThemeSwitch } from "@/components/ui/theme-switch";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { getNavigation, type NavItem } from "@/lib/navigation";
@@ -315,7 +316,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
             {unreadCount > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white"
+                className="absolute -right-0.5 -top-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-on-danger"
               >
                 {badgeCount(unreadCount)}
               </span>
@@ -429,7 +430,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface py-1 shadow-popover">
+            <div className="absolute right-0 top-full mt-1 w-60 rounded-lg border border-border bg-surface py-1 shadow-popover">
               <button
                 onClick={() => {
                   setDropdownOpen(false);
@@ -453,6 +454,16 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                 <User className="h-4 w-4" />
                 My Profile
               </button>
+              <hr className="my-1 border-border" />
+              {/* Sits in the menu the reader already opens to change
+                  something about themselves, rather than on a settings page
+                  nobody visits twice. */}
+              <div className="px-2 py-1.5">
+                <p className="mb-1.5 px-2 text-xs font-medium text-muted">
+                  Theme
+                </p>
+                <ThemeSwitch />
+              </div>
               <hr className="my-1 border-border" />
               <button
                 onClick={handleLogout}

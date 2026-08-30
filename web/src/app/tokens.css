@@ -2,16 +2,135 @@
    Source of truth: design/tokens.json
    Regenerate with: node scripts/sync-design-tokens.mjs */
 
-/* The school's own colours, overridable at runtime by BrandProvider. */
+/* The school's own colours, overridable at runtime by BrandProvider, and the
+   neutral and semantic tones the theme switches between. */
 :root {
   --brand-primary: #1B4F72;
-  --brand-primary-light: #2E86C1;
+  --brand-primary-light: #2A7CB4;
   --brand-primary-dark: #154360;
   --brand-on-primary: #FFFFFF;
   --brand-accent: #D6EAF8;
   --brand-accent-light: #EBF5FB;
   --brand-info: #1B4F72;
   --brand-info-wash: #EBF5FB;
+  --tone-background: #F8FAFC;
+  --tone-surface: #FFFFFF;
+  --tone-surface-muted: #F1F5F9;
+  --tone-foreground: #1E293B;
+  --tone-foreground-muted: #475569;
+  --tone-muted: #5F6E85;
+  --tone-border: rgb(16 24 40 / 0.08);
+  --tone-border-strong: #CBD5E1;
+  --tone-field: #F8FAFC;
+  --tone-border-input: #7C8DA3;
+  --tone-success: #0E7C4A;
+  --tone-success-wash: #E7F4EE;
+  --tone-warning: #B45309;
+  --tone-warning-wash: #FDF3E7;
+  --tone-danger: #C0392B;
+  --tone-danger-wash: #FBEBE9;
+  --tone-on-success: #FFFFFF;
+  --tone-on-warning: #FFFFFF;
+  --tone-on-danger: #FFFFFF;
+  --tone-white: #FFFFFF;
+  --tone-black: #000000;
+  color-scheme: light;
+}
+
+/* System: nothing is stamped on the document, so the OS decides. Guarded so
+   that a reader who explicitly chose light keeps light on a dark OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --brand-primary: #6BB6E8;
+    --brand-primary-light: #8FCAEF;
+    --brand-primary-dark: #4A9BD1;
+    --brand-on-primary: #0B1220;
+    --brand-accent: #1E3A52;
+    --brand-accent-light: #16293A;
+    --tone-background: #0B1220;
+    --tone-surface: #151E2E;
+    --tone-surface-muted: #1E2A3D;
+    --tone-foreground: #E8EEF6;
+    --tone-foreground-muted: #B9C6D6;
+    --tone-muted: #93A3B8;
+    --tone-border: rgb(255 255 255 / 0.10);
+    --tone-border-strong: #35455C;
+    --tone-field: #101A28;
+    --tone-border-input: #7F93AC;
+    --tone-success: #3FD08A;
+    --tone-success-wash: #10291F;
+    --tone-warning: #F0B26B;
+    --tone-warning-wash: #2A1F10;
+    --tone-danger: #F98B80;
+    --tone-danger-wash: #2C1512;
+    --brand-info: #6BB6E8;
+    --brand-info-wash: #12283A;
+    --tone-on-success: #08160F;
+    --tone-on-warning: #1C1206;
+    --tone-on-danger: #1C0B09;
+    --tone-white: #FFFFFF;
+    --tone-black: #000000;
+    color-scheme: dark;
+  }
+}
+
+/* An explicit choice, which wins in both directions. */
+:root[data-theme='dark'] {
+  --brand-primary: #6BB6E8;
+  --brand-primary-light: #8FCAEF;
+  --brand-primary-dark: #4A9BD1;
+  --brand-on-primary: #0B1220;
+  --brand-accent: #1E3A52;
+  --brand-accent-light: #16293A;
+  --tone-background: #0B1220;
+  --tone-surface: #151E2E;
+  --tone-surface-muted: #1E2A3D;
+  --tone-foreground: #E8EEF6;
+  --tone-foreground-muted: #B9C6D6;
+  --tone-muted: #93A3B8;
+  --tone-border: rgb(255 255 255 / 0.10);
+  --tone-border-strong: #35455C;
+  --tone-field: #101A28;
+  --tone-border-input: #7F93AC;
+  --tone-success: #3FD08A;
+  --tone-success-wash: #10291F;
+  --tone-warning: #F0B26B;
+  --tone-warning-wash: #2A1F10;
+  --tone-danger: #F98B80;
+  --tone-danger-wash: #2C1512;
+  --brand-info: #6BB6E8;
+  --brand-info-wash: #12283A;
+  --tone-on-success: #08160F;
+  --tone-on-warning: #1C1206;
+  --tone-on-danger: #1C0B09;
+  --tone-white: #FFFFFF;
+  --tone-black: #000000;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --tone-background: #F8FAFC;
+  --tone-surface: #FFFFFF;
+  --tone-surface-muted: #F1F5F9;
+  --tone-foreground: #1E293B;
+  --tone-foreground-muted: #475569;
+  --tone-muted: #5F6E85;
+  --tone-border: rgb(16 24 40 / 0.08);
+  --tone-border-strong: #CBD5E1;
+  --tone-field: #F8FAFC;
+  --tone-border-input: #7C8DA3;
+  --tone-success: #0E7C4A;
+  --tone-success-wash: #E7F4EE;
+  --tone-warning: #B45309;
+  --tone-warning-wash: #FDF3E7;
+  --tone-danger: #C0392B;
+  --tone-danger-wash: #FBEBE9;
+  --tone-on-success: #FFFFFF;
+  --tone-on-warning: #FFFFFF;
+  --tone-on-danger: #FFFFFF;
+  --tone-white: #FFFFFF;
+  --tone-black: #000000;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -22,26 +141,29 @@
   --color-on-primary: var(--brand-on-primary);
   --color-accent: var(--brand-accent);
   --color-accent-light: var(--brand-accent-light);
-  --color-background: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-surface-muted: #F1F5F9;
-  --color-foreground: #1E293B;
-  --color-foreground-muted: #475569;
-  --color-muted: #5F6E85;
-  --color-border: rgb(16 24 40 / 0.08);
-  --color-border-strong: #CBD5E1;
-  --color-field: #F8FAFC;
-  --color-border-input: #7C8DA3;
-  --color-success: #0E7C4A;
-  --color-success-wash: #E7F4EE;
-  --color-warning: #B45309;
-  --color-warning-wash: #FDF3E7;
-  --color-danger: #C0392B;
-  --color-danger-wash: #FBEBE9;
+  --color-background: var(--tone-background);
+  --color-surface: var(--tone-surface);
+  --color-surface-muted: var(--tone-surface-muted);
+  --color-foreground: var(--tone-foreground);
+  --color-foreground-muted: var(--tone-foreground-muted);
+  --color-muted: var(--tone-muted);
+  --color-border: var(--tone-border);
+  --color-border-strong: var(--tone-border-strong);
+  --color-field: var(--tone-field);
+  --color-border-input: var(--tone-border-input);
+  --color-success: var(--tone-success);
+  --color-success-wash: var(--tone-success-wash);
+  --color-warning: var(--tone-warning);
+  --color-warning-wash: var(--tone-warning-wash);
+  --color-danger: var(--tone-danger);
+  --color-danger-wash: var(--tone-danger-wash);
   --color-info: var(--brand-info);
   --color-info-wash: var(--brand-info-wash);
-  --color-white: #FFFFFF;
-  --color-black: #000000;
+  --color-on-success: var(--tone-on-success);
+  --color-on-warning: var(--tone-on-warning);
+  --color-on-danger: var(--tone-on-danger);
+  --color-white: var(--tone-white);
+  --color-black: var(--tone-black);
 
   /* ── radius (same pixels as mobile's radius.*) ──────────────────────────── */
   --radius-sm: 4px;

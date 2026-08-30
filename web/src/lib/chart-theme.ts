@@ -26,23 +26,68 @@ export const viz = {
   grid: "#edf1f6",
 } as const;
 
-export const axisLabel = { color: viz.muted, fontSize: 11 };
+/**
+ * The chart furniture, which is the part of a chart that has to change theme.
+ *
+ * A chart is two things: the data, drawn in the validated palette above, and
+ * the chrome around it - axis labels, grid lines, the tooltip card. The data
+ * colours are chosen for separation from each other and carry direct labels,
+ * so they hold on either ground. The chrome is text and hairlines on the
+ * card, and near-black labels with near-white grid lines on a dark card is
+ * simply an unreadable chart.
+ *
+ * ECharts wants concrete colours rather than CSS variables, so these are
+ * resolved values rather than `var(--tone-muted)`, and they are functions of
+ * the theme rather than constants. They mirror the token file: any change
+ * there has to be made here too, which a test holds them to.
+ */
+export type ChartTheme = "light" | "dark";
 
-export const splitLine = { lineStyle: { color: viz.grid } };
+const CHROME = {
+  light: {
+    ink: "#1E293B",
+    muted: "#5F6E85",
+    grid: "#edf1f6",
+    surface: "#ffffff",
+    border: "#e2e8f0",
+    shadow: "rgb(16 24 40 / 0.12)",
+  },
+  dark: {
+    ink: "#E8EEF6",
+    muted: "#93A3B8",
+    grid: "#233248",
+    surface: "#151E2E",
+    border: "#35455C",
+    shadow: "rgb(0 0 0 / 0.5)",
+  },
+} as const;
 
-export const tooltipStyle = {
-  backgroundColor: "#ffffff",
-  borderColor: "#e2e8f0",
-  borderWidth: 1,
-  padding: [8, 12] as [number, number],
-  textStyle: { color: viz.ink, fontSize: 12 },
-  extraCssText: "box-shadow: 0 6px 16px -4px rgb(16 24 40 / 0.12); border-radius: 8px;",
+export const chartChrome = (theme: ChartTheme = "light") => {
+  const c = CHROME[theme];
+  return {
+    axisLabel: { color: c.muted, fontSize: 11 },
+    splitLine: { lineStyle: { color: c.grid } },
+    tooltipStyle: {
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      borderWidth: 1,
+      padding: [8, 12] as [number, number],
+      textStyle: { color: c.ink, fontSize: 12 },
+      extraCssText: `box-shadow: 0 6px 16px -4px ${c.shadow}; border-radius: 8px;`,
+    },
+    legendStyle: {
+      icon: "circle",
+      itemWidth: 9,
+      itemHeight: 9,
+      itemGap: 18,
+      textStyle: { color: c.muted, fontSize: 12 },
+    },
+  };
 };
 
-export const legendStyle = {
-  icon: "circle",
-  itemWidth: 9,
-  itemHeight: 9,
-  itemGap: 18,
-  textStyle: { color: viz.muted, fontSize: 12 },
-};
+/*
+  The light chrome, still exported under its old names so that a chart which
+  has not been converted yet renders exactly as it did rather than breaking.
+*/
+export const { axisLabel, splitLine, tooltipStyle, legendStyle } =
+  chartChrome("light");

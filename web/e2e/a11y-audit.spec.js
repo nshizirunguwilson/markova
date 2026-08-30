@@ -179,7 +179,19 @@ async function scan(page, url) {
 
   // Signed-out pages first: they need no token and are the first thing anyone
   // with a screen reader meets.
-  const publicCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  /*
+    THEME=dark runs the whole sweep on the dark palette.
+
+    Contrast is the failure a dark theme actually ships with, and axe measures
+    exactly that - so rather than a second audit that would drift from this
+    one, the same 108 pages are scanned again with the OS asking for dark and
+    nothing stamped, which is the state most readers are in.
+  */
+  const dark = process.env.THEME === 'dark';
+  const scheme = dark ? 'dark' : 'light';
+  if (dark) console.log('Scanning the dark palette.\n');
+
+  const publicCtx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
   for (const route of PUBLIC_ROUTES) {
     const page = await publicCtx.newPage();
     for (const v of await scan(page, WEB + route)) {
@@ -192,7 +204,7 @@ async function scan(page, url) {
 
   for (const [role, routes] of Object.entries(ROUTES)) {
     const tokens = await login(role);
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
     await ctx.addInitScript((t) => {
       localStorage.setItem('access_token', t.accessToken);
       localStorage.setItem('refresh_token', t.refreshToken);

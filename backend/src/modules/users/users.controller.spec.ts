@@ -409,6 +409,21 @@ describe('UsersController and the welfare staff', () => {
     );
   });
 
+  /*
+    But the roll is theirs to read. The student pickers on their own pages go
+    through this route, and forcing TEACHER on every request meant those
+    boxes could never be filled: the page answered "no student matches" for a
+    name the school plainly has.
+  */
+  it('gives the head teacher the roll when that is what they asked for', async () => {
+    await controller.findAll({ role: 'STUDENT', search: 'Mucyo' } as never, {
+      role: 'HEAD_TEACHER',
+    });
+    expect(service.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ role: Role.STUDENT, search: 'Mucyo' }),
+    );
+  });
+
   it('keeps the head teacher out of the parent list they asked for', async () => {
     await controller.findAll({ role: 'PARENT', search: 'Keza' } as never, {
       role: 'HEAD_TEACHER',
