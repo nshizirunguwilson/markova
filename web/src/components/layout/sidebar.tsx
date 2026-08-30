@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUnreadMessageCount } from "@/hooks/use-messaging";
+import { badgeCount, badgeLabel } from "@/lib/badge-count";
 import { useBrandStore } from "@/stores/brand-store";
 import { BrandMark } from "@/components/brand-mark";
 import type { Role } from "@/types";
@@ -23,7 +24,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   // The same count the chat itself keeps; the socket invalidates it as
   // messages arrive, so the badge follows without polling.
   const { data: unreadMessages } = useUnreadMessageCount();
-  const unread = unreadMessages?.count ?? 0;
+  const unread = unreadMessages?.unreadCount ?? 0;
+  /* A mention is somebody waiting on an answer, which is not the same as one
+     more message in a group of thirty. The badge changes colour rather than
+     growing a second number: the row has space for one. */
+  const mentions = unreadMessages?.mentionCount ?? 0;
 
   return (
     <aside
@@ -78,12 +83,18 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       */}
                       {item.href.endsWith("/messages") && unread > 0 && (
                         <span
-                          aria-label={`${unread} unread ${unread === 1 ? "message" : "messages"}`}
-                          className="ml-auto min-w-[1.25rem] rounded-full bg-primary px-1.5 py-0.5 text-center text-[0.6875rem] font-semibold leading-none text-on-primary tabular-nums"
+                          aria-label={
+                            mentions > 0
+                              ? `${badgeLabel(unread, "unread message")}, ${badgeLabel(mentions, "mentioning you")}`
+                              : badgeLabel(unread, "unread message")
+                          }
+                          className={`ml-auto min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[0.6875rem] font-semibold leading-none tabular-nums ${
+                            mentions > 0
+                              ? "bg-danger text-white"
+                              : "bg-primary text-on-primary"
+                          }`}
                         >
-                          {/* Past ninety-nine the exact number stops meaning
-                              anything and starts breaking the row. */}
-                          {unread > 99 ? "99+" : unread}
+                          {badgeCount(unread)}
                         </span>
                       )}
                     </Link>

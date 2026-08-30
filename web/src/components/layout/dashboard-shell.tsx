@@ -29,6 +29,11 @@ const ROLES_BY_PREFIX: Record<string, string[]> = {
   // copies of one page.
   boarding: ["PATRON", "MATRON"],
   nurse: ["NURSE"],
+  /* The Director of Studies' own dashboard. The admin reads it too: a
+     principal covering an absent head teacher needs the same view, and a
+     page one account in the school can open is one that goes unread the week
+     they are away. */
+  "head-teacher": ["HEAD_TEACHER", "ADMIN"],
 };
 
 /**

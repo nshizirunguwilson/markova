@@ -44,7 +44,7 @@ beforeEach(() => {
   for (const m of Object.values(h.api)) m.mockReset();
   for (const m of Object.values(h.router)) m.mockReset();
   serve(h.api, {
-    "/notifications/unread": { count: 3 },
+    "/notifications/unread": { unreadCount: 3 },
     "/notifications": [
       notification("n-1", "MARKS", "Marks published"),
       notification("n-2", "ATTENDANCE", "Absent today"),
@@ -224,7 +224,7 @@ describe("following a notification", () => {
   });
 
   it("says so when there is nothing to read", async () => {
-    serve(h.api, { "/notifications/unread": { count: 0 }, "/notifications": [] });
+    serve(h.api, { "/notifications/unread": { unreadCount: 0 }, "/notifications": [] });
     mount("ADMIN");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /notifications/i }));

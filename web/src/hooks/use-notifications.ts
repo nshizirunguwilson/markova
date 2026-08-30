@@ -34,8 +34,16 @@ export function useNotifications() {
   });
 }
 
+/**
+ * How many notifications are waiting.
+ *
+ * Typed as what the API actually answers with. It was declared as `count`
+ * and answers `unreadCount`, so every reader got `undefined`, every badge
+ * read zero, and the bell never showed a number in its life. A wrong type is
+ * worse than none: this one described a field that has never existed.
+ */
 export function useUnreadCount() {
-  return useQuery<{ count: number }>({
+  return useQuery<{ unreadCount: number }>({
     queryKey: ["notifications-unread"],
     queryFn: async () => (await api.get("/notifications/unread")).data,
     refetchInterval: 30000,
