@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  ROLE_LABEL,
+  ROLE_ORDER,
+  STAFF_ROLES,
+  type Role,
+} from "@/types";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/v4";
@@ -43,7 +49,10 @@ export const schema = z
   .object({
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().min(1, "Last name is required"),
-    role: z.enum(["ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"]),
+    /* Every role the school has. This listed five of them, so a bursar, a
+       nurse, a patron, a matron and the head teacher could not be created
+       at all - the accounts existed only because the seed made them. */
+    role: z.enum(ROLE_ORDER as [Role, ...Role[]]),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     phone: z
       .string()
@@ -110,7 +119,9 @@ export const schema = z
         message: "Parents log in by phone, so a phone number is required",
       });
     }
-    if (["TEACHER", "ADMIN", "LIBRARIAN"].includes(v.role) && !v.email) {
+    /* Everybody on the staff signs in with an address: parents log in by
+       phone, and a student's is issued by the school. */
+    if (STAFF_ROLES.includes(v.role) && !v.email) {
       ctx.addIssue({
         code: "custom",
         path: ["email"],
@@ -549,11 +560,11 @@ export function AddUserWizard({
               )}
               <Field label="User type">
                 <select {...register("role")} className={selectCls} disabled={step > 0}>
-                  <option value="STUDENT">Student</option>
-                  <option value="TEACHER">Teacher</option>
-                  <option value="PARENT">Parent</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="LIBRARIAN">Librarian</option>
+                  {ROLE_ORDER.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

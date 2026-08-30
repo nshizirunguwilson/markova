@@ -43,6 +43,39 @@ export const ROLE_LABEL: Record<Role, string> = {
   BURSAR: "Bursar",
 };
 
+/**
+ * Every role, in the order a person picks from.
+ *
+ * Ordered by how often somebody is actually created rather than by the enum:
+ * a school adds students all year and a head teacher once. Derived from
+ * ROLE_LABEL so a role added there can never be missing from a picker - the
+ * newer roles were absent from the user filter and the Add User wizard for
+ * exactly that reason, which meant a bursar or a nurse could not be created
+ * at all.
+ */
+export const ROLE_ORDER: Role[] = [
+  "STUDENT",
+  "TEACHER",
+  "PARENT",
+  "ADMIN",
+  "HEAD_TEACHER",
+  "BURSAR",
+  "LIBRARIAN",
+  "PATRON",
+  "MATRON",
+  "NURSE",
+];
+
+/**
+ * Roles that sign in with an email address rather than a phone.
+ *
+ * Everybody on the staff. Parents log in by phone, and a student's address is
+ * issued by the school.
+ */
+export const STAFF_ROLES: Role[] = ROLE_ORDER.filter(
+  (r) => r !== "STUDENT" && r !== "PARENT",
+);
+
 /** The label for a role, or the role itself if it is one we do not know. */
 export const labelForRole = (role: string | null | undefined): string =>
   (role && ROLE_LABEL[role as Role]) || role || "";

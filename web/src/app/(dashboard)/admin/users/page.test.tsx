@@ -95,14 +95,61 @@ describe("searching and filtering", () => {
     );
   });
 
+  /**
+   * Every role the school has, from one list.
+   *
+   * This was five of them typed out by hand, so a bursar, a nurse, a patron,
+   * a matron and the head teacher could not be filtered for - and in the Add
+   * User wizard, could not be created at all.
+   */
+  it("offers every role the school has", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+
+    const select = screen
+      .getAllByRole("combobox")
+      .find((s) => within(s).queryByText("All types"));
+    if (!select) return;
+    const offered = [...(select as HTMLSelectElement).options].map(
+      (o) => o.value,
+    );
+    for (const role of [
+      "ADMIN",
+      "HEAD_TEACHER",
+      "TEACHER",
+      "STUDENT",
+      "PARENT",
+      "LIBRARIAN",
+      "BURSAR",
+      "PATRON",
+      "MATRON",
+      "NURSE",
+    ]) {
+      expect(offered).toContain(role);
+    }
+  });
+
+  it("names them the way the school says them", async () => {
+    serve(h.api, routes);
+    renderPage(UsersPage, { role: "ADMIN" });
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    expect(screen.getByRole("option", { name: "Head teacher" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "HEAD_TEACHER" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("asks for one role when a role filter is chosen", async () => {
     serve(h.api, routes);
     renderPage(UsersPage, { role: "ADMIN" });
     await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
 
+    /* Found by an exact option rather than a pattern: "Teacher" and "Head
+       teacher" both match /teacher/i now that every role is listed. */
     const roleSelect = screen
       .getAllByRole("combobox")
-      .find((s) => within(s).queryByText(/teacher/i));
+      .find((s) => within(s).queryByText("All types"));
     if (!roleSelect) return; // the filter is optional on narrow layouts
     await userEvent.setup().selectOptions(roleSelect, "TEACHER");
 

@@ -31,7 +31,7 @@ import { useUsers, useDeleteUser, type UserFilters } from "@/hooks/use-users";
 import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
 import { PageHeader } from "@/components/layout/page-header";
-import { labelForRole } from "@/types";
+import { ROLE_LABEL, ROLE_ORDER, labelForRole } from "@/types";
 
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
@@ -216,11 +216,14 @@ export default function UsersPage() {
             }
           >
             <option value="">All types</option>
-            <option value="ADMIN">Admin</option>
-            <option value="TEACHER">Teacher</option>
-            <option value="STUDENT">Student</option>
-            <option value="PARENT">Parent</option>
-            <option value="LIBRARIAN">Librarian</option>
+            {/* Every role the school has, from one list. This was five of
+                them typed out by hand, so a bursar, a nurse, a patron, a
+                matron and the head teacher could not be filtered for. */}
+            {ROLE_ORDER.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]}
+              </option>
+            ))}
           </select>
         </div>
       </Card>
