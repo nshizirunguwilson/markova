@@ -12,7 +12,8 @@ import {
   usePerformanceTrends,
 } from "@/hooks/use-analytics";
 import { useAcademicYears } from "@/hooks/use-academic";
-import { viz, axisLabel, splitLine, tooltipStyle, legendStyle } from "@/lib/chart-theme";
+import { viz } from "@/lib/chart-theme";
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { useAttendanceDashboard } from "@/hooks/use-attendance";
 import { useLibraryAnalytics } from "@/hooks/use-library";
 import Link from "next/link";
@@ -33,6 +34,10 @@ import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function AdminDashboard() {
+  /* One object rather than four destructured values: it is memoised on
+     the resolved theme, so the option builders below take a single
+     stable dependency instead of four the compiler cannot track. */
+  const chart = useChartTheme();
   const user = useAuthStore((s) => s.user);
   const { data: dashboard, isLoading: loadingDashboard, isError: dashboardError, refetch: refetchDashboard } = useAdminDashboard();
   const { data: attendance, isLoading: loadingAttendance, isError: attendanceError, refetch: refetchAttendance } = useAttendanceDashboard(
@@ -56,11 +61,11 @@ export default function AdminDashboard() {
         boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
-      yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel: chart.axisLabel, splitLine: chart.splitLine },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         trigger: "axis",
         valueFormatter: (v: any) => `${Number(v).toFixed(1)}%`,
       },
@@ -83,7 +88,7 @@ export default function AdminDashboard() {
         },
       ],
     };
-  }, [trends]);
+  }, [trends, chart]);
 
   // The last school days, present / late / absent stacked.
   const attendanceOption = useMemo<EChartsOption | null>(() => {
@@ -113,18 +118,18 @@ export default function AdminDashboard() {
         data: days.map((d: any) => label(d.date)),
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel: { ...axisLabel, fontSize: 10 },
+        axisLabel: { ...chart.axisLabel, fontSize: 10 },
       },
-      yAxis: { type: "value", axisLabel, splitLine },
-      legend: { ...legendStyle, bottom: 0 },
-      tooltip: { ...tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
+      yAxis: { type: "value", axisLabel: chart.axisLabel, splitLine: chart.splitLine },
+      legend: { ...chart.legendStyle, bottom: 0 },
+      tooltip: { ...chart.tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
       series: [
         bar("Present", viz.attendance.present, "present"),
         bar("Late", viz.attendance.late, "late"),
         bar("Absent", viz.attendance.absent, "absent", true),
       ],
     };
-  }, [attendanceStats]);
+  }, [attendanceStats, chart]);
 
   const isLoading = loadingDashboard && loadingAttendance && loadingLibrary;
   const isError = dashboardError || attendanceError || libraryError;

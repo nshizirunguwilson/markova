@@ -52,7 +52,7 @@ describe("BrandProvider", () => {
   // Light and dark variants are derived, so a school only ever supplies one
   // colour and still gets a usable set.
   it("derives a lighter and a darker variant from the one colour", async () => {
-    serveBranding({ primaryColor: "#1B4F72" });
+    serveBranding({ primaryColor: "#1F5C86" });
     render(<BrandProvider><span>x</span></BrandProvider>);
     await waitFor(() => expect(read("--brand-primary-light")).not.toBe(""));
     expect(read("--brand-primary-dark")).not.toBe("");
@@ -89,13 +89,13 @@ describe("BrandProvider", () => {
   });
 
   it("leaves a colour that already reads exactly as it was given", async () => {
-    serveBranding({ primaryColor: "#1B4F72" });
+    serveBranding({ primaryColor: "#1F5C86" });
     render(<BrandProvider><span>x</span></BrandProvider>);
-    await waitFor(() => expect(read("--brand-primary")).toBe("#1b4f72"));
+    await waitFor(() => expect(read("--brand-primary")).toBe("#1f5c86"));
   });
 
   it("uses white on a dark school colour", async () => {
-    serveBranding({ primaryColor: "#1B4F72" });
+    serveBranding({ primaryColor: "#1F5C86" });
     render(<BrandProvider><span>x</span></BrandProvider>);
     await waitFor(() =>
       expect(read("--brand-on-primary").toLowerCase()).toBe("#ffffff"),
@@ -144,12 +144,41 @@ describe("BrandProvider", () => {
     expect(read("--brand-info")).toBe("#7d3c98");
   });
 
-  it("leaves the designed washes alone on the default colour", async () => {
+  /**
+   * The untouched install sets nothing at all, and that is load-bearing now
+   * rather than tidy.
+   *
+   * These are inline styles, which beat every rule in a stylesheet including
+   * the dark palette's. Re-asserting the designed navy here would win over
+   * the dark block and leave a near-invisible navy on a dark card - on the
+   * one install nobody has customised. Removing them hands the colour back
+   * to tokens.css, which has a value for each theme.
+   */
+  it("hands the default colour back to the stylesheet", async () => {
     serveBranding({ primaryColor: "#1B4F72" });
     render(<BrandProvider><span>x</span></BrandProvider>);
-    await waitFor(() => expect(read("--brand-primary")).toBe("#1b4f72"));
-    expect(read("--brand-accent")).toBe("");
-    expect(read("--brand-accent-light")).toBe("");
+    await waitFor(() =>
+      expect(useBrandStore.getState().primaryColor).toBe("#1B4F72"),
+    );
+    for (const name of [
+      "--brand-primary",
+      "--brand-primary-light",
+      "--brand-primary-dark",
+      "--brand-on-primary",
+      "--brand-accent",
+      "--brand-accent-light",
+      "--brand-info-wash",
+    ]) {
+      expect(read(name)).toBe("");
+    }
+  });
+
+  /* And a school that has chosen its own colour still gets it inline, which
+     is what makes the school's colour beat the designed one. */
+  it("sets a school's own colour inline so it wins", async () => {
+    serveBranding({ primaryColor: "#7D3C98" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-primary")).toBe("#7d3c98"));
   });
 
   /**
@@ -185,9 +214,9 @@ describe("BrandProvider", () => {
   });
 
   it("re-applies the colour when settings change it later", async () => {
-    serveBranding({ primaryColor: "#1B4F72" });
+    serveBranding({ primaryColor: "#1F5C86" });
     render(<BrandProvider><span>x</span></BrandProvider>);
-    await waitFor(() => expect(read("--brand-primary")).toBe("#1b4f72"));
+    await waitFor(() => expect(read("--brand-primary")).toBe("#1f5c86"));
     useBrandStore.setState({ primaryColor: "#C0392B" });
     await waitFor(() => expect(read("--brand-primary")).toBe("#c0392b"));
   });

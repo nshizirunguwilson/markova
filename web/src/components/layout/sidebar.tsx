@@ -90,7 +90,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                           }
                           className={`ml-auto min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[0.6875rem] font-semibold leading-none tabular-nums ${
                             mentions > 0
-                              ? "bg-danger text-white"
+                              ? "bg-danger text-on-danger"
                               : "bg-primary text-on-primary"
                           }`}
                         >

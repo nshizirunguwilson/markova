@@ -91,7 +91,7 @@ function Step({
       <span
         className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
           done
-            ? "bg-success text-white"
+            ? "bg-success text-on-success"
             : blocked
               ? "bg-surface-muted text-muted"
               : "bg-primary text-on-primary"

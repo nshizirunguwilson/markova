@@ -15,7 +15,8 @@ import {
   useGradeDistribution,
   useEnrollment,
 } from "@/hooks/use-analytics";
-import { viz, axisLabel, splitLine, tooltipStyle, legendStyle } from "@/lib/chart-theme";
+import { viz } from "@/lib/chart-theme";
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { Users, GraduationCap, School } from "lucide-react";
 
 const GRADES = ["A", "B", "C", "D", "E", "S", "F"];
@@ -27,6 +28,10 @@ const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
 
 export default function AdminAnalyticsPage() {
+  /* One object rather than four destructured values: it is memoised on
+     the resolved theme, so the option builders below take a single
+     stable dependency instead of four the compiler cannot track. */
+  const chart = useChartTheme();
   const [yearChoice, setYearId] = useState("");
   const [termChoice, setTermId] = useState("");
 
@@ -67,8 +72,8 @@ export default function AdminAnalyticsPage() {
         type: "value",
         min: 0,
         max: 100,
-        axisLabel: { ...axisLabel, formatter: "{value}%" },
-        splitLine,
+        axisLabel: { ...chart.axisLabel, formatter: "{value}%" },
+        splitLine: chart.splitLine,
       },
       yAxis: {
         type: "category",
@@ -76,11 +81,11 @@ export default function AdminAnalyticsPage() {
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, fontSize: 11.5 },
+        axisLabel: { ...chart.axisLabel, fontSize: 11.5 },
       },
-      legend: { ...legendStyle, bottom: 0, data: ["Lowest to highest", "Class average"] },
+      legend: { ...chart.legendStyle, bottom: 0, data: ["Lowest to highest", "Class average"] },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         trigger: "axis",
         axisPointer: { type: "shadow" },
         formatter: (params: any) => {
@@ -136,7 +141,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [classComp]);
+  }, [classComp, chart]);
 
   // ── How grades spread: level × letter heatmap on the sequential ramp ───────
   const gradeOption = useMemo<EChartsOption | null>(() => {
@@ -164,7 +169,7 @@ export default function AdminAnalyticsPage() {
         data: GRADES,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, fontSize: 12, fontWeight: 600 },
+        axisLabel: { ...chart.axisLabel, fontSize: 12, fontWeight: 600 },
       },
       yAxis: {
         type: "category",
@@ -172,7 +177,7 @@ export default function AdminAnalyticsPage() {
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
       visualMap: {
         min: 0,
@@ -186,7 +191,7 @@ export default function AdminAnalyticsPage() {
         inRange: { color: [...viz.blueRamp] },
       },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         formatter: (p: any) => {
           // ECharts calls this for anything the pointer touches, including gaps
           // between cells where there is no data to destructure. A tooltip that
@@ -216,7 +221,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [gradeDist]);
+  }, [gradeDist, chart]);
 
   // ── Who the school holds: enrollment pyramid by level and gender ───────────
   const enrollmentOption = useMemo<EChartsOption | null>(() => {
@@ -240,11 +245,11 @@ export default function AdminAnalyticsPage() {
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
-      legend: { ...legendStyle, bottom: 0, data: ["Boys", "Girls"] },
+      legend: { ...chart.legendStyle, bottom: 0, data: ["Boys", "Girls"] },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         // A pointer between two bars arrives with no point at all, and
         // "undefined: NaN" is not something to show a head teacher.
         formatter: (p: any) =>
@@ -279,7 +284,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [enrollment]);
+  }, [enrollment, chart]);
 
   // ── School days: attendance stacked by day ─────────────────────────────────
   const attendanceOption = useMemo<EChartsOption | null>(() => {
@@ -292,11 +297,11 @@ export default function AdminAnalyticsPage() {
         data: days.map((d: any) => shortDate(d.date)),
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
-      yAxis: { type: "value", axisLabel, splitLine },
-      legend: { ...legendStyle, bottom: 0 },
-      tooltip: { ...tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
+      yAxis: { type: "value", axisLabel: chart.axisLabel, splitLine: chart.splitLine },
+      legend: { ...chart.legendStyle, bottom: 0 },
+      tooltip: { ...chart.tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
       series: [
         {
           name: "Present",
@@ -329,7 +334,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [attendance]);
+  }, [attendance, chart]);
 
   // ── Term by term: school average line ──────────────────────────────────────
   const trendOption = useMemo<EChartsOption | null>(() => {
@@ -343,11 +348,11 @@ export default function AdminAnalyticsPage() {
         boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
-      yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel: chart.axisLabel, splitLine: chart.splitLine },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         trigger: "axis",
         formatter: (params: any) => {
           // An axis tooltip fires on the gaps between points too, where the
@@ -376,7 +381,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [trends]);
+  }, [trends, chart]);
 
   // ── Discipline actions ──────────────────────────────────────────────────────
   const disciplineOption = useMemo<EChartsOption | null>(() => {
@@ -384,16 +389,16 @@ export default function AdminAnalyticsPage() {
     const rows = [...discipline.byAction].sort((a: any, b: any) => b.count - a.count);
     return {
       grid: { left: 120, right: 40, top: 10, bottom: 8 },
-      xAxis: { type: "value", axisLabel, splitLine },
+      xAxis: { type: "value", axisLabel: chart.axisLabel, splitLine: chart.splitLine },
       yAxis: {
         type: "category",
         data: rows.map((r: any) => humanize(r.name)),
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel,
+        axisLabel: chart.axisLabel,
       },
-      tooltip: { ...tooltipStyle },
+      tooltip: { ...chart.tooltipStyle },
       series: [
         {
           type: "bar",
@@ -404,7 +409,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [discipline]);
+  }, [discipline, chart]);
 
   // ── Library favourites ──────────────────────────────────────────────────────
   const booksOption = useMemo<EChartsOption | null>(() => {
@@ -412,17 +417,17 @@ export default function AdminAnalyticsPage() {
     const rows = library.popularBooks.slice(0, 8);
     return {
       grid: { left: 170, right: 40, top: 10, bottom: 8 },
-      xAxis: { type: "value", axisLabel, splitLine, minInterval: 1 },
+      xAxis: { type: "value", axisLabel: chart.axisLabel, splitLine: chart.splitLine, minInterval: 1 },
       yAxis: {
         type: "category",
         data: rows.map((b: any) => b.title),
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, width: 155, overflow: "truncate" as const },
+        axisLabel: { ...chart.axisLabel, width: 155, overflow: "truncate" as const },
       },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         formatter: (p: any) => {
           const row = rows[p?.dataIndex ?? -1];
           if (!row) return "";
@@ -439,7 +444,7 @@ export default function AdminAnalyticsPage() {
         },
       ],
     };
-  }, [library]);
+  }, [library, chart]);
 
   const tiles = dashboard
     ? [

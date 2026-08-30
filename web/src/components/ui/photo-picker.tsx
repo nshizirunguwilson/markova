@@ -157,7 +157,7 @@ export function PhotoPicker({
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-primary text-2xl font-bold text-white">
+          <span className="flex h-full w-full items-center justify-center bg-primary text-2xl font-bold text-on-primary">
             {initials}
           </span>
         )}

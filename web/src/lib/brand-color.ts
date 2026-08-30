@@ -166,6 +166,36 @@ export function readableAsText(hex: string): string {
   return candidate;
 }
 
+/**
+ * The dark palette's card colour, which brand text has to read on there.
+ *
+ * Kept in step with `color.surface.dark` in design/tokens.json by a test, not
+ * by hoping: a number copied into a second file is a number that goes stale.
+ */
+export const DARK_SURFACE = "#151E2E";
+
+/**
+ * The school's colour, lightened just far enough to read on a dark ground.
+ *
+ * The mirror of `readableAsText`, and needed for the same reason: a school
+ * whose brand is a deep maroon or navy has picked a colour that is close to
+ * invisible on a dark card, and every link and active label in the app is
+ * drawn in it. Lightening is the only move available, because the hue is the
+ * school's and is not ours to change.
+ */
+export function readableOnDark(hex: string): string {
+  if (!parseHex(hex)) return hex;
+  let candidate = hex;
+  for (
+    let step = 0;
+    step < 40 && contrastRatio(candidate, DARK_SURFACE) < MIN_TEXT_CONTRAST;
+    step += 1
+  ) {
+    candidate = shade(candidate, 0.05);
+  }
+  return candidate;
+}
+
 /** Whichever of white and near-black reads better on the given fill. */
 export function onPrimaryFor(hex: string): string {
   if (!parseHex(hex)) return ON_PRIMARY_LIGHT;

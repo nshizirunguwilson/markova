@@ -6,7 +6,8 @@ import type { EChartsOption } from "echarts";
 import { Card, CardTitle, Badge, Avatar, PageSpinner } from "@/components/ui";
 import { EChart } from "@/components/ui/echart";
 import { useStudentProfile } from "@/hooks/use-analytics";
-import { viz, axisLabel, splitLine, tooltipStyle, legendStyle } from "@/lib/chart-theme";
+import { viz } from "@/lib/chart-theme";
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { ShieldCheck } from "lucide-react";
 
 /**
@@ -34,6 +35,10 @@ function termAxis(terms: any[]) {
 }
 
 export function StudentPerformance({ studentId }: { studentId: string }) {
+  /* One object rather than four destructured values: it is memoised on
+     the resolved theme, so the option builders below take a single
+     stable dependency instead of four the compiler cannot track. */
+  const chart = useChartTheme();
   const { data, isLoading } = useStudentProfile(studentId);
 
   const terms = data?.terms ?? [];
@@ -51,12 +56,12 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: viz.grid } },
-        axisLabel: { ...axisLabel, interval: 0, lineHeight: 15 },
+        axisLabel: { ...chart.axisLabel, interval: 0, lineHeight: 15 },
       },
-      yAxis: { type: "value", min: 0, max: 100, axisLabel, splitLine },
-      legend: { ...legendStyle, bottom: 0 },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel: chart.axisLabel, splitLine: chart.splitLine },
+      legend: { ...chart.legendStyle, bottom: 0 },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         trigger: "axis",
         formatter: (params: any) => {
           const list = Array.isArray(params) ? params : [params];
@@ -113,7 +118,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         },
       ],
     };
-  }, [terms, data]);
+  }, [terms, data, chart]);
 
   // ── Where are they strong or weak, this term ────────────────────────────────
   const subjectsOption = useMemo<EChartsOption | null>(() => {
@@ -125,8 +130,8 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         type: "value",
         min: 0,
         max: 100,
-        axisLabel: { ...axisLabel, formatter: "{value}%" },
-        splitLine,
+        axisLabel: { ...chart.axisLabel, formatter: "{value}%" },
+        splitLine: chart.splitLine,
       },
       yAxis: {
         type: "category",
@@ -134,10 +139,10 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, width: 140, overflow: "truncate" as const },
+        axisLabel: { ...chart.axisLabel, width: 140, overflow: "truncate" as const },
       },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         formatter: (p: any) => {
           const s = rows[p?.dataIndex ?? -1];
           if (!s) return "";
@@ -186,7 +191,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         },
       ],
     };
-  }, [latest]);
+  }, [latest, chart]);
 
   // ── How every subject moved across the year ────────────────────────────────
   const heatmapOption = useMemo<EChartsOption | null>(() => {
@@ -216,7 +221,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         data: termAxis(terms).labels,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, fontWeight: 600, interval: 0, lineHeight: 15 },
+        axisLabel: { ...chart.axisLabel, fontWeight: 600, interval: 0, lineHeight: 15 },
       },
       yAxis: {
         type: "category",
@@ -224,7 +229,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         inverse: true,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { ...axisLabel, width: 140, overflow: "truncate" as const },
+        axisLabel: { ...chart.axisLabel, width: 140, overflow: "truncate" as const },
       },
       visualMap: {
         min: 20,
@@ -238,7 +243,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         inRange: { color: [...viz.blueRamp] },
       },
       tooltip: {
-        ...tooltipStyle,
+        ...chart.tooltipStyle,
         formatter: (p: any) => {
             // A heatmap cell the pointer grazes between rows arrives with no data.
             const cell = p?.data?.value ?? p?.data;
@@ -272,7 +277,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
         },
       ],
     };
-  }, [terms, latest]);
+  }, [terms, latest, chart]);
 
   if (isLoading) return <PageSpinner />;
   if (!data) {
