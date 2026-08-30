@@ -343,6 +343,28 @@ const headTeacherNav: NavSection[] = [
   },
 ];
 
+/**
+ * Where a role lands: after signing in, and when it asks for a page that is
+ * not its own.
+ *
+ * One copy, because there were two. The shell knew about the bursar and the
+ * head teacher; the sign-in guard held its own older list and did not, so
+ * signing in as either sent them to `/bursar` or `/head_teacher` - a 404 as
+ * the first thing they ever saw. A role's home belongs with the role's
+ * navigation, and this is where that lives.
+ */
+export function homeFor(role: string): string {
+  // A patron and a matron do the same job on opposite sides of the school.
+  if (role === "PATRON" || role === "MATRON") return "/boarding";
+  if (role === "NURSE") return "/nurse";
+  // The bursar's home is the register itself. There is no separate dashboard
+  // worth building: the one screen they open every morning is the roll of who
+  // has paid, and a summary page in front of it would be a click to nowhere.
+  if (role === "BURSAR") return "/admin/finance";
+  if (role === "HEAD_TEACHER") return "/head-teacher";
+  return `/${role.toLowerCase()}`;
+}
+
 export function getNavigation(role: Role): NavSection[] {
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,

@@ -30,6 +30,7 @@ import {
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { HeadTeacherDashboardService } from './head-teacher-dashboard.service';
 
 @ApiTags('Marks')
 @Controller('marks')
@@ -39,6 +40,7 @@ export class MarksController {
   constructor(
     private readonly service: MarksService,
     private readonly ownership: OwnershipService,
+    private readonly dashboard: HeadTeacherDashboardService,
     private readonly feeGate: FeeGateService,
   ) {}
 
@@ -169,6 +171,20 @@ export class MarksController {
     @Body() dto: UpdateTermResultCommentDto,
   ) {
     return this.service.updateTermResultComment(id, dto);
+  }
+
+  /**
+   * What the Director of Studies opens in the morning.
+   *
+   * The admin may read it too: a principal covering for an absent head
+   * teacher needs the same view, and a page only one account in the school
+   * can open is a page that goes unread the week they are away.
+   */
+  @Get('head-teacher/overview')
+  @Roles('HEAD_TEACHER', 'ADMIN')
+  @ApiOperation({ summary: "The Director of Studies' morning view" })
+  headTeacherOverview(@Query('termId') termId?: string) {
+    return this.dashboard.overview(termId);
   }
 
   /**

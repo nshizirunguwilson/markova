@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
+import { homeFor } from "@/lib/navigation";
 
 /**
  * The mirror of {@link DashboardShell}'s guard: signed-in people do not get to
@@ -22,19 +23,6 @@ import api from "@/lib/api";
 // is often already signed in on this browser, and bouncing them to a dashboard
 // would burn the link for nothing.
 const ALWAYS_PUBLIC = ["/reset-password"];
-
-/**
- * Where a role lands after signing in.
- *
- * A patron and a matron do the same job on opposite sides of the school, so
- * they share /boarding; the nurse has /nurse. Both were sent straight to a
- * working page before those dashboards existed.
- */
-function dashboardFor(role: string): string {
-  if (role === "PATRON" || role === "MATRON") return "/boarding";
-  if (role === "NURSE") return "/nurse";
-  return `/${role.toLowerCase()}`;
-}
 
 export function GuestGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -58,7 +46,7 @@ export function GuestGuard({ children }: { children: React.ReactNode }) {
       // Already resolved in this tab, so there is no need to ask the API twice.
       if (isAuthenticated && user) {
         if (!user.forcePasswordChange) {
-          router.replace(dashboardFor(user.role));
+          router.replace(homeFor(user.role));
           return;
         }
         // Mid forced-change flow. The step that handles it lives on this page.
@@ -85,7 +73,7 @@ export function GuestGuard({ children }: { children: React.ReactNode }) {
         }
 
         setUser(res.data);
-        router.replace(dashboardFor(res.data.role));
+        router.replace(homeFor(res.data.role));
       } catch {
         if (cancelled) return;
         logout();
