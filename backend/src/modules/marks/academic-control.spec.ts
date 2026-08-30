@@ -79,7 +79,7 @@ describe('the academic side belongs to the Director of Studies', () => {
     ['the mark book', MarksController],
     ['the register', AttendanceController],
   ])('gives the head teacher every route on %s', (_what, controller) => {
-    const routes = everyRoute(controller as never);
+    const routes = everyRoute(controller);
     expect(routes.length).toBeGreaterThan(5);
     for (const route of routes) {
       /* Except the ones that are somebody else's entirely: a student reading

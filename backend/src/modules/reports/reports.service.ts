@@ -24,6 +24,7 @@ import {
   competenceForSubject,
   computeSubjectTotal,
   gradeFor,
+  MAX_POINTS_PER_SUBJECT,
   overallGrade,
 } from '../../common/grading';
 
@@ -1756,40 +1757,27 @@ export class ReportsService implements OnModuleDestroy {
       </tr>`;
 
     /*
-      Conduct, as a row of the marks table rather than a figure tucked into
-      the summary strip.
+      Conduct is no longer a row of this table.
 
-      It is marked out of forty a term like everything else on this sheet is
-      marked out of something, so it belongs where a reader is already looking
-      for marks - at the top, above the subjects, where it reads as part of
-      the term's record rather than as a footnote about it.
+      It was put there because it is marked out of forty like everything else
+      on the sheet, and that reasoning held until the columns beside it were
+      counted: a discipline row has no CAT, no exam, no points and no
+      competence, so it printed six dashes across a table whose whole job is
+      to be read in columns. It is one number, and it now sits with the other
+      single numbers in the summary below.
 
-      The empty cells are the assessment columns: conduct has no CAT and no
-      exam. Its own mark, its percentage in place of a grade, and the word for
-      it where a remark goes.
+      The annual report is different and keeps its row - see
+      `renderYearReportHtml`. There the table is one row per subject with a
+      column per term, so conduct across three terms is exactly the shape the
+      table is already in.
     */
-    const conductRow = () => {
-      if (conductPoints === null) return '';
-      const pct = conductPercentage(conductPoints, conductOutOf);
-      const blanks = isALevel ? 4 : 3;
-      return `
-      <tr class="conduct">
-        <td class="subj">Discipline</td>
-        ${'<td class="num">-</td>'.repeat(blanks)}
-        <td class="tot">${conductPoints} / ${conductOutOf}</td>
-        <td class="gr">${pct === null ? '-' : `${pct}%`}</td>
-        <td class="num">-</td>
-        <td>-</td>
-        ${isALevel ? '' : `<td class="rem">${conductWord}</td>`}
-      </tr>`;
-    };
 
     // O-Level keeps its written remark alongside; A-Level never had one.
     const cols = isALevel ? 9 : 9;
     const groupRow = (label: string, note: string) =>
       `<tr class="group"><td colspan="${cols}">${label} <span class="gnote">(${note})</span></td></tr>`;
 
-    let tableBody = conductRow();
+    let tableBody = '';
     if (isALevel) {
       const general = data.subjects.filter(
         (s: any) => s.scope !== 'A_SPECIFIC',
@@ -1830,17 +1818,6 @@ export class ReportsService implements OnModuleDestroy {
 
     const totalMax = data.subjects.length * 100;
     const overall = data.result ? overallGrade(data.result.average || 0) : null;
-    /*
-      The competence tally. Counted over every subject that was judged rather
-      than over the practical modules alone - with competence on every row,
-      "3 of 4" under a sheet of eleven subjects would be reading a different
-      table from the one above it.
-    */
-    const judgedSubjects = data.subjects.filter((s: any) => s.competence);
-    const competentCount = judgedSubjects.filter(
-      (s: any) => s.competence === 'COMPETENT',
-    ).length;
-
     const summaryCell = (label: string, big: string, small: string) =>
       `<div class="cell"><span>${label}</span><b>${big}</b> <small>${small}</small></div>`;
 
@@ -1866,15 +1843,21 @@ export class ReportsService implements OnModuleDestroy {
         `${data.result?.rank ?? '-'}`,
         `of ${data.classStats.totalStudents}`,
       ),
-      // Competence across the whole sheet now, so it is worth a cell on
-      // every report rather than only on an A-Level one.
+      /*
+        Conduct, where the competence tally used to be.
+
+        The tally said "10 / 12 subjects" beside a table that already prints
+        Competent or Not yet competent on every row - so it counted, in a
+        summary cell, something the reader could see for themselves three
+        inches above. Conduct is the opposite: one number that appears
+        nowhere else on the sheet, and the thing a family most often asks
+        about after the average.
+      */
       summaryCell(
-        'Competent in',
-        `${competentCount} / ${judgedSubjects.length}`,
-        judgedSubjects.length === 1 ? 'subject' : 'subjects',
+        'Conduct',
+        conductPoints === null ? '-' : `${conductPoints} / ${conductOutOf}`,
+        conductPoints === null ? '' : conductWord,
       ),
-      // Conduct is not here any more: it is a row of the marks table, at the
-      // top, where a reader is already looking for marks.
     ].join('');
 
     const aggregateNote = isALevel
@@ -2174,22 +2157,48 @@ export class ReportsService implements OnModuleDestroy {
         : 'REPEATING'
       : 'NOT YET DECIDED';
 
+    /*
+      The year's own totals, worked out from the subject rows above rather
+      than stored: a YearResult carries averages and a position, not a mark
+      count, and summing what the sheet already prints keeps the two from
+      ever disagreeing.
+    */
+    const marked = subjects
+      .map(([, m]) => m.average)
+      .filter((a): a is number => a !== null && a !== undefined);
+    const totalMarks = marked.reduce((sum, a) => sum + a, 0);
+    const yearAggregate = marked.reduce(
+      (sum, a) => sum + overallGrade(a).points,
+      0,
+    );
+
+    /*
+      Five cells, and conduct is not one of them: it is a row of the table
+      above, with a column per term, which is the shape a year's conduct
+      actually has. Printing it twice would be printing the year's total in
+      the strip beside the three terms it came from.
+    */
     const summary = [
       cell(
         'Year average',
         yearAverage === null ? '-' : `${yearAverage.toFixed(1)}%`,
         yearAverage === null ? '' : overallGrade(yearAverage).remark,
       ),
+      cell(
+        'Total marks',
+        marked.length ? String(Math.round(totalMarks)) : '-',
+        marked.length ? `/ ${marked.length * 100}` : '',
+      ),
       cell('Overall grade', year?.letterGrade ?? '-', ''),
+      cell(
+        'Aggregate',
+        marked.length ? String(yearAggregate) : '-',
+        marked.length ? `/ ${marked.length * MAX_POINTS_PER_SUBJECT}` : '',
+      ),
       cell(
         'Position',
         year?.rank ? String(year.rank) : '-',
         year?.rank ? 'in class' : '',
-      ),
-      cell(
-        'Conduct',
-        `${data.conduct?.points ?? '-'} / ${data.conduct?.outOf ?? '-'}`,
-        conductRemark(data.conduct?.percentage ?? null),
       ),
     ].join('');
 

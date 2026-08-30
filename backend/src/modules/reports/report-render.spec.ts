@@ -720,15 +720,25 @@ describe('the conduct verdict on a card', () => {
   });
 
   /*
-    Conduct is a row of the marks table now, not a figure in the summary
-    strip: its own mark where a total goes, its percentage where a grade goes.
-    "Good" on its own tells a parent nothing they can act on.
+    Conduct is a summary cell, not a row of the marks table. It went in the
+    table because it is marked out of forty like everything else on the sheet,
+    and that held until the columns beside it were counted: a discipline row
+    has no CAT, no exam, no points and no competence, so it printed six dashes
+    across a table whose whole job is to be read in columns.
+
+    The mark itself, not only the word: "Good" on its own tells a parent
+    nothing they can act on.
   */
   it('prints the mark itself, not only the word', async () => {
     const html = await cardLosing(8);
-    expect(html).toMatch(/Discipline/);
+    expect(html).toMatch(/<span>Conduct<\/span>/);
     expect(html).toMatch(/32 \/ 40/);
-    expect(html).toMatch(/80%/);
+    expect(html).toMatch(/Good/);
+  });
+
+  it('is no longer a row of the marks table', async () => {
+    const html = await cardLosing(8);
+    expect(html).not.toMatch(/<td class="subj">Discipline<\/td>/);
   });
 
   it('gives a clean term the full mark', async () => {
@@ -745,14 +755,25 @@ describe('the conduct verdict on a card', () => {
   // Above the subjects, where a reader is already looking for marks.
   it('puts it above the first group of subjects', async () => {
     const html = await cardLosing(4);
-    expect(html.indexOf('Discipline')).toBeLessThan(
-      html.indexOf('Core subjects'),
+    /* In the summary strip, which sits under the marks rather than above
+       them: conduct is read after the term's work, not before it. */
+    expect(html.indexOf('Core subjects')).toBeLessThan(
+      html.indexOf('<span>Conduct</span>'),
     );
   });
 
-  it('no longer repeats it in the summary strip', async () => {
+  /**
+   * Where the competence tally used to be.
+   *
+   * The tally said "10 / 12 subjects" beside a table that already prints
+   * Competent or Not yet competent on every row - it counted, in a summary
+   * cell, something the reader could see three inches above. Conduct is the
+   * opposite: one number that appears nowhere else on the sheet.
+   */
+  it('takes the place of the competence tally', async () => {
     const html = await cardLosing(4);
-    expect(html).not.toMatch(/<span>Conduct<\/span>/);
+    expect(html).not.toMatch(/Competent in/);
+    expect(html).toMatch(/<span>Conduct<\/span>/);
   });
 
   it('draws a dash for attendance nobody recorded', async () => {
