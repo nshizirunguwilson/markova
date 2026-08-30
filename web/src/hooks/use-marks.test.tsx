@@ -106,7 +106,7 @@ describe("use-marks enabled guards", () => {
  * buttons are the same button.
  */
 describe("what the desk is told", () => {
-  it("says the principal can now issue, when a class is confirmed", async () => {
+  it("says the reader can now issue, when a class is confirmed", async () => {
     resolveAll(api, {});
     await runMutation(() => marks.useConfirmReportCards(), {
       classSectionId: "section-1",
@@ -114,7 +114,7 @@ describe("what the desk is told", () => {
       isConfirmed: true,
     });
     expect(h.toast.success).toHaveBeenCalledWith(
-      expect.stringMatching(/principal can now issue/i),
+      expect.stringMatching(/you can issue these cards now/i),
     );
   });
 

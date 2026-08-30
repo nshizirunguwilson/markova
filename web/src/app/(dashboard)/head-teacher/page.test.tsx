@@ -80,7 +80,7 @@ describe("the two things with a deadline", () => {
   it("leads with how much is waiting on the head teacher", async () => {
     await mount();
     expect(document.body.textContent).toMatch(/Waiting on your check/);
-    expect(document.body.textContent).toMatch(/need reading before the principal/);
+    expect(document.body.textContent).toMatch(/need reading before you can issue/);
   });
 
   /* Nothing waiting is a real answer and should read like one, not like an

@@ -17,9 +17,9 @@ import { AlertTriangle, ArrowRight, Check, UserX } from "lucide-react";
  *
  * The DOS is different. Their day is spent unblocking a pipeline they do not
  * run themselves: subject teachers enter marks, class teachers write
- * comments, the principal issues. The question that starts the day is "what
- * is stuck, and on whom", and today it is genuinely spread across four
- * screens.
+ * comments, and the DOS confirms and issues. The question that starts the
+ * day is "what is stuck, and on whom", and today it is genuinely spread
+ * across four screens.
  *
  * So the page is that question, answered as a list of classes ordered by
  * whether anything is waiting - and every row names the one thing holding it
@@ -57,7 +57,7 @@ const SAYS: Record<Blocker, string> = {
   MARKS_NOT_RELEASED: "Marks not released yet",
   COMMENTS_NOT_WRITTEN: "Comments still to be written",
   AWAITING_CONFIRMATION: "Waiting on your check",
-  AWAITING_ISSUE: "Waiting on the principal",
+  AWAITING_ISSUE: "Confirmed, ready to issue",
   DONE: "Issued to families",
 };
 
@@ -73,7 +73,7 @@ const TONE: Record<Blocker, "warning" | "info" | "success" | "default"> = {
   MARKS_NOT_RELEASED: "default",
   COMMENTS_NOT_WRITTEN: "default",
   AWAITING_CONFIRMATION: "warning",
-  AWAITING_ISSUE: "info",
+  AWAITING_ISSUE: "warning",
   DONE: "success",
 };
 
@@ -161,7 +161,7 @@ export default function HeadTeacherPage() {
           <p className="mt-1 text-sm text-muted">
             {mine.length === 0
               ? `Nothing is waiting on you. ${done.length} of ${classes.length} classes are issued.`
-              : `${mine.length === 1 ? "One class has" : `${mine.length} classes have`} every comment written and need reading before the principal can issue them.`}
+              : `${mine.length === 1 ? "One class has" : `${mine.length} classes have`} every comment written and need reading before you can issue them.`}
           </p>
           {mine.length > 0 && (
             <Link
