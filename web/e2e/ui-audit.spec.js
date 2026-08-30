@@ -1787,8 +1787,18 @@ test('admissions: one application shows the child, the family, the documents and
   await page.waitForSelector('text=The applicant', { timeout: 30000 });
 
   const body = await page.innerText('body');
-  for (const heading of ['The applicant', 'The family', 'Documents']) {
-    assert(body.includes(heading), `the application is missing "${heading}"`);
+  /* "Who to talk to" rather than "The family": the section was renamed when
+     it stopped being a list of relatives and became the one number a
+     reviewer rings. The heading is what a reviewer scans for, so the audit
+     follows the page rather than the other way round. */
+  /* Case-folded because innerText returns what the reader sees, and one of
+     these headings is uppercased by the stylesheet rather than in the source. */
+  const shown = body.toLowerCase();
+  for (const heading of ['The applicant', 'Who to talk to', 'Documents', 'What has happened']) {
+    assert(
+      shown.includes(heading.toLowerCase()),
+      `the application is missing "${heading}"`,
+    );
   }
   // The number is dialled off this screen, so it has to be a link.
   assert(
