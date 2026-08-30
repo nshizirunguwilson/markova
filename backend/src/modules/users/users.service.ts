@@ -739,7 +739,8 @@ export class UsersService {
 
   // ─── UPLOAD PHOTO ───────────────────────────────────────────────────────────
 
-  async updatePhoto(id: string, photoUrl: string) {
+  /** A new photograph, or `null` to take the one on file down. */
+  async updatePhoto(id: string, photoUrl: string | null) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
       throw new NotFoundException('User not found');

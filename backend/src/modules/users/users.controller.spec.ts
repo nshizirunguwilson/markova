@@ -154,6 +154,44 @@ describe('UsersController', () => {
       });
     });
 
+    /**
+     * Taking a photograph down is a change somebody may legitimately want,
+     * not only a way to undo a mistake: a record with no photograph is a
+     * real state, and the avatar falls back to initials everywhere it is
+     * drawn.
+     */
+    it('lets somebody take their own photo down', async () => {
+      await run({
+        name: 'removed',
+        call: (c) => c.removePhoto(parent.id, parent),
+        calls: 'updatePhoto',
+        withArgs: [parent.id, null],
+      });
+    });
+
+    it('lets the office take anybody’s down', async () => {
+      await run({
+        name: 'admin removes',
+        call: (c) => c.removePhoto('user-9', admin),
+        calls: 'updatePhoto',
+        withArgs: ['user-9', null],
+      });
+    });
+
+    it('refuses to take somebody else’s down', async () => {
+      const run2 = await controllerHarness(UsersController, [
+        { token: UsersService, name: 'service', mock: service },
+      ]);
+      await expect(
+        run2({
+          name: 'blocked',
+          call: (c) => c.removePhoto('somebody-else', parent),
+          calls: 'updatePhoto',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.updatePhoto).not.toHaveBeenCalled();
+    });
+
     it('refuses a photo request that carried no file', async () => {
       const run2 = await controllerHarness(UsersController, [
         { token: UsersService, name: 'service', mock: service },
