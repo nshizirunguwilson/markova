@@ -2324,6 +2324,118 @@ test('dos: the principal is not offered the mark book at all', async (browser) =
 });
 
 
+/**
+ * Every page in the Director of Studies' own menu has to open for them.
+ *
+ * Three of them did not: the timetable and the teachers page both called
+ * academic reference endpoints the principal still owned, and threw
+ * "Forbidden resource" over a screen that had already drawn. A menu that
+ * leads to a refusal is worse than a menu that omits the page.
+ */
+test('dos: nothing in the head teacher menu refuses them', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+
+  const refused = [];
+  page.on('response', (r) => {
+    if (r.status() === 403) refused.push(r.url());
+  });
+
+  for (const path of [
+    '/head-teacher',
+    '/admin/report-cards',
+    '/admin/marks',
+    '/admin/reports',
+    '/admin/classes',
+    '/admin/timetable',
+    '/admin/teachers',
+    '/admin/attendance',
+    '/grading',
+  ]) {
+    refused.length = 0;
+    await visit(page, path);
+    await wait(2500);
+    assert(
+      refused.length === 0,
+      `${path} refused the head teacher: ${[...new Set(refused)].join(', ')}`,
+    );
+    assert(
+      !/Forbidden resource/i.test(await page.innerText('body')),
+      `${path} showed a forbidden message to the head teacher`,
+    );
+  }
+  await ctx.close();
+});
+
+/**
+ * Every role the school has, in the pickers that create and filter people.
+ *
+ * These were five roles typed out by hand, so a bursar, a nurse, a patron, a
+ * matron and the head teacher could not be filtered for - and in the Add User
+ * wizard, could not be created at all. Their accounts existed only because
+ * the seed made them.
+ */
+test('users: every role can be filtered for and created', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/users');
+  await page.waitForSelector('text=Bulk Import', { timeout: 30000 });
+  await wait(2000);
+
+  const every = ['Head teacher', 'Bursar', 'Patron', 'Matron', 'Nurse'];
+
+  const filter = await page.$$eval('select', (ss) => {
+    const s = ss.find((x) => [...x.options].some((o) => o.textContent === 'All types'));
+    return s ? [...s.options].map((o) => o.textContent) : [];
+  });
+  for (const role of every) {
+    assert(filter.includes(role), `the roll filter does not offer ${role}`);
+  }
+  // Named the way the school says them, not as the enum spells them.
+  assert(
+    !filter.some((o) => /_/.test(o ?? '')),
+    `an enum name leaked into the filter: ${filter.join(', ')}`,
+  );
+
+  await page.getByRole('button', { name: /Add User/ }).click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 20000 });
+  await wait(1200);
+  const wizard = await page
+    .locator('[role="dialog"] select')
+    .first()
+    .evaluate((s) => [...s.options].map((o) => o.textContent));
+  for (const role of every) {
+    assert(wizard.includes(role), `the Add User wizard cannot create a ${role}`);
+  }
+  await ctx.close();
+});
+
+/**
+ * The marks page belongs to the Director of Studies now, so it addresses
+ * them. It used to say "the head teacher has not confirmed this class yet"
+ * to the head teacher, and offer no way to do it.
+ */
+test('dos: the marks page speaks to the person reading it', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/admin/marks');
+  await page.waitForSelector('#f-class-level', { timeout: 30000 });
+  await wait(1500);
+  await page.selectOption('#f-class-level', { index: 1 });
+  await wait(1200);
+  await page.selectOption('#f-section', { index: 1 });
+  await wait(3000);
+
+  const body = await page.innerText('body');
+  assert(/Your check/i.test(body), 'the marks page does not address the reader');
+  assert(
+    !/The head teacher has/i.test(body),
+    'the marks page still talks about the reader in the third person',
+  );
+  await ctx.close();
+});
+
+
 (async () => {
   const only = process.argv[2]; // optional substring filter
   const browser = await chromium.launch({ headless: true });
