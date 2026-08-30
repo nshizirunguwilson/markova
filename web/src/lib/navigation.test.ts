@@ -152,6 +152,7 @@ describe("the roles that share pages under /admin", () => {
       [
         "/admin/report-cards",
         "/admin/marks",
+        "/admin/reports",
         "/admin/classes",
         "/admin/timetable",
         "/admin/teachers",
@@ -226,6 +227,49 @@ describe("the roles that share pages under /admin", () => {
  * sheet the school ever issued. It has to be somewhere a reader can find it,
  * and "somewhere" means the menu of every role that sees a grade.
  */
+/**
+ * Who runs the academic side.
+ *
+ * Report cards, marks and attendance are the Director of Studies', not the
+ * principal's. The menu has to agree with the API: a principal offered the
+ * mark book and then refused by every request is worse off than one who was
+ * never offered it.
+ */
+describe("what the principal no longer runs", () => {
+  const MOVED: [string, string][] = [
+    ["the mark book", "/admin/marks"],
+    ["the register", "/admin/attendance"],
+    ["generating report cards", "/admin/reports"],
+    ["the report card desk", "/admin/report-cards"],
+  ];
+
+  it.each(MOVED)("does not offer the principal %s", (_what, href) => {
+    expect(hrefsFor("ADMIN")).not.toContain(href);
+  });
+
+  it.each(MOVED)("offers the head teacher %s", (_what, href) => {
+    expect(hrefsFor("HEAD_TEACHER")).toContain(href);
+  });
+
+  /* What the principal keeps: the institution rather than the classroom. */
+  it.each([
+    "/admin/users",
+    "/admin/finance",
+    "/admin/id-cards",
+    "/admin/settings",
+    "/admin/discipline",
+  ])("leaves the principal %s", (href) => {
+    expect(hrefsFor("ADMIN")).toContain(href);
+  });
+
+  // A subject teacher still enters marks and takes their own register.
+  it("leaves a teacher their own marks and register", () => {
+    const hrefs = hrefsFor("TEACHER");
+    expect(hrefs).toContain("/teacher/marks");
+    expect(hrefs).toContain("/teacher/attendance");
+  });
+});
+
 describe("the grading page", () => {
   it.each(["ADMIN", "TEACHER", "STUDENT", "PARENT", "HEAD_TEACHER"] as Role[])(
     "is in the %s menu",

@@ -64,9 +64,10 @@ const adminNav: NavSection[] = [
       { label: "Subjects", href: "/admin/subjects", icon: BookOpen },
       { label: "Classes", href: "/admin/classes", icon: Backpack },
       { label: "Timetable", href: "/admin/timetable", icon: Clock },
-      { label: "Marks", href: "/admin/marks", icon: ClipboardList },
       { label: "Grading", href: "/grading", icon: Scale },
-      { label: "Report Cards", href: "/admin/reports", icon: FileText },
+      /* Marks, report cards and the register are the Director of Studies'.
+         They are not listed here, and the API refuses them, so a menu that
+         offered them would be a menu that leads to a refusal. */
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
       { label: "Promotion", href: "/admin/promotion", icon: ArrowUpCircle },
     ],
@@ -74,7 +75,6 @@ const adminNav: NavSection[] = [
   {
     title: "Operations",
     items: [
-      { label: "Attendance", href: "/admin/attendance", icon: Calendar },
       { label: "Discipline", href: "/admin/discipline", icon: AlertTriangle },
       { label: "Library", href: "/admin/library", icon: Library },
       { label: "School Fees", href: "/admin/finance", icon: Landmark },
@@ -323,16 +323,19 @@ const headTeacherNav: NavSection[] = [
     title: "Academic",
     items: [
       { label: "Marks", href: "/admin/marks", icon: ClipboardList },
+      /* Where a card is generated, printed and downloaded. It moved off the
+         principal's menu with everything else about report cards. */
+      { label: "Generate cards", href: "/admin/reports", icon: FileText },
       { label: "Classes", href: "/admin/classes", icon: School },
       { label: "Timetable", href: "/admin/timetable", icon: CalendarDays },
       { label: "Grading", href: "/grading", icon: Scale },
     ],
   },
   {
-    title: "Staff",
+    title: "Attendance",
     items: [
+      { label: "Students", href: "/admin/attendance", icon: CalendarCheck },
       { label: "Teachers", href: "/admin/teachers", icon: Users },
-      { label: "Attendance", href: "/admin/attendance", icon: CalendarCheck },
     ],
   },
   {

@@ -431,6 +431,33 @@ describe("DashboardShell and the head teacher", () => {
     },
   );
 
+  /**
+   * The pages that moved off the principal's desk entirely.
+   *
+   * They still live under `/admin` because a second prefix would be a second
+   * copy of the same screens, but the principal no longer reaches them. The
+   * API refuses them, and a page that loads and then 403s on every request is
+   * worse than a redirect.
+   */
+  it.each(["/admin/marks", "/admin/attendance", "/admin/reports"])(
+    "sends the principal off %s, which is not theirs any more",
+    async (path) => {
+      land(path, "ADMIN");
+      await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/admin"));
+    },
+  );
+
+  it.each(["/admin/marks", "/admin/attendance", "/admin/reports"])(
+    "lets the head teacher onto %s",
+    async (path) => {
+      land(path, "HEAD_TEACHER");
+      await waitFor(() =>
+        expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+      );
+      expect(h.router.replace).not.toHaveBeenCalled();
+    },
+  );
+
   // The principal covering for them reads the same page.
   it("lets the admin read it", async () => {
     land("/head-teacher", "ADMIN");

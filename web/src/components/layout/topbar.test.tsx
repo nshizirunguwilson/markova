@@ -192,11 +192,11 @@ describe("Topbar search", () => {
   it("offers the pages that match", async () => {
     mount();
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await type("mark");
+    await type("class");
 
     await waitFor(() =>
       expect(
-        screen.getAllByRole("button").some((b) => /marks/i.test(b.textContent ?? "")),
+        screen.getAllByRole("button").some((b) => /classes/i.test(b.textContent ?? "")),
       ).toBe(true),
     );
   });
@@ -207,7 +207,7 @@ describe("Topbar search", () => {
     const { act, fireEvent } = await import("@testing-library/react");
     mount();
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await typeAndWait("mark", /marks/i);
+    await typeAndWait("class", /classes/i);
 
     h.router.push.mockClear();
     await act(async () => {
@@ -215,7 +215,7 @@ describe("Topbar search", () => {
     });
 
     await waitFor(() => expect(h.router.push).toHaveBeenCalled());
-    expect(String(h.router.push.mock.calls[0][0])).toMatch(/marks/i);
+    expect(String(h.router.push.mock.calls[0][0])).toMatch(/classes/i);
   });
 
   it("goes nowhere on Enter when nothing matched", async () => {
@@ -238,7 +238,7 @@ describe("Topbar search", () => {
     const { act, fireEvent } = await import("@testing-library/react");
     mount();
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await typeAndWait("mark", /marks/i);
+    await typeAndWait("class", /classes/i);
 
     const clear = screen.getByRole("button", { name: /clear search/i });
     await act(async () => {
@@ -252,7 +252,7 @@ describe("Topbar search", () => {
     const { act, fireEvent } = await import("@testing-library/react");
     mount();
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await typeAndWait("mark", /marks/i);
+    await typeAndWait("class", /classes/i);
 
     h.router.push.mockClear();
     await act(async () => {
@@ -266,7 +266,7 @@ describe("Topbar search", () => {
     const { act, fireEvent } = await import("@testing-library/react");
     mount();
     await waitFor(() => expect(screen.getByText(/Aline/)).toBeInTheDocument());
-    await typeAndWait("mark", /marks/i);
+    await typeAndWait("class", /classes/i);
     await act(async () => {
       fireEvent.keyDown(box(), { key: "Escape", code: "Escape" });
       fireEvent.focus(box());
@@ -274,7 +274,7 @@ describe("Topbar search", () => {
 
     await waitFor(() =>
       expect(
-        screen.getAllByRole("button").some((b) => /marks/i.test(b.textContent ?? "")),
+        screen.getAllByRole("button").some((b) => /classes/i.test(b.textContent ?? "")),
       ).toBe(true),
     );
   });
