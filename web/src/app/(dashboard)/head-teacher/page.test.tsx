@@ -248,6 +248,57 @@ describe("where each class is", () => {
     expect(document.body.textContent).not.toMatch(/average/);
   });
 
+  /* Each blocker is measured against its own denominator: comments against
+     students, marks entry against subjects, issuing against students again. */
+  it.each([
+    ["MARKS_NOT_RELEASED", "The office", { marksReleased: 4 }, /4 of 30/],
+    ["AWAITING_ISSUE", "The principal", { issued: 9, confirmed: 30 }, /9 of 30/],
+    ["AWAITING_CONFIRMATION", "You", { confirmed: 11 }, /11 of 30/],
+  ] as const)("measures %s against the right total", async (blocker, owner, over, shows) => {
+    await mount(overview({ classes: [klass({ ...over, blocker, owner })] }));
+    expect(document.body.textContent).toMatch(shows);
+    expect(document.body.textContent).toMatch(owner);
+  });
+
+  it("says one student rather than 1 students", async () => {
+    await mount(overview({ classes: [klass({ students: 1 })] }));
+    expect(document.body.textContent).toMatch(/1 student[^s]/);
+  });
+
+  it("says one class rather than 1 classes waiting on them", async () => {
+    await mount();
+    expect(document.body.textContent).toMatch(/One class has/);
+  });
+
+  it("counts several of them", async () => {
+    await mount(
+      overview({
+        classes: [
+          klass({ classSectionId: "a", name: "A" }),
+          klass({ classSectionId: "b", name: "B" }),
+        ],
+      }),
+    );
+    expect(document.body.textContent).toMatch(/2 classes have/);
+  });
+
+  /* Two classes stuck on the same step are ordered by name, so the list does
+     not shuffle between refreshes. */
+  it("orders classes on the same step by name", async () => {
+    await mount(
+      overview({
+        classes: [
+          klass({ classSectionId: "z", name: "Senior 2 B" }),
+          klass({ classSectionId: "a", name: "Senior 1 A" }),
+        ],
+      }),
+    );
+    const rows = [...document.querySelectorAll("li")].map((li) => li.textContent);
+    expect(rows.findIndex((t) => t?.includes("Senior 1 A"))).toBeLessThan(
+      rows.findIndex((t) => t?.includes("Senior 2 B")),
+    );
+  });
+
   it("says so when the school has no classes yet", async () => {
     await mount(overview({ classes: [] }));
     expect(document.body.textContent).toMatch(/No classes have been set up/);

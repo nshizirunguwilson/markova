@@ -1324,6 +1324,13 @@ export default function MessagesPage() {
                                   <MessageText
                                     text={msg.content}
                                     mine={group.mine}
+                                    /* Who is reading, so a mention of them
+                                       is told apart from a mention of
+                                       somebody else in the same sentence.
+                                       Without it every highlight looks the
+                                       same and none of them says whether
+                                       any of them wants you. */
+                                    meId={user?.id}
                                   />
                                 )}
                             </div>

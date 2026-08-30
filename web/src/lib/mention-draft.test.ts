@@ -131,6 +131,12 @@ describe("picking somebody", () => {
     expect(out.text).toBe("@Aline Uwase  please");
   });
 
+  /* Choosing from an empty box, which is what happens when somebody uses the
+     picker without having typed an at sign at all. */
+  it("inserts at the caret where there is no token to replace", () => {
+    expect(applyPick("hello ", 6, people[0]).text).toBe("hello @Aline Uwase ");
+  });
+
   it("remembers who was chosen", () => {
     expect(applyPick("@al", 3, people[0]).pick).toEqual({
       display: "Aline Uwase",
@@ -188,6 +194,17 @@ describe("the message as it is sent", () => {
 
   it("leaves an ordinary message alone", () => {
     expect(toWire("bring your books", picked)).toBe("bring your books");
+  });
+
+  /* One person named twice is one mention. Without this the second pass
+     would rewrite the already-rewritten markup and produce nonsense. */
+  it("resolves one person once, however often they were picked", () => {
+    const twice: Pick[] = [
+      { display: "Aline Uwase", userId: ALINE },
+      { display: "Aline Uwase", userId: ALINE },
+    ];
+    const out = toWire("@Aline Uwase and @Aline Uwase", twice);
+    expect(out.match(/@\[/g)).toHaveLength(1);
   });
 });
 
