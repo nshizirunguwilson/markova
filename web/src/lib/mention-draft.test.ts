@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeToken,
   applyPick,
+  plainText,
   splitMentions,
   stillMentioned,
   suggest,
@@ -206,6 +207,37 @@ describe("keeping the picks tidy", () => {
 });
 
 /**
+ * Anywhere the text appears without a component to draw it: the inbox line
+ * under a conversation, a notification, a search result. This is where the
+ * uuid actually leaked - the inbox preview rendered raw content and showed
+ * one in the middle of a sentence.
+ */
+describe("the message where there is nothing to render it", () => {
+  it("shows the name and hides the id", () => {
+    expect(plainText(`@[Aline Uwase](${ALINE}) can you check`)).toBe(
+      "@Aline Uwase can you check",
+    );
+  });
+
+  it("does the same for several in one message", () => {
+    expect(
+      plainText(`@[Aline Uwase](${ALINE}) and @[Jean Bosco](${JEAN}) please`),
+    ).toBe("@Aline Uwase and @Jean Bosco please");
+  });
+
+  /* The pattern is global, and a shared instance keeps its `lastIndex`
+     between calls - so the second call would skip the first match. */
+  it("gives the same answer every time it is asked", () => {
+    const text = `@[Aline Uwase](${ALINE}) hello`;
+    expect(plainText(text)).toBe(plainText(text));
+  });
+
+  it("leaves an ordinary message alone", () => {
+    expect(plainText("bring your books")).toBe("bring your books");
+  });
+});
+
+/**
  * Reading one back. The reader sees "@Aline Uwase" highlighted; the id is
  * what decides whether the highlight is the one that means you.
  */
@@ -249,5 +281,11 @@ describe("drawing a message that names somebody", () => {
 
   it("copes with an empty message", () => {
     expect(splitMentions("")).toEqual([]);
+  });
+
+  // Same reason as above: a shared global regex would skip a match.
+  it("splits the same message the same way twice", () => {
+    const text = `hi @[Aline Uwase](${ALINE})`;
+    expect(splitMentions(text)).toEqual(splitMentions(text));
   });
 });

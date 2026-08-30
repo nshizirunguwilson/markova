@@ -151,12 +151,26 @@ export type Part =
   | { kind: "text"; text: string }
   | { kind: "mention"; text: string; userId: string };
 
-const WIRE = /@\[([^\]]{1,120})\]\(([0-9a-fA-F-]{36})\)/g;
+/* Rebuilt per use rather than shared: a global regex carries `lastIndex`
+   between calls, so one shared instance makes every other call skip the
+   first match. */
+const wire = () => /@\[([^\]]{1,120})\]\(([0-9a-fA-F-]{36})\)/g;
+
+/**
+ * The message with the markup taken out.
+ *
+ * For anywhere the text appears without a component to draw it: the line
+ * under a conversation in the inbox, a notification, a search result. None
+ * of those should show a uuid in the middle of a sentence.
+ */
+export function plainText(content: string): string {
+  return content.replace(wire(), "@$1");
+}
 
 export function splitMentions(content: string): Part[] {
   const parts: Part[] = [];
   let last = 0;
-  for (const m of content.matchAll(WIRE)) {
+  for (const m of content.matchAll(wire())) {
     const at = m.index ?? 0;
     if (at > last) parts.push({ kind: "text", text: content.slice(last, at) });
     parts.push({ kind: "mention", text: `@${m[1]}`, userId: m[2] });
