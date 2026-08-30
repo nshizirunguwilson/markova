@@ -64,8 +64,13 @@ const rows = [
 
 const routes = {
   ...populatedRoutes,
-  "/academic/class-levels": [classLevel],
-  "/academic/sections": [classSection],
+  /* The classes this person may write on, already narrowed by the API: a
+     class teacher leads one class, and a picker offering twenty-eight that
+     then refuses twenty-seven teaches people the system is broken. */
+  "/marks/report-cards/classes": [
+    { ...classSection, classLevel, trade: null },
+    { ...classSection, id: "section-2", name: "B", classLevel, trade: null },
+  ],
   "/marks/term-results/class": rows,
 };
 
@@ -94,24 +99,15 @@ const pick = async (label: RegExp, value: string) => {
 /**
  * Land on a class, which is what every question here is asked about.
  *
- * The two picks cannot run back to back: choosing a level fetches that
- * level's classes, and a select given a value it has no option for keeps the
- * one it had. So the class list is waited for in between.
+ * Waiting for the option rather than the select: a select is painted before
+ * its classes arrive, and a change fired into that window sets a value the
+ * element has no option for, which it quietly keeps out.
  */
 async function landOnAClass() {
-  /* Waiting for the option, not the select: a select is painted before its
-     levels arrive, and a change fired into that window is a change to a value
-     the element has no option for, which it quietly keeps out. */
   await waitFor(() =>
     expect(
-      (screen.getByLabelText(/Class level/i) as HTMLSelectElement).textContent,
-    ).toMatch(new RegExp(classLevel.name)),
-  );
-  await pick(/Class level/i, classLevel.id);
-  await waitFor(() =>
-    expect(
-      (screen.getByLabelText(/^Class$/i) as HTMLSelectElement).textContent,
-    ).toMatch(new RegExp(classSection.name)),
+      (screen.getByLabelText(/^Class$/i) as HTMLSelectElement).options.length,
+    ).toBeGreaterThan(1),
   );
   await pick(/^Class$/i, classSection.id);
 }
@@ -271,6 +267,144 @@ describe("each child's row", () => {
  * A head teacher is as often looking back at last term as at this one, so the
  * term the page opens on is a default rather than a fixture.
  */
+/**
+ * The card itself, without leaving the page.
+ *
+ * Somebody writing thirty comments is reading thirty sheets, and the sheet is
+ * where the facts are: which subject fell away, whether the conduct mark
+ * explains the average. Sending them to another screen and back for each one
+ * is what makes a comment get written from the average alone.
+ */
+describe("reading the card while writing about it", () => {
+  it("offers it on every row", async () => {
+    await mount();
+    expect(
+      screen.getAllByLabelText(/report card$/i).length,
+    ).toBe(rows.length);
+  });
+
+  it("asks for that child's sheet, for the term on screen", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-2/html": "<html><body>A card</body></html>",
+    });
+    await mount();
+    await click(screen.getByLabelText(/View Jean Bosco Habimana's report card/i));
+    await waitFor(() =>
+      expect(h.api.get).toHaveBeenCalledWith(
+        "/reports/term/student-2/html",
+        expect.objectContaining({
+          params: expect.objectContaining({ termId: expect.any(String) }),
+        }),
+      ),
+    );
+  });
+
+  it("shows it in a box over the page rather than navigating away", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-2/html": "<html><body>A card</body></html>",
+    });
+    await mount();
+    await click(screen.getByLabelText(/View Jean Bosco Habimana's report card/i));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toMatch(/Jean Bosco Habimana/);
+    expect(h.router.push).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The sheet carries its own global styles - it sets `body` width, page
+   * size and its own type scale - so it is handed to the preview component
+   * to isolate rather than injected into this page. Injecting it directly is
+   * the tempting simplification, and it would rewrite the dashboard's own
+   * stylesheet the moment somebody opened a card.
+   *
+   * The frame itself is A4Preview's contract and is tested there; what this
+   * page owes is not putting the markup into its own document.
+   */
+  it("never injects the sheet into the page around it", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-2/html":
+        "<html><style>body{width:210mm}</style><body>A card</body></html>",
+    });
+    await mount();
+    await click(screen.getByLabelText(/View Jean Bosco Habimana's report card/i));
+    await screen.findByRole("dialog");
+    expect(document.body.innerHTML).not.toContain("width:210mm");
+    expect(document.body.textContent).not.toContain("A card");
+  });
+
+  it("says so when the card cannot be loaded", async () => {
+    await mount();
+    h.api.get.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 500, data: {} },
+    });
+    await click(screen.getByLabelText(/View Jean Bosco Habimana's report card/i));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        expect.stringMatching(/could not be loaded/i),
+      ),
+    );
+  });
+
+  it("closes without leaving the class", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-2/html": "<html><body>A card</body></html>",
+    });
+    await mount();
+    await click(screen.getByLabelText(/View Jean Bosco Habimana's report card/i));
+    await screen.findByRole("dialog");
+    await click(screen.getByLabelText(/Close dialog/i));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Jean Bosco Habimana/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Which classes a person is offered.
+ *
+ * Asked for rather than filtered here, so the picker never offers a class
+ * whose save would be refused.
+ */
+describe("the classes on offer", () => {
+  it("lists only what the API says this person may write on", async () => {
+    await mount();
+    const picker = screen.getByLabelText(/^Class$/i) as HTMLSelectElement;
+    expect(picker.options.length).toBe(3);
+  });
+
+  /* A choice of one is not a choice, and a page that opens on a dropdown
+     rather than on the work has wasted a click on everybody who has one
+     class. */
+  it("picks the only class for a teacher who leads one", async () => {
+    serve(h.api, {
+      ...routes,
+      "/marks/report-cards/classes": [
+        { ...classSection, classLevel, trade: null },
+      ],
+    });
+    renderPage(ReportCardsPage, { role: "TEACHER" });
+    await waitFor(() =>
+      expect(screen.getByText(/Jean Bosco Habimana/)).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("option", { name: /Select class/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for a class where there are several to choose from", async () => {
+    renderPage(ReportCardsPage, { role: "HEAD_TEACHER" });
+    await waitFor(() =>
+      expect(document.body.textContent).toMatch(/Pick a class/i),
+    );
+  });
+});
+
 describe("narrowing to a term", () => {
   it("asks for the term that was chosen", async () => {
     serve(h.api, {

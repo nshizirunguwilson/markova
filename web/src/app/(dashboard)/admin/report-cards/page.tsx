@@ -10,23 +10,23 @@ import {
   PageSpinner,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
+import { useAcademicYears, useTerms } from "@/hooks/use-academic";
 import {
-  useAcademicYears,
-  useClassLevels,
-  useSections,
-  useTerms,
-} from "@/hooks/use-academic";
-import {
+  useCommentClasses,
   useConfirmReportCards,
   useSuggestComments,
   useTermResults,
   useUpdateTermResultComment,
 } from "@/hooks/use-marks";
+import { A4Preview } from "@/components/a4-preview";
+import api from "@/lib/api";
+import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   Check,
   CheckCircle2,
   ClipboardCheck,
+  Eye,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -123,9 +123,17 @@ export default function ReportCardsPage() {
   const { data: years } = useAcademicYears();
   const currentYear = years?.find((y: { isCurrent?: boolean }) => y.isCurrent);
   const { data: terms } = useTerms(currentYear?.id);
-  const { data: classLevels } = useClassLevels();
 
-  const [level, setLevel] = useState("");
+  /*
+    The classes this person may actually write on, asked for rather than
+    filtered here: a class teacher leads one class, and offering them
+    twenty-eight in a picker that then refuses twenty-seven of them is a
+    screen that teaches people the system is broken.
+
+    It also collapses two selects into one. A level picker existed to make a
+    list of twenty-eight manageable; a list of one does not need narrowing.
+  */
+  const { data: classes } = useCommentClasses();
   const [sectionChoice, setSection] = useState("");
   const [termChoice, setTerm] = useState("");
   const term =
@@ -133,9 +141,10 @@ export default function ReportCardsPage() {
     terms?.find((t: { isCurrent?: boolean }) => t.isCurrent)?.id ||
     "";
 
-  const { data: allSections } = useSections(level || undefined);
-  const sections = level ? allSections : undefined;
-  const section = level ? sectionChoice : "";
+  /* One class to choose from is not a choice. Picked for them, so the page
+     opens on the work rather than on a dropdown with a single option. */
+  const only = classes?.length === 1 ? classes[0].id : "";
+  const section = sectionChoice || only;
 
   const { data, isLoading } = useTermResults(section, term);
   const results: Result[] = useMemo(() => data ?? [], [data]);
@@ -150,6 +159,36 @@ export default function ReportCardsPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [handingBack, setHandingBack] = useState(false);
+
+  /*
+    The card itself, without leaving the page.
+
+    Somebody writing thirty comments is reading thirty sheets, and the sheet
+    is where the facts are: which subject fell away, whether the conduct mark
+    explains the average. Sending them to another screen and back for each one
+    is what makes a comment get written from the average alone.
+  */
+  const [previewing, setPreviewing] = useState<{
+    name: string;
+    html: string;
+  } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
+
+  const preview = async (r: Result) => {
+    const studentId = r.student?.id;
+    if (!studentId || !term) return;
+    setLoadingPreview(r.id);
+    try {
+      const res = await api.get(`/reports/term/${studentId}/html`, {
+        params: { termId: term },
+      });
+      setPreviewing({ name: nameOf(r), html: res.data });
+    } catch {
+      toast.error("That report card could not be loaded");
+    } finally {
+      setLoadingPreview(null);
+    }
+  };
 
   const counts = useMemo(() => {
     const total = results.length;
@@ -198,31 +237,7 @@ export default function ReportCardsPage() {
       />
 
       <Card>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label
-              htmlFor="rc-level"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              Class level
-            </label>
-            <select
-              id="rc-level"
-              value={level}
-              onChange={(e) => {
-                setLevel(e.target.value);
-                setSection("");
-              }}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            >
-              <option value="">Select level...</option>
-              {classLevels?.map((l: { id: string; name: string }) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label
               htmlFor="rc-section"
@@ -233,16 +248,28 @@ export default function ReportCardsPage() {
             <select
               id="rc-section"
               value={section}
-              disabled={!level}
               onChange={(e) => setSection(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:opacity-50"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
             >
-              <option value="">Select class...</option>
-              {sections?.map((s: { id: string; name: string }) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
+              {/* No placeholder where there is only one class: a choice of
+                  one is not a choice, and the page opens on the work. */}
+              {classes && classes.length !== 1 && (
+                <option value="">Select class...</option>
+              )}
+              {classes?.map(
+                (c: {
+                  id: string;
+                  name: string;
+                  classLevel?: { name?: string };
+                  trade?: { code?: string } | null;
+                }) => (
+                  <option key={c.id} value={c.id}>
+                    {[c.classLevel?.name, c.trade?.code, c.name]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </option>
+                ),
+              )}
             </select>
           </div>
           <div>
@@ -405,6 +432,15 @@ export default function ReportCardsPage() {
                         <CheckCircle2 className="mr-1 h-3 w-3" /> Confirmed
                       </Badge>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      isLoading={loadingPreview === r.id}
+                      onClick={() => preview(r)}
+                      aria-label={`View ${nameOf(r)}'s report card`}
+                    >
+                      <Eye className="mr-1.5 h-4 w-4" /> View card
+                    </Button>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -449,6 +485,21 @@ export default function ReportCardsPage() {
           </div>
         </>
       )}
+
+      {/* The sheet as it will be printed, scaled to fit, in an iframe of its
+          own because it carries its own global styles. */}
+      <Modal
+        isOpen={!!previewing}
+        onClose={() => setPreviewing(null)}
+        title={previewing ? `Report card, ${previewing.name}` : "Report card"}
+        size="lg"
+      >
+        <div className="max-h-[72vh] overflow-y-auto rounded-lg border border-border bg-accent-light/40 p-3">
+          {previewing && (
+            <A4Preview html={previewing.html} title="Report card preview" />
+          )}
+        </div>
+      </Modal>
 
       <Modal
         isOpen={handingBack}
