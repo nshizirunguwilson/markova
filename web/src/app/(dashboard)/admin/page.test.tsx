@@ -30,9 +30,10 @@ import AdminDashboard from "./page";
 /**
  * The screen a head teacher opens first.
  *
- * "Attendance Today" is the number they act on, and it is computed here from
- * what the attendance endpoint returns. Reading the wrong field made it show
- * 0% every day of the year, which is why every arm of it is pinned below.
+ * The attendance figure is the one they act on. It comes from the admin
+ * analytics endpoint rather than the register: the register is the Director
+ * of Studies', and asking for it here was a guaranteed 403 that took the
+ * whole page down with it.
  */
 
 const attendance = (overall: Record<string, unknown> | null) => ({
@@ -63,83 +64,65 @@ function mount(over: Record<string, unknown> = {}) {
   renderPage(AdminDashboard, { role: "ADMIN" });
 }
 
-describe("today's attendance on the dashboard", () => {
+/**
+ * The school's attendance, on the principal's dashboard.
+ *
+ * It used to come from the register, which is the Director of Studies'. The
+ * guard refuses a principal that endpoint, and this page treated any failed
+ * query as fatal - so the principal's own dashboard answered "Something went
+ * wrong" and showed nothing at all. The figure now comes from the admin
+ * analytics endpoint, which is theirs.
+ */
+describe("the school's attendance on the dashboard", () => {
+  const withRate = (attendanceRate: unknown) => ({
+    ...routes,
+    "/analytics/admin/attendance": { attendanceRate, byDate: [] },
+  });
+
   it("shows the rate the school actually has", async () => {
+    mount(withRate(94));
+    await waitFor(() =>
+      expect(screen.getAllByText("94%").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("rounds it to a whole percent", async () => {
+    mount(withRate(87.6));
+    await waitFor(() =>
+      expect(screen.getAllByText("88%").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("shows a dash before the figure arrives", async () => {
+    mount({ "/analytics/admin/attendance": () => new Promise(() => {}) });
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("shows a dash rather than NaN when nothing was recorded", async () => {
+    mount(withRate(null));
+    await waitFor(() => expect(document.body.textContent).not.toBe(""));
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  /*
+    The bug itself. The principal is refused the register by the API, and the
+    dashboard used to treat that refusal as a reason to hide everything.
+  */
+  it("does not ask for the register at all", async () => {
     mount();
-    await waitFor(() =>
-      expect(screen.getAllByText("94%").length).toBeGreaterThan(0),
-    );
-  });
-
-  it("counts late students as in school", async () => {
-    // No rate from the server, so it is worked out here: 300 of 320.
-    mount({
-      "/attendance/dashboard": attendance({
-        totalStudents: 320,
-        present: 280,
-        late: 20,
-        absent: 20,
-      }),
-    });
-
-    await waitFor(() =>
-      expect(screen.getAllByText("94%").length).toBeGreaterThan(0),
-    );
-  });
-
-  it("counts a school where nobody was late", async () => {
-    mount({
-      "/attendance/dashboard": attendance({
-        totalStudents: 100,
-        present: 90,
-        absent: 10,
-      }),
-    });
-
-    await waitFor(() =>
-      expect(screen.getAllByText("90%").length).toBeGreaterThan(0),
-    );
-  });
-
-  it("counts a school where the present figure never arrived", async () => {
-    mount({
-      "/attendance/dashboard": attendance({ totalStudents: 100, late: 5 }),
-    });
-
-    // Only the latecomers are accounted for, and the sum is still a number.
-    await waitFor(() =>
-      expect(screen.getAllByText("5%").length).toBeGreaterThan(0),
-    );
-  });
-
-  it("shows a dash before the figures arrive", async () => {
-    mount({ "/attendance/dashboard": () => new Promise(() => {}) });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
-
-    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+    const asked = h.api.get.mock.calls.map((c: unknown[]) => c[0]);
+    expect(asked).not.toContain("/attendance/dashboard");
   });
 
-  it("shows a dash when nothing was recorded today", async () => {
-    mount({ "/attendance/dashboard": attendance(null) });
-    await waitFor(() => expect(document.body.textContent).not.toBe(""));
-
-    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
-  });
-
-  it("shows nought rather than dividing by nothing on an empty school", async () => {
+  it("still shows the dashboard when a side panel is refused", async () => {
     mount({
-      "/attendance/dashboard": attendance({
-        totalStudents: 0,
-        present: 0,
-        late: 0,
-        absent: 0,
-      }),
+      "/library/analytics": () => Promise.reject(new Error("Forbidden resource")),
     });
-
     await waitFor(() =>
-      expect(screen.getAllByText("0%").length).toBeGreaterThan(0),
+      expect(document.body.textContent).not.toMatch(/Something went wrong/i),
     );
-    expect(document.body.textContent).not.toMatch(/NaN/);
   });
 });
 

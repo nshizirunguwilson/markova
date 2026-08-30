@@ -239,7 +239,6 @@ describe("what the principal no longer runs", () => {
   const MOVED: [string, string][] = [
     ["the mark book", "/admin/marks"],
     ["the register", "/admin/attendance"],
-    ["generating report cards", "/admin/reports"],
     ["the report card desk", "/admin/report-cards"],
   ];
 
@@ -249,6 +248,19 @@ describe("what the principal no longer runs", () => {
 
   it.each(MOVED)("offers the head teacher %s", (_what, href) => {
     expect(hrefsFor("HEAD_TEACHER")).toContain(href);
+  });
+
+  /*
+    /admin/reports is the exception, and it is a shared page rather than a
+    moved one: the report cards on it are the DOS's and the transfer letters
+    and transcripts are the principal's, so both are offered it and each is
+    shown only their own tab. Listing it as moved left the letters unreachable
+    by anybody - the principal was bounced from the page and the DOS was
+    refused by the API.
+  */
+  it("offers the page they share to both of them", () => {
+    expect(hrefsFor("ADMIN")).toContain("/admin/reports");
+    expect(hrefsFor("HEAD_TEACHER")).toContain("/admin/reports");
   });
 
   /* What the principal keeps: the institution rather than the classroom. */

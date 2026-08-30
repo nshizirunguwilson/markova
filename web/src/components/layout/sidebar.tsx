@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavigation, type NavSection } from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { useUnreadMessageCount } from "@/hooks/use-messaging";
 import { badgeCount, badgeLabel } from "@/lib/badge-count";
 import { useBrandStore } from "@/stores/brand-store";
@@ -16,8 +18,36 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+/**
+ * The navigation, as a card that floats on the page rather than a column
+ * bolted to its edge.
+ *
+ * Two things drove the change. At a reduced width the old sidebar kept its
+ * full 15rem and simply ate the content beside it, so the messages list had
+ * about 90px to live in - the pane was there, and unusable. And a panel that
+ * runs edge to edge has to be a rectangle, which fixed the whole shell to one
+ * shape.
+ *
+ * Floating solves both. Below `lg` it lifts off and becomes an overlay the
+ * hamburger opens, so the content underneath keeps its whole width; at `lg`
+ * and up it sits inset with the page showing around it.
+ *
+ * `lg` rather than `md`, and that is the fix rather than a preference: at
+ * 768px a permanent 15rem panel left the messages screen 496px to hold a
+ * 19rem conversation list and a thread beside it, so the pane was there and
+ * unusable. The panel earns its place in the layout only once the page can
+ * still do its job beside it. The shape is the same
+ * in both, so the drawer is recognisably the same object arriving, not a
+ * different component for small screens.
+ *
+ * The corner is a squircle rather than an arc. At 44px the difference is
+ * visible: an arc meets the straight edge at a sudden change of curvature and
+ * reads as a stuck-on radius, while a squircle eases into it. That is the
+ * whole reason the shape is worth the property - at 8px nobody could tell.
+ */
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const isDesktop = useIsDesktop();
   const user = useAuthStore((s) => s.user);
   const schoolName = useBrandStore((s) => s.schoolName);
   const sections = getNavigation((user?.role || "ADMIN") as Role);
@@ -32,21 +62,63 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   return (
     <aside
+      id="app-sidebar"
+      /*
+        Hidden from assistive technology and taken out of the tab order while
+        it is off-screen. It was only translated away before, so on a phone
+        every link in a closed drawer was still reachable by Tab and still
+        read out - forty invisible items between the hamburger and the page.
+        `inert` is the one attribute that does both, and it is lifted at `lg`
+        where the panel is always on screen.
+      */
+      inert={!isOpen && !isDesktop}
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-border bg-surface transition-transform duration-200 ease-in-out",
-        "md:translate-x-0",
-        isOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed z-40 flex w-60 flex-col overflow-hidden bg-surface",
+        "rounded-panel squircle shadow-card",
+        /* Inset on every side, so the page shows around it and the corners
+           are corners rather than a curve cut off by the viewport. */
+        "left-3 top-3 bottom-3 lg:left-4 lg:top-4 lg:bottom-4",
+        "transition-transform duration-settle ease-enter",
+        "lg:translate-x-0",
+        /* Far enough for the shadow to clear the edge too: at exactly -100%
+           the elevation still bleeds back onto the page as a grey smear. */
+        isOpen ? "translate-x-0" : "-translate-x-[calc(100%+1.25rem)]"
       )}
     >
-      {/* Logo - the school's own uploaded logo when set, otherwise Markova's mark */}
-      <div className="flex h-16 items-center justify-center border-b border-border px-5">
+      {/*
+        Logo - the school's own uploaded logo when set, otherwise Markova's
+        mark. The divider is inset rather than full-bleed: a rule that runs
+        into a 44px corner meets the curve at a tangent and reads as a line
+        somebody forgot to finish. Inside the curve it reads as a divider.
+      */}
+      <div className="relative mx-4 flex h-16 shrink-0 items-center justify-center border-b border-border px-1 pt-1">
         {/* The uploaded logo carries the school name itself, so it stands
             alone; BrandMark keeps the name as the image's alt text. */}
         <BrandMark className="h-9 w-auto max-w-full shrink-0" />
+        {/*
+          A way out that is visible, only where the panel is covering the
+          page. Tapping the scrim and pressing Escape both close it, but
+          neither is on the screen: a panel that covers what you were reading
+          should show you how to put it back, not assume you know.
+        */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close the menu"
+          className="absolute right-0 rounded-lg p-2 text-muted transition-colors hover:bg-accent-light hover:text-foreground lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-4">
+      {/* The only part that scrolls, so the logo and the footer stay put and
+          the curve always has the panel's own colour behind it. */}
+      <nav
+        role="navigation"
+        aria-label="Main navigation"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4"
+      >
         {sections.map((section, si) => (
           <div key={si} className={cn(si > 0 && "mt-5")}>
             {section.title && (
@@ -106,8 +178,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border p-3">
+      {/* Footer. Inset for the same reason as the header's rule, and with the
+          extra bottom padding the bottom corners need to stay clear. */}
+      <div className="mx-4 shrink-0 border-t border-border px-1 pb-3 pt-3">
         <p className="text-center text-[10px] text-muted">
           Markova v1.0
         </p>

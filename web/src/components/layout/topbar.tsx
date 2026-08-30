@@ -55,12 +55,14 @@ function timeAgo(dateStr: string): string {
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
+  /** Whether the drawer it controls is open, for `aria-expanded`. */
+  sidebarOpen?: boolean;
 }
 
 /** Nothing to subscribe to: whether this is a Mac does not change. */
 const subscribeToNothing = () => () => {};
 
-export function Topbar({ onToggleSidebar }: TopbarProps) {
+export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
@@ -214,12 +216,17 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
   };
 
   return (
-    <header className="fixed left-0 md:left-60 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
+    <header className="fixed left-0 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface px-4 lg:left-[17rem] lg:px-6">
       {/* Mobile hamburger */}
       <button
         onClick={onToggleSidebar}
-        className="mr-3 rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground transition-colors md:hidden"
-        aria-label="Toggle sidebar"
+        /* Named for what it opens, and reporting whether it is open. A
+           control that toggles something has to say which state it is in, or
+           a screen reader announces the same thing whichever way it goes. */
+        aria-controls="app-sidebar"
+        aria-expanded={sidebarOpen}
+        className="mr-3 rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground transition-colors lg:hidden"
+        aria-label={sidebarOpen ? "Close the menu" : "Open the menu"}
       >
         <Menu className="h-5 w-5" />
       </button>
