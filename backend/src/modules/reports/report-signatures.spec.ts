@@ -95,6 +95,7 @@ describe('the signatures on a report card', () => {
     prisma.termResult.findMany.mockResolvedValue([]);
     prisma.teacherRole.findFirst.mockResolvedValue(classTeacher(null));
     prisma.user.findFirst.mockResolvedValue(head(null));
+    prisma.parentStudent.findFirst.mockResolvedValue(null);
     prisma.attendance.count.mockResolvedValue(60);
     prisma.schoolConfig.findMany.mockResolvedValue([
       { key: 'school_name', value: 'Markova TSS' },
@@ -200,6 +201,71 @@ describe('the signatures on a report card', () => {
     it('keeps the space for a signature that is not there', async () => {
       const html = await card();
       expect(html).toContain('.sigs .ink{ height:13mm');
+    });
+  });
+
+  /**
+   * The family's own line.
+   *
+   * It means something different from the two above it: the school is not
+   * certifying anything by it, the family is acknowledging they have seen
+   * the term. That is why it is normally signed in ink at home, and why a
+   * card printed with it empty is still a finished card - but where a parent
+   * has given one, printing it makes the digital copy a complete record of
+   * an acknowledgement that actually happened.
+   */
+  describe("the family's signature", () => {
+    const guardian = (signatureUrl: string | null) => ({
+      id: 'link-1',
+      parent: {
+        firstName: 'Marie Claire',
+        lastName: 'Uwase',
+        signatureUrl,
+      },
+    });
+
+    it('names the guardian under their own line', async () => {
+      prisma.parentStudent.findFirst.mockResolvedValue(guardian(null));
+      expect(await card()).toContain('Marie Claire Uwase');
+    });
+
+    it('prints their mark where they have given one', async () => {
+      prisma.parentStudent.findFirst.mockResolvedValue(
+        guardian('/uploads/signatures/aline.png'),
+      );
+      const html = await card();
+      const parentBlock = html.slice(html.lastIndexOf('Parent / Guardian') - 400);
+      expect(parentBlock).toContain('<img');
+    });
+
+    /* One line to sign, so one guardian. A child with two parents on the
+       system has the card signed by whoever collects it. */
+    it('asks for one guardian, the first linked to this child', async () => {
+      await card();
+      expect(prisma.parentStudent.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { studentId: 'student-1' } }),
+      );
+    });
+
+    /* A card is still a finished card with the family's line blank: that is
+       what every one of these looked like before the system existed. */
+    it('prints the line for a child with no guardian on the system', async () => {
+      prisma.parentStudent.findFirst.mockResolvedValue(null);
+      const html = await card();
+      expect(html).toContain('Parent / Guardian');
+      expect(html).not.toMatch(/null|undefined/);
+    });
+
+    it('escapes a guardian name that is trying to be a script', async () => {
+      prisma.parentStudent.findFirst.mockResolvedValue({
+        id: 'link-1',
+        parent: {
+          firstName: '<img src=x onerror=alert(1)>',
+          lastName: 'Uwase',
+          signatureUrl: null,
+        },
+      });
+      expect(await card()).not.toContain('<img src=x');
     });
   });
 

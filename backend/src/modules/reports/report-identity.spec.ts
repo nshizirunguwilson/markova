@@ -109,6 +109,40 @@ describe('who the report card belongs to', () => {
     expect(html).toContain('.info{ display:grid');
   });
 
+  /**
+   * Square, because the frame a photograph appears in everywhere else is
+   * round. A portrait taller than it is wide crops to a different picture on
+   * the card than it does in the topbar, so a person who checked their photo
+   * looked right on screen would find a different one printed.
+   */
+  it('crops the photograph to the same square the avatar shows', async () => {
+    const html = await card();
+    expect(html).toContain('.portrait{ width:24mm; height:24mm;');
+  });
+
+  /**
+   * No fill behind the identity panel. The stamp is printed across the middle
+   * of the sheet, and a panel with a background of its own punched a white
+   * rectangle through the middle of the watermark.
+   */
+  it('lets the watermark through the panel behind the name', async () => {
+    const html = await card();
+    const style = html.slice(html.indexOf('.ident{'));
+    expect(style.slice(0, style.indexOf('}'))).not.toContain('background:');
+    // The rule down the left still marks the block out.
+    expect(style.slice(0, style.indexOf('}'))).toContain('border-left:4px');
+  });
+
+  /**
+   * The marks table is the densest thing on the sheet and the only part that
+   * grows with the curriculum: an A-Level student taking thirteen modules is
+   * what decided the size.
+   */
+  it('sets the marks table small enough for a long curriculum', async () => {
+    const html = await card();
+    expect(html).toContain('table.marks{ border-collapse:collapse; width:100%; font-size:10px; }');
+  });
+
   it('prints the photograph beside it', async () => {
     const html = await card();
     expect(html).toContain('class="portrait"');

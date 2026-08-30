@@ -13,8 +13,17 @@ import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
 import { labelForRole } from "@/types";
 
-/** Roles that put their name under a document the school issues. */
-const SIGNS_SOMETHING = ["ADMIN", "HEAD_TEACHER", "TEACHER"];
+/**
+ * Roles that put their name under a document the school issues.
+ *
+ * A parent belongs here, though what they sign means something different
+ * from the two staff signatures above theirs on a report card: the school is
+ * not certifying anything by it, the family is acknowledging they have seen
+ * the term. That line is normally signed in ink at home, and a card printed
+ * with it empty is still a finished card - so this is an offer rather than
+ * an obligation, and the copy on the page says so.
+ */
+const SIGNS_SOMETHING = ["ADMIN", "HEAD_TEACHER", "TEACHER", "PARENT"];
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -415,8 +424,9 @@ export default function ProfilePage() {
                 My signature
               </h3>
               <p className="mt-0.5 text-sm text-muted">
-                Printed where you sign a report card. Yours alone: nobody else
-                can upload or remove it, not even an administrator.
+                {user.role === "PARENT"
+                  ? "Printed where you sign your child's report card, so the school holds a record of the terms you have seen. Yours alone: nobody else can upload or remove it."
+                  : "Printed where you sign a report card. Yours alone: nobody else can upload or remove it, not even an administrator."}
               </p>
             </div>
           </div>

@@ -200,6 +200,30 @@ export class ReportsService implements OnModuleDestroy {
       orderBy: { createdAt: 'asc' },
     });
 
+    /*
+      The family's own signature, where one has been given.
+
+      A parent's line on a report card means something different from the
+      two above it: the school is not certifying anything by it, the family
+      is acknowledging they have seen the term. That is why it is the only
+      one of the three that is normally signed in ink, at home, and why a
+      card printed with the line empty is still a finished card.
+
+      Where a parent has uploaded one it is printed, which is what makes the
+      digital copy a complete record of an acknowledgement that happened.
+      The first linked guardian: a child with two parents on the system has
+      one line to sign, and the school asks whoever collects the card.
+    */
+    const guardian = await this.prisma.parentStudent.findFirst({
+      where: { studentId },
+      include: {
+        parent: {
+          select: { firstName: true, lastName: true, signatureUrl: true },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
     const [attendanceTotal, attendancePresent] = await Promise.all([
       this.prisma.attendance.count({
         where: { studentId, date: { gte: term.startDate, lte: term.endDate } },
@@ -290,9 +314,13 @@ export class ReportsService implements OnModuleDestroy {
       signatures: {
         classTeacher: classTeacherRole?.teacher.user.signatureUrl ?? null,
         headTeacher: headTeacher?.signatureUrl ?? null,
+        guardian: guardian?.parent.signatureUrl ?? null,
       },
       headTeacher: headTeacher
         ? `${headTeacher.firstName} ${headTeacher.lastName}`
+        : null,
+      guardian: guardian
+        ? `${guardian.parent.firstName} ${guardian.parent.lastName}`
         : null,
       attendance: { present: attendancePresent, total: attendanceTotal },
       /*
@@ -1921,8 +1949,15 @@ export class ReportsService implements OnModuleDestroy {
         hardest thing on the sheet to find and the wrong card the easiest
         mistake to make. The photograph settles it without reading.
       */
-      .ident{ display:flex; align-items:center; gap:14px; margin-bottom:12px; padding:8px 12px; border:1px solid rgba(21,37,54,.09); border-left:4px solid ${navy}; border-radius:4px; background:#f8fbfd; }
-      .portrait{ width:24mm; height:29mm; flex:0 0 24mm; border:1px solid rgba(21,37,54,.16); border-radius:3px; overflow:hidden; background:#eef4f9; display:flex; align-items:center; justify-content:center; }
+      /* No fill behind it. The stamp is printed across the middle of the
+         sheet, and a panel with a background of its own punched a white
+         rectangle through the middle of the watermark. The rule down the
+         left marks the block just as well and lets the mark through. */
+      .ident{ display:flex; align-items:center; gap:14px; margin-bottom:12px; padding:8px 12px; border:1px solid rgba(21,37,54,.09); border-left:4px solid ${navy}; border-radius:4px; }
+      /* Square, because the frame it appears in everywhere else is round and
+         a portrait taller than it is wide crops to a different picture on
+         the card than it does in the topbar. */
+      .portrait{ width:24mm; height:24mm; flex:0 0 24mm; border:1px solid rgba(21,37,54,.16); border-radius:3px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
       .portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
       .portrait span{ font-size:22px; font-weight:700; color:${navy}; letter-spacing:.04em; }
       .who{ flex:1; min-width:0; }
@@ -1930,19 +1965,22 @@ export class ReportsService implements OnModuleDestroy {
       .info{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px 18px; font-size:11.5px; }
       .info div span{ display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:#5b6b7b; margin-bottom:2px; }
       .info div b{ font-weight:600; }
-      table.marks{ border-collapse:collapse; width:100%; font-size:11.5px; }
+      /* 10px rather than 11.5. The table is the densest thing on the sheet
+         and the only one that grows with the curriculum: an A-Level student
+         taking thirteen modules was the case that decided this. */
+      table.marks{ border-collapse:collapse; width:100%; font-size:10px; }
       table.marks th, table.marks td{ border:1px solid rgba(21,37,54,.16); padding:3px 7px; }
-      table.marks thead th{ background:${navy}; color:#fff; font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; text-align:center; }
+      table.marks thead th{ background:${navy}; color:#fff; font-weight:600; font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; text-align:center; }
       table.marks td{ text-align:center; font-variant-numeric:tabular-nums; }
       table.marks td.subj{ text-align:left; font-weight:500; }
       table.marks td.num{ color:#33414e; }
       table.marks td.tot{ font-weight:700; }
       table.marks td.gr{ font-weight:700; color:${navy}; }
-      table.marks td.rem{ font-size:11px; color:#5b6b7b; text-align:left; }
-      tr.group td{ background:#eef4f9; color:${navy}; font-weight:600; text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; }
+      table.marks td.rem{ font-size:9.5px; color:#5b6b7b; text-align:left; }
+      tr.group td{ background:#eef4f9; color:${navy}; font-weight:600; text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; }
       tr.group .gnote{ text-transform:none; letter-spacing:0; }
       .core{ color:#2E86C1; font-weight:700; }
-      .chip{ font-size:10px; font-weight:600; white-space:nowrap; }
+      .chip{ font-size:9px; font-weight:600; white-space:nowrap; }
       .chip.ok{ color:#1a7f45; }
       .chip.no{ color:#b3261e; }
       .foot-note{ font-size:10px; color:#5b6b7b; margin-top:4px; }
@@ -2032,7 +2070,7 @@ export class ReportsService implements OnModuleDestroy {
       <div class="sigs">
         ${signedBy('Class Teacher', data.classTeacher, data.signatures?.classTeacher)}
         ${signedBy('Head Teacher', data.headTeacher, data.signatures?.headTeacher)}
-        ${signedBy('Parent / Guardian', null, null)}
+        ${signedBy('Parent / Guardian', data.guardian, data.signatures?.guardian)}
       </div>
 
       ${verifyStrip}

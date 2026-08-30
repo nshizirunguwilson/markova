@@ -333,14 +333,23 @@ describe("your own signature", () => {
     expect(screen.getByText(/My signature/i)).toBeInTheDocument();
   });
 
+  /**
+   * A parent's line on a report card means something different from the two
+   * staff signatures above it: the school is not certifying anything by it,
+   * the family is acknowledging they have seen the term. So it is offered,
+   * and the copy says what it is for rather than implying an obligation.
+   */
+  it("offers it to a parent, and says what theirs is for", async () => {
+    await mountAs("PARENT");
+    expect(screen.getByText(/My signature/i)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/terms you have seen/i);
+  });
+
   // A control that does nothing teaches people to ignore controls.
-  it.each(["STUDENT", "PARENT"] as const)(
-    "does not offer it to a %s, who signs nothing",
-    async (role) => {
-      await mountAs(role);
-      expect(screen.queryByText(/My signature/i)).not.toBeInTheDocument();
-    },
-  );
+  it("does not offer it to a student, who signs nothing", async () => {
+    await mountAs("STUDENT");
+    expect(screen.queryByText(/My signature/i)).not.toBeInTheDocument();
+  });
 
   it("says plainly that nobody else can touch it", async () => {
     await mountAs("TEACHER");
