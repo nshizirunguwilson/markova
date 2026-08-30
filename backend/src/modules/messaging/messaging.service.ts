@@ -7,6 +7,13 @@ import {
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  MENTION_REFUSAL,
+  parseMentions,
+  plainText,
+  refuseMention,
+  whoToNotify,
+} from '../../common/mentions';
+import {
   BroadcastAudience,
   BroadcastDto,
   CreateConversationDto,
@@ -372,7 +379,13 @@ export class MessagingService {
     // would be switched off within a week.
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: dto.conversationId },
-      select: { type: true, createdByUserId: true },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        createdByUserId: true,
+        participants: { select: { userId: true, isAdmin: true } },
+      },
     });
     if (
       conversation?.type === 'BROADCAST' &&
@@ -382,6 +395,24 @@ export class MessagingService {
         'This is an announcement. Message the school directly to reply.',
       );
     }
+
+    /*
+      Mentions are checked before the message is stored, and refused rather
+      than quietly stripped. A mention silently turned into plain text is the
+      one failure the whole design exists to prevent: the sender believes
+      somebody was told, and nobody was.
+    */
+    const participantIds = (conversation?.participants ?? []).map(
+      (p) => p.userId,
+    );
+    const refusal = refuseMention(dto.content ?? '', {
+      conversationType: (conversation?.type ?? 'GROUP') as never,
+      participantIds,
+      senderIsAdmin: (conversation?.participants ?? []).some(
+        (p) => p.userId === senderUserId && p.isAdmin,
+      ),
+    });
+    if (refusal) throw new BadRequestException(MENTION_REFUSAL[refusal]);
 
     // A reply has to answer something in this conversation. Pointing at a
     // message in another thread would quote text the sender was never allowed
@@ -398,7 +429,19 @@ export class MessagingService {
       }
     }
 
-    return this.prisma.message.create({
+    /*
+      The mention rows are written with the message rather than after it, so
+      a message can never exist carrying markup that notified nobody.
+    */
+    const named = whoToNotify(dto.content ?? '', {
+      participantIds,
+      senderId: senderUserId,
+    });
+    const byName = new Set(
+      parseMentions(dto.content ?? '').map((m) => m.userId),
+    );
+
+    const message = await this.prisma.message.create({
       data: {
         conversationId: dto.conversationId,
         senderUserId,
@@ -408,14 +451,120 @@ export class MessagingService {
         fileUrl: dto.fileUrl,
         fileName: dto.fileName,
         replyToId: dto.replyToId,
+        mentions: {
+          create: named.map((userId) => ({
+            userId,
+            /* A reader is owed the difference between being asked and being
+               one of thirty. */
+            viaEveryone: !byName.has(userId.toLowerCase()),
+          })),
+        },
       },
       include: {
         sender: {
           select: { id: true, firstName: true, lastName: true, photoUrl: true },
         },
         replyTo: MessagingService.QUOTED,
+        mentions: { select: { userId: true, viaEveryone: true } },
       },
     });
+
+    /*
+      What is left behind for anybody who was not looking.
+
+      A toast is gone the moment it fades, so missing one used to mean losing
+      the message. Everybody in the room gets an entry that survives; the
+      people named get one that says so, and is never rolled up under a
+      count.
+    */
+    await this.leaveNotifications(
+      message,
+      conversation,
+      participantIds,
+      senderUserId,
+      new Set(named),
+    );
+
+    return message;
+  }
+
+  /**
+   * The trail a message leaves for people who were not looking at it.
+   *
+   * One entry per conversation, added to rather than duplicated: a person in
+   * a busy class group would otherwise have two hundred entries by lunchtime,
+   * and a bell nobody opens is a bell that notifies nobody.
+   *
+   * A mention is the exception and gets its own. Being named is directed at
+   * you personally, and burying it under "12 new messages" is exactly how it
+   * gets missed.
+   */
+  private async leaveNotifications(
+    message: { id: string; content: string; sender: { firstName: string } },
+    conversation: { id: string; type: string; name: string | null } | null,
+    participantIds: string[],
+    senderUserId: string,
+    mentioned: Set<string>,
+  ) {
+    if (!conversation) return;
+    const where = conversation.name ?? 'a conversation';
+    const preview = plainText(message.content ?? '').slice(0, 120);
+
+    await Promise.all(
+      participantIds
+        .filter((id) => id !== senderUserId)
+        .map(async (userId) => {
+          if (mentioned.has(userId)) {
+            await this.prisma.notification.create({
+              data: {
+                userId,
+                title: `${message.sender.firstName} mentioned you in ${where}`,
+                message: preview,
+                type: 'PUSH',
+                relatedEntityType: 'MENTION',
+                relatedEntityId: conversation.id,
+              },
+            });
+            return;
+          }
+
+          /* Rolled up. The unread entry for this conversation is added to;
+             a read one is left alone and a new entry started, so opening
+             the bell does not silently reset a running count. */
+          const open = await this.prisma.notification.findFirst({
+            where: {
+              userId,
+              isRead: false,
+              relatedEntityType: 'MESSAGE',
+              relatedEntityId: conversation.id,
+            },
+            select: { id: true, count: true },
+          });
+
+          if (open) {
+            await this.prisma.notification.update({
+              where: { id: open.id },
+              data: {
+                count: open.count + 1,
+                title: `${open.count + 1} new messages in ${where}`,
+                message: preview,
+              },
+            });
+            return;
+          }
+
+          await this.prisma.notification.create({
+            data: {
+              userId,
+              title: `${message.sender.firstName} messaged ${where}`,
+              message: preview,
+              type: 'PUSH',
+              relatedEntityType: 'MESSAGE',
+              relatedEntityId: conversation.id,
+            },
+          });
+        }),
+    );
   }
 
   async markAsRead(conversationId: string, userId: string) {
@@ -428,6 +577,27 @@ export class MessagingService {
         reads: { none: { userId } },
       },
       select: { id: true, senderUserId: true },
+    });
+
+    /*
+      Opening the conversation clears what it left in the bell, and this
+      happens before the early return below on purpose: a thread with nothing
+      new in it can still have an entry waiting, because the messages may
+      have been read on another device. A notification sitting there for
+      something already read is a bell that cries wolf, and a bell that cries
+      wolf is one people stop opening.
+
+      Mentions clear with it. The point of a mention is to get somebody to
+      the message, and they are now looking at it.
+    */
+    await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        isRead: false,
+        relatedEntityType: { in: ['MESSAGE', 'MENTION'] },
+        relatedEntityId: conversationId,
+      },
+      data: { isRead: true },
     });
 
     if (unreadMessages.length === 0) return { count: 0, readMessageIds: [] };
@@ -450,6 +620,33 @@ export class MessagingService {
     });
 
     return { count: unreadMessages.length, readMessageIds };
+  }
+
+  /**
+   * How much is waiting, split by how much it is addressed to you.
+   *
+   * Two numbers rather than one, because they are read differently: an unread
+   * message in a class group of thirty is something to get to, and a mention
+   * is somebody waiting on an answer. A single badge makes the second
+   * invisible inside the first.
+   */
+  async unreadSummary(userId: string) {
+    const [messages, mentions] = await Promise.all([
+      this.prisma.message.count({
+        where: {
+          conversation: { participants: { some: { userId } } },
+          senderUserId: { not: userId },
+          reads: { none: { userId } },
+        },
+      }),
+      this.prisma.messageMention.count({
+        where: {
+          userId,
+          message: { reads: { none: { userId } }, senderUserId: { not: userId } },
+        },
+      }),
+    ]);
+    return { unreadCount: messages, mentionCount: mentions };
   }
 
   async getUnreadCount(userId: string) {

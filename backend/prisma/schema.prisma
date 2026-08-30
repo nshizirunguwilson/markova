@@ -186,6 +186,7 @@ model User {
   pocketMoneyEntries      PocketMoneyTransaction[]   @relation("PocketMoneyRecordedBy")
   activitiesCreated       Activity[]                 @relation("ActivityCreatedBy")
   reportCardsConfirmed    TermResult[]               @relation("ReportCardsConfirmed")
+  messageMentions         MessageMention[]
   activityConsents        ActivityParticipant[]      @relation("ActivityConsentBy")
   student                 Student?
   teacher                 Teacher?
@@ -923,11 +924,38 @@ model Message {
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User          @relation(fields: [senderUserId], references: [id])
   reads        MessageRead[]
+  mentions     MessageMention[]
   replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies      Message[]     @relation("MessageReplies")
 
   @@index([conversationId, createdAt])
   @@map("messages")
+}
+
+/// Who a message names.
+///
+/// Derived from the `@[Name](id)` markup in the message content, in the same
+/// write, so the two can never drift apart. Kept as rows rather than read out
+/// of the text because this is what answers "was I mentioned" and what a
+/// notification is built from - searching message content with LIKE for an id
+/// would be both slow and wrong, matching anybody who quoted one in a
+/// sentence.
+model MessageMention {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  /// Set when the message addressed the whole room rather than this person by
+  /// name. A reader is owed the difference: being one of thirty is not the
+  /// same as being asked.
+  viaEveryone Boolean @default(false) @map("via_everyone")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_mentions")
 }
 
 model MessageRead {
@@ -956,10 +984,29 @@ model Notification {
   relatedEntityId   String?          @map("related_entity_id")
   createdAt         DateTime         @default(now()) @map("created_at")
 
+  /// How many things this one entry stands for.
+  ///
+  /// A message that arrives while somebody is elsewhere leaves a notification
+  /// behind, so missing the toast no longer means losing it. But one entry per
+  /// message would give a person in a busy class group two hundred of them by
+  /// lunchtime, and a bell nobody opens is a bell that notifies nobody. So the
+  /// unread entry for a conversation is updated instead of duplicated, and
+  /// this is what it says: "4 new messages in Senior 1 A".
+  ///
+  /// A mention is never rolled up this way. Being named is directed at you
+  /// personally, and burying it under a count is exactly how it gets missed.
+  count Int @default(1)
+
+  /// Last time this entry was added to, which is what it sorts by. An entry
+  /// created this morning and added to a minute ago belongs at the top.
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([createdAt])
+  /// What the roll-up looks up: this person's unread entry for this thing.
+  @@index([userId, isRead, relatedEntityType, relatedEntityId])
   @@map("notifications")
 }
 
