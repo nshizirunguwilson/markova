@@ -13,6 +13,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MaxWords } from '../../../common/validators/max-words.validator';
+import { MAX_COMMENT_WORDS } from '../../../common/report-comments';
 
 export class CreateMarkDto {
   @ApiProperty() @IsUUID() studentId: string;
@@ -58,14 +60,22 @@ export class CalculateYearResultDto {
 }
 
 export class UpdateTermResultCommentDto {
+  /*
+    Twenty words, counted as words rather than characters. The box on a
+    printed card is two inches tall, and what has to fit it is a sentence
+    somebody wrote rather than a length of text. The drafts are built to the
+    same limit, so a typed comment and a suggested one are held to one rule.
+  */
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxWords(MAX_COMMENT_WORDS)
   @MaxLength(1000)
   teacherComment?: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxWords(MAX_COMMENT_WORDS)
   @MaxLength(1000)
   headmasterComment?: string;
 }

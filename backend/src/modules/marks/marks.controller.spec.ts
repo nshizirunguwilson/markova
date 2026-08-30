@@ -10,6 +10,7 @@ import {
   mockService,
   parent,
   teacher,
+  type Provided,
   type RouteCase,
 } from '../../test/controller';
 
@@ -21,12 +22,13 @@ import {
  * The controller's dependencies are a fact about the controller, not about
  * whichever block happens to be building it.
  */
+type Mocks = Record<string, jest.Mock>;
 const wiring = (mocks: {
-  service: unknown;
-  ownership: unknown;
-  feeGate: unknown;
-  dashboard?: unknown;
-}) => [
+  service: Mocks;
+  ownership: Mocks;
+  feeGate: Mocks;
+  dashboard?: Mocks;
+}): Provided[] => [
   { token: MarksService, name: 'service', mock: mocks.service },
   { token: OwnershipService, name: 'ownership', mock: mocks.ownership },
   { token: FeeGateService, name: 'feeGate', mock: mocks.feeGate },

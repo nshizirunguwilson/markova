@@ -1,5 +1,8 @@
 import {
+  MAX_COMMENT_WORDS,
+  countWords,
   differ,
+  fit,
   suggestClassTeacherComment,
   suggestComments,
   suggestHeadTeacherComment,
@@ -174,10 +177,16 @@ describe('the class teacher on the work', () => {
     );
   });
 
-  it('says what is not yet competent, and says it is unfinished', () => {
-    const out = suggestClassTeacherComment(facts());
-    expect(out).toMatch(/Not Yet Competent/);
-    expect(out).toMatch(/unfinished rather than failed/);
+  it('says what is not yet competent', () => {
+    const out = suggestClassTeacherComment(
+      facts({
+        subjects: [
+          { name: 'Mathematics', total: 78, grade: 'A', competence: 'COMPETENT' },
+          { name: 'English', total: 66, grade: 'B', competence: 'NOT_YET_COMPETENT' },
+        ],
+      }),
+    );
+    expect(out).toMatch(/not yet competent/i);
   });
 
   it('counts them instead of listing when there are many', () => {
@@ -191,14 +200,14 @@ describe('the class teacher on the work', () => {
         })),
       }),
     );
-    expect(out).toMatch(/6 subjects are still Not Yet Competent/);
+    expect(out).toMatch(/6 subjects are not yet competent/i);
   });
 
   it('says so honestly when nothing has been marked', () => {
     const out = suggestClassTeacherComment(
       facts({ average: null, subjects: [] }),
     );
-    expect(out).toMatch(/not yet complete/i);
+    expect(out).toMatch(/not yet marked/i);
     expect(out).not.toMatch(/keep it up|well done/i);
   });
 });
@@ -216,7 +225,7 @@ describe('the head teacher on standing', () => {
 
   it('asks a struggling student to come back ready', () => {
     const out = suggestHeadTeacherComment(facts({ average: 41 }));
-    expect(out).toMatch(/ready to work/);
+    expect(out).toMatch(/return ready to work/);
     expect(out).not.toMatch(/Promoted/);
   });
 
@@ -281,7 +290,7 @@ describe('discipline, only where it is needed', () => {
     const out = suggestClassTeacherComment(
       facts({ conduct: { points: 30, outOf: 40 } }),
     );
-    expect(out).toMatch(/Conduct at 30 out of 40/);
+    expect(out).toMatch(/[Cc]onduct needs to settle/);
   });
 
   // Still the classroom's to handle at 75%, so the head teacher stays out.
@@ -296,15 +305,14 @@ describe('discipline, only where it is needed', () => {
     const out = suggestHeadTeacherComment(
       facts({ conduct: { points: 18, outOf: 40 } }),
     );
-    expect(out).toMatch(/matter for the school/);
-    expect(out).toMatch(/meet the head teacher/);
+    expect(out).toMatch(/asked to meet me/i);
   });
 
   it('speaks plainly to the family when behaviour has cost real time', () => {
     const out = suggestClassTeacherComment(
       facts({ conduct: { points: 12, outOf: 40 } }),
     );
-    expect(out).toMatch(/cost Aline time/);
+    expect(out).toMatch(/costing Aline real time/);
   });
 
   it('copes with a school that marks no conduct', () => {
@@ -350,6 +358,121 @@ describe('what a draft never does', () => {
       expect(c.trim()).toMatch(/\.$/);
       expect(c.trim()[0]).toBe(c.trim()[0].toUpperCase());
     }
+  });
+});
+
+/**
+ * The length of a comment.
+ *
+ * Twenty words is one sentence, or two short ones, and the box on a report
+ * card is two inches tall. A comment that overflows it is a comment a family
+ * reads the first half of - and a teacher writing thirty by hand keeps to
+ * about this length anyway. The long ones are the ones nobody wrote.
+ */
+describe('how long a comment may run', () => {
+  const everything = () =>
+    [88, 74, 65, 54, 44, 22].flatMap((average) =>
+      [
+        { points: 40, outOf: 40 },
+        { points: 30, outOf: 40 },
+        { points: 12, outOf: 40 },
+      ].flatMap((conduct) =>
+        [null, 48, 78].flatMap((previousAverage) => {
+          const f = facts({ average, conduct, previousAverage });
+          return [
+            suggestClassTeacherComment(f),
+            suggestHeadTeacherComment(f),
+          ];
+        }),
+      ),
+    );
+
+  it('never runs past twenty words, whatever the term was like', () => {
+    for (const c of everything()) {
+      expect(countWords(c)).toBeLessThanOrEqual(MAX_COMMENT_WORDS);
+    }
+  });
+
+  it('never runs past it on a sheet with everything wrong at once', () => {
+    const f = facts({
+      average: 31,
+      previousAverage: 62,
+      conduct: { points: 8, outOf: 40 },
+      subjects: Array.from({ length: 9 }, (_, i) => ({
+        name: `Subject Number ${i}`,
+        total: 20 + i * 6,
+        grade: 'F',
+        competence: 'NOT_YET_COMPETENT' as const,
+      })),
+    });
+    expect(countWords(suggestClassTeacherComment(f))).toBeLessThanOrEqual(20);
+    expect(countWords(suggestHeadTeacherComment(f))).toBeLessThanOrEqual(20);
+  });
+
+  // Short is the point, but empty is not a comment.
+  it('still says something on every one of them', () => {
+    for (const c of everything()) expect(countWords(c)).toBeGreaterThan(2);
+  });
+
+  it('is never cut off mid sentence', () => {
+    for (const c of everything()) expect(c.trim()).toMatch(/\.$/);
+  });
+});
+
+/**
+ * What survives when there is more to say than there is room for.
+ *
+ * This is the whole design of the limit: clauses are written most important
+ * first and taken until the next will not fit, so a comment is never
+ * truncated and what remains is always the thing that mattered most.
+ */
+describe('what gets dropped', () => {
+  it('keeps whole clauses rather than cutting one in half', () => {
+    expect(fit(['One two three.', 'Four five six seven.'], 5)).toBe(
+      'One two three.',
+    );
+  });
+
+  /* Order is priority, not sequence: a later clause that fits is taken even
+     when an earlier one did not, because dropping both would lose something
+     for no gain. */
+  it('takes a later clause that fits when an earlier one did not', () => {
+    expect(fit(['One two three four five six.', 'Seven.'], 5)).toBe('Seven.');
+  });
+
+  it('ignores clauses that are not there', () => {
+    expect(fit(['One.', '', 'Two.'])).toBe('One. Two.');
+  });
+
+  it('says nothing when nothing fits', () => {
+    expect(fit(['One two three.'], 1)).toBe('');
+  });
+
+  /**
+   * Behaviour that has begun costing a child real time outranks a competence
+   * tally: one of those is something a family can act on tonight, the other
+   * is a curriculum artefact they will ask the school to explain.
+   */
+  it('keeps serious behaviour over a competence count', () => {
+    const out = suggestClassTeacherComment(
+      facts({
+        average: 44,
+        conduct: { points: 8, outOf: 40 },
+        subjects: Array.from({ length: 5 }, (_, i) => ({
+          name: `Subject ${i}`,
+          total: 40 + i,
+          grade: 'E',
+          competence: 'NOT_YET_COMPETENT' as const,
+        })),
+      }),
+    );
+    expect(out).toMatch(/costing Aline real time/);
+  });
+
+  it('counts words the way a person counts them', () => {
+    expect(countWords('One two  three')).toBe(3);
+    expect(countWords('  ')).toBe(0);
+    expect(countWords(null)).toBe(0);
   });
 });
 

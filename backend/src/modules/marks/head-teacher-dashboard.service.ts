@@ -103,7 +103,10 @@ export class HeadTeacherDashboardService {
       return {
         term: null,
         classes: [] as ClassProgress[],
-        staff: { total: 0, present: 0, absent: 0, absentToday: [] },
+        /* The same shape as a term with work in it: a page that has to ask
+           whether `taken` exists before reading it is a page with two
+           branches for one question. */
+        staff: await this.staffToday(),
       };
     }
 
