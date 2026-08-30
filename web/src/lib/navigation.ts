@@ -315,6 +315,7 @@ const bursarNav: NavSection[] = [
 const headTeacherNav: NavSection[] = [
   {
     items: [
+      { label: "Overview", href: "/head-teacher", icon: LayoutDashboard },
       { label: "Report cards", href: "/admin/report-cards", icon: FileCheck },
     ],
   },
