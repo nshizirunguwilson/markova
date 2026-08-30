@@ -69,6 +69,10 @@ const adminNav: NavSection[] = [
          They are not listed here, and the API refuses them, so a menu that
          offered them would be a menu that leads to a refusal. */
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
+      /* Transfer letters, transcripts and testimonials. The principal signs
+         these, and until now had no way to reach the page that makes them:
+         it sat only in the DOS's menu, where every button on it was refused. */
+      { label: "Documents", href: "/admin/reports", icon: FileText },
       { label: "Promotion", href: "/admin/promotion", icon: ArrowUpCircle },
     ],
   },

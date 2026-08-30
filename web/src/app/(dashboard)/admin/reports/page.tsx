@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAuthStore } from "@/stores/auth-store";
+
 import JSZip from "jszip";
 import {
   Card,
@@ -66,7 +68,24 @@ export default function AdminReportsPage() {
   const [termId, setTermId] = useState("");
   const [levelId, setLevelId] = useState("");
   const [sectionId, setSectionId] = useState("");
-  const [tab, setTab] = useState<"report-cards" | "documents">("report-cards");
+  /*
+    Two people's work on one page, so each sees only their own half.
+
+    The report cards are the DOS's and the letters are the principal's, and
+    the API enforces both. Showing the whole tab bar to everybody meant the
+    DOS could open a Documents tab whose every button answered "Forbidden
+    resource" - a control that is visible, enabled, and refused.
+  */
+  const role = useAuthStore((s) => s.user?.role);
+  const mayWriteCards = role === "HEAD_TEACHER" || role === "TEACHER";
+  const mayWriteDocuments = role === "ADMIN";
+  const tabs = [
+    ...(mayWriteCards ? (["report-cards"] as const) : []),
+    ...(mayWriteDocuments ? (["documents"] as const) : []),
+  ];
+  const [tab, setTab] = useState<"report-cards" | "documents">(
+    mayWriteCards ? "report-cards" : "documents",
+  );
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [viewing, setViewing] = useState<{ html: string; name: string; studentId: string } | null>(null);
 
@@ -357,7 +376,7 @@ export default function AdminReportsPage() {
       <h1 className="text-xl md:text-2xl font-bold text-primary">Reports & Documents</h1>
 
       <div className="flex gap-2 border-b border-border">
-        {(["report-cards", "documents"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}

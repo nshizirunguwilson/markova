@@ -76,7 +76,15 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
 const MOVED_TO_HEAD_TEACHER: Record<string, string[]> = {
   marks: ["HEAD_TEACHER"],
   attendance: ["HEAD_TEACHER"],
-  reports: ["HEAD_TEACHER"],
+  /*
+    Both, because this one page holds two people's work: the report cards are
+    the DOS's and the transfer letters, transcripts and testimonials are the
+    principal's. Handing the whole page to the DOS made the letters
+    unreachable by anybody - the principal was bounced from the page and the
+    DOS was refused by the API, so "Generate" answered "Forbidden resource"
+    whoever asked. The page itself shows each of them only their own tab.
+  */
+  reports: ["HEAD_TEACHER", "ADMIN"],
   /* The class teachers write on this one, so they reach it too - but the
      principal does not. It belongs here rather than in the shared map above,
      because that map adds roles to the prefix's own and this one replaces

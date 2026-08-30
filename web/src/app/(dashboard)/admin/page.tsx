@@ -14,7 +14,6 @@ import {
 import { useAcademicYears } from "@/hooks/use-academic";
 import { viz } from "@/lib/chart-theme";
 import { useChartTheme } from "@/hooks/use-chart-theme";
-import { useAttendanceDashboard } from "@/hooks/use-attendance";
 import { useLibraryAnalytics } from "@/hooks/use-library";
 import Link from "next/link";
 import {
@@ -40,9 +39,13 @@ export default function AdminDashboard() {
   const chart = useChartTheme();
   const user = useAuthStore((s) => s.user);
   const { data: dashboard, isLoading: loadingDashboard, isError: dashboardError, refetch: refetchDashboard } = useAdminDashboard();
-  const { data: attendance, isLoading: loadingAttendance, isError: attendanceError, refetch: refetchAttendance } = useAttendanceDashboard(
-    toLocalDateString(new Date())
-  );
+  /*
+    The register itself is the DOS's and the guard refuses it to a principal,
+    which is the rule this dashboard used to break: one 403 on
+    /attendance/dashboard blanked the whole page, on the screen the principal
+    opens first. The school-wide rate comes from the admin analytics endpoint
+    instead, which is theirs and already loaded for the chart below.
+  */
   const { data: library, isLoading: loadingLibrary, isError: libraryError, refetch: refetchLibrary } = useLibraryAnalytics();
   const { data: years } = useAcademicYears();
   const currentYearId = years?.find((y: any) => y.isCurrent)?.id ?? "";
@@ -131,8 +134,11 @@ export default function AdminDashboard() {
     };
   }, [attendanceStats, chart]);
 
-  const isLoading = loadingDashboard && loadingAttendance && loadingLibrary;
-  const isError = dashboardError || attendanceError || libraryError;
+  const isLoading = loadingDashboard && loadingLibrary;
+  /* Only the dashboard call itself blanks the page. A library or analytics
+     panel that fails is one missing card, not a reason to hide the eleven
+     that loaded - which is what "Something went wrong" used to do. */
+  const isError = dashboardError;
 
   if (isLoading) return <PageSpinner />;
 
@@ -142,7 +148,7 @@ export default function AdminDashboard() {
         <p className="text-lg font-semibold text-foreground">Something went wrong</p>
         <p className="mt-1 text-sm text-muted">We could not load the dashboard data.</p>
         <button
-          onClick={() => { refetchDashboard(); refetchAttendance(); refetchLibrary(); }}
+          onClick={() => { refetchDashboard(); refetchLibrary(); }}
           className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary/90 transition-colors"
         >
           Retry
@@ -152,25 +158,17 @@ export default function AdminDashboard() {
   }
 
   /**
-   * Today's attendance, as a percentage.
+   * The school's attendance, as a percentage.
    *
-   * The figures live under `overall` (see getDashboard in
-   * backend/src/modules/attendance/attendance.service.ts). Reading
-   * `attendance.totalStudents` and `attendance.presentCount` off the top level
-   * meant this card read 0% every day of the year, on the screen a head
-   * teacher looks at first.
-   *
-   * A late student is in school, so they count towards the rate; that is what
-   * the server's own `rate` does, and it is used when it is there.
+   * Read off the admin analytics endpoint, which is the principal's, rather
+   * than the register, which is not: the DOS runs academic delivery and the
+   * guard enforces it. A late student is in school, so they count towards the
+   * rate, and that is what the server's own figure already does.
    */
-  const attendanceRate = (() => {
-    const overall = attendance?.overall;
-    if (!overall) return 0;
-    if (typeof overall.rate === "number") return Math.round(overall.rate);
-    const total = overall.totalStudents ?? 0;
-    if (total <= 0) return 0;
-    return Math.round((((overall.present ?? 0) + (overall.late ?? 0)) / total) * 100);
-  })();
+  const attendanceRate =
+    typeof attendanceStats?.attendanceRate === "number"
+      ? Math.round(attendanceStats.attendanceRate)
+      : null;
 
   const statCards = [
     {
@@ -199,7 +197,7 @@ export default function AdminDashboard() {
     },
     {
       label: "Attendance Today",
-      value: attendance?.overall ? `${attendanceRate}%` : "-",
+      value: attendanceRate === null ? "-" : `${attendanceRate}%`,
       icon: Calendar,
       color: "text-cyan-600 bg-cyan-50",
     },
@@ -212,10 +210,14 @@ export default function AdminDashboard() {
   ];
 
   const quickActions = [
+    /* Four things the principal can actually do. "Record Attendance" and
+       "Enter Marks" were here, and both are the DOS's: the shell bounced the
+       principal straight back, so the dashboard's own shortcuts were two
+       dead ends. */
     { label: "Add Student", href: "/admin/users", icon: UserPlus },
-    { label: "Record Attendance", href: "/admin/attendance", icon: ClipboardList },
+    { label: "Admissions", href: "/admin/admissions", icon: ClipboardList },
     { label: "Manage Library", href: "/admin/library", icon: BookMarked },
-    { label: "Enter Marks", href: "/admin/marks", icon: PenLine },
+    { label: "School Fees", href: "/admin/finance", icon: PenLine },
   ];
 
   return (
@@ -288,7 +290,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted">Attendance Rate (Today)</span>
               <span className="text-sm font-semibold text-foreground">
-                {attendance?.overall ? `${attendanceRate}%` : "-"}
+                {attendanceRate === null ? "-" : `${attendanceRate}%`}
               </span>
             </div>
             <div className="h-2 rounded-full bg-surface-muted">
