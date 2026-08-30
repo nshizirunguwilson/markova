@@ -2258,40 +2258,40 @@ async function main() {
     }
   }
 
-/**
- * How far the term in progress has come, class by class.
- *
- * Report cards run four gates: the marks are released, the class teacher
- * writes on every card, the DOS reads the class and confirms it, then the
- * cards are issued. The seed used to leave every class in the current term at
- * the first gate, on the reasoning that a demo should show the pipeline from
- * the start rather than hand over a finished school.
- *
- * That was right about the intent and wrong in practice. A class with no
- * comments cannot be confirmed, and only its own class teacher can write
- * them, so the DOS signing in to a fresh database found every one of the
- * school's classes stuck at the same gate, no report card issuable anywhere,
- * and no class on which the two controls that are theirs did anything.
- *
- * So the current term is spread across the gates instead. Every stage is
- * somewhere on the dashboard, some classes are waiting on the DOS and some
- * on somebody else, and both of the DOS's own controls have a class to act
- * on the moment they sign in.
- */
-type CardStage = 'DRAFT' | 'WRITING' | 'TO_CHECK' | 'TO_ISSUE' | 'ISSUED';
+  /**
+   * How far the term in progress has come, class by class.
+   *
+   * Report cards run four gates: the marks are released, the class teacher
+   * writes on every card, the DOS reads the class and confirms it, then the
+   * cards are issued. The seed used to leave every class in the current term at
+   * the first gate, on the reasoning that a demo should show the pipeline from
+   * the start rather than hand over a finished school.
+   *
+   * That was right about the intent and wrong in practice. A class with no
+   * comments cannot be confirmed, and only its own class teacher can write
+   * them, so the DOS signing in to a fresh database found every one of the
+   * school's classes stuck at the same gate, no report card issuable anywhere,
+   * and no class on which the two controls that are theirs did anything.
+   *
+   * So the current term is spread across the gates instead. Every stage is
+   * somewhere on the dashboard, some classes are waiting on the DOS and some
+   * on somebody else, and both of the DOS's own controls have a class to act
+   * on the moment they sign in.
+   */
+  type CardStage = 'DRAFT' | 'WRITING' | 'TO_CHECK' | 'TO_ISSUE' | 'ISSUED';
 
-function currentTermStage(sectionIndex: number): CardStage {
-  switch (sectionIndex % 5) {
-    case 0:
-      return 'TO_CHECK';
-    case 1:
-      return 'TO_ISSUE';
-    case 2:
-      return 'WRITING';
-    default:
-      return 'DRAFT';
+  function currentTermStage(sectionIndex: number): CardStage {
+    switch (sectionIndex % 5) {
+      case 0:
+        return 'TO_CHECK';
+      case 1:
+        return 'TO_ISSUE';
+      case 2:
+        return 'WRITING';
+      default:
+        return 'DRAFT';
+    }
   }
-}
 
   const termResultRows: any[] = [];
   /* Each term's average, so the next term's head teacher comment can say
