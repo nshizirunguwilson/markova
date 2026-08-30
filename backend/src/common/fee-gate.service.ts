@@ -45,6 +45,7 @@ export class FeeGateService {
   /** Roles whose reading of a report card is never held up by money. */
   private static readonly UNGATED = new Set([
     'ADMIN',
+    'HEAD_TEACHER',
     'TEACHER',
     'BURSAR',
     'PATRON',

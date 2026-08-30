@@ -1611,6 +1611,41 @@ describe('MessagingService mentions', () => {
       expect(told.sort()).toEqual([JEAN, ROSE].sort());
     });
 
+    /**
+     * A conversation between two people has no name, and "Patrick messaged a
+     * conversation" is a sentence nobody would write. The answer there is who
+     * sent it, which the title already carries.
+     */
+    it('says who messaged you when the conversation has no name', async () => {
+      room({ type: 'ONE_ON_ONE', name: null });
+      await send('are you free at four');
+      const [{ data }] = prisma.notification.create.mock.calls[0];
+      expect(data.title).toBe('Aline messaged you');
+      expect(data.title).not.toMatch(/a conversation/);
+    });
+
+    it('counts them without inventing a name for the thread', async () => {
+      room({ type: 'ONE_ON_ONE', name: null });
+      prisma.notification.findFirst.mockResolvedValue({ id: 'n1', count: 2 });
+      await send('and one more thing');
+      const [{ data }] = prisma.notification.update.mock.calls[0];
+      expect(data.title).toBe('3 new messages from Aline');
+    });
+
+    it('says who mentioned you where there is no name either', async () => {
+      room({
+        type: 'GROUP',
+        name: null,
+        participants: [
+          { userId: ALINE, isAdmin: false },
+          { userId: JEAN, isAdmin: false },
+        ],
+      });
+      await send(at(JEAN, 'Jean Bosco'));
+      const [{ data }] = prisma.notification.create.mock.calls[0];
+      expect(data.title).toBe('Aline mentioned you');
+    });
+
     it('says where it came from and what it said', async () => {
       room();
       prisma.message.create.mockResolvedValue({

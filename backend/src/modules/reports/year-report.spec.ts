@@ -184,4 +184,70 @@ describe('the annual report for one student', () => {
     const html = await service.generateYearReportHtml('student-1', 'year-1');
     expect(html).not.toMatch(/undefined|NaN/);
   });
+
+  /**
+   * The strip under the table.
+   *
+   * Five cells, and conduct is not one of them. A year's conduct has a column
+   * per term and a total, which is the shape the table is already in - so it is
+   * a row there, and printing it again in the strip would be printing a total
+   * beside the three terms it was made from.
+   *
+   * The two figures that used to be missing are worked out from the subject
+   * rows rather than stored, because a YearResult carries averages and a
+   * position and no mark count. Summing what the sheet already prints is what
+   * keeps the two from ever disagreeing.
+   */
+  describe("the year's own totals", () => {
+    const sheet = () => service.generateYearReportHtml('student-1', 'year-1');
+
+    const cells = (html: string) =>
+      [...html.matchAll(/<div class="cell"><span>([^<]*)<\/span>/g)].map(
+        (m) => m[1],
+      );
+
+    it('shows five, in the order a year is read', async () => {
+      const html = await sheet();
+      expect(cells(html)).toEqual([
+        'Year average',
+        'Total marks',
+        'Overall grade',
+        'Aggregate',
+        'Position',
+      ]);
+    });
+
+    it('keeps conduct as a row rather than repeating it in the strip', async () => {
+      const html = await sheet();
+      expect(cells(html)).not.toContain('Conduct');
+      expect(html).toContain('class="conduct"');
+      expect(html).toContain('Discipline');
+    });
+
+    /* Out of what was actually marked, not out of a fixed number of subjects:
+       a year read in April has fewer marked than one read in July. */
+    it('counts the total out of the subjects that have a mark', async () => {
+      const html = await sheet();
+      const total = html.match(
+        /<span>Total marks<\/span><b>(\d+)<\/b> <small>\/ (\d+)<\/small>/,
+      );
+      expect(total).toBeTruthy();
+      expect(Number(total![2]) % 100).toBe(0);
+    });
+
+    it('counts the aggregate out of six points a subject', async () => {
+      const html = await sheet();
+      const agg = html.match(
+        /<span>Aggregate<\/span><b>(\d+)<\/b> <small>\/ (\d+)<\/small>/,
+      );
+      expect(agg).toBeTruthy();
+      expect(Number(agg![2]) % 6).toBe(0);
+    });
+
+    it('draws dashes rather than zeroes for a year with nothing marked', async () => {
+      prisma.mark.findMany.mockResolvedValue([]);
+      const html = await sheet();
+      expect(html).not.toMatch(/<b>0<\/b> <small>\/ 0<\/small>/);
+    });
+  });
 });

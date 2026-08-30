@@ -59,13 +59,29 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
     same state, rather than each role holding a private copy that can disagree
     with the others about whether a class is ready.
   */
-  "report-cards": ["HEAD_TEACHER", "TEACHER"],
   timetable: ["HEAD_TEACHER"],
-  attendance: ["HEAD_TEACHER"],
   teachers: ["HEAD_TEACHER"],
-  marks: ["HEAD_TEACHER"],
   classes: ["HEAD_TEACHER"],
+};
+
+/**
+ * Pages that moved off the principal's desk entirely.
+ *
+ * Report cards, marks and attendance belong to the Director of Studies. They
+ * still live under `/admin` because a second prefix would be a second copy of
+ * the same screens, but the principal no longer reaches them - the API
+ * refuses them, and a page that loads and then 403s on every request is worse
+ * than a redirect.
+ */
+const MOVED_TO_HEAD_TEACHER: Record<string, string[]> = {
+  marks: ["HEAD_TEACHER"],
+  attendance: ["HEAD_TEACHER"],
   reports: ["HEAD_TEACHER"],
+  /* The class teachers write on this one, so they reach it too - but the
+     principal does not. It belongs here rather than in the shared map above,
+     because that map adds roles to the prefix's own and this one replaces
+     them: listed there, the principal kept it. */
+  "report-cards": ["HEAD_TEACHER", "TEACHER"],
 };
 
 /** Which roles may see this path, or undefined when it is open to all. */
@@ -73,6 +89,13 @@ function rolesForPath(pathname: string): string[] | undefined {
   const [, prefix, page] = pathname.split("/");
   const base = ROLES_BY_PREFIX[prefix ?? ""];
   if (!base) return undefined;
+
+  /* A page that moved replaces the prefix's own roles rather than adding to
+     them: the point is that the principal no longer reaches it. */
+  const moved =
+    prefix === "admin" ? MOVED_TO_HEAD_TEACHER[page ?? ""] : undefined;
+  if (moved) return moved;
+
   const shared = prefix === "admin" ? SHARED_ADMIN_PAGES[page ?? ""] : undefined;
   return shared ? [...base, ...shared] : base;
 }

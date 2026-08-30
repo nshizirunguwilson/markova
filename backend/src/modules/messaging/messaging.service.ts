@@ -507,7 +507,15 @@ export class MessagingService {
     mentioned: Set<string>,
   ) {
     if (!conversation) return;
-    const where = conversation.name ?? 'a conversation';
+    /*
+      Where the message came from, as a person would say it.
+
+      A group carries its own name. A conversation between two people has
+      none, and "Patrick messaged a conversation" is a sentence nobody would
+      write - the answer there is who sent it, which the title already says,
+      so the line becomes "Patrick messaged you".
+    */
+    const where = conversation.name?.trim() || null;
     const preview = plainText(message.content ?? '').slice(0, 120);
 
     await Promise.all(
@@ -518,7 +526,9 @@ export class MessagingService {
             await this.prisma.notification.create({
               data: {
                 userId,
-                title: `${message.sender.firstName} mentioned you in ${where}`,
+                title: where
+                  ? `${message.sender.firstName} mentioned you in ${where}`
+                  : `${message.sender.firstName} mentioned you`,
                 message: preview,
                 type: 'PUSH',
                 relatedEntityType: 'MENTION',
@@ -546,7 +556,9 @@ export class MessagingService {
               where: { id: open.id },
               data: {
                 count: open.count + 1,
-                title: `${open.count + 1} new messages in ${where}`,
+                title: where
+                  ? `${open.count + 1} new messages in ${where}`
+                  : `${open.count + 1} new messages from ${message.sender.firstName}`,
                 message: preview,
               },
             });
@@ -556,7 +568,9 @@ export class MessagingService {
           await this.prisma.notification.create({
             data: {
               userId,
-              title: `${message.sender.firstName} messaged ${where}`,
+              title: where
+                ? `${message.sender.firstName} messaged ${where}`
+                : `${message.sender.firstName} messaged you`,
               message: preview,
               type: 'PUSH',
               relatedEntityType: 'MESSAGE',

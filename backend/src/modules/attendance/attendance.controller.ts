@@ -39,35 +39,35 @@ export class AttendanceController {
   // ── Student Attendance ──────────────────────────────────────────────────
 
   @Post()
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Mark single student attendance' })
   markAttendance(@Body() dto: MarkAttendanceDto, @CurrentUser() user: any) {
     return this.service.markAttendance(dto, user.id);
   }
 
   @Post('bulk')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Bulk mark attendance for a class' })
   bulkMark(@Body() dto: BulkAttendanceDto, @CurrentUser() user: any) {
     return this.service.bulkMarkAttendance(dto, user.id);
   }
 
   @Post('qr-scan')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Process student QR scan' })
   qrScan(@Body() dto: QrScanDto, @CurrentUser() user: any) {
     return this.service.processQrScan(dto, user.id);
   }
 
   @Get()
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query attendance records' })
   findAll(@Query() query: QueryAttendanceDto) {
     return this.service.findAll(query);
   }
 
   @Get('class')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get class attendance for a date' })
   getClassAttendance(
     @Query('classSectionId', new ParseUUIDPipe()) classSectionId: string,
@@ -82,7 +82,7 @@ export class AttendanceController {
   // ── Student Summary ─────────────────────────────────────────────────────
 
   @Get('student-summary')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student attendance summary' })
   async getStudentSummary(
     @Query('studentId') studentId: string,
@@ -97,21 +97,21 @@ export class AttendanceController {
   // ── NFC Attendance ─────────────────────────────────────────────────────
 
   @Post('nfc-scan')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Process NFC card scan for attendance' })
   nfcScan(@Body() dto: NfcScanDto, @CurrentUser() user: any) {
     return this.service.processNfcScan(dto, user.id);
   }
 
   @Post('register-nfc')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Register NFC card to a student' })
   registerNfc(@Body() dto: RegisterNfcCardDto) {
     return this.service.registerNfcCard(dto);
   }
 
   @Get('class-students')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({
     summary: 'Get class students with NFC card IDs for local cache',
   })
@@ -122,21 +122,21 @@ export class AttendanceController {
   // ── Teacher Attendance ──────────────────────────────────────────────────
 
   @Post('teacher')
-  @Roles('ADMIN', 'HEAD_TEACHER')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Mark teacher attendance' })
   markTeacherAttendance(@Body() dto: MarkTeacherAttendanceDto) {
     return this.service.markTeacherAttendance(dto);
   }
 
   @Post('teacher/qr-scan')
-  @Roles('ADMIN', 'HEAD_TEACHER')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Process teacher QR scan' })
   teacherQrScan(@Body() dto: TeacherQrScanDto) {
     return this.service.processTeacherQrScan(dto);
   }
 
   @Get('teacher')
-  @Roles('ADMIN', 'HEAD_TEACHER')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Get teacher attendance for a date' })
   getTeacherAttendance(@Query('date') date: string) {
     if (!date) {
@@ -148,7 +148,7 @@ export class AttendanceController {
   // ── Chronic Absenteeism ─────────────────────────────────────────────────
 
   @Get('chronic')
-  @Roles('ADMIN', 'HEAD_TEACHER')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Get chronically absent students' })
   getChronic(
     @Query('classSectionId') classSectionId?: string,
@@ -161,7 +161,7 @@ export class AttendanceController {
   }
 
   @Post('chronic/notify')
-  @Roles('ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({
     summary: 'Send email alerts to parents of chronically absent students',
   })
@@ -172,7 +172,7 @@ export class AttendanceController {
   // ── Dashboard ───────────────────────────────────────────────────────────
 
   @Get('dashboard')
-  @Roles('ADMIN', 'HEAD_TEACHER')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Get real-time attendance dashboard data' })
   getDashboard(@Query('date') date?: string) {
     return this.service.getDashboardData(date);

@@ -61,28 +61,28 @@ export class MarksController {
   // ── Mark CRUD ───────────────────────────────────────────────────────────
 
   @Post()
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Create a single mark' })
   create(@Body() dto: CreateMarkDto, @CurrentUser() user: any) {
     return this.service.create(dto, user.teacherId, user.role);
   }
 
   @Post('batch')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Batch entry of marks for a class' })
   batchEntry(@Body() dto: BatchMarkEntryDto, @CurrentUser() user: any) {
     return this.service.batchEntry(dto, user.teacherId, user.role);
   }
 
   @Get()
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query marks with filters' })
   findAll(@Query() query: QueryMarksDto) {
     return this.service.findAll(query);
   }
 
   @Get('completion')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get grading completion tracker' })
   getCompletion(
     @Query('classSectionId') classSectionId: string,
@@ -99,14 +99,14 @@ export class MarksController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get a single mark by ID' })
   findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findById(id);
   }
 
   @Put(':id')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Update a mark' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -117,7 +117,7 @@ export class MarksController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Delete a mark' })
   delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
     return this.service.delete(id, user.teacherId, user.role);
@@ -126,14 +126,14 @@ export class MarksController {
   // ── Term Results ────────────────────────────────────────────────────────
 
   @Post('term-results/calculate')
-  @Roles('ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Calculate term results for a class' })
   calculateTermResults(@Body() dto: CalculateTermResultDto) {
     return this.service.calculateTermResults(dto);
   }
 
   @Get('term-results/class')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get term results for a class' })
   getTermResults(
     @Query('classSectionId') classSectionId: string,
@@ -143,7 +143,7 @@ export class MarksController {
   }
 
   @Get('term-results/student/:studentId')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get term result for a student' })
   async getStudentTermResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -164,7 +164,7 @@ export class MarksController {
   @Put('term-results/:id/comment')
   // The head teacher writes one of the two comments, so they reach the same
   // endpoint the class teacher does.
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Update teacher/headmaster comment on term result' })
   updateComment(
     @Param('id', ParseUUIDPipe) id: string,
@@ -184,7 +184,7 @@ export class MarksController {
    * on the screen, so the picker never offers a class the save would refuse.
    */
   @Get('report-cards/classes')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Classes whose report cards you may write on' })
   commentClasses(@CurrentUser() user: any) {
     return this.service.classesForComments({
@@ -201,7 +201,7 @@ export class MarksController {
    * can open is a page that goes unread the week they are away.
    */
   @Get('head-teacher/overview')
-  @Roles('HEAD_TEACHER', 'ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: "The Director of Studies' morning view" })
   headTeacherOverview(@Query('termId') termId?: string) {
     return this.dashboard.overview(termId);
@@ -216,7 +216,7 @@ export class MarksController {
    * around permanently.
    */
   @Post('report-cards/confirm')
-  @Roles('HEAD_TEACHER', 'ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({
     summary: "Confirm a class's report cards, or hand them back",
   })
@@ -228,7 +228,7 @@ export class MarksController {
   }
 
   @Post('report-cards/publish')
-  @Roles('ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({
     summary: 'Issue or withdraw the report cards for a class',
   })
@@ -237,7 +237,7 @@ export class MarksController {
   }
 
   @Post('term-results/publish')
-  @Roles('ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Publish or unpublish term results' })
   publishTermResults(@Body() dto: PublishTermResultsDto) {
     return this.service.publishTermResults(dto);
@@ -246,14 +246,14 @@ export class MarksController {
   // ── Year Results ────────────────────────────────────────────────────────
 
   @Post('year-results/calculate')
-  @Roles('ADMIN')
+  @Roles('HEAD_TEACHER')
   @ApiOperation({ summary: 'Calculate year results for a class' })
   calculateYearResults(@Body() dto: CalculateYearResultDto) {
     return this.service.calculateYearResults(dto);
   }
 
   @Get('year-results/class')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER')
+  @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get year results for a class' })
   getYearResults(
     @Query('classSectionId') classSectionId: string,
@@ -263,7 +263,7 @@ export class MarksController {
   }
 
   @Get('year-results/student/:studentId')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get year result for a student' })
   async getStudentYearResult(
     @Param('studentId', ParseUUIDPipe) studentId: string,
@@ -283,7 +283,7 @@ export class MarksController {
   // ── Report Card ─────────────────────────────────────────────────────────
 
   @Get('report-card/:studentId')
-  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get full report card data for a student' })
   async getReportCard(
     @Param('studentId', ParseUUIDPipe) studentId: string,
