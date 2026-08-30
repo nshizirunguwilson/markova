@@ -27,7 +27,7 @@ import {
   WaiverKind,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { TERM_CONDUCT_MARK } from '../src/common/conduct';
+import { TERM_CONDUCT_MARK, YEAR_CONDUCT_MARK } from '../src/common/conduct';
 import { chargesFor, invoiceTotal, nextReceiptNumber } from '../src/common/fees';
 import {
   installBrandingAsset,
@@ -2408,6 +2408,90 @@ async function main() {
     `  ✅ ${termResultRows.length} term results computed and seeded across 3 years`,
   );
 
+  // ─── YEAR RESULTS ───────────────────────────────────────────────────────────
+  //
+  // The annual report and the promotion decision are both built from these,
+  // and without them both screens render an empty sheet: a demo could show a
+  // term card but never a year. Computed from the term results just seeded
+  // rather than recalculated from marks, so the two can never disagree - a
+  // parent holding four documents must read the same numbers in all four.
+  //
+  // Only for years that have finished. A year still running has no promotion
+  // decision to make, and inventing one would put "REPEATING" on a child in
+  // the middle of Term 2.
+  const byStudentYear = new Map<
+    string,
+    { classSectionId: string; averages: number[]; terms: Map<string, number> }
+  >();
+  for (const r of termResultRows) {
+    const yearIdx = allYears.findIndex((y) =>
+      y.terms.some((t: any) => t.id === r.termId),
+    );
+    if (yearIdx < 0) continue;
+    const key = `${r.studentId}|${allYears[yearIdx].year.id}`;
+    if (!byStudentYear.has(key)) {
+      byStudentYear.set(key, {
+        classSectionId: r.classSectionId,
+        averages: [],
+        terms: new Map(),
+      });
+    }
+    const held = byStudentYear.get(key)!;
+    held.averages.push(r.average);
+    held.terms.set(r.termId, r.average);
+  }
+
+  const yearResultRows: any[] = [];
+  for (const [key, held] of byStudentYear) {
+    const [studentId, academicYearId] = key.split('|');
+    const yearIdx = allYears.findIndex((y) => y.year.id === academicYearId);
+    /* The year the school is in has not finished, so there is nothing to
+       decide about it yet. */
+    if (yearIdx === allYears.length - 1) continue;
+
+    const termIds = allYears[yearIdx].terms.map((t: any) => t.id);
+    const yearlyAverage =
+      held.averages.reduce((a, b) => a + b, 0) / held.averages.length;
+
+    yearResultRows.push({
+      studentId,
+      classSectionId: held.classSectionId,
+      academicYearId,
+      term1Avg: held.terms.get(termIds[0]) ?? null,
+      term2Avg: held.terms.get(termIds[1]) ?? null,
+      term3Avg: held.terms.get(termIds[2]) ?? null,
+      yearlyAverage,
+      letterGrade: overallGrade(yearlyAverage).letter,
+      /* Conduct across the year, out of 120. Full marks unless the student
+         picked up incidents, which the discipline seed decides. */
+      disciplineAverage: YEAR_CONDUCT_MARK,
+      /* The national pass mark. A child below it repeats, which is the one
+         sentence the whole sheet exists to deliver. */
+      isPromoted: yearlyAverage >= 50,
+    });
+  }
+
+  /* Position in the class, over the year rather than over a term. */
+  const byClassYear = new Map<string, any[]>();
+  for (const r of yearResultRows) {
+    const key = `${r.classSectionId}|${r.academicYearId}`;
+    byClassYear.set(key, [...(byClassYear.get(key) ?? []), r]);
+  }
+  for (const rows of byClassYear.values()) {
+    rows.sort((a, b) => b.yearlyAverage - a.yearlyAverage);
+    rows.forEach((r, i) => (r.rank = i + 1));
+  }
+
+  for (let i = 0; i < yearResultRows.length; i += 5000) {
+    await prisma.yearResult.createMany({
+      data: yearResultRows.slice(i, i + 5000),
+      skipDuplicates: true,
+    });
+  }
+  console.log(
+    `  ✅ ${yearResultRows.length} year results computed for the years that finished`,
+  );
+
   // ─── ATTENDANCE (every school day of the current year) ──────────────────────
   // A register line for every enrolled student on every school day of the
   // year so far, with per-student personalities: most attend solidly, some
@@ -3252,6 +3336,10 @@ async function main() {
   // The application reconciles these on read as students move between classes,
   // so this only has to make the first one.
   let classGroups = 0;
+  /* One real class group, kept so the bell can be seeded with a notification
+     that actually opens a thread rather than a dead link. */
+  let seededGroup: { id: string; name: string | null; members: string[] } | null =
+    null;
   for (const section of await prisma.classSection.findMany({
     select: {
       id: true,
@@ -3296,6 +3384,9 @@ async function main() {
     });
     classGroups++;
     convCount++;
+    /* Kept so the bell can be seeded with something that actually opens a
+       thread. See the notifications below. */
+    if (!seededGroup) seededGroup = { id: conv.id, name: conv.name, members };
   }
   console.log(`  ✅ ${classGroups} class groups seeded`);
 
@@ -3354,6 +3445,51 @@ async function main() {
     })),
   });
   console.log(`  ✅ ${notices.length} notifications seeded`);
+
+  /*
+    What a missed message leaves behind.
+
+    A message that arrives while somebody is elsewhere writes one of these, so
+    missing the toast no longer means losing the message. The seed has to make
+    some, or the feature is invisible until a live message is sent - which is
+    exactly how it looked absent on a fresh database.
+
+    Two kinds, because they behave differently. The rolled-up one stands for
+    several messages in a conversation and is added to rather than duplicated;
+    the mention is directed at one person and is never rolled up.
+  */
+  if (seededGroup) {
+    const readers = seededGroup.members.slice(0, 12);
+    const where = seededGroup.name ?? 'a conversation';
+    await prisma.notification.createMany({
+      data: [
+        ...readers.map((userId, i) => ({
+          userId,
+          title: `${2 + (i % 4)} new messages in ${where}`,
+          message: 'Please bring your practical notebooks tomorrow.',
+          type: NotificationType.PUSH,
+          relatedEntityType: 'MESSAGE',
+          relatedEntityId: seededGroup!.id,
+          count: 2 + (i % 4),
+          isRead: false,
+          createdAt: new Date(Date.now() - (2 + i) * 3600_000),
+        })),
+        ...readers.slice(0, 4).map((userId) => ({
+          userId,
+          title: `Aline mentioned you in ${where}`,
+          message: '@you can you check the Term 2 marks before Friday',
+          type: NotificationType.PUSH,
+          relatedEntityType: 'MENTION',
+          relatedEntityId: seededGroup!.id,
+          isRead: false,
+          createdAt: new Date(Date.now() - 3600_000),
+        })),
+      ],
+    });
+    console.log(
+      `  ✅ ${readers.length + 4} message notifications waiting in the bell`,
+    );
+  }
 
   // ─── SUPPORT TICKETS ────────────────────────────────────────────────────────
   // An empty queue reads as a broken feature. These are the things staff
