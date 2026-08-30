@@ -2312,9 +2312,18 @@ async function main() {
     // Everything before the term in progress is finished business; the term
     // in progress is spread across the gates, class by class.
     const isCurrentResultTerm = term.id === currentTerm.id;
-    const stage: CardStage = isCurrentResultTerm
-      ? currentTermStage(sectionMetas.indexOf(meta))
-      : 'ISSUED';
+    /*
+      The demo teacher's own class is always left part way through, so that
+      somebody signing in as the teacher documented in CLAUDE.md finds cards
+      waiting to be written on rather than a class the seed has already
+      finished for them. They are the first of the fixed staff, so index 0.
+    */
+    const isDemoTeachersClass = classTeacherIdxOf.get(meta.section.id) === 0;
+    const stage: CardStage = !isCurrentResultTerm
+      ? 'ISSUED'
+      : isDemoTeachersClass
+        ? 'WRITING'
+        : currentTermStage(sectionMetas.indexOf(meta));
     const marksOut = stage !== 'DRAFT';
     const checked = stage === 'TO_ISSUE' || stage === 'ISSUED';
 
