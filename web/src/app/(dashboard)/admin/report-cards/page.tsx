@@ -364,15 +364,25 @@ export default function ReportCardsPage() {
             <Card padding="sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
+                  {/*
+                    Whose move it actually is. This said "waiting on your
+                    check" whatever the state, so a class with ten comments
+                    still to write told the DOS it was waiting on them, when
+                    they are the one person who cannot write those comments.
+                  */}
                   <p className="text-sm font-medium text-foreground">
                     {all(counts.confirmed)
                       ? "You have confirmed this class."
-                      : "This class is waiting on your check."}
+                      : all(counts.written)
+                        ? "This class is waiting on your check."
+                        : "This class is waiting on the class teacher."}
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {all(counts.confirmed)
                       ? "You can issue these cards now. Handing them back withdraws any that have already gone out."
-                      : "Confirming says you have read these cards and stand behind them. Issuing them is the next step."}
+                      : all(counts.written)
+                        ? "Confirming says you have read these cards and stand behind them. Issuing them is the next step."
+                        : `${counts.total - counts.written} of ${counts.total} cards still need the class teacher's comment. Only they can write it.`}
                   </p>
                 </div>
                 {all(counts.confirmed) ? (

@@ -753,3 +753,33 @@ describe("drafting a comment", () => {
     expect(button(/^Save$/)).toBeTruthy();
   });
 });
+
+/**
+ * Whose move it is, on the banner above the list.
+ *
+ * It said "waiting on your check" whatever the state, so a class with ten
+ * comments still to write told the DOS it was waiting on them. They are the
+ * one person who cannot write those comments: the API refuses a class
+ * teacher's comment from anybody whose role is not TEACHER.
+ */
+describe("who the class is waiting on", () => {
+  const written = rows.map((r) => ({ ...r, teacherComment: "Good term." }));
+
+  it("names the class teacher while any comment is missing", async () => {
+    await mount();
+    expect(document.body.textContent).toMatch(/waiting on the class teacher/i);
+    expect(document.body.textContent).toMatch(/Only they can write it/i);
+  });
+
+  it("counts how many are still to be written", async () => {
+    await mount();
+    expect(document.body.textContent).toMatch(/1 of 2 cards still need/i);
+  });
+
+  it("names the reader's own check once every comment is written", async () => {
+    serve(h.api, { ...routes, "/marks/term-results/class": written });
+    await mount();
+    expect(document.body.textContent).toMatch(/waiting on your check/i);
+    expect(document.body.textContent).not.toMatch(/waiting on the class teacher/i);
+  });
+});
