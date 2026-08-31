@@ -216,7 +216,26 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
   };
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-surface px-4 lg:left-[17rem] lg:px-6">
+    <header
+      /*
+        A floating card, matching the navigation panel beside it. It was a bar
+        glued to the top edge with a rule under it, which read as unfinished
+        next to a panel that floats: one piece of chrome detached and rounded,
+        the other bolted down and square.
+
+        The corner is `bar` rather than `panel`, and that is arithmetic rather
+        than taste. A radius is only meaningful against the height it sits on:
+        44px on a 64px bar is more than half its height, so the two corners on
+        each end meet and the browser clamps them into a stadium. 28px is the
+        same squircle read at this element's scale, which is what makes the
+        two shapes look related rather than identical.
+
+        The rule underneath is gone with it. A floating card is separated from
+        the page by its edge and its shadow; a border as well would be saying
+        the same thing twice.
+      */
+      className="fixed left-3 right-3 top-3 z-20 flex h-16 items-center justify-between rounded-bar squircle bg-surface px-5 shadow-card lg:left-[17rem] lg:right-4 lg:top-4 lg:px-7"
+    >
       {/* Mobile hamburger */}
       <button
         onClick={onToggleSidebar}

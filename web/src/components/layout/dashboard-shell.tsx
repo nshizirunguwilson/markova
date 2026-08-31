@@ -271,7 +271,7 @@ export function DashboardShell({
       <main
         key={routeKey}
         id="main-content"
-        className="motion-fade-in ml-0 mt-16 p-4 lg:ml-[17rem] lg:p-6"
+        className="motion-fade-in ml-0 mt-[5.5rem] p-4 lg:ml-[17rem] lg:mt-24 lg:p-6"
       >
         {children}
       </main>

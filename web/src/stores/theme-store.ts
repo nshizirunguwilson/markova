@@ -31,9 +31,26 @@ interface ThemeState {
   systemChanged: (prefersDark: boolean) => void;
 }
 
+/**
+ * What the page is painted as, from the very first render.
+ *
+ * Not "light" until an effect says otherwise. The CSS resolves the theme
+ * before any JavaScript runs, so a store that assumes light leaves everything
+ * derived in JavaScript one render behind the page it is sitting on: the
+ * school's brand colour was computed for a white card and set on a dark one,
+ * and the effect only corrected it afterwards. A flash of unreadable brand
+ * colour, on every load.
+ *
+ * Guarded for the server, which has no viewport and renders first.
+ */
+const paintedAs = (): ResolvedTheme => {
+  if (typeof window === "undefined") return "light";
+  return resolveTheme(storedTheme(), systemPrefersDark());
+};
+
 export const useThemeStore = create<ThemeState>((set, get) => ({
   theme: "system",
-  resolved: "light",
+  resolved: paintedAs(),
   ready: false,
 
   setTheme: (theme) => {

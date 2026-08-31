@@ -221,3 +221,35 @@ describe("BrandProvider", () => {
     await waitFor(() => expect(read("--brand-primary")).toBe("#c0392b"));
   });
 });
+
+/**
+ * The fill behind the secondary button.
+ *
+ * `primaryLight` is not only a hover tint: a secondary button is a solid fill
+ * of it carrying `onPrimary` as text. Lightening the school's colour by a
+ * fixed 18% and hoping is what this did, and a school choosing a mid-green
+ * got white on #448D74 at 3.95:1 across every page with a secondary button on
+ * it, with no way of knowing.
+ */
+describe("a school's colour as a solid fill", () => {
+  it.each(["#1B7456", "#2A8D50", "#7D3C98", "#C0392B", "#B7950B"])(
+    "keeps the text on the lighter variant readable for %s",
+    async (brand) => {
+      serveBranding({ primaryColor: brand });
+      render(<BrandProvider><span>x</span></BrandProvider>);
+      await waitFor(() => expect(read("--brand-primary-light")).not.toBe(""));
+      expect(
+        contrastRatio(read("--brand-primary-light"), read("--brand-on-primary")),
+      ).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  /* It has to stay lighter than the base, or it is not a lighter variant. The
+     walk stops at the base itself, which is the worst acceptable answer. */
+  it("is still a lift rather than the same colour back", async () => {
+    serveBranding({ primaryColor: "#7D3C98" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() => expect(read("--brand-primary-light")).not.toBe(""));
+    expect(read("--brand-primary-light")).not.toBe(read("--brand-primary"));
+  });
+});

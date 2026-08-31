@@ -187,7 +187,7 @@ export default function AdminDashboard() {
       label: "Total Users",
       value: dashboard?.totalUsers ?? "-",
       icon: Users,
-      color: "text-violet-600 bg-violet-50",
+      color: "text-info bg-info-wash",
     },
     {
       label: "Subjects",
@@ -199,7 +199,7 @@ export default function AdminDashboard() {
       label: "Attendance Today",
       value: attendanceRate === null ? "-" : `${attendanceRate}%`,
       icon: Calendar,
-      color: "text-cyan-600 bg-cyan-50",
+      color: "text-primary bg-accent-light",
     },
     {
       label: "Books on Loan",
@@ -295,7 +295,7 @@ export default function AdminDashboard() {
             </div>
             <div className="h-2 rounded-full bg-surface-muted">
               <div
-                className="h-2 rounded-full bg-cyan-500 motion-bar"
+                className="h-2 rounded-full bg-primary motion-bar"
                 style={{ width: `${attendanceRate}%` }}
               />
             </div>

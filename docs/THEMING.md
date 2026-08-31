@@ -81,6 +81,14 @@ The one exception is text over media or a black scrim: a caption over a video,
 a control on a photo. Those are `text-white` on `bg-black/45` deliberately,
 because the ground is the image, not the theme.
 
+**Chrome that floats shares a corner family, not a corner.** The navigation
+panel is `rounded-panel` (44px) and the topbar is `rounded-bar` (28px), both
+with `corner-shape: squircle`. Two values rather than one because a radius is
+only meaningful against the height it sits on: 44px on a 64px bar is more than
+half its height, so the corners at each end meet and the browser clamps them
+into a stadium. 28px is the same squircle read at the bar's scale, which is
+what makes the two shapes look related rather than identical.
+
 **Anything drawn rather than styled needs the resolved theme.** ECharts cannot
 be handed a CSS variable, so charts take their axis labels, grid lines and
 tooltip card from `useChartTheme()`. The data colours do not change - they are
@@ -162,3 +170,16 @@ same audit rather than a second one that would drift.
   in the guard.
 - **Charts left on light chrome.** Near-black axis labels and near-white grid
   lines on a dark card is an unreadable chart, and no CSS rule can reach it.
+- **The store starting on light.** The CSS resolves the theme before any
+  JavaScript runs, so a store that assumed light and corrected itself in an
+  effect left everything derived in JavaScript one render behind the page: the
+  school's colour was computed against a white card and set on a dark one.
+  `resolved` now reads the media query at creation.
+- **Checking the brand against the wrong ground.** Brand-coloured text sits on
+  the card *and* on the accent behind an active row, and the accent is the
+  lighter of the two. Checking only the card left the active nav row at 3.28:1
+  for a school whose colour was a mid-green.
+- **A derived fill with unchecked text on it.** `primaryLight` is the fill
+  behind the secondary button, not only a hover tint. Lightening a school's
+  colour by a fixed 18% put white on #448D74 at 3.95:1. It is now walked back
+  toward the base until the text on it clears AA.
