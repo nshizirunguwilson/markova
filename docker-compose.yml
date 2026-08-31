@@ -74,7 +74,10 @@ services:
       - uploads:/app/uploads
 
   web:
-    profiles: ['full']
+    # Both stacks need the dashboard: `full` runs it against one API, `scale`
+    # against three behind nginx. Listing only `full` meant the scaled stack
+    # referred to a service that was not in the project.
+    profiles: ['full', 'scale']
     build:
       context: ./web
       args:
@@ -83,8 +86,10 @@ services:
         NEXT_PUBLIC_API_URL: http://localhost:3000/api
     container_name: markova-web
     restart: unless-stopped
-    depends_on:
-      - api
+    # Deliberately no depends_on. The dashboard is a Next.js server: it renders
+    # and the browser calls the API, so it does not need the API up to start.
+    # It also lets the scaled stack replace one `api` with three without this
+    # line pointing at a service that no longer exists.
     ports:
       - '3001:3001'
 

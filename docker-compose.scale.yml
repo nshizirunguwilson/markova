@@ -62,6 +62,20 @@ x-api-base: &api-base
     start_period: 30s
 
 services:
+  # The dashboard, built to talk to the API through nginx rather than straight
+  # at a port. NEXT_PUBLIC_API_URL is baked in at build time, so it is an arg.
+  web:
+    profiles: ['scale']
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost/api
+    container_name: markova-web
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Africa/Kigali}
+    ports: []
+
   nginx:
     profiles: ['scale']
     image: nginx:1.27-alpine

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { FeeAppliesTo } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   chargesFor,
@@ -529,13 +530,34 @@ export class FinanceService {
    * be handed the same one.
    */
   async recordPayment(dto: RecordPaymentDto, userId: string) {
+    /*
+      A repeat of the same request returns the receipt it made the first time.
+
+      A parent on a poor connection taps pay, sees nothing happen and taps
+      again; a client that times out retries. Both used to produce two records
+      of one payment, and the second was only found when somebody reconciled
+      the books.
+
+      Checked here so the common case is a fast read, and caught again by a
+      unique index below for the case this cannot see: two requests arriving
+      at the same instant, on two different servers, where neither has
+      committed yet when the other looks.
+    */
+    if (dto.idempotencyKey) {
+      const already = await this.prisma.feePayment.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+      if (already) return already;
+    }
+
     const invoice = await this.invoiceFor(dto.studentId, dto.termId);
     const paidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
     if (Number.isNaN(paidAt.getTime())) {
       throw new BadRequestException('That payment date cannot be read');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.payOnce(dto, () =>
+      this.prisma.$transaction(async (tx) => {
       const year = paidAt.getFullYear();
       const last = await tx.feePayment.findFirst({
         where: { receiptNumber: { startsWith: `RCT-${year}-` } },
@@ -553,9 +575,40 @@ export class FinanceService {
           paidAt,
           note: dto.note?.trim() || null,
           recordedByUserId: userId,
+          idempotencyKey: dto.idempotencyKey || null,
         },
       });
-    });
+      }),
+    );
+  }
+
+  /**
+   * Take the payment, and hand back the original if this is a repeat.
+   *
+   * The read above catches the ordinary retry. This catches the race it
+   * cannot: two requests in flight at once, on two different instances,
+   * neither committed when the other looked. Postgres refuses the second on
+   * the unique index, and the right answer to that is the row that won, not
+   * an error the parent has to interpret.
+   */
+  private async payOnce<T>(
+    dto: RecordPaymentDto,
+    write: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      const clash =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002';
+      if (clash && dto.idempotencyKey) {
+        const winner = await this.prisma.feePayment.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey },
+        });
+        if (winner) return winner as T;
+      }
+      throw error;
+    }
   }
 
   /**
