@@ -31,6 +31,33 @@ import {
  * the work this feature exists to remove.
  */
 export class SubmitApplicationDto {
+  /**
+   * A field no person ever fills in.
+   *
+   * The form renders it hidden and empty. A person cannot see it, so a person
+   * cannot type in it; a commodity bot walks the DOM, finds an input called
+   * something like a second address line, and fills it in because filling
+   * everything in is what it does.
+   *
+   * Chosen over a CAPTCHA deliberately. This form is filled in by parents on
+   * phones, often on a poor connection, and a CAPTCHA is a real barrier for
+   * exactly the families a school most wants to reach. It would also mean
+   * sending a request to a third party on every application, from a system
+   * holding children's data in Rwanda, which is a decision worth not making
+   * casually.
+   *
+   * It stops the naive majority for nothing, which is the right trade for a
+   * form already limited to five submissions a minute per address. A targeted
+   * attacker will read the page and leave it blank, and the rate limit is
+   * what answers them.
+   */
+  @ApiPropertyOptional({
+    description: 'Leave empty. Present to catch automated submissions.',
+  })
+  @IsOptional()
+  @IsString()
+  addressLine2?: string;
+
   @ApiProperty() @IsUUID() intakeId: string;
 
   // ── the applicant ─────────────────────────────────────────────────────

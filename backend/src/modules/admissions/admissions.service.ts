@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma, Role, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -46,6 +47,8 @@ import type {
  */
 @Injectable()
 export class AdmissionsService {
+  private readonly logger = new Logger(AdmissionsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   // ── Intakes ─────────────────────────────────────────────────────────────
@@ -162,6 +165,23 @@ export class AdmissionsService {
    * same moment cannot be handed the same one.
    */
   async submit(dto: SubmitApplicationDto) {
+    /*
+      The honeypot. A person cannot see this field, so a person cannot fill it
+      in; a bot that walks the DOM and fills everything does.
+
+      It answers as though the application were accepted, with a reference
+      that is not real. Refusing plainly would tell whoever wrote the bot
+      exactly which field gave them away, and they would remove it and try
+      again. This way the submission goes nowhere and nothing says so.
+    */
+    if (dto.addressLine2 && dto.addressLine2.trim().length > 0) {
+      this.logger.warn('Discarded an application that filled the honeypot');
+      return {
+        reference: `APP-${new Date().getFullYear()}-000000`,
+        status: 'SUBMITTED',
+      };
+    }
+
     const intake = await this.prisma.admissionIntake.findUnique({
       where: { id: dto.intakeId },
     });
