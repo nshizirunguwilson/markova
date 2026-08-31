@@ -6,6 +6,7 @@ import { AcademicModule } from './modules/academic/academic.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClinicModule } from './modules/clinic/clinic.module';
 import { FinanceModule } from './modules/finance/finance.module';
@@ -37,6 +38,7 @@ import { RedisModule } from './redis/redis.module';
  */
 
 const FEATURE_MODULES = [
+  AuditModule,
   AuthModule,
   UsersModule,
   SchoolConfigModule,

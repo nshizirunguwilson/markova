@@ -60,6 +60,9 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
     with the others about whether a class is ready.
   */
   timetable: ["HEAD_TEACHER"],
+  /* The exam timetable, for the same reason as the lesson one: the DOS sets
+     it and the principal reads it. */
+  exams: ["HEAD_TEACHER"],
   teachers: ["HEAD_TEACHER"],
   classes: ["HEAD_TEACHER"],
 };

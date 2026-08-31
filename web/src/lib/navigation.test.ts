@@ -155,6 +155,9 @@ describe("the roles that share pages under /admin", () => {
         "/admin/reports",
         "/admin/classes",
         "/admin/timetable",
+        /* The exam timetable, for the same reason as the lesson one: the DOS
+           sets it and the principal reads it. */
+        "/admin/exams",
         "/admin/teachers",
         "/admin/attendance",
       ],
