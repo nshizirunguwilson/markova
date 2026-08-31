@@ -373,7 +373,17 @@ export default function AdminReportsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl md:text-2xl font-bold text-primary">Reports & Documents</h1>
+      {/* Named for what the reader actually has. "Reports & Documents" was
+          the union of two people's work, so it promised the DOS a documents
+          section they are refused and the principal report cards that are
+          not theirs. */}
+      <h1 className="text-xl md:text-2xl font-bold text-primary">
+        {mayWriteCards && mayWriteDocuments
+          ? "Reports & Documents"
+          : mayWriteCards
+            ? "Report cards"
+            : "Documents"}
+      </h1>
 
       <div className="flex gap-2 border-b border-border">
         {tabs.map((t) => (

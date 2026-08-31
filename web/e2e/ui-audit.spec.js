@@ -293,8 +293,45 @@ const RBAC = [
     and then 403s on every request is worse than a redirect.
   */
   ['ADMIN', '/admin/marks'], ['ADMIN', '/admin/attendance'],
-  ['ADMIN', '/admin/reports'], ['ADMIN', '/admin/report-cards'],
+  ['ADMIN', '/admin/report-cards'],
 ];
+
+/*
+  /admin/reports is not in that list: it is shared rather than moved. The
+  report cards on it are the DOS's and the transfer letters, transcripts and
+  testimonials are the principal's, and the page shows each of them only their
+  own tab. Bouncing the principal off it left the letters unreachable by
+  anybody - the principal could not open the page and the DOS was refused by
+  the API, so Generate answered "Forbidden resource" whoever asked.
+*/
+test('rbac: the principal and the DOS share the reports page, a tab each', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+
+  const asAdmin = await authedPage(ctx, 'ADMIN');
+  await visit(asAdmin, '/admin/reports');
+  await asAdmin.waitForTimeout(1500);
+  assert(
+    asAdmin.url().includes('/admin/reports'),
+    'the principal was bounced off the page that holds their own letters',
+  );
+  const adminTabs = await asAdmin.innerText('body');
+  assert(/Documents/.test(adminTabs), 'the principal is not offered the documents');
+  assert(
+    !/Report Cards/.test(adminTabs),
+    'the principal is offered the report cards, which are the DOS\'s',
+  );
+
+  const asDos = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(asDos, '/admin/reports');
+  await asDos.waitForTimeout(1500);
+  const dosTabs = await asDos.innerText('body');
+  assert(/Report Cards/.test(dosTabs), 'the DOS is not offered the report cards');
+  assert(
+    !/\bDocuments\b/.test(dosTabs),
+    'the DOS is offered a documents tab the API refuses them',
+  );
+  await ctx.close();
+});
 for (const [role, route] of RBAC) {
   test(`rbac: ${role} cannot reach ${route}`, async (browser) => {
     const ctx = await browser.newContext();
