@@ -102,11 +102,47 @@ describe('bootstrap', () => {
 
   // Uploaded files are served outside the prefix, because their stored paths
   // are what the database and every printed report card already carry.
+  /**
+   * Express runs middleware in the order it is registered, so anything set up
+   * after the static handler never sees a request for an uploaded file. It was
+   * registered after Helmet, and /uploads came back with no CSP, no nosniff and
+   * no X-Frame-Options while every /api route had all three.
+   *
+   * Nothing exploited it: the mime allowlist refuses .svg and .html and the
+   * stored extension comes from the mime type, so a user cannot put a
+   * scriptable file there. The margin is one widened allowlist, and these are
+   * served from the API's own origin.
+   */
+  it('registers helmet before it starts serving uploads', async () => {
+    await boot({});
+    const helmetAt = app.use.mock.calls.findIndex((c) => c[0] === 'helmet');
+    expect(helmetAt).toBeGreaterThanOrEqual(0);
+    expect(app.useStaticAssets).toHaveBeenCalled();
+    expect(app.use.mock.invocationCallOrder[helmetAt]).toBeLessThan(
+      app.useStaticAssets.mock.invocationCallOrder[0],
+    );
+  });
+
+  /* And the directory gets its own headers on top, so a scriptable file that
+     did end up there would run in an opaque origin with nothing to reach. */
+  it('sends uploads with nosniff and a sandbox policy', async () => {
+    await boot({});
+    const options = app.useStaticAssets.mock.calls[0][1];
+    const headers: Record<string, string> = {};
+    options.setHeaders({
+      setHeader: (k: string, v: string) => {
+        headers[k] = v;
+      },
+    });
+    expect(headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(headers['Content-Security-Policy']).toContain('sandbox');
+  });
+
   it('serves uploads outside the prefix', async () => {
     await boot({});
     expect(app.useStaticAssets).toHaveBeenCalledWith(
       expect.stringContaining('uploads'),
-      { prefix: '/uploads/' },
+      expect.objectContaining({ prefix: '/uploads/' }),
     );
   });
 
