@@ -84,6 +84,55 @@ services:
     ports:
       - '3001:3001'
 
+  # Nightly backup of the database and the uploads.
+  #
+  # Deliberately part of the stack rather than a host cron job: a backup that
+  # depends on somebody's crontab is one that stops when the server is rebuilt,
+  # and nobody notices until the day it is needed.
+  #
+  # It writes into ./backups on the host, which is the same place backup.sh
+  # uses by hand, so restore.sh finds either.
+  backup:
+    profiles: ['full']
+    image: postgres:15
+    container_name: markova-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: password
+      KEEP_DAYS: '30'
+    volumes:
+      - ./backups:/backups
+      - ./backend/uploads:/uploads:ro
+    entrypoint: ['/bin/bash', '-c']
+    command:
+      - |
+        echo "Backup loop started. One run a day at 02:00 UTC."
+        while true; do
+          # Sleep until the next 02:00 rather than every 24h from boot, so a
+          # restart does not quietly move the backup to the middle of the day.
+          now=$$(date -u +%s)
+          next=$$(date -u -d 'tomorrow 02:00' +%s 2>/dev/null || echo $$((now + 86400)))
+          sleep $$((next - now))
+          stamp=$$(date -u +%Y%m%dT%H%M%SZ)
+          target="/backups/$$stamp"
+          mkdir -p "$$target"
+          if pg_dump -h postgres -U markova -d markova -Fc > "$$target/database.dump.part"; then
+            mv "$$target/database.dump.part" "$$target/database.dump"
+            tar -czf "$$target/uploads.tar.gz" -C / uploads 2>/dev/null || true
+            printf 'taken:     %s\nhost:      container\ndatabase:  markova\n' "$$stamp" \
+              > "$$target/MANIFEST"
+            echo "backup $$stamp ok"
+          else
+            echo "backup $$stamp FAILED" >&2
+            rm -rf "$$target"
+          fi
+          find /backups -mindepth 1 -maxdepth 1 -type d -mtime +$${KEEP_DAYS} \
+            -exec rm -rf {} + 2>/dev/null || true
+        done
+
 volumes:
   postgres_data:
   redis_data:
