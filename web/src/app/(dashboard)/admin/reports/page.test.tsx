@@ -1979,7 +1979,7 @@ describe("reading the last term as a whole year", () => {
     });
     renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() =>
-      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+      expect(screen.getByText(/^Report cards$/)).toBeInTheDocument(),
     );
     fireEvent.change(screen.getByLabelText(/academic year/i), {
       target: { value: "year-1" },
@@ -2076,7 +2076,7 @@ describe("what the page no longer offers", () => {
     serve(h.api, routes);
     renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() =>
-      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+      expect(screen.getByText(/^Report cards$/)).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: /^The Year$/i })).toBeNull();
     expect(screen.queryByText(/The whole school/i)).toBeNull();
