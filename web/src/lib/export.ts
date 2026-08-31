@@ -87,21 +87,63 @@ export async function exportPDF(options: ExportOptions) {
   toast.success(`Exported as PDF (${options.data.length} rows)`);
 }
 
+/**
+ * The spreadsheet export.
+ *
+ * ExcelJS rather than SheetJS. The advisory against SheetJS covers prototype
+ * pollution and a regular expression denial of service, and npm reports no fix
+ * available, so waiting was not going to resolve it. Our exposure was narrow -
+ * this only ever writes files from data the app already holds, and the bite is
+ * in parsing untrusted workbooks - but a dependency with no patch coming is
+ * one to leave behind rather than to keep watching.
+ *
+ * ExcelJS has no browser `writeFile`, so the buffer goes through the same
+ * download helper as every other format here.
+ */
+/**
+ * A worksheet name Excel will accept.
+ *
+ * Excel refuses names over 31 characters or containing any of : \ / ? * [ ],
+ * and refuses the file outright rather than complaining about the name. Our
+ * titles are page headings, so "Students: Senior 1 A" is an ordinary one.
+ */
+function sheetName(title?: string): string {
+  const cleaned = (title || "Data").replace(/[:\\/?*[\]]/g, " ").trim();
+  return cleaned.slice(0, 31) || "Data";
+}
+
 export async function exportExcel(options: ExportOptions) {
-  const XLSX = await import("xlsx");
+  const ExcelJS = await import("exceljs");
 
-  const rows = options.data.map((row) => {
-    const obj: Record<string, string> = {};
-    for (const col of options.columns) {
-      obj[col.header] = getValue(row, col.key);
-    }
-    return obj;
-  });
+  const workbook = new ExcelJS.Workbook();
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet(sheetName(options.title));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, options.title || "Data");
-  XLSX.writeFile(wb, `${options.filename}.xlsx`);
+  sheet.columns = options.columns.map((col) => ({
+    header: col.header,
+    key: col.key,
+    /* Wide enough for the header, and a little more for the values under it.
+       Left to itself every column is eight characters and every date reads as
+       ####, which is a spreadsheet somebody has to fix before using. */
+    width: Math.min(Math.max(col.header.length + 4, 12), 40),
+  }));
+  sheet.getRow(1).font = { bold: true };
+
+  for (const row of options.data) {
+    sheet.addRow(
+      Object.fromEntries(
+        options.columns.map((col) => [col.key, getValue(row, col.key)]),
+      ),
+    );
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadBlob(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${options.filename}.xlsx`,
+  );
   toast.success(`Exported as Excel (${options.data.length} rows)`);
 }
 
