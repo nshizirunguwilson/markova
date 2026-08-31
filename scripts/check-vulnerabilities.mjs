@@ -30,6 +30,22 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
  */
 const ACCEPTED = [
   {
+    package: '@opentelemetry/core',
+    advisory: 'GHSA-8988-4f7v-96qf',
+    since: '2026-08-31',
+    why: [
+      'Pulled in by @sentry/nestjs, which ships a coordinated set of',
+      '@opentelemetry packages and expects them to move together. Overriding',
+      'this one alone was tried and makes the SDK fail at boot with "Cannot',
+      'read properties of undefined (reading AlwaysOn)", which takes the API',
+      'down on start. The advisory concerns trace context handling in a',
+      'telemetry path we only reach when SENTRY_DSN is set.',
+    ].join(' '),
+    urgentIf:
+      'Sentry ships a release with the newer @opentelemetry set, at which ' +
+      'point upgrading @sentry/nestjs resolves it properly.',
+  },
+  {
     package: 'extract-zip',
     advisory: 'GHSA-jmr9-qjv8-65gv',
     since: '2026-08-31',
