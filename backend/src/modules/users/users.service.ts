@@ -4,7 +4,6 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TERM_CONDUCT_MARK } from '../../common/conduct';
@@ -12,6 +11,7 @@ import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
+import { hashPassword } from '../../common/password';
 
 @Injectable()
 export class UsersService {
@@ -440,7 +440,7 @@ export class UsersService {
       throw new BadRequestException('classSectionId is required for students');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await hashPassword(dto.password);
 
     // Create the base user and its role-specific record atomically: a failure
     // on the second write (e.g. a bad classSectionId) must not leave an orphan
@@ -855,7 +855,7 @@ export class UsersService {
               gender: (row.gender as any) || null,
               dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : null,
             }),
-            passwordHash: await bcrypt.hash(password, 10),
+            passwordHash: await hashPassword(password),
             role: row.role,
             firstName: row.firstName,
             lastName: row.lastName,

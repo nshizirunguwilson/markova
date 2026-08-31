@@ -35,6 +35,7 @@
     "@prisma/client": "^6.19.2",
     "@sentry/nestjs": "^9.0.0",
     "@sentry/node": "^9.0.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.0",
     "class-transformer": "^0.5.1",
@@ -44,7 +45,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.0",
     "multer": "^2.1.1",
-    "nodemailer": "^8.0.3",
+    "nodemailer": "^9.0.6",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^6.19.2",
@@ -138,5 +139,9 @@
     "coveragePathIgnorePatterns": [
       "/node_modules/"
     ]
-  }
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
+  },
+  "overridesComment": "deepmerge-ts is pinned because the prisma CLI pulls version 7, which has a prototype pollution advisory. Version 8 is compatible. @opentelemetry/core is deliberately NOT pinned: Sentry ships a coordinated set of @opentelemetry packages, and forcing one of them out of that set makes the SDK fail to load at boot with 'Cannot read properties of undefined (reading AlwaysOn)'. Its advisory is carried in scripts/check-vulnerabilities.mjs instead."
 }

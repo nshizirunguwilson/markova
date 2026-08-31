@@ -81,7 +81,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Client errors (bad input, missing files, unauthorized) are expected
     // traffic: one warn line, no stack. Full stacks are for real 5xx faults.
-    const summary = `${request.method} ${request.url} ${status} - ${exception instanceof Error ? exception.message : 'Unknown error'}`;
+    /*
+      The request id goes on both the log line and the response body.
+
+      That pairing is the whole point of it: somebody reports "it said
+      something went wrong", reads the id off the screen, and it is one grep
+      away in whichever of the three instances handled it. Without it the only
+      handle on a 500 is a timestamp, across three interleaved logs.
+    */
+    const requestId = (request as Request & { id?: string }).id;
+    const summary = `${requestId ? `[${requestId}] ` : ''}${request.method} ${request.url} ${status} - ${exception instanceof Error ? exception.message : 'Unknown error'}`;
     if (status >= 500) {
       this.logger.error(
         summary,
@@ -98,6 +107,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ...(errors && { errors }),
       ...(reason && { reason }),
       ...(detail && { detail }),
+      ...(requestId && { requestId }),
       timestamp: new Date().toISOString(),
     });
   }

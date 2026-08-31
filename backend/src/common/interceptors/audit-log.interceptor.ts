@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
+import { redact } from '../redaction';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const SENSITIVE_PATHS = ['marks', 'attendance', 'discipline', 'users'];
@@ -84,16 +85,13 @@ export class AuditLogInterceptor implements NestInterceptor {
       return null;
     }
 
-    // Omit passwords and tokens from audit details
-    const sanitised = { ...(body as Record<string, unknown>) };
-    const redactKeys = ['password', 'token', 'otp', 'secret', 'refreshToken'];
-    for (const key of redactKeys) {
-      if (key in sanitised) {
-        sanitised[key] = '[REDACTED]';
-      }
-    }
-
-    const json = JSON.stringify(sanitised);
+    /*
+      The shared list rather than a local one, and it now covers more than
+      credentials. This table records clinic visits and discipline entries, so
+      the old list wrote a child's diagnosis into the audit row in full. It
+      also only looked at the top level, and a clinic visit arrives nested.
+    */
+    const json = JSON.stringify(redact(body));
     // Cap at 2KB to avoid bloating the audit table
     return json.length > 2048 ? json.slice(0, 2048) + '...' : json;
   }

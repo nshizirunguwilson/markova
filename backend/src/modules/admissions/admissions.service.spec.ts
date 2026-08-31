@@ -993,4 +993,64 @@ describe('AdmissionsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  /**
+   * The honeypot on the public form.
+   *
+   * A field a person cannot see, so a person cannot fill it in. A commodity
+   * bot walks the DOM and fills everything, because filling everything is what
+   * it does.
+   *
+   * Chosen over a CAPTCHA on purpose: this form is filled in by parents on
+   * phones on a poor connection, and a CAPTCHA is a real barrier for exactly
+   * the families a school most wants to reach. It would also mean a request to
+   * a third party on every application from a system holding children's data.
+   */
+  describe('an application that filled the hidden field', () => {
+    it('is not written to the database at all', async () => {
+      await service.submit({
+        intakeId: 'intake-1',
+        addressLine2: 'https://buy-cheap-things.example',
+      } as never);
+      expect(prisma.application.create).not.toHaveBeenCalled();
+    });
+
+    /*
+      Answers as though it worked. Refusing plainly would tell whoever wrote
+      the bot which field gave them away, and they would remove it and try
+      again.
+    */
+    it('answers as though it had been accepted', async () => {
+      const out = (await service.submit({
+        intakeId: 'intake-1',
+        addressLine2: 'spam',
+      } as never)) as { reference: string; status: string };
+      expect(out.reference).toMatch(/^APP-\d{4}-/);
+      expect(out.status).toBe('SUBMITTED');
+    });
+
+    it('does not even look the intake up', async () => {
+      await service.submit({
+        intakeId: 'intake-1',
+        addressLine2: 'spam',
+      } as never);
+      expect(prisma.admissionIntake.findUnique).not.toHaveBeenCalled();
+    });
+
+    /* A real family leaves it empty, and a browser that sends an empty string
+       for an untouched input must not be treated as a bot. */
+    it('lets a real application through when the field is empty', async () => {
+      await expect(
+        service.submit({ intakeId: 'missing', addressLine2: '' } as never),
+      ).rejects.toThrow();
+      expect(prisma.admissionIntake.findUnique).toHaveBeenCalled();
+    });
+
+    it('lets one through when the field is absent entirely', async () => {
+      await expect(
+        service.submit({ intakeId: 'missing' } as never),
+      ).rejects.toThrow();
+      expect(prisma.admissionIntake.findUnique).toHaveBeenCalled();
+    });
+  });
 });

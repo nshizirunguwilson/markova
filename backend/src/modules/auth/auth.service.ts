@@ -11,12 +11,16 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomInt } from 'crypto';
-import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Role } from '@prisma/client';
+import {
+  hashPassword,
+  needsRehash,
+  verifyPassword,
+} from '../../common/password';
 import {
   LoginDto,
   VerifyOtpDto,
@@ -92,10 +96,39 @@ export class AuthService {
       throw new UnauthorizedException('Password not set');
     }
 
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    const valid = await verifyPassword(dto.password, user.passwordHash);
     if (!valid) {
       await this.recordFailedAttempt(identifier);
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    /*
+      The one moment an old hash can be replaced.
+      
+      A password is only in memory during a sign-in. Raising the cost factor
+      without this would apply to new accounts only, and the accounts that
+      have existed longest, which are the ones most worth protecting, would
+      keep the weaker hash for ever.
+
+      Awaited rather than left running in the background. It costs about
+      250ms, once, on the first sign-in after the cost factor changes and
+      never again for that account, which is a fair price for a step that is
+      deterministic: a floating promise here writes to the database after the
+      request it belongs to has finished, which is a hard thing to reason
+      about and an easy thing to get wrong.
+
+      Wrapped, because a failed upgrade must not fail a sign-in that has
+      already succeeded. The old hash still works; it is just still old.
+    */
+    if (needsRehash(user.passwordHash)) {
+      try {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: await hashPassword(dto.password) },
+        });
+      } catch {
+        this.logger.warn(`Could not upgrade the stored hash for ${user.id}`);
+      }
     }
 
     // Clear failed attempts on success
@@ -341,12 +374,12 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
 
-    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    const valid = await verifyPassword(dto.currentPassword, user.passwordHash);
     if (!valid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    const hash = await bcrypt.hash(dto.newPassword, 10);
+    const hash = await hashPassword(dto.newPassword);
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -355,7 +388,28 @@ export class AuthService {
       },
     });
 
-    return { message: 'Password changed successfully' };
+    /*
+      Every other session ends with it.
+
+      The usual reason somebody changes their password is that they think
+      another person has it, and that is exactly the moment the other person's
+      session has to stop working. Resetting a forgotten password already did
+      this; changing a known one did not, which is the case where the user
+      actively suspects something.
+
+      Access tokens are stateless and last fifteen minutes, so a stolen one
+      survives until it expires. Refresh is what makes a session persist, and
+      that is gone immediately.
+    */
+    const { count } = await this.prisma.userSession.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false },
+    });
+
+    return {
+      message: 'Password changed successfully',
+      signedOutElsewhere: count,
+    };
   }
 
   // ─── REQUEST PASSWORD RESET ────────────────────────────────────────────────
@@ -439,7 +493,7 @@ export class AuthService {
       throw new BadRequestException('Reset token has expired');
     }
 
-    const hash = await bcrypt.hash(dto.newPassword, 10);
+    const hash = await hashPassword(dto.newPassword);
     await this.prisma.user.update({
       where: { id: resetData.userId },
       data: {

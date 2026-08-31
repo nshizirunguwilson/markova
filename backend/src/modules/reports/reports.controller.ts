@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   ForbiddenException,
   Get,
@@ -23,10 +24,13 @@ import {
   BulkIdCardsDto,
   IssueIdCardDto,
   IdCardRegistryQueryDto,
+  QueueRenderDto,
 } from './dto';
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RenderJob } from '../../jobs/jobs.constants';
+import { RenderQueue } from '../../jobs/render.queue';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -37,6 +41,7 @@ export class ReportsController {
     private readonly service: ReportsService,
     private readonly ownership: OwnershipService,
     private readonly feeGate: FeeGateService,
+    private readonly renders: RenderQueue,
   ) {}
 
   // ── Report Cards ────────────────────────────────────────────────────────
@@ -164,6 +169,82 @@ export class ReportsController {
       'Content-Length': pdf.length,
     });
     res.end(pdf);
+  }
+
+  /**
+   * Ask for a render, and collect it when it is done.
+   *
+   * The direct `/pdf` routes above still work and are unchanged, because a
+   * single card on a quiet afternoon is not worth a round trip. These two are
+   * for the case that used to hurt: a class of thirty at the end of term, when
+   * every one of those synchronous renders held a server slot for the whole of
+   * a Chrome page layout.
+   *
+   * Queueing turns that into thirty jobs drained a few at a time by a worker
+   * process that is not serving anybody, and the request that started it
+   * returns in milliseconds.
+   */
+  @Post('render')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
+  @ApiOperation({ summary: 'Queue a PDF render and get an id back' })
+  async queueRender(@Body() dto: QueueRenderDto, @CurrentUser() user: any) {
+    /* The same ownership check the direct download does. Queueing must not be
+       a way around it: a job accepted here is rendered by a worker that has no
+       idea who asked. */
+    if (dto.kind === RenderJob.TERM_REPORT) {
+      await this.assertMayRead(user, dto.studentId, dto.termId!);
+    } else {
+      await this.ownership.verifyStudentAccess(
+        user.id,
+        user.role,
+        dto.studentId,
+      );
+    }
+
+    const id = await this.renders.enqueue(
+      dto.kind,
+      {
+        studentId: dto.studentId,
+        termId: dto.termId,
+        academicYearId: dto.academicYearId,
+        type: dto.type,
+      },
+      user.id,
+    );
+    return { id, state: 'queued' as const };
+  }
+
+  @Get('render/:id')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Throttle({ default: { ttl: 60000, limit: 600 } })
+  @ApiOperation({ summary: 'How far along a queued render is' })
+  renderStatus(@Param('id') id: string) {
+    return this.renders.status(id);
+  }
+
+  @Get('render/:id/download')
+  @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
+  @Throttle({ default: { ttl: 60000, limit: 240 } })
+  @ApiOperation({ summary: 'Collect a finished render' })
+  async collectRender(@Param('id') id: string, @Res() res: express.Response) {
+    const status = await this.renders.status(id);
+    if (status.state !== 'done') {
+      throw new BadRequestException(
+        status.state === 'failed'
+          ? status.error || 'That render failed.'
+          : 'That render is not finished yet.',
+      );
+    }
+    const buffer = await this.renders.collect(id);
+    res.set({
+      'Content-Type': status.filename?.endsWith('.zip')
+        ? 'application/zip'
+        : 'application/pdf',
+      'Content-Disposition': `attachment; filename="${status.filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Post('term/class')

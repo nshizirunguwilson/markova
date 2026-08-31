@@ -28,7 +28,8 @@ markova/
 | Data | PostgreSQL 15, 60 Prisma models, 28 migrations |
 | Dashboard | Next.js 16, 89 pages across 10 role dashboards |
 | Accounts | 10 roles, role-based guards on every route |
-| Tests | 3,011 backend, 4,874 web, 124 browser checks, 108 pages audited for accessibility |
+| Tests | 3,095 backend, 4,889 web, 124 browser checks, 108 pages audited for accessibility |
+| Scale | nginx, 3 API replicas, 2 render workers, pgbouncer, Redis |
 
 ## Tech stack
 
@@ -163,6 +164,35 @@ Every colour in `design/tokens.json` carries a `dark` alongside its `value`,
 and `check-contrast.mjs` runs all 78 pairings against both palettes. See
 `docs/THEMING.md` for the rules when writing components.
 
+## Running it at scale
+
+One command brings up the deployed shape: nginx in front, three API instances,
+two render workers and a connection pooler.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.scale.yml \
+  --profile scale up -d --build
+```
+
+PDF rendering runs on a queue in the worker processes, so the API instances
+never launch a browser and a class of report cards cannot make the dashboard
+slow. See `docs/SCALING.md` for what each piece is for and how to load test it.
+
+```bash
+k6 run infra/load/report-card-evening.js
+```
+
+## Backups
+
+```bash
+./scripts/backup.sh                  # database and uploads
+./scripts/restore.sh --check latest  # prove it restores, touching nothing
+```
+
+The `full` profile runs the same thing nightly. A backup nobody has restored
+from is a hypothesis, so `--check` restores into a scratch database and counts
+what came back. See `docs/BACKUPS.md`.
+
 ## Design system
 
 `design/tokens.json` and `design/logo-mark.svg` are the only hand-authored
@@ -227,3 +257,6 @@ palette, because contrast is the failure a dark theme actually ships with.
 - `docs/FEATURE-GUIDE.md` - what the product does
 - `docs/REPORT-CARD-PIPELINE.md` - how a report card gets issued, and how to work on it
 - `docs/THEMING.md` - light, dark and system, and the rules for writing components
+- `docs/SECURITY.md` - what is enforced, where, and the known gaps
+- `docs/SCALING.md` - the three instance topology and how to load test it
+- `docs/BACKUPS.md` - taking one, and proving it restores

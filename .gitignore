@@ -67,3 +67,6 @@ screenshots/
 me.txt
 skills.zip
 CLAUDE.md
+
+# Database and upload backups. Real data, never committed.
+backups/

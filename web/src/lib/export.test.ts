@@ -6,8 +6,9 @@ const h = vi.hoisted(() => ({
   autoTable: vi.fn(),
   text: vi.fn(),
   setFontSize: vi.fn(),
-  writeFile: vi.fn(),
-  appendSheet: vi.fn(),
+  addWorksheet: vi.fn(),
+  addRow: vi.fn(),
+  writeBuffer: vi.fn(async () => new ArrayBuffer(8)),
 }));
 
 vi.mock("sonner", () => ({ toast: h.toast }));
@@ -22,13 +23,25 @@ vi.mock("jspdf", () => ({
 }));
 vi.mock("jspdf-autotable", () => ({}));
 
-vi.mock("xlsx", () => ({
-  utils: {
-    json_to_sheet: vi.fn((rows: unknown) => ({ rows })),
-    book_new: vi.fn(() => ({ Sheets: {} })),
-    book_append_sheet: h.appendSheet,
+/*
+  ExcelJS rather than SheetJS: the SheetJS advisory has no fix available, so it
+  was replaced rather than pinned. The shape of the mock follows the real API -
+  a workbook that makes worksheets, a worksheet that takes rows, and a buffer
+  at the end that the shared download helper turns into a file.
+*/
+vi.mock("exceljs", () => ({
+  Workbook: class {
+    created = new Date();
+    xlsx = { writeBuffer: h.writeBuffer };
+    addWorksheet(name: string) {
+      h.addWorksheet(name);
+      return {
+        columns: [],
+        addRow: h.addRow,
+        getRow: () => ({ font: {} }),
+      };
+    }
   },
-  writeFile: h.writeFile,
 }));
 
 import { exportCSV, exportData, exportJSON } from "./export";
@@ -61,8 +74,16 @@ let captured: { text: string; filename: string; type: string } | null = null;
 beforeEach(() => {
   captured = null;
   for (const fn of Object.values(h.toast)) fn.mockReset();
-  for (const fn of [h.save, h.autoTable, h.text, h.setFontSize, h.writeFile, h.appendSheet])
+  for (const fn of [
+    h.save,
+    h.autoTable,
+    h.text,
+    h.setFontSize,
+    h.addWorksheet,
+    h.addRow,
+  ])
     fn.mockReset();
+  h.writeBuffer.mockClear();
 
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn((blob: Blob) => {
@@ -201,7 +222,8 @@ describe("exportData", () => {
 
   it("dispatches xlsx through the spreadsheet writer", async () => {
     await exportData("xlsx", { filename: "students", title: "Students", columns, data });
-    expect(h.writeFile).toHaveBeenCalledWith(expect.anything(), "students.xlsx");
+    expect(h.writeBuffer).toHaveBeenCalled();
+    expect(h.addRow).toHaveBeenCalledTimes(data.length);
     expect(h.toast.success).toHaveBeenCalledWith(expect.stringContaining("Excel"));
   });
 
@@ -224,22 +246,39 @@ describe("exportData", () => {
 describe("exporting without a title", () => {
   it("names the spreadsheet's sheet anyway", async () => {
     await exportData("xlsx", { filename: "students", columns, data });
-
-    expect(h.appendSheet).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "Data",
-    );
+    expect(h.addWorksheet).toHaveBeenCalledWith("Data");
   });
 
   it("uses the given title when there is one", async () => {
     await exportData("xlsx", { filename: "students", title: "Students", columns, data });
+    expect(h.addWorksheet).toHaveBeenCalledWith("Students");
+  });
 
-    expect(h.appendSheet).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "Students",
-    );
+  /*
+    Excel refuses a sheet name over 31 characters or containing : \\ / ? * [ ],
+    and refuses the whole file rather than complaining about the name. Our
+    titles are page headings, so "Students: Senior 1 A" is an ordinary one.
+  */
+  it("strips the characters Excel will not accept in a sheet name", async () => {
+    await exportData("xlsx", {
+      filename: "students",
+      title: "Students: Senior 1 A [2026]",
+      columns,
+      data,
+    });
+    const name = h.addWorksheet.mock.calls.at(-1)![0] as string;
+    expect(name).not.toMatch(/[:\\/?*[\]]/);
+  });
+
+  it("trims a long title to the length Excel allows", async () => {
+    await exportData("xlsx", {
+      filename: "students",
+      title: "A very long worksheet title that Excel will simply refuse",
+      columns,
+      data,
+    });
+    const name = h.addWorksheet.mock.calls.at(-1)![0] as string;
+    expect(name.length).toBeLessThanOrEqual(31);
   });
 
   it("starts the pdf table higher up when there is no heading", async () => {

@@ -1,0 +1,51 @@
+# Keeps the dependency trees moving on their own.
+#
+# Weekly rather than daily: three ecosystems opening pull requests every
+# morning is noise somebody starts ignoring, and ignored security updates are
+# the state this is meant to prevent.
+#
+# Patch and minor updates are grouped into one pull request per ecosystem so a
+# routine week is one review rather than fifteen. Major versions come through
+# on their own, because those are the ones that need reading.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      routine:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      routine:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      routine:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+
+  # The CI actions themselves. A pinned action that goes unmaintained is a
+  # supply chain hole in the thing that checks everything else.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

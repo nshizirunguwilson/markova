@@ -6,6 +6,7 @@ const app = {
   enableCors: jest.fn(),
   useGlobalPipes: jest.fn(),
   useGlobalFilters: jest.fn(),
+  useWebSocketAdapter: jest.fn(),
   enableShutdownHooks: jest.fn(),
   listen: jest.fn().mockResolvedValue(undefined),
 };
@@ -19,6 +20,16 @@ jest.mock('@nestjs/core', () => ({
 }));
 jest.mock('./app.module', () => ({ AppModule: class {} }));
 jest.mock('./sentry', () => ({}));
+/*
+  The chat adapter reaches Redis at bootstrap. This spec is about the order
+  things are wired in, not about Redis, so it connects instantly here.
+*/
+const connect = jest.fn().mockResolvedValue(undefined);
+jest.mock('./common/redis-io.adapter', () => ({
+  RedisIoAdapter: class {
+    connect = connect;
+  },
+}));
 jest.mock('helmet', () => ({ __esModule: true, default: () => 'helmet' }));
 jest.mock('compression', () => ({
   __esModule: true,
@@ -102,11 +113,47 @@ describe('bootstrap', () => {
 
   // Uploaded files are served outside the prefix, because their stored paths
   // are what the database and every printed report card already carry.
+  /**
+   * Express runs middleware in the order it is registered, so anything set up
+   * after the static handler never sees a request for an uploaded file. It was
+   * registered after Helmet, and /uploads came back with no CSP, no nosniff and
+   * no X-Frame-Options while every /api route had all three.
+   *
+   * Nothing exploited it: the mime allowlist refuses .svg and .html and the
+   * stored extension comes from the mime type, so a user cannot put a
+   * scriptable file there. The margin is one widened allowlist, and these are
+   * served from the API's own origin.
+   */
+  it('registers helmet before it starts serving uploads', async () => {
+    await boot({});
+    const helmetAt = app.use.mock.calls.findIndex((c) => c[0] === 'helmet');
+    expect(helmetAt).toBeGreaterThanOrEqual(0);
+    expect(app.useStaticAssets).toHaveBeenCalled();
+    expect(app.use.mock.invocationCallOrder[helmetAt]).toBeLessThan(
+      app.useStaticAssets.mock.invocationCallOrder[0],
+    );
+  });
+
+  /* And the directory gets its own headers on top, so a scriptable file that
+     did end up there would run in an opaque origin with nothing to reach. */
+  it('sends uploads with nosniff and a sandbox policy', async () => {
+    await boot({});
+    const options = app.useStaticAssets.mock.calls[0][1];
+    const headers: Record<string, string> = {};
+    options.setHeaders({
+      setHeader: (k: string, v: string) => {
+        headers[k] = v;
+      },
+    });
+    expect(headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(headers['Content-Security-Policy']).toContain('sandbox');
+  });
+
   it('serves uploads outside the prefix', async () => {
     await boot({});
     expect(app.useStaticAssets).toHaveBeenCalledWith(
       expect.stringContaining('uploads'),
-      { prefix: '/uploads/' },
+      expect.objectContaining({ prefix: '/uploads/' }),
     );
   });
 
@@ -219,5 +266,35 @@ describe('bootstrap', () => {
   it('listens on 3000 when none was set', async () => {
     await boot({ PORT: undefined });
     expect(app.listen).toHaveBeenCalledWith(3000);
+  });
+  /**
+   * Chat across more than one instance.
+   *
+   * A socket.io server keeps its rooms in the memory of the process holding
+   * them, so with three instances a message emitted on one never reaches a
+   * socket held by another. It fails quietly: perfect between two people who
+   * landed on the same instance, silent between two who did not.
+   */
+  describe('chat across instances', () => {
+    it('wires the adapter when there is a Redis to wire it to', async () => {
+      await boot({ REDIS_URL: 'redis://localhost:6379' });
+      expect(connect).toHaveBeenCalledWith('redis://localhost:6379');
+      expect(app.useWebSocketAdapter).toHaveBeenCalled();
+    });
+
+    it('leaves it alone when there is no Redis configured', async () => {
+      await boot({ REDIS_URL: undefined });
+      expect(app.useWebSocketAdapter).not.toHaveBeenCalled();
+    });
+
+    /*
+      Best effort. A single instance works without the adapter, so refusing to
+      boot because Redis was slow to come up would turn a warning into an outage.
+    */
+    it('still starts when Redis cannot be reached', async () => {
+      connect.mockRejectedValueOnce(new Error('connection refused'));
+      await boot({ REDIS_URL: 'redis://nope:6379' });
+      expect(app.listen).toHaveBeenCalled();
+    });
   });
 });

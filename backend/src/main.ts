@@ -1,11 +1,13 @@
 import './sentry';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import { join } from 'path';
+
+import { RedisIoAdapter } from './common/redis-io.adapter';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters';
 
@@ -62,16 +64,42 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useStaticAssets(
-    join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
-    {
-      prefix: '/uploads/',
-    },
-  );
+  /*
+    Helmet first, and the order is the point.
+
+    Express runs middleware in the order it is registered, so a request for
+    /uploads answered by the static handler below never reached this. Measured
+    side by side, /api/health came back with a CSP, HSTS, nosniff and
+    X-Frame-Options, and /uploads/<file> came back with none of them.
+
+    Nothing exploits it today: the mime allowlist refuses .svg and .html, and
+    the stored extension comes from the mime type rather than the filename, so
+    a user cannot put a scriptable file in there. But the margin is one widened
+    allowlist, and the files are served from the API's own origin.
+  */
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
+  );
+
+  app.useStaticAssets(
+    join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
+    {
+      prefix: '/uploads/',
+      setHeaders(res) {
+        /*
+          Belt and braces on top of Helmet's defaults, aimed at this directory
+          specifically. `nosniff` stops a browser second-guessing the declared
+          type, and the sandbox CSP means that even if something scriptable
+          did end up here it would run in an opaque origin with no access to
+          the API's cookies or storage.
+        */
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      },
+    },
   );
   app.use(compression());
 
@@ -108,6 +136,33 @@ async function bootstrap() {
   // Lets Nest run onModuleDestroy across the app on SIGTERM, so Prisma closes
   // its pool and BullMQ stops pulling jobs it is about to abandon. Without it a
   // redeploy drops connections and half-processed jobs on the floor.
+  /*
+    Chat across instances.
+
+    A socket.io server keeps its rooms in the memory of the process holding
+    them, so with three instances behind a balancer a message emitted on api-1
+    never reaches a socket held by api-3. It fails quietly: perfect between two
+    people on the same instance, silent between two who are not.
+
+    Connecting is best-effort. A single instance works without it, and refusing
+    to boot because Redis was slow to come up would turn a warning into an
+    outage.
+  */
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    const adapter = new RedisIoAdapter(app);
+    try {
+      await adapter.connect(redisUrl);
+      app.useWebSocketAdapter(adapter);
+    } catch (error) {
+      new Logger('bootstrap').warn(
+        `Chat is running on this instance only: ${
+          error instanceof Error ? error.message : 'Redis is unreachable'
+        }`,
+      );
+    }
+  }
+
   app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ?? 3000);

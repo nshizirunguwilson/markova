@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { SchoolConfigService } from './school-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CacheService } from '../../common/cache.service';
 
 describe('SchoolConfigService', () => {
   let service: SchoolConfigService;
@@ -15,12 +16,26 @@ describe('SchoolConfigService', () => {
     },
   };
 
+  const mockCache = {
+    remember: jest.fn((_key: string, _ttl: number, produce: () => unknown) =>
+      produce(),
+    ) as jest.Mock,
+    forget: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockCache.remember.mockImplementation((_k, _t, produce: () => unknown) =>
+      produce(),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SchoolConfigService,
         { provide: PrismaService, useValue: mockPrisma },
+        /* The cache asks the source every time here, which keeps these tests
+           about what the service returns rather than about Redis. Whether it
+           caches at all is held by the tests below. */
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
     service = module.get<SchoolConfigService>(SchoolConfigService);
@@ -282,6 +297,74 @@ describe('SchoolConfigService', () => {
       expect(mockPrisma.schoolConfig.upsert.mock.calls[1][0].where).toEqual({
         key: 'onboarding_completed',
       });
+    });
+  });
+
+  /**
+   * The one query the whole school makes on every page load.
+   *
+   * The dashboard asks for the school's name, colour and crest before anybody
+   * has signed in, on every page, for everybody. It changes when a school is
+   * set up and then perhaps once more, ever, so it is the clearest case in the
+   * system for not going to Postgres each time.
+   */
+  describe('caching the branding', () => {
+    it('goes through the cache rather than straight to the database', async () => {
+      mockPrisma.schoolConfig.findMany.mockResolvedValue([]);
+      await service.getPublicBranding();
+      expect(mockCache.remember).toHaveBeenCalledWith(
+        'cache:branding:public',
+        expect.any(Number),
+        expect.any(Function),
+      );
+    });
+
+    it('does not query at all when the cache answers', async () => {
+      mockCache.remember.mockResolvedValue({ schoolName: 'Cached School' });
+      const out = await service.getPublicBranding();
+      expect(out).toEqual({ schoolName: 'Cached School' });
+      expect(mockPrisma.schoolConfig.findMany).not.toHaveBeenCalled();
+    });
+
+    /*
+      Cleared on write rather than left to expire. A school that changes its
+      colour and sees the old one for another ten minutes will change it
+      again, and then twice more.
+    */
+    it('clears it when a single setting is saved', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
+      await service.upsert({ key: 'primary_color', value: '#1B7456' });
+      expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
+    });
+
+    it('clears it when settings are saved in bulk', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
+      await service.bulkUpsert({
+        configs: [{ key: 'school_name', value: 'New' }],
+      });
+      expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
+    });
+
+    it('clears it when a crest is uploaded', async () => {
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
+      await service.updateBrandingFile('logo_url', '/uploads/logo.png');
+      expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
+    });
+
+    it('clears it when a setting is deleted', async () => {
+      mockPrisma.schoolConfig.findUnique.mockResolvedValue({ key: 'k' });
+      mockPrisma.schoolConfig.delete.mockResolvedValue({});
+      await service.delete('logo_url');
+      expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
     });
   });
 });

@@ -36,6 +36,16 @@ export default function ApplyPage() {
   const [copied, setCopied] = useState(false);
 
   const [f, setF] = useState({
+    /*
+      The honeypot. Hidden from people and left empty by them; a bot that
+      walks the form and fills everything in fills this too, and the server
+      quietly discards that submission.
+
+      A CAPTCHA was the alternative and was rejected: this form is filled in
+      by parents on phones on a poor connection, and a CAPTCHA is a real
+      barrier for exactly the families a school most wants to reach.
+    */
+    addressLine2: "",
     intakeId: "",
     firstName: "",
     lastName: "",
@@ -76,6 +86,7 @@ export default function ApplyPage() {
   const send = () =>
     submit
       .mutateAsync({
+        addressLine2: f.addressLine2,
         intakeId: f.intakeId,
         firstName: f.firstName.trim(),
         lastName: f.lastName.trim(),
@@ -150,6 +161,31 @@ export default function ApplyPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl px-5 py-12">
+      {/*
+        Hidden from people, and hidden the way that works.
+
+        `aria-hidden` and `tabIndex={-1}` keep it away from a screen reader and
+        out of the tab order, so nobody using the form the hard way can land in
+        it by accident. It is moved off screen rather than given
+        `display: none`, because some bots skip anything display:none and this
+        way it looks like an ordinary field to them.
+      */}
+      <div
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
+      >
+        <label htmlFor="address-line-2">Address line 2</label>
+        <input
+          id="address-line-2"
+          name="address-line-2"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={f.addressLine2}
+          onChange={(e) => setF({ ...f, addressLine2: e.target.value })}
+        />
+      </div>
+
       <header className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">
           Apply for a place

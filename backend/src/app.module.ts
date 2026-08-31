@@ -1,7 +1,7 @@
 import { RedisService } from './redis/redis.service';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { validateEnv } from './config/env.validation';
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -33,6 +33,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduledTasksService } from './common/scheduled-tasks.service';
 import { AuditLogInterceptor } from './common/interceptors';
+import { RequestIdMiddleware } from './common/request-id.middleware';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -67,6 +69,7 @@ import { AuditLogInterceptor } from './common/interceptors';
     MessagingModule,
     NotificationsModule,
     ReportsModule,
+    JobsModule,
     AnalyticsModule,
     HelpModule,
     HealthModule,
@@ -85,4 +88,15 @@ import { AuditLogInterceptor } from './common/interceptors';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /**
+   * The id goes on at the very front, before anything else can log.
+   *
+   * `forRoutes('*')` rather than the API prefix: a request for an uploaded
+   * file is a request somebody may need to ask about too, and it costs one
+   * header either way.
+   */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
