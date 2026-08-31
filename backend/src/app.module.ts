@@ -35,6 +35,7 @@ import { ScheduledTasksService } from './common/scheduled-tasks.service';
 import { AuditLogInterceptor } from './common/interceptors';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { RlsInterceptor } from './prisma/rls.interceptor';
+import { AuditModule } from './modules/audit/audit.module';
 import { JobsModule } from './jobs/jobs.module';
 
 @Module({
@@ -71,6 +72,7 @@ import { JobsModule } from './jobs/jobs.module';
     NotificationsModule,
     ReportsModule,
     JobsModule,
+    AuditModule,
     AnalyticsModule,
     HelpModule,
     HealthModule,

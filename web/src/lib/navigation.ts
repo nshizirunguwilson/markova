@@ -12,6 +12,7 @@ import {
   BarChart3,
   FileText,
   HelpCircle,
+  History,
   type LucideIcon,
   Clock,
   UserCheck,
@@ -99,6 +100,9 @@ const adminNav: NavSection[] = [
     title: "System",
     items: [
       { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
+      /* Every change anybody has made. Recorded since the audit interceptor
+         was written and, until this entry, readable only through SQL. */
+      { label: "What has changed", href: "/admin/audit", icon: History },
       { label: "Settings", href: "/admin/settings", icon: Settings },
       { label: "Help & Support", href: "/admin/help", icon: HelpCircle },
     ],
