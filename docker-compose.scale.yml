@@ -52,6 +52,10 @@ x-api-base: &api-base
     APP_URL: http://localhost
     JWT_SECRET: ${JWT_SECRET:-change-me}
     JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+    # Student numbers carry an HMAC signed with this. Required in
+    # production: without it a number can be forged, and the API refuses
+    # to start rather than issue numbers that mean nothing.
+    STUDENT_ID_SECRET: ${STUDENT_ID_SECRET:-}
     UPLOAD_DIR: ./uploads
     # There are three proxies' worth of hops in front now. Left unset, every
     # request looks like it came from nginx and the whole school shares one
