@@ -448,11 +448,28 @@ describe("DashboardShell and the head teacher", () => {
    * API refuses them, and a page that loads and then 403s on every request is
    * worse than a redirect.
    */
-  it.each(["/admin/marks", "/admin/attendance", "/admin/reports"])(
+  it.each(["/admin/marks", "/admin/attendance"])(
     "sends the principal off %s, which is not theirs any more",
     async (path) => {
       land(path, "ADMIN");
       await waitFor(() => expect(h.router.replace).toHaveBeenCalledWith("/admin"));
+    },
+  );
+
+  /*
+    /admin/reports is shared rather than moved: the report cards on it are the
+    DOS's and the letters are the principal's, so both are let on and the page
+    shows each of them only their own tab. Bouncing the principal left the
+    letters unreachable by anybody.
+  */
+  it.each(["ADMIN", "HEAD_TEACHER"])(
+    "lets %s onto the page they share",
+    async (role) => {
+      land("/admin/reports", role as never);
+      await waitFor(() =>
+        expect(screen.getByText(/the dashboard/i)).toBeInTheDocument(),
+      );
+      expect(h.router.replace).not.toHaveBeenCalled();
     },
   );
 

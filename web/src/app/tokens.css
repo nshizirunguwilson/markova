@@ -171,6 +171,7 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
   --radius-2xl: 16px;
+  --radius-panel: 44px;
   --radius-full: 9999px;
 
   /* ── type scale (same pixels as mobile's fontSize.*) ────────────────────── */

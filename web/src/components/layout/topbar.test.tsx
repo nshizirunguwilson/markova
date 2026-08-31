@@ -74,8 +74,30 @@ describe("Topbar", () => {
     const onToggle = vi.fn();
     signIn("ADMIN");
     renderWithProviders(<Topbar onToggleSidebar={onToggle} />);
-    await userEvent.setup().click(screen.getByRole("button", { name: /toggle sidebar/i }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /open the menu/i }));
     expect(onToggle).toHaveBeenCalled();
+  });
+
+  /*
+    A control that toggles has to say which way it goes. "Toggle sidebar"
+    announced the same thing whether the menu was open or shut, so a screen
+    reader user had no way to know what pressing it would do.
+  */
+  it("says what pressing it will do, and reports the state", async () => {
+    signIn("ADMIN");
+    const { unmount } = renderWithProviders(
+      <Topbar onToggleSidebar={() => {}} sidebarOpen={false} />,
+    );
+    const shut = screen.getByRole("button", { name: /open the menu/i });
+    expect(shut).toHaveAttribute("aria-expanded", "false");
+    expect(shut).toHaveAttribute("aria-controls", "app-sidebar");
+    unmount();
+
+    renderWithProviders(<Topbar onToggleSidebar={() => {}} sidebarOpen />);
+    expect(screen.getByRole("button", { name: /close the menu/i })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 });
 

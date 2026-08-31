@@ -188,3 +188,65 @@ describe("how many messages are waiting", () => {
     expect(screen.queryByLabelText(/unread message/i)).toBeNull();
   });
 });
+
+/**
+ * The panel as a floating card, and what an overlay owes the reader.
+ *
+ * The shape is not decoration here: the panel lifts off the edge so that
+ * below `lg` it can get out of the page's way entirely. At 768px a permanent
+ * 15rem column left the messages screen 496px to hold a conversation list and
+ * a thread side by side, so the pane was present and unusable.
+ */
+describe("the floating panel", () => {
+  const panel = () => document.getElementById("app-sidebar")!;
+
+  it("is a card with the panel corner rather than a column on the edge", () => {
+    show("ADMIN");
+    expect(panel().className).toContain("rounded-panel");
+    expect(panel().className).toContain("squircle");
+  });
+
+  it("is inset on every side, so the corners are corners", () => {
+    show("ADMIN");
+    for (const side of ["left-3", "top-3", "bottom-3"]) {
+      expect(panel().className).toContain(side);
+    }
+  });
+
+  /* It floats, so it needs elevation: without a shadow a card on a ground of
+     nearly the same colour is just a differently shaped patch. */
+  it("carries elevation", () => {
+    show("ADMIN");
+    expect(panel().className).toContain("shadow-card");
+  });
+
+  /*
+    The one that was a real bug. A closed drawer was only translated
+    off-screen, so on a phone every one of its links was still reachable by
+    Tab and still announced - two dozen invisible stops between the hamburger
+    and the page. `inert` is the single attribute that removes both.
+  */
+  it("is inert while it is off-screen", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Sidebar isOpen={false} onClose={vi.fn()} />);
+    expect(panel()).toHaveAttribute("inert");
+  });
+
+  it("is reachable again once it is open", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Sidebar isOpen onClose={vi.fn()} />);
+    expect(panel()).not.toHaveAttribute("inert");
+  });
+
+  /* Tapping the scrim and pressing Escape both close it, but neither is on
+     the screen. A panel covering what you were reading should show the way
+     back rather than assume you know it. */
+  it("offers a way out that can be seen", async () => {
+    const onClose = vi.fn();
+    signIn("ADMIN");
+    renderWithProviders(<Sidebar isOpen onClose={onClose} />);
+    const close = screen.getByRole("button", { name: /close the menu/i });
+    close.click();
+    expect(onClose).toHaveBeenCalled();
+  });
+});

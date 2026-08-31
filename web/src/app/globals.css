@@ -164,8 +164,10 @@ body {
   keeps the plain `border-radius` underneath. There is no fallback to write,
   and nothing to feature-detect.
 
-  Held to the chat for now, so it can be judged against the rest of the app
-  sitting next to it rather than everywhere at once.
+  Used where the radius is large enough for the difference to be visible: the
+  chat bubbles, and the floating navigation panel at 44px. At 8px an arc and a
+  squircle are the same handful of pixels, so the rest of the app keeps plain
+  `border-radius` rather than paying for a shape nobody can see.
 */
 .squircle {
   corner-shape: squircle;

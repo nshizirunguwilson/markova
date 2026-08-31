@@ -130,16 +130,23 @@ function rowButton(pattern: RegExp) {
   );
 }
 
+/*
+  Two people's work on one page, so the tests sign in as whoever owns the half
+  under test: the report cards are the Director of Studies', the transfer
+  letters and transcripts are the principal's, and each of them is shown only
+  their own tab. Mounting everything as ADMIN passed while the tab bar was
+  unconditional, and would now be testing a tab that role cannot see.
+*/
 describe("the report cards page", () => {
   it("renders the filters", async () => {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.querySelectorAll("select").length).toBeGreaterThan(0));
   });
 
   // Generating without a class and term would ask the API for every report card
   // in the school.
   it("refuses to generate before a class and term are chosen", async () => {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     h.api.post.mockClear();
 
@@ -154,7 +161,7 @@ describe("the report cards page", () => {
 
 describe("after generating a class's reports", () => {
   async function generate() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
 
@@ -248,7 +255,7 @@ describe("after generating a class's reports", () => {
 
 describe("when generation fails", () => {
   it("says so and leaves the filters alone", async () => {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.querySelectorAll("select").length).toBeGreaterThan(0));
     await chooseFilters();
     h.api.post.mockRejectedValue({ response: { status: 500 } });
@@ -275,7 +282,7 @@ describe("the document generator", () => {
 
 describe("downloading one report card", () => {
   async function withRows() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -327,7 +334,7 @@ describe("downloading one report card", () => {
 
 describe("packing a whole class into one archive", () => {
   async function withRows() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -416,7 +423,7 @@ describe("retrying inside the bulk pack", () => {
   }
 
   async function packAll() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -575,7 +582,7 @@ describe("stopping a bulk pack part way", () => {
       return real(url, config);
     });
 
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -657,7 +664,7 @@ describe("stopping a bulk pack part way", () => {
  */
 describe("the opened report card", () => {
   async function openOne() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1028,7 +1035,7 @@ describe("closing the bulk dialog", () => {
     });
     failPdf();
 
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1101,7 +1108,7 @@ describe("the edges of a bulk run", () => {
       "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
     });
 
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1161,7 +1168,7 @@ describe("opening a report that will not load", () => {
   // The row's own View button fetches the rendered card. A failure there has
   // to say so rather than open an empty viewer.
   it("says so when one report cannot be fetched", async () => {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1244,7 +1251,7 @@ describe("pressing Escape during a bulk run", () => {
       ...routes,
       "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
     });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1291,7 +1298,7 @@ describe("pressing Escape during a bulk run", () => {
 
 describe("printing one row", () => {
   async function withRows() {
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1352,7 +1359,7 @@ describe("a generated class with gaps in it", () => {
 
   async function generatePatchy() {
     serve(h.api, { ...routes, "/reports/term/class": patchy });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1402,7 +1409,7 @@ describe("a generated class with gaps in it", () => {
 
   it("survives a generate call that comes back with no reports", async () => {
     serve(h.api, { ...routes, "/reports/term/class": { count: 0 } });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1562,7 +1569,7 @@ describe("a bulk run that fetched nothing", () => {
       ...routes,
       "/reports/term/class": { count: 1, reports: [generated.reports[0]] },
     });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1674,7 +1681,7 @@ describe("packing reports that carry no names", () => {
 
   async function generateNameless() {
     serve(h.api, { ...routes, "/reports/term/class": nameless });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1744,7 +1751,7 @@ describe("retrying only the reports that failed", () => {
     const failedOnce = new Set<string>();
     serve(h.api, { ...routes, "/reports/term/class": two });
 
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1812,7 +1819,7 @@ describe("while a class is being generated", () => {
       // like from the office.
       "/reports/term/class": () => new Promise(() => {}),
     });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
 
@@ -1835,7 +1842,7 @@ describe("while a class is being generated", () => {
 
   it("comes back once it finishes", async () => {
     serve(h.api, routes);
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
 
@@ -1875,7 +1882,7 @@ describe("dismissing the pack dialog mid-run", () => {
       return real(url, config);
     });
 
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     await chooseFilters();
     await waitFor(
@@ -1970,9 +1977,9 @@ describe("reading the last term as a whole year", () => {
       "/academic/terms": threeTerms,
       "/reports/year": "<html><body>annual</body></html>",
     });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() =>
-      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+      expect(screen.getByText(/^Report cards$/)).toBeInTheDocument(),
     );
     fireEvent.change(screen.getByLabelText(/academic year/i), {
       target: { value: "year-1" },
@@ -2002,7 +2009,7 @@ describe("reading the last term as a whole year", () => {
       "/academic/terms": threeTerms,
       "/reports/year": "<html><body>annual</body></html>",
     });
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await chooseFilters();
     // The cascade picks the first term; the year choice needs the last one.
     fireEvent.change(screen.getByLabelText(/^Term$/i), {
@@ -2067,9 +2074,9 @@ describe("reading the last term as a whole year", () => {
 describe("what the page no longer offers", () => {
   it("has no Year tab", async () => {
     serve(h.api, routes);
-    renderPage(ReportsPage, { role: "ADMIN" });
+    renderPage(ReportsPage, { role: "HEAD_TEACHER" });
     await waitFor(() =>
-      expect(screen.getByText(/Reports & Documents/)).toBeInTheDocument(),
+      expect(screen.getByText(/^Report cards$/)).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: /^The Year$/i })).toBeNull();
     expect(screen.queryByText(/The whole school/i)).toBeNull();

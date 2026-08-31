@@ -76,7 +76,15 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
 const MOVED_TO_HEAD_TEACHER: Record<string, string[]> = {
   marks: ["HEAD_TEACHER"],
   attendance: ["HEAD_TEACHER"],
-  reports: ["HEAD_TEACHER"],
+  /*
+    Both, because this one page holds two people's work: the report cards are
+    the DOS's and the transfer letters, transcripts and testimonials are the
+    principal's. Handing the whole page to the DOS made the letters
+    unreachable by anybody - the principal was bounced from the page and the
+    DOS was refused by the API, so "Generate" answered "Forbidden resource"
+    whoever asked. The page itself shows each of them only their own tab.
+  */
+  reports: ["HEAD_TEACHER", "ADMIN"],
   /* The class teachers write on this one, so they reach it too - but the
      principal does not. It belongs here rather than in the shared map above,
      because that map adds roles to the prefix's own and this one replaces
@@ -142,6 +150,34 @@ export function DashboardShell({
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
+  /*
+    What an overlay owes the reader, and none of it was here before.
+
+    Escape closes it, because a thing that covers the page has to be
+    dismissible from the keyboard; and the page behind it stops scrolling,
+    because a drawer that scrolls the page under itself loses the reader's
+    place while they are only looking at the menu.
+
+    Both only below `lg`. Above it the panel is part of the layout: Escape
+    means nothing there, and locking the page would be locking it for good.
+  */
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+
+    const overlay = window.matchMedia("(max-width: 1023px)").matches;
+    const previous = document.body.style.overflow;
+    if (overlay) document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (overlay) document.body.style.overflow = previous;
+    };
+  }, [sidebarOpen]);
+
   useEffect(() => {
     async function checkAuth() {
       const token = localStorage.getItem("access_token");
@@ -187,19 +223,32 @@ export function DashboardShell({
   }
 
   return (
-    <div className="min-h-screen bg-accent-light/30">
+    <div
+      /* The ground the panel and the cards float on. `background` is the
+         token for exactly this, and with a panel that now floats the
+         separation has to come from the palette rather than from a border. */
+      className="min-h-screen bg-background"
+    >
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-surface focus:px-4 focus:py-2 focus:text-primary focus:shadow-popover focus:rounded-lg">
         Skip to content
       </a>
-      {/* Mobile backdrop */}
+      {/*
+        The scrim behind the drawer. Only below `lg`, where the panel is an
+        overlay: above it the panel is part of the layout and dimming the page
+        would be dimming it for no reason.
+
+        aria-hidden because it is not a control - Escape and the close button
+        are the ways out that assistive technology is told about.
+      */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          aria-hidden="true"
+          className="motion-fade-in fixed inset-0 z-30 bg-black/50 lg:hidden"
           onClick={closeSidebar}
         />
       )}
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
-      <Topbar onToggleSidebar={toggleSidebar} />
+      <Topbar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
       {/*
         Keyed on the route so each page fades in as it arrives.
 
@@ -222,7 +271,7 @@ export function DashboardShell({
       <main
         key={routeKey}
         id="main-content"
-        className="motion-fade-in ml-0 md:ml-60 mt-16 p-6"
+        className="motion-fade-in ml-0 mt-16 p-4 lg:ml-[17rem] lg:p-6"
       >
         {children}
       </main>
