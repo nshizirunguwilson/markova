@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsString,
   IsEnum,
+  IsIn,
   IsInt,
   Min,
   Max,
@@ -82,4 +83,39 @@ export class IdCardRegistryQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+/**
+ * Asking for a PDF to be rendered in the background.
+ *
+ * One DTO for the three kinds, because they differ only in which id they need
+ * and a separate route each would be three copies of the same ownership check.
+ * The optional fields are required per kind, which the service asserts.
+ */
+export class QueueRenderDto {
+  @ApiProperty({
+    enum: ['term-report', 'year-report', 'document'],
+    description: 'What to render',
+  })
+  @IsIn(['term-report', 'year-report', 'document'])
+  kind!: 'term-report' | 'year-report' | 'document';
+
+  @ApiProperty()
+  @IsUUID()
+  studentId!: string;
+
+  @ApiPropertyOptional({ description: 'Required for a term report' })
+  @IsOptional()
+  @IsUUID()
+  termId?: string;
+
+  @ApiPropertyOptional({ description: 'Required for a year report' })
+  @IsOptional()
+  @IsUUID()
+  academicYearId?: string;
+
+  @ApiPropertyOptional({ description: 'Required for a document' })
+  @IsOptional()
+  @IsString()
+  type?: string;
 }

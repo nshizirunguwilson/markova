@@ -5,6 +5,7 @@ import { VerifyController } from './verify.controller';
 import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { FeeGateService } from '../../common/fee-gate.service';
+import { RenderQueue } from '../../jobs/render.queue';
 import {
   buildController,
   clearMocks,
@@ -54,12 +55,24 @@ describe('ReportsController', () => {
     assertYearReleased: jest.fn().mockResolvedValue(undefined),
   };
 
+  /* The render queue: accepting work and reporting on it, with no Redis and
+     no worker behind it. The routes under test only ever call these three. */
+  const renders = mockService(['enqueue', 'status', 'collect']);
+
   let run: (c: RouteCase) => Promise<void>;
 
   const res = () => ({ set: jest.fn(), end: jest.fn() });
 
   beforeEach(async () => {
-    clearMocks(service, ownership);
+    clearMocks(service, ownership, renders);
+    renders.enqueue.mockResolvedValue('job-1');
+    renders.status.mockResolvedValue({
+      id: 'job-1',
+      state: 'done',
+      progress: 100,
+      filename: 'report-card.pdf',
+    });
+    renders.collect.mockResolvedValue(Buffer.from('%PDF-1.4'));
     service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF-1.4'));
     // Issued by default so the route cases exercise the normal path; the
     // gate has its own describe below.
@@ -77,6 +90,7 @@ describe('ReportsController', () => {
       { token: ReportsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
       { token: FeeGateService, name: 'feeGate', mock: feeGate },
+      { token: RenderQueue, name: 'renders', mock: renders },
     ]);
   });
 
@@ -182,6 +196,7 @@ describe('ReportsController', () => {
         { token: ReportsService, name: 'service', mock: service },
         { token: OwnershipService, name: 'ownership', mock: ownership },
         { token: FeeGateService, name: 'feeGate', mock: feeGate },
+        { token: RenderQueue, name: 'renders', mock: renders },
       ]);
 
     it('sends a report card as a named PDF', async () => {
@@ -328,6 +343,9 @@ describe('ReportsController', () => {
 describe('VerifyController', () => {
   const service = mockService(['verifyReportByCode', 'verifyCardByCode']);
 
+  /* The render queue: accepting work and reporting on it, with no Redis and
+     no worker behind it. The routes under test only ever call these three. */
+
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
@@ -363,6 +381,7 @@ describe('VerifyController', () => {
  * PDF. Gating one and not the others would leave the other two as open doors.
  */
 describe('a report card that has not been issued', () => {
+  const renders = mockService(['enqueue', 'status', 'collect']);
   const service = mockService([
     'getTermReportData',
     'generateTermReportHtml',
@@ -385,10 +404,19 @@ describe('a report card that has not been issued', () => {
       { token: ReportsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
       { token: FeeGateService, name: 'feeGate', mock: feeGate },
+      { token: RenderQueue, name: 'renders', mock: renders },
     ]);
 
   beforeEach(() => {
-    clearMocks(service, ownership);
+    clearMocks(service, ownership, renders);
+    renders.enqueue.mockResolvedValue('job-1');
+    renders.status.mockResolvedValue({
+      id: 'job-1',
+      state: 'done',
+      progress: 100,
+      filename: 'report-card.pdf',
+    });
+    renders.collect.mockResolvedValue(Buffer.from('%PDF-1.4'));
     service.generateTermReportPdf.mockResolvedValue(Buffer.from('%PDF'));
     service.isReportCardIssued.mockResolvedValue(false);
   });
@@ -462,6 +490,7 @@ describe('a report card that has not been issued', () => {
  * must not happen.
  */
 describe('a report card held over unpaid fees', () => {
+  const renders = mockService(['enqueue', 'status', 'collect']);
   const service = mockService([
     'getTermReportData',
     'generateTermReportHtml',
@@ -488,10 +517,19 @@ describe('a report card held over unpaid fees', () => {
       { token: ReportsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
       { token: FeeGateService, name: 'feeGate', mock: feeGate },
+      { token: RenderQueue, name: 'renders', mock: renders },
     ]);
 
   beforeEach(() => {
-    clearMocks(service, ownership);
+    clearMocks(service, ownership, renders);
+    renders.enqueue.mockResolvedValue('job-1');
+    renders.status.mockResolvedValue({
+      id: 'job-1',
+      state: 'done',
+      progress: 100,
+      filename: 'report-card.pdf',
+    });
+    renders.collect.mockResolvedValue(Buffer.from('%PDF-1.4'));
     feeGate.assertReleased.mockReset().mockResolvedValue(undefined);
     feeGate.assertYearReleased.mockReset().mockResolvedValue(undefined);
     service.isReportCardIssued.mockResolvedValue(true);

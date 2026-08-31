@@ -33,6 +33,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduledTasksService } from './common/scheduled-tasks.service';
 import { AuditLogInterceptor } from './common/interceptors';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { AuditLogInterceptor } from './common/interceptors';
     MessagingModule,
     NotificationsModule,
     ReportsModule,
+    JobsModule,
     AnalyticsModule,
     HelpModule,
     HealthModule,
