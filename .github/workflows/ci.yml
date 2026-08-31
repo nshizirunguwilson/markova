@@ -236,6 +236,26 @@ jobs:
       # No em dashes or en dashes anywhere a person writes.
       - run: node scripts/check-dashes.mjs
 
+  security:
+    name: Security (dependency advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Lockfiles only. The audit reads the tree that would be installed, and
+      # nothing here needs the packages themselves.
+      - name: Install lockfiles
+        run: |
+          npm ci --ignore-scripts --prefix backend || npm install --package-lock-only --prefix backend
+          npm ci --ignore-scripts --prefix web || npm install --package-lock-only --prefix web
+      # Fails on any advisory that is not written down with a reason. A bare
+      # `npm audit` would fail on something with no fix available, somebody
+      # would add `|| true`, and it would report nothing from then on.
+      - run: node scripts/check-vulnerabilities.mjs
+
   mobile:
     name: Mobile (typecheck + tests)
     runs-on: ubuntu-latest
