@@ -131,24 +131,44 @@ export class AnalyticsService {
       include: { classLevel: true, trade: true },
     });
 
+    /*
+      Three queries, not two per class.
+
+      This used to ask for each section's students and then that section's
+      results, one section at a time: 28 classes was 57 round trips, and it
+      grew with the school. The work is the same either way, so it is done
+      once and grouped in memory.
+    */
+    const students = await this.prisma.student.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, classSectionId: true },
+    });
+
+    /* Nobody enrolled anywhere: there is nothing to compare, and asking for
+       the results of an empty list is a query with a known answer. */
+    if (students.length === 0) return [];
+
+    const results = await this.prisma.termResult.findMany({
+      where: { termId, studentId: { in: students.map((s) => s.id) } },
+      select: { studentId: true, average: true },
+    });
+
+    const sectionOf = new Map(students.map((s) => [s.id, s.classSectionId]));
+    const averagesBySection = new Map<string, number[]>();
+    for (const result of results) {
+      if (result.average === null) continue;
+      const section = sectionOf.get(result.studentId);
+      if (!section) continue;
+      const list = averagesBySection.get(section) ?? [];
+      list.push(result.average);
+      averagesBySection.set(section, list);
+    }
+
     const comparisons = [];
     for (const section of sections) {
-      const students = await this.prisma.student.findMany({
-        where: { classSectionId: section.id, status: 'ACTIVE' },
-        select: { id: true },
-      });
-      const studentIds = students.map((s) => s.id);
-
-      if (studentIds.length === 0) continue;
-
-      const results = await this.prisma.termResult.findMany({
-        where: { termId, studentId: { in: studentIds } },
-      });
-
-      const withAvg = results.filter((r) => r.average !== null);
-      if (withAvg.length === 0) continue;
-
-      const avgs = withAvg.map((r) => r.average!);
+      const avgs = averagesBySection.get(section.id) ?? [];
+      if (avgs.length === 0) continue;
+      const withAvg = avgs;
       const avg = avgs.reduce((s, v) => s + v, 0) / avgs.length;
       const highest = Math.max(...avgs);
       const lowest = Math.min(...avgs);

@@ -81,7 +81,13 @@ export class PocketMoneyController {
   @Roles('ADMIN', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Take money in from a parent' })
   deposit(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
-    return this.service.deposit(dto.studentId, dto.amount, dto.note, user.id);
+    return this.service.deposit(
+      dto.studentId,
+      dto.amount,
+      dto.note,
+      user.id,
+      dto.idempotencyKey,
+    );
   }
 
   @Post('withdraw')

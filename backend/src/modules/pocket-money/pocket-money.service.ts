@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PocketMoneyKind, Role } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -199,21 +200,60 @@ export class PocketMoneyService {
     amount: number,
     note: string | undefined,
     recordedByUserId: string,
+    idempotencyKey?: string,
   ) {
     if (amount <= 0) {
       throw new BadRequestException('A deposit has to be more than zero');
     }
+
+    /* A repeat of the same request is the same deposit. This is money at a
+       counter with a queue behind it, and a double entry here is money the
+       school did not receive. */
+    if (idempotencyKey) {
+      const already = await this.prisma.pocketMoneyTransaction.findUnique({
+        where: { idempotencyKey },
+      });
+      if (already) return this.getAccount(studentId);
+    }
+
     const account = await this.accountFor(studentId);
-    await this.prisma.pocketMoneyTransaction.create({
-      data: {
-        accountId: account.id,
-        kind: PocketMoneyKind.DEPOSIT,
-        amount,
-        note,
-        recordedByUserId,
-      },
-    });
+    await this.writeOnce(idempotencyKey, () =>
+      this.prisma.pocketMoneyTransaction.create({
+        data: {
+          accountId: account.id,
+          kind: PocketMoneyKind.DEPOSIT,
+          amount,
+          note,
+          recordedByUserId,
+          idempotencyKey: idempotencyKey || null,
+        },
+      }),
+    );
     return this.getAccount(studentId);
+  }
+
+  /**
+   * Write it, and treat a unique clash as the retry it is.
+   *
+   * The read above catches the ordinary repeat. This catches the race it
+   * cannot see: two requests in flight at once on two different instances,
+   * neither committed when the other looked. Postgres refuses the second, and
+   * the right answer is to carry on rather than show an error to somebody
+   * whose money did in fact go in.
+   */
+  private async writeOnce(
+    idempotencyKey: string | undefined,
+    write: () => Promise<unknown>,
+  ): Promise<void> {
+    try {
+      await write();
+    } catch (error) {
+      const clash =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002';
+      if (clash && idempotencyKey) return;
+      throw error;
+    }
   }
 
   /**

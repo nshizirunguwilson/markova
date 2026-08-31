@@ -10,6 +10,13 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * parts: a preview that recommends and changes nothing, a staff decision, and
  * a commit that does exactly what was decided and nothing else.
  */
+/* The cache asks the source every time here; caching is tested on its own. */
+const cache = {
+  remember: jest.fn((_k: string, _t: number, produce: () => unknown) => produce()),
+  forget: jest.fn().mockResolvedValue(undefined),
+  forgetMatching: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('promotion', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: AcademicService;
@@ -37,7 +44,7 @@ describe('promotion', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
     prisma.term.findMany.mockResolvedValue([]);
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.student.update.mockResolvedValue({});
@@ -442,7 +449,7 @@ describe('promoting a student with no year result', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
     prisma.term.findMany.mockResolvedValue([]);
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.student.update.mockResolvedValue({});
@@ -497,7 +504,7 @@ describe('committing a decision for a student with no year result', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
     prisma.student.update.mockResolvedValue({});
     prisma.yearResult.update.mockResolvedValue({});
     prisma.yearResult.findFirst.mockResolvedValue(null);

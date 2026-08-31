@@ -76,7 +76,10 @@ describe('PocketMoneyController', () => {
       name: 'money taken in',
       call: (c) => c.deposit(money, admin),
       calls: 'deposit',
-      withArgs: ['student-1', 5000, 'Visiting day', admin.id],
+      /* The last argument is the idempotency key, undefined when the caller
+         did not send one. A retry sends the same key and gets the same entry
+         rather than a second one. */
+      withArgs: ['student-1', 5000, 'Visiting day', admin.id, undefined],
     },
     {
       name: 'money handed over',

@@ -129,13 +129,92 @@ nothing from then on.
 One advisory is currently carried, with the reasoning and the condition that
 would make it urgent recorded in that file.
 
+## Row level security
+
+Isolation is now enforced in the database as well as in the services, so a
+forgotten `where` clause on a new endpoint returns nothing rather than
+everything.
+
+Two settings are put on the transaction before every query, from the
+authenticated request:
+
+```
+app.user_id   the signed-in user
+app.role      their role
+```
+
+The policies read those. Staff roles are unrestricted here, because their reach
+is already decided by the route guards and encoding ten roles' worth of rules
+in SQL would mean maintaining the same logic in two languages that can
+disagree. What the policies restrict is the case where a leak matters most and
+is easiest to cause: a STUDENT or PARENT reading another family's child.
+
+Covered: `marks`, `term_results`, `attendances`, `clinic_visits`,
+`discipline_incidents`.
+
+**The application no longer runs as a superuser.** It connects as
+`markova_app`, which can read and write rows and nothing else. That was
+necessary as well as correct: a superuser bypasses every policy no matter how
+the table is configured, so the first version of this was enabled and had no
+effect at all. Migrations still run as the owner, because they alter the
+schema.
+
+Proved by running it. The same query that returned 216 rows of another family's
+marks now returns 0, and a parent asking for every mark in the school sees 126,
+which is their own child's.
+
+## Money
+
+Fee payments and pocket money entries carry an optional idempotency key. A
+client sends one key per payment and resends it on every retry, so a parent who
+taps twice on a poor connection gets one receipt rather than two.
+
+Checked in the service for the ordinary retry, and enforced by a unique index
+for the case the service cannot see: two requests in flight at once, on two
+different instances, neither committed when the other looked. The clash is
+answered with the payment that won rather than an error the parent has to
+interpret.
+
 ## Known gaps
 
-- **No row level security.** Isolation is enforced in the services and there is
-  nothing underneath to catch a forgotten `where` clause.
-- **Attribute rules are scattered** rather than expressed in one place.
 - **No off-site backups.** `./backups` survives a dropped table, not the
   building.
 - **No secrets manager.** Plain `.env` files, with no rotation story.
-- **Money operations are not idempotent.** A parent who taps pay twice on a bad
-  connection can create two records of one payment.
+- **RLS covers the tables that hold a child's record**, not every table. Fees
+  and pocket money are still service-enforced only.
+
+## Denial of service
+
+Three layers, and it is worth being clear about which one stops what, because
+the last of them cannot be solved inside this repository.
+
+**Application floods** are handled by the app's own limits: 100 requests a
+minute per user, 10 on credential routes, 5 on the public admissions form, all
+counted in Redis so they hold across instances.
+
+**Connection floods** are handled by nginx: 30 requests a second per address,
+64 concurrent connections per address, and a separate 10-a-minute bucket on
+the credential routes so an attacker is refused before it costs a bcrypt.
+
+**Volumetric attacks** cannot be. If somebody sends more traffic than the
+school's connection can carry, it is saturated before any of the above runs,
+and no amount of configuration on this side changes that. That is a network
+problem and it is solved upstream:
+
+| Where it runs | What it does |
+| --- | --- |
+| Cloudflare or similar, in front of the origin | Absorbs the flood before it reaches the school's line |
+| The hosting provider's protection | Same, if the school hosts rather than self-hosts |
+| The ISP | Null-routes an attack at the edge |
+
+For a self-hosted school on a single connection, the honest answer is that a
+determined volumetric attack takes the system offline and the fix is a phone
+call to the ISP. The mitigation that is actually available is putting the
+origin behind a proxy that absorbs it, which is a deployment decision rather
+than a code one.
+
+**What this repository does provide** is that an attack costs the attacker
+more than it costs the school: requests are refused at nginx before they touch
+the API, credential routes are refused before a password is hashed, and the
+render queue means a flood of PDF requests queues rather than starting a
+thousand browsers.

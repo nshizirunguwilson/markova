@@ -73,6 +73,24 @@ export class RaiseInvoicesDto {
 }
 
 export class RecordPaymentDto {
+  /**
+   * A key the client makes once and resends on every retry of the same
+   * payment.
+   *
+   * Optional, so an existing caller keeps working, but the dashboard sends one
+   * on every payment. Without it a parent on a poor connection who taps pay
+   * twice creates two receipts for one payment, and nobody finds out until the
+   * books are reconciled.
+   */
+  @ApiPropertyOptional({
+    description: 'Resend the same key to retry a payment without repeating it',
+    example: 'pay-2026-08-31-a1b2c3d4',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string;
+
   @ApiProperty() @IsUUID() studentId: string;
   @ApiProperty() @IsUUID() termId: string;
 

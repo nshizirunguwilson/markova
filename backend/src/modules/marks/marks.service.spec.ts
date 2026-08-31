@@ -14,13 +14,25 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * teacher edits their own marks and nobody else's, and a score can never
  * exceed what the paper was out of.
  */
+/*
+  The shared permission rules, stubbed. Whether a teacher leads a given class
+  is tested where that rule lives; here it just has to answer.
+*/
+const permissions = {
+  isClassTeacherOf: jest.fn(),
+  classesLedBy: jest.fn().mockResolvedValue([]),
+  mayWriteClassTeacherComment: jest.fn().mockResolvedValue(true),
+  mayWriteHeadTeacherComment: jest.fn().mockReturnValue(true),
+};
+
 describe('MarksService', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: MarksService;
 
   beforeEach(() => {
+    permissions.isClassTeacherOf.mockReset().mockResolvedValue(true);
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
     prisma.subject.findUnique.mockResolvedValue({
       id: 'subject-1',
@@ -899,28 +911,26 @@ describe('MarksService', () => {
       expect(prisma.termResult.update).toHaveBeenCalled();
     });
 
+    /* Through the shared rule rather than this service's own copy of it. The
+       same question is asked by the reports service and by two screens, and
+       they each used to answer it separately. */
     it('asks whether they are the class teacher of this very class', async () => {
-      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'role-1' });
+      permissions.isClassTeacherOf.mockResolvedValue(true);
       await service.updateTermResultComment(
         'res-1',
         { teacherComment: 'A good term.' },
         { role: 'TEACHER', teacherId: 'teacher-1' },
       );
-      expect(prisma.teacherRole.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            role: 'CLASS_TEACHER',
-            teacherId: 'teacher-1',
-            classSectionId: 'section-1',
-          },
-        }),
+      expect(permissions.isClassTeacherOf).toHaveBeenCalledWith(
+        'teacher-1',
+        'section-1',
       );
     });
 
     /* A subject teacher saw one subject of eleven. The comment is about the
        whole child, and it is not theirs to write. */
     it('refuses a teacher who is not the class teacher of it', async () => {
-      prisma.teacherRole.findFirst.mockResolvedValue(null);
+      permissions.isClassTeacherOf.mockResolvedValue(false);
       await expect(
         service.updateTermResultComment(
           'res-1',
@@ -1383,7 +1393,7 @@ describe('editing a mark that is out of range', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
     prisma.mark.findUnique.mockResolvedValue({
       id: 'mark-1',
@@ -1454,7 +1464,7 @@ describe('a whole class entered at once', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
     prisma.subject.findUnique.mockResolvedValue({
       id: 'subject-1',
@@ -1527,7 +1537,7 @@ describe('ranking a class', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
     prisma.schoolConfig.findUnique.mockResolvedValue(null);
     prisma.mark.findMany.mockResolvedValue([]);
@@ -1621,7 +1631,7 @@ describe('a school that starts nobody with conduct points', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.term.findMany.mockResolvedValue([{ id: 'term-1' }]);
     prisma.student.findMany.mockResolvedValue([
       { id: 's-1', disciplinePoints: 0 },
@@ -1681,7 +1691,7 @@ describe('the comments on a result', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.termResult.update.mockResolvedValue({});
     prisma.termResult.findUnique.mockResolvedValue({ id: 'res-1' });
   });
@@ -1743,7 +1753,7 @@ describe('report card data for a school with nothing set up', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MarksService(prisma);
+    service = new MarksService(prisma, permissions as never);
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       classSectionId: 'section-1',

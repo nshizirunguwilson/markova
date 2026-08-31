@@ -14,6 +14,21 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class MoneyMovementDto {
+  /**
+   * A key the client makes once and resends on every retry.
+   *
+   * This is money at a counter with a queue behind it. A request that times
+   * out and is retried, without this, is a second entry for money that was
+   * handed over once.
+   */
+  @ApiPropertyOptional({
+    description: 'Resend the same key to retry without repeating the entry',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string;
+
   @ApiProperty() @IsUUID() studentId: string;
 
   /**

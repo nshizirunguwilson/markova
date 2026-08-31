@@ -34,6 +34,7 @@ import { AppService } from './app.service';
 import { ScheduledTasksService } from './common/scheduled-tasks.service';
 import { AuditLogInterceptor } from './common/interceptors';
 import { RequestIdMiddleware } from './common/request-id.middleware';
+import { RlsInterceptor } from './prisma/rls.interceptor';
 import { JobsModule } from './jobs/jobs.module';
 
 @Module({
@@ -85,6 +86,16 @@ import { JobsModule } from './jobs/jobs.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
+    },
+    /*
+      Tells the database who is asking, so the row level security policies have
+      something to read. Registered after the audit log because both are
+      interceptors and this one only needs to run before the handler, which it
+      does either way.
+    */
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RlsInterceptor,
     },
   ],
 })

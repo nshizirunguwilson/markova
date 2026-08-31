@@ -1129,6 +1129,8 @@ model PocketMoneyTransaction {
   recordedByUserId String?         @map("recorded_by_user_id")
   /// The entry this one undoes, for a REVERSAL.
   reversesId       String?         @unique @map("reverses_id")
+  /// The key the client sent, so a retried deposit does not become two.
+  idempotencyKey   String?         @unique @map("idempotency_key")
   createdAt        DateTime        @default(now()) @map("created_at")
 
   account    PocketMoneyAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -1597,6 +1599,16 @@ model FeePayment {
   note             String?
   /// Who took it. Null only for entries the system makes itself.
   recordedByUserId String?       @map("recorded_by_user_id")
+
+  /// The key the client sent with this payment, so a repeat of the same
+  /// request returns the same receipt instead of taking the money twice.
+  ///
+  /// A parent on a poor connection taps pay, sees nothing happen, and taps
+  /// again; a client that times out retries. Both produce two records of one
+  /// payment, and the second is only found when somebody reconciles the books.
+  /// Unique, so the database refuses the duplicate even if two requests arrive
+  /// at the same instant on two different servers.
+  idempotencyKey String?   @unique @map("idempotency_key")
 
   /// A voided receipt stops counting towards the balance but stays in the
   /// book. All three fields are set together or none of them are.

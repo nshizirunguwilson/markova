@@ -14,13 +14,24 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * one level makes a register ambiguous; an A-Level class with no trade is not
  * a class a Rwandan TSS has. None of those raise errors on their own.
  */
+/*
+  The cache asks the source every time here, so these tests stay about what the
+  service returns rather than about Redis. Whether the timetable is cached at
+  all is held by its own tests.
+*/
+const cache = {
+  remember: jest.fn((_k: string, _t: number, produce: () => unknown) => produce()),
+  forget: jest.fn().mockResolvedValue(undefined),
+  forgetMatching: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('AcademicService', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: AcademicService;
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
   });
 
   // ── Years ─────────────────────────────────────────────────────────────────
@@ -952,7 +963,7 @@ describe('editing the school year', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
     prisma.academicYear.findUnique.mockResolvedValue({ id: 'year-1' });
     prisma.academicYear.update.mockResolvedValue({});
     prisma.academicYear.updateMany.mockResolvedValue({ count: 1 });
@@ -1111,7 +1122,7 @@ describe('editing what the school teaches', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
   });
 
   describe('a year level', () => {
@@ -1332,7 +1343,7 @@ describe('editing the week', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AcademicService(prisma);
+    service = new AcademicService(prisma, cache as never);
   });
 
   describe('a lesson', () => {
@@ -1480,6 +1491,84 @@ describe('editing the week', () => {
       await expect(service.deleteExamSchedule('nope')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  /**
+   * Caching a class's timetable.
+   *
+   * Read by every student and teacher in the class several times a day, and
+   * changed a handful of times a term. One key per class rather than one for
+   * the school, so reorganising one class does not clear every other class's
+   * answer.
+   */
+  describe('the timetable cache', () => {
+    beforeEach(() => {
+      cache.remember.mockClear();
+      cache.forget.mockClear();
+      cache.forgetMatching.mockClear();
+      cache.remember.mockImplementation(
+        (_k: string, _t: number, produce: () => unknown) => produce(),
+      );
+    });
+
+    it('goes through the cache, keyed by the class', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1');
+      expect(cache.remember).toHaveBeenCalledWith(
+        'cache:timetable:section-1',
+        expect.any(Number),
+        expect.any(Function),
+      );
+    });
+
+    /* Narrowing to one teacher is a rarer question with as many variants as
+       there are teachers. Caching each would fill Redis with answers nobody
+       asks twice. */
+    it('does not cache the narrowed form', async () => {
+      prisma.timetable.findMany.mockResolvedValue([]);
+      await service.findTimetable('section-1', 'teacher-1');
+      expect(cache.remember).not.toHaveBeenCalled();
+    });
+
+    it('clears the class when a period is added', async () => {
+      prisma.timetable.create.mockResolvedValue({});
+      await service.createTimetable({ classSectionId: 'section-1' } as never);
+      expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-1');
+    });
+
+    /*
+      Both classes when a period moves between them. Clearing only the new one
+      would leave the old class still showing a lesson it no longer has.
+    */
+    it('clears both classes when a period moves between them', async () => {
+      prisma.timetable.findUnique.mockResolvedValue({
+        id: 't-1',
+        classSectionId: 'section-1',
+      });
+      prisma.timetable.update.mockResolvedValue({});
+      await service.updateTimetable('t-1', {
+        classSectionId: 'section-2',
+      } as never);
+      expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-1');
+      expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-2');
+    });
+
+    it('clears the class when a period is deleted', async () => {
+      prisma.timetable.findUnique.mockResolvedValue({
+        id: 't-1',
+        classSectionId: 'section-1',
+      });
+      prisma.timetable.delete.mockResolvedValue({});
+      await service.deleteTimetable('t-1');
+      expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-1');
+    });
+
+    /* A bulk import can touch any class in the school, so every key goes
+       rather than working out which. The next read repopulates. */
+    it('clears every class on a bulk import', async () => {
+      await service.bulkCreateTimetable({ entries: [] } as never);
+      expect(cache.forgetMatching).toHaveBeenCalledWith('cache:timetable:*');
     });
   });
 });

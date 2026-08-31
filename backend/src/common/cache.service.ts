@@ -73,11 +73,50 @@ export class CacheService {
       this.logger.warn(`Could not clear cache key ${key}`);
     }
   }
+
+  /**
+   * Drop every key matching a pattern.
+   *
+   * For the writes that could touch any class: moving a teacher changes the
+   * timetable of every class they teach, and working out which ones is more
+   * work than clearing them all and letting the next read repopulate.
+   *
+   * `scan` rather than `keys`, because `keys` blocks Redis for the length of
+   * the sweep and Redis is single threaded. On a small keyspace the difference
+   * is nothing; on a large one `keys` is an outage.
+   */
+  async forgetMatching(pattern: string): Promise<void> {
+    try {
+      let cursor = '0';
+      do {
+        const [next, found] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          100,
+        );
+        cursor = next;
+        if (found.length) await this.redis.del(...found);
+      } while (cursor !== '0');
+    } catch {
+      this.logger.warn(`Could not clear cache keys matching ${pattern}`);
+    }
+  }
 }
 
 /** The keys, in one place, so an invalidation cannot miss one by typo. */
 export const CacheKey = {
   publicBranding: 'cache:branding:public',
+  /*
+    One key per class rather than one for the whole school. A timetable is
+    read by every student and teacher in that class, several times a day, and
+    changes a handful of times a term; caching them together would mean one
+    class's change clearing every other class's answer.
+  */
+  classTimetable: (classSectionId: string) => `cache:timetable:${classSectionId}`,
+  /** Every timetable key, for the case where a change could touch any of them. */
+  allTimetables: 'cache:timetable:*',
 } as const;
 
 /**
@@ -90,4 +129,10 @@ export const CacheKey = {
  */
 export const CacheTtl = {
   publicBranding: 600,
+  /*
+    Five minutes. A timetable changes when the school reorganises it, which is
+    a deliberate act followed by somebody checking the screen, so the write
+    clears the key and the TTL is only the belt to that braces.
+  */
+  timetable: 300,
 } as const;
