@@ -163,7 +163,8 @@ describe('every controller is reachable', () => {
         const dir = join(modulesDir, feature);
         if (!statSync(dir).isDirectory()) continue;
         for (const file of readdirSync(dir)) {
-          if (!file.endsWith('.service.ts') || file.endsWith('.spec.ts')) continue;
+          if (!file.endsWith('.service.ts') || file.endsWith('.spec.ts'))
+            continue;
           out.push({
             module: feature,
             file,

@@ -307,7 +307,13 @@ export class LibraryService {
       include: {
         book: { select: { title: true, author: true } },
         borrower: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
         },
       },
       orderBy: { dueDate: 'asc' },
@@ -325,7 +331,7 @@ export class LibraryService {
     let unreachable = 0;
 
     for (const loans of byBorrower.values()) {
-      const person = loans[0].borrower!;
+      const person = loans[0].borrower;
       const titles = loans
         .map(
           (l) =>

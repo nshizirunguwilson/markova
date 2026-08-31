@@ -627,7 +627,12 @@ describe('the shelves in a catalogue nobody has categorised', () => {
    * and had to chase each borrower by hand.
    */
   describe('chasing overdue books', () => {
-    const loan = (id: string, borrowerId: string, title: string, over: Record<string, unknown> = {}) => ({
+    const loan = (
+      id: string,
+      borrowerId: string,
+      title: string,
+      over: Record<string, unknown> = {},
+    ) => ({
       id,
       dueDate: new Date('2026-08-01'),
       book: { title, author: 'Somebody' },
@@ -637,7 +642,7 @@ describe('the shelves in a catalogue nobody has categorised', () => {
         lastName: 'Uwase',
         email: `${borrowerId}@markova.edu`,
         phone: '+250788000001',
-        ...(over.borrower as object ?? {}),
+        ...((over.borrower as object) ?? {}),
       },
     });
 
@@ -693,7 +698,16 @@ describe('the shelves in a catalogue nobody has categorised', () => {
        make the feature useless for the families it most needs to reach. */
     it('texts somebody who has no email', async () => {
       prisma.bookLoan.findMany.mockResolvedValue([
-        { ...loan('l-1', 'u-1', 'Biology'), borrower: { id: 'u-1', firstName: 'Divine', lastName: 'U', email: null, phone: '+250788100000' } },
+        {
+          ...loan('l-1', 'u-1', 'Biology'),
+          borrower: {
+            id: 'u-1',
+            firstName: 'Divine',
+            lastName: 'U',
+            email: null,
+            phone: '+250788100000',
+          },
+        },
       ]);
       await service.remindOverdue();
       expect(delivery.sms).toHaveBeenCalledWith(
@@ -706,7 +720,16 @@ describe('the shelves in a catalogue nobody has categorised', () => {
        needs to know that two of them cannot be chased this way. */
     it('counts a borrower who cannot be reached at all', async () => {
       prisma.bookLoan.findMany.mockResolvedValue([
-        { ...loan('l-1', 'u-1', 'Biology'), borrower: { id: 'u-1', firstName: 'Divine', lastName: 'U', email: null, phone: null } },
+        {
+          ...loan('l-1', 'u-1', 'Biology'),
+          borrower: {
+            id: 'u-1',
+            firstName: 'Divine',
+            lastName: 'U',
+            email: null,
+            phone: null,
+          },
+        },
       ]);
       const out = await service.remindOverdue();
       expect(out.unreachable).toBe(1);
@@ -714,7 +737,9 @@ describe('the shelves in a catalogue nobody has categorised', () => {
     });
 
     it('says one book rather than 1 books', async () => {
-      prisma.bookLoan.findMany.mockResolvedValue([loan('l-1', 'u-1', 'Biology')]);
+      prisma.bookLoan.findMany.mockResolvedValue([
+        loan('l-1', 'u-1', 'Biology'),
+      ]);
       const out = await service.remindOverdue();
       expect(out.message).toMatch(/1 book\b/);
       expect(out.message).toMatch(/1 borrower\b/);

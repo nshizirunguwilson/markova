@@ -1018,7 +1018,6 @@ describe('one student’s attendance over a range', () => {
     expect(where.date.lte).toBeInstanceOf(Date);
     expect(where.date.gte).toBeUndefined();
   });
-
 });
 
 /**
@@ -1059,7 +1058,10 @@ describe('alerting the families of chronically absent children', () => {
 
   it('emails a parent who has an address', async () => {
     prisma.parentStudent.findMany.mockResolvedValue([
-      { parentUserId: 'p-1', parent: { email: 'p@markova.edu', phone: null, firstName: 'Aline' } },
+      {
+        parentUserId: 'p-1',
+        parent: { email: 'p@markova.edu', phone: null, firstName: 'Aline' },
+      },
     ]);
     const out = await service.sendChronicAbsenteeismAlerts();
     expect(notifications.send).toHaveBeenCalled();
@@ -1073,7 +1075,10 @@ describe('alerting the families of chronically absent children', () => {
   */
   it('texts a parent who has only a phone', async () => {
     prisma.parentStudent.findMany.mockResolvedValue([
-      { parentUserId: 'p-1', parent: { email: null, phone: '+250788100000', firstName: 'Aline' } },
+      {
+        parentUserId: 'p-1',
+        parent: { email: null, phone: '+250788100000', firstName: 'Aline' },
+      },
     ]);
     const out = await service.sendChronicAbsenteeismAlerts();
     expect(delivery.sms).toHaveBeenCalledWith(
@@ -1084,7 +1089,10 @@ describe('alerting the families of chronically absent children', () => {
 
   it('puts the child and the numbers in the text', async () => {
     prisma.parentStudent.findMany.mockResolvedValue([
-      { parentUserId: 'p-1', parent: { email: null, phone: '+250788100000', firstName: 'Aline' } },
+      {
+        parentUserId: 'p-1',
+        parent: { email: null, phone: '+250788100000', firstName: 'Aline' },
+      },
     ]);
     await service.sendChronicAbsenteeismAlerts();
     const { message } = delivery.sms.mock.calls[0][0];
@@ -1097,7 +1105,10 @@ describe('alerting the families of chronically absent children', () => {
      families need a phone call instead. */
   it('counts a parent who cannot be reached at all', async () => {
     prisma.parentStudent.findMany.mockResolvedValue([
-      { parentUserId: 'p-1', parent: { email: null, phone: null, firstName: 'Aline' } },
+      {
+        parentUserId: 'p-1',
+        parent: { email: null, phone: null, firstName: 'Aline' },
+      },
     ]);
     const out = await service.sendChronicAbsenteeismAlerts();
     expect(out.unreachable).toBe(1);
@@ -1108,8 +1119,14 @@ describe('alerting the families of chronically absent children', () => {
      five children still need their parents told. */
   it('carries on when one message fails', async () => {
     prisma.parentStudent.findMany.mockResolvedValue([
-      { parentUserId: 'p-1', parent: { email: 'a@markova.edu', phone: null, firstName: 'Aline' } },
-      { parentUserId: 'p-2', parent: { email: 'b@markova.edu', phone: null, firstName: 'Eric' } },
+      {
+        parentUserId: 'p-1',
+        parent: { email: 'a@markova.edu', phone: null, firstName: 'Aline' },
+      },
+      {
+        parentUserId: 'p-2',
+        parent: { email: 'b@markova.edu', phone: null, firstName: 'Eric' },
+      },
     ]);
     notifications.send
       .mockRejectedValueOnce(new Error('mail server refused'))
@@ -1154,8 +1171,7 @@ describe('the attendance dashboard when today is empty', () => {
   /* So the screen can say "the last register was Friday" rather than silently
      showing Friday's figures under today's heading. */
   it('says plainly that it is not today', async () => {
-    prisma.attendance.findFirst
-      .mockResolvedValueOnce({ id: 'a-1' });
+    prisma.attendance.findFirst.mockResolvedValueOnce({ id: 'a-1' });
     const out = await service.getDashboardData();
     expect(out.isFallback).toBe(false);
   });

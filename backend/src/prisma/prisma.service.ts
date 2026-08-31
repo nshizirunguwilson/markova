@@ -89,17 +89,20 @@ export class PrismaService
           const [first, options] = args;
 
           if (!ctx || typeof first !== 'function') {
-            return (
-              base.$transaction as (...a: unknown[]) => Promise<unknown>
-            )(...args);
+            return (base.$transaction as (...a: unknown[]) => Promise<unknown>)(
+              ...args,
+            );
           }
 
           const run = first as (tx: unknown) => Promise<unknown>;
-          return base.$transaction(async (tx) => {
-            await tx.$executeRaw`SELECT set_config('app.role', ${ctx.role}, TRUE)`;
-            await tx.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, TRUE)`;
-            return withIdentityApplied(() => run(tx));
-          }, options as Parameters<typeof base.$transaction>[1]);
+          return base.$transaction(
+            async (tx) => {
+              await tx.$executeRaw`SELECT set_config('app.role', ${ctx.role}, TRUE)`;
+              await tx.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, TRUE)`;
+              return withIdentityApplied(() => run(tx));
+            },
+            options as Parameters<typeof base.$transaction>[1],
+          );
         },
       },
       query: {

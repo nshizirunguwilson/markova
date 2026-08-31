@@ -32,7 +32,9 @@ describe('who may do what to a particular record', () => {
     });
 
     it('says no for a class they only teach in', async () => {
-      expect(await permissions.isClassTeacherOf('t-1', 'section-2')).toBe(false);
+      expect(await permissions.isClassTeacherOf('t-1', 'section-2')).toBe(
+        false,
+      );
     });
 
     /* A head teacher or an admin has no teacher record. Asking the database

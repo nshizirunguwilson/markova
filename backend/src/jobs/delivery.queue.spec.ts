@@ -20,7 +20,11 @@ describe('queueing a message', () => {
   });
 
   it('queues an email rather than sending it', async () => {
-    await delivery.email({ to: 'a@b.com', subject: 'Hello', body: '<p>Hi</p>' });
+    await delivery.email({
+      to: 'a@b.com',
+      subject: 'Hello',
+      body: '<p>Hi</p>',
+    });
     expect(queue.add).toHaveBeenCalledWith(
       DeliveryJob.EMAIL,
       expect.objectContaining({ to: 'a@b.com', subject: 'Hello' }),
@@ -54,7 +58,12 @@ describe('queueing a message', () => {
   /* A sign-in code goes ahead of a fees reminder, because somebody is watching
      a screen for one of them and not for the other. */
   it('puts an urgent message in front of an ordinary one', async () => {
-    await delivery.email({ to: 'a@b.com', subject: 'x', body: 'y', urgent: true });
+    await delivery.email({
+      to: 'a@b.com',
+      subject: 'x',
+      body: 'y',
+      urgent: true,
+    });
     await delivery.email({ to: 'c@d.com', subject: 'x', body: 'y' });
     const [urgent, ordinary] = queue.add.mock.calls.map((c) => c[2].priority);
     expect(urgent).toBeLessThan(ordinary);

@@ -75,16 +75,25 @@ describe('the delivery worker', () => {
        with nothing delivered, which is the silent failure this replaced. */
     it('rethrows so the queue tries again', async () => {
       await expect(
-        worker.process(job(DeliveryJob.EMAIL, { to: 'a@b.com', subject: 'x', body: 'y' })),
+        worker.process(
+          job(DeliveryJob.EMAIL, { to: 'a@b.com', subject: 'x', body: 'y' }),
+        ),
       ).rejects.toThrow('SMTP timeout');
     });
 
     /* An early failure is a provider having a bad minute. Logging it at error
        would make every hiccup look like a lost message. */
     it('warns on an attempt that will be retried', async () => {
-      const warn = jest.spyOn((worker as never as { logger: { warn: jest.Mock } }).logger, 'warn').mockImplementation();
+      const warn = jest
+        .spyOn(
+          (worker as never as { logger: { warn: jest.Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation();
       await expect(
-        worker.process(job(DeliveryJob.EMAIL, { to: 'a@b.com', subject: 'x', body: 'y' }, 0)),
+        worker.process(
+          job(DeliveryJob.EMAIL, { to: 'a@b.com', subject: 'x', body: 'y' }, 0),
+        ),
       ).rejects.toThrow();
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('will retry'));
     });
@@ -92,10 +101,19 @@ describe('the delivery worker', () => {
     /* Only the last one means nobody received anything, and that is the line
        somebody greps for when a member of staff cannot sign in. */
     it('errors only once it has given up', async () => {
-      const error = jest.spyOn((worker as never as { logger: { error: jest.Mock } }).logger, 'error').mockImplementation();
+      const error = jest
+        .spyOn(
+          (worker as never as { logger: { error: jest.Mock } }).logger,
+          'error',
+        )
+        .mockImplementation();
       await expect(
         worker.process(
-          job(DeliveryJob.EMAIL, { to: 'a@b.com', subject: 'x', body: 'y' }, DELIVERY_ATTEMPTS - 1),
+          job(
+            DeliveryJob.EMAIL,
+            { to: 'a@b.com', subject: 'x', body: 'y' },
+            DELIVERY_ATTEMPTS - 1,
+          ),
         ),
       ).rejects.toThrow();
       expect(error).toHaveBeenCalledWith(expect.stringContaining('gave up'));
@@ -107,7 +125,12 @@ describe('the delivery worker', () => {
       chase a delivery and is already in the mail server's own logs.
     */
     it('never writes the message body into the log', async () => {
-      const error = jest.spyOn((worker as never as { logger: { error: jest.Mock } }).logger, 'error').mockImplementation();
+      const error = jest
+        .spyOn(
+          (worker as never as { logger: { error: jest.Mock } }).logger,
+          'error',
+        )
+        .mockImplementation();
       await expect(
         worker.process(
           job(

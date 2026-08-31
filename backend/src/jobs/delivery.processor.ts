@@ -33,7 +33,12 @@ export class DeliveryProcessor extends WorkerHost {
     try {
       if (job.name === DeliveryJob.EMAIL) {
         const { to, name, subject, body } = job.data as EmailJob;
-        await this.notifications.sendEmailToAddress(to, name ?? '', subject, body);
+        await this.notifications.sendEmailToAddress(
+          to,
+          name ?? '',
+          subject,
+          body,
+        );
       } else if (job.name === DeliveryJob.SMS) {
         const { phone, message } = job.data as SmsJob;
         await this.notifications.sendSMSToPhone(phone, message);

@@ -42,9 +42,7 @@ describe('setting the request identity on the connection', () => {
     prevent.
   */
   const asAdmin = <T>(fn: () => Promise<T>) =>
-    withRequestContext({ userId: 'e2e-user', role: 'ADMIN' }, async () =>
-      fn(),
-    );
+    withRequestContext({ userId: 'e2e-user', role: 'ADMIN' }, async () => fn());
 
   /* The failure that started this. A plain read, with a context in scope. */
   it('runs an ordinary query when a request is in scope', async () => {
@@ -64,8 +62,9 @@ describe('setting the request identity on the connection', () => {
     treat it as unrestricted.
   */
   it('puts the identity on the connection the query runs on', async () => {
-    const [row] = await asAdmin(() =>
-      prisma.$queryRaw<{ role: string; id: string }[]>`
+    const [row] = await asAdmin(
+      () =>
+        prisma.$queryRaw<{ role: string; id: string }[]>`
         SELECT current_setting('app.role', true) AS role,
                current_setting('app.user_id', true) AS id`,
     );

@@ -53,7 +53,12 @@ export class AuditService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: { firstName: true, lastName: true, role: true, email: true },
+            select: {
+              firstName: true,
+              lastName: true,
+              role: true,
+              email: true,
+            },
           },
         },
       }),

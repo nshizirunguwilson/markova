@@ -123,7 +123,11 @@ describe('the audit trail', () => {
 
     it('withholds a password the same way', async () => {
       prisma.auditLog.findMany.mockResolvedValue([
-        { id: 'a-1', newValue: JSON.stringify({ password: 'Secret1!' }), oldValue: null },
+        {
+          id: 'a-1',
+          newValue: JSON.stringify({ password: 'Secret1!' }),
+          oldValue: null,
+        },
       ]);
       const out = await service.find({});
       expect(out.data[0].newValue).not.toContain('Secret1!');
@@ -153,7 +157,10 @@ describe('the audit trail', () => {
   describe('the filter options', () => {
     it('offers only the kinds of record actually present', async () => {
       prisma.auditLog.findMany
-        .mockResolvedValueOnce([{ entityType: 'marks' }, { entityType: 'users' }])
+        .mockResolvedValueOnce([
+          { entityType: 'marks' },
+          { entityType: 'users' },
+        ])
         .mockResolvedValueOnce([{ action: 'POST' }, { action: 'DELETE' }]);
       const out = await service.filters();
       expect(out.entityTypes).toEqual(['marks', 'users']);

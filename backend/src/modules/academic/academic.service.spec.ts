@@ -20,7 +20,9 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
   all is held by its own tests.
 */
 const cache = {
-  remember: jest.fn((_k: string, _t: number, produce: () => unknown) => produce()),
+  remember: jest.fn((_k: string, _t: number, produce: () => unknown) =>
+    produce(),
+  ),
   forget: jest.fn().mockResolvedValue(undefined),
   forgetMatching: jest.fn().mockResolvedValue(undefined),
 };
@@ -1549,7 +1551,7 @@ describe('editing the week', () => {
       prisma.timetable.update.mockResolvedValue({});
       await service.updateTimetable('t-1', {
         classSectionId: 'section-2',
-      } as never);
+      });
       expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-1');
       expect(cache.forget).toHaveBeenCalledWith('cache:timetable:section-2');
     });
@@ -1567,7 +1569,7 @@ describe('editing the week', () => {
     /* A bulk import can touch any class in the school, so every key goes
        rather than working out which. The next read repopulates. */
     it('clears every class on a bulk import', async () => {
-      await service.bulkCreateTimetable({ entries: [] } as never);
+      await service.bulkCreateTimetable({ entries: [] });
       expect(cache.forgetMatching).toHaveBeenCalledWith('cache:timetable:*');
     });
   });

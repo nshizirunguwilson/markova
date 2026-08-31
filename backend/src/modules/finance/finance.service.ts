@@ -558,26 +558,26 @@ export class FinanceService {
 
     return this.payOnce(dto, () =>
       this.prisma.$transaction(async (tx) => {
-      const year = paidAt.getFullYear();
-      const last = await tx.feePayment.findFirst({
-        where: { receiptNumber: { startsWith: `RCT-${year}-` } },
-        orderBy: { receiptNumber: 'desc' },
-        select: { receiptNumber: true },
-      });
+        const year = paidAt.getFullYear();
+        const last = await tx.feePayment.findFirst({
+          where: { receiptNumber: { startsWith: `RCT-${year}-` } },
+          orderBy: { receiptNumber: 'desc' },
+          select: { receiptNumber: true },
+        });
 
-      return tx.feePayment.create({
-        data: {
-          invoiceId: invoice.id,
-          receiptNumber: nextReceiptNumber(last?.receiptNumber, year),
-          amount: dto.amount,
-          method: dto.method,
-          reference: dto.reference?.trim() || null,
-          paidAt,
-          note: dto.note?.trim() || null,
-          recordedByUserId: userId,
-          idempotencyKey: dto.idempotencyKey || null,
-        },
-      });
+        return tx.feePayment.create({
+          data: {
+            invoiceId: invoice.id,
+            receiptNumber: nextReceiptNumber(last?.receiptNumber, year),
+            amount: dto.amount,
+            method: dto.method,
+            reference: dto.reference?.trim() || null,
+            paidAt,
+            note: dto.note?.trim() || null,
+            recordedByUserId: userId,
+            idempotencyKey: dto.idempotencyKey || null,
+          },
+        });
       }),
     );
   }

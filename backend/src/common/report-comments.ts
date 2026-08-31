@@ -95,11 +95,6 @@ function marked(facts: CommentFacts): CommentSubject[] {
     .sort((a, b) => (b.total as number) - (a.total as number));
 }
 
-const list = (names: string[]): string =>
-  names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-
 // ── Fitting a comment into the space it has ────────────────────────────────
 
 /**
