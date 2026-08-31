@@ -1118,3 +1118,65 @@ describe('alerting the families of chronically absent children', () => {
     expect(out.alertsSent).toBe(1);
   });
 });
+
+/**
+ * The dashboard on a morning before anybody has taken the register.
+ *
+ * Asked for today at half past seven this showed a school where nobody turned
+ * up: every class at nought per cent, which reads as a catastrophe rather than
+ * as an empty register. The same on a Sunday, and right through the holidays.
+ */
+describe('the attendance dashboard when today is empty', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AttendanceService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new AttendanceService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+      delivery as never,
+    );
+    prisma.classSection.findMany.mockResolvedValue([]);
+    prisma.attendance.groupBy.mockResolvedValue([]);
+  });
+
+  it('falls back to the last day the register was taken', async () => {
+    prisma.attendance.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ date: new Date('2026-08-28') });
+
+    const out = await service.getDashboardData();
+    expect(out.date).toBe('2026-08-28');
+    expect(out.isFallback).toBe(true);
+  });
+
+  /* So the screen can say "the last register was Friday" rather than silently
+     showing Friday's figures under today's heading. */
+  it('says plainly that it is not today', async () => {
+    prisma.attendance.findFirst
+      .mockResolvedValueOnce({ id: 'a-1' });
+    const out = await service.getDashboardData();
+    expect(out.isFallback).toBe(false);
+  });
+
+  /*
+    Only when no date was asked for. Somebody who explicitly asks for the
+    fifteenth wants the fifteenth, and quietly showing them the fourteenth
+    would be worse than showing them nothing.
+  */
+  it('shows an explicitly requested day exactly as asked', async () => {
+    const out = await service.getDashboardData('2026-08-15');
+    expect(out.date).toBe('2026-08-15');
+    expect(out.isFallback).toBe(false);
+    expect(prisma.attendance.findFirst).not.toHaveBeenCalled();
+  });
+
+  /* A school on its first morning has no earlier register to fall back to.
+     Showing today, empty, is then the honest answer. */
+  it('stays on today when there is no earlier register at all', async () => {
+    prisma.attendance.findFirst.mockResolvedValue(null);
+    const out = await service.getDashboardData();
+    expect(out.isFallback).toBe(false);
+  });
+});

@@ -623,9 +623,42 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getDashboardData(date?: string) {
-    const targetDate = date
+    const asked = date
       ? new Date(date)
       : new Date(new Date().toISOString().slice(0, 10));
+
+    /*
+      Fall back to the last day the register was taken.
+
+      Asked for today at half past seven, before anybody has marked anything,
+      this showed a school where nobody turned up: every class at nought per
+      cent, which reads as a catastrophe rather than as an empty register. The
+      same thing happened on a Sunday, and through the holidays.
+
+      Only when no date was asked for. Somebody who explicitly asks for the
+      fifteenth wants the fifteenth, and quietly showing them the fourteenth
+      would be worse than showing them nothing.
+    */
+    let targetDate = asked;
+    let isFallback = false;
+
+    if (!date) {
+      const taken = await this.prisma.attendance.findFirst({
+        where: { date: asked, type: 'daily' },
+        select: { id: true },
+      });
+      if (!taken) {
+        const previous = await this.prisma.attendance.findFirst({
+          where: { date: { lt: asked }, type: 'daily' },
+          orderBy: { date: 'desc' },
+          select: { date: true },
+        });
+        if (previous) {
+          targetDate = previous.date;
+          isFallback = true;
+        }
+      }
+    }
 
     // Get all class sections with student counts
     const sections = await this.prisma.classSection.findMany({
@@ -682,6 +715,9 @@ export class AttendanceService {
 
     return {
       date: targetDate.toISOString().slice(0, 10),
+      /* So the screen can say "the last register was Friday" rather than
+         silently showing Friday's figures under today's heading. */
+      isFallback,
       overall: {
         totalStudents,
         present: totalPresent,

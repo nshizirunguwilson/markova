@@ -98,6 +98,26 @@ export default function AdminAttendancePage() {
             </Card>
           ) : (
             <>
+              {/*
+                Say which day this is, when it is not today.
+
+                Before anybody has taken the register, this page used to show
+                every class at nought per cent, which reads as a school where
+                nobody turned up rather than as a morning that has not started.
+                It now shows the last day that was taken, and says so.
+              */}
+              {dashboard.isFallback && (
+                <div className="mb-4 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground-muted">
+                  The register has not been taken today yet. This is{" "}
+                  {new Date(dashboard.date).toLocaleDateString(undefined, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                  , the last day it was.
+                </div>
+              )}
+
               {/* Overall Stats */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                 <Card>
