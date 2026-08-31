@@ -202,12 +202,26 @@ describe('AnalyticsService', () => {
       },
     ];
 
+    /*
+      Three queries rather than two per class. This used to ask for each
+      section's students and then that section's results one section at a
+      time, so 28 classes was 57 round trips and it grew with the school. The
+      students now come back once, carrying which class they are in.
+    */
     it('ranks the classes best first', async () => {
       prisma.classSection.findMany.mockResolvedValue(sections);
-      prisma.student.findMany.mockResolvedValue([{ id: 's-1' }, { id: 's-2' }]);
-      prisma.termResult.findMany
-        .mockResolvedValueOnce([{ average: 50 }, { average: 60 }])
-        .mockResolvedValueOnce([{ average: 80 }, { average: 90 }]);
+      prisma.student.findMany.mockResolvedValue([
+        { id: 's-1', classSectionId: 'section-1' },
+        { id: 's-2', classSectionId: 'section-1' },
+        { id: 's-3', classSectionId: 'section-2' },
+        { id: 's-4', classSectionId: 'section-2' },
+      ]);
+      prisma.termResult.findMany.mockResolvedValue([
+        { studentId: 's-1', average: 50 },
+        { studentId: 's-2', average: 60 },
+        { studentId: 's-3', average: 80 },
+        { studentId: 's-4', average: 90 },
+      ]);
 
       const result = await service.getClassComparisons('term-1');
       expect(result.map((c) => c.className)).toEqual([
@@ -217,6 +231,22 @@ describe('AnalyticsService', () => {
       expect(result[0].averageScore).toBe(85);
       expect(result[0].highest).toBe(90);
       expect(result[0].lowest).toBe(80);
+    });
+
+    /* One pass over the students, one over the results, whatever the size of
+       the school. The count is the point of the change. */
+    it('asks for the students and the results once each', async () => {
+      prisma.classSection.findMany.mockResolvedValue(sections);
+      prisma.student.findMany.mockResolvedValue([
+        { id: 's-1', classSectionId: 'section-1' },
+      ]);
+      prisma.termResult.findMany.mockResolvedValue([
+        { studentId: 's-1', average: 70 },
+      ]);
+
+      await service.getClassComparisons('term-1');
+      expect(prisma.student.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.termResult.findMany).toHaveBeenCalledTimes(1);
     });
 
     // An empty class in the comparison would show as a zero-scoring class and
