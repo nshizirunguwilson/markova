@@ -43,31 +43,50 @@ nobody sees an error.
 
 ## Seeing it work
 
-**Which instance answered.** Each container has its own hostname, so ask twenty
-times and count:
+**Which instance answered.** Ask nginx rather than the instances. It records
+the address it chose on every line, which is the answer at its source:
 
 ```bash
-for i in $(seq 1 20); do
-  curl -s -D- -o /dev/null http://localhost/api/health/live | grep -i "^x-request-id"
-done
-
-docker logs markova-api-1 --tail 100 | grep -c "GET /api/health/live"
-docker logs markova-api-2 --tail 100 | grep -c "GET /api/health/live"
-docker logs markova-api-3 --tail 100 | grep -c "GET /api/health/live"
+for i in $(seq 1 30); do curl -s -o /dev/null http://localhost/api/health/live; done
+docker logs markova-nginx --tail 30 | grep -oE "upstream=172\.28\.[0-9.]+:3000" | sort | uniq -c
 ```
 
-Three numbers that add up to twenty is load balancing working.
+Three counts adding up to thirty is load sharing working. A real run:
+
+```
+  12 upstream=172.28.1.1:3000
+  10 upstream=172.28.1.2:3000
+   8 upstream=172.28.1.3:3000
+```
+
+Uneven on purpose. `least_conn` sends each request to whichever instance is
+carrying the least, so the split follows the work rather than the count.
+
+Check the addresses against `docker inspect`. They should be the three API
+instances and nothing else, for reasons the next section explains.
 
 **Killing one.** The clearest demonstration:
 
 ```bash
 docker stop markova-api-2
-for i in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code} " http://localhost/api/health/live; done
+for i in $(seq 1 20); do curl -s -o /dev/null -w "%{http_code} " http://localhost/api/health/live; done
 docker start markova-api-2
 ```
 
-Ten 200s with one of three instances stopped. Without a balancer that would be
-a third of requests failing.
+Twenty 200s with one of three instances stopped. Without a balancer that would
+be a third of every request failing.
+
+The interesting part is in the log, and it is worth reading once:
+
+```
+"GET /api/health/live" 200 rt=2.404 upstream=172.28.1.2:3000, 172.28.1.1:3000 ut=2.008, 0.005
+```
+
+Two upstreams on one line. nginx offered the request to the stopped instance,
+waited the two seconds `proxy_connect_timeout` allows, gave up and handed it to
+a live one, which answered in five milliseconds. The person saw a slow page,
+not an error. After three such failures `max_fails` takes that instance out of
+rotation for fifteen seconds and even the slowness stops.
 
 **Watching the shared work.** Queue a report card and watch a worker take it:
 
@@ -76,6 +95,32 @@ docker logs -f markova-worker-1
 ```
 
 The API instances never log a render, because they never do one.
+
+## Why the instances have fixed addresses
+
+nginx resolves the names in its `upstream` block once, when it loads its
+configuration, and never again. Open source nginx offers no way to re-resolve
+them. With container addresses handed out on demand that is a silent fault:
+restart an instance, Docker gives it whichever address is free, and nginx goes
+on sending traffic to the one it learned at startup.
+
+This was not hypothetical. api-2 was restarted, came back on a different
+address, and Docker handed its old one to a worker. nginx then sent a third of
+every request to a container whose job is rendering PDFs, api-2 sat idle
+receiving nothing, and every container reported itself healthy throughout.
+
+The failover check above passed too, for the wrong reason: the instance being
+stopped was one nginx had already stopped talking to, so of course nothing
+broke. A test that passes for the wrong reason is worse than no test, because
+it is believed.
+
+So `docker-compose.scale.yml` declares the network itself. The three instances
+nginx names by hand sit at 172.28.1.1, .2 and .3, and `ip_range` confines every
+address handed out on demand to 172.28.5.x, which cannot collide with them.
+Restarting an instance now returns it to the address nginx is holding.
+
+The check that this is still true is the one above: the addresses in the nginx
+log should be the API instances and no one else.
 
 ## Why this works at all
 
