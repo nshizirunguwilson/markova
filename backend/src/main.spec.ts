@@ -6,6 +6,7 @@ const app = {
   enableCors: jest.fn(),
   useGlobalPipes: jest.fn(),
   useGlobalFilters: jest.fn(),
+  useWebSocketAdapter: jest.fn(),
   enableShutdownHooks: jest.fn(),
   listen: jest.fn().mockResolvedValue(undefined),
 };
@@ -19,6 +20,16 @@ jest.mock('@nestjs/core', () => ({
 }));
 jest.mock('./app.module', () => ({ AppModule: class {} }));
 jest.mock('./sentry', () => ({}));
+/*
+  The chat adapter reaches Redis at bootstrap. This spec is about the order
+  things are wired in, not about Redis, so it connects instantly here.
+*/
+const connect = jest.fn().mockResolvedValue(undefined);
+jest.mock('./common/redis-io.adapter', () => ({
+  RedisIoAdapter: class {
+    connect = connect;
+  },
+}));
 jest.mock('helmet', () => ({ __esModule: true, default: () => 'helmet' }));
 jest.mock('compression', () => ({
   __esModule: true,
@@ -256,4 +267,35 @@ describe('bootstrap', () => {
     await boot({ PORT: undefined });
     expect(app.listen).toHaveBeenCalledWith(3000);
   });
+  /**
+   * Chat across more than one instance.
+   *
+   * A socket.io server keeps its rooms in the memory of the process holding
+   * them, so with three instances a message emitted on one never reaches a
+   * socket held by another. It fails quietly: perfect between two people who
+   * landed on the same instance, silent between two who did not.
+   */
+  describe('chat across instances', () => {
+    it('wires the adapter when there is a Redis to wire it to', async () => {
+      await boot({ REDIS_URL: 'redis://localhost:6379' });
+      expect(connect).toHaveBeenCalledWith('redis://localhost:6379');
+      expect(app.useWebSocketAdapter).toHaveBeenCalled();
+    });
+
+    it('leaves it alone when there is no Redis configured', async () => {
+      await boot({ REDIS_URL: undefined });
+      expect(app.useWebSocketAdapter).not.toHaveBeenCalled();
+    });
+
+    /*
+      Best effort. A single instance works without the adapter, so refusing to
+      boot because Redis was slow to come up would turn a warning into an outage.
+    */
+    it('still starts when Redis cannot be reached', async () => {
+      connect.mockRejectedValueOnce(new Error('connection refused'));
+      await boot({ REDIS_URL: 'redis://nope:6379' });
+      expect(app.listen).toHaveBeenCalled();
+    });
+  });
 });
+

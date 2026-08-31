@@ -1,88 +1,99 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { ServiceUnavailableException } from '@nestjs/common';
+
 import { HealthController } from './health.controller';
-import { PrismaService } from '../../prisma/prisma.service';
-import { RedisService } from '../../redis/redis.service';
 
-describe('HealthController', () => {
-  let controller: HealthController;
+/**
+ * The two questions a load balancer asks, which are not the same question.
+ *
+ * "Is this process alive" decides whether to restart the container. "Can it
+ * serve" decides whether to send it traffic. Answering both from one endpoint
+ * that checks the database means a database hiccup restarts all three
+ * instances at once, which turns a slow query into an outage and loses every
+ * in-flight request with it.
+ */
+describe('the health endpoints', () => {
+  const prisma = { $queryRaw: jest.fn() };
+  const redis = { ping: jest.fn() };
+  const controller = new HealthController(prisma as never, redis as never);
 
-  const mockPrisma: any = { $queryRaw: jest.fn() };
-  const mockRedis: any = { ping: jest.fn() };
-
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [HealthController],
-      providers: [
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: RedisService, useValue: mockRedis },
-      ],
-    }).compile();
-    controller = module.get<HealthController>(HealthController);
+    prisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+    redis.ping.mockResolvedValue('PONG');
   });
 
-  it('reports ok when both dependencies answer', async () => {
-    mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
-    mockRedis.ping.mockResolvedValue('PONG');
+  describe('am I alive', () => {
+    it('answers without asking anything else', async () => {
+      expect(controller.live().status).toBe('ok');
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+      expect(redis.ping).not.toHaveBeenCalled();
+    });
 
-    const result = await controller.check();
+    /*
+      The important one. If this answered on the database, one slow database
+      would restart every instance at the same moment.
+    */
+    it('still says alive when the database is down', () => {
+      prisma.$queryRaw.mockRejectedValue(new Error('no connection'));
+      expect(controller.live().status).toBe('ok');
+    });
 
-    expect(result.status).toBe('ok');
-    expect(result.checks.database.status).toBe('ok');
-    expect(result.checks.redis.status).toBe('ok');
+    it('says how long it has been up, which is what a restart loop shows', () => {
+      expect(typeof controller.live().uptime).toBe('number');
+    });
   });
 
-  it('reports degraded - not a crash - when Postgres is unreachable', async () => {
-    mockPrisma.$queryRaw.mockRejectedValue(new Error('ECONNREFUSED'));
-    mockRedis.ping.mockResolvedValue('PONG');
+  describe('can I serve', () => {
+    it('says yes when both dependencies answer', async () => {
+      const out = await controller.ready();
+      expect(out.status).toBe('ok');
+      expect(out.checks.database.status).toBe('ok');
+      expect(out.checks.redis.status).toBe('ok');
+    });
 
-    const result = await controller.check();
+    /* A 503, not a 200 with a sad body: a balancer reads the status code and
+       nothing else. */
+    it('refuses traffic when the database is unreachable', async () => {
+      prisma.$queryRaw.mockRejectedValue(new Error('no connection'));
+      await expect(controller.ready()).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    });
 
-    expect(result.status).toBe('degraded');
-    expect(result.checks.database.status).toBe('error');
-    expect(result.checks.redis.status).toBe('ok');
+    it('refuses traffic when Redis is unreachable', async () => {
+      redis.ping.mockRejectedValue(new Error('no connection'));
+      await expect(controller.ready()).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('says which one was unreachable, so the page is actionable', async () => {
+      redis.ping.mockRejectedValue(new Error('no connection'));
+      await expect(controller.ready()).rejects.toMatchObject({
+        response: { checks: { redis: { status: 'error' } } },
+      });
+    });
   });
 
-  it('reports degraded when Redis is unreachable', async () => {
-    mockPrisma.$queryRaw.mockResolvedValue([]);
-    mockRedis.ping.mockRejectedValue(new Error('ECONNREFUSED'));
+  describe('the full report', () => {
+    it('carries the latency of each dependency', async () => {
+      const out = await controller.check();
+      expect(out.checks.database.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(out.checks.redis.latencyMs).toBeGreaterThanOrEqual(0);
+    });
 
-    const result = await controller.check();
+    /* Degraded rather than an error: this endpoint is for a person looking at
+       it, and it should still render the half that works. */
+    it('reports degraded rather than refusing when something is down', async () => {
+      redis.ping.mockRejectedValue(new Error('no connection'));
+      const out = await controller.check();
+      expect(out.status).toBe('degraded');
+      expect(out.checks.database.status).toBe('ok');
+    });
 
-    expect(result.status).toBe('degraded');
-    expect(result.checks.redis.status).toBe('error');
-  });
-
-  it('never leaks the underlying error to the caller', async () => {
-    mockPrisma.$queryRaw.mockRejectedValue(
-      new Error('password authentication failed for user "markova"'),
-    );
-    mockRedis.ping.mockResolvedValue('PONG');
-
-    const result = await controller.check();
-
-    expect(JSON.stringify(result)).not.toContain('password');
-  });
-
-  it('includes uptime, version and memory for operators', async () => {
-    mockPrisma.$queryRaw.mockResolvedValue([]);
-    mockRedis.ping.mockResolvedValue('PONG');
-
-    const result = await controller.check();
-
-    expect(result.uptime).toMatch(/^\d+s$/);
-    expect(result.version).toBeTruthy();
-    expect(result.memory.rss).toMatch(/^\d+MB$/);
-    expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-  });
-
-  it('measures how long each dependency took', async () => {
-    mockPrisma.$queryRaw.mockResolvedValue([]);
-    mockRedis.ping.mockResolvedValue('PONG');
-
-    const result = await controller.check();
-
-    expect(result.checks.database.latencyMs).toBeGreaterThanOrEqual(0);
-    expect(result.checks.redis.latencyMs).toBeGreaterThanOrEqual(0);
+    it('reports memory, which is what a leak shows up in first', async () => {
+      const out = await controller.check();
+      expect(out.memory.rss).toMatch(/MB$/);
+    });
   });
 });

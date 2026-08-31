@@ -1,11 +1,13 @@
 import './sentry';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import { join } from 'path';
+
+import { RedisIoAdapter } from './common/redis-io.adapter';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters';
 
@@ -134,6 +136,33 @@ async function bootstrap() {
   // Lets Nest run onModuleDestroy across the app on SIGTERM, so Prisma closes
   // its pool and BullMQ stops pulling jobs it is about to abandon. Without it a
   // redeploy drops connections and half-processed jobs on the floor.
+  /*
+    Chat across instances.
+
+    A socket.io server keeps its rooms in the memory of the process holding
+    them, so with three instances behind a balancer a message emitted on api-1
+    never reaches a socket held by api-3. It fails quietly: perfect between two
+    people on the same instance, silent between two who are not.
+
+    Connecting is best-effort. A single instance works without it, and refusing
+    to boot because Redis was slow to come up would turn a warning into an
+    outage.
+  */
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    const adapter = new RedisIoAdapter(app);
+    try {
+      await adapter.connect(redisUrl);
+      app.useWebSocketAdapter(adapter);
+    } catch (error) {
+      new Logger('bootstrap').warn(
+        `Chat is running on this instance only: ${
+          error instanceof Error ? error.message : 'Redis is unreachable'
+        }`,
+      );
+    }
+  }
+
   app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ?? 3000);
