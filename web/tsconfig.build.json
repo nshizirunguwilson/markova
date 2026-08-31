@@ -1,0 +1,25 @@
+{
+  "//": [
+    "The config `next build` uses, and the only difference is that it leaves",
+    "the tests out.",
+    "",
+    "Two tests deliberately import from outside web/: theme.test.ts reads",
+    "design/tokens.json to prove the dark palette in the stylesheet matches the",
+    "one in the token file, and share-script.test.ts reads scripts/share.mjs.",
+    "Both are the right thing to do - a constant copied into a second file is a",
+    "constant that goes stale, and these catch exactly that.",
+    "",
+    "But the Docker image only copies web/, so those imports do not resolve",
+    "there and the production build failed on files that are not shipped. The",
+    "answer is to typecheck the application for the build and the whole tree",
+    "for `npm run typecheck`, rather than to weaken either one."
+  ],
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/test/**",
+    "e2e/**"
+  ]
+}
