@@ -139,3 +139,39 @@ would make it urgent recorded in that file.
 - **No secrets manager.** Plain `.env` files, with no rotation story.
 - **Money operations are not idempotent.** A parent who taps pay twice on a bad
   connection can create two records of one payment.
+
+## Denial of service
+
+Three layers, and it is worth being clear about which one stops what, because
+the last of them cannot be solved inside this repository.
+
+**Application floods** are handled by the app's own limits: 100 requests a
+minute per user, 10 on credential routes, 5 on the public admissions form, all
+counted in Redis so they hold across instances.
+
+**Connection floods** are handled by nginx: 30 requests a second per address,
+64 concurrent connections per address, and a separate 10-a-minute bucket on
+the credential routes so an attacker is refused before it costs a bcrypt.
+
+**Volumetric attacks** cannot be. If somebody sends more traffic than the
+school's connection can carry, it is saturated before any of the above runs,
+and no amount of configuration on this side changes that. That is a network
+problem and it is solved upstream:
+
+| Where it runs | What it does |
+| --- | --- |
+| Cloudflare or similar, in front of the origin | Absorbs the flood before it reaches the school's line |
+| The hosting provider's protection | Same, if the school hosts rather than self-hosts |
+| The ISP | Null-routes an attack at the edge |
+
+For a self-hosted school on a single connection, the honest answer is that a
+determined volumetric attack takes the system offline and the fix is a phone
+call to the ISP. The mitigation that is actually available is putting the
+origin behind a proxy that absorbs it, which is a deployment decision rather
+than a code one.
+
+**What this repository does provide** is that an attack costs the attacker
+more than it costs the school: requests are refused at nginx before they touch
+the API, credential routes are refused before a password is hashed, and the
+render queue means a flood of PDF requests queues rather than starting a
+thousand browsers.
