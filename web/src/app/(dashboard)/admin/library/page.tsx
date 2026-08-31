@@ -29,6 +29,7 @@ import {
   useReturn,
   useActiveLoans,
   useOverdueLoans,
+  useRemindOverdue,
   useLibraryAnalytics,
   useBulkImportBooks,
 } from "@/hooks/use-library";
@@ -42,6 +43,7 @@ import {
   ArrowRightLeft,
   AlertTriangle,
   Upload,
+  Mail,
 } from "lucide-react";
 import { exportData } from "@/lib/export";
 import { toast } from "sonner";
@@ -90,6 +92,7 @@ export default function AdminLibraryPage() {
   const { data: loansResponse, isLoading: loadingLoans } = useActiveLoans();
   const activeLoans = rowsOf<any>(loansResponse);
   const { data: overdueResponse, isLoading: loadingOverdue } = useOverdueLoans();
+  const remindOverdue = useRemindOverdue();
   const overdueLoans = rowsOf<any>(overdueResponse);
   const { data: analytics, isLoading: loadingAnalytics } = useLibraryAnalytics();
 
@@ -401,6 +404,32 @@ export default function AdminLibraryPage() {
       {/* Overdue Tab */}
       {tab === "overdue" && (
         loadingOverdue ? <PageSpinner /> : (
+          <>
+          {/*
+            The list has been readable since this page was written and there
+            was no way to act on it: a librarian could see six books were late
+            and had to chase each borrower by hand.
+
+            One message per person rather than per book, so a student with
+            three late books gets one email rather than three.
+          */}
+          {overdueLoans && overdueLoans.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning-wash px-4 py-3">
+              <p className="text-sm text-foreground">
+                {overdueLoans.length}{" "}
+                {overdueLoans.length === 1 ? "book is" : "books are"} past their
+                date.
+              </p>
+              <Button
+                size="sm"
+                isLoading={remindOverdue.isPending}
+                onClick={() => remindOverdue.mutate()}
+              >
+                <Mail className="mr-1.5 h-4 w-4" />
+                Remind the borrowers
+              </Button>
+            </div>
+          )}
           <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -443,6 +472,7 @@ export default function AdminLibraryPage() {
             </TableBody>
           </Table>
           </div>
+          </>
         )
       )}
 

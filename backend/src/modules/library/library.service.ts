@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginatedResponse } from '../../common/dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DeliveryQueue } from '../../jobs/delivery.queue';
 import { NotificationType } from '../notifications/dto';
 import {
   CreateBookDto,
@@ -22,6 +23,7 @@ export class LibraryService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private delivery: DeliveryQueue,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -287,6 +289,91 @@ export class LibraryService {
       },
       orderBy: { dueDate: 'asc' },
     });
+  }
+
+  /**
+   * Remind everybody holding an overdue book.
+   *
+   * The overdue list has been readable since the library module was written,
+   * and there was no way to act on it: a librarian could see six books were
+   * late and had to chase each borrower by hand.
+   *
+   * One message per person rather than per book, because a student with three
+   * late books is one conversation, not three emails.
+   */
+  async remindOverdue() {
+    const overdue = await this.prisma.bookLoan.findMany({
+      where: { status: 'ACTIVE', dueDate: { lt: new Date() } },
+      include: {
+        book: { select: { title: true, author: true } },
+        borrower: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+        },
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    const byBorrower = new Map<string, typeof overdue>();
+    for (const loan of overdue) {
+      if (!loan.borrower) continue;
+      const list = byBorrower.get(loan.borrower.id) ?? [];
+      list.push(loan);
+      byBorrower.set(loan.borrower.id, list);
+    }
+
+    let reminded = 0;
+    let unreachable = 0;
+
+    for (const loans of byBorrower.values()) {
+      const person = loans[0].borrower!;
+      const titles = loans
+        .map(
+          (l) =>
+            `<li>${l.book.title} by ${l.book.author}, due ${l.dueDate.toDateString()}</li>`,
+        )
+        .join('');
+
+      /* A borrower with neither an address nor a number is counted rather
+         than skipped in silence: a librarian chasing six books needs to know
+         that two of them cannot be chased this way. */
+      if (!person.email && !person.phone) {
+        unreachable += 1;
+        continue;
+      }
+
+      if (person.email) {
+        await this.delivery.email({
+          to: person.email,
+          name: person.firstName,
+          subject:
+            loans.length === 1
+              ? 'A library book is overdue'
+              : `${loans.length} library books are overdue`,
+          body: `<p>The library has these on loan to you past their date:</p>
+                 <ul>${titles}</ul>
+                 <p>Please return them to the library. There is nothing to pay.</p>`,
+        });
+      } else if (person.phone) {
+        await this.delivery.sms({
+          phone: person.phone,
+          message:
+            loans.length === 1
+              ? `Markova library: "${loans[0].book.title}" is overdue. Please return it.`
+              : `Markova library: ${loans.length} books are overdue. Please return them.`,
+        });
+      }
+      reminded += 1;
+    }
+
+    return {
+      overdue: overdue.length,
+      reminded,
+      unreachable,
+      message:
+        reminded === 0
+          ? 'Nothing is overdue.'
+          : `Reminded ${reminded} ${reminded === 1 ? 'borrower' : 'borrowers'} about ${overdue.length} ${overdue.length === 1 ? 'book' : 'books'}.`,
+    };
   }
 
   async getUserLoans(userId: string) {
