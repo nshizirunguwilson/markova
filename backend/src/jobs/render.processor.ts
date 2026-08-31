@@ -35,7 +35,7 @@ export class RenderProcessor extends WorkerHost {
     await this.queue.write(id, { id, state: 'working', progress: 0 });
 
     try {
-      const { buffer, filename } = await this.render(job, id);
+      const { buffer, filename } = await this.render(job);
       await this.queue.store(id, buffer);
       await this.queue.write(id, {
         id,
@@ -64,14 +64,16 @@ export class RenderProcessor extends WorkerHost {
 
   private async render(
     job: Job,
-    id: string,
   ): Promise<{ buffer: Buffer; filename: string }> {
     const d = job.data as Record<string, string>;
 
     switch (job.name) {
       case RenderJob.TERM_REPORT:
         return {
-          buffer: await this.reports.generateTermReportPdf(d.studentId, d.termId),
+          buffer: await this.reports.generateTermReportPdf(
+            d.studentId,
+            d.termId,
+          ),
           filename: `report-card-${d.studentId}.pdf`,
         };
 
@@ -85,10 +87,7 @@ export class RenderProcessor extends WorkerHost {
         };
 
       case RenderJob.DOCUMENT: {
-        const out = await this.reports.generateDocumentPdf(
-          d.studentId,
-          d.type,
-        );
+        const out = await this.reports.generateDocumentPdf(d.studentId, d.type);
         return { buffer: out.pdf, filename: `${out.title}.pdf` };
       }
 

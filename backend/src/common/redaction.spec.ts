@@ -38,7 +38,9 @@ describe('redacting a request body', () => {
   /* A body is rarely flat. A clinic visit arrives as { visit: { diagnosis } },
      and a rule that only looked at the top level would write it out in full. */
   it('reaches into nested objects', () => {
-    expect(redact({ visit: { studentId: 's-1', diagnosis: 'Asthma' } })).toEqual({
+    expect(
+      redact({ visit: { studentId: 's-1', diagnosis: 'Asthma' } }),
+    ).toEqual({
       visit: { studentId: 's-1', diagnosis: REDACTED },
     });
   });
@@ -61,9 +63,9 @@ describe('redacting a request body', () => {
   });
 
   it('leaves the fields that make a log worth reading', () => {
-    expect(redact({ classSectionId: 'c-1', termId: 't-1', isPublished: true })).toEqual(
-      { classSectionId: 'c-1', termId: 't-1', isPublished: true },
-    );
+    expect(
+      redact({ classSectionId: 'c-1', termId: 't-1', isPublished: true }),
+    ).toEqual({ classSectionId: 'c-1', termId: 't-1', isPublished: true });
   });
 
   /* Failing safe: something too deep to walk is replaced wholesale rather

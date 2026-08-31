@@ -1,4 +1,9 @@
-import { Controller, Get, HttpCode, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 
@@ -23,7 +28,10 @@ export class HealthController {
    */
   @Get('live')
   live() {
-    return { status: 'ok', uptime: Math.floor((Date.now() - this.startTime) / 1000) };
+    return {
+      status: 'ok',
+      uptime: Math.floor((Date.now() - this.startTime) / 1000),
+    };
   }
 
   /**

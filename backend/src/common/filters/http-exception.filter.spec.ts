@@ -116,7 +116,11 @@ describe('HttpExceptionFilter', () => {
    */
   describe('what reaches the log', () => {
     it('warns once, with no stack, for a client error', () => {
-      const { warn, error } = run(new BadRequestException('x'), {}, '/api/marks');
+      const { warn, error } = run(
+        new BadRequestException('x'),
+        {},
+        '/api/marks',
+      );
       expect(error).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith('POST /api/marks 400 - x');
     });
@@ -279,7 +283,9 @@ describe('the request id on an error', () => {
       }),
     } as any;
     const filter = new HttpExceptionFilter();
-    const warn = jest.spyOn((filter as any).logger, 'warn').mockImplementation();
+    const warn = jest
+      .spyOn((filter as any).logger, 'warn')
+      .mockImplementation();
     const error = jest
       .spyOn((filter as any).logger, 'error')
       .mockImplementation();

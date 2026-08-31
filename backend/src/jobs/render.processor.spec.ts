@@ -31,7 +31,9 @@ describe('the render worker', () => {
   });
 
   it('renders a term report and parks it', async () => {
-    await worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }));
+    await worker.process(
+      job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+    );
     expect(reports.generateTermReportPdf).toHaveBeenCalledWith('s-1', 't-1');
     expect(queue.store).toHaveBeenCalledWith('7', expect.any(Buffer));
   });
@@ -44,20 +46,26 @@ describe('the render worker', () => {
   });
 
   it('names a document after the document, not after the id', async () => {
-    await worker.process(job(RenderJob.DOCUMENT, { studentId: 's-1', type: 'transfer_letter' }));
+    await worker.process(
+      job(RenderJob.DOCUMENT, { studentId: 's-1', type: 'transfer_letter' }),
+    );
     const done = queue.write.mock.calls.at(-1)![1];
     expect(done.filename).toBe('Transfer Letter.pdf');
   });
 
   it('says it is working before it starts, and done after', async () => {
-    await worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }));
+    await worker.process(
+      job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+    );
     const states = queue.write.mock.calls.map((c) => c[1].state);
     expect(states[0]).toBe('working');
     expect(states.at(-1)).toBe('done');
   });
 
   it('finishes at a hundred, so a progress bar can reach the end', async () => {
-    await worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }));
+    await worker.process(
+      job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+    );
     expect(queue.write.mock.calls.at(-1)![1].progress).toBe(100);
   });
 
@@ -75,7 +83,9 @@ describe('the render worker', () => {
 
     it('tells the client why', async () => {
       await expect(
-        worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' })),
+        worker.process(
+          job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+        ),
       ).rejects.toThrow();
       const last = queue.write.mock.calls.at(-1)![1];
       expect(last.state).toBe('failed');
@@ -87,13 +97,17 @@ describe('the render worker', () => {
        collect. */
     it('rethrows so the queue can retry it', async () => {
       await expect(
-        worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' })),
+        worker.process(
+          job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+        ),
       ).rejects.toThrow('Chrome would not start');
     });
 
     it('never parks a result for a job that failed', async () => {
       await expect(
-        worker.process(job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' })),
+        worker.process(
+          job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+        ),
       ).rejects.toThrow();
       expect(queue.store).not.toHaveBeenCalled();
     });

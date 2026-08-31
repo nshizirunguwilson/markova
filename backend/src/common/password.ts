@@ -18,10 +18,8 @@ export const PASSWORD_COST = 12;
 export const hashPassword = (plain: string): Promise<string> =>
   bcrypt.hash(plain, PASSWORD_COST);
 
-export const verifyPassword = (
-  plain: string,
-  hash: string,
-): Promise<boolean> => bcrypt.compare(plain, hash);
+export const verifyPassword = (plain: string, hash: string): Promise<boolean> =>
+  bcrypt.compare(plain, hash);
 
 /**
  * Whether a stored hash was made with a weaker cost than we now use.

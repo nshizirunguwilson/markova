@@ -195,7 +195,11 @@ export class ReportsController {
     if (dto.kind === RenderJob.TERM_REPORT) {
       await this.assertMayRead(user, dto.studentId, dto.termId!);
     } else {
-      await this.ownership.verifyStudentAccess(user.id, user.role, dto.studentId);
+      await this.ownership.verifyStudentAccess(
+        user.id,
+        user.role,
+        dto.studentId,
+      );
     }
 
     const id = await this.renders.enqueue(

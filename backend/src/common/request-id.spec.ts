@@ -1,4 +1,7 @@
-import { REQUEST_ID_HEADER, RequestIdMiddleware } from './request-id.middleware';
+import {
+  REQUEST_ID_HEADER,
+  RequestIdMiddleware,
+} from './request-id.middleware';
 
 /**
  * Following one request through three servers.
@@ -47,9 +50,9 @@ describe('the request id', () => {
   });
 
   it('takes the first when a proxy sent several', () => {
-    expect(run({ [REQUEST_ID_HEADER]: ['first-abc123', 'second'] }).req.id).toBe(
-      'first-abc123',
-    );
+    expect(
+      run({ [REQUEST_ID_HEADER]: ['first-abc123', 'second'] }).req.id,
+    ).toBe('first-abc123');
   });
 
   /*

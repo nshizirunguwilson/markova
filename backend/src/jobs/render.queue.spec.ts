@@ -73,7 +73,9 @@ describe('the render queue', () => {
 
   it('does not let the queue grow without bound', async () => {
     await renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1');
-    expect(queue.add.mock.calls[0][2]).toMatchObject({ removeOnComplete: true });
+    expect(queue.add.mock.calls[0][2]).toMatchObject({
+      removeOnComplete: true,
+    });
   });
 
   /* A failure is a support question, and the reason has to outlive the job

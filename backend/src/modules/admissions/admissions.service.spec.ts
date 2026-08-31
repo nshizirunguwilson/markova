@@ -1021,10 +1021,10 @@ describe('AdmissionsService', () => {
       again.
     */
     it('answers as though it had been accepted', async () => {
-      const out = await service.submit({
+      const out = (await service.submit({
         intakeId: 'intake-1',
         addressLine2: 'spam',
-      } as never);
+      } as never)) as { reference: string; status: string };
       expect(out.reference).toMatch(/^APP-\d{4}-/);
       expect(out.status).toBe('SUBMITTED');
     });

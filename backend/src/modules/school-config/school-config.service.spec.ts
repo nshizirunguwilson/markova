@@ -17,8 +17,8 @@ describe('SchoolConfigService', () => {
   };
 
   const mockCache = {
-    remember: jest.fn(
-      (_key: string, _ttl: number, produce: () => unknown) => produce(),
+    remember: jest.fn((_key: string, _ttl: number, produce: () => unknown) =>
+      produce(),
     ) as jest.Mock,
     forget: jest.fn().mockResolvedValue(undefined),
   };
@@ -332,21 +332,30 @@ describe('SchoolConfigService', () => {
       again, and then twice more.
     */
     it('clears it when a single setting is saved', async () => {
-      mockPrisma.schoolConfig.upsert.mockResolvedValue({ key: 'k', value: 'v' });
-      await service.upsert({ key: 'primary_color', value: '#1B7456' } as never);
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
+      await service.upsert({ key: 'primary_color', value: '#1B7456' });
       expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
     });
 
     it('clears it when settings are saved in bulk', async () => {
-      mockPrisma.schoolConfig.upsert.mockResolvedValue({ key: 'k', value: 'v' });
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
       await service.bulkUpsert({
         configs: [{ key: 'school_name', value: 'New' }],
-      } as never);
+      });
       expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
     });
 
     it('clears it when a crest is uploaded', async () => {
-      mockPrisma.schoolConfig.upsert.mockResolvedValue({ key: 'k', value: 'v' });
+      mockPrisma.schoolConfig.upsert.mockResolvedValue({
+        key: 'k',
+        value: 'v',
+      });
       await service.updateBrandingFile('logo_url', '/uploads/logo.png');
       expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');
     });

@@ -40,7 +40,7 @@ export class CacheService {
     try {
       const hit = await this.redis.get(key);
       if (hit !== null && hit !== undefined) return JSON.parse(hit) as T;
-    } catch (error) {
+    } catch {
       this.logger.warn(`Cache read failed for ${key}, asking the source`);
       return produce();
     }

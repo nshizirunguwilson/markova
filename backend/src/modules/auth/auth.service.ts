@@ -16,7 +16,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Role } from '@prisma/client';
-import { hashPassword, needsRehash, verifyPassword } from '../../common/password';
+import {
+  hashPassword,
+  needsRehash,
+  verifyPassword,
+} from '../../common/password';
 import {
   LoginDto,
   VerifyOtpDto,

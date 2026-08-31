@@ -23,7 +23,7 @@ describe('the health endpoints', () => {
   });
 
   describe('am I alive', () => {
-    it('answers without asking anything else', async () => {
+    it('answers without asking anything else', () => {
       expect(controller.live().status).toBe('ok');
       expect(prisma.$queryRaw).not.toHaveBeenCalled();
       expect(redis.ping).not.toHaveBeenCalled();

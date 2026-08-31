@@ -1,10 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  CacheKey,
-  CacheService,
-  CacheTtl,
-} from '../../common/cache.service';
+import { CacheKey, CacheService, CacheTtl } from '../../common/cache.service';
 import {
   UpsertConfigDto,
   BulkUpsertConfigDto,
