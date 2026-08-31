@@ -20,6 +20,7 @@ import {
   overallGrade,
   MAX_POINTS_PER_SUBJECT,
 } from '../../common/grading';
+import { Permissions } from '../../common/permissions';
 import {
   CreateMarkDto,
   UpdateMarkDto,
@@ -35,7 +36,10 @@ import {
 
 @Injectable()
 export class MarksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private permissions: Permissions,
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MARK CRUD
@@ -544,14 +548,13 @@ export class MarksService {
         );
       }
       if (actor.role === 'TEACHER') {
-        const isClassTeacher = await this.prisma.teacherRole.findFirst({
-          where: {
-            role: 'CLASS_TEACHER',
-            teacherId: actor.teacherId,
-            classSectionId: result.classSectionId,
-          },
-          select: { id: true },
-        });
+        /* The shared rule rather than this service's own copy of it. The same
+           question is asked by the reports service and by two screens, and
+           they each used to answer it separately. */
+        const isClassTeacher = await this.permissions.isClassTeacherOf(
+          actor.teacherId,
+          result.classSectionId,
+        );
         if (!isClassTeacher) {
           throw new ForbiddenException(
             'You are not the class teacher of this class.',
