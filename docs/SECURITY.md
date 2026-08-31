@@ -108,6 +108,16 @@ limiting entirely.
 Every mutation writes an `AuditLog` row: who, what, which record, from which
 address. Reads are deliberately not logged.
 
+**It is readable.** `/admin/audit` shows who changed what, filtered by person,
+by kind of record, by action and by date. Until that page existed the trail was
+collected and unreadable without a SQL client, which is the shape of an audit
+trail nobody audits: it satisfies the letter of "we keep a record" and answers
+no question anybody has.
+
+The page redacts again on the way out, not only on the way in. Rows written
+before the redaction list covered medical details still hold them, and this is
+the one screen where somebody would read them.
+
 **Request bodies are redacted before they are written.** One list in
 `common/redaction.ts`, used by the audit log and anything else that logs a
 body. It covers credentials, and it also covers diagnoses, allergies, emergency
