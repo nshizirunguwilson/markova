@@ -159,8 +159,14 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: '5432'
-      DB_USER: markova
-      DB_PASSWORD: password
+      # The application role, matching what the instances connect as. Set to
+      # the owner, pgbouncer refuses markova_app itself and Postgres is never
+      # asked, so the failure reads as the database being unreachable.
+      DB_USER: markova_app
+      DB_PASSWORD: markova_app
+      # pgbouncer listens on 5432 unless told otherwise, and every client here
+      # is configured for 6432.
+      LISTEN_PORT: '6432'
       DB_NAME: markova
       POOL_MODE: transaction
       MAX_CLIENT_CONN: '500'
