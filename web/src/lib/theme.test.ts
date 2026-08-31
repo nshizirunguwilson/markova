@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  DARK_SURFACE,
+  DARK_BRAND_GROUND,
   readableOnDark,
   contrastRatio,
   MIN_TEXT_CONTRAST,
@@ -183,17 +183,29 @@ describe("the pre-paint script", () => {
  * is a number that goes stale, so it is held to the source here rather than
  * by hoping somebody remembers.
  */
-describe("the dark surface the brand is checked against", () => {
-  it("is the surface the token file actually ships", () => {
-    expect(DARK_SURFACE.toLowerCase()).toBe(
-      tokens.color.surface.dark.toLowerCase(),
+describe("the dark ground the brand is checked against", () => {
+  /*
+    The accent, not the surface. Brand-coloured text sits on both - a link on
+    a card, the active sidebar row on the accent behind it - and the accent is
+    the lighter of the two, so it is the harder test. Checking only the card
+    left the active nav row at 3.28:1 for a school whose colour was a green.
+  */
+  it("is the accent the token file actually ships", () => {
+    expect(DARK_BRAND_GROUND.toLowerCase()).toBe(
+      tokens.color.accent.dark.toLowerCase(),
+    );
+  });
+
+  it("is the paler of the two grounds, so clearing it clears both", () => {
+    expect(contrastRatio("#FFFFFF", tokens.color.accent.dark)).toBeLessThan(
+      contrastRatio("#FFFFFF", tokens.color.surface.dark),
     );
   });
 
   it("lightens a deep brand colour until it reads on that card", () => {
     for (const brand of ["#1B4F72", "#4A235A", "#7B241C", "#0E6251"]) {
       const lifted = readableOnDark(brand);
-      expect(contrastRatio(lifted, DARK_SURFACE)).toBeGreaterThanOrEqual(
+      expect(contrastRatio(lifted, DARK_BRAND_GROUND)).toBeGreaterThanOrEqual(
         MIN_TEXT_CONTRAST,
       );
     }

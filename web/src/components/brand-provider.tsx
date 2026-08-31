@@ -4,7 +4,13 @@ import { useEffect } from "react";
 import { useBrandStore } from "@/stores/brand-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
-import { brandPalette, onPrimaryFor, readableOnDark, shade } from "@/lib/brand-color";
+import {
+  brandPalette,
+  onPrimaryFor,
+  readableLift,
+  readableOnDark,
+  shade,
+} from "@/lib/brand-color";
 import type { ResolvedTheme } from "@/lib/theme";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
@@ -72,20 +78,19 @@ export function applyColor(hex: string, theme: ResolvedTheme = "light") {
   const onDark = theme === "dark";
   const primary = onDark ? readableOnDark(hex) : palette.primary;
 
+  const onPrimary = onDark ? onPrimaryFor(primary) : palette.onPrimary;
+
   root.style.setProperty("--brand-primary", primary);
-  root.style.setProperty(
-    "--brand-primary-light",
-    onDark ? shade(primary, 0.18) : palette.primaryLight,
-  );
+  /* Lightened only as far as the text on it still reads. This is the fill
+     behind the secondary button, not merely a hover tint, so a fixed lift is
+     a fixed chance of failing AA on a colour nobody checked. */
+  root.style.setProperty("--brand-primary-light", readableLift(primary, onPrimary));
   root.style.setProperty(
     "--brand-primary-dark",
     onDark ? shade(primary, -0.18) : palette.primaryDark,
   );
   root.style.setProperty("--brand-info", primary);
-  root.style.setProperty(
-    "--brand-on-primary",
-    onDark ? onPrimaryFor(primary) : palette.onPrimary,
-  );
+  root.style.setProperty("--brand-on-primary", onPrimary);
 
   /*
     The washes are pale tints, which have no dark equivalent that is still

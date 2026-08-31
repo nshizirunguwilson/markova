@@ -907,7 +907,11 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-0">
+    /* The chrome above this grew when the topbar lifted off the edge: the bar
+       is inset now rather than flush, so there is a margin above it and a gap
+       below it before the page starts. Two figures because the insets are
+       smaller on a phone. */
+    <div className="flex h-[calc(100vh-8rem)] flex-col gap-0 lg:h-[calc(100vh-10rem)]">
       {!chatStore.connected && (
         <div className="mb-2 flex items-center justify-center gap-2 rounded-lg border border-warning/30 bg-warning-wash px-4 py-2 text-sm text-warning">
           <WifiOff className="h-4 w-4" />

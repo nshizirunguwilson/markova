@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { ThemeSwitch } from "./theme-switch";
@@ -80,5 +80,44 @@ describe("what the machine says, once system is chosen", () => {
     useThemeStore.getState().setTheme("light");
     useThemeStore.getState().systemChanged(true);
     expect(useThemeStore.getState().resolved).toBe("light");
+  });
+});
+
+/**
+ * What the store believes on the very first render.
+ *
+ * The CSS resolves the theme before any JavaScript runs, so a store that
+ * starts on "light" and corrects itself in an effect leaves everything
+ * derived in JavaScript one render behind the page: the school's brand colour
+ * was computed against a white card and set on a dark one, and only put right
+ * afterwards. A flash of unreadable brand colour on every load, and enough to
+ * fail a contrast audit that measured the first paint.
+ */
+describe("what is painted before an effect runs", () => {
+  const withSystem = (dark: boolean) => {
+    window.localStorage.clear();
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: dark && q.includes("dark"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  };
+
+  it("reads the machine rather than assuming light", async () => {
+    withSystem(true);
+    vi.resetModules();
+    const { useThemeStore: fresh } = await import("@/stores/theme-store");
+    expect(fresh.getState().resolved).toBe("dark");
+    vi.unstubAllGlobals();
+  });
+
+  it("reads a stored choice over the machine", async () => {
+    withSystem(true);
+    window.localStorage.setItem(THEME_STORAGE_KEY, "light");
+    vi.resetModules();
+    const { useThemeStore: fresh } = await import("@/stores/theme-store");
+    expect(fresh.getState().resolved).toBe("light");
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
   });
 });

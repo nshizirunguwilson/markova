@@ -167,12 +167,20 @@ export function readableAsText(hex: string): string {
 }
 
 /**
- * The dark palette's card colour, which brand text has to read on there.
+ * The palest ground the brand colour is drawn on in the dark palette.
  *
- * Kept in step with `color.surface.dark` in design/tokens.json by a test, not
- * by hoping: a number copied into a second file is a number that goes stale.
+ * `accent`, not `surface`. Brand-coloured text sits on both - a link on a
+ * card, the active sidebar row on the accent behind it - and the accent is
+ * the lighter of the two, so it is the harder test. Clearing it clears the
+ * card by definition; clearing only the card left the active nav row at
+ * 3.28:1 for a school whose colour was a mid-green.
+ *
+ * The same reasoning as `readableAsText`, which tests against the colour's
+ * own palest tint rather than against white. Kept in step with
+ * `color.accent.dark` in design/tokens.json by a test rather than by hoping:
+ * a number copied into a second file is a number that goes stale.
  */
-export const DARK_SURFACE = "#151E2E";
+export const DARK_BRAND_GROUND = "#1E3A52";
 
 /**
  * The school's colour, lightened just far enough to read on a dark ground.
@@ -188,12 +196,37 @@ export function readableOnDark(hex: string): string {
   let candidate = hex;
   for (
     let step = 0;
-    step < 40 && contrastRatio(candidate, DARK_SURFACE) < MIN_TEXT_CONTRAST;
+    step < 40 &&
+    contrastRatio(candidate, DARK_BRAND_GROUND) < MIN_TEXT_CONTRAST;
     step += 1
   ) {
     candidate = shade(candidate, 0.05);
   }
   return candidate;
+}
+
+/**
+ * A lighter form of a fill that still carries its text.
+ *
+ * `primaryLight` is not only a hover tint: it is the fill behind the secondary
+ * button, which draws `onPrimary` on top of it. Lightening by a fixed amount
+ * and hoping is what the designed palette used to do, and it shipped white on
+ * #2E86C1 at 3.97:1. The token file was corrected; this is the same fault in
+ * the runtime derivation, which is what a school with its own colour gets - a
+ * school choosing a mid-green got white on #448D74 at 3.95:1 and had no way
+ * of knowing.
+ *
+ * So the lift is walked back toward the base until the pair clears AA. It
+ * terminates: `text` was chosen to read on `base` in the first place, so the
+ * base itself is always an acceptable answer.
+ */
+export function readableLift(base: string, text: string, lift = 0.18): string {
+  if (!parseHex(base)) return base;
+  for (let step = lift; step > 0; step -= 0.02) {
+    const candidate = shade(base, step);
+    if (contrastRatio(text, candidate) >= MIN_TEXT_CONTRAST) return candidate;
+  }
+  return base;
 }
 
 /** Whichever of white and near-black reads better on the given fill. */

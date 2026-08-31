@@ -760,3 +760,51 @@ describe("Topbar unread badge", () => {
     expect(bell.querySelector("span")).toBeNull();
   });
 });
+
+/**
+ * The bar as a floating card, matching the navigation panel beside it.
+ *
+ * It was glued to the top edge with a rule under it, which read as unfinished
+ * next to a panel that floats: one piece of chrome detached and rounded, the
+ * other bolted down and square.
+ */
+describe("the floating bar", () => {
+  const bar = () => document.querySelector("header")!;
+
+  it("carries the same corner shape as the panel", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Topbar onToggleSidebar={() => {}} />);
+    expect(bar().className).toContain("squircle");
+  });
+
+  /*
+    `bar` rather than `panel`, and it is arithmetic rather than taste: 44px on
+    a 64px-tall element is more than half its height, so the corners at each
+    end meet and the browser clamps them into a stadium. 28px is the same
+    squircle read at this element's scale, which is what makes the two shapes
+    look related rather than identical.
+  */
+  it("uses the corner sized for its own height", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Topbar onToggleSidebar={() => {}} />);
+    expect(bar().className).toContain("rounded-bar");
+    expect(bar().className).not.toContain("rounded-panel");
+  });
+
+  it("is inset on every side it has one", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Topbar onToggleSidebar={() => {}} />);
+    for (const side of ["left-3", "right-3", "top-3"]) {
+      expect(bar().className).toContain(side);
+    }
+  });
+
+  /* A floating card is separated from the page by its edge and its shadow. A
+     border underneath as well would be saying the same thing twice. */
+  it("is lifted by a shadow rather than ruled off by a border", () => {
+    signIn("ADMIN");
+    renderWithProviders(<Topbar onToggleSidebar={() => {}} />);
+    expect(bar().className).toContain("shadow-card");
+    expect(bar().className).not.toContain("border-b");
+  });
+});
