@@ -20,6 +20,9 @@ services:
       POSTGRES_USER: markova
       POSTGRES_PASSWORD: password
       POSTGRES_DB: markova
+      # The same clock as the API. A register taken at 07:30 in Kigali must be
+      # stored on the day it happened, not on the previous one.
+      TZ: ${TZ:-Africa/Kigali}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -56,6 +59,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      TZ: ${TZ:-Africa/Kigali}
       DATABASE_URL: postgresql://markova:password@postgres:5432/markova
       REDIS_URL: redis://redis:6379
       CORS_ORIGINS: http://localhost:3001

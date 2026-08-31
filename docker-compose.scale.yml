@@ -35,6 +35,9 @@ x-api-base: &api-base
   environment: &api-env
     NODE_ENV: production
     PORT: 3000
+    # The school's clock, not the container's. UTC puts a Kigali register two
+    # hours out, which lands an early class on the previous day.
+    TZ: ${TZ:-Africa/Kigali}
     # Through the pooler, not straight at Postgres. pgbouncer=true tells Prisma
     # to stop using prepared statements, which transaction pooling cannot keep
     # across a connection it hands to somebody else mid-transaction.

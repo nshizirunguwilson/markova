@@ -490,7 +490,7 @@ describe('AuthService', () => {
         newPassword: 'NewSecure1!',
       });
 
-      expect(result).toEqual({ message: 'Password changed successfully' });
+      expect(result.message).toBe('Password changed successfully');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: user.id },
         data: {
@@ -503,6 +503,45 @@ describe('AuthService', () => {
       const savedHash =
         mockPrisma.user.update.mock.calls[0][0].data.passwordHash;
       expect(await bcrypt.compare('NewSecure1!', savedHash)).toBe(true);
+    });
+
+    /**
+     * Every other session ends with it.
+     *
+     * The usual reason somebody changes their password is that they think
+     * another person has it, and that is exactly when the other person's
+     * session has to stop working. Resetting a forgotten password already did
+     * this; changing a known one did not, which is the case where the user
+     * actively suspects something.
+     */
+    it('signs out the sessions somebody else may be holding', async () => {
+      const user = makeUser();
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      mockPrisma.user.update.mockResolvedValue(user);
+      mockPrisma.userSession.updateMany.mockResolvedValue({ count: 3 });
+
+      const result = await service.changePassword(user.id, {
+        currentPassword: TEST_PASSWORD,
+        newPassword: 'NewSecure1!',
+      });
+
+      expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: { userId: user.id, isActive: true },
+        data: { isActive: false },
+      });
+      expect(result.signedOutElsewhere).toBe(3);
+    });
+
+    it('does not sign anybody out when the current password was wrong', async () => {
+      const user = makeUser();
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+      await expect(
+        service.changePassword(user.id, {
+          currentPassword: 'wrong',
+          newPassword: 'NewSecure1!',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.userSession.updateMany).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException for non-existent user', async () => {

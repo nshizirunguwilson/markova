@@ -17,7 +17,9 @@ describe('SchoolConfigService', () => {
   };
 
   const mockCache = {
-    remember: jest.fn((_key, _ttl, produce: () => unknown) => produce()),
+    remember: jest.fn(
+      (_key: string, _ttl: number, produce: () => unknown) => produce(),
+    ) as jest.Mock,
     forget: jest.fn().mockResolvedValue(undefined),
   };
 

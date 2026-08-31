@@ -355,7 +355,28 @@ export class AuthService {
       },
     });
 
-    return { message: 'Password changed successfully' };
+    /*
+      Every other session ends with it.
+
+      The usual reason somebody changes their password is that they think
+      another person has it, and that is exactly the moment the other person's
+      session has to stop working. Resetting a forgotten password already did
+      this; changing a known one did not, which is the case where the user
+      actively suspects something.
+
+      Access tokens are stateless and last fifteen minutes, so a stolen one
+      survives until it expires. Refresh is what makes a session persist, and
+      that is gone immediately.
+    */
+    const { count } = await this.prisma.userSession.updateMany({
+      where: { userId, isActive: true },
+      data: { isActive: false },
+    });
+
+    return {
+      message: 'Password changed successfully',
+      signedOutElsewhere: count,
+    };
   }
 
   // ─── REQUEST PASSWORD RESET ────────────────────────────────────────────────
