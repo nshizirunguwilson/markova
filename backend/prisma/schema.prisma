@@ -4,7 +4,24 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  /*
+    What the running application connects as: markova_app, which can read and
+    write rows and nothing else. It is deliberately not the owner, because a
+    superuser bypasses every row level security policy however the table is
+    configured, and an application that can drop a table has more power than
+    anything in it needs.
+  */
+  url = env("DATABASE_URL")
+
+  /*
+    What migrations connect as: the owner, which can alter the schema.
+
+    Two URLs because the two jobs need different power. `prisma migrate` and
+    `prisma db seed` use this; nothing at runtime does. It falls back to
+    DATABASE_URL so a developer who has not set it still gets a working
+    `migrate dev`, which is the common case on a fresh clone.
+  */
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ─── ENUMS ──────────────────────────────────────────────────────────────────────
