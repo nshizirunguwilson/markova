@@ -41,7 +41,12 @@ x-api-base: &api-base
     # Through the pooler, not straight at Postgres. pgbouncer=true tells Prisma
     # to stop using prepared statements, which transaction pooling cannot keep
     # across a connection it hands to somebody else mid-transaction.
-    DATABASE_URL: postgresql://markova:password@pgbouncer:6432/markova?pgbouncer=true&connection_limit=10
+    # markova_app, not the owner: a superuser bypasses every row level
+    # security policy, so connecting as one would silently undo the isolation.
+    DATABASE_URL: postgresql://markova_app:markova_app@pgbouncer:6432/markova?pgbouncer=true&connection_limit=10
+    # Migrations need the owner, and they do not go through the pooler:
+    # transaction pooling cannot hold the session state a migration needs.
+    DIRECT_DATABASE_URL: postgresql://markova:password@postgres:5432/markova
     REDIS_URL: redis://redis:6379
     CORS_ORIGINS: http://localhost
     APP_URL: http://localhost

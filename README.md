@@ -33,7 +33,7 @@ markova/
 | Data | PostgreSQL 15, 60 Prisma models, 31 migrations, 77 indexes |
 | Dashboard | Next.js 16, 89 pages across 10 role dashboards |
 | Access | 10 roles, guards on every route, and row level security underneath |
-| Tests | 3,133 backend, 4,889 web, 124 browser checks, 108 pages audited twice |
+| Tests | 10,406 unit tests: 3,133 backend, 4,889 web, 2,384 mobile. 124 browser checks, 108 pages audited twice |
 | Scale | nginx, 3 API replicas, 2 render workers, pgbouncer, Redis |
 | Backups | Nightly, with a restore rehearsal that proves they work |
 
@@ -339,6 +339,7 @@ puts its own dashes back, so the check skips it.
 cd backend && npm test              # 3,133 unit tests, 103 suites
 cd backend && npm run test:e2e
 cd web && npx vitest run            # 4,889 unit tests, 175 files
+cd mobile && npm test               # 2,384 unit tests, 93 suites
 cd mobile && npx tsc --noEmit
 ```
 

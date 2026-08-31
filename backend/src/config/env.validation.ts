@@ -17,6 +17,14 @@
  * missing variable per restart is a miserable way to configure a server.
  */
 
+/**
+ * Roles that own the schema, and so bypass row level security.
+ *
+ * `postgres` is the default superuser everywhere; `markova` is the owner this
+ * project's migrations create and run as.
+ */
+const OWNER_ROLES = new Set(['postgres', 'markova']);
+
 /** Values that are obviously placeholders rather than real secrets. */
 const PLACEHOLDER_SECRETS = new Set([
   'change-me',
@@ -100,6 +108,32 @@ export function validateEnv(
     problems.push(
       `STUDENT_ID_SECRET must be at least ${MIN_SECRET_LENGTH} characters in production (got ${idSecret.length}).`,
     );
+  }
+
+  /*
+    The application must not connect as the database owner.
+
+    Row level security is what stops a forgotten `where` clause returning
+    another family's records, and a superuser bypasses every policy no matter
+    how the table is configured. Connecting as the owner does not fail, warn,
+    or look any different: the policies are simply not applied, and the leak is
+    silent.
+
+    This exists because that is exactly what happened. The non-owner role was
+    created and proved to work, and every config kept using the owner, so the
+    isolation was enabled and doing nothing.
+  */
+  const databaseUrl = get('DATABASE_URL');
+  if (databaseUrl && isProduction) {
+    const user = /^postgres(?:ql)?:\/\/([^:@/]+)/.exec(databaseUrl)?.[1];
+    if (user && OWNER_ROLES.has(user.toLowerCase())) {
+      problems.push(
+        `DATABASE_URL connects as "${user}", which owns the schema. A superuser ` +
+          'bypasses every row level security policy, so one family could read ' +
+          "another's records with nothing to show it happened. Connect as the " +
+          'application role and leave the owner to DIRECT_DATABASE_URL.',
+      );
+    }
   }
 
   const port = get('PORT');

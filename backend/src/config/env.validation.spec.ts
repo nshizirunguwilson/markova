@@ -181,4 +181,67 @@ describe('values of the wrong shape', () => {
       /at least 32 characters in production/,
     );
   });
+
+  /**
+   * The application must not connect as the database owner.
+   *
+   * Row level security is what stops a forgotten `where` clause returning
+   * another family's records, and a superuser bypasses every policy no matter
+   * how the table is configured. Connecting as the owner does not fail or warn:
+   * the policies are simply not applied, and the leak is silent.
+   *
+   * This test exists because that is exactly what happened. The non-owner role
+   * was created and proved to work, and every config kept using the owner, so
+   * the isolation was enabled and doing nothing at all.
+   */
+  describe('which role the application connects as', () => {
+    /* Long secrets because production also requires a minimum length, and
+       this block is about the role rather than about the secrets. */
+    const production = {
+      ...valid,
+      NODE_ENV: 'production',
+      JWT_SECRET: 'a'.repeat(48),
+      JWT_REFRESH_SECRET: 'b'.repeat(48),
+      STUDENT_ID_SECRET: 'c'.repeat(48),
+      CORS_ORIGINS: 'https://school.example',
+    };
+
+    const inProduction = (url: string) => () =>
+      validateEnv({ ...production, DATABASE_URL: url });
+
+    it('refuses the schema owner in production', () => {
+      expect(
+        inProduction('postgresql://markova:pw@localhost:5432/markova'),
+      ).toThrow(/bypasses every row level security policy/);
+    });
+
+    it('refuses the default superuser too', () => {
+      expect(
+        inProduction('postgresql://postgres:pw@localhost:5432/markova'),
+      ).toThrow(/owns the schema/);
+    });
+
+    it('accepts the application role', () => {
+      expect(
+        inProduction('postgresql://markova_app:pw@localhost:5432/markova'),
+      ).not.toThrow();
+    });
+
+    it('reads the role whatever case it is written in', () => {
+      expect(
+        inProduction('postgresql://MARKOVA:pw@localhost:5432/markova'),
+      ).toThrow(/owns the schema/);
+    });
+
+    /* Development runs a single role for convenience, and a developer's own
+       machine holds no real family's records. The check is about deployments. */
+    it('leaves development alone', () => {
+      expect(() =>
+        validateEnv({
+          ...valid,
+          DATABASE_URL: 'postgresql://markova:pw@localhost:5432/markova',
+        }),
+      ).not.toThrow();
+    });
+  });
 });
