@@ -149,10 +149,17 @@ enum MessageStatus {
   READ
 }
 
+/// How a notice reached somebody, which is not the same as what it was about.
+///
+/// `IN_APP` is the bell in the dashboard: written down, shown when they next
+/// look, and never sent anywhere. It was missing, so anything meant only for
+/// the bell was recorded as EMAIL or PUSH and looked, in the record, like a
+/// message that had been sent and might have failed to arrive.
 enum NotificationType {
   SMS
   EMAIL
   PUSH
+  IN_APP
 }
 
 // ─── CORE ───────────────────────────────────────────────────────────────────────
