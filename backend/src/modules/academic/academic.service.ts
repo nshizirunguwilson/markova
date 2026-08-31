@@ -7,6 +7,11 @@ import {
 import { EducationStage, SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
+  CacheKey,
+  CacheService,
+  CacheTtl,
+} from '../../common/cache.service';
+import {
   CreateAcademicYearDto,
   UpdateAcademicYearDto,
   CreateTermDto,
@@ -35,7 +40,10 @@ import {
 
 @Injectable()
 export class AcademicService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACADEMIC YEARS
@@ -674,7 +682,28 @@ export class AcademicService {
   // TIMETABLE
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * A class's timetable.
+   *
+   * Cached, because it is read by every student and teacher in the class,
+   * several times a day, and changes a handful of times a term. One key per
+   * class rather than one for the school, so reorganising one class does not
+   * clear every other class's answer.
+   *
+   * Only the unfiltered form is cached. Narrowing to one teacher is a rarer
+   * question with as many variants as there are teachers, and caching each
+   * would fill Redis with answers nobody asks twice.
+   */
   async findTimetable(classSectionId: string, teacherId?: string) {
+    if (teacherId) return this.readTimetable(classSectionId, teacherId);
+    return this.cache.remember(
+      CacheKey.classTimetable(classSectionId),
+      CacheTtl.timetable,
+      () => this.readTimetable(classSectionId),
+    );
+  }
+
+  private async readTimetable(classSectionId: string, teacherId?: string) {
     const where: any = { classSectionId };
     if (teacherId) where.teacherId = teacherId;
 
@@ -704,6 +733,10 @@ export class AcademicService {
   }
 
   async createTimetable(dto: CreateTimetableDto) {
+    /* Cleared on write rather than left to expire. Somebody who reorganises a
+       timetable looks at the screen straight afterwards, and a five minute
+       stale answer would have them do it again. */
+    await this.cache.forget(CacheKey.classTimetable(dto.classSectionId));
     return this.prisma.timetable.create({
       data: dto,
       include: {
@@ -721,6 +754,14 @@ export class AcademicService {
   async updateTimetable(id: string, dto: UpdateTimetableDto) {
     const entry = await this.prisma.timetable.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Timetable entry not found');
+
+    /* Both classes, because a period moved from one to another changes what
+       each of them shows. Clearing only the new one would leave the old class
+       still displaying a lesson it no longer has. */
+    await this.cache.forget(CacheKey.classTimetable(entry.classSectionId));
+    if (dto.classSectionId && dto.classSectionId !== entry.classSectionId) {
+      await this.cache.forget(CacheKey.classTimetable(dto.classSectionId));
+    }
 
     return this.prisma.timetable.update({
       where: { id },
@@ -746,10 +787,14 @@ export class AcademicService {
     const entry = await this.prisma.timetable.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Timetable entry not found');
     await this.prisma.timetable.delete({ where: { id } });
+    await this.cache.forget(CacheKey.classTimetable(entry.classSectionId));
     return { message: 'Timetable entry deleted' };
   }
 
   async bulkCreateTimetable(dto: BulkTimetableDto) {
+    /* A bulk import can touch any class in the school, so every timetable key
+       goes rather than working out which. The next read repopulates. */
+    await this.cache.forgetMatching(CacheKey.allTimetables);
     const results = { created: 0, errors: [] as string[] };
 
     for (let i = 0; i < dto.entries.length; i++) {

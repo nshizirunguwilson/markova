@@ -15,7 +15,7 @@ describe('the row level security context', () => {
   const interceptor = new RlsInterceptor();
 
   const run = (user: unknown) => {
-    let seen: ReturnType<typeof currentRequest> = null;
+    let seen = null as ReturnType<typeof currentRequest>;
     const context = {
       switchToHttp: () => ({ getRequest: () => ({ user }) }),
     } as never;
