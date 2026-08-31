@@ -16,13 +16,18 @@ import { HttpExceptionFilter } from './http-exception.filter';
  * that message is where a stack trace or a query would leak out.
  */
 describe('HttpExceptionFilter', () => {
-  const run = (exception: unknown, url = '/api/users', method = 'POST') => {
+  const run = (
+    exception: unknown,
+    extra: Record<string, unknown> = {},
+    url = '/api/users',
+    method = 'POST',
+  ) => {
     const json = jest.fn();
     const status = jest.fn().mockReturnValue({ json });
     const host = {
       switchToHttp: () => ({
         getResponse: () => ({ status }),
-        getRequest: () => ({ url, method }),
+        getRequest: () => ({ url, method, ...extra }),
       }),
     } as any;
 
@@ -111,14 +116,14 @@ describe('HttpExceptionFilter', () => {
    */
   describe('what reaches the log', () => {
     it('warns once, with no stack, for a client error', () => {
-      const { warn, error } = run(new BadRequestException('x'), '/api/marks');
+      const { warn, error } = run(new BadRequestException('x'), {}, '/api/marks');
       expect(error).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith('POST /api/marks 400 - x');
     });
 
     it('logs the stack for a real fault', () => {
       const boom = new Error('Connection refused');
-      const { error, warn } = run(boom, '/api/marks');
+      const { error, warn } = run(boom, {}, '/api/marks');
       expect(warn).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledWith(
         'POST /api/marks 500 - Connection refused',
@@ -127,7 +132,7 @@ describe('HttpExceptionFilter', () => {
     });
 
     it('says so even when what was thrown had no message', () => {
-      const { error } = run({ weird: true }, '/api/marks');
+      const { error } = run({ weird: true }, {}, '/api/marks');
       expect(error).toHaveBeenCalledWith(
         'POST /api/marks 500 - Unknown error',
         undefined,
@@ -252,5 +257,63 @@ describe('a duplicate value that reached the filter', () => {
       expect(body).toMatchObject({ reason: 'FEES_OUTSTANDING' });
       expect(body).not.toHaveProperty('detail');
     });
+  });
+});
+
+/**
+ * Finding one failure again afterwards.
+ *
+ * Somebody reports "it said something went wrong". With three instances behind
+ * a balancer the only other handle on that is a timestamp, across three
+ * interleaved logs. The id is on the screen and in the log line, so it is one
+ * grep away.
+ */
+describe('the request id on an error', () => {
+  const withId = (exception: unknown, id?: string) => {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => ({ url: '/api/users', method: 'POST', id }),
+      }),
+    } as any;
+    const filter = new HttpExceptionFilter();
+    const warn = jest.spyOn((filter as any).logger, 'warn').mockImplementation();
+    const error = jest
+      .spyOn((filter as any).logger, 'error')
+      .mockImplementation();
+    filter.catch(exception, host);
+    return { body: json.mock.calls[0]?.[0], warn, error };
+  };
+
+  it('comes back in the body, where a person can read it off', () => {
+    const { body } = withId(
+      new HttpException('Nope', HttpStatus.FORBIDDEN),
+      'req-abc123',
+    );
+    expect(body.requestId).toBe('req-abc123');
+  });
+
+  it('is on the log line too, which is the point of it', () => {
+    const { warn } = withId(
+      new HttpException('Nope', HttpStatus.FORBIDDEN),
+      'req-abc123',
+    );
+    expect(warn.mock.calls[0][0]).toContain('req-abc123');
+  });
+
+  it('is on a server fault as well, which is when it matters most', () => {
+    const { error, body } = withId(new Error('boom'), 'req-abc123');
+    expect(error.mock.calls[0][0]).toContain('req-abc123');
+    expect(body.requestId).toBe('req-abc123');
+  });
+
+  /* A request that arrived before the middleware, or a unit test, has none.
+     The filter still has to answer rather than throwing on a missing id. */
+  it('answers normally when there is no id', () => {
+    const { body } = withId(new HttpException('Nope', HttpStatus.FORBIDDEN));
+    expect(body.statusCode).toBe(HttpStatus.FORBIDDEN);
+    expect(body.requestId).toBeUndefined();
   });
 });
