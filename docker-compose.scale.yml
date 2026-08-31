@@ -1,0 +1,136 @@
+# The scaled topology: nginx, three API instances, workers and a pooler.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.scale.yml \
+#     --profile scale up -d --build
+#
+# A separate file rather than more profiles in the main one, because these are
+# two different intents. docker-compose.yml is "run Markova"; this is "run
+# Markova the way it is deployed", and the difference is worth being able to
+# read in one place.
+#
+# What this adds over the single-instance stack:
+#
+#   nginx        one door, TLS, flood control, load sharing
+#   api-1..3     stateless replicas, interchangeable
+#   worker-1..2  the same image with WORKER=1, so they take PDF work off the
+#                queue and the API instances never launch a browser
+#   pgbouncer    three pools against one Postgres would exhaust its 100
+#                connections; transaction pooling makes them share
+#
+# The pieces that make this work were already true before any of it was added:
+# the API keeps no state in the process, and rate limiting counts in Redis
+# rather than in memory. The one thing that had to be built is the socket
+# adapter, without which chat would work between two people on the same
+# instance and silently fail between two who are not.
+
+x-api-base: &api-base
+  build:
+    context: ./backend
+  restart: unless-stopped
+  depends_on:
+    pgbouncer:
+      condition: service_started
+    redis:
+      condition: service_healthy
+  environment: &api-env
+    NODE_ENV: production
+    PORT: 3000
+    # Through the pooler, not straight at Postgres. pgbouncer=true tells Prisma
+    # to stop using prepared statements, which transaction pooling cannot keep
+    # across a connection it hands to somebody else mid-transaction.
+    DATABASE_URL: postgresql://markova:password@pgbouncer:6432/markova?pgbouncer=true&connection_limit=10
+    REDIS_URL: redis://redis:6379
+    CORS_ORIGINS: http://localhost
+    APP_URL: http://localhost
+    JWT_SECRET: ${JWT_SECRET:-change-me}
+    JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+    UPLOAD_DIR: ./uploads
+    # There are three proxies' worth of hops in front now. Left unset, every
+    # request looks like it came from nginx and the whole school shares one
+    # rate limit bucket.
+    TRUST_PROXY: '1'
+  volumes:
+    - uploads:/app/uploads
+  healthcheck:
+    test: ['CMD', 'node', '-e', "require('http').get('http://localhost:3000/api/health/live',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
+services:
+  nginx:
+    profiles: ['scale']
+    image: nginx:1.27-alpine
+    container_name: markova-nginx
+    restart: unless-stopped
+    depends_on: [api-1, api-2, api-3, web]
+    ports:
+      - '80:80'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+
+  api-1:
+    <<: *api-base
+    profiles: ['scale']
+    container_name: markova-api-1
+
+  api-2:
+    <<: *api-base
+    profiles: ['scale']
+    container_name: markova-api-2
+
+  api-3:
+    <<: *api-base
+    profiles: ['scale']
+    container_name: markova-api-3
+
+  # The workers run the same image with WORKER=1, which is the only thing that
+  # registers the render processor. An API instance therefore never starts a
+  # Chrome page, which is the entire point: a class of report cards cannot make
+  # the dashboard slow for the people using it.
+  worker-1: &worker
+    <<: *api-base
+    profiles: ['scale']
+    container_name: markova-worker-1
+    environment:
+      <<: *api-env
+      WORKER: '1'
+      # Two pages at a time. Each is a Chrome compositor and memory runs out
+      # before CPU does; past a handful the box swaps and every render slows
+      # down, including the ones already in flight.
+      RENDER_CONCURRENCY: '2'
+    ports: []
+    healthcheck:
+      disable: true
+
+  worker-2:
+    <<: *worker
+    container_name: markova-worker-2
+
+  # Three instances open three Prisma pools, and Postgres allows 100
+  # connections in total. Transaction pooling lets them share a much smaller
+  # set: a connection is held for the length of a transaction rather than the
+  # length of a request.
+  pgbouncer:
+    profiles: ['scale']
+    image: edoburu/pgbouncer:latest
+    container_name: markova-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_USER: markova
+      DB_PASSWORD: password
+      DB_NAME: markova
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: '500'
+      DEFAULT_POOL_SIZE: '25'
+      AUTH_TYPE: scram-sha-256
+
+volumes:
+  nginx_cache:
