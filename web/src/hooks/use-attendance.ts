@@ -64,6 +64,40 @@ export function useAttendanceDashboard(date?: string) {
   });
 }
 
+/**
+ * Tell the families of chronically absent children.
+ *
+ * The endpoint existed and nothing called it, so a head teacher could see six
+ * children were missing school and had to ring each family by hand.
+ */
+export function useAlertChronicFamilies() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post("/attendance/chronic/notify")).data as {
+        studentsIdentified: number;
+        alertsSent: number;
+        unreachable: number;
+      },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["chronically-absent"] });
+      toast.success(
+        r.alertsSent === 0
+          ? "Nobody needed telling."
+          : `Told ${r.alertsSent} ${r.alertsSent === 1 ? "family" : "families"} about ${r.studentsIdentified} ${r.studentsIdentified === 1 ? "child" : "children"}.`,
+      );
+      /* Named separately, because this is the half somebody has to act on:
+         those families need a phone call rather than a message. */
+      if (r.unreachable > 0) {
+        toast.warning(
+          `${r.unreachable} ${r.unreachable === 1 ? "family has" : "families have"} no email or phone on file and will need a call.`,
+        );
+      }
+    },
+    onError: (e) => toast.error(errorMessage(e, "Could not send the alerts")),
+  });
+}
+
 export function useChronicallyAbsent(classSectionId?: string, threshold?: number) {
   return useQuery({
     queryKey: ["chronic-absent", classSectionId, threshold],

@@ -15,6 +15,13 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * that says so rather than double-counting, and a lateness rule that reads the
  * clock rather than the minute hand.
  */
+/* The delivery queue. Whether a message is sent is tested where the worker
+   lives; here it only has to accept the job. */
+const delivery = {
+  email: jest.fn().mockResolvedValue(undefined),
+  sms: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('AttendanceService', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let notifications: { send: jest.Mock };
@@ -26,6 +33,7 @@ describe('AttendanceService', () => {
     service = new AttendanceService(
       prisma,
       notifications as unknown as NotificationsService,
+      delivery as never,
     );
     prisma.parentStudent.findMany.mockResolvedValue([]);
     prisma.attendance.findFirst.mockResolvedValue(null);
@@ -912,9 +920,11 @@ describe('filtering the register', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AttendanceService(prisma, {
-      send: jest.fn(),
-    } as unknown as NotificationsService);
+    service = new AttendanceService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+      delivery as never,
+    );
     prisma.attendance.findMany.mockResolvedValue([]);
     prisma.attendance.count.mockResolvedValue(0);
   });
@@ -969,9 +979,11 @@ describe('one student’s attendance over a range', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AttendanceService(prisma, {
-      send: jest.fn(),
-    } as unknown as NotificationsService);
+    service = new AttendanceService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+      delivery as never,
+    );
     prisma.attendance.findMany.mockResolvedValue([]);
   });
 
@@ -1005,5 +1017,104 @@ describe('one student’s attendance over a range', () => {
     const where = prisma.attendance.findMany.mock.calls[0][0].where;
     expect(where.date.lte).toBeInstanceOf(Date);
     expect(where.date.gte).toBeUndefined();
+  });
+
+});
+
+/**
+ * Telling parents their child has been missing school.
+ *
+ * The endpoint existed and the screen had no way to call it, so a head teacher
+ * could see six children were chronically absent and had to ring each family
+ * by hand.
+ */
+describe('alerting the families of chronically absent children', () => {
+  const chronic = {
+    studentId: 's-1',
+    name: 'Divine Uwase',
+    class: 'Senior 1 A',
+    absentDays: 14,
+    totalDays: 60,
+    absenceRate: 23,
+  };
+
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: AttendanceService;
+  let notifications: { send: jest.Mock };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    notifications = { send: jest.fn().mockResolvedValue({}) };
+    service = new AttendanceService(
+      prisma,
+      notifications as unknown as NotificationsService,
+      delivery as never,
+    );
+    delivery.email.mockClear();
+    delivery.sms.mockClear();
+    jest
+      .spyOn(service, 'getChronicallyAbsent')
+      .mockResolvedValue({ students: [chronic], threshold: 20 } as never);
+  });
+
+  it('emails a parent who has an address', async () => {
+    prisma.parentStudent.findMany.mockResolvedValue([
+      { parentUserId: 'p-1', parent: { email: 'p@markova.edu', phone: null, firstName: 'Aline' } },
+    ]);
+    const out = await service.sendChronicAbsenteeismAlerts();
+    expect(notifications.send).toHaveBeenCalled();
+    expect(out.alertsSent).toBe(1);
+  });
+
+  /*
+    The gap this closed. Most parents here are registered with a phone and no
+    email, so skipping them meant the families least likely to be reached any
+    other way were exactly the ones this never reached.
+  */
+  it('texts a parent who has only a phone', async () => {
+    prisma.parentStudent.findMany.mockResolvedValue([
+      { parentUserId: 'p-1', parent: { email: null, phone: '+250788100000', firstName: 'Aline' } },
+    ]);
+    const out = await service.sendChronicAbsenteeismAlerts();
+    expect(delivery.sms).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '+250788100000' }),
+    );
+    expect(out.alertsSent).toBe(1);
+  });
+
+  it('puts the child and the numbers in the text', async () => {
+    prisma.parentStudent.findMany.mockResolvedValue([
+      { parentUserId: 'p-1', parent: { email: null, phone: '+250788100000', firstName: 'Aline' } },
+    ]);
+    await service.sendChronicAbsenteeismAlerts();
+    const { message } = delivery.sms.mock.calls[0][0];
+    expect(message).toContain('Divine Uwase');
+    expect(message).toContain('14');
+    expect(message).toContain('60');
+  });
+
+  /* Counted rather than skipped in silence, so somebody can see which
+     families need a phone call instead. */
+  it('counts a parent who cannot be reached at all', async () => {
+    prisma.parentStudent.findMany.mockResolvedValue([
+      { parentUserId: 'p-1', parent: { email: null, phone: null, firstName: 'Aline' } },
+    ]);
+    const out = await service.sendChronicAbsenteeismAlerts();
+    expect(out.unreachable).toBe(1);
+    expect(out.alertsSent).toBe(0);
+  });
+
+  /* One family's message failing must not stop the rest of the run: the other
+     five children still need their parents told. */
+  it('carries on when one message fails', async () => {
+    prisma.parentStudent.findMany.mockResolvedValue([
+      { parentUserId: 'p-1', parent: { email: 'a@markova.edu', phone: null, firstName: 'Aline' } },
+      { parentUserId: 'p-2', parent: { email: 'b@markova.edu', phone: null, firstName: 'Eric' } },
+    ]);
+    notifications.send
+      .mockRejectedValueOnce(new Error('mail server refused'))
+      .mockResolvedValueOnce({});
+    const out = await service.sendChronicAbsenteeismAlerts();
+    expect(out.alertsSent).toBe(1);
   });
 });
