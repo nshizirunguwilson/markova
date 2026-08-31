@@ -75,6 +75,38 @@ postgres:  $(docker exec "$CONTAINER" postgres --version 2>/dev/null || echo unk
 restore:   ./scripts/restore.sh $stamp
 MANIFEST
 
+# ── off site ────────────────────────────────────────────────────────────────
+#
+# A backup on the same machine survives a dropped table, a bad migration and a
+# botched deploy. It does not survive the disk, the machine, or the building,
+# and those are the cases where a school loses a term of marks for good.
+#
+# Deliberately a command rather than a provider. A school might have a NAS in
+# the next room, a bucket, or somebody's external drive, and hard-coding one of
+# those would be choosing for them. Set BACKUP_SYNC_CMD to whatever they use:
+#
+#   BACKUP_SYNC_CMD='rclone copy {} remote:markova/{}'
+#   BACKUP_SYNC_CMD='rsync -a {} backup@nas:/markova/'
+#   BACKUP_SYNC_CMD='aws s3 sync {} s3://markova-backups/{}'
+#
+# {} is replaced with the path of the backup just taken.
+if [ -n "${BACKUP_SYNC_CMD:-}" ]; then
+  say "copying off site..."
+  cmd="${BACKUP_SYNC_CMD//\{\}/$target}"
+  if eval "$cmd"; then
+    say "off-site copy done"
+    echo "offsite:   $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$target/MANIFEST"
+  else
+    # Loud, and non-zero at the end. A backup that exists only on the machine
+    # it is protecting is the case this whole step is for, and a silent failure
+    # here would leave somebody believing they had an off-site copy.
+    echo "  OFF-SITE COPY FAILED. The backup exists locally only." >&2
+    OFFSITE_FAILED=1
+  fi
+else
+  say "no BACKUP_SYNC_CMD set, so this backup is on this machine only"
+fi
+
 # ── retention ───────────────────────────────────────────────────────────────
 #
 # Old backups are removed only after the new one is complete, so there is never
@@ -86,3 +118,7 @@ echo "Done. $(ls -1 "$BACKUP_DIR" | wc -l | tr -d ' ') backup(s) kept, $KEEP_DAY
 echo
 echo "This is not a backup until you have restored from it. Run:"
 echo "  ./scripts/restore.sh --check $stamp"
+
+# Exits non-zero when the off-site copy failed, so whatever runs this on a
+# schedule can tell the difference between a backup and a local-only one.
+exit "${OFFSITE_FAILED:-0}"
