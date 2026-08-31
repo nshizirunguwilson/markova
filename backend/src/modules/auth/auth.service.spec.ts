@@ -11,11 +11,14 @@ import { RedisService } from '../../redis/redis.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { hashPassword } from '../../common/password';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const TEST_PASSWORD = 'Password123!';
 let TEST_PASSWORD_HASH: string;
+/** The same password, hashed at the cost the app now uses. */
+let CURRENT_PASSWORD_HASH: string;
 
 const makeUser = (overrides: Record<string, any> = {}) => ({
   id: 'user-1',
@@ -85,7 +88,15 @@ describe('AuthService', () => {
   let service: AuthService;
 
   beforeAll(async () => {
-    TEST_PASSWORD_HASH = await bcrypt.hash(TEST_PASSWORD, 4); // low rounds for speed
+    /*
+      Cost 4 keeps the suite fast, and it is also below the current cost, so a
+      user built from it looks like an account created before the cost was
+      raised. That is deliberate for the upgrade tests below, but it means the
+      rest of the suite would pay for a rehash on every simulated sign-in, so
+      those cases build their user with a current hash instead.
+    */
+    TEST_PASSWORD_HASH = await bcrypt.hash(TEST_PASSWORD, 4);
+    CURRENT_PASSWORD_HASH = await hashPassword(TEST_PASSWORD);
   });
 
   beforeEach(async () => {
@@ -698,8 +709,18 @@ describe('AuthService', () => {
       expect(result.devOtp).toMatch(/^\d{6}$/);
     });
 
+    /*
+      Twenty-five real sign-ins, each doing a real bcrypt comparison at the
+      cost the application actually uses. That is around six seconds of
+      deliberate work, so it gets a timeout that reflects it rather than the
+      five-second default. Faking bcrypt here would make it fast and would
+      stop it being a test of the sign-in path.
+    */
     it('is different each time', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      // A current hash, so none of the twenty-five also pays for an upgrade.
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ passwordHash: CURRENT_PASSWORD_HASH }),
+      );
       const codes = new Set<string>();
       for (let i = 0; i < 25; i++) {
         const result: any = await service.login({
@@ -711,7 +732,7 @@ describe('AuthService', () => {
       // Six digits and 25 draws: a repeat would be a sign the source is not
       // random rather than bad luck.
       expect(codes.size).toBeGreaterThan(20);
-    });
+    }, 30000);
 
     /**
      * `devOtp` exists so the demo and the browser tests can sign in. In
@@ -826,6 +847,16 @@ describe('AuthService', () => {
   });
 
   describe('completing a password reset', () => {
+    /**
+     * Raising the cost factor without breaking anybody.
+     *
+     * A password is only in memory during a sign-in, which makes that the one
+     * moment an old hash can be replaced. Without this, the new cost would
+     * apply to new accounts only, and the accounts that have existed longest,
+     * which are the ones most worth protecting, would keep the weaker hash
+     * for ever.
+     */
+
     it('refuses a token nobody issued', async () => {
       mockRedis.get.mockResolvedValue(null);
       await expect(
@@ -1344,5 +1375,78 @@ describe('a code for an account that is gone', () => {
     await expect(
       service.verifyOtp({ sessionId: 'session-1', otp: '123456' }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  /**
+   * Raising the cost factor without asking anybody to reset their password.
+   *
+   * A password is only in memory during a sign-in, which makes that the one
+   * moment an old hash can be replaced. Without this the new cost would apply
+   * to new accounts only, and the accounts that have existed longest, which
+   * are the ones most worth protecting, would keep the weaker hash for ever.
+   */
+  describe('upgrading an old password hash', () => {
+    beforeEach(() => {
+      mockPrisma.userSession.create.mockResolvedValue({});
+    });
+
+    it('replaces a hash made at a weaker cost, on sign-in', async () => {
+      // TEST_PASSWORD_HASH is cost 4, which is below what the app now uses.
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+
+      const upgrade = mockPrisma.user.update.mock.calls.find(
+        (c: any) => c[0]?.data?.passwordHash,
+      );
+      expect(upgrade).toBeDefined();
+      expect(upgrade![0].data.passwordHash).toMatch(/^\$2[aby]?\$12\$/);
+    }, 20000);
+
+    it('leaves a hash already at the current cost alone', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(
+        makeUser({ passwordHash: CURRENT_PASSWORD_HASH }),
+      );
+      mockPrisma.user.update.mockResolvedValue({});
+
+      await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+
+      const upgrade = mockPrisma.user.update.mock.calls.find(
+        (c: any) => c[0]?.data?.passwordHash,
+      );
+      expect(upgrade).toBeUndefined();
+    }, 20000);
+
+    /* The old hash still works. A failed upgrade must not fail a sign-in that
+       has already succeeded. */
+    it('signs the person in even when the upgrade cannot be saved', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      mockPrisma.user.update.mockRejectedValue(new Error('database is down'));
+
+      await expect(
+        service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: TEST_PASSWORD,
+        }),
+      ).resolves.toBeDefined();
+    }, 20000);
+
+    it('never upgrades on a failed sign-in', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      await expect(
+        service.login({
+          email: 'wilsonshizirungu@gmail.com',
+          password: 'wrong',
+        }),
+      ).rejects.toThrow();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
   });
 });
