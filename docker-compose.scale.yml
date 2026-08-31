@@ -79,7 +79,16 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Africa/Kigali}
-    ports: []
+    # Nothing published. Everything reaches the dashboard through nginx on
+    # port 80, so publishing 3001 as well would be a second door into the same
+    # room with none of the flood control on it.
+    #
+    # `!reset` rather than an empty list: Compose merges sequences, so
+    # `ports: []` leaves the base file's mapping in place. That collided with a
+    # developer's own dev server on 3001 and failed the whole stack with
+    # "address already in use", which reads as a machine problem rather than a
+    # configuration one.
+    ports: !reset []
 
   nginx:
     profiles: ['scale']
