@@ -35,3 +35,24 @@ export const withRequestContext = <T>(
  */
 export const currentRequest = (): RequestContext | null =>
   storage.getStore() ?? null;
+
+/**
+ * Whether the identity has already been put on the connection in hand.
+ *
+ * The settings the policies read are transaction local, so they have to be set
+ * inside the same transaction as the query that depends on them. A standalone
+ * query gets a transaction of its own for the purpose. A query running inside
+ * one a service opened must not: it is already on a connection that has been
+ * told who is asking, and opening another would take a second connection,
+ * leave the outer transaction's work unprotected by the setting, and quietly
+ * break the atomicity the service asked for.
+ *
+ * This flag is what tells the two cases apart.
+ */
+const applied = new AsyncLocalStorage<true>();
+
+/** Run `fn` knowing the connection it uses already carries the identity. */
+export const withIdentityApplied = <T>(fn: () => T): T => applied.run(true, fn);
+
+/** True when the caller is already inside a transaction that set the identity. */
+export const identityApplied = (): boolean => applied.getStore() === true;

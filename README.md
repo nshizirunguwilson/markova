@@ -223,7 +223,13 @@ reach.
 **Logs** carry a request id end to end, and redact more than credentials: this
 system holds diagnoses, allergies and discipline notes for children, and a log
 line carrying a diagnosis has copied a medical record into a file with none of
-the protection the table had.
+the protection the table had. The trail is readable at `/admin/audit`, filtered
+by person, record, action and date.
+
+**Messages retry.** Sign-in codes, password reset links and notices go on a
+queue with six attempts over about fifteen minutes. Sent inline, a momentary
+SMTP hiccup dropped a staff member's OTP silently and they simply could not
+sign in.
 
 ## Running it at scale
 

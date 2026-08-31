@@ -25,6 +25,7 @@ import {
 import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Library')
 @Controller('library')
@@ -110,6 +111,25 @@ export class LibraryController {
   @ApiOperation({ summary: 'Get all active loans' })
   getActiveLoans() {
     return this.service.getActiveLoans();
+  }
+
+  /**
+   * Remind everybody holding an overdue book.
+   *
+   * The overdue list has been readable since this module was written and there
+   * was no way to act on it: a librarian could see six books were late and had
+   * to chase each borrower by hand.
+   *
+   * Its own throttle, well below the app-wide limit. Sending it twice is a
+   * nuisance to every borrower rather than a load problem, so the cap is about
+   * politeness rather than capacity.
+   */
+  @Post('loans/overdue/remind')
+  @Roles('ADMIN', 'LIBRARIAN')
+  @Throttle({ default: { ttl: 300000, limit: 3 } })
+  @ApiOperation({ summary: 'Email or text everybody holding an overdue book' })
+  remindOverdue() {
+    return this.service.remindOverdue();
   }
 
   @Get('loans/overdue')

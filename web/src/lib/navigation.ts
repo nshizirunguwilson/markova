@@ -12,6 +12,8 @@ import {
   BarChart3,
   FileText,
   HelpCircle,
+  History,
+  CalendarClock,
   type LucideIcon,
   Clock,
   UserCheck,
@@ -64,6 +66,10 @@ const adminNav: NavSection[] = [
       { label: "Subjects", href: "/admin/subjects", icon: BookOpen },
       { label: "Classes", href: "/admin/classes", icon: Backpack },
       { label: "Timetable", href: "/admin/timetable", icon: Clock },
+      /* The exam timetable. The endpoints have existed since the academic
+         module was written and nothing reached them, so a school could store
+         one and no student could ever see it. */
+      { label: "Exams", href: "/admin/exams", icon: CalendarClock },
       { label: "Grading", href: "/grading", icon: Scale },
       /* Marks, report cards and the register are the Director of Studies'.
          They are not listed here, and the API refuses them, so a menu that
@@ -99,6 +105,9 @@ const adminNav: NavSection[] = [
     title: "System",
     items: [
       { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
+      /* Every change anybody has made. Recorded since the audit interceptor
+         was written and, until this entry, readable only through SQL. */
+      { label: "What has changed", href: "/admin/audit", icon: History },
       { label: "Settings", href: "/admin/settings", icon: Settings },
       { label: "Help & Support", href: "/admin/help", icon: HelpCircle },
     ],
@@ -332,6 +341,9 @@ const headTeacherNav: NavSection[] = [
       { label: "Generate cards", href: "/admin/reports", icon: FileText },
       { label: "Classes", href: "/admin/classes", icon: School },
       { label: "Timetable", href: "/admin/timetable", icon: CalendarDays },
+      /* The DOS runs academic delivery, so the exam timetable is theirs to
+         set as much as the lesson one. */
+      { label: "Exams", href: "/admin/exams", icon: CalendarClock },
       { label: "Grading", href: "/grading", icon: Scale },
     ],
   },

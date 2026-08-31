@@ -12,7 +12,9 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  */
 /* The cache asks the source every time here; caching is tested on its own. */
 const cache = {
-  remember: jest.fn((_k: string, _t: number, produce: () => unknown) => produce()),
+  remember: jest.fn((_k: string, _t: number, produce: () => unknown) =>
+    produce(),
+  ),
   forget: jest.fn().mockResolvedValue(undefined),
   forgetMatching: jest.fn().mockResolvedValue(undefined),
 };

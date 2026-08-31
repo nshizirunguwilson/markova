@@ -6,6 +6,7 @@ import { AcademicModule } from './modules/academic/academic.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClinicModule } from './modules/clinic/clinic.module';
 import { FinanceModule } from './modules/finance/finance.module';
@@ -37,6 +38,7 @@ import { RedisModule } from './redis/redis.module';
  */
 
 const FEATURE_MODULES = [
+  AuditModule,
   AuthModule,
   UsersModule,
   SchoolConfigModule,
@@ -133,5 +135,80 @@ describe('every controller is reachable', () => {
       meta(m, 'controllers').map((c) => (c as { name: string }).name),
     );
     expect(all.length).toBe(new Set(all).size);
+  });
+
+  /**
+   * A service that injects something its module never imported.
+   *
+   * This is the shape of bug that every unit test in this repository is blind
+   * to, because a unit test constructs the service directly and hands it a
+   * stub. Nest only discovers it when the application actually boots, so it
+   * showed up as three containers restart-looping with a full green suite
+   * behind them.
+   *
+   * Reading the source rather than booting: a full Nest bootstrap here would
+   * need a database, a Redis and a browser, and the point is to fail fast in
+   * the unit suite.
+   */
+  describe('services only inject what their module imports', () => {
+    /** Providers that come from a module rather than from the feature itself. */
+    const FROM_MODULE: Record<string, string> = {
+      DeliveryQueue: 'JobsModule',
+      RenderQueue: 'JobsModule',
+    };
+
+    const featureFiles = () => {
+      const out: { module: string; file: string; source: string }[] = [];
+      for (const feature of readdirSync(modulesDir)) {
+        const dir = join(modulesDir, feature);
+        if (!statSync(dir).isDirectory()) continue;
+        for (const file of readdirSync(dir)) {
+          if (!file.endsWith('.service.ts') || file.endsWith('.spec.ts'))
+            continue;
+          out.push({
+            module: feature,
+            file,
+            source: readFileSync(join(dir, file), 'utf8'),
+          });
+        }
+      }
+      return out;
+    };
+
+    it.each(Object.entries(FROM_MODULE))(
+      'every service injecting %s sits in a module importing %s',
+      (provider, owningModule) => {
+        for (const { module, file, source } of featureFiles()) {
+          /* Constructor injection only. A type import alone is not a
+             dependency and does not need the module. */
+          const injects = new RegExp(
+            `(private|public|protected)\\s+(readonly\\s+)?\\w+:\\s*${provider}\\b`,
+          ).test(source);
+          if (!injects) continue;
+
+          const modulePath = join(modulesDir, module, `${module}.module.ts`);
+          const moduleSource = readFileSync(modulePath, 'utf8');
+
+          /*
+            The `imports:` array specifically, not the file.
+
+            A module that injects the provider almost always has the import
+            statement at the top as well, so searching the whole source finds
+            that line and passes whether or not the module is actually
+            imported. That is the exact bug this is here to catch, and the
+            first version of this test had it.
+          */
+          const importsArray = /imports:\s*\[([\s\S]*?)\]/.exec(moduleSource);
+          const wired = (importsArray?.[1] ?? '').includes(owningModule);
+
+          /* Jest's expect takes no message argument, so the explanation goes
+             in the assertion itself: a failure prints the module name rather
+             than only "expected true". */
+          expect(
+            `${module}/${file} needs ${owningModule} in imports: ${wired}`,
+          ).toBe(`${module}/${file} needs ${owningModule} in imports: true`);
+        }
+      },
+    );
   });
 });

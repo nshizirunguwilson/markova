@@ -13,9 +13,15 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui";
-import { useAttendanceDashboard, useChronicallyAbsent } from "@/hooks/use-attendance";
+import {
+  useAlertChronicFamilies,
+  useAttendanceDashboard,
+  useChronicallyAbsent,
+} from "@/hooks/use-attendance";
 import { Button } from "@/components/ui";
-import { Calendar, AlertTriangle, Users, TrendingDown } from "lucide-react";
+import { Calendar, AlertTriangle, Users, TrendingDown,
+  Mail,
+} from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -25,6 +31,7 @@ export default function AdminAttendancePage() {
 
   const { data: dashboard, isLoading } = useAttendanceDashboard(date);
   const { data: chronic } = useChronicallyAbsent();
+  const alertFamilies = useAlertChronicFamilies();
 
   return (
     <div className="space-y-6">
@@ -91,6 +98,26 @@ export default function AdminAttendancePage() {
             </Card>
           ) : (
             <>
+              {/*
+                Say which day this is, when it is not today.
+
+                Before anybody has taken the register, this page used to show
+                every class at nought per cent, which reads as a school where
+                nobody turned up rather than as a morning that has not started.
+                It now shows the last day that was taken, and says so.
+              */}
+              {dashboard.isFallback && (
+                <div className="mb-4 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground-muted">
+                  The register has not been taken today yet. This is{" "}
+                  {new Date(dashboard.date).toLocaleDateString(undefined, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                  , the last day it was.
+                </div>
+              )}
+
               {/* Overall Stats */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                 <Card>
@@ -198,6 +225,32 @@ export default function AdminAttendancePage() {
           <p className="mt-1 text-xs text-muted">
             Students with absence rate above {chronic?.threshold || 20}%
           </p>
+          {/*
+            The list has been readable since this page was written and there
+            was no way to act on it: a head teacher could see six children were
+            missing school and had to ring each family by hand.
+
+            Parents with a phone and no email get a text, which matters here:
+            most parents in this school are registered with a phone only, so
+            an email-only alert reached the wrong half of them.
+          */}
+          {chronic?.students?.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/30 bg-warning-wash px-4 py-3">
+              <p className="text-sm text-foreground">
+                {chronic.students.length}{" "}
+                {chronic.students.length === 1 ? "family has" : "families have"}{" "}
+                not been told.
+              </p>
+              <Button
+                size="sm"
+                isLoading={alertFamilies.isPending}
+                onClick={() => alertFamilies.mutate()}
+              >
+                <Mail className="mr-1.5 h-4 w-4" />
+                Tell the families
+              </Button>
+            </div>
+          )}
           {chronic?.students?.length > 0 ? (
             <div className="mt-4 overflow-x-auto" tabIndex={0} role="region" aria-label="Attendance table, scrolls horizontally">
               <Table>

@@ -1,4 +1,26 @@
 {
+  "//": [
+    "What `nest build` compiles.",
+    "",
+    "`prisma/` is excluded, and that is what makes the output land at",
+    "dist/main.js rather than dist/src/main.js. TypeScript infers the output",
+    "layout from the common directory of everything it compiles, so",
+    "prisma/seed.ts sitting outside src/ pushed the root up to the project and",
+    "moved every compiled file down a level.",
+    "",
+    "The Docker image starts `node dist/main`, so the containerised API could",
+    "never boot: it restart-looped on MODULE_NOT_FOUND while every test and",
+    "every typecheck passed, because none of them run the built output.",
+    "",
+    "Nothing needs the seed compiled: prisma.config.ts runs it through ts-node."
+  ],
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    "prisma",
+    "prisma.config.ts"
+  ]
 }

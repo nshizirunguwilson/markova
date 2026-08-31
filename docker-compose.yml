@@ -69,6 +69,10 @@ services:
       APP_URL: http://localhost:3001
       JWT_SECRET: ${JWT_SECRET:-change-me}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+      # Student numbers carry an HMAC signed with this. Required in
+      # production: without it a number can be forged, and the API refuses
+      # to start rather than issue numbers that mean nothing.
+      STUDENT_ID_SECRET: ${STUDENT_ID_SECRET:-}
       UPLOAD_DIR: ./uploads
     ports:
       - '3000:3000'
@@ -115,6 +119,10 @@ services:
     environment:
       PGPASSWORD: password
       KEEP_DAYS: '30'
+      # Where a copy goes so it survives this machine. Unset means the backup
+      # exists here only, which survives a dropped table and not the building.
+      # {} is replaced with the path of the backup just taken.
+      BACKUP_SYNC_CMD: ${BACKUP_SYNC_CMD:-}
     volumes:
       - ./backups:/backups
       - ./backend/uploads:/uploads:ro
@@ -136,7 +144,16 @@ services:
             tar -czf "$$target/uploads.tar.gz" -C / uploads 2>/dev/null || true
             printf 'taken:     %s\nhost:      container\ndatabase:  markova\n' "$$stamp" \
               > "$$target/MANIFEST"
-            echo "backup $$stamp ok"
+            if [ -n "$${BACKUP_SYNC_CMD}" ]; then
+              cmd="$${BACKUP_SYNC_CMD//\{\}/$$target}"
+              if eval "$$cmd"; then
+                echo "backup $$stamp ok, copied off site"
+              else
+                echo "backup $$stamp ok LOCALLY ONLY: the off-site copy failed" >&2
+              fi
+            else
+              echo "backup $$stamp ok (this machine only)"
+            fi
           else
             echo "backup $$stamp FAILED" >&2
             rm -rf "$$target"

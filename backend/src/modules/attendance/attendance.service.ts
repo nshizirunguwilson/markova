@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
+import { DeliveryQueue } from '../../jobs/delivery.queue';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/dto';
 import {
@@ -26,6 +27,7 @@ export class AttendanceService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private delivery: DeliveryQueue,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -621,9 +623,42 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getDashboardData(date?: string) {
-    const targetDate = date
+    const asked = date
       ? new Date(date)
       : new Date(new Date().toISOString().slice(0, 10));
+
+    /*
+      Fall back to the last day the register was taken.
+
+      Asked for today at half past seven, before anybody has marked anything,
+      this showed a school where nobody turned up: every class at nought per
+      cent, which reads as a catastrophe rather than as an empty register. The
+      same thing happened on a Sunday, and through the holidays.
+
+      Only when no date was asked for. Somebody who explicitly asks for the
+      fifteenth wants the fifteenth, and quietly showing them the fourteenth
+      would be worse than showing them nothing.
+    */
+    let targetDate = asked;
+    let isFallback = false;
+
+    if (!date) {
+      const taken = await this.prisma.attendance.findFirst({
+        where: { date: asked, type: 'daily' },
+        select: { id: true },
+      });
+      if (!taken) {
+        const previous = await this.prisma.attendance.findFirst({
+          where: { date: { lt: asked }, type: 'daily' },
+          orderBy: { date: 'desc' },
+          select: { date: true },
+        });
+        if (previous) {
+          targetDate = previous.date;
+          isFallback = true;
+        }
+      }
+    }
 
     // Get all class sections with student counts
     const sections = await this.prisma.classSection.findMany({
@@ -680,6 +715,9 @@ export class AttendanceService {
 
     return {
       date: targetDate.toISOString().slice(0, 10),
+      /* So the screen can say "the last register was Friday" rather than
+         silently showing Friday's figures under today's heading. */
+      isFallback,
       overall: {
         totalStudents,
         present: totalPresent,
@@ -781,18 +819,32 @@ export class AttendanceService {
   async sendChronicAbsenteeismAlerts() {
     const { students, threshold } = await this.getChronicallyAbsent();
     let alertsSent = 0;
+    /* Counted rather than skipped in silence, so somebody can see that two of
+       these families have no way of being reached and needs a phone call. */
+    let unreachable = 0;
 
     for (const student of students) {
       // Find parent links for each chronically absent student
       const parentLinks = await this.prisma.parentStudent.findMany({
         where: { studentId: student.studentId },
         include: {
-          parent: { select: { email: true, firstName: true } },
+          parent: { select: { email: true, phone: true, firstName: true } },
         },
       });
 
       for (const link of parentLinks) {
-        if (!link.parent.email) continue;
+        /*
+          A parent with a phone and no email is still a parent to tell.
+
+          This used to skip them, and most parents here are registered with a
+          phone and nothing else, so the families least likely to be reached
+          any other way were exactly the ones this never reached. They get the
+          same message as a text.
+        */
+        if (!link.parent.email && !link.parent.phone) {
+          unreachable += 1;
+          continue;
+        }
 
         const message =
           `Dear ${link.parent.firstName}, this is to inform you that your child <strong>${student.name}</strong> ` +
@@ -802,17 +854,29 @@ export class AttendanceService {
           `<br><br>Please contact the school administration to discuss how we can support your child's attendance.`;
 
         try {
-          await this.notifications.send({
-            userId: link.parentUserId,
-            type: NotificationType.EMAIL,
-            title: 'Chronic Absenteeism Alert',
-            message,
-            relatedEntityType: NotificationSubject.ATTENDANCE,
-            relatedEntityId: student.studentId,
-          });
+          if (link.parent.email) {
+            await this.notifications.send({
+              userId: link.parentUserId,
+              type: NotificationType.EMAIL,
+              title: 'Chronic Absenteeism Alert',
+              message,
+              relatedEntityType: NotificationSubject.ATTENDANCE,
+              relatedEntityId: student.studentId,
+            });
+          } else {
+            /* The same facts, in the length a text can hold. A parent reading
+               this on a feature phone needs the child, the number and what to
+               do, and nothing else. */
+            await this.delivery.sms({
+              phone: link.parent.phone!,
+              message:
+                `Markova: ${student.name} has missed ${student.absentDays} of ` +
+                `${student.totalDays} school days. Please contact the school.`,
+            });
+          }
           alertsSent++;
         } catch {
-          // Log but continue with remaining alerts
+          // One parent's message failing must not stop the rest of the run.
         }
       }
     }
@@ -821,6 +885,7 @@ export class AttendanceService {
       threshold,
       studentsIdentified: students.length,
       alertsSent,
+      unreachable,
     };
   }
 }

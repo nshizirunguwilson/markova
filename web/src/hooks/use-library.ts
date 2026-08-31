@@ -113,6 +113,39 @@ export function useActiveLoans() {
   });
 }
 
+/**
+ * Remind everybody holding an overdue book.
+ *
+ * The overdue list has been readable since this feature was written and there
+ * was no way to act on it: a librarian could see six books were late and had
+ * to chase each borrower by hand.
+ */
+export function useRemindOverdue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await api.post("/library/loans/overdue/remind")).data as {
+        overdue: number;
+        reminded: number;
+        unreachable: number;
+        message: string;
+      },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["overdue-loans"] });
+      toast.success(result.message);
+      /* Named separately, because "reminded 4 of 6" is a different fact from
+         "two of them have no address or number on file", and only the second
+         is something the librarian has to do anything about. */
+      if (result.unreachable > 0) {
+        toast.warning(
+          `${result.unreachable} ${result.unreachable === 1 ? "borrower has" : "borrowers have"} no email or phone on file, so ${result.unreachable === 1 ? "they were" : "they were"} not reminded.`,
+        );
+      }
+    },
+    onError: (e) => toast.error(errorMessage(e, "Could not send the reminders")),
+  });
+}
+
 export function useOverdueLoans() {
   return useQuery({
     queryKey: ["overdue-loans"],

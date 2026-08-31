@@ -530,7 +530,10 @@ export class MessagingService {
                   ? `${message.sender.firstName} mentioned you in ${where}`
                   : `${message.sender.firstName} mentioned you`,
                 message: preview,
-                type: 'PUSH',
+                /* The bell, not a push. This is written down and shown when
+                   they next look; nothing is sent anywhere. Recording it as
+                   PUSH made the row a claim that a message had been sent. */
+                type: 'IN_APP',
                 relatedEntityType: 'MENTION',
                 relatedEntityId: conversation.id,
               },
@@ -572,7 +575,7 @@ export class MessagingService {
                 ? `${message.sender.firstName} messaged ${where}`
                 : `${message.sender.firstName} messaged you`,
               message: preview,
-              type: 'PUSH',
+              type: 'IN_APP',
               relatedEntityType: 'MESSAGE',
               relatedEntityId: conversation.id,
             },
@@ -1005,7 +1008,7 @@ export class MessagingService {
     await this.prisma.notification.createMany({
       data: recipientIds.map((userId) => ({
         userId,
-        type: 'PUSH' as const,
+        type: 'IN_APP' as const,
         title: dto.title,
         message: dto.message.slice(0, 300),
         // So the bell opens the announcement itself rather than just

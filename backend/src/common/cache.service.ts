@@ -114,7 +114,8 @@ export const CacheKey = {
     changes a handful of times a term; caching them together would mean one
     class's change clearing every other class's answer.
   */
-  classTimetable: (classSectionId: string) => `cache:timetable:${classSectionId}`,
+  classTimetable: (classSectionId: string) =>
+    `cache:timetable:${classSectionId}`,
   /** Every timetable key, for the case where a change could touch any of them. */
   allTimetables: 'cache:timetable:*',
 } as const;

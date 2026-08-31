@@ -6,11 +6,7 @@ import {
 } from '@nestjs/common';
 import { EducationStage, SubjectScope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  CacheKey,
-  CacheService,
-  CacheTtl,
-} from '../../common/cache.service';
+import { CacheKey, CacheService, CacheTtl } from '../../common/cache.service';
 import {
   CreateAcademicYearDto,
   UpdateAcademicYearDto,

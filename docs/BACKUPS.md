@@ -74,11 +74,37 @@ It is part of the stack rather than a host cron job on purpose: a backup that
 lives in somebody's crontab stops when the server is rebuilt, and nobody finds
 out until the day it is needed.
 
+## Off site
+
+A backup on the same machine survives a dropped table, a bad migration and a
+botched deploy. It does not survive the disk, the machine, or the building, and
+those are the cases where a school loses a term of marks for good.
+
+Set `BACKUP_SYNC_CMD` to whatever the school actually uses. `{}` is replaced
+with the path of the backup just taken:
+
+```bash
+BACKUP_SYNC_CMD='rclone copy {} remote:markova/' ./scripts/backup.sh
+BACKUP_SYNC_CMD='rsync -a {} backup@nas:/markova/' ./scripts/backup.sh
+BACKUP_SYNC_CMD='aws s3 sync {} s3://markova-backups/' ./scripts/backup.sh
+```
+
+A command rather than a provider, deliberately. A school might have a NAS in
+the next room, a bucket, or somebody's external drive, and choosing one of
+those for them would mean the ones who use anything else get nothing.
+
+**A failed copy is loud and exits non-zero**, so whatever runs this on a
+schedule can tell a real backup from a local-only one. Left silent, somebody
+would believe they had an off-site copy for months and find out on the day it
+mattered.
+
+When it works, the manifest records it:
+
+```
+offsite:   2026-08-31T02:00:11Z
+```
+
 ## What is still missing
 
-**Off-site copies.** `./backups` on the same machine survives a dropped table
-and a bad migration. It does not survive the disk, the machine, or the
-building. Whatever a school uses, the nightly job should push there too.
-
-**A monitored failure.** The container logs `backup FAILED` and keeps going.
-Nothing is watching that line yet. It should page somebody.
+**A monitored failure.** The container logs `backup FAILED` and exits non-zero,
+and nothing is watching for it. That line should page somebody.

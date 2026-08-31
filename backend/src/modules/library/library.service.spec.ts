@@ -11,6 +11,13 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * only alongside the loan that moved it. Every test here is about it staying
  * true.
  */
+/* The delivery queue. Whether a message is sent is tested where the worker
+   lives; here it only has to accept the job. */
+const delivery = {
+  email: jest.fn().mockResolvedValue(undefined),
+  sms: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('LibraryService', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let notifications: { send: jest.Mock };
@@ -22,6 +29,7 @@ describe('LibraryService', () => {
     service = new LibraryService(
       prisma,
       notifications as unknown as NotificationsService,
+      delivery as never,
     );
     prisma.schoolConfig.findUnique.mockResolvedValue(null);
     prisma.bookLoan.count.mockResolvedValue(0);
@@ -526,9 +534,11 @@ describe('finding a book, and failing to', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new LibraryService(prisma, {
-      send: jest.fn(),
-    } as unknown as NotificationsService);
+    service = new LibraryService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+      delivery as never,
+    );
     prisma.book.findMany.mockResolvedValue([]);
     prisma.book.count.mockResolvedValue(0);
     prisma.book.findUnique.mockResolvedValue(null);
@@ -572,9 +582,11 @@ describe('the shelves in a catalogue nobody has categorised', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new LibraryService(prisma, {
-      send: jest.fn(),
-    } as unknown as NotificationsService);
+    service = new LibraryService(
+      prisma,
+      { send: jest.fn() } as unknown as NotificationsService,
+      delivery as never,
+    );
     prisma.book.count.mockResolvedValue(0);
     prisma.book.aggregate.mockResolvedValue({ _sum: {} });
     prisma.bookLoan.count.mockResolvedValue(0);
@@ -604,6 +616,133 @@ describe('the shelves in a catalogue nobody has categorised', () => {
     expect(stats.categories[0]).toMatchObject({
       category: 'SCIENCE',
       totalCopies: 12,
+    });
+  });
+
+  /**
+   * Reminding everybody holding an overdue book.
+   *
+   * The overdue list has been readable since this module was written, and
+   * there was no way to act on it: a librarian could see six books were late
+   * and had to chase each borrower by hand.
+   */
+  describe('chasing overdue books', () => {
+    const loan = (
+      id: string,
+      borrowerId: string,
+      title: string,
+      over: Record<string, unknown> = {},
+    ) => ({
+      id,
+      dueDate: new Date('2026-08-01'),
+      book: { title, author: 'Somebody' },
+      borrower: {
+        id: borrowerId,
+        firstName: 'Divine',
+        lastName: 'Uwase',
+        email: `${borrowerId}@markova.edu`,
+        phone: '+250788000001',
+        ...((over.borrower as object) ?? {}),
+      },
+    });
+
+    beforeEach(() => {
+      delivery.email.mockClear();
+      delivery.sms.mockClear();
+    });
+
+    it('says so plainly when nothing is overdue', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([]);
+      const out = await service.remindOverdue();
+      expect(out.reminded).toBe(0);
+      expect(out.message).toMatch(/Nothing is overdue/i);
+      expect(delivery.email).not.toHaveBeenCalled();
+    });
+
+    /* One message per person, not per book. A student with three late books
+       is one conversation, not three emails. */
+    it('sends one message to somebody holding three books', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        loan('l-1', 'u-1', 'A Grain of Wheat'),
+        loan('l-2', 'u-1', 'Baking Cakes in Kigali'),
+        loan('l-3', 'u-1', 'Biology'),
+      ]);
+      const out = await service.remindOverdue();
+      expect(delivery.email).toHaveBeenCalledTimes(1);
+      expect(out.reminded).toBe(1);
+      expect(out.overdue).toBe(3);
+    });
+
+    it('lists every title in that one message', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        loan('l-1', 'u-1', 'A Grain of Wheat'),
+        loan('l-2', 'u-1', 'Baking Cakes in Kigali'),
+      ]);
+      await service.remindOverdue();
+      const { body } = delivery.email.mock.calls[0][0];
+      expect(body).toContain('A Grain of Wheat');
+      expect(body).toContain('Baking Cakes in Kigali');
+    });
+
+    it('writes to each borrower separately', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        loan('l-1', 'u-1', 'A Grain of Wheat'),
+        loan('l-2', 'u-2', 'Biology'),
+      ]);
+      const out = await service.remindOverdue();
+      expect(delivery.email).toHaveBeenCalledTimes(2);
+      expect(out.reminded).toBe(2);
+    });
+
+    /* Most parents here have a phone and no email at all. Skipping them would
+       make the feature useless for the families it most needs to reach. */
+    it('texts somebody who has no email', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        {
+          ...loan('l-1', 'u-1', 'Biology'),
+          borrower: {
+            id: 'u-1',
+            firstName: 'Divine',
+            lastName: 'U',
+            email: null,
+            phone: '+250788100000',
+          },
+        },
+      ]);
+      await service.remindOverdue();
+      expect(delivery.sms).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '+250788100000' }),
+      );
+      expect(delivery.email).not.toHaveBeenCalled();
+    });
+
+    /* Counted rather than skipped in silence: a librarian chasing six books
+       needs to know that two of them cannot be chased this way. */
+    it('counts a borrower who cannot be reached at all', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        {
+          ...loan('l-1', 'u-1', 'Biology'),
+          borrower: {
+            id: 'u-1',
+            firstName: 'Divine',
+            lastName: 'U',
+            email: null,
+            phone: null,
+          },
+        },
+      ]);
+      const out = await service.remindOverdue();
+      expect(out.unreachable).toBe(1);
+      expect(out.reminded).toBe(0);
+    });
+
+    it('says one book rather than 1 books', async () => {
+      prisma.bookLoan.findMany.mockResolvedValue([
+        loan('l-1', 'u-1', 'Biology'),
+      ]);
+      const out = await service.remindOverdue();
+      expect(out.message).toMatch(/1 book\b/);
+      expect(out.message).toMatch(/1 borrower\b/);
     });
   });
 });
