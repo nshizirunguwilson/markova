@@ -14,7 +14,7 @@ import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { DeliveryQueue } from '../../jobs/delivery.queue';
 import { Role } from '@prisma/client';
 import {
   hashPassword,
@@ -52,7 +52,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private redis: RedisService,
-    private notificationsService: NotificationsService,
+    private delivery: DeliveryQueue,
   ) {}
 
   // ─── LOGIN (Step 1) ────────────────────────────────────────────────────────
@@ -221,33 +221,32 @@ export class AuthService {
     );
 
     /**
-     * The code is already in Redis, so the session is valid whether or not
-     * the email ever arrives - which is why this is dispatched rather than
-     * awaited.
+     * Queued, not sent here.
      *
-     * Awaiting it made every sign-in wait on a round trip to the mail server,
-     * about two seconds against a configured SMTP host, and bought nothing:
-     * `sendEmailToAddress` swallows its own failures, so the caller could not
-     * learn whether the message was sent. The user simply watched a spinner
-     * for a result that was discarded. Failures are logged there, and the
-     * screen the user lands on offers a resend.
+     * The code is already in Redis, so the session is valid whether or not the
+     * email arrives, and the request must not wait on somebody else's mail
+     * server. That much was already true: it was dispatched and not awaited.
+     *
+     * What was not true is that a failure meant anything. A momentary SMTP
+     * problem dropped the code, once, and the member of staff simply could not
+     * sign in: from their side it looked like the password was wrong. Queued,
+     * it is six attempts over about fifteen minutes, marked urgent so it goes
+     * ahead of a fees reminder, and a give-up that is written down.
+     *
+     * Fifteen minutes is chosen against the thing being sent rather than
+     * plucked: a sign-in code has expired by then anyway, so trying longer
+     * would deliver something already useless.
      */
     if (user.email) {
-      void this.notificationsService
-        .sendEmailToAddress(
-          user.email,
-          user.firstName,
-          'Your Markova Verification Code',
-          `<p style="font-size: 16px;">Your verification code is:</p>
+      await this.delivery.email({
+        to: user.email,
+        name: user.firstName,
+        subject: 'Your Markova Verification Code',
+        urgent: true,
+        body: `<p style="font-size: 16px;">Your verification code is:</p>
          <p style="font-size: 32px; font-weight: bold; color: #1B4F72; letter-spacing: 4px; text-align: center; margin: 20px 0;">${otp}</p>
          <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.</p>`,
-        )
-        .catch((error) =>
-          this.logger.error(
-            `Could not send the verification code to ${user.email}`,
-            error instanceof Error ? error.stack : undefined,
-          ),
-        );
+      });
     }
     this.logger.log(
       `OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`,
@@ -443,27 +442,32 @@ export class AuthService {
       const appUrl =
         this.configService.get<string>('APP_URL') || 'http://localhost:3001';
       const resetLink = `${appUrl}/reset-password?token=${token}`;
-      await this.notificationsService.sendEmailToAddress(
-        user.email,
-        user.firstName,
-        'Password Reset - Markova',
-        `<p>You requested a password reset. Click the button below to set a new password:</p>
+      /* Queued for the same reason as the sign-in code: a reset link that
+         fails to send leaves somebody locked out of their own account, and
+         inline it failed silently. */
+      await this.delivery.email({
+        to: user.email,
+        name: user.firstName,
+        subject: 'Password Reset - Markova',
+        urgent: true,
+        body: `<p>You requested a password reset. Click the button below to set a new password:</p>
          <p style="text-align: center; margin: 24px 0;">
            <a href="${resetLink}" style="background:#1B4F72;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a>
          </p>
          <p style="font-size:12px;color:#666;">Or paste this link into your browser:<br>${resetLink}</p>
          <p>This link expires in 30 minutes. If you did not request this, please ignore this email.</p>`,
-      );
+      });
     } else if (user.phone) {
       // Parents are commonly registered with a phone and no email at all.
       // Without this branch their reset token was only ever written to the
       // server log, so they could never recover an account.
       const appUrl =
         this.configService.get<string>('APP_URL') || 'http://localhost:3001';
-      await this.notificationsService.sendSMSToPhone(
-        user.phone,
-        `Markova password reset: ${appUrl}/reset-password?token=${token} (expires in 30 minutes)`,
-      );
+      await this.delivery.sms({
+        phone: user.phone,
+        urgent: true,
+        message: `Markova password reset: ${appUrl}/reset-password?token=${token} (expires in 30 minutes)`,
+      });
     }
     this.logger.log(
       `Password reset token for ${user.email || user.phone}: ${token}`,

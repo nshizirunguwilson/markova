@@ -16,6 +16,44 @@
 /** The queue name. One queue, because the work is all the same shape. */
 export const RENDER_QUEUE = 'render';
 
+/**
+ * Outbound messages: email and SMS.
+ *
+ * A separate queue from rendering, because the two fail for different reasons
+ * and want different retries. A render fails because Chrome fell over, and
+ * trying again in two seconds is right. A message fails because somebody
+ * else's mail server is down, and trying again in two seconds is pointless:
+ * it wants minutes, and many more attempts.
+ *
+ * The reason this exists at all is that staff sign-in needs an OTP. Sending it
+ * inline meant a momentary SMTP hiccup dropped the code silently, and the
+ * member of staff simply could not sign in, with nothing anywhere saying why.
+ */
+export const DELIVERY_QUEUE = 'delivery';
+
+export const DeliveryJob = {
+  EMAIL: 'email',
+  SMS: 'sms',
+} as const;
+
+export type DeliveryJobName = (typeof DeliveryJob)[keyof typeof DeliveryJob];
+
+/**
+ * How hard to try, and how long to wait between attempts.
+ *
+ * Six attempts on an exponential backoff from thirty seconds reaches about
+ * fifteen minutes. That is chosen against the thing being delivered: a
+ * sign-in code is worthless after fifteen minutes anyway, and a provider
+ * outage longer than that is not something retrying will solve.
+ */
+export const DELIVERY_ATTEMPTS = 6;
+export const DELIVERY_BACKOFF_MS = 30_000;
+
+/** How many messages may be in flight at once, per worker. */
+export const DELIVERY_CONCURRENCY = Number(
+  process.env.DELIVERY_CONCURRENCY || 5,
+);
+
 export const RenderJob = {
   /** One student's report card for one term. */
   TERM_REPORT: 'term-report',

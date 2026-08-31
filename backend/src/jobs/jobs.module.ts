@@ -2,8 +2,11 @@ import { BullModule } from '@nestjs/bullmq';
 import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { ReportsModule } from '../modules/reports/reports.module';
-import { RENDER_QUEUE } from './jobs.constants';
+import { DELIVERY_QUEUE, RENDER_QUEUE } from './jobs.constants';
+import { DeliveryProcessor } from './delivery.processor';
+import { DeliveryQueue } from './delivery.queue';
 import { RenderProcessor } from './render.processor';
 import { RenderQueue } from './render.queue';
 
@@ -38,9 +41,15 @@ const isWorker = process.env.WORKER === '1';
       }),
     }),
     BullModule.registerQueue({ name: RENDER_QUEUE }),
+    BullModule.registerQueue({ name: DELIVERY_QUEUE }),
     forwardRef(() => ReportsModule),
+    forwardRef(() => NotificationsModule),
   ],
-  providers: [RenderQueue, ...(isWorker ? [RenderProcessor] : [])],
-  exports: [RenderQueue],
+  providers: [
+    RenderQueue,
+    DeliveryQueue,
+    ...(isWorker ? [RenderProcessor, DeliveryProcessor] : []),
+  ],
+  exports: [RenderQueue, DeliveryQueue],
 })
 export class JobsModule {}

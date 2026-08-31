@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { hashPassword } from '../../common/password';
+import { DeliveryQueue } from '../../jobs/delivery.queue';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,11 @@ const mockConfig = {
 
 // ── Test suite ───────────────────────────────────────────────────────────────
 
+const mockDelivery = {
+  email: jest.fn().mockResolvedValue(undefined),
+  sms: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -131,6 +137,9 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: NotificationsService, useValue: mockNotifications },
+        /* The delivery queue. Whether a message is actually sent is tested
+           where the worker lives; here it only has to accept the job. */
+        { provide: DeliveryQueue, useValue: mockDelivery },
       ],
     }).compile();
 
@@ -203,17 +212,21 @@ describe('AuthService', () => {
       deliver();
     });
 
-    it('still sends the code, just not on the critical path', async () => {
+    /* Queued rather than sent here. The code is already in Redis, so the
+       session is valid whether or not the email arrives, and a momentary SMTP
+       failure used to drop it silently and lock somebody out. */
+    it('queues the code rather than sending it on the critical path', async () => {
       const admin = makeUser({ role: 'ADMIN' });
       mockPrisma.user.findFirst.mockResolvedValue(admin);
 
       await service.login({ email: admin.email, password: TEST_PASSWORD });
 
-      expect(mockNotifications.sendEmailToAddress).toHaveBeenCalledWith(
-        admin.email,
-        admin.firstName,
-        expect.stringMatching(/verification code/i),
-        expect.any(String),
+      expect(mockDelivery.email).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: admin.email,
+          subject: expect.stringMatching(/verification code/i),
+          body: expect.any(String),
+        }),
       );
     });
 
@@ -686,11 +699,12 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(makeUser());
 
       await service.resendOtp({ sessionId: 's-1' });
-      expect(mockNotifications.sendEmailToAddress).toHaveBeenCalledWith(
-        'wilsonshizirungu@gmail.com',
-        'Test',
-        expect.stringContaining('Verification Code'),
-        expect.any(String),
+      expect(mockDelivery.email).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'wilsonshizirungu@gmail.com',
+          subject: expect.stringContaining('Verification Code'),
+          body: expect.any(String),
+        }),
       );
     });
   });
@@ -801,8 +815,8 @@ describe('AuthService', () => {
       const result: any = await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
-      const html = mockNotifications.sendEmailToAddress.mock.calls[0][3];
-      expect(html).toContain(`/reset-password?token=${result.devToken}`);
+      const { body } = mockDelivery.email.mock.calls[0][0];
+      expect(body).toContain(`/reset-password?token=${result.devToken}`);
     });
 
     /**
@@ -815,11 +829,13 @@ describe('AuthService', () => {
         makeUser({ email: null, phone: '+250788100000' }),
       );
       await service.requestPasswordReset({ phone: '+250788100000' });
-      expect(mockNotifications.sendSMSToPhone).toHaveBeenCalledWith(
-        '+250788100000',
-        expect.stringContaining('/reset-password?token='),
+      expect(mockDelivery.sms).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone: '+250788100000',
+          message: expect.stringContaining('/reset-password?token='),
+        }),
       );
-      expect(mockNotifications.sendEmailToAddress).not.toHaveBeenCalled();
+      expect(mockDelivery.email).not.toHaveBeenCalled();
     });
 
     it('stores the token with an expiry', async () => {
@@ -1278,6 +1294,9 @@ describe('the two ways into the system', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: NotificationsService, useValue: mockNotifications },
+        /* The delivery queue. Whether a message is actually sent is tested
+           where the worker lives; here it only has to accept the job. */
+        { provide: DeliveryQueue, useValue: mockDelivery },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
@@ -1320,7 +1339,7 @@ describe('the two ways into the system', () => {
       password: TEST_PASSWORD,
     });
 
-    expect(mockNotifications.sendEmailToAddress).toHaveBeenCalled();
+    expect(mockDelivery.email).toHaveBeenCalled();
   });
 
   it('emails nobody when there is no address to email', async () => {
@@ -1361,6 +1380,9 @@ describe('a code for an account that is gone', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: NotificationsService, useValue: mockNotifications },
+        /* The delivery queue. Whether a message is actually sent is tested
+           where the worker lives; here it only has to accept the job. */
+        { provide: DeliveryQueue, useValue: mockDelivery },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
