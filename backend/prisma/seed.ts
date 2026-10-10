@@ -5256,6 +5256,11 @@ async function main() {
     `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
+  await seedSecondSchool(schoolId, academicYear, currentTerm);
+  console.log(
+    '  🏫 Second school: Aline Uwase teaches here and is a parent at G.S. Umucyo',
+  );
+
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
   const aClasses = sectionMetas.length - oClasses;
   console.log('\n🎉 Seed completed successfully!');
@@ -5279,6 +5284,98 @@ async function main() {
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
+  console.log(
+    '   In two schools: aline.uwase@markova.edu (teacher here, parent at G.S. Umucyo)',
+  );
+}
+
+/**
+ * A second, small school, so one login across two schools can be seen and
+ * tried: the demo teacher, Aline Uwase, is also a parent there.
+ *
+ * Deliberately small: one class and one child. The full demo of several
+ * Rwandan schools is step 3, part 5 (docs/MULTI-SCHOOL-DESIGN.md).
+ */
+async function seedSecondSchool(
+  firstSchoolId: string,
+  year: { name: string; startDate: Date; endDate: Date },
+  term: { name: string; startDate: Date; endDate: Date },
+) {
+  const school = await prisma.school.create({
+    data: { name: 'G.S. Umucyo', slug: 'gs-umucyo' },
+  });
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${school.id}, false)`;
+
+  await prisma.schoolConfig.create({
+    data: { key: 'school_name', value: 'G.S. Umucyo' },
+  });
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      name: year.name,
+      startDate: year.startDate,
+      endDate: year.endDate,
+      isCurrent: true,
+    },
+  });
+  await prisma.term.create({
+    data: {
+      academicYearId: academicYear.id,
+      name: term.name,
+      startDate: term.startDate,
+      endDate: term.endDate,
+      isCurrent: true,
+    },
+  });
+  const level = await prisma.classLevel.create({
+    data: { name: 'Senior 1', order: 1, stage: 'O_LEVEL' },
+  });
+  const section = await prisma.classSection.create({
+    data: { classLevelId: level.id, name: 'A' },
+  });
+
+  const passwordHash = await bcrypt.hash('Password123!', 10);
+  const child = await prisma.user.create({
+    data: withLogin({
+      email: 'k.uwase.umucyo@markova.edu',
+      role: Role.STUDENT,
+      firstName: 'Keza',
+      lastName: 'Uwase',
+      isActive: true,
+      passwordHash,
+      forcePasswordChange: true,
+    }),
+  });
+  const student = await prisma.student.create({
+    data: {
+      userId: child.id,
+      studentIdNumber: studentNumber('Keza', 'Uwase', 2026, child.id),
+      classSectionId: section.id,
+      gender: Gender.FEMALE,
+      dateOfBirth: new Date('2013-05-20'),
+    },
+  });
+
+  /* Aline's existing login, with a second school record: a parent here. */
+  const aline = await prisma.account.findUniqueOrThrow({
+    where: { email: 'aline.uwase@markova.edu' },
+  });
+  const parent = await prisma.user.create({
+    data: {
+      accountId: aline.id,
+      role: Role.PARENT,
+      firstName: 'Aline',
+      lastName: 'Uwase',
+      email: 'aline.uwase@markova.edu',
+      phone: '+250788000010',
+      code: `PAR-${new Date().getFullYear()}-0001`,
+      isActive: true,
+    },
+  });
+  await prisma.parentStudent.create({
+    data: { parentUserId: parent.id, studentId: student.id, relationship: 'Mother' },
+  });
+
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${firstSchoolId}, false)`;
 }
 
 main()
