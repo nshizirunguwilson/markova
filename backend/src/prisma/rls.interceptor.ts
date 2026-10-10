@@ -29,8 +29,9 @@ export class RlsInterceptor implements NestInterceptor {
 
     if (!user?.id || !user?.role) return next.handle();
 
-    return withRequestContext({ userId: user.id, role: user.role }, () =>
-      next.handle(),
+    return withRequestContext(
+      { userId: user.id, role: user.role, schoolId: user.schoolId },
+      () => next.handle(),
     );
   }
 }

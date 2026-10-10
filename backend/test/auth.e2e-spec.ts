@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { withPlatform } from '../src/prisma/request-context';
 
 /**
  * Credentials are looked up from the seeded database rather than hardcoded.
@@ -53,17 +54,23 @@ describe('Auth (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const student = await prisma.user.findFirst({
-      where: { role: 'STUDENT', isActive: true, email: { not: null } },
-      orderBy: { email: 'asc' },
-    });
-    const admin = await prisma.user.findFirst({
-      where: { role: 'ADMIN', isActive: true, phone: { not: null } },
-    });
-    const teacher = await prisma.user.findFirst({
-      where: { role: 'TEACHER', isActive: true, email: { not: null } },
-      orderBy: { email: 'asc' },
-    });
+    const student = await withPlatform(() =>
+      prisma.user.findFirst({
+        where: { role: 'STUDENT', isActive: true, email: { not: null } },
+        orderBy: { email: 'asc' },
+      }),
+    );
+    const admin = await withPlatform(() =>
+      prisma.user.findFirst({
+        where: { role: 'ADMIN', isActive: true, phone: { not: null } },
+      }),
+    );
+    const teacher = await withPlatform(() =>
+      prisma.user.findFirst({
+        where: { role: 'TEACHER', isActive: true, email: { not: null } },
+        orderBy: { email: 'asc' },
+      }),
+    );
 
     if (!student || !admin || !teacher) {
       throw new Error(

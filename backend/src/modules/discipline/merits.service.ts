@@ -74,8 +74,8 @@ export class MeritsService {
     );
     const newPoints = student.disciplinePoints + restored;
 
-    const [merit] = await this.prisma.$transaction([
-      this.prisma.meritAward.create({
+    const [merit] = await this.prisma.$transaction(async (tx) => [
+      await tx.meritAward.create({
         data: {
           studentId: dto.studentId,
           termId: dto.termId,
@@ -87,7 +87,7 @@ export class MeritsService {
         },
         include: this.detail,
       }),
-      this.prisma.student.update({
+      await tx.student.update({
         where: { id: dto.studentId },
         data: { disciplinePoints: newPoints },
       }),

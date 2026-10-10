@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { withPlatform } from '../src/prisma/request-context';
 
 /**
  * The report card pipeline, walked by the people who actually walk it.
@@ -67,10 +68,12 @@ describe('The report card pipeline, end to end', () => {
     dosToken = await signIn('headteacher@markova.edu');
     adminToken = await signIn('wilsonshizirungu@gmail.com');
 
-    const classTeacher = await prisma.user.findFirst({
-      where: { role: 'TEACHER', isActive: true, email: { not: null } },
-      orderBy: { email: 'asc' },
-    });
+    const classTeacher = await withPlatform(() =>
+      prisma.user.findFirst({
+        where: { role: 'TEACHER', isActive: true, email: { not: null } },
+        orderBy: { email: 'asc' },
+      }),
+    );
     if (!classTeacher) {
       throw new Error('This needs seeded data. Run `npx prisma db seed`.');
     }
@@ -125,10 +128,12 @@ describe('The report card pipeline, end to end', () => {
     /* The letters are the principal's and the report cards are the DOS's, on
        one shared page. Both must reach it. */
     it('lets the principal generate a transfer letter', async () => {
-      const student = await prisma.student.findFirst({
-        where: { status: 'ACTIVE' },
-        select: { id: true },
-      });
+      const student = await withPlatform(() =>
+        prisma.student.findFirst({
+          where: { status: 'ACTIVE' },
+          select: { id: true },
+        }),
+      );
 
       await request(app.getHttpServer())
         .post('/api/reports/document')
@@ -138,10 +143,12 @@ describe('The report card pipeline, end to end', () => {
     });
 
     it('refuses the DOS that same document route', async () => {
-      const student = await prisma.student.findFirst({
-        where: { status: 'ACTIVE' },
-        select: { id: true },
-      });
+      const student = await withPlatform(() =>
+        prisma.student.findFirst({
+          where: { status: 'ACTIVE' },
+          select: { id: true },
+        }),
+      );
 
       await request(app.getHttpServer())
         .post('/api/reports/document')
@@ -162,13 +169,15 @@ describe('The report card pipeline, end to end', () => {
      * to a request that could only be refused.
      */
     it('refuses to confirm a class whose comments are not written', async () => {
-      const unwritten = await prisma.termResult.findFirst({
-        where: {
-          isPublished: true,
-          OR: [{ teacherComment: null }, { teacherComment: '' }],
-        },
-        select: { classSectionId: true, termId: true },
-      });
+      const unwritten = await withPlatform(() =>
+        prisma.termResult.findFirst({
+          where: {
+            isPublished: true,
+            OR: [{ teacherComment: null }, { teacherComment: '' }],
+          },
+          select: { classSectionId: true, termId: true },
+        }),
+      );
 
       if (!unwritten) return; // Every class is written on; nothing to assert.
 
@@ -186,10 +195,12 @@ describe('The report card pipeline, end to end', () => {
     });
 
     it('refuses to issue a class the DOS has not confirmed', async () => {
-      const unconfirmed = await prisma.termResult.findFirst({
-        where: { isPublished: true, dosConfirmed: false },
-        select: { classSectionId: true, termId: true },
-      });
+      const unconfirmed = await withPlatform(() =>
+        prisma.termResult.findFirst({
+          where: { isPublished: true, dosConfirmed: false },
+          select: { classSectionId: true, termId: true },
+        }),
+      );
 
       if (!unconfirmed) return;
 
@@ -210,9 +221,11 @@ describe('The report card pipeline, end to end', () => {
        teacher's box is not theirs at all. Two people sign a card, and a
        signature has one author. */
     it("refuses a teacher the head teacher's comment box", async () => {
-      const result = await prisma.termResult.findFirst({
-        select: { id: true },
-      });
+      const result = await withPlatform(() =>
+        prisma.termResult.findFirst({
+          select: { id: true },
+        }),
+      );
 
       const res = await request(app.getHttpServer())
         .put(`/api/marks/term-results/${result!.id}/comment`)
@@ -231,17 +244,23 @@ describe('The report card pipeline, end to end', () => {
    */
   describe('what a family can reach', () => {
     it('refuses a student the report card of another family', async () => {
-      const student = await prisma.user.findFirst({
-        where: { role: 'STUDENT', isActive: true, email: { not: null } },
-        orderBy: { email: 'asc' },
-      });
-      const somebodyElse = await prisma.student.findFirst({
-        where: { userId: { not: student!.id }, status: 'ACTIVE' },
-        select: { id: true },
-      });
+      const student = await withPlatform(() =>
+        prisma.user.findFirst({
+          where: { role: 'STUDENT', isActive: true, email: { not: null } },
+          orderBy: { email: 'asc' },
+        }),
+      );
+      const somebodyElse = await withPlatform(() =>
+        prisma.student.findFirst({
+          where: { userId: { not: student!.id }, status: 'ACTIVE' },
+          select: { id: true },
+        }),
+      );
 
       const studentToken = await signIn(student!.email!);
-      const term = await prisma.term.findFirst({ where: { isCurrent: true } });
+      const term = await withPlatform(() =>
+        prisma.term.findFirst({ where: { isCurrent: true } }),
+      );
 
       const res = await request(app.getHttpServer())
         .get(`/api/reports/term/${somebodyElse!.id}/pdf?termId=${term!.id}`)

@@ -190,8 +190,8 @@ export class LibraryService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + borrowingDuration);
 
-    const [loan] = await this.prisma.$transaction([
-      this.prisma.bookLoan.create({
+    const [loan] = await this.prisma.$transaction(async (tx) => [
+      await tx.bookLoan.create({
         data: {
           bookId: book.id,
           borrowerUserId: student.user.id,
@@ -203,7 +203,7 @@ export class LibraryService {
           borrower: { select: { firstName: true, lastName: true } },
         },
       }),
-      this.prisma.book.update({
+      await tx.book.update({
         where: { id: book.id },
         data: { availableCount: { decrement: 1 } },
       }),
@@ -225,8 +225,8 @@ export class LibraryService {
     if (!loan)
       throw new NotFoundException('No active loan found for this book');
 
-    const [updatedLoan] = await this.prisma.$transaction([
-      this.prisma.bookLoan.update({
+    const [updatedLoan] = await this.prisma.$transaction(async (tx) => [
+      await tx.bookLoan.update({
         where: { id: loan.id },
         data: { status: 'RETURNED', returnedAt: new Date() },
         include: {
@@ -234,7 +234,7 @@ export class LibraryService {
           borrower: { select: { firstName: true, lastName: true } },
         },
       }),
-      this.prisma.book.update({
+      await tx.book.update({
         where: { id: book.id },
         data: { availableCount: { increment: 1 } },
       }),

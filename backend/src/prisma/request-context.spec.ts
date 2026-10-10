@@ -41,11 +41,11 @@ describe('the request context', () => {
     await Promise.all([
       withRequestContext({ userId: 'parent-a', role: 'PARENT' }, async () => {
         await new Promise((r) => setTimeout(r, 10));
-        seen.push(currentRequest()!.userId);
+        seen.push(currentRequest()!.userId!);
       }),
       withRequestContext({ userId: 'parent-b', role: 'PARENT' }, async () => {
         await new Promise((r) => setTimeout(r, 1));
-        seen.push(currentRequest()!.userId);
+        seen.push(currentRequest()!.userId!);
       }),
     ]);
     expect(seen.sort()).toEqual(['parent-a', 'parent-b']);

@@ -1,5 +1,8 @@
 import { PrismaService } from '../src/prisma/prisma.service';
-import { withRequestContext } from '../src/prisma/request-context';
+import {
+  withPlatform,
+  withRequestContext,
+} from '../src/prisma/request-context';
 
 /**
  * The client extension that tells Postgres who is asking.
@@ -41,8 +44,17 @@ describe('setting the request identity on the connection', () => {
     simply runs unrestricted, which is the one outcome this file exists to
     prevent.
   */
+  let schoolId: string;
+  beforeAll(async () => {
+    const school = await prisma.school.findFirst({ select: { id: true } });
+    schoolId = school!.id;
+  });
+
   const asAdmin = <T>(fn: () => Promise<T>) =>
-    withRequestContext({ userId: 'e2e-user', role: 'ADMIN' }, async () => fn());
+    withRequestContext(
+      { userId: 'e2e-user', role: 'ADMIN', schoolId },
+      async () => fn(),
+    );
 
   /* The failure that started this. A plain read, with a context in scope. */
   it('runs an ordinary query when a request is in scope', async () => {
@@ -50,9 +62,35 @@ describe('setting the request identity on the connection', () => {
     expect(typeof count).toBe('number');
   });
 
-  it('runs the same query with no request in scope', async () => {
-    const count = await prisma.user.count();
-    expect(typeof count).toBe('number');
+  /*
+    The wall between schools: a query that has not said which school it is
+    for sees nothing at all, rather than every school's rows.
+  */
+  it('sees nothing with no request in scope', async () => {
+    expect(await prisma.user.count()).toBe(0);
+    expect(await asAdmin(() => prisma.user.count())).toBeGreaterThan(0);
+  });
+
+  it('puts the school on the connection the query runs on', async () => {
+    const [row] = await asAdmin(
+      () =>
+        prisma.$queryRaw<{ school: string; bypass: string }[]>`
+        SELECT current_setting('app.school_id', true) AS school,
+               current_setting('app.bypass', true) AS bypass`,
+    );
+    expect(row.school).toBe(schoolId);
+    expect(row.bypass).toBe('');
+  });
+
+  /* The one named way above the wall, for work like finding who signs in. */
+  it('lets deliberate platform work see across schools', async () => {
+    const [row] = await withPlatform(
+      () =>
+        prisma.$queryRaw<{ bypass: string }[]>`
+        SELECT current_setting('app.bypass', true) AS bypass`,
+    );
+    expect(row.bypass).toBe('on');
+    expect(await withPlatform(() => prisma.user.count())).toBeGreaterThan(0);
   });
 
   /*
@@ -113,12 +151,17 @@ describe('setting the request identity on the connection', () => {
     expect(rows).toEqual(['ADMIN', 'ADMIN']);
   });
 
-  /* The batch form is used in a handful of places and must keep working. */
-  it('runs a batch transaction', async () => {
-    const [a, b] = await asAdmin(() =>
-      prisma.$transaction([prisma.user.count(), prisma.user.count()]),
-    );
-    expect(a).toBe(b);
+  /*
+    The list form builds its queries before the transaction opens, so there is
+    no moment to tell the connection which school they are for. It is refused
+    while anybody is in scope, rather than quietly reading nothing.
+  */
+  it('refuses a list of queries as a transaction', async () => {
+    await expect(
+      asAdmin(() =>
+        prisma.$transaction([prisma.user.count(), prisma.user.count()]),
+      ),
+    ).rejects.toThrow(/callback form/);
   });
 
   /*

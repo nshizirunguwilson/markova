@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { SchoolConfigController } from './school-config.controller';
 import { PublicConfigController } from './public-config.controller';
 import { SchoolConfigService } from './school-config.service';
+import { PublicSchoolService } from '../../prisma/public-school.service';
+import { currentRequest } from '../../prisma/request-context';
 import {
   buildController,
   clearMocks,
@@ -164,16 +166,37 @@ describe('SchoolConfigController', () => {
  */
 describe('PublicConfigController', () => {
   const service = mockService(['getPublicBranding']);
+  const publicSchool = { resolve: jest.fn().mockResolvedValue('school-1') };
+  const req = { headers: {} } as any;
 
   it('answers with branding only', async () => {
     const run = await controllerHarness(PublicConfigController, [
       { token: SchoolConfigService, name: 'service', mock: service },
+      { token: PublicSchoolService, name: 'publicSchool', mock: publicSchool },
     ]);
     await run({
       name: 'branding',
-      call: (c) => c.getBranding(),
+      call: (c) => c.getBranding(req),
       calls: 'getPublicBranding',
       withArgs: [],
     });
+  });
+
+  /* The sign in page has nobody signed in: the school comes from the page. */
+  it('reads the branding inside the school the page belongs to', async () => {
+    let seen: string | undefined;
+    service.getPublicBranding.mockImplementation(() => {
+      seen = currentRequest()?.schoolId;
+      return Promise.resolve({ schoolName: 'Kigali Hill' });
+    });
+    publicSchool.resolve.mockResolvedValue('school-7');
+    const controller: any = await buildController(PublicConfigController, [
+      { token: SchoolConfigService, name: 'service', mock: service },
+      { token: PublicSchoolService, name: 'publicSchool', mock: publicSchool },
+    ]);
+    await expect(controller.getBranding(req)).resolves.toEqual({
+      schoolName: 'Kigali Hill',
+    });
+    expect(seen).toBe('school-7');
   });
 });

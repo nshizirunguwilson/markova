@@ -5,6 +5,7 @@ import {
   CallHandler,
   Logger,
 } from '@nestjs/common';
+import { withPlatform } from '../../prisma/request-context';
 import { Observable, tap } from 'rxjs';
 import { redact } from '../redaction';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -48,9 +49,17 @@ export class AuditLogInterceptor implements NestInterceptor {
           (response as Record<string, unknown>)?.['id'] ||
           null;
 
-        void this.prisma.auditLog
-          .create({
+        /*
+          Written with the school named outright, as platform work. By the
+          time this runs the request's own school context may be gone, and
+          an entry that silently failed the wall between schools would be a
+          change nobody could trace. An entry with no signed-in person has no
+          school, which is what a platform event is.
+        */
+        void withPlatform(() =>
+          this.prisma.auditLog.create({
             data: {
+              schoolId: user?.schoolId ?? null,
               userId: user?.id || null,
               action,
               entityType: entity,
@@ -58,10 +67,10 @@ export class AuditLogInterceptor implements NestInterceptor {
               newValue: details,
               ipAddress: ipAddress || null,
             },
-          })
-          .catch((error) => {
-            this.logger.warn('Failed to write audit log', error);
-          });
+          }),
+        ).catch((error) => {
+          this.logger.warn('Failed to write audit log', error);
+        });
       }),
     );
   }

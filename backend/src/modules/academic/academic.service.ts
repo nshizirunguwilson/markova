@@ -549,9 +549,9 @@ export class AcademicService {
       );
     }
     // Its trade-specific modules go with it (none have marks at this point).
-    await this.prisma.$transaction([
-      this.prisma.subject.deleteMany({ where: { tradeId: id } }),
-      this.prisma.trade.delete({ where: { id } }),
+    await this.prisma.$transaction(async (tx) => [
+      await tx.subject.deleteMany({ where: { tradeId: id } }),
+      await tx.trade.delete({ where: { id } }),
     ]);
     return { message: 'Trade deleted' };
   }

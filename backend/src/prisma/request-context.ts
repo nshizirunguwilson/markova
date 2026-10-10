@@ -12,10 +12,25 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * whole point: Node serves many requests concurrently on one thread, so a
  * shared variable would be whichever request wrote to it last. This keeps one
  * value per async call chain.
+ *
+ * There are three kinds of context, and the difference is the wall between
+ * schools (docs/MULTI-SCHOOL-DESIGN.md):
+ *
+ *   a person      userId, role and schoolId: an authenticated request
+ *   a school      schoolId alone: work done for one school with nobody signed
+ *                 in, such as a scheduled reminder or a queued PDF
+ *   the platform  platform: true: work that has to look across schools, such
+ *                 as finding who is signing in. Every use is deliberate and
+ *                 named, and it can never come from a request's own data.
+ *
+ * No context at all is a real answer too, and it means nothing: the database
+ * shows no school's rows to a query that has not said which school it is for.
  */
 export interface RequestContext {
-  userId: string;
-  role: string;
+  userId?: string;
+  role?: string;
+  schoolId?: string;
+  platform?: boolean;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -26,12 +41,40 @@ export const withRequestContext = <T>(
   fn: () => T,
 ): T => storage.run(context, fn);
 
+/*
+  Both helpers below await `fn` inside the context, and that is not cosmetic.
+  A Prisma query is lazy: it runs when it is awaited, not when it is written.
+  `withPlatform(() => prisma.user.findUnique(...))` would otherwise build the
+  query inside the context and run it outside, with no school and no bypass,
+  and the database would quietly return nothing.
+*/
+
+/**
+ * Run `fn` inside one school, with nobody signed in.
+ *
+ * For scheduled tasks, queued jobs and public pages that have already worked
+ * out which school they serve.
+ */
+export const withSchool = <T>(
+  schoolId: string,
+  fn: () => T | PromiseLike<T>,
+): Promise<T> => storage.run({ schoolId }, async () => await fn());
+
+/**
+ * Run `fn` above the wall between schools.
+ *
+ * Only for work that genuinely has to look across schools before it can know
+ * which school it belongs to: finding the person who is signing in, or the
+ * record a public verification code points at. Keep what runs inside as small
+ * as possible, and move into the school as soon as it is known.
+ */
+export const withPlatform = <T>(fn: () => T | PromiseLike<T>): Promise<T> =>
+  storage.run({ platform: true }, async () => await fn());
+
 /**
  * The current request's identity, or null.
  *
- * Null is a real answer, not a failure: seeds, scheduled tasks and the render
- * worker all run outside any request. They connect as the owning role, which
- * the policies do not restrict, so they are unaffected.
+ * Null means no context was set, and the database will show nothing.
  */
 export const currentRequest = (): RequestContext | null =>
   storage.getStore() ?? null;

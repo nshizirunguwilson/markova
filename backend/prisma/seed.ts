@@ -55,9 +55,22 @@ import { NotificationSubject } from '../src/common/notification-target';
 // The seed empties every table before it fills them, and only the owner may
 // do that. DATABASE_URL is the application role, which can read and write rows
 // and nothing else, so the seed connects the way migrations do.
+//
+// One connection, because the school every row belongs to is a setting on the
+// connection (app.school_id). With a pool, the setting would be on one
+// connection and the next insert could land on another that has none.
 const prisma = new PrismaClient({
-  datasourceUrl: process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
+  datasourceUrl: oneConnection(
+    process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
+  ),
 });
+
+function oneConnection(url: string | undefined): string | undefined {
+  if (!url) return url;
+  const u = new URL(url);
+  u.searchParams.set('connection_limit', '1');
+  return u.toString();
+}
 
 // ─── NAME POOLS ──────────────────────────────────────────────────────────────
 // Rwandan naming, done properly:
@@ -665,14 +678,12 @@ async function clearDatabase() {
   );
 }
 
-/** School one, recreated under the id the connection already defaults to. */
+/** School one, made the school of the seed's one connection. */
 async function createFirstSchool(): Promise<string> {
-  const [{ id }] = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT current_setting('app.school_id') AS id
-  `;
-  await prisma.school.create({
-    data: { id, name: 'Markova Academy', slug: 'markova-academy' },
+  const { id } = await prisma.school.create({
+    data: { name: 'Markova Academy', slug: 'markova-academy' },
   });
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${id}, false)`;
   return id;
 }
 
@@ -685,8 +696,8 @@ async function main() {
   console.log('  🧹 Existing data cleared');
 
   // Emptying the tables removed the school every row belongs to. It comes
-  // back with the id the database fills in by default (app.school_id), so
-  // every row the seed writes from here lands in it.
+  // back, and becomes this connection's school, so every row the seed writes
+  // from here lands in it.
   const schoolId = await createFirstSchool();
   console.log('  🏫 First school created');
 

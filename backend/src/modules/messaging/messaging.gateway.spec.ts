@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MessagingGateway } from './messaging.gateway';
 import { MessagingService } from './messaging.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
+import { currentRequest } from '../../prisma/request-context';
 
 /**
  * The live socket behind messaging.
@@ -20,16 +21,32 @@ describe('MessagingGateway', () => {
   let emit: jest.Mock;
   let to: jest.Mock;
 
-  const socket = (over: Record<string, unknown> = {}) =>
+  /*
+    A socket that has signed in carries the school it belongs to, set when it
+    connected, and every event runs inside it.
+  */
+  const signedIn = (data: any) =>
+    data?.user?.sub && !data.context
+      ? {
+          ...data,
+          context: {
+            userId: data.user.sub,
+            role: 'TEACHER',
+            schoolId: 'school-1',
+          },
+        }
+      : data;
+
+  const socket = (over: Record<string, any> = {}) =>
     ({
       id: 'socket-1',
       handshake: { auth: { token: 'a-token' }, headers: {} },
-      data: {},
       join: jest.fn(),
       emit: jest.fn(),
       to: jest.fn().mockReturnValue({ emit: jest.fn() }),
       disconnect: jest.fn(),
       ...over,
+      data: signedIn(over.data ?? {}),
     }) as any;
 
   beforeEach(() => {
@@ -169,6 +186,31 @@ describe('MessagingGateway', () => {
    * once the last of them has gone.
    */
   describe('going offline', () => {
+    it('runs every event inside the school of the person on the socket', async () => {
+      let seen: unknown;
+      messaging.markAsRead.mockImplementation(() => {
+        seen = currentRequest();
+        return Promise.resolve({ count: 0, readMessageIds: [] });
+      });
+      await gateway.handleMarkRead(
+        socket({ data: { user: { sub: 'user-1' } } }),
+        { conversationId: 'conv-1' },
+      );
+      expect(seen).toEqual({
+        userId: 'user-1',
+        role: 'TEACHER',
+        schoolId: 'school-1',
+      });
+    });
+
+    it('refuses an event from a socket that never signed in', async () => {
+      const stranger = socket();
+      stranger.data = {};
+      await expect(
+        gateway.handleMarkRead(stranger, { conversationId: 'conv-1' }),
+      ).rejects.toThrow(/not signed in/);
+    });
+
     it('does nothing for a socket that was never signed in', async () => {
       await gateway.handleDisconnect(socket({ data: {} }));
       expect(prisma.user.update).not.toHaveBeenCalled();
