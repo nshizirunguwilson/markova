@@ -521,14 +521,14 @@ export class LibraryService {
   }
 
   private async getBorrowingLimit(): Promise<number> {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key: 'borrowing_limit' },
     });
     return Number(config?.value || '3');
   }
 
   private async getBorrowingDuration(): Promise<number> {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key: 'borrowing_duration_days' },
     });
     return Number(config?.value || '14');

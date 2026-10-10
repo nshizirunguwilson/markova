@@ -15,7 +15,7 @@ import {
  */
 describe('FeeGateService', () => {
   const prisma = {
-    schoolConfig: { findUnique: jest.fn() },
+    schoolConfig: { findFirst: jest.fn() },
     feeInvoice: { findUnique: jest.fn(), findMany: jest.fn() },
   };
   const gate = new FeeGateService(prisma as never);
@@ -32,7 +32,7 @@ describe('FeeGateService', () => {
   };
 
   beforeEach(() => {
-    prisma.schoolConfig.findUnique.mockReset().mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockReset().mockResolvedValue(null);
     prisma.feeInvoice.findUnique.mockReset().mockResolvedValue(owing);
     prisma.feeInvoice.findMany.mockReset().mockResolvedValue([owing]);
   });
@@ -43,18 +43,18 @@ describe('FeeGateService', () => {
     });
 
     it('is off when the school turned it off', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: 'false' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: 'false' });
       expect(await gate.isEnabled()).toBe(false);
     });
 
     it('is on for any other value', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: 'true' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: 'true' });
       expect(await gate.isEnabled()).toBe(true);
     });
 
     it('reads the one key it owns', async () => {
       await gate.isEnabled();
-      expect(prisma.schoolConfig.findUnique).toHaveBeenCalledWith(
+      expect(prisma.schoolConfig.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { key: FEE_GATE_CONFIG_KEY } }),
       );
     });
@@ -107,7 +107,7 @@ describe('FeeGateService', () => {
     });
 
     it('releases everything when the school has turned the rule off', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: 'false' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: 'false' });
       expect(
         await gate.withholdingFor('STUDENT', 'stu-1', 'term-1'),
       ).toBeNull();
@@ -176,7 +176,7 @@ describe('FeeGateService', () => {
     });
 
     it('releases a year when the rule is off', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: 'false' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: 'false' });
       expect(
         await gate.withholdingForYear('STUDENT', 'stu-1', 'year-1'),
       ).toBeNull();

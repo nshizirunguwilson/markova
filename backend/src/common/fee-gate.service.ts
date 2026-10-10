@@ -56,7 +56,7 @@ export class FeeGateService {
 
   /** Whether the school withholds results over fees at all. Default yes. */
   async isEnabled(): Promise<boolean> {
-    const row = await this.prisma.schoolConfig.findUnique({
+    const row = await this.prisma.schoolConfig.findFirst({
       where: { key: FEE_GATE_CONFIG_KEY },
       select: { value: true },
     });

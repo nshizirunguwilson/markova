@@ -31,7 +31,7 @@ describe('LibraryService', () => {
       notifications as unknown as NotificationsService,
       delivery as never,
     );
-    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockResolvedValue(null);
     prisma.bookLoan.count.mockResolvedValue(0);
     prisma.bookLoan.create.mockResolvedValue({ id: 'loan-1' });
     prisma.book.update.mockResolvedValue({});
@@ -216,7 +216,7 @@ describe('LibraryService', () => {
     });
 
     it('uses the limit the school set', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '5' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '5' });
       prisma.bookLoan.count.mockResolvedValue(5);
       await expect(
         service.checkout({
@@ -240,7 +240,7 @@ describe('LibraryService', () => {
     });
 
     it('sets a due date the school’s number of days out', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '7' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '7' });
       await service.checkout({
         bookIdentifier: 'BK-001',
         studentIdentifier: 'STD-2026-001',

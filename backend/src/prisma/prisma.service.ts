@@ -120,6 +120,25 @@ export class PrismaService
     }) as this;
   }
 
+  /**
+   * The school the current query runs in.
+   *
+   * Most code never needs this: a new row takes its school from the
+   * connection, and reads will be limited to the current school for them.
+   * It is for the few places that address a row by a value that is unique
+   * only inside a school, such as a setting's key, where Prisma needs the
+   * school as part of the key.
+   *
+   * It reads the connection's own `app.school_id`, so it always agrees with
+   * the school a row written in the same request would get.
+   */
+  async currentSchoolId(): Promise<string> {
+    const [row] = await this.$queryRaw<
+      { id: string }[]
+    >`SELECT current_setting('app.school_id') AS id`;
+    return row.id;
+  }
+
   async onModuleInit() {
     await this.$connect();
   }

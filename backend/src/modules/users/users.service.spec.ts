@@ -1435,13 +1435,13 @@ describe('issuing numbers when they collide', () => {
 
   it('tries again when the first number it builds is taken', async () => {
     // The first candidate belongs to somebody; the second does not.
-    prisma.student.findUnique
+    prisma.student.findFirst
       .mockResolvedValueOnce({ id: 'student-9' })
       .mockResolvedValue(null);
 
     await service.create(student);
 
-    expect(prisma.student.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.student.findFirst).toHaveBeenCalledTimes(2);
     expect(prisma.student.create.mock.calls[0][0].data.studentIdNumber).toMatch(
       /^STD-/,
     );
@@ -1450,16 +1450,16 @@ describe('issuing numbers when they collide', () => {
   // Fifty is far past the largest group of students sharing a name in a real
   // roll, so reaching it means something else is wrong.
   it('gives up rather than looping for ever', async () => {
-    prisma.student.findUnique.mockResolvedValue({ id: 'student-9' });
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-9' });
 
     await expect(service.create(student as never)).rejects.toThrow(
       ConflictException,
     );
-    expect(prisma.student.findUnique).toHaveBeenCalledTimes(50);
+    expect(prisma.student.findFirst).toHaveBeenCalledTimes(50);
   }, 20000);
 
   it('dates the number from the enrolment rather than from today', async () => {
-    prisma.student.findUnique.mockResolvedValue(null);
+    prisma.student.findFirst.mockResolvedValue(null);
 
     await service.create({
       ...student,

@@ -218,7 +218,11 @@ Each part is its own pull request, tested before the next one starts:
 ## 12. Decisions so far
 
 1. **One login per person, one record per school:** agreed.
-2. **Who may change a person's sign in phone or email:** still open.
+2. **Who may change a person's sign in phone or email:** only the person, after
+   a code. A school admin edits the school's own contact details. The one
+   exception: a person who has lost their phone and belongs to only one school
+   can have their login reset by that school's admin, after checking who they
+   are in person.
 3. **The summary screen for all of a parent's children:** with the mobile
    redesign.
 4. **How students sign in:** in step 4.

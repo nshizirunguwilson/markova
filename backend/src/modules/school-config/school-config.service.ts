@@ -71,7 +71,7 @@ export class SchoolConfigService {
   // ─── GET SINGLE CONFIG ──────────────────────────────────────────────────────
 
   async findByKey(key: string) {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key },
     });
     if (!config) {
@@ -84,7 +84,12 @@ export class SchoolConfigService {
 
   async upsert(dto: UpsertConfigDto) {
     const saved = await this.prisma.schoolConfig.upsert({
-      where: { key: dto.key },
+      where: {
+        schoolId_key: {
+          schoolId: await this.prisma.currentSchoolId(),
+          key: dto.key,
+        },
+      },
       update: { value: dto.value },
       create: { key: dto.key, value: dto.value },
     });
@@ -96,9 +101,10 @@ export class SchoolConfigService {
 
   async bulkUpsert(dto: BulkUpsertConfigDto) {
     const results = [];
+    const schoolId = await this.prisma.currentSchoolId();
     for (const config of dto.configs) {
       const result = await this.prisma.schoolConfig.upsert({
-        where: { key: config.key },
+        where: { schoolId_key: { schoolId, key: config.key } },
         update: { value: config.value },
         create: { key: config.key, value: config.value },
       });
@@ -111,13 +117,13 @@ export class SchoolConfigService {
   // ─── DELETE CONFIG ──────────────────────────────────────────────────────────
 
   async delete(key: string) {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key },
     });
     if (!config) {
       throw new NotFoundException(`Config key "${key}" not found`);
     }
-    await this.prisma.schoolConfig.delete({ where: { key } });
+    await this.prisma.schoolConfig.delete({ where: { id: config.id } });
     await this.cache.forget(CacheKey.publicBranding);
     return { message: `Config "${key}" deleted` };
   }
@@ -125,10 +131,10 @@ export class SchoolConfigService {
   // ─── ONBOARDING STATUS ─────────────────────────────────────────────────────
 
   async getOnboardingStatus() {
-    const step = await this.prisma.schoolConfig.findUnique({
+    const step = await this.prisma.schoolConfig.findFirst({
       where: { key: 'onboarding_step' },
     });
-    const completed = await this.prisma.schoolConfig.findUnique({
+    const completed = await this.prisma.schoolConfig.findFirst({
       where: { key: 'onboarding_completed' },
     });
     return {
@@ -138,15 +144,16 @@ export class SchoolConfigService {
   }
 
   async updateOnboarding(dto: UpdateOnboardingDto) {
+    const schoolId = await this.prisma.currentSchoolId();
     await this.prisma.schoolConfig.upsert({
-      where: { key: 'onboarding_step' },
+      where: { schoolId_key: { schoolId, key: 'onboarding_step' } },
       update: { value: dto.currentStep },
       create: { key: 'onboarding_step', value: dto.currentStep },
     });
 
     if (dto.completed) {
       await this.prisma.schoolConfig.upsert({
-        where: { key: 'onboarding_completed' },
+        where: { schoolId_key: { schoolId, key: 'onboarding_completed' } },
         update: { value: dto.completed },
         create: { key: 'onboarding_completed', value: dto.completed },
       });
@@ -159,7 +166,9 @@ export class SchoolConfigService {
 
   async updateBrandingFile(key: string, fileUrl: string) {
     const saved = await this.prisma.schoolConfig.upsert({
-      where: { key },
+      where: {
+        schoolId_key: { schoolId: await this.prisma.currentSchoolId(), key },
+      },
       update: { value: fileUrl },
       create: { key, value: fileUrl },
     });

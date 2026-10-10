@@ -4,23 +4,22 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  /*
-    What the running application connects as: markova_app, which can read and
-    write rows and nothing else. It is deliberately not the owner, because a
-    superuser bypasses every row level security policy however the table is
-    configured, and an application that can drop a table has more power than
-    anything in it needs.
-  */
-  url = env("DATABASE_URL")
+  /**
+   * What the running application connects as: markova_app, which can read and
+   * write rows and nothing else. It is deliberately not the owner, because a
+   * superuser bypasses every row level security policy however the table is
+   * configured, and an application that can drop a table has more power than
+   * anything in it needs.
+   */
+  url      = env("DATABASE_URL")
 
-  /*
-    What migrations connect as: the owner, which can alter the schema.
-
-    Two URLs because the two jobs need different power. `prisma migrate` and
-    `prisma db seed` use this; nothing at runtime does. It falls back to
-    DATABASE_URL so a developer who has not set it still gets a working
-    `migrate dev`, which is the common case on a fresh clone.
-  */
+  /**
+   * What migrations connect as: the owner, which can alter the schema.
+   * Two URLs because the two jobs need different power. `prisma migrate` and
+   * `prisma db seed` use this; nothing at runtime does. It falls back to
+   * DATABASE_URL so a developer who has not set it still gets a working
+   * `migrate dev`, which is the common case on a fresh clone.
+   */
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
@@ -164,23 +163,108 @@ enum NotificationType {
 
 // ─── CORE ───────────────────────────────────────────────────────────────────────
 
-model SchoolConfig {
-  id    String @id @default(uuid())
-  key   String @unique
-  value String
+/// A school using Markova. Every record a school owns carries its id, and the
+/// database refuses to show one school's rows to another (see
+/// docs/MULTI-SCHOOL-DESIGN.md).
+model School {
+  id        String       @id @default(uuid())
+  name      String
+  /// Short, readable and unique: used in addresses and codes.
+  slug      String       @unique
+  status    SchoolStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
 
+  schoolConfigs             SchoolConfig[]
+  users                     User[]
+  auditLogs                 AuditLog[]
+  academicYears             AcademicYear[]
+  terms                     Term[]
+  classLevels               ClassLevel[]
+  trades                    Trade[]
+  classSections             ClassSection[]
+  subjects                  Subject[]
+  assessmentTypes           AssessmentType[]
+  timetables                Timetable[]
+  students                  Student[]
+  parentStudents            ParentStudent[]
+  teachers                  Teacher[]
+  teacherRoles              TeacherRole[]
+  teacherSubjectClasses     TeacherSubjectClass[]
+  marks                     Mark[]
+  termResults               TermResult[]
+  reportVerifications       ReportVerification[]
+  yearResults               YearResult[]
+  attendances               Attendance[]
+  teacherAttendances        TeacherAttendance[]
+  disciplineIncidents       DisciplineIncident[]
+  disciplineAppeals         DisciplineAppeal[]
+  books                     Book[]
+  bookLoans                 BookLoan[]
+  homeworks                 Homework[]
+  homeworkSubmissions       HomeworkSubmission[]
+  conversations             Conversation[]
+  conversationParticipants  ConversationParticipant[]
+  messages                  Message[]
+  messageMentions           MessageMention[]
+  messageReads              MessageRead[]
+  notifications             Notification[]
+  supportTickets            SupportTicket[]
+  examSchedules             ExamSchedule[]
+  faqArticles               FaqArticle[]
+  pocketMoneyAccounts       PocketMoneyAccount[]
+  pocketMoneyTransactions   PocketMoneyTransaction[]
+  activities                Activity[]
+  activityClassLevels       ActivityClassLevel[]
+  activitySections          ActivitySection[]
+  activityParticipants      ActivityParticipant[]
+  clinicVisits              ClinicVisit[]
+  medicationAdministrations MedicationAdministration[]
+  studentHealthRecords      StudentHealthRecord[]
+  meritAwards               MeritAward[]
+  feeItems                  FeeItem[]
+  feeInvoices               FeeInvoice[]
+  feeInvoiceLines           FeeInvoiceLine[]
+  feePayments               FeePayment[]
+  feeWaivers                FeeWaiver[]
+  admissionIntakes          AdmissionIntake[]
+  applications              Application[]
+  applicationDocuments      ApplicationDocument[]
+  applicationEvents         ApplicationEvent[]
+  applicationNotes          ApplicationNote[]
+  admissionOffers           AdmissionOffer[]
+
+  @@map("schools")
+}
+
+enum SchoolStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+model SchoolConfig {
+  id       String @id @default(uuid())
+  schoolId String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  key      String
+  value    String
+
+  @@unique([schoolId, key])
   @@map("school_configs")
 }
 
 model User {
   id                  String    @id @default(uuid())
+  schoolId            String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school              School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   email               String?   @unique
   phone               String?   @unique
   // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
   // Students carry theirs on Student.studentIdNumber (STD prefix).
-  code                String?   @unique
+  code                String?
   // NIDA 16-digit national identification number (stored without spaces).
-  nationalId          String?   @unique @map("national_id")
+  nationalId          String?   @map("national_id")
   nationality         String?
   // For staff and parents. Students carry theirs on Student, which stays
   // the single source of truth for student demographics.
@@ -241,6 +325,8 @@ model User {
   applicationNotes        ApplicationNote[]          @relation("ApplicationNoteAuthor")
   admissionOffers         AdmissionOffer[]           @relation("AdmissionOfferedBy")
 
+  @@unique([schoolId, code])
+  @@unique([schoolId, nationalId])
   @@index([role])
   @@index([isActive])
   @@map("users")
@@ -265,6 +351,8 @@ model UserSession {
 
 model AuditLog {
   id         String   @id @default(uuid())
+  schoolId   String?  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school     School?  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   userId     String?  @map("user_id")
   action     String
   entityType String?  @map("entity_type")
@@ -279,6 +367,7 @@ model AuditLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([schoolId])
   @@map("audit_logs")
 }
 
@@ -286,7 +375,9 @@ model AuditLog {
 
 model AcademicYear {
   id        String   @id @default(uuid())
-  name      String   @unique
+  schoolId  String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name      String
   startDate DateTime @map("start_date")
   endDate   DateTime @map("end_date")
   isCurrent Boolean  @default(false) @map("is_current")
@@ -296,11 +387,14 @@ model AcademicYear {
   yearResults           YearResult[]
   admissionIntakes      AdmissionIntake[]
 
+  @@unique([schoolId, name])
   @@map("academic_years")
 }
 
 model Term {
   id             String   @id @default(uuid())
+  schoolId       String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   academicYearId String   @map("academic_year_id")
   name           String
   startDate      DateTime @map("start_date")
@@ -322,14 +416,17 @@ model Term {
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
+  @@index([schoolId])
   @@map("terms")
 }
 
 model ClassLevel {
-  id    String         @id @default(uuid())
-  name  String         @unique
-  order Int
-  stage EducationStage @default(O_LEVEL)
+  id       String         @id @default(uuid())
+  schoolId String         @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school   School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name     String
+  order    Int
+  stage    EducationStage @default(O_LEVEL)
 
   sections            ClassSection[]
   subjects            Subject[]
@@ -337,16 +434,19 @@ model ClassLevel {
   feeItems            FeeItem[]
   admissionIntakes    AdmissionIntake[]
 
+  @@unique([schoolId, name])
   @@map("class_levels")
 }
 
 // A-Level (TVET) trade section, e.g. SWD - Software Development, under the
 // national sector it belongs to (e.g. ICT and Multimedia). O-Level has none.
 model Trade {
-  id     String @id @default(uuid())
-  code   String @unique
-  name   String @unique
-  sector String
+  id       String @id @default(uuid())
+  schoolId String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  code     String
+  name     String
+  sector   String
 
   sections ClassSection[]
   subjects Subject[]
@@ -354,11 +454,15 @@ model Trade {
   applications             Application[] @relation("ApplicationTrade")
   secondChoiceApplications Application[] @relation("ApplicationSecondChoice")
 
+  @@unique([schoolId, code])
+  @@unique([schoolId, name])
   @@map("trades")
 }
 
 model ClassSection {
   id           String  @id @default(uuid())
+  schoolId     String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   classLevelId String  @map("class_level_id")
   tradeId      String? @map("trade_id")
   name         String
@@ -385,11 +489,14 @@ model ClassSection {
   // null) are additionally guarded in AcademicService.
   @@unique([classLevelId, tradeId, name])
   @@index([tradeId])
+  @@index([schoolId])
   @@map("class_sections")
 }
 
 model Subject {
   id           String       @id @default(uuid())
+  schoolId     String       @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   name         String
   category     String?
   scope        SubjectScope @default(O_CORE)
@@ -410,23 +517,28 @@ model Subject {
 
   // Same module name may exist in two trades (e.g. Database Development in
   // both SWD and NIT). General subjects (tradeId null) are service-guarded.
-  @@unique([name, tradeId])
+  @@unique([schoolId, name, tradeId])
   @@index([tradeId])
   @@index([classLevelId])
   @@map("subjects")
 }
 
 model AssessmentType {
-  id   String @id @default(uuid())
-  name String @unique
+  id       String @id @default(uuid())
+  schoolId String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  name     String
 
   marks Mark[]
 
+  @@unique([schoolId, name])
   @@map("assessment_types")
 }
 
 model Timetable {
   id             String  @id @default(uuid())
+  schoolId       String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   classSectionId String  @map("class_section_id")
   subjectId      String  @map("subject_id")
   teacherId      String  @map("teacher_id")
@@ -442,6 +554,7 @@ model Timetable {
   @@index([classSectionId])
   @@index([teacherId])
   @@index([dayOfWeek])
+  @@index([schoolId])
   @@map("timetables")
 }
 
@@ -449,8 +562,10 @@ model Timetable {
 
 model Student {
   id                String        @id @default(uuid())
+  schoolId          String        @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school            School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   userId            String        @unique @map("user_id")
-  studentIdNumber   String        @unique @map("student_id_number")
+  studentIdNumber   String        @map("student_id_number")
   classSectionId    String        @map("class_section_id")
   dateOfBirth       DateTime?     @map("date_of_birth")
   gender            Gender?
@@ -474,7 +589,7 @@ model Student {
   isBoarder         Boolean       @default(false) @map("is_boarder")
   religion          String?
   enrollmentDate    DateTime      @default(now()) @map("enrollment_date")
-  nfcCardId         String?       @unique @map("nfc_card_id")
+  nfcCardId         String?       @map("nfc_card_id")
   cardIssuedAt      DateTime?     @map("card_issued_at")
   // Printed on the card as a QR. Unguessable, and cleared when a card is
   // revoked, so a lost card stops verifying the moment it is reissued.
@@ -506,6 +621,8 @@ model Student {
   feeInvoices         FeeInvoice[]
   application         Application?
 
+  @@unique([schoolId, studentIdNumber])
+  @@unique([schoolId, nfcCardId])
   @@index([classSectionId])
   @@index([status])
   @@map("students")
@@ -513,6 +630,8 @@ model Student {
 
 model ParentStudent {
   id           String @id @default(uuid())
+  schoolId     String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   parentUserId String @map("parent_user_id")
   studentId    String @map("student_id")
   relationship String
@@ -523,6 +642,7 @@ model ParentStudent {
   @@unique([parentUserId, studentId])
   @@index([parentUserId])
   @@index([studentId])
+  @@index([schoolId])
   @@map("parent_students")
 }
 
@@ -530,6 +650,8 @@ model ParentStudent {
 
 model Teacher {
   id               String                @id @default(uuid())
+  schoolId         String                @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   userId           String                @unique @map("user_id")
   employmentStatus EmploymentStatus      @default(FULL_TIME) @map("employment_status")
   qualification    TeacherQualification?
@@ -546,11 +668,14 @@ model Teacher {
   teacherAttendances    TeacherAttendance[]
   homeworks             Homework[]
 
+  @@index([schoolId])
   @@map("teachers")
 }
 
 model TeacherRole {
   id             String      @id @default(uuid())
+  schoolId       String      @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   teacherId      String      @map("teacher_id")
   role           SpecialRole
   classSectionId String?     @map("class_section_id")
@@ -560,11 +685,14 @@ model TeacherRole {
 
   @@unique([teacherId, role, classSectionId])
   @@index([teacherId])
+  @@index([schoolId])
   @@map("teacher_roles")
 }
 
 model TeacherSubjectClass {
   id             String @id @default(uuid())
+  schoolId       String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   teacherId      String @map("teacher_id")
   subjectId      String @map("subject_id")
   classSectionId String @map("class_section_id")
@@ -578,6 +706,7 @@ model TeacherSubjectClass {
   @@unique([teacherId, subjectId, classSectionId, academicYearId])
   @@index([teacherId])
   @@index([classSectionId])
+  @@index([schoolId])
   @@map("teacher_subject_classes")
 }
 
@@ -585,6 +714,8 @@ model TeacherSubjectClass {
 
 model Mark {
   id               String   @id @default(uuid())
+  schoolId         String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId        String   @map("student_id")
   subjectId        String   @map("subject_id")
   classSectionId   String   @map("class_section_id")
@@ -608,11 +739,14 @@ model Mark {
   @@index([subjectId])
   @@index([classSectionId, termId])
   @@index([teacherId])
+  @@index([schoolId])
   @@map("marks")
 }
 
 model TermResult {
   id                String  @id @default(uuid())
+  schoolId          String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school            School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId         String  @map("student_id")
   classSectionId    String  @map("class_section_id")
   termId            String  @map("term_id")
@@ -651,14 +785,15 @@ model TermResult {
   dosConfirmedAt   DateTime? @map("dos_confirmed_at")
   dosConfirmedById String?   @map("dos_confirmed_by_id")
 
-  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSection ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
-  term         Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
-  verification ReportVerification?
-  dosConfirmedBy User?             @relation("ReportCardsConfirmed", fields: [dosConfirmedById], references: [id], onDelete: SetNull)
+  student        Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection   ClassSection        @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  term           Term                @relation(fields: [termId], references: [id], onDelete: Cascade)
+  verification   ReportVerification?
+  dosConfirmedBy User?               @relation("ReportCardsConfirmed", fields: [dosConfirmedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, classSectionId, termId])
   @@index([classSectionId, termId])
+  @@index([schoolId])
   @@map("term_results")
 }
 
@@ -666,17 +801,22 @@ model TermResult {
 // the paper copy (QR + link) and resolves to the digital original.
 model ReportVerification {
   id           String   @id @default(uuid())
+  schoolId     String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   code         String   @unique
   termResultId String   @unique @map("term_result_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
   termResult TermResult @relation(fields: [termResultId], references: [id], onDelete: Cascade)
 
+  @@index([schoolId])
   @@map("report_verifications")
 }
 
 model YearResult {
   id                String  @id @default(uuid())
+  schoolId          String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school            School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId         String  @map("student_id")
   classSectionId    String  @map("class_section_id")
   academicYearId    String  @map("academic_year_id")
@@ -695,6 +835,7 @@ model YearResult {
 
   @@unique([studentId, classSectionId, academicYearId])
   @@index([classSectionId, academicYearId])
+  @@index([schoolId])
   @@map("year_results")
 }
 
@@ -702,6 +843,8 @@ model YearResult {
 
 model Attendance {
   id             String           @id @default(uuid())
+  schoolId       String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId      String           @map("student_id")
   classSectionId String           @map("class_section_id")
   date           DateTime         @db.Date
@@ -720,11 +863,14 @@ model Attendance {
   @@unique([studentId, date, type, subjectId])
   @@index([classSectionId, date])
   @@index([studentId, date])
+  @@index([schoolId])
   @@map("attendances")
 }
 
 model TeacherAttendance {
   id        String           @id @default(uuid())
+  schoolId  String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   teacherId String           @map("teacher_id")
   date      DateTime         @db.Date
   status    AttendanceStatus
@@ -734,6 +880,7 @@ model TeacherAttendance {
 
   @@unique([teacherId, date])
   @@index([date])
+  @@index([schoolId])
   @@map("teacher_attendances")
 }
 
@@ -741,6 +888,8 @@ model TeacherAttendance {
 
 model DisciplineIncident {
   id                   String           @id @default(uuid())
+  schoolId             String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school               School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId            String           @map("student_id")
   termId               String           @map("term_id")
   recordedByUserId     String           @map("recorded_by_user_id")
@@ -762,11 +911,14 @@ model DisciplineIncident {
 
   @@index([studentId])
   @@index([termId])
+  @@index([schoolId])
   @@map("discipline_incidents")
 }
 
 model DisciplineAppeal {
   id                String       @id @default(uuid())
+  schoolId          String       @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school            School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   incidentId        String       @map("incident_id")
   submittedByUserId String       @map("submitted_by_user_id")
   statement         String
@@ -781,6 +933,7 @@ model DisciplineAppeal {
   reviewedBy  User?              @relation("ReviewedByUser", fields: [reviewedByUserId], references: [id])
 
   @@index([incidentId])
+  @@index([schoolId])
   @@map("discipline_appeals")
 }
 
@@ -788,19 +941,23 @@ model DisciplineAppeal {
 
 model Book {
   id              String  @id @default(uuid())
+  schoolId        String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   title           String
   author          String
-  isbn            String? @unique
+  isbn            String?
   category        String?
   quantity        Int     @default(1)
   availableCount  Int     @default(1) @map("available_count")
-  barcode         String? @unique
+  barcode         String?
   shelfLocation   String? @map("shelf_location")
   replacementCost Float?  @map("replacement_cost")
   isActive        Boolean @default(true) @map("is_active")
 
   loans BookLoan[]
 
+  @@unique([schoolId, isbn])
+  @@unique([schoolId, barcode])
   @@index([title])
   @@index([category])
   @@map("books")
@@ -808,6 +965,8 @@ model Book {
 
 model BookLoan {
   id              String     @id @default(uuid())
+  schoolId        String     @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   bookId          String     @map("book_id")
   borrowerUserId  String     @map("borrower_user_id")
   checkedOutAt    DateTime   @default(now()) @map("checked_out_at")
@@ -822,6 +981,7 @@ model BookLoan {
   @@index([bookId])
   @@index([borrowerUserId])
   @@index([status])
+  @@index([schoolId])
   @@map("book_loans")
 }
 
@@ -842,6 +1002,8 @@ enum AssessmentKind {
 
 model Homework {
   id                  String         @id @default(uuid())
+  schoolId            String         @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school              School         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   teacherId           String         @map("teacher_id")
   subjectId           String         @map("subject_id")
   classSectionId      String         @map("class_section_id")
@@ -863,11 +1025,14 @@ model Homework {
 
   @@index([classSectionId, termId])
   @@index([teacherId])
+  @@index([schoolId])
   @@map("homeworks")
 }
 
 model HomeworkSubmission {
   id             String    @id @default(uuid())
+  schoolId       String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   homeworkId     String    @map("homework_id")
   studentId      String    @map("student_id")
   fileUrl        String?   @map("file_url")
@@ -884,6 +1049,7 @@ model HomeworkSubmission {
   @@unique([homeworkId, studentId])
   @@index([homeworkId])
   @@index([studentId])
+  @@index([schoolId])
   @@map("homework_submissions")
 }
 
@@ -891,6 +1057,8 @@ model HomeworkSubmission {
 
 model Conversation {
   id              String           @id @default(uuid())
+  schoolId        String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   type            ConversationType
   name            String?
   createdByUserId String           @map("created_by_user_id")
@@ -907,11 +1075,14 @@ model Conversation {
   participants ConversationParticipant[]
   messages     Message[]
 
+  @@index([schoolId])
   @@map("conversations")
 }
 
 model ConversationParticipant {
   id             String   @id @default(uuid())
+  schoolId       String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   conversationId String   @map("conversation_id")
   userId         String   @map("user_id")
   joinedAt       DateTime @default(now()) @map("joined_at")
@@ -922,11 +1093,14 @@ model ConversationParticipant {
 
   @@unique([conversationId, userId])
   @@index([userId])
+  @@index([schoolId])
   @@map("conversation_participants")
 }
 
 model Message {
   id             String             @id @default(uuid())
+  schoolId       String             @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   conversationId String             @map("conversation_id")
   senderUserId   String             @map("sender_user_id")
   content        String
@@ -945,14 +1119,15 @@ model Message {
   /// removed would take a real sentence out of the conversation.
   replyToId String? @map("reply_to_id")
 
-  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User          @relation(fields: [senderUserId], references: [id])
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderUserId], references: [id])
   reads        MessageRead[]
   mentions     MessageMention[]
-  replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies      Message[]     @relation("MessageReplies")
+  replyTo      Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]        @relation("MessageReplies")
 
   @@index([conversationId, createdAt])
+  @@index([schoolId])
   @@map("messages")
 }
 
@@ -965,25 +1140,30 @@ model Message {
 /// would be both slow and wrong, matching anybody who quoted one in a
 /// sentence.
 model MessageMention {
-  id        String   @id @default(uuid())
-  messageId String   @map("message_id")
-  userId    String   @map("user_id")
+  id          String   @id @default(uuid())
+  schoolId    String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  messageId   String   @map("message_id")
+  userId      String   @map("user_id")
   /// Set when the message addressed the whole room rather than this person by
   /// name. A reader is owed the difference: being one of thirty is not the
   /// same as being asked.
-  viaEveryone Boolean @default(false) @map("via_everyone")
-  createdAt DateTime @default(now()) @map("created_at")
+  viaEveryone Boolean  @default(false) @map("via_everyone")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([userId])
+  @@index([schoolId])
   @@map("message_mentions")
 }
 
 model MessageRead {
   id        String   @id @default(uuid())
+  schoolId  String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   messageId String   @map("message_id")
   userId    String   @map("user_id")
   readAt    DateTime @default(now()) @map("read_at")
@@ -992,6 +1172,7 @@ model MessageRead {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
+  @@index([schoolId])
   @@map("message_reads")
 }
 
@@ -999,6 +1180,8 @@ model MessageRead {
 
 model Notification {
   id                String           @id @default(uuid())
+  schoolId          String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school            School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   userId            String           @map("user_id")
   title             String
   message           String
@@ -1031,6 +1214,7 @@ model Notification {
   @@index([createdAt])
   /// What the roll-up looks up: this person's unread entry for this thing.
   @@index([userId, isRead, relatedEntityType, relatedEntityId])
+  @@index([schoolId])
   @@map("notifications")
 }
 
@@ -1052,6 +1236,8 @@ model PushToken {
 
 model SupportTicket {
   id            String    @id @default(uuid())
+  schoolId      String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   userId        String    @map("user_id")
   title         String
   description   String
@@ -1065,11 +1251,14 @@ model SupportTicket {
 
   @@index([userId])
   @@index([status])
+  @@index([schoolId])
   @@map("support_tickets")
 }
 
 model ExamSchedule {
   id             String   @id @default(uuid())
+  schoolId       String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   classSectionId String   @map("class_section_id")
   subjectId      String   @map("subject_id")
   termId         String   @map("term_id")
@@ -1086,11 +1275,14 @@ model ExamSchedule {
 
   @@index([classSectionId, termId])
   @@index([examDate])
+  @@index([schoolId])
   @@map("exam_schedules")
 }
 
 model FaqArticle {
   id           String  @id @default(uuid())
+  schoolId     String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   title        String
   content      String
   category     String?
@@ -1098,6 +1290,7 @@ model FaqArticle {
   isPublished  Boolean @default(true) @map("is_published")
 
   @@index([category])
+  @@index([schoolId])
   @@map("faq_articles")
 }
 
@@ -1125,6 +1318,8 @@ enum PocketMoneyKind {
 
 model PocketMoneyAccount {
   id              String   @id @default(uuid())
+  schoolId        String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId       String   @unique @map("student_id")
   /// What the student may spend in one day. Set by the parent, because it is
   /// their money and a term's money has to last a term. Null means no cap.
@@ -1138,11 +1333,14 @@ model PocketMoneyAccount {
   student      Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   transactions PocketMoneyTransaction[]
 
+  @@index([schoolId])
   @@map("pocket_money_accounts")
 }
 
 model PocketMoneyTransaction {
   id               String          @id @default(uuid())
+  schoolId         String          @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   accountId        String          @map("account_id")
   kind             PocketMoneyKind
   /// Always positive. The kind decides the direction, so a reader never has to
@@ -1163,6 +1361,7 @@ model PocketMoneyTransaction {
   reversedBy PocketMoneyTransaction? @relation("Reversal")
 
   @@index([accountId, createdAt])
+  @@index([schoolId])
   @@map("pocket_money_transactions")
 }
 
@@ -1200,6 +1399,8 @@ enum ActivityAudience {
 
 model Activity {
   id               String           @id @default(uuid())
+  schoolId         String           @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   kind             ActivityKind
   title            String
   description      String?
@@ -1228,12 +1429,15 @@ model Activity {
   participants ActivityParticipant[]
 
   @@index([startsAt])
+  @@index([schoolId])
   @@map("activities")
 }
 
 /// Which year levels an activity concerns, when the audience is LEVELS.
 model ActivityClassLevel {
   id           String @id @default(uuid())
+  schoolId     String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   activityId   String @map("activity_id")
   classLevelId String @map("class_level_id")
 
@@ -1241,12 +1445,15 @@ model ActivityClassLevel {
   classLevel ClassLevel @relation(fields: [classLevelId], references: [id], onDelete: Cascade)
 
   @@unique([activityId, classLevelId])
+  @@index([schoolId])
   @@map("activity_class_levels")
 }
 
 /// Which classes an activity concerns, when the audience is CLASSES.
 model ActivitySection {
   id             String @id @default(uuid())
+  schoolId       String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   activityId     String @map("activity_id")
   classSectionId String @map("class_section_id")
 
@@ -1254,6 +1461,7 @@ model ActivitySection {
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
 
   @@unique([activityId, classSectionId])
+  @@index([schoolId])
   @@map("activity_sections")
 }
 
@@ -1270,6 +1478,8 @@ enum ConsentState {
 /// from two sides: may this child go, and did they.
 model ActivityParticipant {
   id         String @id @default(uuid())
+  schoolId   String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school     School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   activityId String @map("activity_id")
   studentId  String @map("student_id")
 
@@ -1290,6 +1500,7 @@ model ActivityParticipant {
 
   @@unique([activityId, studentId])
   @@index([studentId])
+  @@index([schoolId])
   @@map("activity_participants")
 }
 
@@ -1322,6 +1533,8 @@ enum ClinicSeverity {
 /// worth nothing the day somebody has to account for what happened.
 model ClinicVisit {
   id        String @id @default(uuid())
+  schoolId  String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId String @map("student_id")
 
   /// What the student said was wrong, in their words.
@@ -1354,6 +1567,7 @@ model ClinicVisit {
 
   @@index([studentId])
   @@index([visitedAt])
+  @@index([schoolId])
   @@map("clinic_visits")
 }
 
@@ -1363,6 +1577,8 @@ model ClinicVisit {
 /// which is the question a double dose comes from.
 model MedicationAdministration {
   id        String  @id @default(uuid())
+  schoolId  String  @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School  @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId String  @map("student_id")
   /// The visit it came out of, when there was one. Regular medication for a
   /// long-term condition has no visit behind it.
@@ -1383,6 +1599,7 @@ model MedicationAdministration {
 
   @@index([studentId])
   @@index([givenAt])
+  @@index([schoolId])
   @@map("medication_administrations")
 }
 
@@ -1392,6 +1609,8 @@ model MedicationAdministration {
 /// the boarding staff and the office see it, teachers never do.
 model StudentHealthRecord {
   id        String @id @default(uuid())
+  schoolId  String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId String @unique @map("student_id")
 
   /// Long-term conditions in plain words: asthma, epilepsy, sickle cell.
@@ -1422,6 +1641,7 @@ model StudentHealthRecord {
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("HealthRecordUpdatedBy", fields: [updatedByUserId], references: [id])
 
+  @@index([schoolId])
   @@map("student_health_records")
 }
 
@@ -1450,6 +1670,8 @@ enum MeritCategory {
 /// the opposite, and give a student on a warning a visible way back.
 model MeritAward {
   id              String        @id @default(uuid())
+  schoolId        String        @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId       String        @map("student_id")
   termId          String        @map("term_id")
   awardedByUserId String        @map("awarded_by_user_id")
@@ -1468,6 +1690,7 @@ model MeritAward {
 
   @@index([studentId])
   @@index([termId])
+  @@index([schoolId])
   @@map("merit_awards")
 }
 
@@ -1539,6 +1762,8 @@ enum WaiverKind {
 /// are raised at and leaves every invoice already issued untouched.
 model FeeItem {
   id           String       @id @default(uuid())
+  schoolId     String       @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   termId       String       @map("term_id")
   classLevelId String       @map("class_level_id")
   name         String
@@ -1555,6 +1780,7 @@ model FeeItem {
 
   @@unique([termId, classLevelId, name])
   @@index([termId])
+  @@index([schoolId])
   @@map("fee_items")
 }
 
@@ -1566,6 +1792,8 @@ model FeeItem {
 /// term" a question with a single answer.
 model FeeInvoice {
   id        String   @id @default(uuid())
+  schoolId  String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   studentId String   @map("student_id")
   termId    String   @map("term_id")
   /// The sum of the lines, held so a list of five hundred students does not
@@ -1584,12 +1812,15 @@ model FeeInvoice {
 
   @@unique([studentId, termId])
   @@index([termId])
+  @@index([schoolId])
   @@map("fee_invoices")
 }
 
 /// A line as it stood when the invoice was raised.
 model FeeInvoiceLine {
   id        String @id @default(uuid())
+  schoolId  String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   invoiceId String @map("invoice_id")
   name      String
   amount    Float
@@ -1598,6 +1829,7 @@ model FeeInvoiceLine {
   invoice FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
+  @@index([schoolId])
   @@map("fee_invoice_lines")
 }
 
@@ -1608,10 +1840,12 @@ model FeeInvoiceLine {
 /// can show an auditor, rather than a row that quietly went missing.
 model FeePayment {
   id               String        @id @default(uuid())
+  schoolId         String        @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   invoiceId        String        @map("invoice_id")
   /// Printed on the receipt and quoted by the family ever after, so it is
   /// unique across the school and never reused.
-  receiptNumber    String        @unique @map("receipt_number")
+  receiptNumber    String        @map("receipt_number")
   /// Rwandan francs, always positive.
   amount           Float
   method           PaymentMethod
@@ -1632,7 +1866,7 @@ model FeePayment {
   /// payment, and the second is only found when somebody reconciles the books.
   /// Unique, so the database refuses the duplicate even if two requests arrive
   /// at the same instant on two different servers.
-  idempotencyKey String?   @unique @map("idempotency_key")
+  idempotencyKey String? @unique @map("idempotency_key")
 
   /// A voided receipt stops counting towards the balance but stays in the
   /// book. All three fields are set together or none of them are.
@@ -1646,6 +1880,7 @@ model FeePayment {
   recordedBy User?      @relation("FeePaymentRecordedBy", fields: [recordedByUserId], references: [id])
   voidedBy   User?      @relation("FeePaymentVoidedBy", fields: [voidedByUserId], references: [id])
 
+  @@unique([schoolId, receiptNumber])
   @@index([invoiceId, paidAt])
   @@map("fee_payments")
 }
@@ -1658,6 +1893,8 @@ model FeePayment {
 /// than the problem.
 model FeeWaiver {
   id              String     @id @default(uuid())
+  schoolId        String     @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school          School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   invoiceId       String     @map("invoice_id")
   kind            WaiverKind
   /// Rwandan francs. A full bursary is the invoice total; there is no
@@ -1679,6 +1916,7 @@ model FeeWaiver {
   revokedBy User?      @relation("FeeWaiverRevokedBy", fields: [revokedByUserId], references: [id])
 
   @@index([invoiceId])
+  @@index([schoolId])
   @@map("fee_waivers")
 }
 
@@ -1780,6 +2018,8 @@ enum AdmissionFunding {
 /// an intake is where a school actually thinks about how many it can take.
 model AdmissionIntake {
   id             String              @id @default(uuid())
+  schoolId       String              @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   academicYearId String              @map("academic_year_id")
   classLevelId   String              @map("class_level_id")
   entryPoint     AdmissionEntryPoint @map("entry_point")
@@ -1800,6 +2040,7 @@ model AdmissionIntake {
 
   @@unique([academicYearId, classLevelId, entryPoint])
   @@index([isOpen])
+  @@index([schoolId])
   @@map("admission_intakes")
 }
 
@@ -1810,6 +2051,8 @@ model AdmissionIntake {
 /// school holds. The two have to be able to differ.
 model Application {
   id        String            @id @default(uuid())
+  schoolId  String            @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   intakeId  String            @map("intake_id")
   /// `APP-2026-0417`. Quoted by the family for months, so it is unique across
   /// the school and never reused. Deliberately not a student number: holding
@@ -1890,12 +2133,15 @@ model Application {
   @@index([intakeId, status])
   @@index([status, submittedAt])
   @@index([guardianPhone])
+  @@index([schoolId])
   @@map("applications")
 }
 
 /// One file a family attached.
 model ApplicationDocument {
   id               String                @id @default(uuid())
+  schoolId         String                @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School                @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   applicationId    String                @map("application_id")
   kind             AdmissionDocumentKind
   fileUrl          String                @map("file_url")
@@ -1909,6 +2155,7 @@ model ApplicationDocument {
   verifiedBy  User?       @relation("ApplicationDocVerifiedBy", fields: [verifiedByUserId], references: [id])
 
   @@index([applicationId])
+  @@index([schoolId])
   @@map("application_documents")
 }
 
@@ -1919,6 +2166,8 @@ model ApplicationDocument {
 /// reversal, which is itself one of these rows.
 model ApplicationEvent {
   id            String             @id @default(uuid())
+  schoolId      String             @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school        School             @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   applicationId String             @map("application_id")
   /// Null for the row that records the application arriving.
   fromStatus    ApplicationStatus? @map("from_status")
@@ -1934,12 +2183,15 @@ model ApplicationEvent {
   actor       User?       @relation("ApplicationEventActor", fields: [actorUserId], references: [id])
 
   @@index([applicationId, createdAt])
+  @@index([schoolId])
   @@map("application_events")
 }
 
 /// An internal remark. Never shown to the family, and the screen says so.
 model ApplicationNote {
   id            String   @id @default(uuid())
+  schoolId      String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   applicationId String   @map("application_id")
   body          String
   authorUserId  String   @map("author_user_id")
@@ -1949,6 +2201,7 @@ model ApplicationNote {
   author      User        @relation("ApplicationNoteAuthor", fields: [authorUserId], references: [id])
 
   @@index([applicationId, createdAt])
+  @@index([schoolId])
   @@map("application_notes")
 }
 
@@ -1960,6 +2213,8 @@ model ApplicationNote {
 /// a third outcome again.
 model AdmissionOffer {
   id             String   @id @default(uuid())
+  schoolId       String   @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   applicationId  String   @map("application_id")
   /// The class the place is in. Named on the offer rather than guessed at
   /// enrolment, because a family accepts a specific place.
@@ -1989,5 +2244,6 @@ model AdmissionOffer {
 
   @@index([applicationId])
   @@index([expiresAt])
+  @@index([schoolId])
   @@map("admission_offers")
 }

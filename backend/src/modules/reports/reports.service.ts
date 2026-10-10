@@ -894,7 +894,7 @@ export class ReportsService implements OnModuleDestroy {
     // Generate a unique card id (retry on the rare unique-constraint clash)
     let cardId = this.generateCardId();
     for (let i = 0; i < 5; i++) {
-      const clash = await this.prisma.student.findUnique({
+      const clash = await this.prisma.student.findFirst({
         where: { nfcCardId: cardId },
       });
       if (!clash) break;

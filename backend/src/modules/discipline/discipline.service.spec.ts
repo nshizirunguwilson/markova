@@ -24,7 +24,7 @@ describe('DisciplineService', () => {
       prisma,
       ownership as unknown as OwnershipService,
     );
-    prisma.schoolConfig.findUnique.mockResolvedValue({ value: '100' });
+    prisma.schoolConfig.findFirst.mockResolvedValue({ value: '100' });
     prisma.parentStudent.findMany.mockResolvedValue([]);
     prisma.notification.create.mockResolvedValue({});
     prisma.disciplineIncident.update.mockResolvedValue({});
@@ -471,7 +471,7 @@ describe('DisciplineService', () => {
     });
 
     it('uses the starting score the school set', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '50' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '50' });
       prisma.student.findUnique.mockResolvedValue({
         disciplinePoints: 25,
         user: { firstName: 'A', lastName: 'B' },
@@ -485,7 +485,7 @@ describe('DisciplineService', () => {
     // A school that set the starting score to zero would otherwise divide by
     // it and show NaN on every student's page.
     it('shows a hundred rather than dividing by a starting score of zero', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '0' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '0' });
       prisma.student.findUnique.mockResolvedValue({
         disciplinePoints: 0,
         user: { firstName: 'A', lastName: 'B' },
@@ -499,7 +499,7 @@ describe('DisciplineService', () => {
     // Forty a term is the default now, not a hundred for the whole year -
     // see src/common/conduct.ts for why conduct is marked per term.
     it('falls back to forty when the school never set one', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue(null);
+      prisma.schoolConfig.findFirst.mockResolvedValue(null);
       prisma.student.findUnique.mockResolvedValue({
         disciplinePoints: 32,
         user: { firstName: 'A', lastName: 'B' },
