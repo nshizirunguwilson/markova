@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { identityColors } from '@/design/color';
 import { useTheme } from '@/design/provider';
 import { radius } from '@/design/tokens';
+import { mediaUrl } from '@/lib/media-url';
 import { Text } from './text';
 
 /**
@@ -39,10 +40,11 @@ export function Avatar({
   const t = useTheme();
   const px = SIZES[size];
 
-  if (photoUrl) {
+  const src = mediaUrl(photoUrl);
+  if (src) {
     return (
       <Image
-        source={{ uri: photoUrl }}
+        source={{ uri: src }}
         style={{ width: px, height: px, borderRadius: radius.full, backgroundColor: t.bg.fill }}
         contentFit="cover"
         transition={160}

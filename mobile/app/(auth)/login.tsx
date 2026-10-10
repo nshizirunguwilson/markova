@@ -7,6 +7,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { toast } from 'sonner-native';
 
 import api from '@/lib/api';
+import { mediaUrl } from '@/lib/media-url';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTheme } from '@/design';
 import { radius, space } from '@/design/tokens';
@@ -100,7 +101,7 @@ export default function Login() {
         <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.screen))} style={{ gap: space.md }}>
           {branding?.logoUrl ? (
             <Image
-              source={{ uri: branding.logoUrl }}
+              source={{ uri: mediaUrl(branding.logoUrl)! }}
               style={{ width: 56, height: 56, borderRadius: radius.md }}
               contentFit="contain"
               transition={200}
