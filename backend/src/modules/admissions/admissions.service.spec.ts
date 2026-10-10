@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AdmissionsService } from './admissions.service';
+import { accountsFor } from '../../__test__/accounts';
 
 /**
  * Admissions.
@@ -45,12 +46,21 @@ describe('AdmissionsService', () => {
     },
     classSection: { findUnique: jest.fn() },
     student: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
-    user: { findUnique: jest.fn(), create: jest.fn(), upsert: jest.fn() },
+    user: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+    account: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+    },
+    school: { findUnique: jest.fn() },
     parentStudent: { create: jest.fn() },
+    currentSchoolId: jest.fn().mockResolvedValue('school-1'),
     $transaction: jest.fn(),
   };
 
-  const service = new AdmissionsService(prisma as never);
+  const accounts = accountsFor(prisma);
+  const service = new AdmissionsService(prisma as never, accounts);
 
   const OPEN_INTAKE = {
     id: 'intake-1',
@@ -616,13 +626,19 @@ describe('AdmissionsService', () => {
         isBoarder: true,
       });
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({ id: 'user-1' });
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.user.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({
+          id: data.role === 'PARENT' ? 'parent-1' : 'user-1',
+          phone: data.phone ?? null,
+        }),
+      );
       prisma.student.findUnique.mockResolvedValue(null);
       prisma.student.create.mockResolvedValue({ id: 'student-1' });
-      prisma.user.upsert.mockResolvedValue({
-        id: 'parent-1',
-        phone: '+250788100000',
-      });
+      /* Nobody signs in with anything yet, unless a test says so. */
+      prisma.account.findMany.mockResolvedValue([]);
+      prisma.account.count.mockResolvedValue(0);
+      prisma.account.create.mockResolvedValue({});
       prisma.parentStudent.create.mockResolvedValue({});
     });
 
@@ -650,22 +666,60 @@ describe('AdmissionsService', () => {
     });
 
     // Two students called A. Uwase cannot share an address.
+    /* Taken anywhere in Markova: the address is the child's login. */
     it('numbers the address when it is already taken', async () => {
-      prisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'someone' })
-        .mockResolvedValue(null);
+      prisma.account.count.mockResolvedValueOnce(1).mockResolvedValue(0);
       const result = await service.enrol('app-1', 'admin-1');
       expect(result.email).toBe('a.uwase2@markova.edu');
     });
 
     /**
-     * Matched on phone rather than created blindly, so a second child from the
-     * same family is linked to the parent already on the system.
+     * Matched on the parent's login, so a second child from the same family
+     * is linked to the parent already on the roll.
      */
     it('links to the parent already on the system rather than duplicating them', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'acc-parent' }]);
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'parent-1',
+        phone: '+250788100000',
+      });
       await service.enrol('app-1', 'admin-1');
-      expect(prisma.user.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { phone: '+250788100000' } }),
+      expect(prisma.account.findMany.mock.calls[0][0].where).toEqual({
+        OR: [{ phone: '+250788100000' }],
+      });
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: { accountId: 'acc-parent', role: 'PARENT' },
+      });
+      expect(prisma.user.create).toHaveBeenCalledTimes(1);
+      expect(prisma.parentStudent.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ parentUserId: 'parent-1' }),
+      });
+    });
+
+    /* A parent who uses Markova at another school keeps that one login. */
+    it('joins a parent from another school to the login they already have', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'acc-parent' }]);
+      await service.enrol('app-1', 'admin-1');
+      const parent = prisma.user.create.mock.calls.find(
+        (c: any) => c[0].data.role === 'PARENT',
+      );
+      expect(parent[0].data.accountId).toBe('acc-parent');
+      /* The child's login is the only new one. */
+      expect(prisma.account.create).toHaveBeenCalledTimes(1);
+      expect(prisma.account.create.mock.calls[0][0].data.email).toBe(
+        'a.uwase@markova.edu',
+      );
+    });
+
+    /* A brand new parent signs in by phone, never by an email that might
+       already be somebody else's login. */
+    it('gives a new parent a login by phone', async () => {
+      await service.enrol('app-1', 'admin-1');
+      const logins = prisma.account.create.mock.calls.map(
+        (c: any) => c[0].data,
+      );
+      expect(logins).toContainEqual(
+        expect.objectContaining({ phone: '+250788100000', email: null }),
       );
     });
 

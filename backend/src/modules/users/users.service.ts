@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -12,10 +13,16 @@ import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
 import { hashPassword } from '../../common/password';
+import { AccountsService, LoginFor } from '../accounts/accounts.service';
+import { labelForRole } from '../../common/role-labels';
+import { withPlatform } from '../../prisma/request-context';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private accounts: AccountsService,
+  ) {}
 
   // ─── LIST USERS ─────────────────────────────────────────────────────────────
 
@@ -168,7 +175,7 @@ export class UsersService {
           lastName: true,
           photoUrl: true,
           isActive: true,
-          forcePasswordChange: true,
+          account: { select: { forcePasswordChange: true } },
           lastLoginAt: true,
           createdAt: true,
           student: {
@@ -231,7 +238,15 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
-    return new PaginatedResponse(data, total, page, limit);
+    return new PaginatedResponse(
+      data.map(({ account, ...user }) => ({
+        ...user,
+        forcePasswordChange: account.forcePasswordChange,
+      })),
+      total,
+      page,
+      limit,
+    );
   }
 
   // ─── GET SINGLE USER ───────────────────────────────────────────────────────
@@ -251,7 +266,11 @@ export class UsersService {
         // class teacher or head teacher has to sign.
         signatureUrl: true,
         isActive: true,
-        forcePasswordChange: true,
+        /* How this person signs in. The school shows it so it can tell them,
+           and cannot change it: see resetLogin. */
+        account: {
+          select: { email: true, phone: true, forcePasswordChange: true },
+        },
         lastLoginAt: true,
         lastSeenAt: true,
         createdAt: true,
@@ -345,7 +364,12 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return this.withNamedRoleSections(user);
+    const { account, ...rest } = user;
+    return this.withNamedRoleSections({
+      ...rest,
+      forcePasswordChange: account.forcePasswordChange,
+      login: { email: account.email, phone: account.phone },
+    });
   }
 
   /**
@@ -412,19 +436,14 @@ export class UsersService {
     }
     this.validateNationalId(dto.nationalId, dto.gender, dto.dateOfBirth);
 
-    // Check uniqueness
-    if (dto.email) {
-      const existing = await this.prisma.user.findUnique({
-        where: { email: dto.email },
-      });
-      if (existing) throw new ConflictException('Email already in use');
-    }
-    if (dto.phone) {
-      const existing = await this.prisma.user.findUnique({
-        where: { phone: dto.phone },
-      });
-      if (existing) throw new ConflictException('Phone already in use');
-    }
+    /*
+      The person's login. If the email or phone already signs in to Markova,
+      through this school or another, the new record joins that login and
+      the person keeps their password. The answer to the admin is the same
+      either way (see AccountsService).
+    */
+    const login = await this.accounts.loginFor(dto.email, dto.phone);
+    await this.refuseSameRoleTwice(login, dto.role);
 
     if (dto.nationalId) {
       const existing = await this.prisma.user.findFirst({
@@ -448,6 +467,7 @@ export class UsersService {
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
+          accountId: login.accountId,
           email: dto.email || null,
           phone: dto.phone || null,
           code: await this.generateUserCode(dto.role, tx),
@@ -459,13 +479,16 @@ export class UsersService {
             gender: dto.gender || null,
             dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           }),
-          passwordHash,
           role: dto.role,
           firstName: dto.firstName,
           lastName: dto.lastName,
           isActive: true,
-          forcePasswordChange: true,
         },
+      });
+      await this.accounts.attach(tx, login, {
+        email: dto.email,
+        phone: dto.phone,
+        passwordHash,
       });
 
       if (dto.role === Role.STUDENT) {
@@ -542,7 +565,28 @@ export class UsersService {
       return created;
     });
 
+    if (!login.isNew) await this.accounts.tellAdded(login.accountId, dto.role);
     return this.findOne(user.id);
+  }
+
+  /**
+   * A person holds each role in a school once.
+   *
+   * Asked of this school's own records only, behind its wall, so it reveals
+   * nothing about other schools. A teacher being added as a parent at the
+   * same school is fine: that is a second record with a second role.
+   */
+  private async refuseSameRoleTwice(login: LoginFor, role: Role, row?: number) {
+    if (login.isNew) return;
+    const already = await this.prisma.user.findFirst({
+      where: { accountId: login.accountId, role },
+      select: { firstName: true, lastName: true },
+    });
+    if (already) {
+      throw new ConflictException(
+        `${row ? `Row ${row}: ` : ''}${already.firstName} ${already.lastName} is already a ${labelForRole(role).toLowerCase()} here`,
+      );
+    }
   }
 
   // ─── UPDATE USER ────────────────────────────────────────────────────────────
@@ -589,32 +633,13 @@ export class UsersService {
       }
     }
 
-    /**
-     * Email and phone are unique columns and they are how people sign in, so
-     * a clash has to be refused before the write rather than by the database.
-     * `create` has always checked them; `update` did not, so editing somebody
-     * onto an address another account already held raised a raw Prisma
-     * unique-constraint error and surfaced as "An unexpected error occurred".
-     *
-     * Naming the holder is the difference between a dead end and a fix: the
-     * admin can go and look at that account.
-     */
-    for (const [field, value, label] of [
-      ['email', dto.email, 'Email address'],
-      ['phone', dto.phone, 'Phone number'],
-    ] as const) {
-      if (!value) continue;
-      const holder = await this.prisma.user.findFirst({
-        where: { [field]: value, id: { not: id } },
-        select: { firstName: true, lastName: true },
-      });
-      if (holder) {
-        throw new ConflictException(
-          `${label} ${value} already belongs to ${holder.firstName} ${holder.lastName}`,
-        );
-      }
-    }
-
+    /*
+      Email and phone here are this school's contact details for the person,
+      not how they sign in. The login is shared with the person's other
+      schools, so only they can change it (after a code), or this school
+      through resetLogin when it is their only school. A contact may match
+      somebody else's: a family can share one phone.
+    */
     // Update base user fields
     await this.prisma.user.update({
       where: { id },
@@ -715,6 +740,90 @@ export class UsersService {
     return this.findOne(id);
   }
 
+  // ─── RESET HOW SOMEBODY SIGNS IN ────────────────────────────────────────────
+
+  /**
+   * Give somebody who lost their phone a way back in.
+   *
+   * Normally only the person changes how they sign in, because their login
+   * is shared with every school they belong to. The one exception, agreed in
+   * docs/MULTI-SCHOOL-DESIGN.md: when this school is the only one they
+   * belong to, its admin may reset it, having checked in person who they
+   * are. A new phone or email if given, and a new password shown once, which
+   * they must change when they first sign in. Every device they were signed
+   * in on is signed out.
+   */
+  async resetLogin(id: string, dto: { email?: string; phone?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, accountId: true, account: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const schoolId = await this.prisma.currentSchoolId();
+    const elsewhere = await withPlatform(() =>
+      this.prisma.user.count({
+        where: { accountId: user.accountId, schoolId: { not: schoolId } },
+      }),
+    );
+    if (elsewhere > 0) {
+      throw new ForbiddenException(
+        'Only this person can change how they sign in, from their own profile.',
+      );
+    }
+
+    for (const [field, label] of [
+      ['email', 'email'],
+      ['phone', 'phone number'],
+    ] as const) {
+      const value = dto[field];
+      if (!value || value === user.account[field]) continue;
+      const taken = await withPlatform(() =>
+        this.prisma.account.count({ where: { [field]: value } }),
+      );
+      if (taken) {
+        throw new ConflictException(
+          `That ${label} is already used to sign in to Markova`,
+        );
+      }
+    }
+
+    const password = this.generateTempPassword();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.account.update({
+        where: { id: user.accountId },
+        data: {
+          ...(dto.email && { email: dto.email }),
+          ...(dto.phone && { phone: dto.phone }),
+          passwordHash: await hashPassword(password),
+          forcePasswordChange: true,
+        },
+      });
+      /* The school's contact details that were the old login move with it. */
+      for (const field of ['email', 'phone'] as const) {
+        const old = user.account[field];
+        if (dto[field] && old) {
+          await tx.user.updateMany({
+            where: { accountId: user.accountId, [field]: old },
+            data: { [field]: dto[field] },
+          });
+        }
+      }
+      await tx.userSession.updateMany({
+        where: { accountId: user.accountId },
+        data: { isActive: false },
+      });
+    });
+
+    return {
+      login: {
+        email: dto.email ?? user.account.email,
+        phone: dto.phone ?? user.account.phone,
+      },
+      password,
+    };
+  }
+
   // ─── SOFT DELETE ────────────────────────────────────────────────────────────
 
   async softDelete(id: string) {
@@ -806,7 +915,39 @@ export class UsersService {
       hireDate?: string;
     }>,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    /*
+      Every row's login, found before the transaction: the lookup crosses the
+      wall between schools and has to run on its own. Two rows with the same
+      email or phone in one file are one person, so the second joins the
+      login the first creates.
+    */
+    const logins: LoginFor[] = [];
+    const seen = new Map<string, LoginFor>();
+    for (let i = 0; i < rows.length; i++) {
+      const { email, phone, role } = rows[i];
+      const again = [email, phone]
+        .filter((k): k is string => !!k)
+        .map((k) => seen.get(k))
+        .find(Boolean);
+      const login = again
+        ? { accountId: again.accountId, isNew: false }
+        : await this.accounts.loginFor(email, phone);
+      if (!again) await this.refuseSameRoleTwice(login, role, i + 1);
+      if (
+        again &&
+        logins.some(
+          (l, j) => l.accountId === again.accountId && rows[j].role === role,
+        )
+      ) {
+        throw new ConflictException(
+          `Row ${i + 1}: this person is already in the file as a ${labelForRole(role).toLowerCase()}`,
+        );
+      }
+      for (const k of [email, phone]) if (k) seen.set(k, login);
+      logins.push(login);
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
       const results = {
         created: 0,
         errors: [] as string[],
@@ -821,31 +962,11 @@ export class UsersService {
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        // Check for duplicates
-        if (row.email) {
-          const existing = await tx.user.findUnique({
-            where: { email: row.email },
-          });
-          if (existing) {
-            throw new BadRequestException(
-              `Row ${i + 1}: Email ${row.email} already exists`,
-            );
-          }
-        }
-        if (row.phone) {
-          const existing = await tx.user.findUnique({
-            where: { phone: row.phone },
-          });
-          if (existing) {
-            throw new BadRequestException(
-              `Row ${i + 1}: Phone ${row.phone} already exists`,
-            );
-          }
-        }
-
+        const login = logins[i];
         const password = this.generateTempPassword();
         const user = await tx.user.create({
           data: {
+            accountId: login.accountId,
             email: row.email || null,
             phone: row.phone || null,
             code: await this.generateUserCode(row.role, tx),
@@ -855,13 +976,16 @@ export class UsersService {
               gender: (row.gender as any) || null,
               dateOfBirth: row.dateOfBirth ? new Date(row.dateOfBirth) : null,
             }),
-            passwordHash: await hashPassword(password),
             role: row.role,
             firstName: row.firstName,
             lastName: row.lastName,
             isActive: true,
-            forcePasswordChange: true,
           },
+        });
+        await this.accounts.attach(tx, login, {
+          email: row.email,
+          phone: row.phone,
+          passwordHash: await hashPassword(password),
         });
         results.credentials.push({
           name: `${row.firstName} ${row.lastName}`,
@@ -932,6 +1056,14 @@ export class UsersService {
 
       return results;
     });
+
+    for (let i = 0; i < rows.length; i++) {
+      const login = logins[i];
+      if (!login.isNew && !seenEarlier(logins, i)) {
+        await this.accounts.tellAdded(login.accountId, rows[i].role);
+      }
+    }
+    return result;
   }
 
   // ─── CSV TEMPLATE ───────────────────────────────────────────────────────────
@@ -1075,3 +1207,7 @@ export class UsersService {
     return `${prefix}${String(sequence).padStart(digits, '0')}`;
   }
 }
+
+/** Whether an earlier row already joined this login, so it is told once. */
+const seenEarlier = (logins: LoginFor[], i: number) =>
+  logins.slice(0, i).some((l) => l.accountId === logins[i].accountId);

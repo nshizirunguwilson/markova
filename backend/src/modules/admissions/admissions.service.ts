@@ -5,8 +5,11 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { Prisma, Role, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withPlatform } from '../../prisma/request-context';
+import { AccountsService } from '../accounts/accounts.service';
 import {
   DOCUMENT_LABEL,
   completeness,
@@ -49,7 +52,10 @@ import type {
 export class AdmissionsService {
   private readonly logger = new Logger(AdmissionsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private accounts: AccountsService,
+  ) {}
 
   // ── Intakes ─────────────────────────────────────────────────────────────
 
@@ -902,15 +908,27 @@ export class AdmissionsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const email = await this.freeEmail(
-        tx,
-        application.firstName,
-        application.lastName,
-      );
+    /*
+      The two logins, settled before the transaction because finding them
+      crosses the wall between schools. The child gets a new one. The parent
+      is matched on their phone, so a parent who already uses Markova, here
+      or at another school, keeps their one login and their password.
+    */
+    const email = await this.freeEmail(
+      application.firstName,
+      application.lastName,
+    );
+    const childLogin = { accountId: randomUUID(), isNew: true };
+    let newParentRecord = false;
+    const parentLogin = await this.accounts.loginFor(
+      null,
+      application.guardianPhone,
+    );
 
+    const enrolled = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
+          accountId: childLogin.accountId,
           email,
           role: Role.STUDENT,
           firstName: application.firstName,
@@ -920,9 +938,9 @@ export class AdmissionsService {
           nationalId: application.nationalId,
           nationality: application.nationality,
           isActive: true,
-          forcePasswordChange: true,
         },
       });
+      await this.accounts.attach(tx, childLogin, { email });
 
       const studentIdNumber = await this.mintStudentId(
         tx,
@@ -966,26 +984,37 @@ export class AdmissionsService {
       });
 
       /*
-        Matched on phone rather than created blindly, so a second child from
-        the same family is linked to the parent who is already on the system
-        rather than to a duplicate of them.
+        Matched on the parent's login rather than created blindly, so a second
+        child from the same family is linked to the parent who is already on
+        the roll rather than to a duplicate of them.
       */
-      const parent = await tx.user.upsert({
-        where: { phone: application.guardianPhone },
-        update: {},
-        create: {
-          phone: application.guardianPhone,
-          email: application.guardianEmail,
-          role: Role.PARENT,
-          firstName: application.guardianName.split(/\s+/)[0] ?? 'Parent',
-          lastName:
-            application.guardianName.split(/\s+/).slice(1).join(' ') ||
-            application.lastName,
-          nationalId: application.guardianNationalId,
-          isActive: true,
-          forcePasswordChange: true,
-        },
+      const known = parentLogin.isNew
+        ? null
+        : await tx.user.findFirst({
+            where: { accountId: parentLogin.accountId, role: Role.PARENT },
+          });
+      const parent =
+        known ??
+        (await tx.user.create({
+          data: {
+            accountId: parentLogin.accountId,
+            phone: application.guardianPhone,
+            email: application.guardianEmail,
+            role: Role.PARENT,
+            firstName: application.guardianName.split(/\s+/)[0] ?? 'Parent',
+            lastName:
+              application.guardianName.split(/\s+/).slice(1).join(' ') ||
+              application.lastName,
+            nationalId: application.guardianNationalId,
+            isActive: true,
+          },
+        }));
+      /* A parent signs in by phone. Their email stays a contact detail on
+         the record, so it can never collide with somebody else's login. */
+      await this.accounts.attach(tx, parentLogin, {
+        phone: application.guardianPhone,
       });
+      newParentRecord = !known;
       await tx.parentStudent.create({
         data: {
           parentUserId: parent.id,
@@ -1008,6 +1037,11 @@ export class AdmissionsService {
         parentPhone: parent.phone,
       };
     });
+
+    if (!parentLogin.isNew && newParentRecord) {
+      await this.accounts.tellAdded(parentLogin.accountId, Role.PARENT);
+    }
+    return enrolled;
   }
 
   /**
@@ -1017,7 +1051,6 @@ export class AdmissionsService {
    * already uses. Two students called J. Uwase get `j.uwase@` and `j.uwase2@`.
    */
   private async freeEmail(
-    tx: Prisma.TransactionClient,
     firstName: string,
     lastName: string,
   ): Promise<string> {
@@ -1031,10 +1064,11 @@ export class AdmissionsService {
 
     for (let n = 0; n < 200; n += 1) {
       const candidate = `${base}${n === 0 ? '' : n + 1}@markova.edu`;
-      const taken = await tx.user.findUnique({
-        where: { email: candidate },
-        select: { id: true },
-      });
+      /* Free across every school: the address is the child's login, and a
+         login is unique in all of Markova. */
+      const taken = await withPlatform(() =>
+        this.prisma.account.count({ where: { email: candidate } }),
+      );
       if (!taken) return candidate;
     }
     throw new BadRequestException(

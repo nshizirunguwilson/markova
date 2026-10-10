@@ -6,7 +6,12 @@ export const mockAdmin = {
   firstName: 'Admin',
   lastName: 'User',
   isActive: true,
-  forcePasswordChange: false,
+  accountId: 'acc-admin',
+  account: {
+    email: 'admin@school.test',
+    phone: '+237600000001',
+    forcePasswordChange: false,
+  },
   createdAt: new Date('2025-01-01'),
   updatedAt: new Date('2025-01-01'),
 };
@@ -19,7 +24,12 @@ export const mockTeacher = {
   firstName: 'Teacher',
   lastName: 'User',
   isActive: true,
-  forcePasswordChange: false,
+  accountId: 'acc-teacher',
+  account: {
+    email: 'teacher@school.test',
+    phone: '+237600000002',
+    forcePasswordChange: false,
+  },
   createdAt: new Date('2025-01-01'),
   updatedAt: new Date('2025-01-01'),
 };
@@ -32,7 +42,12 @@ export const mockStudent = {
   firstName: 'Student',
   lastName: 'User',
   isActive: true,
-  forcePasswordChange: false,
+  accountId: 'acc-student',
+  account: {
+    email: 'student@school.test',
+    phone: '+237600000003',
+    forcePasswordChange: false,
+  },
   createdAt: new Date('2025-01-01'),
   updatedAt: new Date('2025-01-01'),
 };
@@ -45,7 +60,12 @@ export const mockParent = {
   firstName: 'Parent',
   lastName: 'User',
   isActive: true,
-  forcePasswordChange: false,
+  accountId: 'acc-parent',
+  account: {
+    email: 'parent@school.test',
+    phone: '+237600000004',
+    forcePasswordChange: false,
+  },
   createdAt: new Date('2025-01-01'),
   updatedAt: new Date('2025-01-01'),
 };

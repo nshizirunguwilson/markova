@@ -1,3 +1,4 @@
+import { accountsFor } from '../../__test__/accounts';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
@@ -11,6 +12,13 @@ import { createMockPrisma } from '../../__test__/prisma-mock';
  * write, and the write itself is one transaction so a half-made account can
  * never exist.
  */
+/** The login every sample person here signs in with. */
+const LOGIN = {
+  email: 'a.uwase@markova.edu',
+  phone: null,
+  forcePasswordChange: true,
+};
+
 describe('UsersService', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: UsersService;
@@ -21,13 +29,14 @@ describe('UsersService', () => {
   beforeEach(() => {
     created = {
       id: 'user-1',
+      account: LOGIN,
       firstName: 'Aline',
       lastName: 'Uwase',
       role: 'TEACHER',
       photoUrl: null,
     };
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     /**
      * `create` ends by reading the account back, so a blanket null would make
      * every successful path throw "User not found". Identifier lookups answer
@@ -83,7 +92,11 @@ describe('UsersService', () => {
     });
 
     it('accepts a parent with a phone and no email at all', async () => {
-      prisma.user.create.mockResolvedValue({ id: 'u-1', role: 'PARENT' });
+      prisma.user.create.mockResolvedValue({
+        id: 'u-1',
+        account: LOGIN,
+        role: 'PARENT',
+      });
       await expect(
         service.create({
           ...teacher,
@@ -116,26 +129,73 @@ describe('UsersService', () => {
     });
   });
 
+  /**
+   * Somebody who already signs in to Markova, through this school or
+   * another. Their new record joins that login: one person, one password,
+   * however many schools (docs/MULTI-SCHOOL-DESIGN.md).
+   */
   describe('identifiers already in use', () => {
-    it('refuses an email somebody already has', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
+    it('joins somebody who already signs in, rather than refusing them', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      await service.create(teacher);
+      expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(
+        'acc-existing',
+      );
+      /* No second login, and their password is left as it is. */
+      expect(prisma.account.create).not.toHaveBeenCalled();
+    });
+
+    it('looks the login up by email and by phone', async () => {
+      await service.create({ ...teacher, phone: '+250788000001' });
+      expect(prisma.account.findMany.mock.calls[0][0].where).toEqual({
+        OR: [{ email: 'a.uwase@markova.edu' }, { phone: '+250788000001' }],
+      });
+    });
+
+    it('makes a new login for somebody new', async () => {
+      await service.create(teacher);
+      const login = prisma.account.create.mock.calls[0][0].data;
+      expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(login.id);
+      expect(login).toMatchObject({
+        email: 'a.uwase@markova.edu',
+        forcePasswordChange: true,
+      });
+    });
+
+    it('refuses the same person in the same role twice', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findFirst.mockResolvedValue({
+        firstName: 'Aline',
+        lastName: 'Uwase',
+      });
       await expect(service.create(teacher as never)).rejects.toThrow(
-        ConflictException,
+        /already a teacher here/,
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('refuses a phone somebody already has', async () => {
-      prisma.user.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'existing' });
+    /* A teacher here can also be a parent here: a second record. */
+    it('asks only about the role being added', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      await service.create(teacher);
+      expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
+        accountId: 'acc-existing',
+        role: 'TEACHER',
+      });
+    });
+
+    it('refuses an email and a phone that belong to two different people', async () => {
+      prisma.account.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
       await expect(
         service.create({ ...teacher, phone: '+250788000001' }),
-      ).rejects.toThrow(/phone already in use/i);
+      ).rejects.toThrow(ConflictException);
     });
 
     it('refuses a national ID somebody already registered', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'existing' });
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'existing',
+        account: LOGIN,
+      });
       await expect(
         service.create({ ...teacher, nationalId: '1200780012345678' }),
       ).rejects.toThrow(/national id already registered/i);
@@ -217,9 +277,13 @@ describe('UsersService', () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
+    /* On the new login, never on the school record. */
     it('hashes the password rather than storing it', async () => {
       await service.create(teacher);
-      const data = prisma.user.create.mock.calls[0][0].data;
+      expect(prisma.user.create.mock.calls[0][0].data).not.toHaveProperty(
+        'passwordHash',
+      );
+      const data = prisma.account.create.mock.calls[0][0].data;
       expect(data.passwordHash).not.toBe('Password123!');
       expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
     });
@@ -228,13 +292,17 @@ describe('UsersService', () => {
     // password, not one the office knows.
     it('makes the first sign-in change the password', async () => {
       await service.create(teacher);
-      expect(prisma.user.create.mock.calls[0][0].data.forcePasswordChange).toBe(
-        true,
-      );
+      expect(
+        prisma.account.create.mock.calls[0][0].data.forcePasswordChange,
+      ).toBe(true);
     });
 
     it('stores a blank email as nothing rather than an empty string', async () => {
-      prisma.user.create.mockResolvedValue({ id: 'u-1', role: 'PARENT' });
+      prisma.user.create.mockResolvedValue({
+        id: 'u-1',
+        account: LOGIN,
+        role: 'PARENT',
+      });
       await service.create({
         ...teacher,
         role: 'PARENT',
@@ -291,7 +359,11 @@ describe('UsersService', () => {
 
     // Parents outnumber staff several times over, so their sequence has room.
     it('gives a parent four digits rather than three', async () => {
-      prisma.user.create.mockResolvedValue({ id: 'u-1', role: 'PARENT' });
+      prisma.user.create.mockResolvedValue({
+        id: 'u-1',
+        account: LOGIN,
+        role: 'PARENT',
+      });
       await service.create({
         ...teacher,
         role: 'PARENT',
@@ -345,7 +417,7 @@ describe('UsersService', () => {
     // Deleting a user would take their marks, their attendance and their
     // discipline record with them. A school needs that history.
     it('retires an account rather than deleting the row', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u-1' });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u-1', account: LOGIN });
       prisma.user.update.mockResolvedValue({});
       await service.softDelete('u-1');
       expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
@@ -507,7 +579,12 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockImplementation((args: any) =>
         Promise.resolve(
           args?.where?.id
-            ? { id: 'user-1', student: { id: 'student-1' }, teacher: null }
+            ? {
+                id: 'user-1',
+                account: LOGIN,
+                student: { id: 'student-1' },
+                teacher: null,
+              }
             : null,
         ),
       );
@@ -516,7 +593,12 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockImplementation((args: any) =>
         Promise.resolve(
           args?.where?.id
-            ? { id: 'user-1', student: null, teacher: { id: 'teacher-1' } }
+            ? {
+                id: 'user-1',
+                account: LOGIN,
+                student: null,
+                teacher: { id: 'teacher-1' },
+              }
             : null,
         ),
       );
@@ -594,6 +676,7 @@ describe('UsersService', () => {
             args?.where?.id
               ? {
                   id: 'user-1',
+                  account: LOGIN,
                   gender,
                   dateOfBirth: new Date(`${year}-04-12`),
                   student: null,
@@ -628,6 +711,7 @@ describe('UsersService', () => {
             args?.where?.id
               ? {
                   id: 'user-1',
+                  account: LOGIN,
                   gender: 'MALE',
                   dateOfBirth: new Date('1990-04-12'),
                   student: {
@@ -682,57 +766,26 @@ describe('UsersService', () => {
      * error occurred" - with a 500 in the server log and nothing an admin
      * could act on.
      */
-    describe('an email or phone another account already holds', () => {
-      const asSomeoneElse = () =>
-        prisma.user.findFirst.mockResolvedValue({
-          firstName: 'Aline',
-          lastName: 'Uwase',
+    /*
+      Email and phone on a school record are the school's contact details,
+      not how the person signs in, so a school may set them to anything,
+      including one somebody else uses: a family can share a phone. The
+      login is changed only by the person, or through resetLogin.
+    */
+    describe('contact details', () => {
+      it('saves an email another person also uses', async () => {
+        asTeacher();
+        await service.update('user-1', { email: 'family@markova.edu' });
+        expect(prisma.user.update.mock.calls[0][0].data).toMatchObject({
+          email: 'family@markova.edu',
         });
-
-      it('refuses a duplicate email and names who holds it', async () => {
-        asTeacher();
-        asSomeoneElse();
-        await expect(
-          service.update('user-1', { email: 'a.uwase@markova.edu' }),
-        ).rejects.toThrow(/already belongs to Aline Uwase/);
-        expect(prisma.user.update).not.toHaveBeenCalled();
-      });
-
-      it('refuses a duplicate phone and names who holds it', async () => {
-        asTeacher();
-        asSomeoneElse();
-        await expect(
-          service.update('user-1', { phone: '+250788100000' }),
-        ).rejects.toThrow(/already belongs to Aline Uwase/);
-      });
-
-      it('answers 409 rather than a server error', async () => {
-        asTeacher();
-        asSomeoneElse();
-        await expect(
-          service.update('user-1', { email: 'taken@markova.edu' }),
-        ).rejects.toBeInstanceOf(ConflictException);
-      });
-
-      // Saving a profile without touching the address must not trip over the
-      // account's own email.
-      it('lets someone keep the address they already have', async () => {
-        asTeacher();
-        prisma.user.findFirst.mockResolvedValue(null);
-        await service.update('user-1', { email: 'their.own@markova.edu' });
-        expect(prisma.user.findFirst).toHaveBeenCalledWith(
-          expect.objectContaining({
-            where: expect.objectContaining({ id: { not: 'user-1' } }),
-          }),
-        );
-        expect(prisma.user.update).toHaveBeenCalled();
-      });
-
-      it('checks nothing when neither was sent', async () => {
-        asTeacher();
-        prisma.user.findFirst.mockResolvedValue(null);
-        await service.update('user-1', { firstName: 'Aline' });
         expect(prisma.user.findFirst).not.toHaveBeenCalled();
+      });
+
+      it('never touches the login', async () => {
+        asTeacher();
+        await service.update('user-1', { phone: '+250788100000' });
+        expect(prisma.account.update).not.toHaveBeenCalled();
       });
     });
   });
@@ -743,7 +796,10 @@ describe('UsersService', () => {
    */
   describe('reading one account', () => {
     it('never selects the password hash', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        account: LOGIN,
+      });
       await service.findOne('user-1');
       const select = prisma.user.findUnique.mock.calls[0][0].select;
       expect(select).not.toHaveProperty('passwordHash');
@@ -751,7 +807,10 @@ describe('UsersService', () => {
     });
 
     it('brings the parents along with a student', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        account: LOGIN,
+      });
       await service.findOne('user-1');
       const select = prisma.user.findUnique.mock.calls[0][0].select;
       expect(select.student.include).toHaveProperty('parentStudents');
@@ -766,7 +825,10 @@ describe('UsersService', () => {
     it.each(['code', 'nationalId', 'nationality', 'gender', 'dateOfBirth'])(
       'selects %s, which the profile page shows',
       async (field) => {
-        prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+        prisma.user.findUnique.mockResolvedValue({
+          id: 'user-1',
+          account: LOGIN,
+        });
         await service.findOne('user-1');
         expect(prisma.user.findUnique.mock.calls[0][0].select[field]).toBe(
           true,
@@ -775,7 +837,10 @@ describe('UsersService', () => {
     );
 
     it('never selects the password hash even now', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        account: LOGIN,
+      });
       await service.findOne('user-1');
       expect(prisma.user.findUnique.mock.calls[0][0].select).not.toHaveProperty(
         'passwordHash',
@@ -785,7 +850,10 @@ describe('UsersService', () => {
     // What a teacher's own page is made of: who they teach, when, and what
     // they are class teacher of.
     it('brings a teacher’s assignments, timetable and roles', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        account: LOGIN,
+      });
       await service.findOne('user-1');
       const teacher = prisma.user.findUnique.mock.calls[0][0].select.teacher;
       expect(teacher.include).toHaveProperty('teacherSubjectClasses');
@@ -800,6 +868,7 @@ describe('UsersService', () => {
     it('names the class a special role is attached to', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
+        account: LOGIN,
         teacher: {
           id: 'teacher-1',
           roles: [
@@ -826,6 +895,7 @@ describe('UsersService', () => {
     it('leaves a school-wide role without a class rather than inventing one', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
+        account: LOGIN,
         teacher: {
           id: 'teacher-1',
           roles: [{ id: 'r-1', role: 'DOS', classSectionId: null }],
@@ -838,7 +908,11 @@ describe('UsersService', () => {
     });
 
     it('costs no extra query for somebody who is not a teacher', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', teacher: null });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        account: LOGIN,
+        teacher: null,
+      });
       await service.findOne('user-1');
       expect(prisma.classSection.findMany).not.toHaveBeenCalled();
     });
@@ -892,11 +966,16 @@ describe('updating every field a student record carries', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockImplementation((args: any) =>
       Promise.resolve(
         args?.where?.id
-          ? { id: 'user-1', student: { id: 'student-1' }, teacher: null }
+          ? {
+              id: 'user-1',
+              account: LOGIN,
+              student: { id: 'student-1' },
+              teacher: null,
+            }
           : null,
       ),
     );
@@ -967,7 +1046,12 @@ describe('updating every field a student record carries', () => {
     prisma.user.findUnique.mockImplementation((args: any) =>
       Promise.resolve(
         args?.where?.id
-          ? { id: 'user-2', student: null, teacher: { id: 'teacher-1' } }
+          ? {
+              id: 'user-2',
+              account: LOGIN,
+              student: null,
+              teacher: { id: 'teacher-1' },
+            }
           : null,
       ),
     );
@@ -1013,11 +1097,16 @@ describe('updating every field a teacher record carries', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockImplementation((args: any) =>
       Promise.resolve(
         args?.where?.id
-          ? { id: 'user-1', student: null, teacher: { id: 'teacher-1' } }
+          ? {
+              id: 'user-1',
+              account: LOGIN,
+              student: null,
+              teacher: { id: 'teacher-1' },
+            }
           : null,
       ),
     );
@@ -1072,7 +1161,7 @@ describe('the words the search box understands', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findMany.mockResolvedValue([]);
     prisma.user.count.mockResolvedValue(0);
   });
@@ -1167,9 +1256,9 @@ describe('creating a record with everything on it', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockImplementation((args: any) =>
-      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+      Promise.resolve(args?.where?.id ? { id: 'u-1', account: LOGIN } : null),
     );
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockResolvedValue({
@@ -1331,9 +1420,9 @@ describe('linking a parent to their children', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockImplementation((args: any) =>
-      Promise.resolve(args?.where?.id ? { id: 'u-3' } : null),
+      Promise.resolve(args?.where?.id ? { id: 'u-3', account: LOGIN } : null),
     );
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockResolvedValue({
@@ -1419,7 +1508,7 @@ describe('issuing numbers when they collide', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockResolvedValue({
       id: 'u-1',
@@ -1428,7 +1517,7 @@ describe('issuing numbers when they collide', () => {
       role: 'STUDENT',
     });
     prisma.user.findUnique.mockImplementation((args: any) =>
-      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+      Promise.resolve(args?.where?.id ? { id: 'u-1', account: LOGIN } : null),
     );
     prisma.student.create.mockResolvedValue({});
   });
@@ -1486,7 +1575,7 @@ describe('a registration code left behind in an odd shape', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.create.mockResolvedValue({
       id: 'u-1',
       firstName: 'Aline',
@@ -1494,7 +1583,7 @@ describe('a registration code left behind in an odd shape', () => {
       role: 'TEACHER',
     });
     prisma.user.findUnique.mockImplementation((args: any) =>
-      Promise.resolve(args?.where?.id ? { id: 'u-1' } : null),
+      Promise.resolve(args?.where?.id ? { id: 'u-1', account: LOGIN } : null),
     );
     prisma.teacher.create.mockResolvedValue({});
   });
@@ -1528,14 +1617,20 @@ describe('changing which children a parent answers for', () => {
     prisma.user.findUnique.mockImplementation((args: any) =>
       Promise.resolve(
         args?.where?.id
-          ? { id: 'user-1', role: 'PARENT', student: null, teacher: null }
+          ? {
+              id: 'user-1',
+              account: LOGIN,
+              role: 'PARENT',
+              student: null,
+              teacher: null,
+            }
           : null,
       ),
     );
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.update.mockResolvedValue({});
     prisma.parentStudent.deleteMany.mockResolvedValue({ count: 1 });
@@ -1589,7 +1684,13 @@ describe('changing which children a parent answers for', () => {
     prisma.user.findUnique.mockImplementation((args: any) =>
       Promise.resolve(
         args?.where?.id
-          ? { id: 'user-2', role: 'TEACHER', student: null, teacher: null }
+          ? {
+              id: 'user-2',
+              account: LOGIN,
+              role: 'TEACHER',
+              student: null,
+              teacher: null,
+            }
           : null,
       ),
     );
@@ -1608,7 +1709,7 @@ describe('changing somebodys photograph', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.update.mockResolvedValue({});
   });
 
@@ -1621,12 +1722,99 @@ describe('changing somebodys photograph', () => {
   });
 
   it('saves it against somebody who does', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', account: LOGIN });
 
     await service.updatePhoto('user-1', '/uploads/avatars/a.png');
 
     expect(prisma.user.update.mock.calls[0][0].data).toEqual({
       photoUrl: '/uploads/avatars/a.png',
     });
+  });
+});
+
+/**
+ * A school resetting how somebody signs in, for a person who lost their
+ * phone. Allowed only when the school is the only one they belong to: their
+ * login is otherwise shared with schools this one cannot speak for.
+ */
+describe('resetting how somebody signs in', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma, accountsFor(prisma));
+    prisma.currentSchoolId.mockResolvedValue('school-kh');
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      accountId: 'acc-1',
+      account: { email: null, phone: '+250788100000' },
+    });
+    prisma.user.count.mockResolvedValue(0);
+    prisma.account.count.mockResolvedValue(0);
+    prisma.account.update.mockResolvedValue({});
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    prisma.userSession.updateMany.mockResolvedValue({ count: 2 });
+  });
+
+  it('refuses when the person belongs to another school too', async () => {
+    prisma.user.count.mockResolvedValue(1);
+    await expect(
+      service.resetLogin('user-1', { phone: '+250788200000' }),
+    ).rejects.toThrow(/Only this person can change how they sign in/);
+    expect(prisma.account.update).not.toHaveBeenCalled();
+  });
+
+  it('counts only records at other schools', async () => {
+    await service.resetLogin('user-1', {});
+    expect(prisma.user.count.mock.calls[0][0].where).toEqual({
+      accountId: 'acc-1',
+      schoolId: { not: 'school-kh' },
+    });
+  });
+
+  it('sets the new phone and a new password that must be changed', async () => {
+    const result = await service.resetLogin('user-1', {
+      phone: '+250788200000',
+    });
+    const data = prisma.account.update.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      phone: '+250788200000',
+      forcePasswordChange: true,
+    });
+    expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
+    expect(result.password).toHaveLength(10);
+    expect(result.login.phone).toBe('+250788200000');
+  });
+
+  it('moves the school contact that was the old phone', async () => {
+    await service.resetLogin('user-1', { phone: '+250788200000' });
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { accountId: 'acc-1', phone: '+250788100000' },
+      data: { phone: '+250788200000' },
+    });
+  });
+
+  /* Whoever has the lost phone is signed out with it. */
+  it('signs every device out', async () => {
+    await service.resetLogin('user-1', {});
+    expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+      where: { accountId: 'acc-1' },
+      data: { isActive: false },
+    });
+  });
+
+  it('refuses a phone somebody else signs in with', async () => {
+    prisma.account.count.mockResolvedValue(1);
+    await expect(
+      service.resetLogin('user-1', { phone: '+250788300000' }),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it("refuses a record that is not this school's", async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.resetLogin('user-x', {})).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
