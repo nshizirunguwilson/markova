@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { withSchool } from '../src/prisma/request-context';
 
 /**
  * Many schools in one database, part 1: every row belongs to a school.
@@ -28,7 +29,11 @@ describe('every row belongs to a school', () => {
         process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
     });
     await owner.$connect();
-    firstSchoolId = await app.currentSchoolId();
+    const first = await owner.school.findFirst({
+      where: { slug: 'markova-academy' },
+      select: { id: true },
+    });
+    firstSchoolId = first!.id;
     const second = await owner.school.create({
       data: { name: `Second School ${tag}`, slug: `second-${tag}` },
     });
@@ -47,6 +52,9 @@ describe('every row belongs to a school', () => {
     await owner.$disconnect();
     await app.$disconnect();
   });
+
+  /* Writes from the application always happen inside a school. */
+  const inFirst = <T>(fn: () => Promise<T>) => withSchool(firstSchoolId, fn);
 
   /*
     The whole design rests on this: a table without the column is a table the
@@ -89,18 +97,22 @@ describe('every row belongs to a school', () => {
 
   /* Nothing in the application names the school when it writes a row. */
   it('puts a new row in the current school without being told', async () => {
-    const level = await app.classLevel.create({
-      data: { name: `${tag} Senior 1`, stage: 'O_LEVEL', order: 900 },
-    });
+    const level = await inFirst(() =>
+      app.classLevel.create({
+        data: { name: `${tag} Senior 1`, stage: 'O_LEVEL', order: 900 },
+      }),
+    );
     expect(level.schoolId).toBe(firstSchoolId);
   });
 
   /* Every school has a "Senior 1". That used to be one row for the world. */
   it('lets two schools use the same class name', async () => {
     const name = `${tag} Senior 2`;
-    await app.classLevel.create({
-      data: { name, stage: 'O_LEVEL', order: 901 },
-    });
+    await inFirst(() =>
+      app.classLevel.create({
+        data: { name, stage: 'O_LEVEL', order: 901 },
+      }),
+    );
     await expect(
       owner.classLevel.create({
         data: {
@@ -115,13 +127,17 @@ describe('every row belongs to a school', () => {
 
   it('still refuses the same class name twice in one school', async () => {
     const name = `${tag} Senior 3`;
-    await app.classLevel.create({
-      data: { name, stage: 'O_LEVEL', order: 902 },
-    });
-    await expect(
+    await inFirst(() =>
       app.classLevel.create({
         data: { name, stage: 'O_LEVEL', order: 902 },
       }),
+    );
+    await expect(
+      inFirst(() =>
+        app.classLevel.create({
+          data: { name, stage: 'O_LEVEL', order: 902 },
+        }),
+      ),
     ).rejects.toThrow();
   });
 
