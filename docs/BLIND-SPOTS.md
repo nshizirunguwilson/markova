@@ -76,7 +76,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | C4 | A day school, a boarding school, or both at once | Boarding exists. A school with both is untested | Near work |
 | C5 | Each school has its own holidays, closures, exam weeks | Terms have dates; there is no school calendar of holidays and closures | Near work |
 | C6 | A school changes its name or logo, merges with another, or closes | Name and logo can change; merging and closing are not handled | Near work |
-| C7 | A school leaves Markova and wants all its data | A full export to CSV files exists. Checked. Still to prove it is complete and works | Check now |
+| C7 | A school leaves Markova and wants all its data | **Checked on 10 October 2026: it works but is not complete.** The download works (a 9 MB zip of readable CSV files in 4 seconds, with no passwords in it), but it holds 26 of the 60 tables. Missing: all fees and payments, admissions, the clinic and health records, messages, pocket money, activities, merits, notifications, report card verification codes, trades and the audit log. Uploaded files (photos, documents, logos) are not included at all | Near work |
 | C8 | A school joins mid year with years of history in Excel or another system | People can be imported; marks history cannot. There must be a way to bring that history into Markova | Near work |
 
 ## D. Staff
