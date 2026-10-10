@@ -714,6 +714,26 @@ describe('AuthService', () => {
    * to the caller outside development.
    */
   describe('the one-time code', () => {
+    // A code in the log lets anyone who reads it past the second step.
+    it('never writes the code into the log', async () => {
+      const lines: string[] = [];
+      const logger = (service as any).logger;
+      for (const level of ['log', 'warn', 'error', 'debug', 'verbose']) {
+        jest
+          .spyOn(logger, level)
+          .mockImplementation((...args: unknown[]) =>
+            lines.push(args.map(String).join(' ')),
+          );
+      }
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result: any = await service.login({
+        email: 'wilsonshizirungu@gmail.com',
+        password: TEST_PASSWORD,
+      });
+      expect(result.devOtp).toMatch(/^\d{6}$/);
+      expect(lines.join('\n')).not.toContain(result.devOtp);
+    });
+
     it('is six digits', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(makeUser());
       const result: any = await service.login({
