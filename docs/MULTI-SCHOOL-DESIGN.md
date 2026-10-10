@@ -14,6 +14,8 @@ This document explains how that will work.
   Kigali Hill School and Keza at Lycée Notre Dame.
 - **A teacher who works at two schools.** Example: Eric teaches maths at Kigali
   Hill in the morning and at Lycée Notre Dame in the afternoon.
+- **A teacher at one school who is a parent at another.** Example: Jean teaches
+  at Kigali Hill, and his daughter studies at Lycée Notre Dame.
 - **A teacher who is also a parent at the same school.** Example: Aline teaches
   at Kigali Hill, and her son studies there.
 - **A student who changes school.** Example: Divine moves from Kigali Hill to
@@ -49,6 +51,17 @@ Example: Ange.
 | **Ange's login** | Phone +250788100000, her password |
 | Her school record at **Kigali Hill** | Parent of Ivan |
 | Her school record at **Lycée Notre Dame** | Parent of Keza |
+
+Example: Jean, a teacher at one school and a parent at another.
+
+| | Holds |
+| --- | --- |
+| **Jean's login** | His phone, his password |
+| School record at **Kigali Hill** | Teacher of Physics |
+| School record at **Lycée Notre Dame** | Parent of his daughter |
+
+At Kigali Hill, Jean sees his classes and nothing about his daughter. At Lycée,
+he sees his daughter and nothing about Kigali Hill. One login, two switches.
 
 Example: Aline, who is a teacher and a parent at the same school.
 
@@ -134,22 +147,40 @@ other schools. The admin can still change the school's own **contact** details.
 
 ## 8. The Markova owner
 
-You, as the owner, get a special login that belongs to **no school**. It opens
-the owner panel (step 5), where you add, suspend, reinstate and remove schools.
+The owner's login works like everyone else's, with one extra place to go: the
+**owner panel** (step 5). There the owner adds, suspends, reinstates and removes
+schools, and sees how Markova is doing: how many schools, how many people used
+it this week, which features are used, report cards issued, messages sent,
+errors, storage, and more.
 
-It **cannot** read inside a school: no marks, no health records, no money.
-Schools trust Markova with children's data, and the owner not being able to see
-it is part of that trust.
+The owner panel shows **numbers about schools, never records about children.**
+
+| The owner can see | The owner cannot see |
+| --- | --- |
+| Kigali Hill has 754 students and 43 teachers | Who the students are |
+| 612 parents signed in at Kigali Hill this week | Which parents |
+| 2,300 report cards were published this term | Anybody's marks |
+| 41 clinic visits were recorded this month | Who was ill, or why |
+| Messages sent per school per day | What the messages say |
+
+The owner can **also** be a parent or a teacher somewhere. Example: the owner's
+son studies at Kigali Hill. The owner's login then also has a parent record at
+Kigali Hill, and the switcher shows "Owner panel" and "Kigali Hill, Parent".
+Inside Kigali Hill, the owner is just a parent: they see their own son, and
+nothing else, exactly like any other parent. Being the owner gives no extra
+power inside a school.
+
+The exact list of what the owner panel may show is designed in step 5.
 
 ---
 
-## 9. Optional: one screen for all your children
+## 9. One screen for all your children
 
 A parent with children at several schools could see one summary screen:
 "Ivan: at school today. Keza: at school today, 1 new message." It would show
 only the parent's own children, only basic facts, and each school's part would
-be fetched with that school's wall in place. This can be built now or with the
-mobile redesign (question 3 below).
+be fetched with that school's wall in place. **Decided: built with the mobile
+redesign.**
 
 ---
 
@@ -164,7 +195,8 @@ schools. Two possible answers:
 - **Their own phone or email**, for students who have one.
 
 Either way, a student keeps the same login for life, even after they leave
-school and come back one day as a teacher or a parent.
+school and come back one day as a teacher or a parent. **Decided: chosen in
+step 4.**
 
 ---
 
@@ -183,14 +215,13 @@ Each part is its own pull request, tested before the next one starts:
 
 ---
 
-## 12. Questions for you
+## 12. Decisions so far
 
-1. Do you agree with the idea: **one login per person, one record per school**?
-2. Should a school admin be **unable** to change a person's sign in phone or
-   email (section 7)?
-3. The summary screen for all of a parent's children (section 9): build it now,
-   or with the mobile redesign?
-4. How students sign in (section 10): decide now, or in step 4 as planned?
+1. **One login per person, one record per school:** agreed.
+2. **Who may change a person's sign in phone or email:** still open.
+3. **The summary screen for all of a parent's children:** with the mobile
+   redesign.
+4. **How students sign in:** in step 4.
 
 ---
 
