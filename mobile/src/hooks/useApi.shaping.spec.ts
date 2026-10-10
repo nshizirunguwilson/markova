@@ -273,6 +273,8 @@ describe('a teacher’s morning', () => {
     .toLocaleDateString('en-US', { weekday: 'long' })
     .toUpperCase();
   const todayStr = today.toISOString().split('T')[0];
+  /* A day that is not today. A fixed SUNDAY failed this suite every Sunday. */
+  const otherDay = dayName === 'SUNDAY' ? 'MONDAY' : 'SUNDAY';
 
   const lesson = (over = {}) => ({
     dayOfWeek: dayName,
@@ -284,7 +286,7 @@ describe('a teacher’s morning', () => {
     givenApi({
       '/academic/timetable/teacher/teacher-1': [
         lesson(),
-        lesson({ dayOfWeek: 'SUNDAY' }),
+        lesson({ dayOfWeek: otherDay }),
       ],
       '/notifications': [],
       '/attendance/class': [],
