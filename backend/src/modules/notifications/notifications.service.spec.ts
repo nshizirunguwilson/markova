@@ -269,13 +269,14 @@ describe('NotificationsService', () => {
       expect(sendMail).not.toHaveBeenCalled();
     });
 
-    it('keeps going when a direct email fails', async () => {
+    // The delivery queue retries only a job that fails.
+    it('lets a failed email reach the caller so the queue retries', async () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
       sendMail.mockRejectedValue(new Error('bounced'));
       await expect(
         service.sendEmailToAddress('a@x.rw', 'A', 'S', 'B'),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow('bounced');
     });
   });
 

@@ -394,28 +394,25 @@ export class NotificationsService implements OnModuleInit {
     const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
     const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
-    try {
-      await this.transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: email,
-        subject,
-        attachments: this.logoAttachments(),
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            ${this.emailHeader(fromName)}
-            <div style="padding: 20px; background: #f9f9f9;">
-              <p>Dear ${name || 'User'},</p>
-              <div style="margin: 16px 0;">${body}</div>
-            </div>
-            <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
-              This is an automated message from ${fromName}. Please do not reply to this email.
-            </div>
+    // No try/catch here: a failure has to reach the delivery queue so it retries.
+    await this.transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: email,
+      subject,
+      attachments: this.logoAttachments(),
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${this.emailHeader(fromName)}
+          <div style="padding: 20px; background: #f9f9f9;">
+            <p>Dear ${name || 'User'},</p>
+            <div style="margin: 16px 0;">${body}</div>
           </div>
-        `,
-      });
-      this.logger.log(`[Email] Sent to ${email}: ${subject}`);
-    } catch (error) {
-      this.logger.error(`[Email] Failed to send to ${email}:`, error.message);
-    }
+          <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
+            This is an automated message from ${fromName}. Please do not reply to this email.
+          </div>
+        </div>
+      `,
+    });
+    this.logger.log(`[Email] Sent to ${email}: ${subject}`);
   }
 }
