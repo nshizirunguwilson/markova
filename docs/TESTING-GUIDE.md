@@ -7,9 +7,8 @@ machine where nothing is running yet.
 The system is 21 backend modules behind 294 API routes, 91 web pages and 59
 mobile screens, used by 10 kinds of person. This guide walks all of it.
 
-Two other documents overlap and are narrower on purpose: `PRESENTATION.md` is
-the short runbook for a live demo, and `LOAD-BALANCING.md` covers the scaled
-deployment. `FEATURE-GUIDE.md` predates the admissions, clinic, activities,
+`LOAD-BALANCING.md` overlaps and is narrower on purpose: it covers the scaled
+deployment. Giving a live demo is section 21. `FEATURE-GUIDE.md` predates the admissions, clinic, activities,
 pocket money and finance work and the five staff roles that came with them;
 where the two disagree, this file is the current one.
 
@@ -37,6 +36,7 @@ where the two disagree, this file is the current one.
 18. [Security](#18-security)
 19. [Operations](#19-operations)
 20. [When something looks wrong](#20-when-something-looks-wrong)
+21. [Giving a demo](#21-giving-a-demo)
 
 ---
 
@@ -976,3 +976,39 @@ it.
 once passed for the wrong reason, because the instance being stopped was one the
 balancer had already stopped talking to. A test that passes for the wrong reason
 is worse than no test, because it is believed.
+
+**The sign in spins forever, or says "Network Error".** The API is not up yet,
+or Postgres is not. Start the containers with `docker compose up -d`, give
+Postgres ten seconds, then check `/api/health/ready`.
+
+**The code has expired.** It lasts five minutes. Sign in again for a fresh one.
+
+---
+
+## 21. Giving a demo
+
+Start in this order, one terminal each: the containers, the API, the dashboard.
+The order matters because the API refuses to start without the database.
+
+Do a full dry run the night before: start everything, sign in once as each role
+from section 2, and press the "Dev shortcut" for each code. The seed is date
+relative, so a reseed the morning of the demo makes the term, the register and
+the overdue books look current. Never reseed during the demo: it empties every
+table and signs everybody out.
+
+An order that shows the whole school in about fifteen minutes:
+
+1. **Admin.** The dashboard, the students and teachers, the school settings and
+   its colour, admissions, and the fee ledger.
+2. **Head teacher.** The report card pipeline: what each class is waiting on,
+   then publish one.
+3. **Teacher.** Take the register, enter marks, set and grade homework, message
+   a parent.
+4. **Parent**, on the phone. The child's attendance, marks and report card.
+5. **Student**, on the web. Marks, homework, the library.
+6. **Librarian.** Check a book out and back in, the overdue list.
+7. **Patron or nurse**, on the phone. The sick bay and the money counter.
+
+Afterwards, stop the API and the dashboard with `Ctrl + C`, and the containers
+with `docker compose down`. Their data survives; add `-v` only to throw it away.
+
