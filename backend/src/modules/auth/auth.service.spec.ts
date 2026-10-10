@@ -860,6 +860,25 @@ describe('AuthService', () => {
       });
       expect(result).not.toHaveProperty('devToken');
     });
+
+    // A token in the log is a working reset link for anyone who reads it.
+    it('never writes the token into the log', async () => {
+      const lines: string[] = [];
+      const logger = (service as any).logger;
+      for (const level of ['log', 'warn', 'error', 'debug', 'verbose']) {
+        jest
+          .spyOn(logger, level)
+          .mockImplementation((...args: unknown[]) =>
+            lines.push(args.map(String).join(' ')),
+          );
+      }
+      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      const result: any = await service.requestPasswordReset({
+        email: 'wilsonshizirungu@gmail.com',
+      });
+      expect(result.devToken).toBeTruthy();
+      expect(lines.join('\n')).not.toContain(result.devToken);
+    });
   });
 
   describe('completing a password reset', () => {
