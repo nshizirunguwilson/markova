@@ -11,6 +11,11 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  withPlatform,
+  withRequestContext,
+  type RequestContext,
+} from '../../prisma/request-context';
 import { MessagingService } from './messaging.service';
 
 @WebSocketGateway({
@@ -127,15 +132,22 @@ export class MessagingGateway
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
+      // Above the wall between schools: the socket does not know its school
+      // until the person is found. Everything after this runs inside it.
+      const user = await withPlatform(() =>
+        this.prisma.user.findUnique({ where: { id: payload.sub } }),
+      );
       if (!user || !user.isActive) {
         client.disconnect();
         return;
       }
 
       client.data.user = payload;
+      client.data.context = {
+        userId: user.id,
+        role: user.role,
+        schoolId: user.schoolId,
+      } satisfies RequestContext;
       // The JWT carries `sub` and `role` only (see AuthService.issueTokens),
       // so the typing indicator's `${firstName} ${lastName}` was always the
       // empty string and every recipient saw " is typing". The name is read
@@ -143,75 +155,95 @@ export class MessagingGateway
       client.data.displayName =
         `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
       const userId = payload.sub;
-
-      // Track online status
-      if (!this.onlineUsers.has(userId)) {
-        this.onlineUsers.set(userId, new Set());
-      }
-      this.onlineUsers.get(userId)!.add(client.id);
-
-      // Join user's personal room
-      void client.join(`user:${userId}`);
-
-      // Join all conversation rooms
-      const convIds =
-        await this.messagingService.getUserConversationIds(userId);
-      for (const convId of convIds) {
-        void client.join(`conv:${convId}`);
-      }
-
-      // Broadcast online status to conversation partners
-      await this.broadcastPresence(userId, true);
-
-      // Send current online users to the connecting client.
-      //
-      // Only the people they share a conversation with. This list used to be
-      // every socket connected to the server, which both told a student who
-      // else in the school was at their desk and - because the corrections
-      // that follow (`presenceChange`) are limited to conversation partners -
-      // left a green dot next to a stranger lit until the page was reloaded.
-      const partners =
-        await this.messagingService.getConversationPartnerIds(userId);
-      const onlineList = partners.filter((id) => this.onlineUsers.has(id));
-      client.emit('onlineUsers', onlineList);
-
-      // Mark undelivered messages as delivered
-      const delivered = await this.messagingService.markDelivered(userId);
-      if (delivered.length > 0) {
-        // Notify senders their messages were delivered
-        for (const msg of delivered) {
-          this.server.to(`user:${msg.senderUserId}`).emit('messageDelivered', {
-            messageId: msg.id,
-            conversationId: msg.conversationId,
-          });
-        }
-      }
+      await this.asClient(client, () => this.welcome(client, userId));
     } catch {
       client.disconnect();
     }
   }
 
-  async handleDisconnect(client: Socket) {
-    const userId = client.data?.user?.sub;
-    if (!userId) return;
+  /** What a socket does once it is known: rooms, presence, deliveries. */
+  private async welcome(client: Socket, userId: string) {
+    // Track online status
+    if (!this.onlineUsers.has(userId)) {
+      this.onlineUsers.set(userId, new Set());
+    }
+    this.onlineUsers.get(userId)!.add(client.id);
 
-    const sockets = this.onlineUsers.get(userId);
-    if (sockets) {
-      sockets.delete(client.id);
-      if (sockets.size === 0) {
-        this.onlineUsers.delete(userId);
+    // Join user's personal room
+    void client.join(`user:${userId}`);
 
-        // Update lastSeenAt
-        const now = new Date();
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: { lastSeenAt: now },
+    // Join all conversation rooms
+    const convIds = await this.messagingService.getUserConversationIds(userId);
+    for (const convId of convIds) {
+      void client.join(`conv:${convId}`);
+    }
+
+    // Broadcast online status to conversation partners
+    await this.broadcastPresence(userId, true);
+
+    // Send current online users to the connecting client.
+    //
+    // Only the people they share a conversation with. This list used to be
+    // every socket connected to the server, which both told a student who
+    // else in the school was at their desk and - because the corrections
+    // that follow (`presenceChange`) are limited to conversation partners -
+    // left a green dot next to a stranger lit until the page was reloaded.
+    const partners =
+      await this.messagingService.getConversationPartnerIds(userId);
+    const onlineList = partners.filter((id) => this.onlineUsers.has(id));
+    client.emit('onlineUsers', onlineList);
+
+    // Mark undelivered messages as delivered
+    const delivered = await this.messagingService.markDelivered(userId);
+    if (delivered.length > 0) {
+      // Notify senders their messages were delivered
+      for (const msg of delivered) {
+        this.server.to(`user:${msg.senderUserId}`).emit('messageDelivered', {
+          messageId: msg.id,
+          conversationId: msg.conversationId,
         });
-
-        // Broadcast offline
-        await this.broadcastPresence(userId, false, now);
       }
     }
+  }
+
+  /**
+   * Run a socket event inside the school of the person on that socket.
+   *
+   * A socket event does not pass through the HTTP interceptor that sets the
+   * school for a request, so without this every query a chat event makes
+   * would carry no school and the database would show it nothing.
+   */
+  private asClient<T>(client: Socket, fn: () => Promise<T>): Promise<T> {
+    const context = client.data?.context as RequestContext | undefined;
+    if (!context) return Promise.reject(new Error('Socket is not signed in'));
+    return withRequestContext(context, async () => await fn());
+  }
+
+  async handleDisconnect(client: Socket) {
+    // A socket that never got as far as signing in has nothing to clean up.
+    if (!client.data?.context) return;
+    return this.asClient(client, async () => {
+      const userId = client.data?.user?.sub;
+      if (!userId) return;
+
+      const sockets = this.onlineUsers.get(userId);
+      if (sockets) {
+        sockets.delete(client.id);
+        if (sockets.size === 0) {
+          this.onlineUsers.delete(userId);
+
+          // Update lastSeenAt
+          const now = new Date();
+          await this.prisma.user.update({
+            where: { id: userId },
+            data: { lastSeenAt: now },
+          });
+
+          // Broadcast offline
+          await this.broadcastPresence(userId, false, now);
+        }
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -243,35 +275,37 @@ export class MessagingGateway
       replyToId?: string;
     },
   ) {
-    const userId = client.data.user.sub;
+    return this.asClient(client, async () => {
+      const userId = client.data.user.sub;
 
-    if (!this.checkMessageRateLimit(userId)) {
-      return { error: 'Rate limit exceeded. Max 30 messages per minute.' };
-    }
+      if (!this.checkMessageRateLimit(userId)) {
+        return { error: 'Rate limit exceeded. Max 30 messages per minute.' };
+      }
 
-    const message = await this.messagingService.sendMessage(
-      {
-        conversationId: data.conversationId,
-        content: data.content,
-        contentType: data.contentType as any,
-        fileUrl: data.fileUrl,
-        replyToId: data.replyToId,
-      },
-      userId,
-    );
+      const message = await this.messagingService.sendMessage(
+        {
+          conversationId: data.conversationId,
+          content: data.content,
+          contentType: data.contentType as any,
+          fileUrl: data.fileUrl,
+          replyToId: data.replyToId,
+        },
+        userId,
+      );
 
-    await this.broadcastNewMessage(data.conversationId, message);
-    const delivered = await this.markDeliveredIfOnline(
-      data.conversationId,
-      message.id,
-      userId,
-    );
+      await this.broadcastNewMessage(data.conversationId, message);
+      const delivered = await this.markDeliveredIfOnline(
+        data.conversationId,
+        message.id,
+        userId,
+      );
 
-    // Ack back to sender
-    return {
-      messageId: message.id,
-      status: delivered ? 'DELIVERED' : 'SENT',
-    };
+      // Ack back to sender
+      return {
+        messageId: message.id,
+        status: delivered ? 'DELIVERED' : 'SENT',
+      };
+    });
   }
 
   @SubscribeMessage('markRead')
@@ -279,30 +313,32 @@ export class MessagingGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    const userId = client.data.user.sub;
+    return this.asClient(client, async () => {
+      const userId = client.data.user.sub;
 
-    const result = await this.messagingService.markAsRead(
-      data.conversationId,
-      userId,
-    );
+      const result = await this.messagingService.markAsRead(
+        data.conversationId,
+        userId,
+      );
 
-    // Notify senders their messages were read. Addressed to every
-    // participant's own room rather than the conversation room: the sender is
-    // only in `conv:<id>` if the conversation already existed when they
-    // connected, so read receipts silently never arrived for a thread that
-    // had just been started.
-    if (result.readMessageIds && result.readMessageIds.length > 0) {
-      const rooms = await this.participantRooms(data.conversationId);
-      if (rooms.length > 0) {
-        this.server.to(rooms).emit('messagesRead', {
-          conversationId: data.conversationId,
-          readBy: userId,
-          messageIds: result.readMessageIds,
-        });
+      // Notify senders their messages were read. Addressed to every
+      // participant's own room rather than the conversation room: the sender is
+      // only in `conv:<id>` if the conversation already existed when they
+      // connected, so read receipts silently never arrived for a thread that
+      // had just been started.
+      if (result.readMessageIds && result.readMessageIds.length > 0) {
+        const rooms = await this.participantRooms(data.conversationId);
+        if (rooms.length > 0) {
+          this.server.to(rooms).emit('messagesRead', {
+            conversationId: data.conversationId,
+            readBy: userId,
+            messageIds: result.readMessageIds,
+          });
+        }
       }
-    }
 
-    return { count: result.count };
+      return { count: result.count };
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -314,17 +350,19 @@ export class MessagingGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    const userId = client.data.user.sub;
-    // Read off the socket, where it was cached at connection. The JWT does
-    // not carry a name, so this used to be the empty string every time.
-    const userName = client.data.displayName || '';
+    return this.asClient(client, async () => {
+      const userId = client.data.user.sub;
+      // Read off the socket, where it was cached at connection. The JWT does
+      // not carry a name, so this used to be the empty string every time.
+      const userName = client.data.displayName || '';
 
-    const rooms = await this.participantRooms(data.conversationId, userId);
-    if (rooms.length === 0) return;
-    this.server.to(rooms).emit('userTyping', {
-      conversationId: data.conversationId,
-      userId,
-      userName,
+      const rooms = await this.participantRooms(data.conversationId, userId);
+      if (rooms.length === 0) return;
+      this.server.to(rooms).emit('userTyping', {
+        conversationId: data.conversationId,
+        userId,
+        userName,
+      });
     });
   }
 
@@ -333,13 +371,15 @@ export class MessagingGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    const userId = client.data.user.sub;
+    return this.asClient(client, async () => {
+      const userId = client.data.user.sub;
 
-    const rooms = await this.participantRooms(data.conversationId, userId);
-    if (rooms.length === 0) return;
-    this.server.to(rooms).emit('userStopTyping', {
-      conversationId: data.conversationId,
-      userId,
+      const rooms = await this.participantRooms(data.conversationId, userId);
+      if (rooms.length === 0) return;
+      this.server.to(rooms).emit('userStopTyping', {
+        conversationId: data.conversationId,
+        userId,
+      });
     });
   }
 
