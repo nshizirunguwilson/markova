@@ -245,3 +245,22 @@ body {
 
 
 
+
+/*
+  The toasts' own colours, darkened where they were too faint to read.
+
+  Sonner's light palette puts its success, info, warning and error text at
+  4.29, 4.35, 3.07 and 4.36 to 1 on their washes, every one under the 4.5
+  WCAG AA asks of 13px text; the warning, the one most worth reading, was the
+  faintest. Same hues, darker shades, each now above 5 to 1. Its dark palette
+  already passes and is left alone.
+
+  Led by `html` because Sonner injects its stylesheet at runtime, after this
+  one, so an equally specific rule here would lose to it.
+*/
+html [data-sonner-toaster][data-sonner-theme="light"] {
+  --success-text: hsl(140, 100%, 23%);
+  --info-text: hsl(210, 92%, 40%);
+  --warning-text: hsl(31, 92%, 32%);
+  --error-text: hsl(360, 100%, 40%);
+}
