@@ -112,8 +112,9 @@ cd backend && npx prisma migrate reset --force && npx prisma db seed
 
 Sign in at `http://localhost:3001/login` with an email address or a phone
 number. Staff accounts get a one time code as a second step; in development the
-code is returned in the response and printed in the API log, so you never need a
-working mailbox.
+code is returned in the response and the sign in screen offers it as a "Dev
+shortcut" button, on the web and on the phone, so you never need a working
+mailbox. It is never written to the API log, and never returned in production.
 
 | Role | Sign in with | Lands on |
 | --- | --- | --- |
@@ -329,7 +330,8 @@ retried; see the delivery queue under [Operations](#19-operations).
 ### Forgotten passwords
 
 1. `/forgot-password`, enter `aline.uwase@markova.edu`.
-2. The reset link is in the API log in development.
+2. In development the page offers the reset link as a "Dev shortcut". It is
+   never written to the API log.
 3. Follow it to `/reset-password`, set a new password.
 4. Sign in with the new password. Confirm the old one no longer works.
 5. Follow the same link a second time. It must be refused.
