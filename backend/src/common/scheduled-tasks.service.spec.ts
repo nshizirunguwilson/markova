@@ -1,4 +1,5 @@
 import { ScheduledTasksService } from './scheduled-tasks.service';
+import { currentRequest } from '../prisma/request-context';
 
 /**
  * The jobs that run without anybody asking.
@@ -10,9 +11,10 @@ import { ScheduledTasksService } from './scheduled-tasks.service';
 describe('ScheduledTasksService', () => {
   const library = { sendDueReminders: jest.fn() } as any;
   const attendance = { sendChronicAbsenteeismAlerts: jest.fn() } as any;
+  const prisma = { school: { findMany: jest.fn() } } as any;
 
   const build = () => {
-    const service = new ScheduledTasksService(library, attendance);
+    const service = new ScheduledTasksService(library, attendance, prisma);
     const log = jest.spyOn((service as any).logger, 'log').mockImplementation();
     const error = jest
       .spyOn((service as any).logger, 'error')
@@ -21,6 +23,9 @@ describe('ScheduledTasksService', () => {
   };
 
   beforeEach(() => {
+    prisma.school.findMany
+      .mockReset()
+      .mockResolvedValue([{ id: 'school-1', slug: 'kigali-hill' }]);
     library.sendDueReminders.mockReset().mockResolvedValue({ sent: 12 });
     attendance.sendChronicAbsenteeismAlerts
       .mockReset()
@@ -51,7 +56,7 @@ describe('ScheduledTasksService', () => {
         service.handleLibraryDueReminders(),
       ).resolves.toBeUndefined();
       expect(error).toHaveBeenCalledWith(
-        'Failed to send library due reminders',
+        'Library due reminders failed for kigali-hill',
         boom.stack,
       );
     });
@@ -61,7 +66,7 @@ describe('ScheduledTasksService', () => {
       const { service, error } = build();
       await service.handleLibraryDueReminders();
       expect(error).toHaveBeenCalledWith(
-        'Failed to send library due reminders',
+        'Library due reminders failed for kigali-hill',
         undefined,
       );
     });
@@ -91,7 +96,7 @@ describe('ScheduledTasksService', () => {
         service.handleChronicAbsenteeismAlerts(),
       ).resolves.toBeUndefined();
       expect(error).toHaveBeenCalledWith(
-        'Failed to send chronic absenteeism alerts',
+        'Chronic absenteeism alerts failed for kigali-hill',
         boom.stack,
       );
     });
@@ -101,9 +106,56 @@ describe('ScheduledTasksService', () => {
       const { service, error } = build();
       await service.handleChronicAbsenteeismAlerts();
       expect(error).toHaveBeenCalledWith(
-        'Failed to send chronic absenteeism alerts',
+        'Chronic absenteeism alerts failed for kigali-hill',
         undefined,
       );
+    });
+  });
+
+  /*
+    A scheduled job has nobody signed in, and the database shows nothing to a
+    query with no school, so each job runs once per school, inside it.
+  */
+  describe('many schools', () => {
+    beforeEach(() => {
+      prisma.school.findMany.mockResolvedValue([
+        { id: 'school-1', slug: 'kigali-hill' },
+        { id: 'school-2', slug: 'lycee-notre-dame' },
+      ]);
+    });
+
+    it('runs the job once for every active school, inside that school', async () => {
+      const seen: (string | undefined)[] = [];
+      library.sendDueReminders.mockImplementation(() => {
+        seen.push(currentRequest()?.schoolId);
+        return Promise.resolve({ sent: 1 });
+      });
+      const { service } = build();
+      await service.handleLibraryDueReminders();
+      expect(seen).toEqual(['school-1', 'school-2']);
+      expect(prisma.school.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { status: 'ACTIVE' } }),
+      );
+    });
+
+    it('carries on with the next school when one fails', async () => {
+      attendance.sendChronicAbsenteeismAlerts
+        .mockRejectedValueOnce(new Error('bad record'))
+        .mockResolvedValueOnce({ studentsIdentified: 1, alertsSent: 1 });
+      const { service, error } = build();
+      await service.handleChronicAbsenteeismAlerts();
+      expect(attendance.sendChronicAbsenteeismAlerts).toHaveBeenCalledTimes(2);
+      expect(error).toHaveBeenCalledWith(
+        'Chronic absenteeism alerts failed for kigali-hill',
+        expect.any(String),
+      );
+    });
+
+    it('does nothing when no school is active', async () => {
+      prisma.school.findMany.mockResolvedValue([]);
+      const { service } = build();
+      await service.handleLibraryDueReminders();
+      expect(library.sendDueReminders).not.toHaveBeenCalled();
     });
   });
 
