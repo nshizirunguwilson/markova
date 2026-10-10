@@ -83,6 +83,26 @@ describe('signing in', () => {
     expect(tokens.setTokens).not.toHaveBeenCalled();
   });
 
+  // Outside production the API sends the code back, since it is no longer
+  // written to the log. Production never sends it, so nothing is kept.
+  it('keeps the code the API hands back during development', async () => {
+    http.post.mockResolvedValue({
+      data: { requiresOtp: true, sessionId: 's1', devOtp: '482913' },
+    } as never);
+
+    await useAuthStore.getState().login('a@markova.edu', 'x');
+
+    expect(useAuthStore.getState().devOtp).toBe('482913');
+  });
+
+  it('keeps no code when the API sends none', async () => {
+    http.post.mockResolvedValue({ data: { requiresOtp: true, sessionId: 's1' } } as never);
+
+    await useAuthStore.getState().login('a@markova.edu', 'x');
+
+    expect(useAuthStore.getState().devOtp).toBeNull();
+  });
+
   it('keeps the session and loads the person when no code is needed', async () => {
     http.post.mockResolvedValue({
       data: { accessToken: 'access-1', refreshToken: 'refresh-1' },
