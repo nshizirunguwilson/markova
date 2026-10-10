@@ -29,11 +29,6 @@ const config: ExpoConfig = {
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
   scheme: 'markova',
-  splash: {
-    image: './assets/splash-icon.png',
-    resizeMode: 'contain',
-    backgroundColor: BRAND_NAVY,
-  },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.markova.app',
@@ -60,6 +55,17 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    // SDK 57 dropped the top-level `splash` key; the splash screen is now
+    // configured only through its own plugin.
+    [
+      'expo-splash-screen',
+      {
+        image: './assets/splash-icon.png',
+        imageWidth: 200,
+        resizeMode: 'contain',
+        backgroundColor: BRAND_NAVY,
+      },
+    ],
     'expo-secure-store',
     'expo-web-browser',
     'expo-font',
