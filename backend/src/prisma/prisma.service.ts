@@ -11,8 +11,10 @@ import {
 /**
  * The database client, and the place the request's identity is handed to it.
  *
- * Row level security in Postgres decides what a query may see from two session
- * settings, `app.role` and `app.user_id`. Postgres only sees a connection, so
+ * Row level security in Postgres decides what a query may see from session
+ * settings: `app.school_id` (the wall between schools), `app.bypass` (set only
+ * for deliberate platform work), and `app.role` and `app.user_id` (which of a
+ * school's children a parent or student may see). Postgres only sees a connection, so
  * something has to put the signed-in user there before the query runs. This
  * extension does it, from the async context the interceptor established, so no
  * service signature has to carry it and no service can forget to.
@@ -71,10 +73,29 @@ export class PrismaService
     */
     const base = this as PrismaClient;
 
-    const identify = (ctx: RequestContext) => [
-      base.$executeRaw`SELECT set_config('app.role', ${ctx.role}, TRUE)`,
-      base.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, TRUE)`,
+    /*
+      All four in one statement: one round trip, not four. An unset value goes
+      as an empty string, which every policy reads as "not this": no school
+      means no school's rows, and no bypass means none.
+    */
+    const settings = (ctx: RequestContext) => [
+      ctx.role ?? '',
+      ctx.userId ?? '',
+      ctx.schoolId ?? '',
+      ctx.platform ? 'on' : '',
     ];
+    const identifyOn = (
+      client: { $executeRaw: PrismaClient['$executeRaw'] },
+      ctx: RequestContext,
+    ) => {
+      const [role, userId, schoolId, bypass] = settings(ctx);
+      return client.$executeRaw`SELECT
+        set_config('app.role', ${role}, TRUE),
+        set_config('app.user_id', ${userId}, TRUE),
+        set_config('app.school_id', ${schoolId}, TRUE),
+        set_config('app.bypass', ${bypass}, TRUE)`;
+    };
+    const identify = (ctx: RequestContext) => [identifyOn(base, ctx)];
 
     return this.$extends({
       client: {
@@ -88,6 +109,20 @@ export class PrismaService
           const ctx = currentRequest();
           const [first, options] = args;
 
+          /*
+            The list form, `$transaction([a, b])`, is refused while anybody is
+            in context. Its queries are built before the transaction opens, so
+            there is no moment to tell the connection which school they are
+            for: reads would come back empty and writes would fail. The
+            callback form, `$transaction(async (tx) => ...)`, does the same job
+            and carries the school.
+          */
+          if (ctx && typeof first !== 'function') {
+            throw new Error(
+              'Use $transaction(async (tx) => ...) rather than a list of queries: only the callback form can carry the school.',
+            );
+          }
+
           if (!ctx || typeof first !== 'function') {
             return (base.$transaction as (...a: unknown[]) => Promise<unknown>)(
               ...args,
@@ -97,8 +132,7 @@ export class PrismaService
           const run = first as (tx: unknown) => Promise<unknown>;
           return base.$transaction(
             async (tx) => {
-              await tx.$executeRaw`SELECT set_config('app.role', ${ctx.role}, TRUE)`;
-              await tx.$executeRaw`SELECT set_config('app.user_id', ${ctx.userId}, TRUE)`;
+              await identifyOn(tx, ctx);
               return withIdentityApplied(() => run(tx));
             },
             options as Parameters<typeof base.$transaction>[1],
@@ -110,7 +144,7 @@ export class PrismaService
           const ctx = currentRequest();
           if (!ctx || identityApplied()) return query(args);
 
-          const [, , result] = await base.$transaction([
+          const [, result] = await base.$transaction([
             ...identify(ctx),
             query(args) as Prisma.PrismaPromise<unknown>,
           ]);
@@ -124,19 +158,21 @@ export class PrismaService
    * The school the current query runs in.
    *
    * Most code never needs this: a new row takes its school from the
-   * connection, and reads will be limited to the current school for them.
-   * It is for the few places that address a row by a value that is unique
-   * only inside a school, such as a setting's key, where Prisma needs the
-   * school as part of the key.
+   * connection, and reads only ever see the current school. It is for the few
+   * places that address a row by a value that is unique only inside a school,
+   * such as a setting's key, where Prisma needs the school as part of the key.
    *
-   * It reads the connection's own `app.school_id`, so it always agrees with
-   * the school a row written in the same request would get.
+   * Refuses when there is no school, rather than guessing: platform work and
+   * code running outside any request have no school to give.
    */
-  async currentSchoolId(): Promise<string> {
-    const [row] = await this.$queryRaw<
-      { id: string }[]
-    >`SELECT current_setting('app.school_id') AS id`;
-    return row.id;
+  currentSchoolId(): Promise<string> {
+    const schoolId = currentRequest()?.schoolId;
+    if (!schoolId) {
+      return Promise.reject(
+        new Error('No school in context: this runs only inside a school.'),
+      );
+    }
+    return Promise.resolve(schoolId);
   }
 
   async onModuleInit() {
