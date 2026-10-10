@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
+import { useEffect, useCallback, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,8 @@ interface ModalProps {
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const noSubscribe = () => () => {};
 
 export function Modal({
   isOpen,
@@ -100,8 +102,13 @@ export function Modal({
 
   // Mounted before portalling: `document` does not exist while this renders
   // on the server, and reaching for it there would take the page down.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // useSyncExternalStore answers false on the server and true in the browser,
+  // without the extra render a setState inside an effect costs.
+  const mounted = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
 
   if (!isOpen || !mounted) return null;
 
