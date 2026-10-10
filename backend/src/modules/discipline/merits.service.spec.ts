@@ -45,8 +45,8 @@ describe('MeritsService', () => {
     jest.clearAllMocks();
     prisma.schoolConfig.findFirst.mockResolvedValue({ value: '100' });
     prisma.parentStudent.findMany.mockResolvedValue([]);
-    prisma.$transaction.mockImplementation(async (ops: any[]) =>
-      Promise.all(ops),
+    prisma.$transaction.mockImplementation((work: any) =>
+      typeof work === 'function' ? work(prisma) : Promise.all(work),
     );
     prisma.meritAward.create.mockResolvedValue({ id: 'merit-1' });
     prisma.student.update.mockResolvedValue({});
@@ -601,8 +601,8 @@ describe('the merits service on a partly set-up school', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma.parentStudent.findMany.mockResolvedValue([]);
-    prisma.$transaction.mockImplementation(async (ops: any[]) =>
-      Promise.all(ops),
+    prisma.$transaction.mockImplementation((work: any) =>
+      typeof work === 'function' ? work(prisma) : Promise.all(work),
     );
     prisma.meritAward.create.mockResolvedValue({ id: 'merit-1' });
     prisma.student.update.mockResolvedValue({});

@@ -42,8 +42,8 @@ export class DisciplineService {
       student.disciplinePoints - dto.pointsDeducted,
     );
 
-    const [incident] = await this.prisma.$transaction([
-      this.prisma.disciplineIncident.create({
+    const [incident] = await this.prisma.$transaction(async (tx) => [
+      await tx.disciplineIncident.create({
         data: {
           studentId: dto.studentId,
           termId: dto.termId,
@@ -62,7 +62,7 @@ export class DisciplineService {
           recordedBy: { select: { firstName: true, lastName: true } },
         },
       }),
-      this.prisma.student.update({
+      await tx.student.update({
         where: { id: dto.studentId },
         data: { disciplinePoints: newPoints },
       }),
