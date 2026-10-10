@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service';
+import { PublicSchoolService } from '../../prisma/public-school.service';
+import { withSchool } from '../../prisma/request-context';
 import { AnswerOfferDto, StatusLookupDto, SubmitApplicationDto } from './dto';
 
 /**
@@ -26,13 +29,22 @@ import { AnswerOfferDto, StatusLookupDto, SubmitApplicationDto } from './dto';
 @ApiTags('Admissions (public)')
 @Controller('admissions/public')
 export class PublicAdmissionsController {
-  constructor(private readonly service: AdmissionsService) {}
+  constructor(
+    private readonly service: AdmissionsService,
+    private readonly publicSchool: PublicSchoolService,
+  ) {}
+
+  /** Everything here belongs to the school whose admissions page this is. */
+  private async inSchool<T>(req: Request, fn: () => Promise<T>): Promise<T> {
+    const schoolId = await this.publicSchool.resolve(req);
+    return withSchool(schoolId, fn);
+  }
 
   @Get('intakes')
   @Throttle({ default: { ttl: 60000, limit: 30 } })
   @ApiOperation({ summary: 'The rounds a family may apply to right now' })
-  intakes() {
-    return this.service.openIntakes();
+  intakes(@Req() req: Request) {
+    return this.inSchool(req, () => this.service.openIntakes());
   }
 
   /**
@@ -45,8 +57,8 @@ export class PublicAdmissionsController {
   @Post('applications')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Submit an application from the admissions site' })
-  submit(@Body() dto: SubmitApplicationDto) {
-    return this.service.submit(dto);
+  submit(@Body() dto: SubmitApplicationDto, @Req() req: Request) {
+    return this.inSchool(req, () => this.service.submit(dto));
   }
 
   @Post('status')
@@ -54,8 +66,10 @@ export class PublicAdmissionsController {
   @ApiOperation({
     summary: 'Where an application stands, by reference and date of birth',
   })
-  status(@Body() dto: StatusLookupDto) {
-    return this.service.publicStatus(dto.reference, dto.dateOfBirth);
+  status(@Body() dto: StatusLookupDto, @Req() req: Request) {
+    return this.inSchool(req, () =>
+      this.service.publicStatus(dto.reference, dto.dateOfBirth),
+    );
   }
 
   @Post('offer/answer')
@@ -63,12 +77,14 @@ export class PublicAdmissionsController {
   @ApiOperation({
     summary: 'A family accepts or declines the place they were offered',
   })
-  answer(@Body() dto: AnswerOfferDto) {
-    return this.service.respondToOffer(
-      dto.reference,
-      dto.dateOfBirth,
-      dto.accept,
-      dto.reason,
+  answer(@Body() dto: AnswerOfferDto, @Req() req: Request) {
+    return this.inSchool(req, () =>
+      this.service.respondToOffer(
+        dto.reference,
+        dto.dateOfBirth,
+        dto.accept,
+        dto.reason,
+      ),
     );
   }
 }

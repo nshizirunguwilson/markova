@@ -1,8 +1,11 @@
 import { AdmissionsController } from './admissions.controller';
 import { PublicAdmissionsController } from './public-admissions.controller';
 import { AdmissionsService } from './admissions.service';
+import { PublicSchoolService } from '../../prisma/public-school.service';
+import { currentRequest } from '../../prisma/request-context';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import {
+  buildController,
   clearMocks,
   controllerHarness,
   mockService,
@@ -170,48 +173,78 @@ describe('PublicAdmissionsController', () => {
   ]);
 
   let run: (c: RouteCase) => Promise<void>;
+  const publicSchool = { resolve: jest.fn() };
+  const req = { headers: {} } as any;
 
   beforeEach(async () => {
     clearMocks(service);
+    publicSchool.resolve.mockReset().mockResolvedValue('school-1');
     run = await controllerHarness(PublicAdmissionsController, [
       { token: AdmissionsService, name: 'service', mock: service },
+      { token: PublicSchoolService, name: 'publicSchool', mock: publicSchool },
     ]);
   });
 
   it.each([
     {
       name: 'the rounds open right now',
-      call: (c: any) => c.intakes(),
+      call: (c: any) => c.intakes(req),
       calls: 'openIntakes',
       withArgs: [],
     },
     {
       name: 'an application submitted',
-      call: (c: any) => c.submit({ firstName: 'Aline' }),
+      call: (c: any) => c.submit({ firstName: 'Aline' }, req),
       calls: 'submit',
       withArgs: [{ firstName: 'Aline' }],
     },
     {
       name: 'where an application stands',
       call: (c: any) =>
-        c.status({ reference: 'APP-2026-0417', dateOfBirth: '2013-04-02' }),
+        c.status(
+          { reference: 'APP-2026-0417', dateOfBirth: '2013-04-02' },
+          req,
+        ),
       calls: 'publicStatus',
       withArgs: ['APP-2026-0417', '2013-04-02'],
     },
     {
       name: 'a family answering an offer',
       call: (c: any) =>
-        c.answer({
-          reference: 'APP-2026-0417',
-          dateOfBirth: '2013-04-02',
-          accept: true,
-          reason: undefined,
-        }),
+        c.answer(
+          {
+            reference: 'APP-2026-0417',
+            dateOfBirth: '2013-04-02',
+            accept: true,
+            reason: undefined,
+          },
+          req,
+        ),
       calls: 'respondToOffer',
       withArgs: ['APP-2026-0417', '2013-04-02', true, undefined],
     },
   ] as RouteCase[])('$name', async (c) => {
     await run(c);
+  });
+
+  /*
+    Nobody is signed in on the admissions site, so the page has to say which
+    school it belongs to, and everything the family does runs inside it.
+  */
+  it('takes an application inside the school whose page it is', async () => {
+    let seen: string | undefined;
+    service.submit.mockImplementation(() => {
+      seen = currentRequest()?.schoolId;
+      return Promise.resolve({ reference: 'APP-2026-0001' });
+    });
+    publicSchool.resolve.mockResolvedValue('school-7');
+    const controller: any = await buildController(PublicAdmissionsController, [
+      { token: AdmissionsService, name: 'service', mock: service },
+      { token: PublicSchoolService, name: 'publicSchool', mock: publicSchool },
+    ]);
+    await controller.submit({ firstName: 'Aline' }, req);
+    expect(publicSchool.resolve).toHaveBeenCalledWith(req);
+    expect(seen).toBe('school-7');
   });
 
   /**

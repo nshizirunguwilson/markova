@@ -2,12 +2,19 @@ import { Controller, Get, Param } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
+import { withPlatform } from '../../prisma/request-context';
 
 // Public by design: anyone holding a printed report card can check it against
 // the digital original. No auth; a tighter throttle guards against code
 // fishing (12 random digits keep the space unguessable anyway).
 @ApiTags('Verify')
 @Controller('verify')
+/*
+  Both checks run above the wall between schools: whoever scans a code has no
+  account and no school chosen. The code itself is unique across every school,
+  so it finds exactly one record, and the answer is the short public summary
+  these endpoints have always returned.
+*/
 export class VerifyController {
   constructor(private readonly service: ReportsService) {}
 
@@ -15,7 +22,7 @@ export class VerifyController {
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @ApiOperation({ summary: 'Look up the digital report behind a printed code' })
   verify(@Param('code') code: string) {
-    return this.service.verifyReportByCode(code);
+    return withPlatform(() => this.service.verifyReportByCode(code));
   }
 
   // Also public, for the same reason: anyone holding a student card at a gate
@@ -25,6 +32,6 @@ export class VerifyController {
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @ApiOperation({ summary: 'Check a student ID card by the code in its QR' })
   verifyCard(@Param('code') code: string) {
-    return this.service.verifyCardByCode(code);
+    return withPlatform(() => this.service.verifyCardByCode(code));
   }
 }
