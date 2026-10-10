@@ -243,6 +243,42 @@ enum SchoolStatus {
   ARCHIVED
 }
 
+/// A power above every school, held by a login rather than a school record.
+enum PlatformRole {
+  /// Runs Markova itself: adds, suspends and removes schools, and reads
+  /// numbers about them. Inside a school the owner is only whatever their
+  /// school record there says, like anybody else.
+  OWNER
+}
+
+/// How one person signs in, once, for every school they belong to.
+///
+/// What a school knows about the person (their name, photo, role and work)
+/// lives on their User record in that school. This holds only the sign in:
+/// the phone or email, the password, and which school to open first. A
+/// person who is a teacher at one school and a parent at another has one
+/// Account and two Users. See docs/MULTI-SCHOOL-DESIGN.md.
+model Account {
+  id                  String        @id @default(uuid())
+  /// Sign in by email. Changed only by the person, after a code.
+  email               String?       @unique
+  /// Sign in by phone. Changed only by the person, after a code.
+  phone               String?       @unique
+  passwordHash        String?       @map("password_hash")
+  forcePasswordChange Boolean       @default(true) @map("force_password_change")
+  platformRole        PlatformRole? @map("platform_role")
+  lastLoginAt         DateTime?     @map("last_login_at")
+  /// The school record opened last, which the next sign in opens first.
+  lastUserId          String?       @map("last_user_id")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  users    User[]
+  sessions UserSession[]
+
+  @@map("accounts")
+}
+
 model SchoolConfig {
   id       String @id @default(uuid())
   schoolId String @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
@@ -255,38 +291,45 @@ model SchoolConfig {
 }
 
 model User {
-  id                  String    @id @default(uuid())
-  schoolId            String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
-  school              School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
-  email               String?   @unique
-  phone               String?   @unique
+  id           String    @id @default(uuid())
+  schoolId     String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  /// The login this school record belongs to. One person, one Account; one
+  /// User in each school they belong to.
+  accountId    String    @map("account_id")
+  account      Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  /// How this school reaches the person. Starts as their sign in email and
+  /// phone, and the school may change it: it is the school's own contact
+  /// record, not how the person signs in (that is on Account).
+  email        String?
+  phone        String?
   // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
   // Students carry theirs on Student.studentIdNumber (STD prefix).
-  code                String?
+  code         String?
   // NIDA 16-digit national identification number (stored without spaces).
-  nationalId          String?   @map("national_id")
-  nationality         String?
+  nationalId   String?   @map("national_id")
+  nationality  String?
   // For staff and parents. Students carry theirs on Student, which stays
   // the single source of truth for student demographics.
-  gender              Gender?
-  dateOfBirth         DateTime? @map("date_of_birth")
-  passwordHash        String?   @map("password_hash")
-  role                Role
-  firstName           String    @map("first_name")
-  lastName            String    @map("last_name")
-  photoUrl            String?   @map("photo_url")
+  gender       Gender?
+  dateOfBirth  DateTime? @map("date_of_birth")
+  role         Role
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  photoUrl     String?   @map("photo_url")
   /// The person's own signature, uploaded from their own profile, printed
   /// where a document needs their name under a line. Deliberately not the
   /// school's signature from the branding settings: a report card carries a
   /// class teacher's and a head teacher's marks, and one file shared between
   /// them would put the same hand under both.
-  signatureUrl        String?   @map("signature_url")
-  isActive            Boolean   @default(true) @map("is_active")
-  forcePasswordChange Boolean   @default(true) @map("force_password_change")
-  lastLoginAt         DateTime? @map("last_login_at")
-  lastSeenAt          DateTime? @map("last_seen_at")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  signatureUrl String?   @map("signature_url")
+  isActive     Boolean   @default(true) @map("is_active")
+  /// When the person last opened this school: per school, so one school
+  /// never learns when somebody used another.
+  lastLoginAt  DateTime? @map("last_login_at")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // Relations
   sessions                UserSession[]
@@ -327,13 +370,22 @@ model User {
 
   @@unique([schoolId, code])
   @@unique([schoolId, nationalId])
+  /// A person holds a role in a school once. A teacher who is also a parent
+  /// at the same school has two records, one for each role.
+  @@unique([schoolId, accountId, role])
+  @@index([accountId])
+  @@index([email])
+  @@index([phone])
   @@index([role])
   @@index([isActive])
   @@map("users")
 }
 
+/// A device signed in to an Account. It is open on one of the account's
+/// school records at a time (`userId`), and switching school moves it.
 model UserSession {
   id         String   @id @default(uuid())
+  accountId  String   @map("account_id")
   userId     String   @map("user_id")
   deviceInfo String?  @map("device_info")
   ipAddress  String?  @map("ip_address")
@@ -342,8 +394,10 @@ model UserSession {
   createdAt  DateTime @default(now()) @map("created_at")
   expiresAt  DateTime @map("expires_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([accountId])
   @@index([userId])
   @@index([token])
   @@map("user_sessions")
