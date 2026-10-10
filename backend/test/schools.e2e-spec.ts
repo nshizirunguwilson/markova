@@ -58,8 +58,10 @@ describe('every row belongs to a school', () => {
 
   /*
     The whole design rests on this: a table without the column is a table the
-    wall between schools cannot cover. Sign in sessions and push tokens are
-    the two deliberate exceptions; they belong to the login, not a school.
+    wall between schools cannot cover. Logins, sign in sessions and push
+    tokens are the deliberate exceptions: they belong to the person, not a
+    school. Logins have a wall of their own, proved in
+    test/accounts.e2e-spec.ts.
   */
   it('puts a school on every table a school owns', async () => {
     const rows = await owner.$queryRaw<{ table_name: string }[]>`
@@ -68,7 +70,7 @@ describe('every row belongs to a school', () => {
       WHERE t.table_schema = 'public'
         AND t.table_type = 'BASE TABLE'
         AND t.table_name NOT IN
-          ('_prisma_migrations', 'schools', 'user_sessions', 'push_tokens')
+          ('_prisma_migrations', 'schools', 'accounts', 'user_sessions', 'push_tokens')
         AND NOT EXISTS (
           SELECT 1 FROM information_schema.columns c
           WHERE c.table_schema = 'public'
