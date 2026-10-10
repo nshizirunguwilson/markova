@@ -28,6 +28,7 @@ import { useUser, useUpdateUser } from "@/hooks/use-users";
 import { NationalIdInput } from "@/components/ui/national-id-input";
 import { formatNid, validateNid } from "@/lib/person-form";
 import { labelForRole } from "@/types";
+import { ResetSignIn } from "@/components/profile/reset-sign-in";
 
 const selectCls =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -276,13 +277,13 @@ export default function UserDetailPage() {
                   />
                   <Input
                     id="email"
-                    label="Email"
+                    label="Contact email"
                     error={errors.email?.message}
                     {...register("email")}
                   />
                   <Input
                     id="phone"
-                    label="Phone"
+                    label="Contact phone"
                     error={errors.phone?.message}
                     {...register("phone")}
                   />
@@ -592,6 +593,17 @@ export default function UserDetailPage() {
                 label="Status"
                 value={user.isActive ? "Active" : "Inactive"}
               />
+              {/* How they sign in: the same at every school they belong
+                  to, so it is shown here and changed only by them, or
+                  through the reset below when this is their only school. */}
+              <InfoField
+                label="Signs in with"
+                value={
+                  [user.login?.email, user.login?.phone]
+                    .filter(Boolean)
+                    .join(" or ") || "Nothing yet"
+                }
+              />
               <InfoField
                 label="Force Password Change"
                 value={user.forcePasswordChange ? "Yes" : "No"}
@@ -603,6 +615,10 @@ export default function UserDetailPage() {
                     ? new Date(user.lastLoginAt).toLocaleString()
                     : "Never"
                 }
+              />
+              <ResetSignIn
+                userId={user.id}
+                name={`${user.firstName} ${user.lastName}`}
               />
             </div>
           </Card>
