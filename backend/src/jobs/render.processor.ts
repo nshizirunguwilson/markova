@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { withSchool } from '../prisma/request-context';
 
 import { ReportsService } from '../modules/reports/reports.service';
 import { RENDER_CONCURRENCY, RENDER_QUEUE, RenderJob } from './jobs.constants';
@@ -35,7 +36,14 @@ export class RenderProcessor extends WorkerHost {
     await this.queue.write(id, { id, state: 'working', progress: 0 });
 
     try {
-      const { buffer, filename } = await this.render(job);
+      /* The worker has nobody signed in, so the job carries its school, and
+         the render runs inside it. A job without one is refused rather than
+         run above the wall between schools. */
+      const schoolId = (job.data as { schoolId?: string }).schoolId;
+      if (!schoolId) throw new Error('This render has no school.');
+      const { buffer, filename } = await withSchool(schoolId, () =>
+        this.render(job),
+      );
       await this.queue.store(id, buffer);
       await this.queue.write(id, {
         id,

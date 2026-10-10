@@ -1,5 +1,6 @@
 import { RenderJob } from './jobs.constants';
 import { RenderProcessor } from './render.processor';
+import { currentRequest } from '../prisma/request-context';
 
 /**
  * The worker, and what it does when a render goes wrong.
@@ -17,8 +18,14 @@ describe('the render worker', () => {
   const queue = { write: jest.fn(), store: jest.fn() };
   const worker = new RenderProcessor(reports as never, queue as never);
 
+  // Every job carries the school it was asked for in.
   const job = (name: string, data: Record<string, string> = {}) =>
-    ({ id: 7, name, data, updateProgress: jest.fn() }) as never;
+    ({
+      id: 7,
+      name,
+      data: { schoolId: 'school-1', ...data },
+      updateProgress: jest.fn(),
+    }) as never;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -36,6 +43,30 @@ describe('the render worker', () => {
     );
     expect(reports.generateTermReportPdf).toHaveBeenCalledWith('s-1', 't-1');
     expect(queue.store).toHaveBeenCalledWith('7', expect.any(Buffer));
+  });
+
+  /* The worker has nobody signed in. The school comes from the job. */
+  it('renders inside the school the job belongs to', async () => {
+    let schoolSeen: string | undefined;
+    reports.generateTermReportPdf.mockImplementation(() => {
+      schoolSeen = currentRequest()?.schoolId;
+      return Promise.resolve(Buffer.from('%PDF-1.4'));
+    });
+    await worker.process(
+      job(RenderJob.TERM_REPORT, { studentId: 's-1', termId: 't-1' }),
+    );
+    expect(schoolSeen).toBe('school-1');
+  });
+
+  it('refuses a job that does not say its school', async () => {
+    const orphan = {
+      id: 8,
+      name: RenderJob.TERM_REPORT,
+      data: { studentId: 's-1', termId: 't-1' },
+      updateProgress: jest.fn(),
+    } as never;
+    await expect(worker.process(orphan)).rejects.toThrow(/no school/);
+    expect(reports.generateTermReportPdf).not.toHaveBeenCalled();
   });
 
   it('renders a year report', async () => {
