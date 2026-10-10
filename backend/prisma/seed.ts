@@ -5256,9 +5256,9 @@ async function main() {
     `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
-  await seedSecondSchool(schoolId, academicYear, currentTerm);
+  const twoSchools = await seedSecondSchool(schoolId, academicYear, currentTerm);
   console.log(
-    '  🏫 Second school: Aline Uwase teaches here and is a parent at G.S. Umucyo',
+    '  🏫 Second school: Patrick Habimana teaches here and is a parent at G.S. Umucyo',
   );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
@@ -5285,13 +5285,18 @@ async function main() {
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
   console.log(
-    '   In two schools: aline.uwase@markova.edu (teacher here, parent at G.S. Umucyo)',
+    `   In two schools: ${twoSchools} (teacher here, parent at G.S. Umucyo)`,
   );
 }
 
 /**
  * A second, small school, so one login across two schools can be seen and
- * tried: the demo teacher, Aline Uwase, is also a parent there.
+ * tried: Patrick Habimana, who teaches at the first, is a parent there.
+ *
+ * Not the demo teacher: the demo accounts each open one school, so where
+ * they land never depends on which school somebody opened last.
+ *
+ * Returns the address Patrick signs in with.
  *
  * Deliberately small: one class and one child. The full demo of several
  * Rwandan schools is step 3, part 5 (docs/MULTI-SCHOOL-DESIGN.md).
@@ -5300,7 +5305,7 @@ async function seedSecondSchool(
   firstSchoolId: string,
   year: { name: string; startDate: Date; endDate: Date },
   term: { name: string; startDate: Date; endDate: Date },
-) {
+): Promise<string> {
   const school = await prisma.school.create({
     data: { name: 'G.S. Umucyo', slug: 'gs-umucyo' },
   });
@@ -5336,10 +5341,10 @@ async function seedSecondSchool(
   const passwordHash = await bcrypt.hash('Password123!', 10);
   const child = await prisma.user.create({
     data: withLogin({
-      email: 'k.uwase.umucyo@markova.edu',
+      email: 'k.habimana.umucyo@markova.edu',
       role: Role.STUDENT,
       firstName: 'Keza',
-      lastName: 'Uwase',
+      lastName: 'Habimana',
       isActive: true,
       passwordHash,
       forcePasswordChange: true,
@@ -5348,34 +5353,35 @@ async function seedSecondSchool(
   const student = await prisma.student.create({
     data: {
       userId: child.id,
-      studentIdNumber: studentNumber('Keza', 'Uwase', 2026, child.id),
+      studentIdNumber: studentNumber('Keza', 'Habimana', 2026, child.id),
       classSectionId: section.id,
       gender: Gender.FEMALE,
       dateOfBirth: new Date('2013-05-20'),
     },
   });
 
-  /* Aline's existing login, with a second school record: a parent here. */
-  const aline = await prisma.account.findUniqueOrThrow({
-    where: { email: 'aline.uwase@markova.edu' },
+  /* Patrick's existing login, with a second school record: a parent here. */
+  const patrick = await prisma.account.findUniqueOrThrow({
+    where: { phone: '+250788000013' },
   });
   const parent = await prisma.user.create({
     data: {
-      accountId: aline.id,
+      accountId: patrick.id,
       role: Role.PARENT,
-      firstName: 'Aline',
-      lastName: 'Uwase',
-      email: 'aline.uwase@markova.edu',
-      phone: '+250788000010',
+      firstName: 'Patrick',
+      lastName: 'Habimana',
+      email: patrick.email,
+      phone: patrick.phone,
       code: `PAR-${new Date().getFullYear()}-0001`,
       isActive: true,
     },
   });
   await prisma.parentStudent.create({
-    data: { parentUserId: parent.id, studentId: student.id, relationship: 'Mother' },
+    data: { parentUserId: parent.id, studentId: student.id, relationship: 'Father' },
   });
 
   await prisma.$executeRaw`SELECT set_config('app.school_id', ${firstSchoolId}, false)`;
+  return patrick.email ?? patrick.phone ?? '';
 }
 
 main()
