@@ -4,6 +4,11 @@ const sendMail = jest.fn();
 jest.mock('nodemailer', () => ({
   createTransport: () => ({ sendMail }),
 }));
+jest.mock('twilio', () => ({
+  Twilio: jest.fn().mockImplementation(() => ({
+    messages: { create: jest.fn() },
+  })),
+}));
 
 const existsSync = jest.fn();
 jest.mock('fs', () => {

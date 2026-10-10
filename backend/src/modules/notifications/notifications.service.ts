@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
-import { AfricasTalkingSms } from './africas-talking';
+import { Twilio } from 'twilio';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
@@ -20,7 +20,8 @@ const LOGO_PATH = join(process.cwd(), 'assets', 'logo-horizontal-white.png');
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
   private transporter: nodemailer.Transporter | null = null;
-  private sms: AfricasTalkingSms | null = null;
+  private twilioClient: Twilio | null = null;
+  private twilioSenderId: string | null = null;
 
   /**
    * Email clients (Gmail especially) strip `data:` URIs, so the logo is sent as
@@ -60,18 +61,13 @@ export class NotificationsService implements OnModuleInit {
       this.logger.log(`SMTP configured via ${host}`);
     }
 
-    const atUsername = this.config.get('AT_USERNAME');
-    const atApiKey = this.config.get('AT_API_KEY');
-    if (atUsername && atApiKey) {
-      this.sms = new AfricasTalkingSms(
-        atUsername,
-        atApiKey,
-        this.config.get('AT_SENDER_ID') || undefined,
-      );
+    const twilioSid = this.config.get('TWILIO_SID');
+    const twilioToken = this.config.get('TWILIO_TOKEN');
+    if (twilioSid && twilioToken) {
+      this.twilioClient = new Twilio(twilioSid, twilioToken);
+      this.twilioSenderId = this.config.get('TWILIO_SENDER_ID') || 'Markova';
       this.logger.log(
-        this.sms.sandbox
-          ? "Africa's Talking SMS configured in the sandbox: messages appear in the simulator, not on phones"
-          : "Africa's Talking SMS configured: messages go to real phones",
+        `Twilio SMS configured with sender ID: ${this.twilioSenderId}`,
       );
     }
   }
@@ -332,18 +328,22 @@ export class NotificationsService implements OnModuleInit {
    * to, meant a lost OTP was never tried again.
    */
   async sendSMSToPhone(phone: string, message: string) {
-    if (!this.sms) {
+    if (!this.twilioClient) {
       // The body carries sign-in codes and reset links, so it is only ever
       // shown outside production, where it is how a developer signs in.
       const shown =
         this.config.get('NODE_ENV') === 'production' ? '' : `: ${message}`;
       this.logger.log(
-        `[SMS] No SMS gateway configured, not sent to ${phone}${shown}`,
+        `[SMS] Twilio not configured - would send to ${phone}${shown}`,
       );
       return;
     }
 
-    await this.sms.send(phone, message);
+    await this.twilioClient.messages.create({
+      body: message,
+      from: this.twilioSenderId!,
+      to: phone,
+    });
     this.logger.log(`[SMS] Sent to ${phone}`);
   }
 

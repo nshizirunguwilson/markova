@@ -9,11 +9,10 @@ jest.mock('nodemailer', () => ({
   createTransport: (...args: unknown[]) => createTransport(...args),
 }));
 
-const atSend = jest.fn();
-jest.mock('./africas-talking', () => ({
-  AfricasTalkingSms: jest.fn().mockImplementation((username: string) => ({
-    sandbox: username === 'sandbox',
-    send: (...args: unknown[]) => atSend(...args),
+const twilioCreate = jest.fn();
+jest.mock('twilio', () => ({
+  Twilio: jest.fn().mockImplementation(() => ({
+    messages: { create: (...args: unknown[]) => twilioCreate(...args) },
   })),
 }));
 
@@ -53,12 +52,12 @@ describe('NotificationsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sendMail.mockResolvedValue({});
-    atSend.mockResolvedValue(undefined);
+    twilioCreate.mockResolvedValue({});
     build();
   });
 
   /**
-   * A school without an SMTP host or an SMS account still has to work. The
+   * A school without an SMTP host or a Twilio account still has to work. The
    * in-app list is the fallback, and it always exists.
    */
   describe('starting up', () => {
@@ -89,22 +88,25 @@ describe('NotificationsService', () => {
     });
 
     it('configures SMS when both credentials are given', () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      expect((service as any).sms).not.toBeNull();
+      expect((service as any).twilioSenderId).toBe('Markova');
     });
 
-    it('says plainly when it is only the sandbox', () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
-      const log = jest.spyOn((service as any).logger, 'log');
+    it('uses the sender name the school chose', () => {
+      build({
+        TWILIO_SID: 'AC1',
+        TWILIO_TOKEN: 'tok',
+        TWILIO_SENDER_ID: 'MarkovaTSS',
+      });
       service.onModuleInit();
-      expect(log.mock.calls.flat().join(' ')).toContain('sandbox');
+      expect((service as any).twilioSenderId).toBe('MarkovaTSS');
     });
 
     it('does not configure SMS on half the credentials', () => {
-      build({ AT_USERNAME: 'sandbox' });
+      build({ TWILIO_SID: 'AC1' });
       service.onModuleInit();
-      expect((service as any).sms).toBeNull();
+      expect((service as any).twilioClient).toBeNull();
     });
   });
 
@@ -163,7 +165,7 @@ describe('NotificationsService', () => {
     });
 
     it('sends nothing to a person with no phone on record', async () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({ phone: null });
       await service.send({
@@ -172,11 +174,11 @@ describe('NotificationsService', () => {
         message: 'Y',
         type: 'SMS',
       } as never);
-      expect(atSend).not.toHaveBeenCalled();
+      expect(twilioCreate).not.toHaveBeenCalled();
     });
 
     it('sends an SMS to a person who has a phone', async () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
       await service.send({
@@ -185,9 +187,11 @@ describe('NotificationsService', () => {
         message: 'Buses leave at midday',
         type: 'SMS',
       } as never);
-      expect(atSend).toHaveBeenCalledWith(
-        '+250788100000',
-        'Buses leave at midday',
+      expect(twilioCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '+250788100000',
+          body: 'Buses leave at midday',
+        }),
       );
     });
 
@@ -196,9 +200,8 @@ describe('NotificationsService', () => {
     it('logs what it would have sent when SMS is not configured', async () => {
       const log = jest.spyOn((service as any).logger, 'log');
       await service.sendSMSToPhone('+250788100000', 'Hello');
-      expect(log.mock.calls[0][0]).toContain('No SMS gateway configured');
-      expect(log.mock.calls[0][0]).toContain('Hello');
-      expect(atSend).not.toHaveBeenCalled();
+      expect(log.mock.calls[0][0]).toContain('Twilio not configured');
+      expect(twilioCreate).not.toHaveBeenCalled();
     });
 
     // The body carries sign-in codes and reset links.
@@ -212,19 +215,19 @@ describe('NotificationsService', () => {
     // The delivery queue retries only a job that fails. Swallowing this was
     // why a lost OTP was never sent again.
     it('lets a gateway failure reach the caller so the queue retries', async () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      atSend.mockRejectedValue(new Error('rejected by carrier'));
+      twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
       await expect(
         service.sendSMSToPhone('+250788100000', 'Hello'),
       ).rejects.toThrow('rejected by carrier');
     });
 
     it('still keeps the in-app record when the SMS fails', async () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
-      atSend.mockRejectedValue(new Error('rejected by carrier'));
+      twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
       await expect(
         service.send({
           userId: 'user-1',
@@ -384,7 +387,7 @@ describe('NotificationsService', () => {
     });
 
     it('keeps sending after one SMS fails', async () => {
-      build({ AT_USERNAME: 'sandbox', AT_API_KEY: 'key' });
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({ phone: '+250788' });
       await expect(
