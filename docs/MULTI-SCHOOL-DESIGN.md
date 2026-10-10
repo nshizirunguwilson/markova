@@ -1,6 +1,7 @@
 # One person, many schools
 
-_A plan for step 3, written 10 October 2026. Nothing is built yet._
+_A plan for step 3, written 10 October 2026. Parts 1, 2 and 3 are built; see
+section 11._
 
 Markova will hold many schools in one database. Keeping schools apart is the
 easy part. The hard part is **people who belong to more than one school.**
@@ -204,14 +205,38 @@ step 4.**
 
 Each part is its own pull request, tested before the next one starts:
 
-1. Add schools and logins to the database. Today's data becomes the first
-   school. Everything keeps working as now.
-2. Build the wall between schools, in the app and in the database.
-3. Sign in, the school list, and switching.
-4. Make everything else respect schools: background jobs, saved files, chat.
+1. Add schools to the database. Today's data becomes the first school.
+   Everything keeps working as now. **Done.**
+2. Build the wall between schools, in the app and in the database. **Done.**
+3. Sign in, the school list, and switching. **Done.** One login per person;
+   choosing a school at sign in; the switcher beside the name (in the account
+   menu on a phone) with each school's unread messages; changing how you sign
+   in, after a code; a school admin's reset for a lost phone; adding somebody
+   who already uses Markova joins their login. The demo data has a second
+   school, G.S. Umucyo, where Patrick Habimana (a teacher at the first) is a
+   parent. Also done early from part 4: every cached answer is kept per
+   school.
+4. Make everything else respect schools: background jobs, saved files, chat,
+   push notifications (one device, every school of the login).
 5. Prove it: demo data with three Rwandan schools, and a test that tries to
    reach another school's data through every part of the system. All attempts
    must fail.
+
+**The phone app** keeps working as it is: it opens the school used last. Its
+side panel of schools is built with the mobile redesign (step 8).
+
+**Known trade-offs of part 3**, written down so they are decided rather than
+discovered:
+
+- The lost-phone reset (decision 2) refuses a person who belongs to another
+  school too, so a school admin who tries it learns that much. It is the price
+  of the exception; the refusal names no school.
+- When a school adds somebody who already uses Markova, the password the admin
+  typed is not applied (their own one stays). The admin's screen looks the same
+  either way, as section 6 asks; the person is sent a message saying to sign in
+  as usual.
+- An email and a phone that belong to two different people are refused
+  together, which tells the admin both are in use.
 
 ---
 
@@ -253,3 +278,31 @@ The technical shape, kept short:
   explicit bypass that a request can never set.
 - **Elsewhere:** jobs carry `schoolId`; Redis keys and chat rooms include it;
   uploads go under a folder per school.
+
+What part 3 built, for whoever works on it next:
+
+- **`Account`** holds email, phone, password, `forcePasswordChange`,
+  `lastLoginAt`, `lastUserId` (the school record opened next time) and
+  `platformRole`. Every existing person was given one with their own id.
+  `User.email` and `User.phone` stay as the school's contact details and are
+  no longer unique. `User.lastLoginAt` is per school.
+- **The wall for logins:** `account_wall` lets a school see a login only when
+  it holds a record for it. Finding a login across schools runs on the
+  platform pass (`AccountsService.loginFor`); a new login is written inside the
+  school's own transaction, after its record (the link is checked at commit).
+- **Tokens** carry `sub` (the school record), `acc` (the login) and `role`.
+  The guard refuses a record that is closed, in a school that is not active,
+  or not the token's login. Sessions belong to the login (at most three
+  devices across all schools); switching moves the session.
+- **Routes:** `GET /auth/schools`, `POST /auth/switch`,
+  `POST /auth/login-details` and `/confirm`, `POST /users/:id/reset-login`.
+  Login and verify answer with `schools` and `chooseSchool`.
+- **Pages before sign in** take their school from `X-School`, then the
+  install's `DEFAULT_SCHOOL`, then the only active school. The web app sends
+  the signed-in person's school for its branding, and a build can name its
+  own with `NEXT_PUBLIC_SCHOOL`.
+- **The cache** stores every key as `school:<id>:<key>`, and caches nothing
+  without a school.
+- **Tests:** `test/accounts.e2e-spec.ts` (sign in, switching, suspension, the
+  login wall, joining an existing login, changing how you sign in) and the
+  `schools:` check in `web/e2e/ui-audit.spec.js`.
