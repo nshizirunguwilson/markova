@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useBrandStore } from "@/stores/brand-store";
 import { useThemeStore } from "@/stores/theme-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { DEFAULT_BRAND_COLOR } from "@/lib/chart-colors";
 import {
   brandPalette,
@@ -111,19 +112,33 @@ export function applyColor(hex: string, theme: ResolvedTheme = "light") {
 }
 
 /**
- * Loads the school's public branding (name, colour, logo) once on mount and
- * applies the colour to CSS variables + stores name/logo for the shell to use.
- * Re-applied live whenever the brand store changes (e.g. after Settings save).
+ * Which school's colours to wear.
+ *
+ * Signed in, the person's own school: somebody who switches to their other
+ * school sees that school's name and colour, not the one they left. Before
+ * sign in, the school this site was built for, when it names one
+ * (NEXT_PUBLIC_SCHOOL); otherwise the API decides.
+ */
+const SITE_SCHOOL = process.env.NEXT_PUBLIC_SCHOOL || "";
+
+/**
+ * Loads the school's public branding (name, colour, logo) and applies the
+ * colour to CSS variables + stores name/logo for the shell to use. Loaded
+ * again when the school changes, and re-applied live whenever the brand store
+ * changes (e.g. after Settings save).
  */
 export function BrandProvider({ children }: { children: React.ReactNode }) {
   const setBrand = useBrandStore((s) => s.setBrand);
   const resolved = useThemeStore((s) => s.resolved);
   const primaryColor = useBrandStore((s) => s.primaryColor);
   const schoolName = useBrandStore((s) => s.schoolName);
+  const school = useAuthStore((s) => s.user?.school?.slug) || SITE_SCHOOL;
 
   useEffect(() => {
     let active = true;
-    fetch(`${API}/school-config/public`)
+    fetch(`${API}/school-config/public`, {
+      headers: school ? { "X-School": school } : undefined,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => {
         if (active && b) setBrand(b);
@@ -132,7 +147,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [setBrand]);
+  }, [setBrand, school]);
 
   /* Re-derived when the ground changes as well as when the colour does: the
      same brand hex needs a different treatment on a dark card, and switching
