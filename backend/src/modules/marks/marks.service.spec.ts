@@ -42,7 +42,7 @@ describe('MarksService', () => {
     prisma.mark.upsert.mockResolvedValue({ id: 'mark-1' });
     prisma.mark.update.mockResolvedValue({ id: 'mark-1' });
     prisma.mark.delete.mockResolvedValue({ id: 'mark-1' });
-    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockResolvedValue(null);
   });
 
   const mark = {
@@ -578,7 +578,7 @@ describe('MarksService', () => {
     });
 
     it('marks a student promoted at or above the pass threshold', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '50' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '50' });
       prisma.termResult.findMany.mockResolvedValue([{ average: 50 }]);
       await service.calculateYearResults({
         classSectionId: 'section-1',
@@ -590,7 +590,7 @@ describe('MarksService', () => {
     });
 
     it('uses the threshold the school set', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '70' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '70' });
       prisma.termResult.findMany.mockResolvedValue([{ average: 60 }]);
       await service.calculateYearResults({
         classSectionId: 'section-1',
@@ -1539,7 +1539,7 @@ describe('ranking a class', () => {
     prisma = createMockPrisma();
     service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
-    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockResolvedValue(null);
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.termResult.update.mockResolvedValue({});
     prisma.termResult.upsert.mockImplementation((args: any) =>
@@ -1644,7 +1644,7 @@ describe('a school that starts nobody with conduct points', () => {
   });
 
   it('records no conduct average rather than dividing by nothing', async () => {
-    prisma.schoolConfig.findUnique.mockResolvedValue({
+    prisma.schoolConfig.findFirst.mockResolvedValue({
       key: 'starting_discipline_points',
       value: '0',
     });
@@ -1662,7 +1662,7 @@ describe('a school that starts nobody with conduct points', () => {
   // A school that sets its own ceiling gets its own ceiling, out of one term
   // here because only one term is being reported on.
   it('works it out as a percentage when there is a ceiling', async () => {
-    prisma.schoolConfig.findUnique.mockResolvedValue({
+    prisma.schoolConfig.findFirst.mockResolvedValue({
       key: 'starting_discipline_points',
       value: '100',
     });

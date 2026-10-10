@@ -1038,7 +1038,7 @@ export class MarksService {
   }
 
   private async getPassThreshold(): Promise<number> {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key: 'pass_threshold' },
     });
     return Number(config?.value || '50');
@@ -1049,7 +1049,7 @@ export class MarksService {
    * year - see common/conduct.ts for why it is marked per term at all.
    */
   private async getStartingDisciplinePoints(): Promise<number> {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key: 'starting_discipline_points' },
     });
     return Number(config?.value || String(TERM_CONDUCT_MARK));

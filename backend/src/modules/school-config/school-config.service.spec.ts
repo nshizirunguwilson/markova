@@ -10,10 +10,11 @@ describe('SchoolConfigService', () => {
   const mockPrisma: any = {
     schoolConfig: {
       findMany: jest.fn(),
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       upsert: jest.fn(),
       delete: jest.fn(),
     },
+    currentSchoolId: jest.fn().mockResolvedValue('school-1'),
   };
 
   const mockCache = {
@@ -25,6 +26,7 @@ describe('SchoolConfigService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.currentSchoolId.mockResolvedValue('school-1');
     mockCache.remember.mockImplementation((_k, _t, produce: () => unknown) =>
       produce(),
     );
@@ -107,7 +109,7 @@ describe('SchoolConfigService', () => {
 
   describe('findByKey()', () => {
     it('throws when the key does not exist', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.findByKey('missing')).rejects.toThrow(
         NotFoundException,
       );
@@ -134,23 +136,26 @@ describe('SchoolConfigService', () => {
 
   describe('delete()', () => {
     it('refuses to delete a key that is not there', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.delete('nope')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.schoolConfig.delete).not.toHaveBeenCalled();
     });
 
     it('deletes an existing key', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue({ key: 'motto' });
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue({
+        id: 'cfg-motto',
+        key: 'motto',
+      });
       await service.delete('motto');
       expect(mockPrisma.schoolConfig.delete).toHaveBeenCalledWith({
-        where: { key: 'motto' },
+        where: { id: 'cfg-motto' },
       });
     });
   });
 
   describe('getOnboardingStatus()', () => {
     it('reports step 0 and incomplete before onboarding starts', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.getOnboardingStatus()).resolves.toEqual({
         currentStep: 0,
         completed: false,
@@ -158,7 +163,7 @@ describe('SchoolConfigService', () => {
     });
 
     it('parses the stored step and completion flag', async () => {
-      mockPrisma.schoolConfig.findUnique
+      mockPrisma.schoolConfig.findFirst
         .mockResolvedValueOnce({ value: '3' })
         .mockResolvedValueOnce({ value: 'true' });
 
@@ -177,7 +182,7 @@ describe('SchoolConfigService', () => {
         '/uploads/branding/crest.png',
       );
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledWith({
-        where: { key: 'logo_url' },
+        where: { schoolId_key: { schoolId: 'school-1', key: 'logo_url' } },
         update: { value: '/uploads/branding/crest.png' },
         create: { key: 'logo_url', value: '/uploads/branding/crest.png' },
       });
@@ -190,7 +195,7 @@ describe('SchoolConfigService', () => {
    */
   describe('reading and writing one setting', () => {
     it('refuses a key nobody set, and names it', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.findByKey('pass_threshold')).rejects.toThrow(
         /Config key "pass_threshold" not found/,
       );
@@ -200,7 +205,7 @@ describe('SchoolConfigService', () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
       await service.upsert({ key: 'pass_mark', value: '50' });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledWith({
-        where: { key: 'pass_mark' },
+        where: { schoolId_key: { schoolId: 'school-1', key: 'pass_mark' } },
         update: { value: '50' },
         create: { key: 'pass_mark', value: '50' },
       });
@@ -219,13 +224,13 @@ describe('SchoolConfigService', () => {
     });
 
     it('refuses to remove a key nobody set', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.delete('nope')).rejects.toThrow(NotFoundException);
       expect(mockPrisma.schoolConfig.delete).not.toHaveBeenCalled();
     });
 
     it('removes one that exists', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue({
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue({
         key: 'pass_mark',
       });
       mockPrisma.schoolConfig.delete.mockResolvedValue({});
@@ -241,7 +246,7 @@ describe('SchoolConfigService', () => {
    */
   describe('how far through setup a school is', () => {
     it('starts at the beginning for a school that has done nothing', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await expect(service.getOnboardingStatus()).resolves.toEqual({
         currentStep: 0,
         completed: false,
@@ -249,7 +254,7 @@ describe('SchoolConfigService', () => {
     });
 
     it('reads back the step a school reached', async () => {
-      mockPrisma.schoolConfig.findUnique
+      mockPrisma.schoolConfig.findFirst
         .mockResolvedValueOnce({ value: '4' })
         .mockResolvedValueOnce({ value: 'false' });
       await expect(service.getOnboardingStatus()).resolves.toEqual({
@@ -259,7 +264,7 @@ describe('SchoolConfigService', () => {
     });
 
     it('says a school is finished only when it actually is', async () => {
-      mockPrisma.schoolConfig.findUnique
+      mockPrisma.schoolConfig.findFirst
         .mockResolvedValueOnce({ value: '10' })
         .mockResolvedValueOnce({ value: 'true' });
       await expect(service.getOnboardingStatus()).resolves.toEqual({
@@ -270,10 +275,10 @@ describe('SchoolConfigService', () => {
 
     it('moves the step along', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await service.updateOnboarding({ currentStep: '5' });
       expect(mockPrisma.schoolConfig.upsert.mock.calls[0][0].where).toEqual({
-        key: 'onboarding_step',
+        schoolId_key: { schoolId: 'school-1', key: 'onboarding_step' },
       });
     });
 
@@ -281,21 +286,21 @@ describe('SchoolConfigService', () => {
     // accidentally marks itself done.
     it('does not mark a school finished just for moving a step', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await service.updateOnboarding({ currentStep: '5' });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(1);
     });
 
     it('marks it finished when told', async () => {
       mockPrisma.schoolConfig.upsert.mockResolvedValue({});
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue(null);
       await service.updateOnboarding({
         currentStep: '10',
         completed: 'true',
       });
       expect(mockPrisma.schoolConfig.upsert).toHaveBeenCalledTimes(2);
       expect(mockPrisma.schoolConfig.upsert.mock.calls[1][0].where).toEqual({
-        key: 'onboarding_completed',
+        schoolId_key: { schoolId: 'school-1', key: 'onboarding_completed' },
       });
     });
   });
@@ -361,7 +366,7 @@ describe('SchoolConfigService', () => {
     });
 
     it('clears it when a setting is deleted', async () => {
-      mockPrisma.schoolConfig.findUnique.mockResolvedValue({ key: 'k' });
+      mockPrisma.schoolConfig.findFirst.mockResolvedValue({ key: 'k' });
       mockPrisma.schoolConfig.delete.mockResolvedValue({});
       await service.delete('logo_url');
       expect(mockCache.forget).toHaveBeenCalledWith('cache:branding:public');

@@ -44,7 +44,7 @@ export class MeritsService {
 
   /** The clean-sheet score a student starts a year on. */
   private async startingPoints(): Promise<number> {
-    const config = await this.prisma.schoolConfig.findUnique({
+    const config = await this.prisma.schoolConfig.findFirst({
       where: { key: 'starting_discipline_points' },
     });
     return Number(config?.value || String(TERM_CONDUCT_MARK));

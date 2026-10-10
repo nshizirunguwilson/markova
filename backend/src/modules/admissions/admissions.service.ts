@@ -1058,7 +1058,7 @@ export class AdmissionsService {
         studentKey: userId,
         nonce,
       });
-      const taken = await tx.student.findUnique({
+      const taken = await tx.student.findFirst({
         where: { studentIdNumber: candidate },
         select: { id: true },
       });

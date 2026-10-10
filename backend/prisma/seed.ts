@@ -665,6 +665,17 @@ async function clearDatabase() {
   );
 }
 
+/** School one, recreated under the id the connection already defaults to. */
+async function createFirstSchool(): Promise<string> {
+  const [{ id }] = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT current_setting('app.school_id') AS id
+  `;
+  await prisma.school.create({
+    data: { id, name: 'Markova Academy', slug: 'markova-academy' },
+  });
+  return id;
+}
+
 async function main() {
   console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
@@ -672,6 +683,12 @@ async function main() {
   // any time to restore a clean, current-looking demo.
   await clearDatabase();
   console.log('  🧹 Existing data cleared');
+
+  // Emptying the tables removed the school every row belongs to. It comes
+  // back with the id the database fills in by default (app.school_id), so
+  // every row the seed writes from here lands in it.
+  const schoolId = await createFirstSchool();
+  console.log('  🏫 First school created');
 
   // Reserve the documented demo names and addresses before any generation.
   ['Wilson Nshizirungu', 'Josiane Mutoni', 'Speciose Mukarugwiza'].forEach(
@@ -756,13 +773,13 @@ async function main() {
   for (const config of configs) {
     // Branding a school has already set is its own; reseeding rebuilds demo
     // records, it does not revert a school's identity to the demo's.
-    const existing = await prisma.schoolConfig.findUnique({
+    const existing = await prisma.schoolConfig.findFirst({
       where: { key: config.key },
     });
     if (!shouldWriteConfig(config.key, existing?.value)) continue;
 
     await prisma.schoolConfig.upsert({
-      where: { key: config.key },
+      where: { schoolId_key: { schoolId, key: config.key } },
       update: { value: config.value },
       create: config,
     });

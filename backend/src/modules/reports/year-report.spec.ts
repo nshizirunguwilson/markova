@@ -102,7 +102,7 @@ describe('the annual report for one student', () => {
       ...marksFor('t3', 'Mathematics', 18, 18, 84),
     ]);
     prisma.schoolConfig.findMany.mockResolvedValue([]);
-    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockResolvedValue(null);
   });
 
   it('lays a subject out across the three terms', async () => {

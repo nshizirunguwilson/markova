@@ -28,7 +28,7 @@ describe('MeritsService', () => {
     student: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     parentStudent: { findMany: jest.fn() },
     notification: { create: jest.fn() },
-    schoolConfig: { findUnique: jest.fn() },
+    schoolConfig: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -43,7 +43,7 @@ describe('MeritsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prisma.schoolConfig.findUnique.mockResolvedValue({ value: '100' });
+    prisma.schoolConfig.findFirst.mockResolvedValue({ value: '100' });
     prisma.parentStudent.findMany.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(async (ops: any[]) =>
       Promise.all(ops),
@@ -141,7 +141,7 @@ describe('MeritsService', () => {
     });
 
     it('reads the clean sheet from the school config', async () => {
-      prisma.schoolConfig.findUnique.mockResolvedValue({ value: '50' });
+      prisma.schoolConfig.findFirst.mockResolvedValue({ value: '50' });
       prisma.student.findUnique.mockResolvedValue({
         id: 'student-1',
         disciplinePoints: 48,
@@ -594,7 +594,7 @@ describe('the merits service on a partly set-up school', () => {
     student: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     parentStudent: { findMany: jest.fn() },
     notification: { create: jest.fn() },
-    schoolConfig: { findUnique: jest.fn() },
+    schoolConfig: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -621,7 +621,7 @@ describe('the merits service on a partly set-up school', () => {
   // A hundred is the score the Rwandan conduct scheme starts everyone on.
   // Forty a term is the default now, not a hundred for the whole year.
   it('starts everyone on forty when the school set nothing', async () => {
-    prisma.schoolConfig.findUnique.mockResolvedValue(null);
+    prisma.schoolConfig.findFirst.mockResolvedValue(null);
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       disciplinePoints: 30,
@@ -645,7 +645,7 @@ describe('the merits service on a partly set-up school', () => {
   });
 
   it('takes the schools own score when it has set one', async () => {
-    prisma.schoolConfig.findUnique.mockResolvedValue({ value: '50' });
+    prisma.schoolConfig.findFirst.mockResolvedValue({ value: '50' });
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       disciplinePoints: 48,

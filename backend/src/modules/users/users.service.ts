@@ -1030,7 +1030,7 @@ export class UsersService {
         studentKey,
         nonce,
       });
-      const taken = await client.student.findUnique({
+      const taken = await client.student.findFirst({
         where: { studentIdNumber: candidate },
         select: { id: true },
       });
