@@ -219,16 +219,20 @@ export class ReportsController {
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @Throttle({ default: { ttl: 60000, limit: 600 } })
   @ApiOperation({ summary: 'How far along a queued render is' })
-  renderStatus(@Param('id') id: string) {
-    return this.renders.status(id);
+  renderStatus(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.renders.status(id, userId);
   }
 
   @Get('render/:id/download')
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @Throttle({ default: { ttl: 60000, limit: 240 } })
   @ApiOperation({ summary: 'Collect a finished render' })
-  async collectRender(@Param('id') id: string, @Res() res: express.Response) {
-    const status = await this.renders.status(id);
+  async collectRender(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Res() res: express.Response,
+  ) {
+    const status = await this.renders.status(id, userId);
     if (status.state !== 'done') {
       throw new BadRequestException(
         status.state === 'failed'
@@ -236,7 +240,7 @@ export class ReportsController {
           : 'That render is not finished yet.',
       );
     }
-    const buffer = await this.renders.collect(id);
+    const buffer = await this.renders.collect(id, userId);
     res.set({
       'Content-Type': status.filename?.endsWith('.zip')
         ? 'application/zip'

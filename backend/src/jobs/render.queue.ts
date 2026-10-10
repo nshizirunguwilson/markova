@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 
 import { RedisService } from '../redis/redis.service';
+import { currentRequest } from '../prisma/request-context';
 import {
   RENDER_QUEUE,
   RESULT_TTL_SECONDS,
@@ -33,6 +34,14 @@ export class RenderQueue {
   /** Where a finished render is parked, and where progress is written. */
   static resultKey = (id: string) => `render:result:${id}`;
   static statusKey = (id: string) => `render:status:${id}`;
+  /**
+   * Who asked for a render, and in which school.
+   *
+   * Job ids count up (1, 2, 3...), so an id is easy to guess. Without this,
+   * anybody signed in could collect anybody's report card by trying numbers.
+   * Kept apart from the status, which the worker rewrites as it goes.
+   */
+  static ownerKey = (id: string) => `render:owner:${id}`;
 
   /**
    * Put work on the queue and return its id.
@@ -46,9 +55,14 @@ export class RenderQueue {
     data: Record<string, unknown>,
     requestedBy: string,
   ): Promise<string> {
+    // The worker has nobody signed in, so the job carries its school.
+    const schoolId = currentRequest()?.schoolId;
+    if (!schoolId) {
+      throw new Error('A render is always asked for inside a school.');
+    }
     const job = await this.queue.add(
       name,
-      { ...data, requestedBy },
+      { ...data, requestedBy, schoolId },
       {
         removeOnComplete: true,
         /* Failures are kept for a while, because "it did not work" is a
@@ -60,6 +74,12 @@ export class RenderQueue {
       },
     );
     const id = String(job.id);
+    await this.redis.set(
+      RenderQueue.ownerKey(id),
+      JSON.stringify({ requestedBy, schoolId }),
+      'EX',
+      RESULT_TTL_SECONDS,
+    );
     await this.write(id, { id, state: 'queued', progress: 0 });
     return id;
   }
@@ -84,7 +104,14 @@ export class RenderQueue {
     );
   }
 
-  async status(id: string): Promise<RenderStatus> {
+  /**
+   * How far a render has got, for the person who asked for it.
+   *
+   * Anybody else gets the same answer as for a render that does not exist,
+   * so a guessed id tells them nothing, not even that it is somebody's.
+   */
+  async status(id: string, userId: string): Promise<RenderStatus> {
+    await this.assertOwner(id, userId);
     const raw = await this.redis.get(RenderQueue.statusKey(id));
     if (!raw) {
       /* Either it never existed or it has expired. The client cannot tell the
@@ -96,7 +123,8 @@ export class RenderQueue {
     return JSON.parse(raw) as RenderStatus;
   }
 
-  async collect(id: string): Promise<Buffer> {
+  async collect(id: string, userId: string): Promise<Buffer> {
+    await this.assertOwner(id, userId);
     const raw = await this.redis.get(RenderQueue.resultKey(id));
     if (!raw) {
       throw new NotFoundException(
@@ -104,5 +132,15 @@ export class RenderQueue {
       );
     }
     return Buffer.from(raw, 'base64');
+  }
+
+  private async assertOwner(id: string, userId: string): Promise<void> {
+    const raw = await this.redis.get(RenderQueue.ownerKey(id));
+    const owner = raw ? (JSON.parse(raw) as { requestedBy?: string }) : null;
+    if (!owner || owner.requestedBy !== userId) {
+      throw new NotFoundException(
+        'That download is no longer available. Ask for it again.',
+      );
+    }
   }
 }

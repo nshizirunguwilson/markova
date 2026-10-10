@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 
 import { RENDER_QUEUE, RenderJob } from './jobs.constants';
 import { RenderQueue } from './render.queue';
+import { withSchool } from '../prisma/request-context';
 
 /**
  * Accepting a render and reporting on it.
@@ -20,16 +21,32 @@ describe('the render queue', () => {
   const redis = { set: jest.fn(), get: jest.fn() };
   const renders = new RenderQueue(queue as never, redis as never);
 
+  /* A render is only ever asked for from inside a school. */
+  const inSchool = <T>(fn: () => Promise<T>) => withSchool('school-1', fn);
+
+  /* Redis as a small map, so the owner record the queue writes is there to read. */
+  let store: Record<string, string>;
+
   beforeEach(() => {
     jest.clearAllMocks();
     queue.add.mockResolvedValue({ id: 42 });
+    store = {};
+    redis.set.mockImplementation((key: string, value: string) => {
+      store[key] = value;
+      return Promise.resolve('OK');
+    });
+    redis.get.mockImplementation((key: string) =>
+      Promise.resolve(store[key] ?? null),
+    );
   });
 
   it('returns an id the moment the work is accepted', async () => {
-    const id = await renders.enqueue(
-      RenderJob.TERM_REPORT,
-      { studentId: 's-1', termId: 't-1' },
-      'user-1',
+    const id = await inSchool(() =>
+      renders.enqueue(
+        RenderJob.TERM_REPORT,
+        { studentId: 's-1', termId: 't-1' },
+        'user-1',
+      ),
     );
     expect(id).toBe('42');
     expect(queue.add).toHaveBeenCalledWith(
@@ -40,15 +57,18 @@ describe('the render queue', () => {
   });
 
   it('records who asked, so a worker can be audited later', async () => {
-    await renders.enqueue(RenderJob.DOCUMENT, { studentId: 's-1' }, 'user-9');
+    await inSchool(() =>
+      renders.enqueue(RenderJob.DOCUMENT, { studentId: 's-1' }, 'user-9'),
+    );
     expect(queue.add.mock.calls[0][1].requestedBy).toBe('user-9');
   });
 
   it('marks it queued straight away, so a poll never finds nothing', async () => {
-    await renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1');
-    const [key, value] = redis.set.mock.calls[0];
-    expect(key).toBe('render:status:42');
-    expect(JSON.parse(value)).toMatchObject({ state: 'queued', progress: 0 });
+    await inSchool(() => renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'));
+    expect(JSON.parse(store['render:status:42'])).toMatchObject({
+      state: 'queued',
+      progress: 0,
+    });
   });
 
   /*
@@ -67,12 +87,13 @@ describe('the render queue', () => {
 
   it('gives the bytes back exactly as they went in', async () => {
     const pdf = Buffer.from([0x25, 0x50, 0x44, 0x46, 0xff, 0x00, 0x7f]);
-    redis.get.mockResolvedValue(pdf.toString('base64'));
-    expect(await renders.collect('42')).toEqual(pdf);
+    await inSchool(() => renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'));
+    await renders.store('42', pdf);
+    expect(await renders.collect('42', 'user-1')).toEqual(pdf);
   });
 
   it('does not let the queue grow without bound', async () => {
-    await renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1');
+    await inSchool(() => renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'));
     expect(queue.add.mock.calls[0][2]).toMatchObject({
       removeOnComplete: true,
     });
@@ -81,14 +102,14 @@ describe('the render queue', () => {
   /* A failure is a support question, and the reason has to outlive the job
      record long enough for somebody to ask about it. */
   it('keeps failures around for a while', async () => {
-    await renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1');
+    await inSchool(() => renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'));
     expect(queue.add.mock.calls[0][2].removeOnFail).toMatchObject({
       age: expect.any(Number),
     });
   });
 
   it('retries a render that failed once', async () => {
-    await renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1');
+    await inSchool(() => renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'));
     expect(queue.add.mock.calls[0][2].attempts).toBeGreaterThan(1);
   });
 
@@ -99,14 +120,65 @@ describe('the render queue', () => {
       "expired" would also be a way to probe which ids have existed.
     */
     it('says the download is gone rather than throwing something raw', async () => {
-      redis.get.mockResolvedValue(null);
-      await expect(renders.status('nope')).rejects.toBeInstanceOf(
+      await expect(renders.status('nope', 'user-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
-      await expect(renders.collect('nope')).rejects.toBeInstanceOf(
+      await expect(renders.collect('nope', 'user-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
+  });
+
+  /*
+    Job ids count up, 1, 2, 3, so they are easy to guess. Only the person who
+    asked may see a render, and anybody else gets the same answer as for one
+    that never existed: a guessed id must not even confirm it is somebody's.
+  */
+  describe('somebody else asking for it', () => {
+    beforeEach(async () => {
+      await inSchool(() =>
+        renders.enqueue(
+          RenderJob.TERM_REPORT,
+          { studentId: 's-1' },
+          'parent-a',
+        ),
+      );
+      await renders.store('42', Buffer.from('%PDF-1.4'));
+    });
+
+    it('gives the owner their render', async () => {
+      await expect(renders.status('42', 'parent-a')).resolves.toMatchObject({
+        id: '42',
+      });
+      await expect(renders.collect('42', 'parent-a')).resolves.toBeInstanceOf(
+        Buffer,
+      );
+    });
+
+    it('tells anybody else it is not there', async () => {
+      await expect(renders.status('42', 'parent-b')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(renders.collect('42', 'parent-b')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('records the school the render belongs to', () => {
+      expect(JSON.parse(store['render:owner:42'])).toEqual({
+        requestedBy: 'parent-a',
+        schoolId: 'school-1',
+      });
+      expect(queue.add.mock.calls[0][1].schoolId).toBe('school-1');
+    });
+  });
+
+  /* The worker has nobody signed in, so a job with no school could not run. */
+  it('refuses a render asked for outside any school', async () => {
+    await expect(
+      renders.enqueue(RenderJob.TERM_REPORT, {}, 'user-1'),
+    ).rejects.toThrow(/inside a school/);
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
   it('uses one queue, so there is one place to watch', () => {
