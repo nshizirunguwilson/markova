@@ -5360,9 +5360,11 @@ async function seedSecondSchool(
     },
   });
 
-  /* Patrick's existing login, with a second school record: a parent here. */
-  const patrick = await prisma.account.findUniqueOrThrow({
+  /* Patrick's existing login, with a second school record: a parent here.
+     A demo account like the others, so no forced password change. */
+  const patrick = await prisma.account.update({
     where: { phone: '+250788000013' },
+    data: { forcePasswordChange: false },
   });
   const parent = await prisma.user.create({
     data: {
