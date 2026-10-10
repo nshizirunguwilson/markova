@@ -78,7 +78,11 @@ type MockPrisma = {
   $queryRaw: jest.Mock;
   $queryRawUnsafe: jest.Mock;
   $executeRaw: jest.Mock;
+  currentSchoolId: jest.Mock;
 };
+
+/** The one school every spec runs in unless it says otherwise. */
+export const TEST_SCHOOL_ID = 'school-1';
 
 export function createMockPrisma(): MockPrisma & PrismaService {
   const mock: Record<string, unknown> = {};
@@ -122,6 +126,10 @@ export function createMockPrisma(): MockPrisma & PrismaService {
   mock.$queryRaw = jest.fn();
   mock.$queryRawUnsafe = jest.fn();
   mock.$executeRaw = jest.fn();
+
+  // The school the code is running in. One fixed school, which is what every
+  // spec written before there were several schools assumes.
+  mock.currentSchoolId = jest.fn().mockResolvedValue(TEST_SCHOOL_ID);
 
   return mock as unknown as MockPrisma & PrismaService;
 }
