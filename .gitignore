@@ -42,13 +42,6 @@ yarn-error.log*
 # Testing
 coverage/
 
-# Flutter
-mobile/.dart_tool/
-mobile/.packages
-mobile/build/
-mobile/.flutter-plugins
-mobile/.flutter-plugins-dependencies
-
 # Docker
 docker-compose.override.yml
 
@@ -63,10 +56,6 @@ markova-implementation-plan-v2.md
 
 # UI-audit screenshot evidence (local only)
 screenshots/
-
-me.txt
-skills.zip
-CLAUDE.md
 
 # Database and upload backups. Real data, never committed.
 backups/
