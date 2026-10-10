@@ -469,9 +469,10 @@ export class AuthService {
         message: `Markova password reset: ${appUrl}/reset-password?token=${token} (expires in 30 minutes)`,
       });
     }
-    this.logger.log(
-      `Password reset token for ${user.email || user.phone}: ${token}`,
-    );
+    // Who asked, never the token. A token in the log is a working reset link
+    // for anyone who can read the log, in production as much as anywhere.
+    // Outside production it is still returned below as devToken.
+    this.logger.log(`Password reset requested for ${user.email || user.phone}`);
 
     return {
       message: 'If the account exists, a reset link has been sent',
