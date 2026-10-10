@@ -165,7 +165,7 @@ PGPASSWORD=password psql -h localhost -p 5434 -U markova -d markova \
 
 ### 1.3 About OTPs in development
 
-The seeded SMTP config is real (Brevo), so emails go out for real. **For testing, you don't need to wait for the email** - the API response includes a `devOtp` field, and the backend prints `OTP for <email>: <code>` to its console. Both work.
+The seeded SMTP config is real (Brevo), so emails go out for real. **For testing, you don't need to wait for the email** - the API response includes a `devOtp` field, and the sign in screen offers it as a "Dev shortcut" button. The code is never written to the backend log, and production never returns it.
 
 ---
 
@@ -180,7 +180,7 @@ The seeded SMTP config is real (Brevo), so emails go out for real. **For testing
 
 **Expected:**
 - "Verify OTP" prompt appears.
-- An OTP arrives by email (visible in the backend console as `OTP for <email>: 123456`).
+- An OTP arrives by email (in development, the screen also offers it as a "Dev shortcut").
 - After entering the 6-digit code, you land on `/admin`.
 
 **What to check:**
@@ -726,7 +726,7 @@ If any of these fail, do not demo - fix first.
 
 ## 11. Known limitations (be upfront about these)
 
-- **Email delivery** relies on the SMTP provider (Brevo). If credits run out, OTP messages won't arrive - but the dev `devOtp` field and backend logs always have the code.
+- **Email delivery** relies on the SMTP provider (Brevo). If credits run out, OTP messages won't arrive - but in development the `devOtp` field and the on-screen shortcut still have the code.
 - **Mobile app** is bundled but runtime flows are unverified end-to-end. Treat the mobile UI as alpha until first device test.
 - **Audit logs** have no dashboard UI yet - query the table directly.
 - **Photo upload on user profile** uses the same pattern as logo upload (verified) but the per-user endpoint isn't independently smoke-tested.
@@ -745,7 +745,7 @@ If any of these fail, do not demo - fix first.
 | 404 | Path typo - `grep -i <thing> /tmp/routes.txt` (regenerate with backend startup logs) |
 | 500 | Look at `backend` console - Prisma errors usually explain the column or constraint |
 | Realtime not working | Confirm client connects to `http://host:3000/chat` (note the `/chat` namespace) |
-| Login OTP not arriving | Check `backend` console - OTP always printed there |
+| Login OTP not arriving | In development, press the "Dev shortcut" button under the code field. In production, check the mail or SMS provider |
 | Uploaded image 404 on display | Re-verify the file is in `backend/uploads/<subdir>/<uuid>.png` |
 
 ---

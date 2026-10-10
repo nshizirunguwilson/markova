@@ -11,6 +11,10 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+// The chart library draws to a canvas jsdom does not have.
+vi.mock("@/components/ui/echart", () => ({
+  EChart: () => <div data-testid="chart" />,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/teacher/analytics",
@@ -128,6 +132,7 @@ describe("once a class and a term are chosen", () => {
     await chooseClass();
 
     expect(await screen.findByText("Subject Performance")).toBeInTheDocument();
+    expect(screen.getByTestId("chart")).toBeInTheDocument();
   });
 });
 

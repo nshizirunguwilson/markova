@@ -1,32 +1,12 @@
 "use client";
 
-// Charts are opted out of the React Compiler and of Recharts' own animation.
-//
-// 1. "use no memo": Recharts discovers its series by walking and cloning its
-//    children; the compiler's memoization stops the series from registering, so
-//    the axes and grid render while nothing is actually plotted.
-// 2. isAnimationActive={false}: the series shapes are emitted by a
-//    requestAnimationFrame animation that did not reliably run here, leaving
-//    empty shape groups in the DOM. A dashboard that refetches should not
-//    replay its animations on every update anyway.
-//
-// Both were confirmed in a browser: the bar paths go from absent to drawn.
-"use no memo";
-
-
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { EChartsOption } from "echarts";
 import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms, useClassLevels, useSections } from "@/hooks/use-academic";
 import { useTeacherClassAnalytics } from "@/hooks/use-analytics";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { EChart } from "@/components/ui/echart";
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { CHART_COLOR } from "@/lib/chart-colors";
@@ -42,6 +22,35 @@ export default function TeacherAnalyticsPage() {
   const { data: levels } = useClassLevels();
   const { data: sections } = useSections(levelId);
   const { data, isLoading } = useTeacherClassAnalytics(sectionId, termId);
+  const chart = useChartTheme();
+
+  const subjectOption = useMemo<EChartsOption | null>(() => {
+    const rows = data?.subjectAnalytics;
+    if (!rows?.length) return null;
+    const bar = (name: string, color: string, key: string) => ({
+      name,
+      type: "bar" as const,
+      barMaxWidth: 18,
+      itemStyle: { color, borderRadius: [3, 3, 0, 0] as [number, number, number, number] },
+      data: rows.map((r: any) => r[key]),
+    });
+    return {
+      grid: { left: 40, right: 12, top: 14, bottom: 70 },
+      xAxis: {
+        type: "category",
+        data: rows.map((r: any) => r.subjectName),
+        axisTick: { show: false },
+        axisLabel: { ...chart.axisLabel, fontSize: 10, rotate: 30 },
+      },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel: chart.axisLabel, splitLine: chart.splitLine },
+      legend: { ...chart.legendStyle, bottom: 0 },
+      tooltip: { ...chart.tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
+      series: [
+        bar("Average", CHART_COLOR.brandLight, "averageScore"),
+        bar("Highest", CHART_COLOR.brand, "highestScore"),
+      ],
+    };
+  }, [data, chart]);
 
   return (
     <div className="space-y-6">
@@ -73,20 +82,11 @@ export default function TeacherAnalyticsPage() {
       {data && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Subject Performance */}
-          {data.subjectAnalytics?.length > 0 && (
+          {subjectOption && (
             <Card className="p-6">
               <CardTitle>Subject Performance</CardTitle>
-              <div className="h-64 mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.subjectAnalytics}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="subjectName" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip />
-                    <Bar isAnimationActive={false} dataKey="averageScore" fill={CHART_COLOR.brandLight} name="Average" />
-                    <Bar isAnimationActive={false} dataKey="highestScore" fill={CHART_COLOR.brand} name="Highest" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="mt-4">
+                <EChart option={subjectOption} height={256} />
               </div>
             </Card>
           )}

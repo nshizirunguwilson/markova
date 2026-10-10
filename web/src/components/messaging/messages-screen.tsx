@@ -283,8 +283,6 @@ export default function MessagesPage() {
    * hundred bubbles fading up on a thread you scrolled back through, which
    * delays reading and reads as the page loading twice.
    */
-  const newestSeen = useRef<string | null>(null);
-
   const threadBlocks = useMemo(
     () => groupThread(messages ? [...messages].reverse() : [], user?.id),
     [messages, user?.id],
@@ -293,15 +291,32 @@ export default function MessagesPage() {
   // The endpoint answers newest first, so the newest is the first row.
   const newestMessageId: string | null = messages?.[0]?.id ?? null;
 
-  useEffect(() => {
-    newestSeen.current = newestMessageId;
-  }, [newestMessageId]);
+  // What the last render knew, kept in state rather than a ref so the render
+  // can read it: React's pattern for "information from previous renders".
+  // `armed` turns true once a thread has shown its first newest message, so
+  // only a later one counts as arriving while you watch.
+  const [seen, setSeen] = useState<{
+    conv: string | null;
+    newest: string | null;
+    armed: boolean;
+    arrival: string | null;
+  }>({ conv: selectedConv, newest: newestMessageId, armed: false, arrival: null });
 
-  // Opening another thread is not an arrival: everything in it is new to the
-  // reader, and animating all of it would be a staggered entrance.
+  if (seen.conv !== selectedConv) {
+    // Opening another thread is not an arrival: everything in it is new to the
+    // reader, and animating all of it would be a staggered entrance.
+    setSeen({ conv: selectedConv, newest: newestMessageId, armed: false, arrival: null });
+  } else if (seen.newest !== newestMessageId) {
+    setSeen({
+      conv: selectedConv,
+      newest: newestMessageId,
+      armed: true,
+      arrival: seen.armed ? newestMessageId : null,
+    });
+  }
+
+  // A quote belongs to the thread it was picked in.
   useEffect(() => {
-    newestSeen.current = null;
-    // A quote belongs to the thread it was picked in.
     setReplyingTo(null);
   }, [selectedConv]);
 
@@ -1239,9 +1254,7 @@ export default function MessagesPage() {
                     const named =
                       !group.mine && selectedConversation.type !== "ONE_ON_ONE";
                     const isNewArrival =
-                      last.id === newestMessageId &&
-                      newestSeen.current !== null &&
-                      newestSeen.current !== newestMessageId;
+                      seen.arrival !== null && last.id === seen.arrival;
 
                     return (
                       <div

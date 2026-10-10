@@ -79,6 +79,38 @@ describe('what the screen says', () => {
   });
 });
 
+describe('a code sent to a phone', () => {
+  it('says to check messages rather than email', async () => {
+    routerState.params = { identifier: '+250788100000' };
+    const screen = await renderScreen(<VerifyOtp />);
+
+    expect(screen.getByText('Check your messages')).toBeTruthy();
+    expect(screen.queryByText('Check your email')).toBeNull();
+  });
+});
+
+/**
+ * The code is no longer in the API log, so outside production the API hands
+ * it back and the screen offers it. Production never sends it.
+ */
+describe('the code during development', () => {
+  it('offers the code and sends it when pressed', async () => {
+    useAuthStore.setState({ devOtp: '482913' });
+    const screen = await renderScreen(<VerifyOtp />);
+
+    await fireEvent.press(screen.getByText('Dev shortcut: use code 482913'));
+
+    await waitFor(() => expect(verify).toHaveBeenCalledWith('482913'));
+  });
+
+  it('offers nothing when there is no code', async () => {
+    useAuthStore.setState({ devOtp: null });
+    const screen = await renderScreen(<VerifyOtp />);
+
+    expect(screen.queryByText(/Dev shortcut/)).toBeNull();
+  });
+});
+
 describe('typing the code', () => {
   it('sends it on the sixth digit without anybody pressing anything', async () => {
     const screen = await renderScreen(<VerifyOtp />);

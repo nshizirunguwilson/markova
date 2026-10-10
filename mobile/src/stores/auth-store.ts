@@ -34,6 +34,11 @@ interface AuthState {
   needsOtp: boolean;
   pendingEmail: string | null;
   pendingSessionId: string | null;
+  /**
+   * The code itself, which the API returns outside production only, so a
+   * developer can sign in without a mail server. It is never in the log.
+   */
+  devOtp: string | null;
   /** Set when a correct sign in belongs to a role the phone does not serve. */
   blockedRole: string | null;
   blockedName: string | null;
@@ -56,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   needsOtp: false,
   pendingEmail: null,
   pendingSessionId: null,
+  devOtp: null,
   blockedRole: null,
   blockedName: null,
 
@@ -71,7 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (data.requiresOtp) {
       // Backend OTP is session based, so keep the sessionId for verify and resend
-      set({ needsOtp: true, pendingEmail: identifier, pendingSessionId: data.sessionId });
+      set({
+        needsOtp: true,
+        pendingEmail: identifier,
+        pendingSessionId: data.sessionId,
+        devOtp: data.devOtp ?? null,
+      });
       return { needsOtp: true };
     }
 
@@ -89,7 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const sessionId = get().pendingSessionId;
     const { data } = await api.post('/auth/verify-otp', { sessionId, otp });
     await setTokens(data.accessToken ?? data.access_token, data.refreshToken ?? data.refresh_token);
-    set({ needsOtp: false, pendingEmail: null, pendingSessionId: null });
+    set({ needsOtp: false, pendingEmail: null, pendingSessionId: null, devOtp: null });
     await get().loadProfile();
     if (await get().captureBlockedRole()) return { blocked: true };
     set({ isAuthenticated: true });
@@ -119,6 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data } = await api.post('/auth/resend-otp', { sessionId });
     // Backend reuses the same session; keep whatever it returns just in case
     if (data?.sessionId) set({ pendingSessionId: data.sessionId });
+    set({ devOtp: data?.devOtp ?? null });
   },
 
   loadProfile: async () => {
@@ -144,6 +156,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       needsOtp: false,
       pendingEmail: null,
       pendingSessionId: null,
+      devOtp: null,
     });
   },
 

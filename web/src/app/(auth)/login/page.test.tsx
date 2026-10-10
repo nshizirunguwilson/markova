@@ -162,6 +162,41 @@ describe("the OTP step", () => {
     await user.click(screen.getByRole("button", { name: /back to login/i }));
     await waitFor(() => expect(screen.getByLabelText(/email or phone/i)).toBeInTheDocument());
   });
+
+  it("tells a phone user the code went to their phone", async () => {
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("+250788100000", "Password123!");
+    await waitFor(() => expect(h.toast.info).toHaveBeenCalledWith(expect.stringMatching(/phone/i)));
+  });
+});
+
+/**
+ * The code is no longer written to the API log, so without a mail server a
+ * developer had nowhere to read it. Outside production the API returns it as
+ * devOtp, and the page offers it, the same way the reset page offers its link.
+ * In production the field is never sent, so there is nothing to show.
+ */
+describe("the code during development", () => {
+  it("offers the code when the API hands it back, and fills it in", async () => {
+    h.api.post.mockResolvedValue({
+      data: { requiresOtp: true, sessionId: "session-1", devOtp: "482913" },
+    });
+    renderWithProviders(<LoginPage />);
+    const user = await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+
+    const shortcut = await screen.findByRole("button", { name: /use code 482913/i });
+    await user.click(shortcut);
+    expect(screen.getByLabelText(/verification code/i)).toHaveValue("482913");
+  });
+
+  it("offers nothing when the API does not send it", async () => {
+    h.api.post.mockResolvedValue({ data: { requiresOtp: true, sessionId: "session-1" } });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+
+    await waitFor(() => expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /use code/i })).toBeNull();
+  });
 });
 
 describe("a forced password change", () => {

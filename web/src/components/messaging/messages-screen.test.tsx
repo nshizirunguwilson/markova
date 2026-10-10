@@ -1976,6 +1976,36 @@ describe("a message arriving while you watch", () => {
     expect(group.className).not.toContain("motion-rise-in");
   });
 
+  // The one case that should move: a message that turns up while the thread
+  // is open. Here it is the reader's own reply coming back from the server.
+  it("lifts in a message that arrives while the thread is open", async () => {
+    await openThread([at("m-1", "u-3", 0, "first")]);
+    await screen.findByText("first");
+    expect(document.querySelector(".motion-rise-in")).toBeNull();
+
+    serve(h.api, {
+      ...routes,
+      "/messaging/conversations/conv-1/messages": [
+        at("m-2", "user-1", 1, "a reply"),
+        at("m-1", "u-3", 0, "first"),
+      ],
+      "/messaging/messages": at("m-2", "user-1", 1, "a reply"),
+    });
+    // Sent over REST, whose success refetches the thread.
+    h.chat.sendMessage.mockRejectedValue(new Error("Not connected"));
+    const user = userEvent.setup({ delay: null });
+    await user.type(screen.getByPlaceholderText("Type a message..."), "a reply");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText("a reply").length).toBeGreaterThan(0),
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".motion-rise-in")).not.toBeNull(),
+    );
+    expect(document.querySelectorAll(".motion-rise-in")).toHaveLength(1);
+  });
+
   // The class is on the group, not on each bubble, so a run of three
   // messages rises as the one remark it is.
   it("puts the movement on the run rather than on every bubble", async () => {

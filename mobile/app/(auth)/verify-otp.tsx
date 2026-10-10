@@ -35,6 +35,8 @@ export default function VerifyOtp() {
 
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const resendOtp = useAuthStore((s) => s.resendOtp);
+  const devOtp = useAuthStore((s) => s.devOtp);
+  const byPhone = Boolean(identifier) && !identifier!.includes('@');
   const reduced = useReducedMotion();
 
   const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(''));
@@ -115,7 +117,7 @@ export default function VerifyOtp() {
     >
       <Screen contentContainerStyle={{ paddingTop: space.huge, gap: space.xxl }}>
         <Animated.View entering={FadeIn.duration(withReducedMotion(reduced, duration.enter))} style={{ gap: space.md }}>
-          <Text variant="title1">Check your email</Text>
+          <Text variant="title1">{byPhone ? 'Check your messages' : 'Check your email'}</Text>
           <Text variant="body" tone="secondary" style={{ maxWidth: 400 }}>
             We sent a six digit code{identifier ? ` to ${identifier}` : ''}. It expires in five
             minutes.
@@ -164,6 +166,15 @@ export default function VerifyOtp() {
           ) : (
             <Button label="Send another code" kind="quiet" onPress={resend} />
           )}
+
+          {/* Outside production only: the API never sends devOtp there. */}
+          {devOtp ? (
+            <Button
+              label={`Dev shortcut: use code ${devOtp}`}
+              kind="quiet"
+              onPress={() => setAt(0, devOtp)}
+            />
+          ) : null}
 
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Text variant="footnote" tone="secondary">

@@ -85,6 +85,10 @@ export default function LoginPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpExpiry, setOtpExpiry] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  // Outside production the API returns the code itself, so a developer can
+  // sign in without a mail server. It is never in the log, and never returned
+  // in production, so showing it here exposes nothing.
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
   // ─── Login Form ─────────────────────────────────────────────────────────────
 
@@ -105,10 +109,11 @@ export default function LoginPage() {
 
       if (res.data.requiresOtp) {
         setOtpSessionId(res.data.sessionId);
+        setDevOtp(res.data.devOtp ?? null);
         setStep("otp");
         setOtpExpiry(OTP_TTL_SECONDS);
         setResendCooldown(RESEND_COOLDOWN_SECONDS);
-        toast.info("OTP sent to your email");
+        toast.info(isEmail ? "A code is on its way to your email" : "A code is on its way to your phone");
       } else {
         handleLoginSuccess(res.data);
       }
@@ -151,6 +156,7 @@ export default function LoginPage() {
         sessionId: otpSessionId,
       });
       if (res.data.sessionId) setOtpSessionId(res.data.sessionId);
+      setDevOtp(res.data.devOtp ?? null);
       setOtpExpiry(OTP_TTL_SECONDS);
       setResendCooldown(res.data.cooldownSeconds ?? RESEND_COOLDOWN_SECONDS);
       otpForm.reset({ otp: "" });
@@ -315,6 +321,16 @@ export default function LoginPage() {
               error={otpForm.formState.errors.otp?.message}
               {...otpForm.register("otp")}
             />
+
+            {devOtp && (
+              <button
+                type="button"
+                onClick={() => otpForm.setValue("otp", devOtp, { shouldValidate: true })}
+                className="block w-full rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-sm font-medium text-primary hover:bg-primary/10"
+              >
+                Dev shortcut: use code {devOtp}
+              </button>
+            )}
 
             {/* Expiry countdown */}
             <p className="text-center text-xs">

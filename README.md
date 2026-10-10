@@ -397,5 +397,4 @@ palette, because contrast is the failure a dark theme actually ships with.
 - `docs/SCALING.md` - the three instance topology and how to load test it
 - `docs/LOAD-BALANCING.md` - what the nine containers do, and how to see it working
 - `docs/BACKUPS.md` - taking one, and proving it restores
-- `docs/deployment-guide.md` - production deployment
 - `docs/SHARING.md` - letting somebody else see it over port forwarding

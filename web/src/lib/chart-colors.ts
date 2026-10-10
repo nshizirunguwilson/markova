@@ -1,7 +1,7 @@
 /**
  * Chart palettes and semantic chart colours, mirrored from design/tokens.json.
  *
- * Recharts takes colours as props rather than classes, so these cannot come
+ * ECharts takes colours in its options rather than as classes, so these cannot come
  * from Tailwind utilities. Keep them in step with `--color-chart-*` and
  * `--color-category-*` in tokens.css; `scripts/check-contrast.mjs` asserts the
  * categorical values stay legible under white labels.
