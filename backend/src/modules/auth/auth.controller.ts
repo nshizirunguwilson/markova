@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { withPlatform } from '../../prisma/request-context';
 import { AuthService } from './auth.service';
 import {
   LoginDto,
@@ -27,6 +28,13 @@ import type { Request } from 'express';
 
 @ApiTags('Auth')
 @Controller('auth')
+/*
+  Signing in, codes, refreshing a token and resetting a password all happen
+  before anybody is known, so they run above the wall between schools
+  (withPlatform): the person has to be found before their school is. Each of
+  them reads and writes only the one person it is about. Everything else here
+  runs after the guard, inside the signed-in person's school.
+*/
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -36,7 +44,9 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
     const deviceInfo = req.headers['user-agent'];
-    return this.authService.login(dto, ipAddress, deviceInfo);
+    return withPlatform(() =>
+      this.authService.login(dto, ipAddress, deviceInfo),
+    );
   }
 
   @Post('verify-otp')
@@ -45,21 +55,23 @@ export class AuthController {
   async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
     const deviceInfo = req.headers['user-agent'];
-    return this.authService.verifyOtp(dto, ipAddress, deviceInfo);
+    return withPlatform(() =>
+      this.authService.verifyOtp(dto, ipAddress, deviceInfo),
+    );
   }
 
   @Post('resend-otp')
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Resend a verification code for a pending login' })
   async resendOtp(@Body() dto: ResendOtpDto) {
-    return this.authService.resendOtp(dto);
+    return withPlatform(() => this.authService.resendOtp(dto));
   }
 
   @Post('refresh')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Refresh access token' })
   async refreshToken(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto);
+    return withPlatform(() => this.authService.refreshToken(dto));
   }
 
   @Post('change-password')
@@ -77,13 +89,13 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: 'Request password reset via email or SMS' })
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
-    return this.authService.requestPasswordReset(dto);
+    return withPlatform(() => this.authService.requestPasswordReset(dto));
   }
 
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password with token' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+    return withPlatform(() => this.authService.resetPassword(dto));
   }
 
   @Post('logout')

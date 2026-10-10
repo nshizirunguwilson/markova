@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ACCESS_TOKEN_TYPE } from '../token-types';
+import { withPlatform } from '../../../prisma/request-context';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -41,22 +42,31 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid access token');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-        photoUrl: true,
-        isActive: true,
-        forcePasswordChange: true,
-        teacher: { select: { id: true } },
-        student: { select: { id: true } },
-      },
-    });
+    /*
+      Above the wall between schools, because this is how the request learns
+      which school it belongs to: nothing can be scoped until the person is
+      found. It reads one person by the id the signed token names, and the
+      school it returns is the one every query after it is held to.
+    */
+    const user = await withPlatform(() =>
+      this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          schoolId: true,
+          email: true,
+          phone: true,
+          role: true,
+          firstName: true,
+          lastName: true,
+          photoUrl: true,
+          isActive: true,
+          forcePasswordChange: true,
+          teacher: { select: { id: true } },
+          student: { select: { id: true } },
+        },
+      }),
+    );
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found or inactive');
