@@ -16,8 +16,11 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export default function TeacherDashboard() {
   const user = useAuthStore((s) => s.user);
+  /* The teacher record's id, not the person's: assignments hang off the
+     Teacher, and asking with the user id found none, so every teacher's home
+     page said they taught nothing. */
   const { data: assignments, isLoading } = useAssignments(
-    user?.id ? { teacherId: user.id } : undefined
+    user?.teacherId ? { teacherId: user.teacherId } : undefined
   );
 
   if (isLoading) return <PageSpinner />;
