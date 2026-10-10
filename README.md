@@ -30,7 +30,7 @@ markova/
 | | |
 | --- | --- |
 | API | NestJS 11, 291 routes with 266 role guards, Swagger at `/api/docs` |
-| Data | PostgreSQL 15, 60 Prisma models, 31 migrations, 77 indexes |
+| Data | PostgreSQL 15, 61 Prisma models, 33 migrations, 177 indexes, every row tagged with its school |
 | Dashboard | Next.js 16, 89 pages across 10 role dashboards |
 | Access | 10 roles, guards on every route, and row level security underneath |
 | Tests | 10,406 unit tests: 3,133 backend, 4,889 web, 2,384 mobile. 124 browser checks, 108 pages audited twice |
