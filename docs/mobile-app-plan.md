@@ -1,5 +1,7 @@
 # Plan: Markova Mobile App (React Native / Expo)
 
+> **Historical snapshot.** Superseded on one point that matters: students are no longer a mobile audience. They are blocked at sign-in (`MOBILE_BLOCKED_ROLES`) and use the web portal; the app is for staff and parents. See `README.md` for the current state.
+
 **Generated**: 2026-03-22
 **Estimated Complexity**: High
 **Framework**: React Native with Expo (managed workflow), TypeScript
