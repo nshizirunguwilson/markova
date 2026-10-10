@@ -204,13 +204,38 @@ describe('NotificationsService', () => {
       expect(twilioCreate).not.toHaveBeenCalled();
     });
 
-    it('keeps going when the SMS gateway fails', async () => {
+    // The body carries sign-in codes and reset links.
+    it('never logs the message body in production', async () => {
+      build({ NODE_ENV: 'production' });
+      const log = jest.spyOn((service as any).logger, 'log');
+      await service.sendSMSToPhone('+250788100000', 'Your code is 123456');
+      expect(log.mock.calls[0][0]).not.toContain('123456');
+    });
+
+    // The delivery queue retries only a job that fails. Swallowing this was
+    // why a lost OTP was never sent again.
+    it('lets a gateway failure reach the caller so the queue retries', async () => {
       build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
       twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
       await expect(
         service.sendSMSToPhone('+250788100000', 'Hello'),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow('rejected by carrier');
+    });
+
+    it('still keeps the in-app record when the SMS fails', async () => {
+      build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+      twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
+      await expect(
+        service.send({
+          userId: 'user-1',
+          title: 'X',
+          message: 'Y',
+          type: 'SMS',
+        } as never),
+      ).resolves.toEqual({ id: 'n-1' });
     });
 
     it('sends nothing to a person with no email on record', async () => {
@@ -269,13 +294,14 @@ describe('NotificationsService', () => {
       expect(sendMail).not.toHaveBeenCalled();
     });
 
-    it('keeps going when a direct email fails', async () => {
+    // The delivery queue retries only a job that fails.
+    it('lets a failed email reach the caller so the queue retries', async () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
       sendMail.mockRejectedValue(new Error('bounced'));
       await expect(
         service.sendEmailToAddress('a@x.rw', 'A', 'S', 'B'),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow('bounced');
     });
   });
 

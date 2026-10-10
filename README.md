@@ -46,7 +46,7 @@ markova/
   timetable cache, and chat fan-out between instances
 - **Web** - Next.js 16 (App Router), React 19, Tailwind CSS v4, TanStack Query
 - **Mobile** - Expo SDK 55, Expo Router, React Native - for admins, teachers,
-  parents and librarians. Students use the web portal.
+  librarians, boarding staff, the nurse and parents. Students use the web portal.
 - **Design** - one token file drives both clients; every colour pairing is
   verified against WCAG AA in CI, in both the light and the dark palette
 
@@ -58,13 +58,13 @@ by one person, which is the shape of a single school.
 | Role | Runs | Web | Mobile |
 | --- | --- | --- | --- |
 | Admin | The institution: admissions, the roll, money, settings | Yes | Yes |
-| Head teacher | Academic delivery: marks, the register, report cards | Yes | Yes |
+| Head teacher | Academic delivery: marks, the register, report cards | Yes | - |
 | Teacher | Their own subjects and, as class teacher, their class | Yes | Yes |
 | Bursar | School fees and the fee structure | Yes | - |
 | Librarian | The catalogue and what is on loan | Yes | Yes |
-| Patron | Boys' boarding: pocket money, clinic, activities | Yes | - |
-| Matron | Girls' boarding, the same reach as the patron | Yes | - |
-| Nurse | The sick bay | Yes | - |
+| Patron | Boys' boarding: pocket money, clinic, activities | Yes | Yes |
+| Matron | Girls' boarding, the same reach as the patron | Yes | Yes |
+| Nurse | The sick bay | Yes | Yes |
 | Parent | Their own children | Yes | Yes |
 | Student | Their own record | Yes | Not by design |
 

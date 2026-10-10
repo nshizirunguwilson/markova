@@ -322,24 +322,29 @@ export class NotificationsService implements OnModuleInit {
     await this.sendSMSToPhone(user.phone, message);
   }
 
+  /**
+   * Throws when the gateway refuses or cannot be reached. The delivery queue
+   * retries only a job that fails, so swallowing the error here, as this used
+   * to, meant a lost OTP was never tried again.
+   */
   async sendSMSToPhone(phone: string, message: string) {
     if (!this.twilioClient) {
+      // The body carries sign-in codes and reset links, so it is only ever
+      // shown outside production, where it is how a developer signs in.
+      const shown =
+        this.config.get('NODE_ENV') === 'production' ? '' : `: ${message}`;
       this.logger.log(
-        `[SMS] Twilio not configured - would send to ${phone}: ${message}`,
+        `[SMS] Twilio not configured - would send to ${phone}${shown}`,
       );
       return;
     }
 
-    try {
-      await this.twilioClient.messages.create({
-        body: message,
-        from: this.twilioSenderId!,
-        to: phone,
-      });
-      this.logger.log(`[SMS] Sent to ${phone}`);
-    } catch (error) {
-      this.logger.error(`[SMS] Failed to send to ${phone}:`, error.message);
-    }
+    await this.twilioClient.messages.create({
+      body: message,
+      from: this.twilioSenderId!,
+      to: phone,
+    });
+    this.logger.log(`[SMS] Sent to ${phone}`);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -394,28 +399,25 @@ export class NotificationsService implements OnModuleInit {
     const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
     const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
-    try {
-      await this.transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: email,
-        subject,
-        attachments: this.logoAttachments(),
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            ${this.emailHeader(fromName)}
-            <div style="padding: 20px; background: #f9f9f9;">
-              <p>Dear ${name || 'User'},</p>
-              <div style="margin: 16px 0;">${body}</div>
-            </div>
-            <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
-              This is an automated message from ${fromName}. Please do not reply to this email.
-            </div>
+    // No try/catch here: a failure has to reach the delivery queue so it retries.
+    await this.transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: email,
+      subject,
+      attachments: this.logoAttachments(),
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${this.emailHeader(fromName)}
+          <div style="padding: 20px; background: #f9f9f9;">
+            <p>Dear ${name || 'User'},</p>
+            <div style="margin: 16px 0;">${body}</div>
           </div>
-        `,
-      });
-      this.logger.log(`[Email] Sent to ${email}: ${subject}`);
-    } catch (error) {
-      this.logger.error(`[Email] Failed to send to ${email}:`, error.message);
-    }
+          <div style="padding: 12px 20px; background: #eee; text-align: center; font-size: 12px; color: #666;">
+            This is an automated message from ${fromName}. Please do not reply to this email.
+          </div>
+        </div>
+      `,
+    });
+    this.logger.log(`[Email] Sent to ${email}: ${subject}`);
   }
 }

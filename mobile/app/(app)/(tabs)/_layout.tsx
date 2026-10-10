@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   House,
   Users,
@@ -124,6 +126,7 @@ const ROLE_TABS: Record<string, Slot[]> = {
 
 export default function TabsLayout() {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const role = useAuthStore((s) => s.user?.role) ?? 'PARENT';
   const chatUnread = useChatStore((s) => s.unreadCount);
   const connect = useChatStore((s) => s.connect);
@@ -148,6 +151,14 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Tab screens have no header to sit under. iOS insets their scroll
+        // views past the status bar on its own; Android draws edge to edge
+        // from SDK 57 and does not, so every tab's headline ran under the
+        // clock until the scene was pushed down here.
+        sceneStyle: {
+          backgroundColor: t.bg.page,
+          paddingTop: Platform.OS === 'android' ? insets.top : 0,
+        },
         tabBarActiveTintColor: t.brand.text,
         tabBarInactiveTintColor: t.fg.tertiary,
         tabBarStyle: {

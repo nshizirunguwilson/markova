@@ -1,5 +1,7 @@
 # Markova - Status, Fixes & Roadmap
 
+> **Historical snapshot.** Superseded: written when Markova had five roles. It now has ten (head teacher, bursar, patron, matron and nurse were added), and several items below have since shipped. See `README.md` for the current state.
+
 _Last updated: 2026-06-06. Maintained alongside a full test pass of the system._
 
 Markova is a self-hosted school-management system: a **NestJS** API + **Prisma/PostgreSQL/Redis**

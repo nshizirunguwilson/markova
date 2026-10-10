@@ -270,6 +270,39 @@ describe('what the bar looks like', () => {
     expect(tabBarStyle.elevation).toBe(0);
   });
 
+  /**
+   * Android draws edge to edge, and a tab screen has no header to sit under,
+   * so without this every headline ran under the clock. iOS insets the scroll
+   * view itself and must not be pushed down a second time.
+   */
+  describe('the status bar', () => {
+    const { Platform } = require('react-native');
+    const realOS = Platform.OS;
+    afterEach(() => {
+      Platform.OS = realOS;
+    });
+
+    it('keeps a tab clear of it on Android', async () => {
+      Platform.OS = 'android';
+      signedInAs(teacher);
+      await renderScreen(<TabsLayout />);
+      const { sceneStyle } = inheritedOptions() as {
+        sceneStyle: { paddingTop: number };
+      };
+      expect(sceneStyle.paddingTop).toBe(47);
+    });
+
+    it('leaves it to the scroll view on iOS', async () => {
+      Platform.OS = 'ios';
+      signedInAs(teacher);
+      await renderScreen(<TabsLayout />);
+      const { sceneStyle } = inheritedOptions() as {
+        sceneStyle: { paddingTop: number };
+      };
+      expect(sceneStyle.paddingTop).toBe(0);
+    });
+  });
+
   it('is tall enough to hit every tab in it', async () => {
     signedInAs(teacher);
 

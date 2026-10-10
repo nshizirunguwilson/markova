@@ -248,9 +248,10 @@ export class AuthService {
          <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not request this, please ignore this email.</p>`,
       });
     }
-    this.logger.log(
-      `OTP for ${user.email || user.phone}: ${otp} (session: ${sessionId})`,
-    );
+    // Who it went to, never the code. A code in the log lets anyone who can
+    // read the log past the second step of sign in. Outside production it is
+    // still returned below as devOtp.
+    this.logger.log(`OTP sent to ${user.email || user.phone}`);
 
     return {
       sessionId,
@@ -469,9 +470,10 @@ export class AuthService {
         message: `Markova password reset: ${appUrl}/reset-password?token=${token} (expires in 30 minutes)`,
       });
     }
-    this.logger.log(
-      `Password reset token for ${user.email || user.phone}: ${token}`,
-    );
+    // Who asked, never the token. A token in the log is a working reset link
+    // for anyone who can read the log, in production as much as anywhere.
+    // Outside production it is still returned below as devToken.
+    this.logger.log(`Password reset requested for ${user.email || user.phone}`);
 
     return {
       message: 'If the account exists, a reset link has been sent',

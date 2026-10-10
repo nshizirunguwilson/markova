@@ -71,6 +71,22 @@ describe('somebody with a photo', () => {
     expect(screen.getByLabelText('Aline Uwase')).toBeTruthy();
   });
 
+  // The API returns a server path. On a phone that loads nothing, which is
+  // why every photo in the app was an empty circle.
+  it('loads a server path from the API origin', async () => {
+    const screen = await renderScreen(
+      <Avatar name="Aline Uwase" photoUrl="/uploads/photos/aline.png" />,
+    );
+
+    // expo-image normalises a single source into a list.
+    const { source } = screen.getByLabelText('Aline Uwase').props as {
+      source: { uri: string }[];
+    };
+    expect(source[0].uri).toMatch(
+      /^https?:\/\/[^/]+\/uploads\/photos\/aline\.png$/,
+    );
+  });
+
   it('falls back to initials when the record has no photo after all', async () => {
     const screen = await renderScreen(<Avatar name="Aline Uwase" photoUrl={null} />);
 

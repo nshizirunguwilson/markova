@@ -45,17 +45,17 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.0",
     "multer": "^2.1.1",
-    "nodemailer": "^9.0.6",
+    "nodemailer": "^10.1.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^6.19.2",
-    "puppeteer-core": "^24.39.1",
+    "puppeteer-core": "^25.13.0",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
-    "twilio": "^5.13.0",
+    "twilio": "^5.13.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
@@ -70,7 +70,7 @@
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.10.7",
-    "@types/nodemailer": "^7.0.11",
+    "@types/nodemailer": "^8.0.2",
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
@@ -135,7 +135,10 @@
     },
     "coveragePathIgnorePatterns": [
       "/node_modules/"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^puppeteer-core$": "<rootDir>/__test__/puppeteer-stub.ts"
+    }
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0"

@@ -52,7 +52,12 @@ import {
 } from '../src/common/report-comments';
 import { NotificationSubject } from '../src/common/notification-target';
 
-const prisma = new PrismaClient();
+// The seed empties every table before it fills them, and only the owner may
+// do that. DATABASE_URL is the application role, which can read and write rows
+// and nothing else, so the seed connects the way migrations do.
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
+});
 
 // ─── NAME POOLS ──────────────────────────────────────────────────────────────
 // Rwandan naming, done properly:

@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { toast } from 'sonner-native';
 
 import { useSchoolConfig, useSaveSchoolConfig } from '@/hooks/useApi';
+import { mediaUrl } from '@/lib/media-url';
 import { useTheme } from '@/design';
 import { buildTheme } from '@/design/theme';
 import { contrast } from '@/design/color';
@@ -158,7 +159,7 @@ export default function School() {
               value={
                 data?.logo_url ? (
                   <Image
-                    source={{ uri: data.logo_url }}
+                    source={{ uri: mediaUrl(data.logo_url)! }}
                     style={{ width: 40, height: 40, borderRadius: radius.sm }}
                     contentFit="contain"
                   />

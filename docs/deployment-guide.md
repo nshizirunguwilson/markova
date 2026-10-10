@@ -471,7 +471,7 @@ A: Approximately 1-2 GB per year for a school with 500 students, depending on fi
 A: Markova is single-tenant (one database per school). For multiple schools, run separate instances with different databases and ports.
 
 **Q: How do I enable SMS notifications?**
-A: Configure `SMS_PROVIDER`, `SMS_API_KEY`, and `SMS_SENDER_ID` in the backend `.env` file. Supported providers: Africa's Talking, Twilio.
+A: Set `TWILIO_SID`, `TWILIO_TOKEN` and `TWILIO_SENDER_ID` in the backend `.env` file. Twilio is the only SMS provider for now.
 
 **Q: How do I set up email notifications?**
 A: Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS` in the backend `.env` file.
