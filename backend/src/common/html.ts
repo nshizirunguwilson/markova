@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { extname, join } from 'path';
+import { uploadRoot } from './uploads';
 
 /**
  * Turning values into HTML safely.
@@ -58,8 +59,7 @@ export function logoDataUri(
 ): string | null {
   const exists = opts.exists ?? existsSync;
   const read = opts.read ?? readFileSync;
-  const uploadDir =
-    opts.uploadDir ?? join(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
+  const uploadDir = opts.uploadDir ?? uploadRoot();
   const fallback =
     opts.fallback === undefined
       ? join(process.cwd(), 'assets', 'logo-horizontal.png')

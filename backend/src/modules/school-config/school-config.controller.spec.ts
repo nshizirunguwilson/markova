@@ -1,3 +1,4 @@
+import { withSchool } from '../../prisma/request-context';
 import { BadRequestException } from '@nestjs/common';
 import { SchoolConfigController } from './school-config.controller';
 import { PublicConfigController } from './public-config.controller';
@@ -101,6 +102,9 @@ describe('SchoolConfigController', () => {
    * Each upload writes to its own key. Nothing else distinguishes them.
    */
   describe('branding uploads', () => {
+    /* A school's files go in its own folder, so an upload runs inside one. */
+    const inSchool = <T>(fn: () => Promise<T>) => withSchool('school-1', fn);
+
     it.each([
       ['the logo', 'uploadLogo', 'logo_url'],
       ['the stamp', 'uploadStamp', 'stamp_url'],
@@ -108,9 +112,9 @@ describe('SchoolConfigController', () => {
     ])('%s is stored under its own key', async (_n, method, key) => {
       await run({
         name: 'upload',
-        call: (c) => c[method]({ filename: 'abc.png' }),
+        call: (c) => inSchool(() => c[method]({ filename: 'abc.png' })),
         calls: 'updateBrandingFile',
-        withArgs: [key, '/uploads/branding/abc.png'],
+        withArgs: [key, '/uploads/schools/school-1/branding/abc.png'],
       });
     });
 
@@ -121,9 +125,9 @@ describe('SchoolConfigController', () => {
       service.findByKey.mockRejectedValueOnce(new Error('Not found'));
       await run({
         name: 'first logo',
-        call: (c) => c.uploadLogo({ filename: 'first.png' }),
+        call: (c) => inSchool(() => c.uploadLogo({ filename: 'first.png' })),
         calls: 'updateBrandingFile',
-        withArgs: ['logo_url', '/uploads/branding/first.png'],
+        withArgs: ['logo_url', '/uploads/schools/school-1/branding/first.png'],
       });
     });
 
@@ -131,7 +135,7 @@ describe('SchoolConfigController', () => {
       const ctl: any = await buildController(SchoolConfigController, [
         { token: SchoolConfigService, name: 'service', mock: service },
       ]);
-      await ctl.uploadStamp({ filename: 'abc.png' });
+      await inSchool(() => ctl.uploadStamp({ filename: 'abc.png' }));
       expect(service.findByKey).toHaveBeenCalledWith('stamp_url');
     });
 

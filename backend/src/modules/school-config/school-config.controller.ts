@@ -20,9 +20,6 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { join } from 'path';
-import { existsSync, mkdirSync, renameSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { SchoolConfigService } from './school-config.service';
 import {
@@ -35,18 +32,23 @@ import { RolesGuard } from '../../common/guards';
 import {
   fileFilterFor,
   filenameFor,
-  retireStoredFile,
   validateUploadedImage,
 } from '../../common/file-validation';
+import {
+  retireSchoolFile,
+  schoolStorage,
+  uploadUrl,
+} from '../../common/uploads';
+import { currentRequest } from '../../prisma/request-context';
 
 const BRANDING_REFUSAL = 'Only image files are allowed';
 
-const brandingStorage = diskStorage({
-  destination: './uploads/branding',
-  // The extension comes from the accepted mime type, never from the name the
-  // file arrived with.
-  filename: filenameFor('image', uuidv4, BRANDING_REFUSAL),
-});
+// Into the school's own branding folder. The extension comes from the
+// accepted mime type, never from the name the file arrived with.
+const brandingStorage = schoolStorage(
+  'branding',
+  filenameFor('image', uuidv4, BRANDING_REFUSAL),
+);
 
 @ApiTags('School Config')
 @Controller('school-config')
@@ -63,10 +65,8 @@ export class SchoolConfigController {
    * with no undo and nothing in the trash. It now waits in
    * `uploads/replaced/` for the day somebody needs it back.
    */
-  private retireOldFile(fileUrl: string | null | undefined) {
-    retireStoredFile(fileUrl, { existsSync, mkdirSync, renameSync }, (p) =>
-      join(process.cwd(), p),
-    );
+  private retireOldFile(schoolId: string, fileUrl: string | null | undefined) {
+    retireSchoolFile(schoolId, fileUrl);
   }
 
   /**
@@ -87,12 +87,12 @@ export class SchoolConfigController {
         'No file was received. Choose an image and try again.',
       );
     }
-    validateUploadedImage(
-      join(process.cwd(), 'uploads/branding', file.filename),
-    );
+    validateUploadedImage(file.path);
+    const schoolId = currentRequest()?.schoolId;
+    if (!schoolId) throw new BadRequestException('No school to brand');
     const oldConfig = await this.configService.findByKey(key).catch(() => null);
-    this.retireOldFile(oldConfig?.value);
-    const url = `/uploads/branding/${file.filename}`;
+    this.retireOldFile(schoolId, oldConfig?.value);
+    const url = uploadUrl(schoolId, 'branding', file.filename);
     return this.configService.updateBrandingFile(key, url);
   }
 
