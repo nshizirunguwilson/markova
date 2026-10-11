@@ -108,6 +108,41 @@ describe('opening a conversation', () => {
     await waitFor(() => expect(screenTitle()).toBe('Conversation'));
   });
 
+  /* Every chat between staff and a student holds somebody watching over it.
+     It is named after the people talking, and says who is watching. */
+  it('names the student, not the one watching, and says who watches', async () => {
+    const watched = conversation();
+    watched.participants = [
+      watched.participants[0],
+      {
+        id: 'p3',
+        userId: 'user-5',
+        user: { id: 'user-5', firstName: 'Keza', lastName: 'Habimana', role: 'STUDENT' },
+      },
+      {
+        id: 'p4',
+        userId: 'user-6',
+        watching: true,
+        user: { id: 'user-6', firstName: 'Beatrice', lastName: 'Mukamana', role: 'MATRON' },
+      },
+    ];
+    chat({ conversations: [watched] });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screenTitle()).toBe('Keza Habimana'));
+    expect(screen.getByTestId('watch-notice')).toHaveTextContent(
+      /^Beatrice Mukamana is watching over this chat/,
+    );
+  });
+
+  it('says nothing about watching where nobody watches', async () => {
+    const screen = await open();
+
+    await waitFor(() => expect(screenTitle()).toBe('Jean Habimana'));
+    expect(screen.queryByTestId('watch-notice')).toBeNull();
+  });
+
   it('reads the messages and marks them read', async () => {
     await open();
 

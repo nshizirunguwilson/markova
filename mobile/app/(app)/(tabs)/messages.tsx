@@ -6,6 +6,7 @@ import { MessageSquare, Search, PenSquare, WifiOff } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore, type Conversation } from '@/stores/chat-store';
 import { useDebounce } from '@/hooks/useDebounce';
+import { talkersOf } from '@/lib/watching';
 import { useTheme } from '@/design';
 import { gutter, space } from '@/design/tokens';
 import { Row, Avatar, Field, Empty, LoadingRows, Text, Button, Badge } from '@/ui';
@@ -55,6 +56,8 @@ export default function Messages() {
 
   /** Who this conversation is with, from the point of view of whoever is looking. */
   const other = (c: Conversation) =>
+    // Not whoever watches over the chat: they are not who it is with.
+    talkersOf(c.participants, me)[0]?.user ??
     c.participants?.find((p) => p.userId !== me)?.user ??
     c.participants?.[0]?.user ?? { firstName: 'Unknown', lastName: '', role: '', id: '', photoUrl: undefined };
 

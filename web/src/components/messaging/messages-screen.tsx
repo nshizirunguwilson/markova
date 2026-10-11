@@ -29,7 +29,7 @@ import {
 } from "@/hooks/use-messaging";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Search, Send, ArrowLeft, ChevronDown, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText } from "lucide-react";
+import { MessageSquare, Plus, Search, Send, ArrowLeft, ChevronDown, CornerUpLeft, WifiOff, Users, X, Paperclip, FileText, ShieldCheck } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
   deliveryLabel,
@@ -38,6 +38,7 @@ import {
   messagePreview,
 } from "@/lib/presence";
 import { clockTime, groupThread, senderIdOf } from "@/lib/messaging-view";
+import { isWatching, listOfNames, talkersOf, watchNotice } from "@/lib/watching";
 import { personDetail, personMatches, personName } from "@/lib/person";
 import { QuotedMessage } from "@/components/messaging/quoted-message";
 import { MessageAttachment } from "@/components/messaging/message-attachment";
@@ -855,8 +856,12 @@ export default function MessagesPage() {
   const getConvName = (conv: any) => {
     if (conv.name) return conv.name;
     if (conv.type === "ONE_ON_ONE") {
-      const other = conv.participants?.find((p: any) => p?.user?.id !== user?.id);
-      return other?.user ? `${other.user.firstName ?? ""} ${other.user.lastName ?? ""}`.trim() : "Chat";
+      /* Named after the people talking. Whoever watches over it is in the
+         room but not in the conversation, and the one watching sees both. */
+      const names = talkersOf(conv, user?.id)
+        .map((u) => `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim())
+        .filter(Boolean);
+      return names.length ? listOfNames(names) : "Chat";
     }
     return `Group (${conv.participants?.length || 0})`;
   };
@@ -897,8 +902,9 @@ export default function MessagesPage() {
   };
 
   const getOtherUser = (conv: any) => {
-    if (conv.type === "ONE_ON_ONE") {
-      return conv.participants?.find((p: any) => p?.user?.id !== user?.id)?.user;
+    // The one watching a chat between two others has no one "other" person.
+    if (conv.type === "ONE_ON_ONE" && !isWatching(conv, user?.id)) {
+      return talkersOf(conv, user?.id)[0] as any;
     }
     return null;
   };
@@ -1062,6 +1068,12 @@ export default function MessagesPage() {
                             {detail}
                           </span>
                         )}
+                        {isWatching(conv, user?.id) && (
+                          <span className="ml-1.5 inline-flex items-center gap-1 align-middle text-[0.6875rem] font-medium text-muted">
+                            <ShieldCheck aria-hidden="true" className="h-3 w-3" />
+                            Watching
+                          </span>
+                        )}
                       </span>
                       {conv.lastMessage && (
                         <span className="flex-shrink-0 text-[0.6875rem] tabular-nums text-muted">
@@ -1223,6 +1235,23 @@ export default function MessagesPage() {
               than inside it: a child of the scrolling element scrolls away
               with the messages, which is the one place it must not be.
             */}
+            {/*
+              Who watches over this chat, said to everybody in it, the
+              student included. Above the thread rather than inside it, so it
+              never scrolls away.
+            */}
+            {(() => {
+              const notice = watchNotice(selectedConversation, user?.id);
+              return notice ? (
+                <p
+                  data-testid="watch-notice"
+                  className="flex items-start gap-2 border-b border-border bg-surface-muted px-4 py-2 text-[0.75rem] leading-5 text-muted"
+                >
+                  <ShieldCheck aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                  <span>{notice}</span>
+                </p>
+              ) : null;
+            })()}
             <div className="relative flex min-h-0 flex-1 flex-col">
             {scrolledUp && (
               <button
@@ -1832,6 +1861,7 @@ export default function MessagesPage() {
                     </span>
                   </div>
                   {p.isAdmin && <Badge className="ml-1">Admin</Badge>}
+                  {p.watching && <Badge className="ml-1">Watching</Badge>}
                   <Button
                     size="sm"
                     variant="ghost"

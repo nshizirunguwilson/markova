@@ -3915,3 +3915,62 @@ describe("mentioning somebody in a group", () => {
     );
   });
 });
+
+/*
+  No child alone in a chat with an adult. Every chat between staff and a
+  student also holds somebody watching over it, and everybody in it is told
+  who that is.
+*/
+describe("a chat somebody watches over", () => {
+  const student = { id: "u-5", firstName: "Keza", lastName: "Habimana", role: "STUDENT", photoUrl: null };
+  const matron = { id: "u-6", firstName: "Beatrice", lastName: "Mukamana", role: "MATRON", photoUrl: null };
+  const watched = {
+    id: "conv-9",
+    type: "ONE_ON_ONE",
+    participants: [
+      { user: { ...other, id: "me" } },
+      { user: student },
+      { user: matron, watching: true },
+    ],
+    lastMessage: { content: "Thank you", createdAt: "2026-08-21T09:00:00Z" },
+    unreadCount: 0,
+  };
+  const watchedRoutes = {
+    "/messaging/conversations/conv-9/messages": [],
+    "/messaging/conversations": [watched],
+    "/messaging/contacts": { data: [] },
+    "/messaging/unread": { count: 0 },
+  };
+
+  it("is named after the student, not the one watching, and says who watches", async () => {
+    serve(h.api, watchedRoutes);
+    renderPage(MessagesPage, { role: "TEACHER", user: { id: "me" } });
+    await waitFor(() => expect(screen.getByText("Keza Habimana")).toBeInTheDocument());
+    expect(screen.queryByText(/Watching/)).not.toBeInTheDocument();
+
+    await userEvent.setup({ delay: null }).click(screen.getByText("Keza Habimana"));
+    expect(await screen.findByTestId("watch-notice")).toHaveTextContent(
+      "Beatrice Mukamana is watching over this chat.",
+    );
+  });
+
+  it("shows the one watching both people, and tells them everyone can see them", async () => {
+    serve(h.api, watchedRoutes);
+    renderPage(MessagesPage, { role: "MATRON", user: { id: "u-6" } });
+    const name = await screen.findByText("Aline Uwase and Keza Habimana");
+    expect(screen.getByText("Watching")).toBeInTheDocument();
+
+    await userEvent.setup({ delay: null }).click(name);
+    expect(await screen.findByTestId("watch-notice")).toHaveTextContent(
+      /You watch over this chat as a safeguarding lead/,
+    );
+  });
+
+  it("says nothing in a chat nobody watches", async () => {
+    serve(h.api, routes);
+    renderPage(MessagesPage, { role: "ADMIN" });
+    await userEvent.setup({ delay: null }).click(await screen.findByText(/Aline/));
+    await screen.findByText(/Muraho neza/);
+    expect(screen.queryByTestId("watch-notice")).not.toBeInTheDocument();
+  });
+});

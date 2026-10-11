@@ -5,6 +5,7 @@ import { SendHorizontal } from 'lucide-react-native';
 
 import { useAuthStore } from '@/stores/auth-store';
 import { useChatStore } from '@/stores/chat-store';
+import { listOfNames, talkersOf, watchNotice } from '@/lib/watching';
 import { useTheme } from '@/design';
 import { curve, gutter, radius, space, touch, type as typeScale } from '@/design/tokens';
 import { Text, Avatar, LoadingRows } from '@/ui';
@@ -42,8 +43,12 @@ export default function Thread() {
   const listRef = useRef<FlatList>(null);
 
   const conversation = conversations.find((c) => c.id === id);
-  const person = conversation?.participants?.find((p) => p.userId !== me)?.user;
-  const name = person ? `${person.firstName} ${person.lastName}`.trim() : 'Conversation';
+  // Named after the people talking, never whoever watches over the chat.
+  const talkers = talkersOf(conversation?.participants, me);
+  const person = talkers[0]?.user;
+  const names = talkers.map((p) => `${p.user?.firstName ?? ''} ${p.user?.lastName ?? ''}`.trim()).filter(Boolean);
+  const name = names.length ? listOfNames(names) : 'Conversation';
+  const notice = watchNotice(conversation?.participants, me);
 
   const messages = useMemo(() => messagesByConversation[id ?? ''] ?? [], [messagesByConversation, id]);
   const theyAreTyping = typingUsers.some((u) => u.conversationId === id && u.userId !== me);
@@ -70,6 +75,21 @@ export default function Thread() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={92}
       >
+        {notice ? (
+          <Text
+            variant="footnote"
+            tone="tertiary"
+            testID="watch-notice"
+            style={{
+              paddingHorizontal: gutter,
+              paddingVertical: space.sm,
+              borderBottomWidth: 1,
+              borderBottomColor: t.line.hairline,
+            }}
+          >
+            {notice}
+          </Text>
+        ) : null}
         {loading ? (
           <LoadingRows count={6} />
         ) : (
