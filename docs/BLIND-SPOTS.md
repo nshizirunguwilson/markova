@@ -50,7 +50,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | A5 | A parent with children at several schools | Solved by the one login design | Solved |
 | A6 | A parent with a basic phone, no smartphone and no internet | Some notices go by SMS. Report cards, marks and fees do not | [Future work](FUTURE-WORK.md#a6) |
 | A7 | A parent who reads only Kinyarwanda (54% of adults) | Everything is in English only. Checked | Near work |
-| A8 | A student turns 18 | Parents keep full access with no change | Near work |
+| A8 | A student turns 18 | **Done, 11 October 2026.** From 18 the student decides, with three switches (results, attendance and discipline, health), what their parents see. All start on; fees always stay shared. See [below](#a8-a-student-turns-18) | Done |
 | A9 | A student or a parent dies | **Done, 11 October 2026.** The principal records it; nothing more is ever sent about that student, and a parent's account closes. A child left with no parent or guardian is put to the principal, and the class teacher is told privately. See [below](#b8-and-a9-a-students-journey) | Done |
 
 ## B. Students
@@ -169,6 +169,25 @@ else could ever see it. Now:
   (nobody can answer it), or between two adults or two classmates.
 - **Who can be reached** is now checked when a chat is made, not only in the
   contact list: a parent cannot open a chat with somebody else's child.
+
+### A8: a student turns 18
+
+- **Three switches** on the student's profile from their 18th birthday:
+  results, attendance and discipline, and health visits. All start on, so
+  nothing changes for a family unless the student acts. Fees are always
+  shared with whoever pays.
+- **One rule** (`backend/src/common/parent-sharing.ts`) used by every page and
+  message a parent gets: the ownership check names the kind of record, the
+  clinic check asks for health, family messages ask too (an absence text is
+  attendance). A test lists every route a parent can reach and fails for one
+  that does not say what kind of record it shows.
+- **Calm, not broken.** A parent sees "Keza has chosen to keep their health
+  visits private." where the page would be, never an empty page or a red
+  alert. Marks can show while attendance beside them is private.
+- **No date of birth means under 18**, so nothing is hidden on a guess; the
+  students list says how many have none, and lists them to fix.
+- **A note on the birthday** itself, telling the student the choice is theirs.
+- **The school sees** each adult student's choices on their page, read only.
 
 ### B5: shared computers
 

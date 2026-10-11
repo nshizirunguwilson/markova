@@ -283,6 +283,26 @@ test('auth: password show/hide toggle reveals the password', async (browser) => 
 });
 
 /**
+ * Sign in through the page itself, waiting out the sign in limit as
+ * apiLogin does: ten attempts a minute is spent quickly by a suite that signs
+ * in as every role, and a refusal here is not what any check is about.
+ */
+async function uiSignIn(page, identifier, { shared = false } = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await visit(page, '/login');
+    await page.fill('#identifier', identifier);
+    await page.fill('#password', PASS);
+    if (shared) await page.check('text=This is a shared computer');
+    const answer = page.waitForResponse((r) => r.url().endsWith('/auth/login'), { timeout: 30000 });
+    await page.click('button:has-text("Sign In")');
+    const res = await answer;
+    if (res.status() !== 429) return res;
+    await wait(61000);
+  }
+  throw new Error(`sign in for ${identifier} stayed rate limited`);
+}
+
+/**
  * A shared computer (B5): a student signing in at the school lab.
  *
  * The sign in is kept only in this tab, so the next person to open the
@@ -294,10 +314,7 @@ test('shared computer: a student is signed out when the lab computer is left alo
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.clock.install();
-  await visit(page, '/login');
-  await page.fill('#identifier', ACCOUNTS.STUDENT.email);
-  await page.fill('#password', PASS);
-  await page.click('button:has-text("Sign In")');
+  await uiSignIn(page, ACCOUNTS.STUDENT.email);
   await page.waitForURL('**/student', { timeout: 60000 });
 
   const kept = await page.evaluate(() => ({
@@ -337,11 +354,7 @@ test('shared computer: a student is signed out when the lab computer is left alo
 test('auth: signing out ends the session on the server', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await visit(page, '/login');
-  await page.fill('#identifier', ACCOUNTS.TEACHER.email);
-  await page.fill('#password', PASS);
-  await page.check('text=This is a shared computer');
-  await page.click('button:has-text("Sign In")');
+  await uiSignIn(page, ACCOUNTS.TEACHER.email, { shared: true });
   const otp = page.locator('input[autocomplete="one-time-code"], #otp').first();
   await otp.waitFor({ timeout: 30000 });
   const code = await page.evaluate(() => document.body.innerText.match(/\b\d{6}\b/)?.[0]);
