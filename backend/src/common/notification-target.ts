@@ -22,6 +22,8 @@ export const NotificationSubject = {
   ACTIVITY: 'ACTIVITY',
   CLINIC: 'CLINIC',
   POCKET_MONEY: 'POCKET_MONEY',
+  /** What an adult student's parents may see: opens their profile. */
+  SHARING: 'SHARING',
   SYSTEM: 'SYSTEM',
 } as const;
 

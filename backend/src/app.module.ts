@@ -27,6 +27,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HelpModule } from './modules/help/help.module';
 import { HealthModule } from './modules/health/health.module';
 import { JourneyModule } from './modules/journey/journey.module';
+import { SharingModule } from './modules/sharing/sharing.module';
 import { FormerStudentInterceptor } from './common/interceptors/former-student.interceptor';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
@@ -59,6 +60,7 @@ import { JobsModule } from './jobs/jobs.module';
     AuthModule,
     UsersModule,
     JourneyModule,
+    SharingModule,
     SchoolConfigModule,
     AcademicModule,
     MarksModule,

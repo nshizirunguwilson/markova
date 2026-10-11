@@ -12,9 +12,15 @@ describe('ScheduledTasksService', () => {
   const library = { sendDueReminders: jest.fn() } as any;
   const attendance = { sendChronicAbsenteeismAlerts: jest.fn() } as any;
   const prisma = { school: { findMany: jest.fn() } } as any;
+  const sharing = { greetNewAdults: jest.fn() } as any;
 
   const build = () => {
-    const service = new ScheduledTasksService(library, attendance, prisma);
+    const service = new ScheduledTasksService(
+      library,
+      attendance,
+      prisma,
+      sharing,
+    );
     const log = jest.spyOn((service as any).logger, 'log').mockImplementation();
     const error = jest
       .spyOn((service as any).logger, 'error')
@@ -30,6 +36,28 @@ describe('ScheduledTasksService', () => {
     attendance.sendChronicAbsenteeismAlerts
       .mockReset()
       .mockResolvedValue({ studentsIdentified: 4, alertsSent: 7 });
+  });
+
+  describe('eighteenth birthdays', () => {
+    it('greets each school’s students turning 18, school by school', async () => {
+      sharing.greetNewAdults.mockReset().mockResolvedValue({ greeted: 2 });
+      const { service, log } = build();
+      await service.handleEighteenthBirthdays();
+      expect(sharing.greetNewAdults).toHaveBeenCalledTimes(1);
+      expect(log).toHaveBeenCalledWith('Students turning 18 today: 2');
+    });
+
+    it('logs a school that fails rather than stopping', async () => {
+      sharing.greetNewAdults.mockReset().mockRejectedValue(new Error('down'));
+      const { service, error } = build();
+      await expect(
+        service.handleEighteenthBirthdays(),
+      ).resolves.toBeUndefined();
+      expect(error).toHaveBeenCalledWith(
+        'Eighteenth birthdays failed for kigali-hill',
+        expect.any(String),
+      );
+    });
   });
 
   describe('library reminders', () => {

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { LibraryService } from '../modules/library/library.service';
 import { AttendanceService } from '../modules/attendance/attendance.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SharingService } from '../modules/sharing/sharing.service';
 import { withSchool } from '../prisma/request-context';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class ScheduledTasksService {
     private readonly libraryService: LibraryService,
     private readonly attendanceService: AttendanceService,
     private readonly prisma: PrismaService,
+    private readonly sharing: SharingService,
   ) {}
 
   /**
@@ -51,6 +53,15 @@ export class ScheduledTasksService {
     await this.forEachSchool('Library due reminders', async () => {
       const result = await this.libraryService.sendDueReminders();
       this.logger.log(`Library due reminders sent: ${result.sent}`);
+    });
+  }
+
+  /** Daily at 7 AM - tell each student turning 18 that the choice is theirs */
+  @Cron('0 7 * * *')
+  async handleEighteenthBirthdays() {
+    await this.forEachSchool('Eighteenth birthdays', async () => {
+      const result = await this.sharing.greetNewAdults();
+      this.logger.log(`Students turning 18 today: ${result.greeted}`);
     });
   }
 
