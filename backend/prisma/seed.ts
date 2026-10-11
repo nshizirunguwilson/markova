@@ -580,6 +580,8 @@ const usedPhones = new Set<string>([
   '+250788100000',
   // The demo parent with a child at two schools (seedPeopleInSeveralSchools).
   '+250788100002',
+  // The parent of the demo student of 18 (A8).
+  '+250788199999',
 ]);
 const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
 function realPhone(): string {
@@ -3236,6 +3238,59 @@ async function main() {
   }
   console.log(`  ✅ ${journeyCount} journey steps seeded`);
 
+  // ─── A STUDENT OF 18 (what their parents see) ───────────────────────────────
+  //
+  // From 18 a student decides what their parents see (A8). One adult student
+  // signs in as adult@markova.edu and keeps their health visits private; their
+  // parent signs in with +250788199999 and sees a calm notice on the health
+  // page, and everything else as before.
+  {
+    const eighteenYearsAgo = addDays(today, -18 * 366);
+    const adultStudent = await prisma.student.findFirst({
+      where: {
+        schoolId,
+        status: StudentStatus.ACTIVE,
+        dateOfBirth: { lte: eighteenYearsAgo },
+        pauses: { none: {} },
+        parentStudents: { some: {} },
+      },
+      select: {
+        id: true,
+        userId: true,
+        parentStudents: {
+          take: 1,
+          select: { parent: { select: { id: true, accountId: true } } },
+        },
+      },
+    });
+    if (adultStudent) {
+      await prisma.student.update({
+        where: { id: adultStudent.id },
+        data: { sharesHealth: false, sharingChangedAt: addDays(today, -20) },
+      });
+      await prisma.user.update({
+        where: { id: adultStudent.userId },
+        data: {
+          email: 'adult@markova.edu',
+          account: {
+            update: { email: 'adult@markova.edu', forcePasswordChange: false },
+          },
+        },
+      });
+      const parent = adultStudent.parentStudents[0]?.parent;
+      if (parent) {
+        await prisma.account.update({
+          where: { id: parent.accountId },
+          data: { phone: '+250788199999', forcePasswordChange: false },
+        });
+        await prisma.user.update({
+          where: { id: parent.id },
+          data: { phone: '+250788199999' },
+        });
+      }
+    }
+  }
+
   // ─── LIBRARY (REB textbooks, trade shelves, African literature) ─────────────
   // The catalog a Rwandan TSS actually holds: REB class-set textbooks per
   // subject and level, technical references per trade, African and Rwandan
@@ -5640,6 +5695,8 @@ async function main() {
   console.log('     Teacher   aline.uwase@markova.edu');
   console.log('     Student   student1@markova.edu');
   console.log('     Graduate  graduate@markova.edu (left the school: report cards only)');
+  console.log('     Adult     adult@markova.edu (18+, keeps health visits private)');
+  console.log('     Their parent +250788199999 (phone login)');
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
