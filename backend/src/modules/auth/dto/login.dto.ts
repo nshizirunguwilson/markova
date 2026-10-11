@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -28,6 +29,30 @@ export class LoginDto {
   // this cap to be stated rather than left implied.
   @MaxLength(72)
   password: string;
+
+  /**
+   * Signing in on a shared computer: a school lab, a cyber café. The sign in
+   * then ends when the browser closes, after ten minutes without use, and at
+   * the end of the day. A student is always treated as on one.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  sharedDevice?: boolean;
+}
+
+/** Signing out of this computer, or of every device. */
+export class LogoutDto {
+  /** The refresh token this computer holds: its session is the one ended. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  everywhere?: boolean;
 }
 
 export class VerifyOtpDto {

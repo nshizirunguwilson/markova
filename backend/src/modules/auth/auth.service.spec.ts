@@ -1070,9 +1070,141 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * A shared computer: a school lab, a cyber café (B5). A student is always
+   * treated as on one; anybody else says so. The server ends such a sign in
+   * after a while without use, and at the end of the day, whatever the
+   * browser does.
+   */
+  describe('on a shared computer', () => {
+    const otpFor = (user: any, sharedDevice?: boolean) =>
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: user.id,
+          otp: '123456',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          ...(sharedDevice !== undefined && { sharedDevice }),
+        }),
+      );
+    const createdSession = () =>
+      mockPrisma.userSession.create.mock.calls.at(-1)[0].data;
+
+    it('treats a student as on one without being asked', async () => {
+      givenLogin(makeUser({ role: 'STUDENT' }));
+      const result = await service.login({
+        email: 'student1@markova.edu',
+        password: TEST_PASSWORD,
+      });
+      expect(result).toMatchObject({ sharedDevice: true });
+      expect(createdSession().shared).toBe(true);
+    });
+
+    it('treats a teacher as on their own unless they say otherwise', async () => {
+      const teacher = makeUser({ role: 'TEACHER' });
+      givenLogin(teacher);
+      otpFor(teacher);
+      const result = await service.verifyOtp({ sessionId: 's', otp: '123456' });
+      expect(result).toMatchObject({ sharedDevice: false });
+      expect(createdSession().shared).toBe(false);
+      expect(mockJwt.sign.mock.calls[0][1].expiresIn).toBe('15m');
+    });
+
+    it('remembers the choice made on the sign in page until the code is entered', async () => {
+      const teacher = makeUser({ role: 'TEACHER' });
+      givenLogin(teacher);
+      await service.login({
+        email: teacher.email,
+        password: TEST_PASSWORD,
+        sharedDevice: true,
+      });
+      const written = mockRedis.set.mock.calls.find((c) =>
+        String(c[0]).startsWith('otp:'),
+      );
+      expect(JSON.parse(written![1])).toMatchObject({ sharedDevice: true });
+
+      jest.clearAllMocks();
+      givenLogin(teacher);
+      otpFor(teacher, true);
+      const result = await service.verifyOtp({ sessionId: 's', otp: '123456' });
+      expect(result).toMatchObject({ sharedDevice: true });
+      expect(mockJwt.sign.mock.calls[0][1].expiresIn).toBe('5m');
+    });
+
+    describe('refreshing', () => {
+      const session = (over: Record<string, unknown>) => ({
+        id: 'session-1',
+        userId: 'user-1',
+        token: 'r',
+        isActive: true,
+        shared: true,
+        startedAt: new Date(),
+        createdAt: new Date(),
+        ...over,
+      });
+      beforeEach(() => {
+        givenLogin(makeUser({ role: 'STUDENT' }));
+        mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'STUDENT' });
+        mockRedis.set.mockResolvedValue('OK');
+      });
+
+      it('carries on while in use, and keeps the day it began', async () => {
+        const began = new Date(Date.now() - 60 * 60 * 1000);
+        mockPrisma.userSession.findFirst.mockResolvedValue(
+          session({
+            startedAt: began,
+            createdAt: new Date(Date.now() - 6 * 60 * 1000),
+          }),
+        );
+        await service.refreshToken({ refreshToken: 'r' });
+        expect(createdSession()).toMatchObject({
+          shared: true,
+          startedAt: began,
+        });
+      });
+
+      it('ends after a while with nobody there', async () => {
+        mockPrisma.userSession.findFirst.mockResolvedValue(
+          session({ createdAt: new Date(Date.now() - 16 * 60 * 1000) }),
+        );
+        await expect(
+          service.refreshToken({ refreshToken: 'r' }),
+        ).rejects.toThrow(/without use/);
+        expect(mockPrisma.userSession.update).toHaveBeenCalledWith({
+          where: { id: 'session-1' },
+          data: { isActive: false },
+        });
+        expect(mockPrisma.userSession.create).not.toHaveBeenCalled();
+      });
+
+      it('ends at the end of the day, however busy', async () => {
+        mockPrisma.userSession.findFirst.mockResolvedValue(
+          session({ startedAt: new Date(Date.now() - 13 * 60 * 60 * 1000) }),
+        );
+        await expect(
+          service.refreshToken({ refreshToken: 'r' }),
+        ).rejects.toThrow(/end of the day/);
+      });
+
+      it('leaves a sign in on somebody’s own computer alone', async () => {
+        mockPrisma.userSession.findFirst.mockResolvedValue(
+          session({
+            shared: false,
+            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+            startedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+          }),
+        );
+        await expect(
+          service.refreshToken({ refreshToken: 'r' }),
+        ).resolves.toMatchObject({
+          sharedDevice: false,
+        });
+      });
+    });
+  });
+
   describe('signing out', () => {
     it('ends only the session the token belongs to', async () => {
-      await service.logout('account-1', 'the-refresh-token');
+      await service.logout('account-1', { refreshToken: 'the-refresh-token' });
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
         where: {
           accountId: 'account-1',
@@ -1083,13 +1215,21 @@ describe('AuthService', () => {
       });
     });
 
-    // Signing out of every device is what somebody does after losing a phone.
-    it('ends every session when no token is given', async () => {
-      await service.logout('account-1');
+    // Signing out of every device is what somebody does after losing a phone,
+    // or after forgetting to sign out in the school lab.
+    it('ends every session when asked to sign out everywhere', async () => {
+      await service.logout('account-1', { everywhere: true });
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
         where: { accountId: 'account-1', isActive: true },
         data: { isActive: false },
       });
+    });
+
+    /* An old client that names no session must not end every session the
+       person has: that would sign their phone out when they leave a lab. */
+    it('ends nothing when no session is named', async () => {
+      await service.logout('account-1');
+      expect(mockPrisma.userSession.updateMany).not.toHaveBeenCalled();
     });
 
     it('lists only the sessions still live', async () => {
@@ -1197,7 +1337,8 @@ describe('AuthService', () => {
       });
       const [access, refresh] = mockJwt.sign.mock.calls;
       expect(access[0].typ).not.toBe(refresh[0].typ);
-      expect(access[1].expiresIn).toBe('15m');
+      // A student: on a shared computer, so five minutes.
+      expect(access[1].expiresIn).toBe('5m');
       expect(refresh[1].expiresIn).toBe('7d');
     });
 

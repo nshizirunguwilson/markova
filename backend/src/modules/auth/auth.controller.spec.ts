@@ -100,10 +100,10 @@ describe('AuthController', () => {
     {
       // The bearer prefix is stripped here, so the service is handed a token
       // rather than a header. Passing the header would end no session at all.
-      name: 'a sign out, with the token rather than the header',
-      call: (c) => c.logout('user-1', 'Bearer abc.def.ghi'),
+      name: 'a sign out, naming the refresh token this computer holds',
+      call: (c) => c.logout('user-1', { refreshToken: 'the-refresh-token' }),
       calls: 'logout',
-      withArgs: ['user-1', 'abc.def.ghi'],
+      withArgs: ['user-1', { refreshToken: 'the-refresh-token' }],
     },
     {
       name: 'the sessions a person has open',
