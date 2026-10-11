@@ -215,6 +215,12 @@ async function scan(page, url) {
       for (const v of await scan(page, WEB + route)) {
         findings.push({ route, role, id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length });
       }
+      /* A page that sent its reader to sign in was not scanned at all, only
+         the sign in page was. Student sign ins are short now (a shared
+         computer), so this is worth saying rather than passing quietly. */
+      if (new URL(page.url()).pathname === '/login') {
+        findings.push({ route, role, id: 'signed-out', impact: 'serious', help: 'Landed on the sign in page, so the page itself was not scanned', nodes: 0 });
+      }
       scanned += 1;
       await page.close();
     }

@@ -79,12 +79,18 @@ async function apiLogin(role, attempt = 0) {
 
 // Log in each role ONCE and reuse the tokens - the backend rate-limits
 // login/verify-otp to 10/min, so a fresh login per test would 429 mid-suite.
+//
+// Not for ever, though. A sign in on a shared computer (every student's) is
+// refused a refresh after a while without one, so a pair kept for the whole
+// run would stop working half way through. Four minutes is inside that.
 const tokenCache = {};
+const TOKEN_REUSE_MS = 4 * 60 * 1000;
 async function getTokens(role) {
-  if (!tokenCache[role]) {
+  const held = tokenCache[role];
+  if (!held || Date.now() - held.at > TOKEN_REUSE_MS) {
     const t = await apiLogin(role);
     if (!t.accessToken) throw new Error(`login failed for ${role}: ${JSON.stringify(t)}`);
-    tokenCache[role] = t;
+    tokenCache[role] = { ...t, at: Date.now() };
   }
   return tokenCache[role];
 }
@@ -273,6 +279,93 @@ test('auth: password show/hide toggle reveals the password', async (browser) => 
   await ctx.close();
 });
 
+/**
+ * A shared computer (B5): a student signing in at the school lab.
+ *
+ * The sign in is kept only in this tab, so the next person to open the
+ * browser finds nothing; after ten minutes without use the computer asks
+ * whether anybody is there, then signs out, and the server will not renew
+ * the old sign in.
+ */
+test('shared computer: a student is signed out when the lab computer is left alone', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.clock.install();
+  await visit(page, '/login');
+  await page.fill('#identifier', ACCOUNTS.STUDENT.email);
+  await page.fill('#password', PASS);
+  await page.click('button:has-text("Sign In")');
+  await page.waitForURL('**/student', { timeout: 60000 });
+
+  const kept = await page.evaluate(() => ({
+    tab: sessionStorage.getItem('refresh_token'),
+    browser: localStorage.getItem('refresh_token'),
+  }));
+  assert(kept.tab && !kept.browser, 'a student sign in outlived the tab');
+
+  // Another tab, as the next student opening the browser: nobody is in.
+  const next = await ctx.newPage();
+  await next.goto(`${WEB}/student`, { waitUntil: 'domcontentloaded' });
+  await next.waitForURL('**/login', { timeout: 20000 });
+  await next.close();
+
+  await page.clock.fastForward('09:30');
+  await page.getByRole('dialog', { name: 'Still there?' }).waitFor({ timeout: 10000 });
+  await page.clock.fastForward('01:00');
+  await page.waitForURL('**/login?signedOut=idle', { timeout: 20000 });
+  await page.getByText(/signed out because nobody used this computer/i).waitFor();
+
+  const renewed = await page.evaluate(async ([api, refreshToken]) => {
+    const r = await fetch(`${api}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    return r.status;
+  }, [API, kept.tab]);
+  assert(renewed === 401, `the old sign in could still be renewed (${renewed})`);
+  await ctx.close();
+});
+
+/**
+ * Signing out ends the session on the server too. It used to only forget the
+ * tokens in the browser, so one copied off a lab computer worked for a week.
+ */
+test('auth: signing out ends the session on the server', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await visit(page, '/login');
+  await page.fill('#identifier', ACCOUNTS.TEACHER.email);
+  await page.fill('#password', PASS);
+  await page.check('text=This is a shared computer');
+  await page.click('button:has-text("Sign In")');
+  const otp = page.locator('input[autocomplete="one-time-code"], #otp').first();
+  await otp.waitFor({ timeout: 30000 });
+  const code = await page.evaluate(() => document.body.innerText.match(/\b\d{6}\b/)?.[0]);
+  assert(code, 'no development code on the page');
+  await otp.fill(code);
+  await page.click('button:has-text("Verify")');
+  await page.waitForURL('**/teacher', { timeout: 60000 });
+  const refreshToken = await page.evaluate(() => sessionStorage.getItem('refresh_token'));
+  assert(refreshToken, "a teacher who ticked shared computer kept the sign in past the tab");
+
+  await page.locator('header button').filter({ hasText: /Teacher/i }).first().click();
+  await page.click('button:has-text("Sign Out")');
+  await page.click('[role=dialog] button:has-text("Sign Out")');
+  await page.waitForURL('**/login', { timeout: 10000 });
+
+  const renewed = await page.evaluate(async ([api, token]) => {
+    const r = await fetch(`${api}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: token }),
+    });
+    return r.status;
+  }, [API, refreshToken]);
+  assert(renewed === 401, `a signed out session could still be renewed (${renewed})`);
+  await ctx.close();
+});
+
 test('auth: protected route while logged out redirects to /login', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
@@ -295,6 +388,8 @@ test('auth: after logout, back button does not show an authenticated page', asyn
   await page.click('button:has-text("Sign Out")');
   await page.click('[role=dialog] button:has-text("Sign Out")');
   await page.waitForURL('**/login', { timeout: 8000 });
+  // Signing out now ends the session on the server: sign in afresh next time.
+  delete tokenCache.STUDENT;
   await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
   await page.waitForTimeout(2000);
   const txt = await page.evaluate(() => document.body.innerText);

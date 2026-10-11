@@ -61,7 +61,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | B2 | A student forgets their password and has no phone or email | No way back in | Near work |
 | B3 | Students want to check results on a phone during the holidays | Blocked on the phone app, and only the app blocks it: the server lets them in. Checked | Near work |
 | B4 | A member of staff privately messages a student | **Done, 11 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
-| B5 | Students share computers in the school lab | Nothing signs them out when the next student sits down | Near work |
+| B5 | Students share computers in the school lab | **Done, 11 October 2026.** A student's sign in lasts only until the browser closes, and ends after 10 minutes without use (staff tick "shared computer" for the same). Signing out now ends the session on the server too. See [below](#b5-shared-computers) | Done |
 | B6 | A student's photo is used on ID cards and in the app | No record of whether the family agreed | Near work |
 | B7 | A student with a disability needs extra exam time or a reader | Not recorded anywhere | Near work |
 | B8 | A student is expelled, or comes back after a long absence | **Done, 11 October 2026.** Suspensions and time away are kept as dates; a suspended student is on the register as suspended, never marked absent, and their family is not texted. Leaving and coming back are recorded with the day and the reason. See [below](#b8-and-a9-a-students-journey) | Done |
@@ -169,6 +169,26 @@ else could ever see it. Now:
   (nobody can answer it), or between two adults or two classmates.
 - **Who can be reached** is now checked when a chat is made, not only in the
   contact list: a parent cannot open a chat with somebody else's child.
+
+### B5: shared computers
+
+- **Who:** a student is always signed in as on a shared computer. Staff and
+  parents tick "This is a shared computer" on the sign in page.
+- **In the browser:** the sign in is kept only in that tab, so closing the
+  browser, or opening a new tab, finds nobody signed in. After 9 minutes
+  without use a "Still there?" warning shows; at 10 the person is signed out
+  and told why. On one's own computer the limit is 60 minutes.
+- **On the server, too:** a shared sign in's short-lived token lasts 5
+  minutes, a renewal is refused after about 10 minutes of silence, and every
+  shared sign in ends after 12 hours, whatever the browser does.
+- **Nothing left behind:** signing out wipes everything the browser held, and
+  marks are never kept for offline on a shared computer.
+- **Sign out everywhere** on the profile page, for the student who walked away
+  from a lab computer.
+- **Found on the way:** signing out never ended the session on the server.
+  It named the wrong token and the web never called it, so a refresh token
+  copied off a computer worked for a week after "sign out", and "sign out
+  everywhere" could never happen. Fixed, and proven in the browser.
 
 ### B8 and A9: a student's journey
 
