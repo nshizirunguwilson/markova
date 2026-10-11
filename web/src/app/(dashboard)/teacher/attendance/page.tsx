@@ -4,6 +4,7 @@ import { useState, useMemo, useRef } from "react";
 import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
+import { pauseWords } from "@/lib/standing";
 import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
@@ -40,8 +41,9 @@ export default function TeacherAttendancePage() {
 
   const localStatuses = useMemo<Record<string, Status>>(() => {
     const fromServer: Record<string, Status> = {};
+    // A student suspended or away that day is not marked at all.
     for (const s of classData?.students ?? []) {
-      fromServer[s.studentId] = s.status;
+      if (!s.pause) fromServer[s.studentId] = s.status;
     }
     return edits.key === editKey
       ? { ...fromServer, ...edits.values }
@@ -95,7 +97,7 @@ export default function TeacherAttendancePage() {
     if (!classData?.students) return;
     const map: Record<string, Status> = {};
     for (const s of classData.students) {
-      map[s.studentId] = "PRESENT";
+      if (!s.pause) map[s.studentId] = "PRESENT";
     }
     setLocalStatuses(map);
   };
@@ -191,6 +193,12 @@ export default function TeacherAttendancePage() {
           <Card>
             <p className="text-xs text-muted">Total</p>
             <p className="text-2xl font-bold text-foreground">{classData.total}</p>
+            {/* Out of school on the school's word: in no count. */}
+            {classData.paused > 0 && (
+              <p className="text-xs text-muted">
+                {classData.paused} suspended or away
+              </p>
+            )}
           </Card>
           <Card>
             <p className="text-xs text-muted">Present</p>
@@ -233,23 +241,30 @@ export default function TeacherAttendancePage() {
                       <p className="text-xs text-muted font-mono">{s.studentIdNumber}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => toggleStatus(s.studentId)}
-                    // Without this a screen reader hears "Present" thirty
-                    // times over with no idea whose register it is reading.
-                    aria-label={`Attendance for ${s.name}`}
-                    className="flex items-center gap-1"
-                  >
-                    {status === "PRESENT" ? (
-                      <Badge variant="success"><Check className="mr-1 h-3 w-3" /> Present</Badge>
-                    ) : status === "LATE" ? (
-                      <Badge variant="warning"><Clock className="mr-1 h-3 w-3" /> Late</Badge>
-                    ) : status === "ABSENT" ? (
-                      <Badge variant="danger"><X className="mr-1 h-3 w-3" /> Absent</Badge>
-                    ) : (
-                      <Badge>Tap to mark</Badge>
-                    )}
-                  </button>
+                  {s.pause ? (
+                    /* Neither present nor absent: the family is not told
+                       their child was missing on a day the school sent them
+                       home. */
+                    <Badge>{pauseWords(s.pause)}</Badge>
+                  ) : (
+                    <button
+                      onClick={() => toggleStatus(s.studentId)}
+                      // Without this a screen reader hears "Present" thirty
+                      // times over with no idea whose register it is reading.
+                      aria-label={`Attendance for ${s.name}`}
+                      className="flex items-center gap-1"
+                    >
+                      {status === "PRESENT" ? (
+                        <Badge variant="success"><Check className="mr-1 h-3 w-3" /> Present</Badge>
+                      ) : status === "LATE" ? (
+                        <Badge variant="warning"><Clock className="mr-1 h-3 w-3" /> Late</Badge>
+                      ) : status === "ABSENT" ? (
+                        <Badge variant="danger"><X className="mr-1 h-3 w-3" /> Absent</Badge>
+                      ) : (
+                        <Badge>Tap to mark</Badge>
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })}

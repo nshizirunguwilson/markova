@@ -12,6 +12,7 @@ import {
   useBulkAttendance,
 } from '@/hooks/useApi';
 import { useOfflineQueue } from '@/hooks/useOfflineQueue';
+import { pauseWords } from '@/lib/standing';
 import { useTheme } from '@/design';
 import { curve, gutter, radius, space, touch } from '@/design/tokens';
 import { Avatar, Button, Empty, LoadingRows, Segmented, Text, Meter } from '@/ui';
@@ -69,17 +70,26 @@ export default function Register() {
 
   const [marks, setMarks] = useState<Record<string, Status>>({});
 
+  /* Suspended or away today: on the register, saying so, and never marked.
+     Their family is not told they were absent on a day the school sent them
+     home. */
+  const paused = useMemo(
+    () => new Map((existing ?? []).filter((r) => r.pause).map((r) => [r.studentId, r.pause!])),
+    [existing],
+  );
+
   // Present until somebody says otherwise. If a register was already taken
   // today, start from what is on record rather than overwriting it blind.
   useEffect(() => {
     if (!students?.length) return;
     const seed: Record<string, Status> = {};
     for (const s of students as any[]) {
-      const already = (existing as any[] | undefined)?.find((r) => r.studentId === s.id);
+      if (paused.has(s.id)) continue;
+      const already = existing?.find((r) => r.studentId === s.id);
       seed[s.id] = (already?.status as Status) ?? 'PRESENT';
     }
     setMarks(seed);
-  }, [students, existing]);
+  }, [students, existing, paused]);
 
   const counts = useMemo(() => {
     const values = Object.values(marks);
@@ -137,7 +147,9 @@ export default function Register() {
         <Meter
           value={counts.present + counts.late}
           max={counts.total || 1}
-          label={`${counts.present} present, ${counts.late} late, ${counts.absent} away`}
+          label={`${counts.present} present, ${counts.late} late, ${counts.absent} absent${
+            paused.size ? `, ${paused.size} suspended or away` : ''
+          }`}
           tone={
             counts.absent === 0 ? 'positive' : counts.absent > counts.total / 4 ? 'critical' : 'caution'
           }
@@ -164,6 +176,7 @@ export default function Register() {
             item.user?.lastName ?? ''
           }`.trim();
           const current = marks[item.id] ?? 'PRESENT';
+          const pause = paused.get(item.id);
 
           return (
             <View
@@ -188,29 +201,35 @@ export default function Register() {
                 ) : null}
               </View>
 
-              <View style={{ flexDirection: 'row', gap: space.xs }}>
-                <Toggle
-                  active={current === 'PRESENT'}
-                  tone="positive"
-                  icon={Check}
-                  label={`Mark ${name} present`}
-                  onPress={() => set(item.id, 'PRESENT')}
-                />
-                <Toggle
-                  active={current === 'LATE'}
-                  tone="caution"
-                  icon={Clock}
-                  label={`Mark ${name} late`}
-                  onPress={() => set(item.id, 'LATE')}
-                />
-                <Toggle
-                  active={current === 'ABSENT'}
-                  tone="critical"
-                  icon={X}
-                  label={`Mark ${name} absent`}
-                  onPress={() => set(item.id, 'ABSENT')}
-                />
-              </View>
+              {pause ? (
+                <Text variant="footnote" tone="tertiary" testID={`paused-${item.id}`}>
+                  {pauseWords(pause)}
+                </Text>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: space.xs }}>
+                  <Toggle
+                    active={current === 'PRESENT'}
+                    tone="positive"
+                    icon={Check}
+                    label={`Mark ${name} present`}
+                    onPress={() => set(item.id, 'PRESENT')}
+                  />
+                  <Toggle
+                    active={current === 'LATE'}
+                    tone="caution"
+                    icon={Clock}
+                    label={`Mark ${name} late`}
+                    onPress={() => set(item.id, 'LATE')}
+                  />
+                  <Toggle
+                    active={current === 'ABSENT'}
+                    tone="critical"
+                    icon={X}
+                    label={`Mark ${name} absent`}
+                    onPress={() => set(item.id, 'ABSENT')}
+                  />
+                </View>
+              )}
             </View>
           );
         }}

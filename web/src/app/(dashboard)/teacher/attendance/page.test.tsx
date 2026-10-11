@@ -597,3 +597,46 @@ describe("what the register refuses to do", () => {
     ).toBeUndefined();
   }, 20000);
 });
+
+/**
+ * A student suspended or away is on the register, saying so, and is never
+ * marked: not by a tap, and not by "Mark All Present".
+ */
+describe("a student out of school on the register", () => {
+  const withOneSuspended = () => {
+    const r = register([null, null]);
+    r.students[1] = {
+      ...r.students[1],
+      pause: { kind: "SUSPENDED", endsOn: "2026-08-25T00:00:00.000Z" },
+    } as never;
+    return { ...r, total: 1, paused: 1 };
+  };
+
+  it("says suspended until when, with nothing to tap", async () => {
+    serve(h.api, { ...routes, "/attendance/class": withOneSuspended() });
+    await mount();
+    await pickClass();
+    expect(await screen.findByText("Suspended until 25 August")).toBeInTheDocument();
+    expect(screen.getByText("1 suspended or away")).toBeInTheDocument();
+    const name = `${students[1].user.firstName} ${students[1].user.lastName}`;
+    expect(screen.queryByRole("button", { name: `Attendance for ${name}` })).toBeNull();
+  }, 20000);
+
+  it("leaves them out of Mark All Present and out of what is saved", async () => {
+    serve(h.api, { ...routes, "/attendance/class": withOneSuspended() });
+    h.api.post.mockResolvedValue({ data: { count: 1, records: [], skipped: [] } });
+    await mount();
+    await pickClass();
+    await screen.findByText("Suspended until 25 August");
+    fireEvent.click(screen.getByRole("button", { name: /Mark All Present/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Save/ }));
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/attendance/bulk",
+        expect.objectContaining({
+          records: [{ studentId: students[0].id, status: "PRESENT" }],
+        }),
+      ),
+    );
+  }, 20000);
+});

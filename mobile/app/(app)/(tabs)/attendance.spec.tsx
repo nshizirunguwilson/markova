@@ -54,7 +54,8 @@ const classroom = (over: Record<string, unknown> = {}) =>
       student('2', 'Eric'),
       student('3', 'Divine'),
     ],
-    '/attendance/class': [],
+    // The API's reply: a summary, with the list in `students`.
+    '/attendance/class': { students: [] },
     '/attendance/bulk': { saved: true },
     ...over,
   });
@@ -89,7 +90,7 @@ describe('everyone starts present', () => {
     await waitForRoll(screen);
 
     await waitFor(() =>
-      expect(screen.getByText('3 present, 0 late, 0 away')).toBeTruthy(),
+      expect(screen.getByText('3 present, 0 late, 0 absent')).toBeTruthy(),
     );
   });
 
@@ -108,17 +109,19 @@ describe('everyone starts present', () => {
    */
   it('starts from a register already taken today', async () => {
     classroom({
-      '/attendance/class': [
-        { studentId: '1', status: 'ABSENT' },
-        { studentId: '2', status: 'LATE' },
-      ],
+      '/attendance/class': {
+        students: [
+          { studentId: '1', status: 'ABSENT' },
+          { studentId: '2', status: 'LATE' },
+        ],
+      },
     });
 
     const screen = await open();
     await waitForRoll(screen);
 
     await waitFor(() =>
-      expect(screen.getByText('1 present, 1 late, 1 away')).toBeTruthy(),
+      expect(screen.getByText('1 present, 1 late, 1 absent')).toBeTruthy(),
     );
   });
 
@@ -181,7 +184,7 @@ describe('marking the exceptions', () => {
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase absent'));
 
     await waitFor(() =>
-      expect(screen.getByText('2 present, 0 late, 1 away')).toBeTruthy(),
+      expect(screen.getByText('2 present, 0 late, 1 absent')).toBeTruthy(),
     );
   });
 
@@ -192,7 +195,7 @@ describe('marking the exceptions', () => {
     await fireEvent.press(screen.getByLabelText('Mark Eric Uwase late'));
 
     await waitFor(() =>
-      expect(screen.getByText('2 present, 1 late, 0 away')).toBeTruthy(),
+      expect(screen.getByText('2 present, 1 late, 0 absent')).toBeTruthy(),
     );
   });
 
@@ -204,7 +207,7 @@ describe('marking the exceptions', () => {
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase present'));
 
     await waitFor(() =>
-      expect(screen.getByText('3 present, 0 late, 0 away')).toBeTruthy(),
+      expect(screen.getByText('3 present, 0 late, 0 absent')).toBeTruthy(),
     );
   });
 
@@ -250,7 +253,7 @@ describe('marking the exceptions', () => {
     await fireEvent.press(screen.getByLabelText('Mark Aline Uwase absent'));
 
     await waitFor(() =>
-      expect(screen.getByText('2 present, 0 late, 1 away')).toBeTruthy(),
+      expect(screen.getByText('2 present, 0 late, 1 absent')).toBeTruthy(),
     );
     expect(Haptics.selectionAsync).not.toHaveBeenCalled();
     back();
@@ -273,7 +276,7 @@ describe('the shape of the class at a glance', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByLabelText('3 present, 0 late, 0 away'),
+        screen.getByLabelText('3 present, 0 late, 0 absent'),
       ).toBeTruthy(),
     );
     expect(meterFill(screen).backgroundColor).toBe(
@@ -528,5 +531,61 @@ describe('saving it', () => {
     await waitForRoll(screen);
 
     expect(screen.queryByText(/waiting to send/)).toBeNull();
+  });
+});
+
+/**
+ * A student suspended or away today is on the register, saying so, with
+ * nothing to tap, and is left out of what is saved: their family is not told
+ * they were absent on a day the school sent them home.
+ */
+describe('a student out of school on the register', () => {
+  const withSuspended = () =>
+    classroom({
+      '/attendance/class': {
+        students: [
+          {
+            studentId: '3',
+            status: null,
+            pause: {
+              kind: 'SUSPENDED',
+              label: 'Suspended',
+              endsOn: '2026-10-15T00:00:00.000Z',
+            },
+          },
+        ],
+      },
+    });
+
+  it('says suspended until when, with nothing to tap', async () => {
+    withSuspended();
+    const screen = await open();
+    await waitForRoll(screen);
+    await waitFor(() =>
+      expect(screen.getByTestId('paused-3')).toHaveTextContent('Suspended until 15 October'),
+    );
+    expect(screen.queryByLabelText('Mark Divine Uwase absent')).toBeNull();
+    expect(
+      screen.getByText('2 present, 0 late, 0 absent, 1 suspended or away'),
+    ).toBeTruthy();
+  });
+
+  it('leaves them out of what is saved', async () => {
+    withSuspended();
+    const screen = await open();
+    await waitForRoll(screen);
+    await waitFor(() => expect(screen.getByTestId('paused-3')).toBeTruthy());
+    fireEvent.press(screen.getByText('Save the register'));
+    await waitFor(() =>
+      expect(http.post).toHaveBeenCalledWith(
+        '/attendance/bulk',
+        expect.objectContaining({
+          records: [
+            { studentId: '1', status: 'PRESENT' },
+            { studentId: '2', status: 'PRESENT' },
+          ],
+        }),
+      ),
+    );
   });
 });
