@@ -111,8 +111,8 @@ export default function TeacherMarksPage() {
 
   // Load pending count from IndexedDB on mount
   useEffect(() => {
-    getPendingCount().then(setPendingCount).catch(() => {});
-  }, []);
+    getPendingCount(user?.id).then(setPendingCount).catch(() => {});
+  }, [user?.id]);
 
   // Sync IndexedDB queue when back online
   useEffect(() => {
@@ -122,7 +122,7 @@ export default function TeacherMarksPage() {
 
   const syncOfflineMarks = async () => {
     try {
-      const pending = await getPendingMarks();
+      const pending = await getPendingMarks(user?.id);
       if (pending.length === 0) return;
 
       setSyncing(true);
@@ -130,7 +130,7 @@ export default function TeacherMarksPage() {
 
       let successCount = 0;
       for (const entry of pending) {
-        const { id, savedAt: _savedAt, ...payload } = entry;
+        const { id, savedAt: _savedAt, owner: _owner, ...payload } = entry;
         try {
           await api.post("/marks/batch", payload);
           // Dropped one at a time, as it lands. The queue used to be cleared
@@ -146,7 +146,7 @@ export default function TeacherMarksPage() {
 
       // Read back rather than assume: an entry saved while the loop was
       // running is still waiting, and the badge has to say so.
-      setPendingCount(await getPendingCount().catch(() => 0));
+      setPendingCount(await getPendingCount(user?.id).catch(() => 0));
 
       if (successCount === pending.length) {
         toast.success(`All ${successCount} offline entries synced`);
@@ -203,8 +203,8 @@ export default function TeacherMarksPage() {
     };
 
     if (!isOnline) {
-      savePendingMarks(payload)
-        .then(() => getPendingCount())
+      savePendingMarks(payload, user?.id)
+        .then(() => getPendingCount(user?.id))
         .then((count) => {
           setPendingCount(count);
           setScores((prev) => prev.map((s) => ({ ...s, dirty: false })));

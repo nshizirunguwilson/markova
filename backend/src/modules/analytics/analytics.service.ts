@@ -11,7 +11,7 @@ import {
   gradeFor,
   overallGrade,
 } from '../../common/grading';
-import { RedisService } from '../../redis/redis.service';
+import { CacheService } from '../../common/cache.service';
 
 /** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
 const CACHE_TTL_SECONDS = 60;
@@ -20,27 +20,20 @@ const CACHE_TTL_SECONDS = 60;
 export class AnalyticsService {
   constructor(
     private prisma: PrismaService,
-    private redis: RedisService,
+    private cache: CacheService,
   ) {}
 
   /**
    * Best-effort read-through cache: a Redis outage must never break
    * analytics, so cache errors fall through to a live compute.
+   *
+   * Through the shared cache, which keeps each school's answer under its own
+   * key. This had a cache of its own whose keys named only the question
+   * ("analytics:library"), so with several schools one school's figures were
+   * answered to the next for a minute.
    */
-  private async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
-    try {
-      const hit = await this.redis.get(key);
-      if (hit) return JSON.parse(hit) as T;
-    } catch {
-      /* fall through to compute */
-    }
-    const value = await compute();
-    try {
-      await this.redis.set(key, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
-    } catch {
-      /* caching is optional */
-    }
-    return value;
+  private cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    return this.cache.remember(key, CACHE_TTL_SECONDS, compute);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -2,6 +2,8 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 import { RedisService } from '../../redis/redis.service';
+import { CacheService } from '../../common/cache.service';
+import { withSchool } from '../../prisma/request-context';
 
 /**
  * The numbers a head teacher makes decisions on.
@@ -19,7 +21,10 @@ describe('AnalyticsService', () => {
   beforeEach(() => {
     prisma = createMockPrisma();
     redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
-    service = new AnalyticsService(prisma, redis as unknown as RedisService);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService(redis as unknown as RedisService),
+    );
   });
 
   /**
@@ -27,9 +32,12 @@ describe('AnalyticsService', () => {
    * a choice; failing to answer at all is not.
    */
   describe('the cache in front of every aggregate', () => {
+    /* The cache keeps each school's answers apart, so it works inside one. */
+    const inKH = <T>(fn: () => Promise<T>) => withSchool('kh', fn);
+
     it('answers from the cache without touching the database', async () => {
       redis.get.mockResolvedValue(JSON.stringify({ totalStudents: 700 }));
-      const result = await service.getAdminDashboard();
+      const result = await inKH(() => service.getAdminDashboard());
       expect(result).toEqual({ totalStudents: 700 });
       expect(prisma.student.count).not.toHaveBeenCalled();
     });
@@ -42,7 +50,7 @@ describe('AnalyticsService', () => {
       prisma.user.count.mockResolvedValue(2000);
       prisma.subject.count.mockResolvedValue(20);
 
-      const result = await service.getAdminDashboard();
+      const result = await inKH(() => service.getAdminDashboard());
       expect(result.totalStudents).toBe(760);
       expect(redis.set).toHaveBeenCalled();
     });
@@ -82,10 +90,28 @@ describe('AnalyticsService', () => {
       prisma.user.count.mockResolvedValue(0);
       prisma.subject.count.mockResolvedValue(0);
 
-      await service.getAdminDashboard('year-1', 'term-1');
+      await inKH(() => service.getAdminDashboard('year-1', 'term-1'));
       expect(redis.get).toHaveBeenCalledWith(
-        'analytics:admin-dashboard:year-1:term-1',
+        'school:kh:analytics:admin-dashboard:year-1:term-1',
       );
+    });
+
+    /* One school's library figures were answered to the next. */
+    it("never answers one school with another's figures", async () => {
+      prisma.book.count.mockResolvedValue(0);
+      prisma.bookLoan.count.mockResolvedValue(0);
+      prisma.bookLoan.groupBy.mockResolvedValue([]);
+      prisma.book.groupBy.mockResolvedValue([]);
+      prisma.bookLoan.findMany.mockResolvedValue([]);
+      prisma.book.findMany.mockResolvedValue([]);
+      await inKH(() => service.getLibraryStats().catch(() => null));
+      await withSchool('lycee', () =>
+        service.getLibraryStats().catch(() => null),
+      );
+      expect(redis.get.mock.calls.map((c) => c[0])).toEqual([
+        'school:kh:analytics:library',
+        'school:lycee:analytics:library',
+      ]);
     });
   });
 
@@ -544,10 +570,13 @@ describe('one student’s profile', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as never);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as never),
+    );
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.termResult.findMany.mockResolvedValue([]);
@@ -801,10 +830,13 @@ describe('a teacher’s class', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as never);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as never),
+    );
     prisma.student.findMany.mockResolvedValue([{ id: 's-1', user: {} }]);
     prisma.mark.findMany.mockResolvedValue([]);
     prisma.termResult.findMany.mockResolvedValue([]);
@@ -949,10 +981,13 @@ describe('a student’s own numbers', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as never);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as never),
+    );
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       classSectionId: 'section-1',
@@ -1021,10 +1056,13 @@ describe('a parent’s view of the year', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as never);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as never),
+    );
     prisma.attendance.findMany.mockResolvedValue([]);
   });
 
@@ -1136,10 +1174,13 @@ describe('a profile assembled from thin records', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as never);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as never),
+    );
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.attendance.findMany.mockResolvedValue([]);
     prisma.student.count.mockResolvedValue(32);
@@ -1233,10 +1274,13 @@ describe('analytics a student may not see yet', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new AnalyticsService(prisma, {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn(),
-    } as unknown as RedisService);
+    service = new AnalyticsService(
+      prisma,
+      new CacheService({
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn(),
+      } as unknown as RedisService),
+    );
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       classSectionId: 'section-1',

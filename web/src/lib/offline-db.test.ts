@@ -290,3 +290,28 @@ describe("when IndexedDB refuses", () => {
     await expect(getPendingCount()).rejects.toBeTruthy();
   });
 });
+
+/**
+ * Whose a queued batch is. The queue outlives a switch of school and a sign
+ * out, so each batch is kept for the school record that saved it.
+ */
+describe("a queue shared by more than one school record", () => {
+  it("shows each record only its own batches", async () => {
+    await savePendingMarks(marks("student-1", 82), "teacher-at-kh");
+    await savePendingMarks(marks("student-2", 67), "teacher-at-lycee");
+    const kh = await getPendingMarks("teacher-at-kh");
+    expect(kh).toHaveLength(1);
+    expect(kh[0].owner).toBe("teacher-at-kh");
+    await expect(getPendingCount("teacher-at-lycee")).resolves.toBe(1);
+  });
+
+  it("still shows batches saved before they had an owner", async () => {
+    await savePendingMarks(marks("student-1", 82));
+    await expect(getPendingCount("teacher-at-kh")).resolves.toBe(1);
+  });
+
+  it("shows nobody else's to a record with none of its own", async () => {
+    await savePendingMarks(marks("student-1", 82), "teacher-at-kh");
+    await expect(getPendingMarks("someone-else")).resolves.toEqual([]);
+  });
+});

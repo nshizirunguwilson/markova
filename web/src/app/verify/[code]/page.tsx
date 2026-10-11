@@ -42,7 +42,7 @@ export default async function VerifyReportPage({
           </h1>
           <p className="mt-2 text-sm text-muted">
             The code <span className="font-medium text-foreground">{code}</span>{" "}
-            does not match any report issued by this school. The printed copy
+            does not match any report issued by a school on Markova. The printed copy
             you are holding should be treated as invalid.
           </p>
         </div>
@@ -64,7 +64,14 @@ export default async function VerifyReportPage({
             <p className="mt-0.5 text-sm text-muted">
               Code <span className="font-medium text-foreground">{report.verification?.code}</span>{" "}
               belongs to {report.student?.name} ({report.student?.class},{" "}
-              {report.term?.name} {report.term?.academicYear}). Below is the
+              {report.term?.name} {report.term?.academicYear})
+              {report.issuedBy ? (
+                <>
+                  , issued by{" "}
+                  <span className="font-medium text-foreground">{report.issuedBy}</span>
+                </>
+              ) : null}
+              . Below is the
               digital original. A printed copy is valid only if it matches this
               document exactly.
             </p>

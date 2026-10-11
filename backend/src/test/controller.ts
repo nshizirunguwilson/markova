@@ -119,16 +119,19 @@ export async function controllerHarness<T>(
   };
 }
 
-/** The signed-in user a @CurrentUser() param would receive. */
-export const admin = { id: 'user-1', role: 'ADMIN' };
+/** The signed-in user a @CurrentUser() param would receive. Everybody signed
+ *  in is in a school, which is where their uploads are stored. */
+export const admin = { id: 'user-1', role: 'ADMIN', schoolId: 'school-1' };
 export const teacher = {
   id: 'user-2',
   role: 'TEACHER',
+  schoolId: 'school-1',
   teacher: { id: 'teacher-1' },
 };
-export const parent = { id: 'user-3', role: 'PARENT' };
+export const parent = { id: 'user-3', role: 'PARENT', schoolId: 'school-1' };
 export const student = {
   id: 'user-4',
   role: 'STUDENT',
+  schoolId: 'school-1',
   studentId: 'student-1',
 };

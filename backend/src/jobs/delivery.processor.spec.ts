@@ -1,5 +1,6 @@
 import { DELIVERY_ATTEMPTS, DeliveryJob } from './jobs.constants';
 import { DeliveryProcessor } from './delivery.processor';
+import { currentRequest } from '../prisma/request-context';
 
 /**
  * Sending the messages, with real retries and a failure that is written down.
@@ -23,6 +24,35 @@ describe('the delivery worker', () => {
     jest.clearAllMocks();
     notifications.sendEmailToAddress.mockResolvedValue(undefined);
     notifications.sendSMSToPhone.mockResolvedValue(undefined);
+  });
+
+  /* Inside the school that queued it, so the message is signed by it. */
+  it('sends inside the school that queued it', async () => {
+    let seen: string | undefined;
+    notifications.sendSMSToPhone.mockImplementation(() => {
+      seen = currentRequest()?.schoolId;
+      return Promise.resolve();
+    });
+    await worker.process(
+      job(DeliveryJob.SMS, {
+        phone: '+250788000001',
+        message: 'Overdue',
+        schoolId: 'school-2',
+      }),
+    );
+    expect(seen).toBe('school-2');
+  });
+
+  it('sends outside any school a message that had none', async () => {
+    let seen: unknown = 'unset';
+    notifications.sendSMSToPhone.mockImplementation(() => {
+      seen = currentRequest();
+      return Promise.resolve();
+    });
+    await worker.process(
+      job(DeliveryJob.SMS, { phone: '+250788000001', message: 'Code 1' }),
+    );
+    expect(seen).toBeNull();
   });
 
   it('sends an email', async () => {

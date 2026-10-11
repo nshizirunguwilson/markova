@@ -1,3 +1,4 @@
+import { withSchool } from '../prisma/request-context';
 import { DELIVERY_ATTEMPTS, DeliveryJob } from './jobs.constants';
 import { DeliveryQueue } from './delivery.queue';
 
@@ -30,6 +31,20 @@ describe('queueing a message', () => {
       expect.objectContaining({ to: 'a@b.com', subject: 'Hello' }),
       expect.anything(),
     );
+  });
+
+  /* The worker sends it inside the school that queued it, so a school's
+     message is signed with the school's name. */
+  it('carries the school it was queued in', async () => {
+    await withSchool('school-2', () =>
+      delivery.sms({ phone: '+250788000001', message: 'Overdue' }),
+    );
+    expect(queue.add.mock.calls[0][1]).toMatchObject({ schoolId: 'school-2' });
+  });
+
+  it('carries no school for a message about a login', async () => {
+    await delivery.email({ to: 'a@b.com', subject: 'Code', body: '1' });
+    expect(queue.add.mock.calls[0][1]).not.toHaveProperty('schoolId');
   });
 
   it('queues an SMS the same way', async () => {

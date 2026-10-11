@@ -263,6 +263,39 @@ describe("entering marks while offline", () => {
     }, { timeout: 5000 });
   }, 20000);
 
+  /* Only this school record's queue: one saved under the same teacher's
+     record at another school stays put, and its owner is not sent to the
+     API, which refuses fields it does not know. */
+  it("sends only its own queue, without the owner tag", async () => {
+    h.offline.get.mockResolvedValue([
+      {
+        id: 1,
+        savedAt: 1,
+        owner: "user-1",
+        classSectionId: "section-1",
+        termId: "term-1",
+        entries: [],
+      },
+    ]);
+    h.offline.count.mockResolvedValue(1);
+    h.api.post.mockResolvedValue({ data: { saved: 1 } });
+
+    await mount();
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
+
+    await waitFor(() => expect(h.offline.get).toHaveBeenCalled());
+    const [owner] = h.offline.get.mock.calls[0] as unknown[];
+    expect(typeof owner).toBe("string");
+    await waitFor(() => {
+      const batch = h.api.post.mock.calls.find((c) =>
+        String(c[0]).includes("/marks/batch"),
+      );
+      expect(batch?.[1]).not.toHaveProperty("owner");
+    }, { timeout: 5000 });
+  }, 20000);
+
   it("takes each entry out of the queue once it has been sent", async () => {
     h.offline.get.mockResolvedValue([
       { id: 1, savedAt: 1, classSectionId: "section-1", termId: "term-1", entries: [] },

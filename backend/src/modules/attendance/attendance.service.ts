@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { currentSchoolName } from '../../common/school-name';
 import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
 import { DeliveryQueue } from '../../jobs/delivery.queue';
@@ -870,7 +871,7 @@ export class AttendanceService {
             await this.delivery.sms({
               phone: link.parent.phone!,
               message:
-                `Markova: ${student.name} has missed ${student.absentDays} of ` +
+                `${await currentSchoolName(this.prisma)}: ${student.name} has missed ${student.absentDays} of ` +
                 `${student.totalDays} school days. Please contact the school.`,
             });
           }

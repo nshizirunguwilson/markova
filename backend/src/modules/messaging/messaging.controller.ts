@@ -1,3 +1,4 @@
+import { schoolStorage, uploadUrl } from '../../common/uploads';
 import {
   Controller,
   Get,
@@ -15,7 +16,6 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
@@ -57,13 +57,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
  */
 const ATTACHMENT_REFUSAL = 'That kind of file cannot be sent';
 
-const attachmentStorage = diskStorage({
-  destination: './uploads/attachments',
-  // The extension comes from the accepted mime type, never from the uploaded
-  // filename. Express serves /uploads by extension, so a file allowed to name
-  // itself comes back with whatever content type that implies.
-  filename: filenameFor('attachment', uuidv4, ATTACHMENT_REFUSAL),
-});
+// Into the school's own attachments folder. The extension comes from the
+// accepted mime type, never from the uploaded filename. Express serves
+// /uploads by extension, so a file allowed to name itself comes back with
+// whatever content type that implies.
+const attachmentStorage = schoolStorage(
+  'attachments',
+  filenameFor('attachment', uuidv4, ATTACHMENT_REFUSAL),
+);
 
 @ApiTags('Messaging')
 @Controller('messaging')
@@ -277,7 +278,10 @@ export class MessagingController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a file to attach to a message' })
-  uploadAttachment(@UploadedFile() file: Express.Multer.File) {
+  uploadAttachment(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('schoolId') schoolId: string,
+  ) {
     if (!file) throw new BadRequestException('No file was sent');
 
     // A video may be 50MB; a photograph may not. Over the cap for its own
@@ -292,7 +296,7 @@ export class MessagingController {
     validateUploadedAttachment(file.path, file.mimetype);
 
     return {
-      fileUrl: `/uploads/attachments/${file.filename}`,
+      fileUrl: uploadUrl(schoolId, 'attachments', file.filename),
       // The name a person sees, kept apart from the name on disk.
       fileName: file.originalname,
       size: file.size,

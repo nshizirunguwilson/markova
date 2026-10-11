@@ -380,13 +380,15 @@ export function retireStoredFile(
   },
   resolve: (p: string) => string,
   now: () => Date = () => new Date(),
+  /** Where retired files go: each school has its own (see uploads.ts). */
+  atticUrl = '/uploads/replaced',
 ): string | null {
   if (!fileUrl) return null;
   try {
     const from = resolve(fileUrl);
     if (!fs.existsSync(from)) return null;
 
-    const attic = resolve('/uploads/replaced');
+    const attic = resolve(atticUrl);
     fs.mkdirSync(attic, { recursive: true });
 
     // 2026-08-28T19-41-07 - sortable, and legal in a filename.

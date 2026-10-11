@@ -5,7 +5,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
-import { join } from 'path';
+import { uploadRoot } from './common/uploads';
 
 import { RedisIoAdapter } from './common/redis-io.adapter';
 import { AppModule } from './app.module';
@@ -83,24 +83,21 @@ async function bootstrap() {
     }),
   );
 
-  app.useStaticAssets(
-    join(process.cwd(), process.env.UPLOAD_DIR || 'uploads'),
-    {
-      prefix: '/uploads/',
-      setHeaders(res) {
-        /*
+  app.useStaticAssets(uploadRoot(), {
+    prefix: '/uploads/',
+    setHeaders(res) {
+      /*
           Belt and braces on top of Helmet's defaults, aimed at this directory
           specifically. `nosniff` stops a browser second-guessing the declared
           type, and the sandbox CSP means that even if something scriptable
           did end up here it would run in an opaque origin with no access to
           the API's cookies or storage.
         */
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-        res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      },
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     },
-  );
+  });
   app.use(compression());
 
   app.useGlobalPipes(

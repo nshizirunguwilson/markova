@@ -76,6 +76,21 @@ export class MessagingGateway
     return ids.filter((id) => id !== exceptUserId).map((id) => `user:${id}`);
   }
 
+  /**
+   * The other participants' rooms, but only when `userId` is in the
+   * conversation too. Somebody outside a conversation cannot be typing in it,
+   * and must not be able to make its members' screens say so.
+   */
+  private async othersIn(
+    conversationId: string,
+    userId: string,
+  ): Promise<string[]> {
+    const ids =
+      await this.messagingService.getConversationParticipantIds(conversationId);
+    if (!ids.includes(userId)) return [];
+    return ids.filter((id) => id !== userId).map((id) => `user:${id}`);
+  }
+
   /** Broadcast a newly-created message to each participant. */
   async broadcastNewMessage(conversationId: string, message: unknown) {
     const rooms = await this.participantRooms(conversationId);
@@ -370,7 +385,7 @@ export class MessagingGateway
       // not carry a name, so this used to be the empty string every time.
       const userName = client.data.displayName || '';
 
-      const rooms = await this.participantRooms(data.conversationId, userId);
+      const rooms = await this.othersIn(data.conversationId, userId);
       if (rooms.length === 0) return;
       this.server.to(rooms).emit('userTyping', {
         conversationId: data.conversationId,
@@ -388,7 +403,7 @@ export class MessagingGateway
     return this.asClient(client, async () => {
       const userId = client.data.user.sub;
 
-      const rooms = await this.participantRooms(data.conversationId, userId);
+      const rooms = await this.othersIn(data.conversationId, userId);
       if (rooms.length === 0) return;
       this.server.to(rooms).emit('userStopTyping', {
         conversationId: data.conversationId,
@@ -401,12 +416,27 @@ export class MessagingGateway
   // JOIN CONVERSATION (for newly created conversations)
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /*
+    Only into a conversation the person is in. Nothing is broadcast to these
+    rooms today (everything goes to each participant's own room), but a room
+    anybody can walk into is a leak waiting for the first line of code that
+    does use it, and it would reach across schools: the check runs inside the
+    person's school, where another school's conversation does not exist.
+  */
   @SubscribeMessage('joinConversation')
-  handleJoinConversation(
+  async handleJoinConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: string },
   ) {
-    void client.join(`conv:${data.conversationId}`);
+    return this.asClient(client, async () => {
+      const userId = client.data.user.sub;
+      const ids = await this.messagingService.getConversationParticipantIds(
+        data.conversationId,
+      );
+      if (ids.includes(userId)) {
+        await client.join(`conv:${data.conversationId}`);
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

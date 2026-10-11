@@ -128,6 +128,26 @@ describe("public report verification", () => {
     vi.unstubAllGlobals();
   });
 
+  /* With many schools on Markova, the report says whose it is. */
+  it("names the school that issued the report", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          student: { name: "Keza Habimana", class: "Senior 1 A" },
+          term: { name: "Term 1", academicYear: "2026" },
+          verification: { code: "123456789012" },
+          issuedBy: "G.S. Umucyo",
+          html: "<p>report</p>",
+        }),
+      })),
+    );
+    await renderVerify("123456789012");
+    expect(document.body.textContent).toContain("issued by G.S. Umucyo");
+    vi.unstubAllGlobals();
+  });
+
   it("says so when the code is not recognised", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => null })));
     await renderVerify("000000000000");

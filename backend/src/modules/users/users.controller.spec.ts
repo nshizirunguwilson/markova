@@ -150,7 +150,7 @@ describe('UsersController', () => {
         name: 'admin',
         call: (c) => c.uploadPhoto('user-9', { filename: 'a.png' }, admin),
         calls: 'updatePhoto',
-        withArgs: ['user-9', '/uploads/photos/a.png'],
+        withArgs: ['user-9', '/uploads/schools/school-1/photos/a.png'],
       });
     });
 
@@ -273,7 +273,7 @@ describe('UsersController', () => {
         call: (c) =>
           c.uploadSignature(parent.id, { filename: 'sig.png' }, parent),
         calls: 'updateSignature',
-        withArgs: [parent.id, '/uploads/signatures/sig.png'],
+        withArgs: [parent.id, '/uploads/schools/school-1/signatures/sig.png'],
       });
     });
 

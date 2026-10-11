@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { currentSchoolName } from '../../common/school-name';
 import { PaginatedResponse } from '../../common/dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DeliveryQueue } from '../../jobs/delivery.queue';
@@ -360,12 +361,13 @@ export class LibraryService {
                  <p>Please return them to the library. There is nothing to pay.</p>`,
         });
       } else if (person.phone) {
+        const school = await currentSchoolName(this.prisma);
         await this.delivery.sms({
           phone: person.phone,
           message:
             loans.length === 1
-              ? `Markova library: "${loans[0].book.title}" is overdue. Please return it.`
-              : `Markova library: ${loans.length} books are overdue. Please return them.`,
+              ? `${school} library: "${loans[0].book.title}" is overdue. Please return it.`
+              : `${school} library: ${loans.length} books are overdue. Please return them.`,
         });
       }
       reminded += 1;

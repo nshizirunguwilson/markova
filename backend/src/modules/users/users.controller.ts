@@ -23,9 +23,6 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { join } from 'path';
-import { existsSync, mkdirSync, renameSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -42,28 +39,33 @@ import { RolesGuard } from '../../common/guards';
 import {
   fileFilterFor,
   filenameFor,
-  retireStoredFile,
   validateUploadedImage,
 } from '../../common/file-validation';
+import {
+  retireSchoolFile,
+  schoolStorage,
+  uploadUrl,
+} from '../../common/uploads';
 
 const PHOTO_REFUSAL = 'Only image files are allowed';
 
-const photoStorage = diskStorage({
-  destination: './uploads/photos',
-  // Extension comes from the accepted mime type, never from the uploaded
-  // filename. See storedFilename for what that prevented.
-  filename: filenameFor('image', uuidv4, PHOTO_REFUSAL),
-});
+// Into the school's own photos folder. The extension comes from the accepted
+// mime type, never from the uploaded filename. See storedFilename for what
+// that prevented.
+const photoStorage = schoolStorage(
+  'photos',
+  filenameFor('image', uuidv4, PHOTO_REFUSAL),
+);
 
 const SIGNATURE_REFUSAL = 'Only image files are allowed';
 
 /* Kept apart from the photographs. A signature is the one image on the
    system that is worth forging, and a directory of its own is what lets it
    be backed up, audited and swept separately from six hundred portraits. */
-const signatureStorage = diskStorage({
-  destination: './uploads/signatures',
-  filename: filenameFor('image', uuidv4, SIGNATURE_REFUSAL),
-});
+const signatureStorage = schoolStorage(
+  'signatures',
+  filenameFor('image', uuidv4, SIGNATURE_REFUSAL),
+);
 
 @ApiTags('Users')
 @Controller('users')
@@ -187,7 +189,7 @@ export class UsersController {
   async uploadPhoto(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() current: { id: string; role: string },
+    @CurrentUser() current: { id: string; role: string; schoolId: string },
   ) {
     // Non-admins may only change their own photo.
     if (current.role !== 'ADMIN' && current.id !== id) {
@@ -196,18 +198,14 @@ export class UsersController {
     if (!file) {
       throw new Error('Photo file is required');
     }
-    validateUploadedImage(join(process.cwd(), 'uploads/photos', file.filename));
+    validateUploadedImage(file.path);
     // The photo being replaced is moved aside rather than deleted: somebody
     // uploading over the wrong person's record should not destroy the only
     // copy of their photograph. A missing old file must never stop the new
     // one being saved either.
     const user = await this.usersService.findOne(id);
-    retireStoredFile(
-      user.photoUrl,
-      { existsSync, mkdirSync, renameSync },
-      (p) => join(process.cwd(), p),
-    );
-    const photoUrl = `/uploads/photos/${file.filename}`;
+    retireSchoolFile(current.schoolId, user.photoUrl);
+    const photoUrl = uploadUrl(current.schoolId, 'photos', file.filename);
     return this.usersService.updatePhoto(id, photoUrl);
   }
 
@@ -225,7 +223,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Remove a profile photo' })
   async removePhoto(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() current: { id: string; role: string },
+    @CurrentUser() current: { id: string; role: string; schoolId: string },
   ) {
     if (current.role !== 'ADMIN' && current.id !== id) {
       throw new ForbiddenException('You can only update your own photo');
@@ -234,11 +232,7 @@ export class UsersController {
        clearing the wrong person's record should not destroy the only copy of
        their photograph. */
     const user = await this.usersService.findOne(id);
-    retireStoredFile(
-      user.photoUrl,
-      { existsSync, mkdirSync, renameSync },
-      (p) => join(process.cwd(), p),
-    );
+    retireSchoolFile(current.schoolId, user.photoUrl);
     return this.usersService.updatePhoto(id, null);
   }
 
@@ -266,7 +260,7 @@ export class UsersController {
   async uploadSignature(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() current: { id: string; role: string },
+    @CurrentUser() current: { id: string; role: string; schoolId: string },
   ) {
     if (current.id !== id) {
       throw new ForbiddenException(
@@ -276,18 +270,12 @@ export class UsersController {
     if (!file) {
       throw new Error('Signature file is required');
     }
-    validateUploadedImage(
-      join(process.cwd(), 'uploads/signatures', file.filename),
-    );
+    validateUploadedImage(file.path);
     const user = await this.usersService.findOne(id);
-    retireStoredFile(
-      user.signatureUrl,
-      { existsSync, mkdirSync, renameSync },
-      (p) => join(process.cwd(), p),
-    );
+    retireSchoolFile(current.schoolId, user.signatureUrl);
     return this.usersService.updateSignature(
       id,
-      `/uploads/signatures/${file.filename}`,
+      uploadUrl(current.schoolId, 'signatures', file.filename),
     );
   }
 
@@ -297,7 +285,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Remove your own signature' })
   async removeSignature(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() current: { id: string; role: string },
+    @CurrentUser() current: { id: string; role: string; schoolId: string },
   ) {
     if (current.id !== id) {
       throw new ForbiddenException(
@@ -305,11 +293,7 @@ export class UsersController {
       );
     }
     const user = await this.usersService.findOne(id);
-    retireStoredFile(
-      user.signatureUrl,
-      { existsSync, mkdirSync, renameSync },
-      (p) => join(process.cwd(), p),
-    );
+    retireSchoolFile(current.schoolId, user.signatureUrl);
     return this.usersService.updateSignature(id, null);
   }
 

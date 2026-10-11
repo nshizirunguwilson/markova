@@ -1,3 +1,4 @@
+import { withSchool } from '../../prisma/request-context';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LibraryService } from './library.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -714,6 +715,27 @@ describe('the shelves in a catalogue nobody has categorised', () => {
         expect.objectContaining({ phone: '+250788100000' }),
       );
       expect(delivery.email).not.toHaveBeenCalled();
+    });
+
+    /* A parent with children at two schools has to know which library. */
+    it("puts the school's name on the text", async () => {
+      prisma.school.findUnique.mockResolvedValue({ name: 'G.S. Umucyo' });
+      prisma.bookLoan.findMany.mockResolvedValue([
+        {
+          ...loan('l-1', 'u-1', 'Biology'),
+          borrower: {
+            id: 'u-1',
+            firstName: 'Divine',
+            lastName: 'U',
+            email: null,
+            phone: '+250788100000',
+          },
+        },
+      ]);
+      await withSchool('school-2', () => service.remindOverdue());
+      expect(delivery.sms.mock.calls[0][0].message).toMatch(
+        /^G\.S\. Umucyo library: /,
+      );
     });
 
     /* Counted rather than skipped in silence: a librarian chasing six books

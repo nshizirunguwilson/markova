@@ -33,7 +33,14 @@ import {
   installBrandingAsset,
   shouldWriteConfig,
 } from '../src/common/branding-install';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'fs';
 import { randomUUID } from 'crypto';
 import { join } from 'path';
 import { TeacherQualification } from '@prisma/client';
@@ -678,6 +685,25 @@ async function clearDatabase() {
   );
 }
 
+/**
+ * Move the upload folders of schools from an earlier seed out of the way.
+ *
+ * The seed starts a fresh database, so the schools those folders belonged to
+ * are gone. They go to uploads/replaced/ rather than being deleted: a
+ * developer may have uploaded something there they still want.
+ */
+function setAsideOldSchoolFolders(keep: string) {
+  const schoolsDir = join(process.cwd(), 'uploads', 'schools');
+  if (!existsSync(schoolsDir)) return;
+  const attic = join(process.cwd(), 'uploads', 'replaced');
+  const when = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+  for (const id of readdirSync(schoolsDir)) {
+    if (id === keep) continue;
+    mkdirSync(attic, { recursive: true });
+    renameSync(join(schoolsDir, id), join(attic, `${when}-school-${id}`));
+  }
+}
+
 /** School one, made the school of the seed's one connection. */
 async function createFirstSchool(): Promise<string> {
   const { id } = await prisma.school.create({
@@ -762,8 +788,13 @@ async function main() {
    * empty value is understood everywhere as "the school has not supplied one"
    * and draws the placeholder instead.
    */
-  const uploadsDir = join(process.cwd(), 'uploads');
-  mkdirSync(uploadsDir, { recursive: true });
+  /* The school's own folder: every school's files live under
+     uploads/schools/<id>/ (src/common/uploads.ts). Folders left by earlier
+     seeds belong to schools that no longer exist; they are set aside rather
+     than deleted, like any replaced file. */
+  setAsideOldSchoolFolders(schoolId);
+  const uploadsDir = join(process.cwd(), 'uploads', 'schools', schoolId);
+  mkdirSync(join(uploadsDir, 'branding'), { recursive: true });
 
   /*
     Installs a shipped image only where doing so cannot destroy one the school
@@ -776,8 +807,8 @@ async function main() {
   const installAsset = (assetName: string, uploadName: string): string => {
     const { outcome, url } = installBrandingAsset(
       join(process.cwd(), 'assets', assetName),
-      join(uploadsDir, uploadName),
-      `/uploads/${uploadName}`,
+      join(uploadsDir, 'branding', uploadName),
+      `/uploads/schools/${schoolId}/branding/${uploadName}`,
     );
     if (outcome === 'kept-existing') kept.push(uploadName);
     return url;
@@ -3868,7 +3899,7 @@ async function main() {
       docRows.push({
         applicationId: id,
         kind,
-        fileUrl: `/uploads/admissions/${id}-${kind.toLowerCase()}.pdf`,
+        fileUrl: `/uploads/schools/${schoolId}/admissions/${id}-${kind.toLowerCase()}.pdf`,
         fileName: `${kind.toLowerCase().replace(/_/g, '-')}.pdf`,
         // The office has opened most of what it has been sent, not all.
         verifiedAt: chance(0.7) ? addDays(submittedAt, 1 + rand(4)) : null,
@@ -4954,7 +4985,7 @@ async function main() {
     ['#1C2833', '#566573'],
     ['#7D6608', '#B7950B'],
   ];
-  const avatarsDir = join(uploadsDir, 'avatars');
+  const avatarsDir = join(uploadsDir, 'photos', 'avatars');
   rmSync(avatarsDir, { recursive: true, force: true });
   mkdirSync(avatarsDir, { recursive: true });
   const avatarSvg = (first: string, last: string, key: number): string => {
@@ -4982,7 +5013,10 @@ async function main() {
       join(avatarsDir, file),
       avatarSvg(user.firstName, user.lastName, hashOf(user.id)),
     );
-    photoRows.push({ id: user.id, url: `/uploads/avatars/${file}` });
+    photoRows.push({
+      id: user.id,
+      url: `/uploads/schools/${schoolId}/photos/avatars/${file}`,
+    });
   };
   giveAvatar(admin, true);
   giveAvatar(librarianUser, true);

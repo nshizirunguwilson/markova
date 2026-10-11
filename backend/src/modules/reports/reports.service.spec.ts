@@ -280,10 +280,29 @@ describe('ReportsService', () => {
       expect(result.valid).toBe(false);
       expect(result.reason).toMatch(/never issued|reissued/i);
       expect(result).not.toHaveProperty('student');
+      expect(result).not.toHaveProperty('issuedBy');
+    });
+
+    /* A gate checking a card needs to know whose card it is. */
+    it('names the school that issued it', async () => {
+      prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
+        studentIdNumber: 'STD-2026-001',
+        status: 'ACTIVE',
+        cardIssuedAt: null,
+        cardSuspendedAt: null,
+        user: { firstName: 'Divine', lastName: 'Niyonkuru', photoUrl: null },
+        classSection: null,
+      });
+      const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+      expect(result.issuedBy).toBe('Markova Academy');
     });
 
     it('confirms a card belonging to a student still on the roll', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'ACTIVE',
         cardIssuedAt: new Date('2026-01-10'),
@@ -312,6 +331,8 @@ describe('ReportsService', () => {
     // somebody else.
     it('carries the school’s own photo so a face can be checked', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'ACTIVE',
         cardIssuedAt: null,
@@ -329,6 +350,8 @@ describe('ReportsService', () => {
 
     it('reveals nothing that could be used to reach the child', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'ACTIVE',
         cardIssuedAt: null,
@@ -345,6 +368,8 @@ describe('ReportsService', () => {
     // of, which is a different answer from one that was never issued.
     it('says a suspended card is suspended, not unknown', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'ACTIVE',
         cardIssuedAt: new Date('2026-01-10'),
@@ -362,6 +387,8 @@ describe('ReportsService', () => {
 
     it('refuses a card belonging to somebody who has left', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'TRANSFERRED',
         cardIssuedAt: null,
@@ -377,6 +404,8 @@ describe('ReportsService', () => {
 
     it('copes with a student whose class was never set', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
         studentIdNumber: 'STD-2026-001',
         status: 'ACTIVE',
         cardIssuedAt: null,
@@ -777,6 +806,8 @@ describe('a card the school has withheld', () => {
 
   const suspended = {
     id: 'student-1',
+    schoolId: 'school-1',
+    school: { name: 'Markova Academy' },
     studentIdNumber: 'STD-2026-001',
     status: 'ACTIVE',
     nfcCardId: '1234 5678 9012',

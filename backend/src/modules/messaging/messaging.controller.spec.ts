@@ -271,8 +271,9 @@ describe('MessagingController', () => {
       const file = writeUpload('a1b2c3.pdf', PDF, 'application/pdf', 2048);
       file.originalname = 'Marking scheme.pdf';
 
-      expect(ctl.uploadAttachment(file)).toEqual({
-        fileUrl: '/uploads/attachments/a1b2c3.pdf',
+      expect(ctl.uploadAttachment(file, 'school-1')).toEqual({
+        /* In the school's own folder. */
+        fileUrl: '/uploads/schools/school-1/attachments/a1b2c3.pdf',
         fileName: 'Marking scheme.pdf',
         size: 2048,
         kind: 'document',
@@ -301,7 +302,7 @@ describe('MessagingController', () => {
         40 * 1024 * 1024,
       );
 
-      expect(() => ctl.uploadAttachment(file)).toThrow(/25 MB/);
+      expect(() => ctl.uploadAttachment(file, 'school-1')).toThrow(/25 MB/);
     });
 
     it('accepts a video larger than a document may be', async () => {
@@ -313,7 +314,7 @@ describe('MessagingController', () => {
         40 * 1024 * 1024,
       );
 
-      expect(ctl.uploadAttachment(file).kind).toBe('video');
+      expect(ctl.uploadAttachment(file, 'school-1').kind).toBe('video');
     });
 
     // And the file goes back off disk, so nothing can point at it.
@@ -326,7 +327,9 @@ describe('MessagingController', () => {
         40 * 1024 * 1024,
       );
 
-      expect(() => ctl.uploadAttachment(file)).toThrow(BadRequestException);
+      expect(() => ctl.uploadAttachment(file, 'school-1')).toThrow(
+        BadRequestException,
+      );
       expect(existsSync(file.path)).toBe(false);
     });
 
@@ -335,7 +338,9 @@ describe('MessagingController', () => {
       const html = [...Buffer.from('<html><script>alert(1)</script>')];
       const file = writeUpload('a1.pdf', html, 'application/pdf');
 
-      expect(() => ctl.uploadAttachment(file)).toThrow(/do not match/);
+      expect(() => ctl.uploadAttachment(file, 'school-1')).toThrow(
+        /do not match/,
+      );
       expect(existsSync(file.path)).toBe(false);
     });
 
@@ -348,7 +353,7 @@ describe('MessagingController', () => {
         'audio/webm;codecs=opus',
       );
 
-      expect(ctl.uploadAttachment(file).kind).toBe('audio');
+      expect(ctl.uploadAttachment(file, 'school-1').kind).toBe('audio');
     });
   });
 });

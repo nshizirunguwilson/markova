@@ -273,8 +273,9 @@ model Account {
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
-  users    User[]
-  sessions UserSession[]
+  users      User[]
+  sessions   UserSession[]
+  pushTokens PushToken[]
 
   @@map("accounts")
 }
@@ -353,7 +354,6 @@ model User {
   sentMessages            Message[]
   messageReads            MessageRead[]
   notifications           Notification[]
-  pushTokens              PushToken[]
   supportTickets          SupportTicket[]
   clinicVisitsSeen        ClinicVisit[]              @relation("ClinicSeenBy")
   medicationsGiven        MedicationAdministration[] @relation("MedicationGivenBy")
@@ -1272,17 +1272,19 @@ model Notification {
   @@map("notifications")
 }
 
+/// A phone that receives push notifications for a login: every school the
+/// person belongs to, not only the one open when the app registered it.
 model PushToken {
   id        String   @id @default(uuid())
-  userId    String   @map("user_id")
+  accountId String   @map("account_id")
   token     String   @unique
   platform  String // 'ios', 'android'
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([accountId])
   @@map("push_tokens")
 }
 

@@ -1,3 +1,4 @@
+import { withSchool } from '../../prisma/request-context';
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
@@ -271,6 +272,32 @@ describe('NotificationsService', () => {
       expect(mail.from).toContain('Markova TSS');
     });
 
+    /* A parent at two schools needs to know which one is writing. */
+    it("signs an email from inside a school with the school's name", async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com', SMTP_FROM_NAME: 'Markova TSS' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'c@markova.edu',
+        firstName: 'Claudine',
+      });
+      prisma.school.findUnique.mockResolvedValue({ name: 'G.S. Umucyo' });
+      await withSchool('school-2', () =>
+        service.send({
+          userId: 'user-1',
+          title: 'Fees reminder',
+          message: 'Term 3 fees are due',
+          type: 'EMAIL',
+        } as never),
+      );
+      const mail = sendMail.mock.calls[0][0];
+      expect(mail.from).toContain('G.S. Umucyo');
+      expect(mail.html).toContain('automated message from G.S. Umucyo');
+      expect(prisma.school.findUnique).toHaveBeenCalledWith({
+        where: { id: 'school-2' },
+        select: { name: true },
+      });
+    });
+
     it('addresses somebody whose name is missing without leaving a gap', async () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
@@ -456,11 +483,52 @@ describe('NotificationsService', () => {
    * app leaves a token that would otherwise be retried for ever.
    */
   describe('push', () => {
+    /* The school record a push is for, and its login's phones. */
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue({
+        accountId: 'acc-1',
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
+      });
+      prisma.user.count.mockResolvedValue(1);
+    });
+
     it('re-registers the same token without failing', async () => {
-      await service.registerPushToken('user-1', 'ExpoToken[abc]', 'ios');
+      await service.registerPushToken('acc-1', 'ExpoToken[abc]', 'ios');
       const call = prisma.pushToken.upsert.mock.calls[0][0];
       expect(call.where).toEqual({ token: 'ExpoToken[abc]' });
-      expect(call.update.userId).toBe('user-1');
+      expect(call.update.accountId).toBe('acc-1');
+    });
+
+    /* One phone, every school the person belongs to. */
+    it("finds the phones of the person's login", async () => {
+      prisma.pushToken.findMany.mockResolvedValue([]);
+      await service.sendPushNotification('user-1', 'X', 'Y');
+      expect(prisma.pushToken.findMany.mock.calls[0][0].where).toEqual({
+        accountId: 'acc-1',
+      });
+    });
+
+    it('names the school for somebody in more than one', async () => {
+      prisma.user.count.mockResolvedValue(2);
+      prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+      const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({
+        json: () => Promise.resolve({ data: [] }),
+      } as never);
+      await service.sendPushNotification('user-1', 'Marks published', 'Y');
+      const [sent] = JSON.parse((fetchSpy.mock.calls[0][1] as any).body);
+      expect(sent.title).toBe('Markova Academy: Marks published');
+      expect(sent.data).toMatchObject({
+        schoolId: 'school-1',
+        userId: 'user-1',
+      });
+      fetchSpy.mockRestore();
+    });
+
+    it('sends nothing for a record that is not there', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await service.sendPushNotification('user-x', 'X', 'Y');
+      expect(prisma.pushToken.findMany).not.toHaveBeenCalled();
     });
 
     it('sends nothing to a person with no device registered', async () => {
@@ -567,6 +635,12 @@ describe('what a push notification carries with it', () => {
     service = new NotificationsService(prisma, config);
     prisma.notification.create.mockResolvedValue({ id: 'n-1' });
     prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+    prisma.user.findUnique.mockResolvedValue({
+      accountId: 'acc-1',
+      schoolId: 'school-1',
+      school: { name: 'Markova Academy' },
+    });
+    prisma.user.count.mockResolvedValue(1);
     jest.spyOn((service as any).logger, 'log').mockImplementation();
     jest.spyOn((service as any).logger, 'error').mockImplementation();
     return service;
@@ -613,7 +687,11 @@ describe('what a push notification carries with it', () => {
       type: 'PUSH',
     } as never);
 
-    expect(sentPayload(fetchSpy).data).toEqual({});
+    /* Only which school record it is for, so the app can open it. */
+    expect(sentPayload(fetchSpy).data).toEqual({
+      schoolId: 'school-1',
+      userId: 'user-1',
+    });
     fetchSpy.mockRestore();
   });
 
@@ -660,6 +738,12 @@ describe('what a push notification carries with it', () => {
     prisma = createMockPrisma();
     service = new NotificationsService(prisma, config);
     prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
+    prisma.user.findUnique.mockResolvedValue({
+      accountId: 'acc-1',
+      schoolId: 'school-1',
+      school: { name: 'Markova Academy' },
+    });
+    prisma.user.count.mockResolvedValue(1);
     jest.spyOn((service as any).logger, 'error').mockImplementation();
 
     const fetchSpy = jest.spyOn(global, 'fetch' as never).mockResolvedValue({

@@ -1,6 +1,6 @@
 # One person, many schools
 
-_A plan for step 3, written 10 October 2026. Parts 1, 2 and 3 are built; see
+_A plan for step 3, written 10 October 2026. Parts 1 to 4 are built; see
 section 11._
 
 Markova will hold many schools in one database. Keeping schools apart is the
@@ -216,8 +216,14 @@ Each part is its own pull request, tested before the next one starts:
    school, G.S. Umucyo, where Patrick Habimana (a teacher at the first) is a
    parent. Also done early from part 4: every cached answer is kept per
    school.
-4. Make everything else respect schools: background jobs, saved files, chat,
-   push notifications (one device, every school of the login).
+4. Make everything else respect schools. **Done.** Saved files live in a
+   folder per school; push notifications go to every phone of a person's login
+   and name the school; emails and texts are signed by the school that sends
+   them, including those sent from the background queue; checking a report or
+   ID card at a gate runs inside the school that issued it and names it;
+   analytics are cached per school (they were shared); only a conversation's
+   members can join its room or show as typing; marks saved offline stay with
+   the school record that saved them.
 5. Prove it: demo data with three Rwandan schools, and a test that tries to
    reach another school's data through every part of the system. All attempts
    must fail.
@@ -306,3 +312,20 @@ What part 3 built, for whoever works on it next:
 - **Tests:** `test/accounts.e2e-spec.ts` (sign in, switching, suspension, the
   login wall, joining an existing login, changing how you sign in) and the
   `schools:` check in `web/e2e/ui-audit.spec.js`.
+
+What part 4 built:
+
+- **Files:** `uploads/schools/<school id>/<kind>/`, served at the same path
+  under `/uploads` (`src/common/uploads.ts`). The school comes from the
+  signed-in person. Replaced files go to the school's own `replaced` folder.
+- **Moving an existing install's files, once:** `npm run uploads:per-school --
+  --dry-run` to see, then without `--dry-run` (in the built image,
+  `node dist/scripts/move-uploads-per-school.js`). It copies each file into its
+  school's folder, rewrites every address in the database, and removes the
+  originals last, so it is safe to stop and run again.
+- **Push:** `push_tokens` belong to the login. A person in more than one school
+  sees the school's name at the start of the title, and the data carries the
+  school record so the app can open it.
+- **The delivery queue** records the school a message was queued in and the
+  worker sends it inside that school.
+- **Tests:** `test/per-school.e2e-spec.ts`.

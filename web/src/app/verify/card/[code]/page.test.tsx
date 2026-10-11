@@ -58,6 +58,14 @@ describe("a genuine card", () => {
     expect(screen.getByText(/valid student card/i)).toBeInTheDocument();
   });
 
+  /* With many schools on Markova, a gate needs to know whose card it is. */
+  it("names the school that issued it", async () => {
+    serveCheck({ ...enrolled, issuedBy: "G.S. Umucyo" });
+    await renderPage();
+    expect(screen.getByText("G.S. Umucyo")).toBeInTheDocument();
+    expect(screen.getByText(/Issued by/)).toBeInTheDocument();
+  });
+
   it("names the student and their number", async () => {
     serveCheck(enrolled);
     await renderPage();
