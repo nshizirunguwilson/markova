@@ -13,6 +13,7 @@ import {
   Res,
   ParseUUIDPipe,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -32,6 +33,7 @@ import {
   UpdateUserDto,
   QueryUserDto,
   ResetLoginDto,
+  BulkImportDto,
 } from './dto';
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -196,7 +198,7 @@ export class UsersController {
       throw new ForbiddenException('You can only update your own photo');
     }
     if (!file) {
-      throw new Error('Photo file is required');
+      throw new BadRequestException('Photo file is required');
     }
     validateUploadedImage(file.path);
     // The photo being replaced is moved aside rather than deleted: somebody
@@ -268,7 +270,7 @@ export class UsersController {
       );
     }
     if (!file) {
-      throw new Error('Signature file is required');
+      throw new BadRequestException('Signature file is required');
     }
     validateUploadedImage(file.path);
     const user = await this.usersService.findOne(id);
@@ -300,9 +302,9 @@ export class UsersController {
   @Post('bulk-import')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Bulk import users from parsed CSV data' })
-  async bulkImport(@Body() body: { role: Role; rows: any[] }) {
+  async bulkImport(@Body() body: BulkImportDto) {
     const rows = body.rows.map((row) => ({ ...row, role: body.role }));
-    return this.usersService.bulkImport(rows);
+    return this.usersService.bulkImport(rows as never);
   }
 
   @Get('import-template/:role')

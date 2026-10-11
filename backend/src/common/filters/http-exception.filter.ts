@@ -59,14 +59,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : 'That value is already taken';
     } else if (
       !(exception instanceof HttpException) &&
-      exception instanceof Error &&
-      /cannot point at another school/.test(exception.message)
+      (prisma?.code === 'P2003' ||
+        prisma?.code === 'P2025' ||
+        (exception instanceof Error &&
+          /cannot point at another school/.test(exception.message)))
     ) {
       /*
-        The database refused a row naming another school's record (see the
-        links_stay_inside_a_school migration). To the school asking, that
-        record does not exist, so it is answered exactly as one that does not:
-        saying "it belongs to another school" would confirm it is there.
+        A record to change or delete that is not there (P2025), a row naming
+        a record that is not there (P2003, a foreign key), or
+        one that is another school's (the links_stay_inside_a_school
+        migration, which Prisma reports as the same code). Both are the
+        caller's mistake, not the server's, and to the school asking the two
+        are the same thing: saying "it belongs to another school" would
+        confirm it is there. Either used to answer as a server error.
       */
       status = HttpStatus.NOT_FOUND;
       error = 'Not Found';
