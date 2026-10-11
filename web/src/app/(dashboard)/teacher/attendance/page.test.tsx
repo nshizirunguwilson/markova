@@ -640,3 +640,25 @@ describe("a student out of school on the register", () => {
     );
   }, 20000);
 });
+
+/** A student with exam arrangements is marked on the register (B7). */
+describe("a student with a support plan on the register", () => {
+  it("shows what to do beside their name, never why", async () => {
+    serve(h.api, {
+      ...routes,
+      "/support/class/": [
+        {
+          studentId: students[0].id,
+          name: "x",
+          studentIdNumber: "x",
+          arrangements: ["25% extra time", "Large print"],
+        },
+      ],
+    });
+    await mount();
+    await pickClass();
+    expect(await screen.findByTestId("exam-help")).toHaveTextContent(
+      "In tests and exams: 25% extra time, Large print",
+    );
+  }, 20000);
+});

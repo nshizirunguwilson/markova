@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
+import { Accessibility, CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -18,6 +18,7 @@ import {
 } from "@/hooks/use-academic";
 import { useCreateExam, useDeleteExam, useExams, useUpdateExam, type ExamEntry } from "@/hooks/use-exams";
 import { classDisplayName } from "@/lib/utils";
+import Link from "next/link";
 
 /**
  * The exam timetable.
@@ -228,6 +229,15 @@ export default function ExamsPage() {
                       </span>
                     )}
                     <span className="flex gap-1">
+                      {/* Who needs what in this exam, for the invigilator. */}
+                      <Link
+                        href={`/admin/exams/${exam.id}/arrangements`}
+                        aria-label={`Arrangements for ${exam.subject?.name ?? "this exam"}`}
+                        title="Arrangements for students with support plans"
+                        className="rounded-lg p-2 text-muted hover:bg-accent-light hover:text-foreground"
+                      >
+                        <Accessibility className="h-4 w-4" />
+                      </Link>
                       <button
                         type="button"
                         aria-label={`Edit ${exam.subject?.name ?? "this exam"}`}

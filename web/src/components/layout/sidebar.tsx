@@ -79,7 +79,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       */
       inert={!isOpen && !isDesktop}
       className={cn(
-        "fixed z-40 flex w-60 flex-col overflow-hidden bg-surface",
+        "print:hidden fixed z-40 flex w-60 flex-col overflow-hidden bg-surface",
         "rounded-panel squircle shadow-card",
         /* Inset on every side, so the page shows around it and the corners
            are corners rather than a curve cut off by the viewport. */

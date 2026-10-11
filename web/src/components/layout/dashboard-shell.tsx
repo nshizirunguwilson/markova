@@ -71,6 +71,9 @@ const SHARED_ADMIN_PAGES: Record<string, string[]> = {
   /* The exam timetable, for the same reason as the lesson one: the DOS sets
      it and the principal reads it. */
   exams: ["HEAD_TEACHER"],
+  /* Support plans for students with special needs: kept by the Director of
+     Studies and the nurse, read by the principal. */
+  support: ["HEAD_TEACHER", "NURSE"],
   teachers: ["HEAD_TEACHER"],
   classes: ["HEAD_TEACHER"],
 };
@@ -299,7 +302,7 @@ export function DashboardShell({
       <main
         key={routeKey}
         id="main-content"
-        className="motion-fade-in ml-0 mt-[5.5rem] p-4 lg:ml-[17rem] lg:mt-24 lg:p-6"
+        className="motion-fade-in ml-0 mt-[5.5rem] p-4 lg:ml-[17rem] lg:mt-24 lg:p-6 print:m-0 print:p-0"
       >
         {former && user.studentStatus && (
           <p

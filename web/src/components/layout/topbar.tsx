@@ -249,7 +249,7 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
         the page by its edge and its shadow; a border as well would be saying
         the same thing twice.
       */
-      className="fixed left-3 right-3 top-3 z-20 flex h-16 items-center justify-between rounded-bar squircle bg-surface px-5 shadow-card lg:left-[17rem] lg:right-4 lg:top-4 lg:px-7"
+      className="fixed left-3 right-3 top-3 z-20 flex h-16 items-center justify-between rounded-bar squircle bg-surface px-5 shadow-card lg:left-[17rem] lg:right-4 lg:top-4 lg:px-7 print:hidden"
     >
       {/* Mobile hamburger */}
       <button

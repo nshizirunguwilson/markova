@@ -1,4 +1,5 @@
 import {
+  Accessibility,
   LayoutDashboard,
   Users,
   GraduationCap,
@@ -70,6 +71,7 @@ const adminNav: NavSection[] = [
          module was written and nothing reached them, so a school could store
          one and no student could ever see it. */
       { label: "Exams", href: "/admin/exams", icon: CalendarClock },
+      { label: "Support plans", href: "/admin/support", icon: Accessibility },
       { label: "Grading", href: "/grading", icon: Scale },
       /* Marks, report cards and the register are the Director of Studies'.
          They are not listed here, and the API refuses them, so a menu that
@@ -303,7 +305,10 @@ const nurseNav: NavSection[] = [
   },
   {
     title: "Clinic",
-    items: [{ label: "Health", href: "/admin/health", icon: HeartPulse }],
+    items: [
+      { label: "Health", href: "/admin/health", icon: HeartPulse },
+      { label: "Support plans", href: "/admin/support", icon: Accessibility },
+    ],
   },
   {
     title: "Communication",
@@ -369,6 +374,7 @@ const headTeacherNav: NavSection[] = [
       /* The DOS runs academic delivery, so the exam timetable is theirs to
          set as much as the lesson one. */
       { label: "Exams", href: "/admin/exams", icon: CalendarClock },
+      { label: "Support plans", href: "/admin/support", icon: Accessibility },
       { label: "Grading", href: "/grading", icon: Scale },
     ],
   },

@@ -32,6 +32,7 @@ import { ResetSignIn } from "@/components/profile/reset-sign-in";
 import { SafeguardingLead } from "@/components/people/safeguarding-lead";
 import { StudentJourney } from "@/components/people/student-journey";
 import { ParentsSee } from "@/components/people/parents-see";
+import { SupportPlanCard } from "@/components/support/support-plan-card";
 import { ParentPassedAway } from "@/components/people/parent-passed-away";
 import { STANDING_LABEL } from "@/lib/standing";
 
@@ -639,6 +640,12 @@ export default function UserDetailPage() {
           />
           {user.student?.id && (
             <ParentsSee student={user.student} firstName={user.firstName} />
+          )}
+          {user.student?.id && (
+            <SupportPlanCard
+              studentId={user.student.id}
+              name={`${user.firstName} ${user.lastName}`}
+            />
           )}
           {user.student?.id && (
             <StudentJourney

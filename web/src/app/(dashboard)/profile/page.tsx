@@ -15,6 +15,7 @@ import { labelForRole } from "@/types";
 import { SignInDetails } from "@/components/profile/sign-in-details";
 import { SignOutEverywhere } from "@/components/profile/sign-out-everywhere";
 import { WhatParentsSee } from "@/components/profile/what-parents-see";
+import { SupportPlanCard } from "@/components/support/support-plan-card";
 
 /**
  * Roles that put their name under a document the school issues.
@@ -325,6 +326,13 @@ export default function ProfilePage() {
 
       <SignInDetails />
       <WhatParentsSee />
+      {user?.role === "STUDENT" && user.studentId && (
+        <SupportPlanCard
+          studentId={user.studentId}
+          name={`${user.firstName} ${user.lastName}`}
+          hideWhenEmpty
+        />
+      )}
       <SignOutEverywhere />
 
       {/* Change Password */}

@@ -975,3 +975,34 @@ describe("when the server refuses a change without saying why", () => {
     );
   });
 });
+
+/** A student sees their own support plan on their profile (B7). */
+describe("a student's own support plan", () => {
+  it("shows what is done for them in exams", async () => {
+    serve(h.api, {
+      ...routes,
+      "/students/me/sharing": { adult: false, knowsBirthday: true, results: true, conduct: true, health: true, changedAt: null },
+      "/students/student-1/support-plan": {
+        plan: {
+          needs: ["SEEING"],
+          needWords: ["Seeing"],
+          needNote: null,
+          arrangementCodes: ["LARGE_PRINT"],
+          extraTimePercent: null,
+          otherArrangement: null,
+          arrangements: ["Large print"],
+          reviewOn: null,
+          agreedWith: null,
+          updatedAt: "2026-10-01T00:00:00.000Z",
+          updatedBy: null,
+        },
+        mayChange: false,
+      },
+    });
+    renderPage(ProfilePage, {
+      role: "STUDENT",
+      user: { firstName: "Aline", lastName: "Uwase", studentId: "student-1" },
+    });
+    expect(await screen.findByTestId("support-plan")).toHaveTextContent("Large print");
+  });
+});
