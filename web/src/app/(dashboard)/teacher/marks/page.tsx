@@ -13,7 +13,7 @@ import { ClipboardList, Save, CheckCircle, AlertCircle, Wifi, WifiOff, Database 
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
-import { savePendingMarks, getPendingMarks, deletePendingMark, getPendingCount } from "@/lib/offline-db";
+import { savePendingMarks, getPendingMarks, deletePendingMark, getPendingCount, SharedComputerError } from "@/lib/offline-db";
 import { PageHeader } from "@/components/layout/page-header";
 
 interface Assignment {
@@ -210,7 +210,11 @@ export default function TeacherMarksPage() {
           setScores((prev) => prev.map((s) => ({ ...s, dirty: false })));
           toast.info("Saved to device - will sync when connected");
         })
-        .catch(() => toast.error("Failed to save offline"));
+        .catch((e) =>
+          toast.error(
+            e instanceof SharedComputerError ? e.message : "Failed to save offline",
+          ),
+        );
       return;
     }
 

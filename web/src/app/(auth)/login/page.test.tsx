@@ -693,3 +693,43 @@ describe("the resend button's own guard", () => {
     vi.useRealTimers();
   }, 20000);
 });
+
+/**
+ * A shared computer: a school lab, a cyber café (B5). The choice goes to the
+ * server, and the sign in is kept where the server says: only until the
+ * browser closes, when it is shared.
+ */
+describe("signing in on a shared computer", () => {
+  beforeEach(() => sessionStorage.clear());
+
+  it("says so to the server when ticked", async () => {
+    h.api.post.mockResolvedValue({ data: { ...tokens, sharedDevice: true } });
+    renderWithProviders(<LoginPage />);
+    await userEvent.setup().click(screen.getByLabelText(/this is a shared computer/i));
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(h.api.post.mock.calls[0][1]).toMatchObject({ sharedDevice: true });
+    await waitFor(() =>
+      expect(sessionStorage.getItem("access_token")).toBe("access-token"),
+    );
+    expect(localStorage.getItem("access_token")).toBeNull();
+  });
+
+  it("says nothing about it when not ticked, and keeps the sign in as before", async () => {
+    h.api.post.mockResolvedValue({ data: { ...tokens, sharedDevice: false } });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect(h.api.post.mock.calls[0][1]).not.toHaveProperty("sharedDevice");
+    await waitFor(() => expect(localStorage.getItem("access_token")).toBe("access-token"));
+  });
+
+  it("explains why the last sign in ended, when nobody was using the computer", () => {
+    window.history.pushState({}, "", "/login?signedOut=idle");
+    renderWithProviders(<LoginPage />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /signed out because nobody used this computer/i,
+    );
+    window.history.pushState({}, "", "/login");
+  });
+});

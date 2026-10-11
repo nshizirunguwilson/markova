@@ -315,3 +315,17 @@ describe("a queue shared by more than one school record", () => {
     await expect(getPendingMarks("someone-else")).resolves.toEqual([]);
   });
 });
+
+/** Nothing is left behind on a shared computer: not even unsent marks (B5). */
+describe("the offline queue on a shared computer", () => {
+  afterEach(() => sessionStorage.clear());
+
+  it("refuses to keep marks, and says why", async () => {
+    sessionStorage.setItem("markova_shared_device", "1");
+    await expect(savePendingMarks(marks("s1", 50), "teacher-1")).rejects.toThrow(
+      /not kept on a shared computer/,
+    );
+    sessionStorage.clear();
+    expect(await getPendingCount("teacher-1")).toBe(0);
+  });
+});

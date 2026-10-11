@@ -6,6 +6,7 @@ const h = vi.hoisted(() => {
     api: { get: fn(), post: fn(), put: fn(), patch: fn(), delete: fn() },
     router: { push: fn(), replace: fn(), refresh: fn(), back: fn(), prefetch: fn() },
     toast: { success: fn(), error: fn(), info: fn(), warning: fn() },
+    SharedComputerError: class SharedComputerError extends Error {},
     offline: {
       save: vi.fn<(payload: unknown) => Promise<void>>(),
       get: vi.fn<() => Promise<unknown[]>>(),
@@ -31,6 +32,7 @@ vi.mock("@/lib/offline-db", () => ({
   getPendingMarks: h.offline.get,
   deletePendingMark: h.offline.remove,
   getPendingCount: h.offline.count,
+  SharedComputerError: h.SharedComputerError,
 }));
 
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -611,6 +613,37 @@ describe("saving without being asked", () => {
 
     expect(h.api.post).not.toHaveBeenCalled();
     vi.useRealTimers();
+  }, 25000);
+
+  // Nothing is left behind on a shared computer, so the teacher is told why
+  // the marks were not kept rather than given a vague failure.
+  it("says why marks are not kept offline on a shared computer", async () => {
+    h.offline.save.mockRejectedValue(
+      new h.SharedComputerError("Marks are not kept on a shared computer."),
+    );
+    await withRoster();
+    setOnline(false);
+    await act(async () => {
+      fireEvent(window, new Event("offline"));
+    });
+    const field = document.querySelector<HTMLInputElement>('input[type="number"]')!;
+    await act(async () => {
+      fireEvent.change(field, { target: { value: "77" } });
+    });
+    // The page saves by itself three seconds after the last change.
+    await waitFor(
+      () =>
+        expect(h.toast.error).toHaveBeenCalledWith(
+          "Marks are not kept on a shared computer.",
+        ),
+      { timeout: 6000 },
+    );
+    // Back online: going offline pauses every query in the test run, not
+    // only this page's.
+    setOnline(true);
+    await act(async () => {
+      fireEvent(window, new Event("online"));
+    });
   }, 25000);
 
   // The whole point of the queue. The page decides by the connection it knows

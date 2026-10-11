@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Role } from "@/types";
 import type { SchoolRef } from "@/lib/schools";
 import type { StudentStatus } from "@/lib/standing";
+import { forgetTokens } from "@/lib/session";
 
 export interface User {
   id: string;
@@ -50,10 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user, isAuthenticated: true, isLoading: false }),
   setLoading: (isLoading) => set({ isLoading }),
   logout: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-    }
+    forgetTokens();
     set({ user: null, isAuthenticated: false, isLoading: false });
   },
 }));

@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import api from "@/lib/api";
 import { homeFor } from "@/lib/navigation";
+import { accessToken } from "@/lib/session";
 
 /**
  * The mirror of {@link DashboardShell}'s guard: signed-in people do not get to
@@ -54,7 +55,7 @@ export function GuestGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const token = localStorage.getItem("access_token");
+      const token = accessToken();
       if (!token) {
         if (!cancelled) setResolved(true);
         return;

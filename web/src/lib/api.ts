@@ -1,5 +1,6 @@
 import axios from "axios";
 import { toast } from "sonner";
+import { accessToken, forgetTokens, keepTokens, refreshToken } from "@/lib/session";
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "",
@@ -17,7 +18,7 @@ const SITE_SCHOOL = process.env.NEXT_PUBLIC_SCHOOL || "";
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("access_token");
+      const token = accessToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -53,13 +54,11 @@ let refreshPromise: Promise<string> | null = null;
 function refreshSession(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const refreshToken = localStorage.getItem("refresh_token");
       const { data } = await axios.post(
         `${api.defaults.baseURL}/auth/refresh`,
-        { refreshToken }
+        { refreshToken: refreshToken() }
       );
-      localStorage.setItem("access_token", data.accessToken);
-      localStorage.setItem("refresh_token", data.refreshToken);
+      keepTokens(data);
       return data.accessToken as string;
     })().finally(() => {
       refreshPromise = null;
@@ -83,16 +82,16 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem("refresh_token");
+      const held = refreshToken();
       // Not logged in - nothing to refresh. Reject quietly; route guards handle
       // sending the user to /login. Avoids a redirect loop on public pages.
-      if (!refreshToken) {
+      if (!held) {
         return Promise.reject(error);
       }
 
       try {
-        const accessToken = await refreshSession();
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        const fresh = await refreshSession();
+        originalRequest.headers.Authorization = `Bearer ${fresh}`;
         return api(originalRequest);
       } catch (refreshError) {
         // A network blip is not an expired session. Keep the tokens so a later
@@ -111,8 +110,7 @@ api.interceptors.response.use(
 );
 
 function redirectToLogin() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+  forgetTokens();
   if (typeof window !== "undefined") {
     window.location.href = "/login";
   }

@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuthStore } from "@/stores/auth-store";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOut } from "@/lib/sign-out";
 import { ThemeSwitch } from "@/components/ui/theme-switch";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -70,7 +72,8 @@ const subscribeToNothing = () => () => {};
 
 export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
 
   // --- User menu ---
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -182,9 +185,11 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
     setShowLogoutConfirm(true);
   };
 
-  const confirmLogout = () => {
+  /* Tells the server, so the session ends there as well, and wipes what
+     this browser held: see lib/sign-out.ts. */
+  const confirmLogout = async () => {
     setShowLogoutConfirm(false);
-    logout();
+    await signOut(queryClient);
     router.push("/login");
   };
 

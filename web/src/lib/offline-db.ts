@@ -1,3 +1,5 @@
+import { isShared } from "@/lib/session";
+
 const DB_NAME = "markova-offline";
 const DB_VERSION = 1;
 const STORE_NAME = "pending-marks";
@@ -29,7 +31,17 @@ function openDB(): Promise<IDBDatabase> {
 const mine = (entry: { owner?: string }, owner?: string) =>
   !owner || !entry.owner || entry.owner === owner;
 
+/** Refused on a shared computer: see savePendingMarks. */
+export class SharedComputerError extends Error {
+  constructor() {
+    super("Marks are not kept on a shared computer. Save them once you are back online.");
+  }
+}
+
 export async function savePendingMarks(payload: any, owner?: string): Promise<void> {
+  /* Nothing is left behind on a shared computer: the next person to sit
+     down would find a class's marks in the browser. */
+  if (isShared()) throw new SharedComputerError();
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");

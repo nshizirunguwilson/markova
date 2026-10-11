@@ -1,5 +1,6 @@
 import api from "@/lib/api";
 import type { Role } from "@/types";
+import { beginSession, refreshToken } from "@/lib/session";
 
 /**
  * A person's schools, and moving between them.
@@ -33,9 +34,11 @@ export interface Membership {
  * Returns the school record now open.
  */
 export async function switchSchool(userId: string) {
-  const refreshToken = localStorage.getItem("refresh_token");
-  const { data } = await api.post("/auth/switch", { userId, refreshToken });
-  localStorage.setItem("access_token", data.accessToken);
-  localStorage.setItem("refresh_token", data.refreshToken);
+  const { data } = await api.post("/auth/switch", {
+    userId,
+    refreshToken: refreshToken(),
+  });
+  // A student's record always opens as on a shared computer.
+  beginSession(data);
   return data.user as { id: string; role: Role; forcePasswordChange: boolean };
 }
