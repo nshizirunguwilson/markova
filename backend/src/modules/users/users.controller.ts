@@ -30,7 +30,12 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Response } from 'express';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  QueryUserDto,
+  ResetLoginDto,
+} from './dto';
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
@@ -144,6 +149,20 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
   ) {
     return this.usersService.update(id, dto);
+  }
+
+  @Post(':id/reset-login')
+  @Roles('ADMIN')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiOperation({
+    summary:
+      'Reset how somebody signs in, when this school is the only one they belong to',
+  })
+  async resetLogin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResetLoginDto,
+  ) {
+    return this.usersService.resetLogin(id, dto);
   }
 
   @Delete(':id')

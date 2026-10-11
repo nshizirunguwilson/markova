@@ -500,16 +500,112 @@ describe("where signing in sends each role", () => {
     await waitFor(() => expect(h.router.push).toHaveBeenCalledWith(path));
   });
 
-  it("sends a role it has never heard of to the admin dashboard", async () => {
-    // A role added on the server before the app knows about it. Landing
-    // somewhere real beats landing nowhere.
+  /* The newer roles, from the one place that knows each role's home
+     (homeFor). The sign in page used to keep its own list, which sent
+     them all to /admin first. */
+  it.each([
+    ["BURSAR", "/admin/finance"],
+    ["HEAD_TEACHER", "/head-teacher"],
+    ["PATRON", "/boarding"],
+    ["MATRON", "/boarding"],
+    ["NURSE", "/nurse"],
+  ])("sends a %s straight to %s", async (role, path) => {
     h.api.post.mockResolvedValue({
-      data: { ...tokens, user: { ...tokens.user, role: "BURSAR" } },
+      data: { ...tokens, user: { ...tokens.user, role } },
     });
     renderWithProviders(<LoginPage />);
     await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
 
-    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/admin"));
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith(path));
+  });
+});
+
+/**
+ * Somebody who belongs to more than one school and has never chosen is asked
+ * which, before anything else is shown. Aline teaches at Markova Academy and
+ * is a parent at G.S. Umucyo.
+ */
+describe("choosing a school", () => {
+  const schools = [
+    {
+      userId: "u-1",
+      role: "TEACHER",
+      school: { id: "s-1", name: "Markova Academy", slug: "markova-academy" },
+    },
+    {
+      userId: "u-2",
+      role: "PARENT",
+      school: { id: "s-2", name: "G.S. Umucyo", slug: "gs-umucyo" },
+    },
+  ];
+
+  async function reachChoice() {
+    h.api.post.mockResolvedValueOnce({
+      data: { ...tokens, schools, chooseSchool: true },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await screen.findByText("Which school?");
+  }
+
+  it("lists every school, with the role held there", async () => {
+    await reachChoice();
+    expect(screen.getByText("Markova Academy")).toBeInTheDocument();
+    expect(screen.getByText("G.S. Umucyo")).toBeInTheDocument();
+    expect(screen.getByText("Parent")).toBeInTheDocument();
+    expect(h.router.push).not.toHaveBeenCalled();
+  });
+
+  it("goes straight in to the school the sign in already opened", async () => {
+    await reachChoice();
+    await userEvent.click(screen.getByRole("button", { name: /Markova Academy/ }));
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
+    expect(h.api.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves the session to another school, then goes in", async () => {
+    await reachChoice();
+    h.api.post.mockResolvedValueOnce({
+      data: {
+        accessToken: "access-2",
+        refreshToken: "refresh-2",
+        user: { id: "u-2", role: "PARENT", forcePasswordChange: false },
+      },
+    });
+    h.api.get.mockResolvedValueOnce({
+      data: { id: "u-2", role: "PARENT", firstName: "Aline", forcePasswordChange: false },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /G\.S\. Umucyo/ }));
+
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/parent"));
+    expect(h.api.post).toHaveBeenLastCalledWith("/auth/switch", {
+      userId: "u-2",
+      refreshToken: "refresh-token",
+    });
+    expect(localStorage.getItem("access_token")).toBe("access-2");
+  });
+
+  it("does not ask somebody who has chosen before", async () => {
+    h.api.post.mockResolvedValueOnce({
+      data: { ...tokens, schools, chooseSchool: false },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
+    expect(screen.queryByText("Which school?")).not.toBeInTheDocument();
+  });
+
+  it("says so when a school cannot be opened", async () => {
+    await reachChoice();
+    h.api.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 404, data: { message: "That school is not on your list" } },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /G\.S\. Umucyo/ }));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("That school is not on your list"),
+    );
+    expect(h.router.push).not.toHaveBeenCalled();
   });
 });
 

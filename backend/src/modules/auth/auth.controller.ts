@@ -22,6 +22,9 @@ import {
   RequestPasswordResetDto,
   ResetPasswordDto,
   UpdateProfileDto,
+  SwitchSchoolDto,
+  ChangeLoginDto,
+  ConfirmLoginChangeDto,
 } from './dto';
 import { CurrentUser } from '../../common/decorators';
 import type { Request } from 'express';
@@ -103,20 +106,76 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current session or all sessions' })
   async logout(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('accountId') accountId: string,
     @Headers('authorization') auth: string,
   ) {
     // Extract token from Bearer header for single-session logout
     const token = auth?.replace('Bearer ', '');
-    return this.authService.logout(userId, token);
+    return this.authService.logout(accountId, token);
   }
 
   @Get('sessions')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get active sessions for current user' })
-  async getSessions(@CurrentUser('id') userId: string) {
-    return this.authService.getSessions(userId);
+  async getSessions(@CurrentUser('accountId') accountId: string) {
+    return this.authService.getSessions(accountId);
+  }
+
+  @Get('schools')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Every school the signed-in person can open, for the switcher',
+  })
+  async schools(
+    @CurrentUser('accountId') accountId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.authService.schools(accountId, userId);
+  }
+
+  @Post('switch')
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Open another of your schools' })
+  async switchSchool(
+    @CurrentUser('accountId') accountId: string,
+    @Body() dto: SwitchSchoolDto,
+  ) {
+    return this.authService.switchSchool(
+      accountId,
+      dto.userId,
+      dto.refreshToken,
+    );
+  }
+
+  @Post('login-details')
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Start changing the email or phone you sign in with (sends a code)',
+  })
+  async requestLoginChange(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangeLoginDto,
+  ) {
+    return this.authService.requestLoginChange(userId, dto);
+  }
+
+  @Post('login-details/confirm')
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Finish changing how you sign in, with the code' })
+  async confirmLoginChange(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ConfirmLoginChangeDto,
+  ) {
+    return this.authService.confirmLoginChange(userId, dto);
   }
 
   @Get('profile')

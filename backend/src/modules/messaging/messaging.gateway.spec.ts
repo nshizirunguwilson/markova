@@ -72,7 +72,7 @@ describe('MessagingGateway', () => {
     );
     gateway.server = { to } as never;
     prisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true });
-    prisma.user.update.mockResolvedValue({});
+    prisma.user.updateMany.mockResolvedValue({});
   });
 
   /**
@@ -213,7 +213,7 @@ describe('MessagingGateway', () => {
 
     it('does nothing for a socket that was never signed in', async () => {
       await gateway.handleDisconnect(socket({ data: {} }));
-      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('keeps somebody online while another device is still connected', async () => {
@@ -224,7 +224,19 @@ describe('MessagingGateway', () => {
         socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
       );
       expect(gateway.isUserOnline('user-1')).toBe(true);
-      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    /* Nest calls this from the socket's close event, where a rejection is
+       nobody's to catch and used to end the whole server. */
+    it('never throws, even when the person has gone', async () => {
+      await gateway.handleConnection(socket({ id: 'socket-1' }));
+      prisma.user.updateMany.mockRejectedValueOnce(new Error('database down'));
+      await expect(
+        gateway.handleDisconnect(
+          socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
+        ),
+      ).resolves.toBeUndefined();
     });
 
     it('marks them offline once the last device goes', async () => {
@@ -243,7 +255,7 @@ describe('MessagingGateway', () => {
         socket({ id: 'socket-1', data: { user: { sub: 'user-1' } } }),
       );
       expect(
-        prisma.user.update.mock.calls[0][0].data.lastSeenAt,
+        prisma.user.updateMany.mock.calls[0][0].data.lastSeenAt,
       ).toBeInstanceOf(Date);
     });
 
@@ -643,7 +655,7 @@ describe('MessagingGateway presence between two people', () => {
     prisma.user.findUnique.mockImplementation(({ where }: any) =>
       Promise.resolve({ id: where.id, isActive: true, firstName: 'A' }),
     );
-    prisma.user.update.mockResolvedValue({});
+    prisma.user.updateMany.mockResolvedValue({});
   });
 
   it('tells the admin, already connected, that the student came online', async () => {

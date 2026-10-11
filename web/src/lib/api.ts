@@ -8,6 +8,11 @@ const api = axios.create({
   },
 });
 
+/* The school this site was built for, when it names one. Pages before sign
+   in (the public admissions form) are for that school; signed-in requests
+   are always for the person's own and the API ignores it there. */
+const SITE_SCHOOL = process.env.NEXT_PUBLIC_SCHOOL || "";
+
 // Request interceptor - attach JWT
 api.interceptors.request.use(
   (config) => {
@@ -16,6 +21,9 @@ api.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+    }
+    if (SITE_SCHOOL && !config.headers["X-School"]) {
+      config.headers["X-School"] = SITE_SCHOOL;
     }
     return config;
   },

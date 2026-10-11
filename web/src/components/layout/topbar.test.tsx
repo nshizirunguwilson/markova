@@ -141,6 +141,68 @@ describe("Topbar notifications", () => {
 
 // Signing out has to clear the stored tokens, not just the in-memory store,
 // or a reload would put the user straight back in.
+/**
+ * The person's schools. On a wide screen they sit in the switcher beside the
+ * name; on a phone, in the menu the name opens, where there is room.
+ */
+describe("Topbar schools", () => {
+  const schools = [
+    {
+      userId: "u-1",
+      role: "TEACHER",
+      school: { id: "s-1", name: "Markova Academy", slug: "markova-academy" },
+      current: true,
+      unreadMessages: 0,
+    },
+    {
+      userId: "u-2",
+      role: "PARENT",
+      school: { id: "s-2", name: "G.S. Umucyo", slug: "gs-umucyo" },
+      current: false,
+      unreadMessages: 2,
+    },
+  ];
+
+  it("lists the other schools in the menu, for a phone", async () => {
+    serve(h.api, {
+      "/notifications/unread": { unreadCount: 0 },
+      "/notifications": [],
+      "/auth/schools": schools,
+    });
+    signIn("TEACHER", {
+      id: "u-1",
+      firstName: "Aline",
+      lastName: "Uwase",
+      school: schools[0].school,
+    });
+    renderWithProviders(<Topbar onToggleSidebar={vi.fn()} />);
+    await waitFor(() => expect(h.api.get).toHaveBeenCalledWith("/auth/schools"));
+    await userEvent.click(screen.getByRole("button", { name: /Aline Uwase/ }));
+    expect(await screen.findByText("Your schools")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /G\.S\. Umucyo, Parent, 2 unread messages/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the list out of the menu for somebody in one school", async () => {
+    serve(h.api, {
+      "/notifications/unread": { unreadCount: 0 },
+      "/notifications": [],
+      "/auth/schools": [schools[0]],
+    });
+    signIn("TEACHER", {
+      id: "u-1",
+      firstName: "Aline",
+      lastName: "Uwase",
+      school: schools[0].school,
+    });
+    renderWithProviders(<Topbar onToggleSidebar={vi.fn()} />);
+    await waitFor(() => expect(h.api.get).toHaveBeenCalledWith("/auth/schools"));
+    await userEvent.click(screen.getByRole("button", { name: /Aline Uwase/ }));
+    expect(screen.queryByText("Your schools")).not.toBeInTheDocument();
+  });
+});
+
 describe("Topbar sign out", () => {
   it("asks for confirmation before signing out", async () => {
     mount();

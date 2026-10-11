@@ -37,14 +37,69 @@ const makeUser = (overrides: Record<string, any> = {}) => ({
   ...overrides,
 });
 
+/**
+ * A person as the database now holds them: a login, and their record in one
+ * school. Given the old one-row shape a test was written with, it answers
+ * every way the service now asks: the login by email or phone, the login
+ * behind a record, the person's open school records, and the record itself.
+ * The login's id is the record's, as the migration gave every existing
+ * person.
+ */
+const SCHOOL = {
+  id: 'school-1',
+  name: 'Markova Academy',
+  slug: 'markova-academy',
+};
+const loginOf = (u: Record<string, any>) => ({
+  id: u.id,
+  email: u.email,
+  phone: u.phone,
+  passwordHash: u.passwordHash,
+  forcePasswordChange: u.forcePasswordChange,
+  lastUserId: u.id,
+  users: [{ firstName: u.firstName }],
+});
+function givenLogin(u: Record<string, any> | null) {
+  if (!u) {
+    mockPrisma.account.findFirst.mockResolvedValue(null);
+    mockPrisma.account.findUnique.mockResolvedValue(null);
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    return;
+  }
+  const account = loginOf(u);
+  const record = {
+    ...u,
+    accountId: u.id,
+    school: { ...SCHOOL, status: 'ACTIVE' },
+    account,
+  };
+  mockPrisma.account.findFirst.mockResolvedValue(account);
+  mockPrisma.account.findUnique.mockResolvedValue(account);
+  mockPrisma.user.findUnique.mockResolvedValue(record);
+  mockPrisma.user.findMany.mockResolvedValue(
+    u.isActive === false ? [] : [record],
+  );
+}
+
 // ── Mock factories ───────────────────────────────────────────────────────────
 
 const mockPrisma = {
   user: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
+  account: {
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn().mockResolvedValue({}),
+    count: jest.fn().mockResolvedValue(0),
+  },
+  message: { count: jest.fn().mockResolvedValue(0) },
+  $transaction: jest.fn(),
   userSession: {
     findMany: jest.fn().mockResolvedValue([]),
     findFirst: jest.fn(),
@@ -115,6 +170,14 @@ describe('AuthService', () => {
     mockRedis.set.mockResolvedValue('OK');
     mockRedis.del.mockResolvedValue(1);
     mockPrisma.userSession.findMany.mockResolvedValue([]);
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.account.update.mockResolvedValue({});
+    mockPrisma.account.count.mockResolvedValue(0);
+    mockPrisma.message.count.mockResolvedValue(0);
+    mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(mockPrisma),
+    );
     mockPrisma.userSession.create.mockResolvedValue({});
     mockPrisma.userSession.update.mockResolvedValue({});
     mockPrisma.userSession.updateMany.mockResolvedValue({ count: 1 });
@@ -151,8 +214,8 @@ describe('AuthService', () => {
   describe('login()', () => {
     it('should return tokens directly for STUDENT role (no OTP)', async () => {
       const student = makeUser({ role: 'STUDENT' });
-      mockPrisma.user.findFirst.mockResolvedValue(student);
-      mockPrisma.user.findUnique.mockResolvedValue(student);
+      givenLogin(student);
+      givenLogin(student);
       mockPrisma.user.update.mockResolvedValue(student);
 
       const result = await service.login({
@@ -168,7 +231,7 @@ describe('AuthService', () => {
 
     it('should return requiresOtp + sessionId for ADMIN role', async () => {
       const admin = makeUser({ role: 'ADMIN' });
-      mockPrisma.user.findFirst.mockResolvedValue(admin);
+      givenLogin(admin);
 
       const result = await service.login({
         email: admin.email,
@@ -192,7 +255,7 @@ describe('AuthService', () => {
      */
     it('answers without waiting for the verification email', async () => {
       const admin = makeUser({ role: 'ADMIN' });
-      mockPrisma.user.findFirst.mockResolvedValue(admin);
+      givenLogin(admin);
 
       let deliver: () => void = () => {};
       mockNotifications.sendEmailToAddress.mockReturnValue(
@@ -217,7 +280,7 @@ describe('AuthService', () => {
        failure used to drop it silently and lock somebody out. */
     it('queues the code rather than sending it on the critical path', async () => {
       const admin = makeUser({ role: 'ADMIN' });
-      mockPrisma.user.findFirst.mockResolvedValue(admin);
+      givenLogin(admin);
 
       await service.login({ email: admin.email, password: TEST_PASSWORD });
 
@@ -234,7 +297,7 @@ describe('AuthService', () => {
     // it: the code is already stored, and the next screen offers a resend.
     it('signs the user in even when the email is rejected', async () => {
       const admin = makeUser({ role: 'ADMIN' });
-      mockPrisma.user.findFirst.mockResolvedValue(admin);
+      givenLogin(admin);
       mockNotifications.sendEmailToAddress.mockRejectedValue(
         new Error('550 mailbox unavailable'),
       );
@@ -249,7 +312,7 @@ describe('AuthService', () => {
 
     it('should return requiresOtp + sessionId for TEACHER role', async () => {
       const teacher = makeUser({ role: 'TEACHER' });
-      mockPrisma.user.findFirst.mockResolvedValue(teacher);
+      givenLogin(teacher);
 
       const result = await service.login({
         email: teacher.email,
@@ -262,7 +325,7 @@ describe('AuthService', () => {
 
     it('should return requiresOtp + sessionId for PARENT role', async () => {
       const parent = makeUser({ role: 'PARENT' });
-      mockPrisma.user.findFirst.mockResolvedValue(parent);
+      givenLogin(parent);
 
       const result = await service.login({
         email: parent.email,
@@ -275,7 +338,7 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException for wrong password', async () => {
       const user = makeUser();
-      mockPrisma.user.findFirst.mockResolvedValue(user);
+      givenLogin(user);
 
       await expect(
         service.login({ email: user.email, password: 'WrongPassword1!' }),
@@ -286,7 +349,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for non-existent user', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+      givenLogin(null);
 
       await expect(
         service.login({ email: 'nobody@test.com', password: TEST_PASSWORD }),
@@ -295,7 +358,7 @@ describe('AuthService', () => {
 
     it('should throw ForbiddenException for deactivated account', async () => {
       const deactivated = makeUser({ isActive: false });
-      mockPrisma.user.findFirst.mockResolvedValue(deactivated);
+      givenLogin(deactivated);
 
       await expect(
         service.login({ email: deactivated.email, password: TEST_PASSWORD }),
@@ -304,7 +367,7 @@ describe('AuthService', () => {
 
     it('should record failed attempt in Redis on wrong password', async () => {
       const user = makeUser();
-      mockPrisma.user.findFirst.mockResolvedValue(user);
+      givenLogin(user);
 
       await expect(
         service.login({ email: user.email, password: 'WrongPassword1!' }),
@@ -322,7 +385,7 @@ describe('AuthService', () => {
 
     it('should throw ForbiddenException when account is locked', async () => {
       const user = makeUser();
-      mockPrisma.user.findFirst.mockResolvedValue(user);
+      givenLogin(user);
 
       // Simulate a locked account - lockedUntil is in the future
       const lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
@@ -356,7 +419,7 @@ describe('AuthService', () => {
         expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       };
       mockRedis.get.mockResolvedValue(JSON.stringify(sessionData));
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       mockPrisma.user.update.mockResolvedValue(user);
 
       const result = await service.verifyOtp({ sessionId, otp });
@@ -425,7 +488,7 @@ describe('AuthService', () => {
 
       mockJwt.verify.mockReturnValue({ sub: user.id, role: user.role });
       mockPrisma.userSession.findFirst.mockResolvedValue(session);
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       mockPrisma.user.update.mockResolvedValue(user);
       // Redis lock acquired successfully
       mockRedis.set.mockResolvedValue('OK');
@@ -454,7 +517,7 @@ describe('AuthService', () => {
 
       mockJwt.verify.mockReturnValue({ sub: user.id, role: user.role });
       mockPrisma.userSession.findFirst.mockResolvedValue(session);
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       // Redis NX lock fails - another request is already refreshing
       mockRedis.set.mockResolvedValue(null);
 
@@ -494,7 +557,7 @@ describe('AuthService', () => {
   describe('changePassword()', () => {
     it('should reject wrong current password', async () => {
       const user = makeUser();
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
 
       await expect(
         service.changePassword(user.id, {
@@ -506,7 +569,7 @@ describe('AuthService', () => {
 
     it('should update password hash on correct current password', async () => {
       const user = makeUser();
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       mockPrisma.user.update.mockResolvedValue(user);
 
       const result = await service.changePassword(user.id, {
@@ -515,7 +578,8 @@ describe('AuthService', () => {
       });
 
       expect(result.message).toBe('Password changed successfully');
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      /* On the login, so it is the new password at every school. */
+      expect(mockPrisma.account.update).toHaveBeenCalledWith({
         where: { id: user.id },
         data: {
           passwordHash: expect.any(String),
@@ -525,7 +589,7 @@ describe('AuthService', () => {
 
       // Verify the saved hash is a valid bcrypt hash (not the old one)
       const savedHash =
-        mockPrisma.user.update.mock.calls[0][0].data.passwordHash;
+        mockPrisma.account.update.mock.calls[0][0].data.passwordHash;
       expect(await bcrypt.compare('NewSecure1!', savedHash)).toBe(true);
     });
 
@@ -540,7 +604,7 @@ describe('AuthService', () => {
      */
     it('signs out the sessions somebody else may be holding', async () => {
       const user = makeUser();
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       mockPrisma.user.update.mockResolvedValue(user);
       mockPrisma.userSession.updateMany.mockResolvedValue({ count: 3 });
 
@@ -549,8 +613,9 @@ describe('AuthService', () => {
         newPassword: 'NewSecure1!',
       });
 
+      /* Every device, at every school: the sessions belong to the login. */
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { userId: user.id, isActive: true },
+        where: { accountId: user.id, isActive: true },
         data: { isActive: false },
       });
       expect(result.signedOutElsewhere).toBe(3);
@@ -558,7 +623,7 @@ describe('AuthService', () => {
 
     it('does not sign anybody out when the current password was wrong', async () => {
       const user = makeUser();
-      mockPrisma.user.findUnique.mockResolvedValue(user);
+      givenLogin(user);
       await expect(
         service.changePassword(user.id, {
           currentPassword: 'wrong',
@@ -569,7 +634,7 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException for non-existent user', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      givenLogin(null);
 
       await expect(
         service.changePassword('nonexistent', {
@@ -592,7 +657,7 @@ describe('AuthService', () => {
     };
 
     it("returns a parent's linked children", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
+      givenLogin({
         ...baseUser,
         parentStudents: [
           {
@@ -618,7 +683,7 @@ describe('AuthService', () => {
     });
 
     it('omits `children` entirely for a user with none', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
+      givenLogin({
         ...baseUser,
         role: 'ADMIN',
         parentStudents: [],
@@ -629,7 +694,7 @@ describe('AuthService', () => {
     });
 
     it('flattens the student and teacher ids onto the profile', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({
+      givenLogin({
         ...baseUser,
         role: 'STUDENT',
         student: { id: 'stu-1', classSectionId: 'cs-1' },
@@ -643,7 +708,7 @@ describe('AuthService', () => {
     });
 
     it('throws when the user no longer exists', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      givenLogin(null);
       await expect(service.getProfile('gone')).rejects.toThrow();
     });
   });
@@ -672,7 +737,7 @@ describe('AuthService', () => {
     it('refuses when the account has since gone', async () => {
       mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
       mockRedis.set.mockResolvedValue('OK');
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      givenLogin(null);
       await expect(service.resendOtp({ sessionId: 's-1' })).rejects.toThrow(
         UnauthorizedException,
       );
@@ -683,7 +748,7 @@ describe('AuthService', () => {
     it('replaces the code on the same session', async () => {
       mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
       mockRedis.set.mockResolvedValue('OK');
-      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
 
       const result = await service.resendOtp({ sessionId: 's-1' });
       expect(result.sessionId).toBe('s-1');
@@ -696,7 +761,7 @@ describe('AuthService', () => {
     it('sends the code to the address on the account', async () => {
       mockRedis.get.mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
       mockRedis.set.mockResolvedValue('OK');
-      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
 
       await service.resendOtp({ sessionId: 's-1' });
       expect(mockDelivery.email).toHaveBeenCalledWith(
@@ -725,7 +790,7 @@ describe('AuthService', () => {
             lines.push(args.map(String).join(' ')),
           );
       }
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result: any = await service.login({
         email: 'wilsonshizirungu@gmail.com',
         password: TEST_PASSWORD,
@@ -735,7 +800,7 @@ describe('AuthService', () => {
     });
 
     it('is six digits', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result: any = await service.login({
         email: 'wilsonshizirungu@gmail.com',
         password: TEST_PASSWORD,
@@ -752,9 +817,7 @@ describe('AuthService', () => {
     */
     it('is different each time', async () => {
       // A current hash, so none of the twenty-five also pays for an upgrade.
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ passwordHash: CURRENT_PASSWORD_HASH }),
-      );
+      givenLogin(makeUser({ passwordHash: CURRENT_PASSWORD_HASH }));
       const codes = new Set<string>();
       for (let i = 0; i < 25; i++) {
         const result: any = await service.login({
@@ -777,7 +840,7 @@ describe('AuthService', () => {
       mockConfig.get.mockImplementation((key: string) =>
         key === 'NODE_ENV' ? 'production' : 'x',
       );
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
 
       const result: any = await service.login({
         email: 'wilsonshizirungu@gmail.com',
@@ -788,7 +851,7 @@ describe('AuthService', () => {
     });
 
     it('is stored with an expiry rather than for ever', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       await service.login({
         email: 'wilsonshizirungu@gmail.com',
         password: TEST_PASSWORD,
@@ -814,7 +877,7 @@ describe('AuthService', () => {
     });
 
     it('answers the same for an account that does not exist', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+      givenLogin(null);
       const result = await service.requestPasswordReset({
         email: 'nobody@markova.edu',
       });
@@ -823,7 +886,7 @@ describe('AuthService', () => {
     });
 
     it('answers the same for one that does', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result = await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
@@ -831,7 +894,7 @@ describe('AuthService', () => {
     });
 
     it('emails a link that carries the token', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result: any = await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
@@ -845,9 +908,7 @@ describe('AuthService', () => {
      * recover an account.
      */
     it('texts the link to somebody who has no email', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ email: null, phone: '+250788100000' }),
-      );
+      givenLogin(makeUser({ email: null, phone: '+250788100000' }));
       await service.requestPasswordReset({ phone: '+250788100000' });
       expect(mockDelivery.sms).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -859,7 +920,7 @@ describe('AuthService', () => {
     });
 
     it('stores the token with an expiry', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
@@ -874,7 +935,7 @@ describe('AuthService', () => {
       mockConfig.get.mockImplementation((key: string) =>
         key === 'NODE_ENV' ? 'production' : 'x',
       );
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result = await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
@@ -892,7 +953,7 @@ describe('AuthService', () => {
             lines.push(args.map(String).join(' ')),
           );
       }
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       const result: any = await service.requestPasswordReset({
         email: 'wilsonshizirungu@gmail.com',
       });
@@ -930,7 +991,7 @@ describe('AuthService', () => {
         service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' }),
       ).rejects.toThrow(/expired/i);
       expect(mockRedis.del).toHaveBeenCalledWith('reset:t-1');
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.account.update).not.toHaveBeenCalled();
     });
 
     it('stores the new password hashed, never in the clear', async () => {
@@ -940,9 +1001,8 @@ describe('AuthService', () => {
           expiresAt: new Date(Date.now() + 60000).toISOString(),
         }),
       );
-      mockPrisma.user.update.mockResolvedValue({});
       await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
-      const data = mockPrisma.user.update.mock.calls[0][0].data;
+      const data = mockPrisma.account.update.mock.calls[0][0].data;
       expect(data.passwordHash).not.toBe('NewPass123!');
       expect(data.passwordHash).toMatch(/^\$2[aby]\$/);
     });
@@ -958,7 +1018,7 @@ describe('AuthService', () => {
       mockPrisma.user.update.mockResolvedValue({});
       await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
       expect(
-        mockPrisma.user.update.mock.calls[0][0].data.forcePasswordChange,
+        mockPrisma.account.update.mock.calls[0][0].data.forcePasswordChange,
       ).toBe(false);
     });
 
@@ -976,8 +1036,22 @@ describe('AuthService', () => {
       mockPrisma.user.update.mockResolvedValue({});
       await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1' },
+        where: { accountId: 'user-1' },
         data: { isActive: false },
+      });
+    });
+
+    /* A link sent after the split names the login itself. */
+    it('resets the login a new link names', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          accountId: 'account-9',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        }),
+      );
+      await service.resetPassword({ token: 't-1', newPassword: 'NewPass123!' });
+      expect(mockPrisma.account.update.mock.calls[0][0].where).toEqual({
+        id: 'account-9',
       });
     });
 
@@ -998,27 +1072,31 @@ describe('AuthService', () => {
 
   describe('signing out', () => {
     it('ends only the session the token belongs to', async () => {
-      await service.logout('user-1', 'the-refresh-token');
+      await service.logout('account-1', 'the-refresh-token');
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1', token: 'the-refresh-token', isActive: true },
+        where: {
+          accountId: 'account-1',
+          token: 'the-refresh-token',
+          isActive: true,
+        },
         data: { isActive: false },
       });
     });
 
     // Signing out of every device is what somebody does after losing a phone.
     it('ends every session when no token is given', async () => {
-      await service.logout('user-1');
+      await service.logout('account-1');
       expect(mockPrisma.userSession.updateMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1', isActive: true },
+        where: { accountId: 'account-1', isActive: true },
         data: { isActive: false },
       });
     });
 
     it('lists only the sessions still live', async () => {
       mockPrisma.userSession.findMany.mockResolvedValue([]);
-      await service.getSessions('user-1');
+      await service.getSessions('account-1');
       expect(mockPrisma.userSession.findMany.mock.calls[0][0].where).toEqual({
-        userId: 'user-1',
+        accountId: 'account-1',
         isActive: true,
       });
     });
@@ -1036,8 +1114,7 @@ describe('AuthService', () => {
   describe('changing your own details', () => {
     beforeEach(() => {
       mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+      givenLogin(makeUser());
     });
 
     it('changes only what was sent', async () => {
@@ -1047,29 +1124,18 @@ describe('AuthService', () => {
       });
     });
 
-    /**
-     * A phone number is a login identifier here. Two accounts sharing one
-     * would make it ambiguous which of them a sign-in belongs to.
-     */
-    it('refuses a phone number another account already uses', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'somebody-else' });
-      await expect(
-        service.updateProfile('user-1', { phone: '+250788000001' }),
-      ).rejects.toThrow(/already in use/i);
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-    });
-
-    it('lets a person keep their own number', async () => {
-      await service.updateProfile('user-1', { phone: '+250788000001' });
-      expect(mockPrisma.user.findFirst.mock.calls[0][0].where.id).toEqual({
-        not: 'user-1',
+    /*
+      The phone on the profile is how this school reaches the person, not
+      how they sign in. A family can share one, so it is not checked against
+      anybody else's, and the login is left alone.
+    */
+    it('saves a contact phone without touching the login', async () => {
+      await service.updateProfile('user-1', { phone: '+250788000099' });
+      expect(mockPrisma.user.update.mock.calls[0][0].data).toEqual({
+        phone: '+250788000099',
       });
-      expect(mockPrisma.user.update).toHaveBeenCalled();
-    });
-
-    it('does not go looking for a clash when the phone is untouched', async () => {
-      await service.updateProfile('user-1', { lastName: 'Nshizirungu' });
-      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.account.update).not.toHaveBeenCalled();
+      expect(mockPrisma.account.count).not.toHaveBeenCalled();
     });
   });
 
@@ -1079,9 +1145,7 @@ describe('AuthService', () => {
    */
   describe('how many devices at once', () => {
     it('keeps at most three sessions', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       mockPrisma.userSession.findMany.mockResolvedValue([
         { id: 's-1' },
         { id: 's-2' },
@@ -1099,9 +1163,7 @@ describe('AuthService', () => {
     });
 
     it('ends the oldest first', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       mockPrisma.userSession.findMany.mockResolvedValue([]);
       await service.login({
         email: 'student1@markova.edu',
@@ -1113,9 +1175,7 @@ describe('AuthService', () => {
     });
 
     it('ends nothing when there is room', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       mockPrisma.userSession.findMany.mockResolvedValue([{ id: 's-1' }]);
       await service.login({
         email: 'student1@markova.edu',
@@ -1130,9 +1190,7 @@ describe('AuthService', () => {
      * seven days of access instead of fifteen minutes.
      */
     it('labels the two tokens differently', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -1144,9 +1202,7 @@ describe('AuthService', () => {
     });
 
     it('signs the refresh token with its own secret', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -1156,9 +1212,7 @@ describe('AuthService', () => {
     });
 
     it('gives each token its own id', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -1169,13 +1223,14 @@ describe('AuthService', () => {
     });
 
     it('never answers with the password hash', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
+      /* What the database answers to the token's own select. */
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'student1@markova.edu',
         role: 'STUDENT',
+        school: SCHOOL,
+        account: { forcePasswordChange: false },
       });
       const result: any = await service.login({
         email: 'student1@markova.edu',
@@ -1211,7 +1266,7 @@ describe('AuthService', () => {
         ipAddress: '41.74.160.1',
         deviceInfo: 'iPhone',
       });
-      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       mockRedis.set.mockResolvedValue('OK');
 
       await expect(
@@ -1222,9 +1277,7 @@ describe('AuthService', () => {
     it('refuses a refresh from an account since deactivated', async () => {
       mockJwt.verify.mockReturnValue({ sub: 'user-1', role: 'ADMIN' });
       mockPrisma.userSession.findFirst.mockResolvedValue({ id: 'sess-1' });
-      mockPrisma.user.findUnique.mockResolvedValue(
-        makeUser({ isActive: false }),
-      );
+      givenLogin(makeUser({ isActive: false }));
       await expect(
         service.refreshToken({ refreshToken: 'a-token' }),
       ).rejects.toThrow(UnauthorizedException);
@@ -1233,7 +1286,7 @@ describe('AuthService', () => {
 
   describe('the account lockout', () => {
     it('locks after five wrong passwords', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       mockRedis.get.mockResolvedValue(
         JSON.stringify({ count: 4, lockedUntil: null }),
       );
@@ -1252,7 +1305,7 @@ describe('AuthService', () => {
     });
 
     it('does not lock on the fourth', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       mockRedis.get.mockResolvedValue(
         JSON.stringify({ count: 3, lockedUntil: null }),
       );
@@ -1271,9 +1324,7 @@ describe('AuthService', () => {
     // A successful sign-in clears the count, or a person who mistypes twice a
     // day would eventually be locked out for no reason.
     it('clears the count on a successful sign-in', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ role: 'STUDENT' }),
-      );
+      givenLogin(makeUser({ role: 'STUDENT' }));
       await service.login({
         email: 'student1@markova.edu',
         password: TEST_PASSWORD,
@@ -1282,9 +1333,7 @@ describe('AuthService', () => {
     });
 
     it('refuses an account whose password was never set', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ passwordHash: null }),
-      );
+      givenLogin(makeUser({ passwordHash: null }));
       await expect(
         service.login({
           email: 'wilsonshizirungu@gmail.com',
@@ -1342,36 +1391,34 @@ describe('the two ways into the system', () => {
   });
 
   it('looks a teacher up by their email', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+    givenLogin(makeUser());
 
     await service.login({
       email: 'a.uwase@markova.edu',
       password: TEST_PASSWORD,
     });
 
-    expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
+    expect(mockPrisma.account.findFirst.mock.calls[0][0].where).toEqual({
       email: 'a.uwase@markova.edu',
     });
   });
 
   // The first fifteen parents on a Rwandan school's roll have no email at all.
   it('looks a parent up by their phone number', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(
-      makeUser({ role: 'PARENT', email: null }),
-    );
+    givenLogin(makeUser({ role: 'PARENT', email: null }));
 
     await service.login({
       phone: '+250788100000',
       password: TEST_PASSWORD,
     });
 
-    expect(mockPrisma.user.findFirst.mock.calls[0][0].where).toEqual({
+    expect(mockPrisma.account.findFirst.mock.calls[0][0].where).toEqual({
       phone: '+250788100000',
     });
   });
 
   it('emails the code to somebody who has an address', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+    givenLogin(makeUser());
 
     await service.login({
       email: 'wilsonshizirungu@gmail.com',
@@ -1382,7 +1429,7 @@ describe('the two ways into the system', () => {
   });
 
   it('emails nobody when there is no address to email', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(makeUser({ email: null }));
+    givenLogin(makeUser({ email: null }));
 
     const result: any = await service.login({
       phone: '+250788000001',
@@ -1431,7 +1478,7 @@ describe('a code for an account that is gone', () => {
     mockRedis.get.mockResolvedValue(
       JSON.stringify({ userId: 'user-gone', otp: '123456', attempts: 0 }),
     );
-    mockPrisma.user.findUnique.mockResolvedValue(null);
+    givenLogin(null);
 
     await expect(
       service.verifyOtp({ sessionId: 'session-1', otp: '123456' }),
@@ -1453,7 +1500,7 @@ describe('a code for an account that is gone', () => {
 
     it('replaces a hash made at a weaker cost, on sign-in', async () => {
       // TEST_PASSWORD_HASH is cost 4, which is below what the app now uses.
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       mockPrisma.user.update.mockResolvedValue({});
 
       await service.login({
@@ -1461,7 +1508,7 @@ describe('a code for an account that is gone', () => {
         password: TEST_PASSWORD,
       });
 
-      const upgrade = mockPrisma.user.update.mock.calls.find(
+      const upgrade = mockPrisma.account.update.mock.calls.find(
         (c: any) => c[0]?.data?.passwordHash,
       );
       expect(upgrade).toBeDefined();
@@ -1469,9 +1516,7 @@ describe('a code for an account that is gone', () => {
     }, 20000);
 
     it('leaves a hash already at the current cost alone', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(
-        makeUser({ passwordHash: CURRENT_PASSWORD_HASH }),
-      );
+      givenLogin(makeUser({ passwordHash: CURRENT_PASSWORD_HASH }));
       mockPrisma.user.update.mockResolvedValue({});
 
       await service.login({
@@ -1479,7 +1524,7 @@ describe('a code for an account that is gone', () => {
         password: TEST_PASSWORD,
       });
 
-      const upgrade = mockPrisma.user.update.mock.calls.find(
+      const upgrade = mockPrisma.account.update.mock.calls.find(
         (c: any) => c[0]?.data?.passwordHash,
       );
       expect(upgrade).toBeUndefined();
@@ -1488,8 +1533,10 @@ describe('a code for an account that is gone', () => {
     /* The old hash still works. A failed upgrade must not fail a sign-in that
        has already succeeded. */
     it('signs the person in even when the upgrade cannot be saved', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
-      mockPrisma.user.update.mockRejectedValue(new Error('database is down'));
+      givenLogin(makeUser());
+      mockPrisma.account.update.mockRejectedValueOnce(
+        new Error('database is down'),
+      );
 
       await expect(
         service.login({
@@ -1500,14 +1547,14 @@ describe('a code for an account that is gone', () => {
     }, 20000);
 
     it('never upgrades on a failed sign-in', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(makeUser());
+      givenLogin(makeUser());
       await expect(
         service.login({
           email: 'wilsonshizirungu@gmail.com',
           password: 'wrong',
         }),
       ).rejects.toThrow();
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.account.update).not.toHaveBeenCalled();
     });
   });
 });

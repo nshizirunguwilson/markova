@@ -12,6 +12,7 @@ import { User, Mail, Phone, Shield, Lock, PenLine, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
 import { labelForRole } from "@/types";
+import { SignInDetails } from "@/components/profile/sign-in-details";
 
 /**
  * Roles that put their name under a document the school issues.
@@ -208,9 +209,16 @@ export default function ProfilePage() {
       {/* Profile Details */}
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-foreground">
-            Personal Information
-          </h3>
+          <div>
+            <h3 className="text-base font-semibold text-foreground">
+              Personal Information
+            </h3>
+            {user.school && (
+              <p className="mt-0.5 text-xs text-muted">
+                What {user.school.name} has on file for you
+              </p>
+            )}
+          </div>
           {!isEditing ? (
             <Button
               variant="outline"
@@ -283,14 +291,14 @@ export default function ProfilePage() {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-foreground-muted">
-            <Mail className="inline h-4 w-4 mr-1" /> Email
+            <Mail className="inline h-4 w-4 mr-1" /> Contact email
           </label>
           <p className="text-sm text-foreground">{user.email || "Not set"}</p>
         </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium text-foreground-muted">
-            <Phone className="inline h-4 w-4 mr-1" /> Phone
+            <Phone className="inline h-4 w-4 mr-1" /> Contact phone
           </label>
           {isEditing ? (
             <input
@@ -312,6 +320,8 @@ export default function ProfilePage() {
           <p className="text-sm text-foreground">{labelForRole(user.role)}</p>
         </div>
       </Card>
+
+      <SignInDetails />
 
       {/* Change Password */}
       <Card className="p-6 space-y-4">

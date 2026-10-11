@@ -7,7 +7,9 @@ import { ACCESS_TOKEN_TYPE } from '../token-types';
 import { withPlatform } from '../../../prisma/request-context';
 
 export interface JwtPayload {
-  sub: string; // user id
+  sub: string; // user id: one person in one school
+  /** The login the school record belongs to. Absent on older tokens. */
+  acc?: string;
   role: string;
   email?: string;
   /** 'access' or 'refresh'. Absent on tokens minted before the claim existed. */
@@ -61,19 +63,37 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           lastName: true,
           photoUrl: true,
           isActive: true,
-          forcePasswordChange: true,
+          accountId: true,
+          account: {
+            select: { forcePasswordChange: true, platformRole: true },
+          },
+          school: { select: { status: true } },
           teacher: { select: { id: true } },
           student: { select: { id: true } },
         },
       }),
     );
 
-    if (!user || !user.isActive) {
+    /*
+      Refused when the record was closed, when its school has been suspended,
+      or when the token names a login the record no longer belongs to. A
+      suspended school disappears for everybody in it at once, not when their
+      tokens happen to expire.
+    */
+    if (
+      !user ||
+      !user.isActive ||
+      user.school.status !== 'ACTIVE' ||
+      (payload.acc && payload.acc !== user.accountId)
+    ) {
       throw new UnauthorizedException('User not found or inactive');
     }
 
+    const { account, school: _school, ...rest } = user;
     return {
-      ...user,
+      ...rest,
+      forcePasswordChange: account.forcePasswordChange,
+      platformRole: account.platformRole,
       teacherId: user.teacher?.id || null,
       studentId: user.student?.id || null,
     };

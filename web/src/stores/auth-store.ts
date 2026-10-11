@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Role } from "@/types";
+import type { SchoolRef } from "@/lib/schools";
 
 export interface User {
   id: string;
@@ -17,6 +18,12 @@ export interface User {
      between them would put the same hand under both names. */
   signatureUrl?: string | null;
   forcePasswordChange: boolean;
+  /* The school this record belongs to: the one open now. */
+  school?: SchoolRef;
+  /* How the person signs in, shared with all their schools. From the
+     profile only; distinct from `email` and `phone`, which are this
+     school's contact details for them. */
+  login?: { email: string | null; phone: string | null };
   // Flattened from student/teacher relations (set by getProfile)
   studentId?: string;
   classSectionId?: string;

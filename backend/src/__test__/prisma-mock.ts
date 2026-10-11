@@ -18,7 +18,9 @@ const modelMethods = [
 
 // All Prisma model names (camelCase) derived from schema.prisma
 const modelNames = [
+  'school',
   'schoolConfig',
+  'account',
   'user',
   'userSession',
   'auditLog',

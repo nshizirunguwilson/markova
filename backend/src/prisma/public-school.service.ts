@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 
 import { PrismaService } from './prisma.service';
@@ -11,10 +12,11 @@ import { PrismaService } from './prisma.service';
  * has its own address (step 4), the answer comes from:
  *
  *   1. the `X-School` header, carrying the school's slug, when the client
- *      knows it; or
- *   2. the only active school, when there is exactly one. A school running its
- *      own copy of Markova, which is how every install works today, never has
- *      to say.
+ *      knows it (the web app sends the signed-in person's school);
+ *   2. `DEFAULT_SCHOOL`, the slug of the school this install's public pages
+ *      belong to, when it is set; or
+ *   3. the only active school, when there is exactly one. A school running its
+ *      own copy of Markova never has to say.
  *
  * With several schools and no header, it refuses rather than picking one: a
  * guess would show one school's name, or take one school's application, on
@@ -22,11 +24,16 @@ import { PrismaService } from './prisma.service';
  */
 @Injectable()
 export class PublicSchoolService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
 
   async resolve(request: Pick<Request, 'headers'>): Promise<string> {
     const header = request.headers['x-school'];
-    const slug = (Array.isArray(header) ? header[0] : header)?.trim();
+    const slug =
+      (Array.isArray(header) ? header[0] : header)?.trim() ||
+      this.config?.get<string>('DEFAULT_SCHOOL')?.trim();
 
     if (slug) {
       const school = await this.prisma.school.findFirst({

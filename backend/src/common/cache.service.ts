@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { RedisService } from '../redis/redis.service';
+import { currentRequest } from '../prisma/request-context';
 
 /**
  * Remembering the answers that are asked for constantly and change yearly.
@@ -18,12 +19,24 @@ import { RedisService } from '../redis/redis.service';
  * Fails open, always. A cache that can take the application down when Redis
  * hiccups is worse than no cache, so every path here falls back to asking the
  * real source and the failure is logged rather than thrown.
+ *
+ * Every key belongs to one school. The keys below name a thing ("the
+ * branding"), and with many schools in one database the same name means a
+ * different answer in each, so the key is stored under the school the code
+ * is running in: `school:<id>:<key>`. With no school in context nothing is
+ * cached at all, rather than one shared answer handed to every school.
  */
 @Injectable()
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
 
   constructor(private readonly redis: RedisService) {}
+
+  /** The key inside the current school, or null when there is none. */
+  private inSchool(key: string): string | null {
+    const schoolId = currentRequest()?.schoolId;
+    return schoolId ? `school:${schoolId}:${key}` : null;
+  }
 
   /**
    * The cached value, or the freshly produced one.
@@ -37,6 +50,10 @@ export class CacheService {
     ttlSeconds: number,
     produce: () => Promise<T>,
   ): Promise<T> {
+    const scoped = this.inSchool(key);
+    if (!scoped) return produce();
+    key = scoped;
+
     try {
       const hit = await this.redis.get(key);
       if (hit !== null && hit !== undefined) return JSON.parse(hit) as T;
@@ -65,8 +82,10 @@ export class CacheService {
    * and then twice more.
    */
   async forget(key: string): Promise<void> {
+    const scoped = this.inSchool(key);
+    if (!scoped) return;
     try {
-      await this.redis.del(key);
+      await this.redis.del(scoped);
     } catch {
       /* The TTL will clear it. Worth a line, not worth failing the write that
          the user actually asked for. */
@@ -86,6 +105,9 @@ export class CacheService {
    * is nothing; on a large one `keys` is an outage.
    */
   async forgetMatching(pattern: string): Promise<void> {
+    const scoped = this.inSchool(pattern);
+    if (!scoped) return;
+    pattern = scoped;
     try {
       let cursor = '0';
       do {

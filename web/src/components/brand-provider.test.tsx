@@ -4,6 +4,7 @@ import { render, waitFor } from "@testing-library/react";
 import { contrastRatio } from "@/lib/brand-color";
 import { BrandProvider } from "./brand-provider";
 import { useBrandStore } from "@/stores/brand-store";
+import { useAuthStore } from "@/stores/auth-store";
 
 const defaults = useBrandStore.getState();
 
@@ -14,6 +15,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  useAuthStore.setState({ user: null, isAuthenticated: false });
 });
 
 function serveBranding(body: unknown, ok = true) {
@@ -107,6 +109,44 @@ describe("BrandProvider", () => {
     render(<BrandProvider><span>x</span></BrandProvider>);
     await waitFor(() =>
       expect(useBrandStore.getState().schoolName).toBe("Groupe Scolaire Kigali"),
+    );
+  });
+
+  /* Signed in, the person's own school: switching to their other school
+     changes the name and colour with it. */
+  it("asks for the branding of the school that is open", async () => {
+    serveBranding({ schoolName: "G.S. Umucyo" });
+    useAuthStore.setState({
+      user: {
+        id: "u-2",
+        role: "PARENT",
+        firstName: "Aline",
+        lastName: "Uwase",
+        email: null,
+        phone: null,
+        photoUrl: null,
+        forcePasswordChange: false,
+        school: { id: "s-2", name: "G.S. Umucyo", slug: "gs-umucyo" },
+      },
+      isAuthenticated: true,
+    });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/school-config/public"),
+        { headers: { "X-School": "gs-umucyo" } },
+      ),
+    );
+  });
+
+  it("names no school before anybody signs in", async () => {
+    serveBranding({ schoolName: "Markova Academy" });
+    render(<BrandProvider><span>x</span></BrandProvider>);
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/school-config/public"),
+        { headers: undefined },
+      ),
     );
   });
 

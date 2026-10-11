@@ -1,3 +1,4 @@
+import { accountsFor } from '../../__test__/accounts';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
@@ -17,7 +18,7 @@ describe('bulk import', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockImplementation((args: any) =>
@@ -59,29 +60,55 @@ describe('bulk import', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('stops on a duplicate email and names the row', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
-    await expect(service.bulkImport([student])).rejects.toThrow(
-      /^Row 1: Email d.niyonkuru@markova.edu already exists$/,
+  /*
+    Somebody in the sheet who already signs in to Markova, here or at another
+    school, joins that login rather than stopping the import.
+  */
+  it('joins somebody who already signs in to their login', async () => {
+    prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+    await service.bulkImport([student]);
+    expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(
+      'acc-existing',
     );
+    expect(prisma.account.create).not.toHaveBeenCalled();
   });
 
-  it('stops on a duplicate phone and names the row', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
+  it('stops on somebody already here in that role, and names the row', async () => {
+    prisma.account.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'acc-existing' }]);
+    prisma.user.findFirst.mockResolvedValue({
+      firstName: 'Keza',
+      lastName: 'Ishimwe',
+    });
     await expect(
-      service.bulkImport([
-        { ...student, email: undefined, phone: '+250788100000' },
-      ]),
-    ).rejects.toThrow(/^Row 1: Phone \+250788100000 already exists$/);
+      service.bulkImport([student, { ...student, email: 'k@markova.edu' }]),
+    ).rejects.toThrow(/^Row 2: Keza Ishimwe is already a student here$/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('names the row that failed, not the first one', async () => {
-    prisma.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'existing' });
-    await expect(
-      service.bulkImport([student, { ...student, email: 'taken@markova.edu' }]),
-    ).rejects.toThrow(/^Row 2:/);
+  /* The same person twice in one file is one login, not two. */
+  it('gives two rows for one person, in two roles, one login', async () => {
+    await service.bulkImport([
+      { ...student, role: Role.TEACHER, email: 'j@markova.edu' },
+      {
+        ...student,
+        role: Role.PARENT,
+        email: 'j@markova.edu',
+        phone: '+250788100001',
+      },
+    ]);
+    const [first, second] = prisma.user.create.mock.calls.map(
+      (c: any) => c[0].data.accountId,
+    );
+    expect(second).toBe(first);
+    expect(prisma.account.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops on one person twice in the same role', async () => {
+    await expect(service.bulkImport([student, { ...student }])).rejects.toThrow(
+      /^Row 2: this person is already in the file/,
+    );
   });
 
   it('refuses a student row with no class', async () => {
@@ -166,9 +193,9 @@ describe('bulk import', () => {
 
     it('makes every imported account change its password on first use', async () => {
       await service.bulkImport([student]);
-      expect(prisma.user.create.mock.calls[0][0].data.forcePasswordChange).toBe(
-        true,
-      );
+      expect(
+        prisma.account.create.mock.calls[0][0].data.forcePasswordChange,
+      ).toBe(true);
     });
   });
 
@@ -296,7 +323,10 @@ describe('bulk import', () => {
  * importer actually accepts.
  */
 describe('the import template', () => {
-  const service = new UsersService(createMockPrisma());
+  const service = new UsersService(
+    createMockPrisma(),
+    accountsFor(createMockPrisma()),
+  );
 
   it.each([
     [Role.STUDENT, ['firstName', 'classSectionId', 'province', 'isBoarder']],
@@ -339,7 +369,7 @@ describe('the optional columns on an imported row', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockImplementation((args: any) =>
@@ -443,7 +473,7 @@ describe('the login on the credentials list', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new UsersService(prisma);
+    service = new UsersService(prisma, accountsFor(prisma));
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockImplementation((args: any) =>

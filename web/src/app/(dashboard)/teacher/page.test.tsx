@@ -60,18 +60,21 @@ function mount(over: Record<string, unknown> = {}, user: Record<string, unknown>
 }
 
 describe("what a teacher is teaching", () => {
+  /* By the teacher record, which assignments belong to, not the person. */
   it("asks only for their own assignments", async () => {
     mount();
     await waitFor(() => {
       const asked = h.api.get.mock.calls.some(([url]: any[]) =>
-        String(url).includes("teacherId=u-3"),
+        String(url).includes("teacherId=teacher-1"),
       );
       expect(asked).toBe(true);
     });
+    const urls = h.api.get.mock.calls.map(([u]: any[]) => String(u));
+    expect(urls.some((u) => u.includes("teacherId=u-3"))).toBe(false);
   });
 
   it("asks for nothing before the account has resolved", async () => {
-    mount({}, { id: "" });
+    mount({}, { id: "", teacherId: undefined });
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
 
     const urls = h.api.get.mock.calls.map(([u]: any[]) => String(u));

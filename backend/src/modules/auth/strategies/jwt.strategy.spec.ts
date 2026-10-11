@@ -13,7 +13,9 @@ describe('JwtStrategy.validate()', () => {
     lastName: 'Uwase',
     photoUrl: null,
     isActive: true,
-    forcePasswordChange: false,
+    accountId: 'account-1',
+    account: { forcePasswordChange: false, platformRole: null },
+    school: { status: 'ACTIVE' },
     teacher: { id: 'teacher-1' },
     student: null,
   };
@@ -36,7 +38,12 @@ describe('JwtStrategy.validate()', () => {
         role: 'TEACHER',
         typ: ACCESS_TOKEN_TYPE,
       }),
-    ).resolves.toMatchObject({ id: 'user-1', teacherId: 'teacher-1' });
+    ).resolves.toMatchObject({
+      id: 'user-1',
+      teacherId: 'teacher-1',
+      accountId: 'account-1',
+      forcePasswordChange: false,
+    });
   });
 
   // The swap this claim exists to stop.
@@ -70,5 +77,44 @@ describe('JwtStrategy.validate()', () => {
         typ: ACCESS_TOKEN_TYPE,
       }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  /* A suspended school closes for everybody in it at once, not when their
+     fifteen minute tokens happen to run out. */
+  it('rejects anybody in a suspended school', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...activeUser,
+      school: { status: 'SUSPENDED' },
+    });
+    await expect(
+      strategy.validate({
+        sub: 'user-1',
+        role: 'TEACHER',
+        typ: ACCESS_TOKEN_TYPE,
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  /* The record has to still belong to the login the token was made for. */
+  it('rejects a token whose login does not own the record', async () => {
+    await expect(
+      strategy.validate({
+        sub: 'user-1',
+        acc: 'someone-else',
+        role: 'TEACHER',
+        typ: ACCESS_TOKEN_TYPE,
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('accepts a token that names the right login', async () => {
+    await expect(
+      strategy.validate({
+        sub: 'user-1',
+        acc: 'account-1',
+        role: 'TEACHER',
+        typ: ACCESS_TOKEN_TYPE,
+      }),
+    ).resolves.toMatchObject({ id: 'user-1' });
   });
 });

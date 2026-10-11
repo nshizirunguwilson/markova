@@ -687,6 +687,38 @@ async function createFirstSchool(): Promise<string> {
   return id;
 }
 
+
+/**
+ * A person's school record, made together with their login.
+ *
+ * The seed was written when one users row held both. Each call still says
+ * the email, phone and password in one place, and this splits them: the
+ * login takes how the person signs in, and the school record keeps the same
+ * email and phone as the school's contact details for them.
+ */
+function withLogin<
+  T extends {
+    email?: string | null;
+    phone?: string | null;
+    passwordHash?: string;
+    forcePasswordChange?: boolean;
+  },
+>(data: T) {
+  const { passwordHash, forcePasswordChange, ...user } = data;
+  const { email, phone } = data as { email?: string | null; phone?: string | null };
+  return {
+    ...user,
+    account: {
+      create: {
+        email: email ?? null,
+        phone: phone ?? null,
+        passwordHash,
+        forcePasswordChange,
+      },
+    },
+  };
+}
+
 async function main() {
   console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
@@ -807,7 +839,7 @@ async function main() {
 
   // ─── ADMIN USER ─────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
-    data: {
+    data: withLogin({
       email: 'wilsonshizirungu@gmail.com',
       phone: '+250788000001',
       code: `ADM-${new Date().getFullYear()}-001`,
@@ -821,13 +853,13 @@ async function main() {
       lastName: 'Nshizirungu',
       isActive: true,
       forcePasswordChange: false, // demo account - log straight into dashboard
-    },
+    }),
   });
   console.log('  ✅ Admin user seeded');
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   const librarianUser = await prisma.user.create({
-    data: {
+    data: withLogin({
       email: 'librarian@markova.edu',
       phone: '+250788000020',
       code: `LIB-${new Date().getFullYear()}-001`,
@@ -841,7 +873,7 @@ async function main() {
       lastName: 'Mutoni',
       isActive: true,
       forcePasswordChange: false, // demo account
-    },
+    }),
   });
   console.log('  ✅ Librarian seeded');
 
@@ -936,7 +968,7 @@ async function main() {
 
   for (const person of boardingStaff) {
     const created = await prisma.user.create({
-      data: {
+      data: withLogin({
         email: person.email,
         phone: person.phone,
         code: person.code,
@@ -950,7 +982,7 @@ async function main() {
         lastName: person.lastName,
         isActive: true,
         forcePasswordChange: false, // demo account
-      },
+      }),
     });
     if (person.role === Role.BURSAR) bursarUser = created;
     if (person.role === Role.HEAD_TEACHER) headTeacherUser = created;
@@ -1414,7 +1446,7 @@ async function main() {
     const td = teacherData[ti];
     const tBirthYear = yrNow - (26 + rand(30));
     const user = await prisma.user.create({
-      data: {
+      data: withLogin({
         email: td.email,
         phone: td.phone,
         code: `TCH-${new Date().getFullYear()}-${String(ti + 1).padStart(3, '0')}`,
@@ -1430,7 +1462,7 @@ async function main() {
         lastName: td.lastName,
         isActive: true,
         forcePasswordChange: ti !== 0, // teacher[0] is the demo account
-      },
+      }),
     });
     const teacher = await prisma.teacher.create({
       data: {
@@ -1750,7 +1782,7 @@ async function main() {
       );
 
       const user = await prisma.user.create({
-        data: {
+        data: withLogin({
           email:
             i < 30 ? `student${i + 1}@markova.edu` : emailFor(first, last),
           ...extras.user,
@@ -1760,7 +1792,7 @@ async function main() {
           lastName: last,
           isActive: true,
           forcePasswordChange: i !== 0, // student1 is the demo account
-        },
+        }),
       });
       const student = await prisma.student.create({
         data: {
@@ -1803,7 +1835,7 @@ async function main() {
     });
     const pBirthYear = yr - (32 + rand(24));
     const user = await prisma.user.create({
-      data: {
+      data: withLogin({
         phone: i === 0 ? '+250788100000' : realPhone(),
         code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
         gender,
@@ -1818,7 +1850,7 @@ async function main() {
         lastName: last,
         isActive: true,
         forcePasswordChange: !opts?.demo,
-      },
+      }),
     });
     parentUsers.push(user);
     return user;
@@ -2002,7 +2034,7 @@ async function main() {
       allYears[earliestPl.yearIdx].year.startDate,
     );
     const user = await prisma.user.create({
-      data: {
+      data: withLogin({
         email: emailFor(name.first, name.last),
         ...extras.user,
         passwordHash,
@@ -2011,7 +2043,7 @@ async function main() {
         lastName: name.last,
         isActive: false,
         forcePasswordChange: true,
-      },
+      }),
     });
     const student = await prisma.student.create({
       data: {
@@ -5224,6 +5256,11 @@ async function main() {
     `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
+  const twoSchools = await seedSecondSchool(schoolId, academicYear, currentTerm);
+  console.log(
+    '  🏫 Second school: Patrick Habimana teaches here and is a parent at G.S. Umucyo',
+  );
+
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
   const aClasses = sectionMetas.length - oClasses;
   console.log('\n🎉 Seed completed successfully!');
@@ -5247,6 +5284,106 @@ async function main() {
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
+  console.log(
+    `   In two schools: ${twoSchools} (teacher here, parent at G.S. Umucyo)`,
+  );
+}
+
+/**
+ * A second, small school, so one login across two schools can be seen and
+ * tried: Patrick Habimana, who teaches at the first, is a parent there.
+ *
+ * Not the demo teacher: the demo accounts each open one school, so where
+ * they land never depends on which school somebody opened last.
+ *
+ * Returns the address Patrick signs in with.
+ *
+ * Deliberately small: one class and one child. The full demo of several
+ * Rwandan schools is step 3, part 5 (docs/MULTI-SCHOOL-DESIGN.md).
+ */
+async function seedSecondSchool(
+  firstSchoolId: string,
+  year: { name: string; startDate: Date; endDate: Date },
+  term: { name: string; startDate: Date; endDate: Date },
+): Promise<string> {
+  const school = await prisma.school.create({
+    data: { name: 'G.S. Umucyo', slug: 'gs-umucyo' },
+  });
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${school.id}, false)`;
+
+  await prisma.schoolConfig.create({
+    data: { key: 'school_name', value: 'G.S. Umucyo' },
+  });
+  const academicYear = await prisma.academicYear.create({
+    data: {
+      name: year.name,
+      startDate: year.startDate,
+      endDate: year.endDate,
+      isCurrent: true,
+    },
+  });
+  await prisma.term.create({
+    data: {
+      academicYearId: academicYear.id,
+      name: term.name,
+      startDate: term.startDate,
+      endDate: term.endDate,
+      isCurrent: true,
+    },
+  });
+  const level = await prisma.classLevel.create({
+    data: { name: 'Senior 1', order: 1, stage: 'O_LEVEL' },
+  });
+  const section = await prisma.classSection.create({
+    data: { classLevelId: level.id, name: 'A' },
+  });
+
+  const passwordHash = await bcrypt.hash('Password123!', 10);
+  const child = await prisma.user.create({
+    data: withLogin({
+      email: 'k.habimana.umucyo@markova.edu',
+      role: Role.STUDENT,
+      firstName: 'Keza',
+      lastName: 'Habimana',
+      isActive: true,
+      passwordHash,
+      forcePasswordChange: true,
+    }),
+  });
+  const student = await prisma.student.create({
+    data: {
+      userId: child.id,
+      studentIdNumber: studentNumber('Keza', 'Habimana', 2026, child.id),
+      classSectionId: section.id,
+      gender: Gender.FEMALE,
+      dateOfBirth: new Date('2013-05-20'),
+    },
+  });
+
+  /* Patrick's existing login, with a second school record: a parent here.
+     A demo account like the others, so no forced password change. */
+  const patrick = await prisma.account.update({
+    where: { phone: '+250788000013' },
+    data: { forcePasswordChange: false },
+  });
+  const parent = await prisma.user.create({
+    data: {
+      accountId: patrick.id,
+      role: Role.PARENT,
+      firstName: 'Patrick',
+      lastName: 'Habimana',
+      email: patrick.email,
+      phone: patrick.phone,
+      code: `PAR-${new Date().getFullYear()}-0001`,
+      isActive: true,
+    },
+  });
+  await prisma.parentStudent.create({
+    data: { parentUserId: parent.id, studentId: student.id, relationship: 'Father' },
+  });
+
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${firstSchoolId}, false)`;
+  return patrick.email ?? patrick.phone ?? '';
 }
 
 main()

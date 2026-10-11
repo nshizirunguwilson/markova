@@ -2,6 +2,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -105,6 +106,52 @@ export class ResetPasswordDto {
   // this cap to be stated rather than left implied.
   @MaxLength(72)
   newPassword: string;
+}
+
+/** Open another of the signed-in person's schools. */
+export class SwitchSchoolDto {
+  @ApiProperty({ description: 'The school record to open, from /auth/schools' })
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty({
+    description:
+      'The refresh token in hand. Its session moves to the new school rather than staying open on the old one.',
+  })
+  @IsString()
+  refreshToken: string;
+}
+
+/**
+ * A new email or phone to sign in with. One of the two.
+ *
+ * Only the person can change how they sign in, and only after proving they
+ * hold the new one: a code goes to it, and nothing changes until it comes
+ * back.
+ */
+export class ChangeLoginDto {
+  @ApiPropertyOptional({ example: 'aline.uwase@gmail.com' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: '+250788123456' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9 ]{9,15}$/, { message: 'Enter a phone number' })
+  phone?: string;
+}
+
+export class ConfirmLoginChangeDto {
+  @ApiProperty()
+  @IsString()
+  sessionId: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @MinLength(6)
+  @MaxLength(6)
+  code: string;
 }
 
 export class UpdateProfileDto {

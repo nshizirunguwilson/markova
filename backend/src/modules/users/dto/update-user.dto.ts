@@ -223,3 +223,20 @@ export class UpdateUserDto {
   @IsDateString()
   hireDate?: string;
 }
+
+/**
+ * A school's reset of how somebody signs in, for a person who lost their
+ * phone. Allowed only when the school is the only one they belong to.
+ */
+export class ResetLoginDto {
+  @ApiPropertyOptional({ example: 'e.mugisha@markova.edu' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ example: '+250788123456' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9 ]{9,15}$/, { message: 'Enter a phone number' })
+  phone?: string;
+}

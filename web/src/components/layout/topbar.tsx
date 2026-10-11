@@ -38,6 +38,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { labelForRole } from "@/types";
 import { badgeCount, badgeLabel } from "@/lib/badge-count";
+import { SchoolList, SchoolSwitcher, openSchool } from "./school-switcher";
+import { useMySchools } from "@/hooks/use-schools";
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -78,6 +80,10 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
   const markAllRead = useMarkAllRead();
   const markRead = useMarkRead();
   const unreadCount = unreadData?.unreadCount ?? 0;
+
+  // --- Schools: the switcher sits in this menu on a phone ---
+  const { data: schools } = useMySchools(!!user);
+  const severalSchools = (schools?.length ?? 0) > 1;
 
   // --- Logout confirmation ---
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -426,6 +432,10 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
           )}
         </div>
 
+        {/* The school open now, and the way to the others. On a phone it
+            moves into the menu below, where there is room for it. */}
+        <SchoolSwitcher className="hidden md:flex" />
+
         {/* User menu */}
         <div className="relative" ref={dropdownRef}>
           <button
@@ -480,6 +490,22 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
                 <User className="h-4 w-4" />
                 My Profile
               </button>
+              {severalSchools && (
+                <div className="md:hidden">
+                  <hr className="my-1 border-border" />
+                  <p className="px-4 pt-1.5 text-xs font-medium text-muted">
+                    Your schools
+                  </p>
+                  <SchoolList
+                    schools={schools ?? []}
+                    currentUserId={user?.id}
+                    onChoose={(m) => {
+                      setDropdownOpen(false);
+                      void openSchool(m);
+                    }}
+                  />
+                </div>
+              )}
               <hr className="my-1 border-border" />
               {/* Sits in the menu the reader already opens to change
                   something about themselves, rather than on a settings page

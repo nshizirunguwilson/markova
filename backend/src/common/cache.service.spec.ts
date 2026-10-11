@@ -1,4 +1,8 @@
 import { CacheKey, CacheService, CacheTtl } from './cache.service';
+import { withPlatform, withSchool } from '../prisma/request-context';
+
+/** Inside Kigali Hill, which every case here runs in unless it says not. */
+const inKH = <T>(fn: () => Promise<T>) => withSchool('kh', fn);
 
 /**
  * Remembering answers asked for constantly and changed yearly.
@@ -19,10 +23,10 @@ describe('the cache', () => {
   });
 
   it('asks the source on a miss and remembers the answer', async () => {
-    const out = await cache.remember('k', 60, produce);
+    const out = await inKH(() => cache.remember('k', 60, produce));
     expect(out).toEqual({ schoolName: 'Markova' });
     expect(redis.set).toHaveBeenCalledWith(
-      'k',
+      'school:kh:k',
       JSON.stringify({ schoolName: 'Markova' }),
       'EX',
       60,
@@ -31,7 +35,7 @@ describe('the cache', () => {
 
   it('does not ask the source at all on a hit', async () => {
     redis.get.mockResolvedValue(JSON.stringify({ schoolName: 'Cached' }));
-    expect(await cache.remember('k', 60, produce)).toEqual({
+    expect(await inKH(() => cache.remember('k', 60, produce))).toEqual({
       schoolName: 'Cached',
     });
     expect(produce).not.toHaveBeenCalled();
@@ -41,7 +45,7 @@ describe('the cache', () => {
     const value = { n: 1, nested: { list: [1, 2, 3] }, flag: false };
     produce.mockResolvedValue(value);
     redis.get.mockResolvedValue(null);
-    expect(await cache.remember('k', 60, produce)).toEqual(value);
+    expect(await inKH(() => cache.remember('k', 60, produce))).toEqual(value);
   });
 
   /*
@@ -52,21 +56,21 @@ describe('the cache', () => {
   describe('when Redis is unreachable', () => {
     it('still answers, from the source, when the read throws', async () => {
       redis.get.mockRejectedValue(new Error('connection refused'));
-      expect(await cache.remember('k', 60, produce)).toEqual({
+      expect(await inKH(() => cache.remember('k', 60, produce))).toEqual({
         schoolName: 'Markova',
       });
     });
 
     it('still answers when the write throws', async () => {
       redis.set.mockRejectedValue(new Error('connection refused'));
-      expect(await cache.remember('k', 60, produce)).toEqual({
+      expect(await inKH(() => cache.remember('k', 60, produce))).toEqual({
         schoolName: 'Markova',
       });
     });
 
     it('does not fail a user write just because the cache would not clear', async () => {
       redis.del.mockRejectedValue(new Error('connection refused'));
-      await expect(cache.forget('k')).resolves.toBeUndefined();
+      await expect(inKH(() => cache.forget('k'))).resolves.toBeUndefined();
     });
   });
 
@@ -74,8 +78,45 @@ describe('the cache', () => {
      its colour and sees the old one for ten minutes will change it again, and
      then twice more. */
   it('drops the key when asked', async () => {
-    await cache.forget('k');
-    expect(redis.del).toHaveBeenCalledWith('k');
+    await inKH(() => cache.forget('k'));
+    expect(redis.del).toHaveBeenCalledWith('school:kh:k');
+  });
+
+  /*
+    The same key names a different answer in each school. Kigali Hill's
+    branding must never be what Lycee's sign in page shows.
+  */
+  describe('with many schools', () => {
+    it('keeps each school its own answer', async () => {
+      await inKH(() => cache.remember(CacheKey.publicBranding, 60, produce));
+      await withSchool('lycee', () =>
+        cache.remember(CacheKey.publicBranding, 60, produce),
+      );
+      expect(redis.get.mock.calls.map((c) => c[0])).toEqual([
+        'school:kh:cache:branding:public',
+        'school:lycee:cache:branding:public',
+      ]);
+    });
+
+    it('caches nothing without a school', async () => {
+      await cache.remember('k', 60, produce);
+      await withPlatform(() => cache.remember('k', 60, produce));
+      expect(produce).toHaveBeenCalledTimes(2);
+      expect(redis.get).not.toHaveBeenCalled();
+      expect(redis.set).not.toHaveBeenCalled();
+    });
+
+    it("clears only the school's own keys", async () => {
+      const scan = jest.fn().mockResolvedValue(['0', []]);
+      const scoped = new CacheService({ ...redis, scan } as never);
+      await inKH(() => scoped.forgetMatching(CacheKey.allTimetables));
+      expect(scan.mock.calls[0][2]).toBe('school:kh:cache:timetable:*');
+    });
+
+    it('clears nothing without a school', async () => {
+      await cache.forget('k');
+      expect(redis.del).not.toHaveBeenCalled();
+    });
   });
 
   it('keeps the keys in one place, so an invalidation cannot miss one', () => {

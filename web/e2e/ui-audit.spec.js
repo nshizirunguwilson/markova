@@ -194,6 +194,60 @@ test('auth: valid login (student, no OTP) reaches dashboard', async (browser) =>
   await ctx.close();
 });
 
+/*
+  One login, several schools. Patrick Habimana teaches at Markova Academy and
+  is a parent at G.S. Umucyo (seeded). Signed in through the real page: the
+  first time he is asked which school, every time after he lands where he
+  was; either way the switcher beside his name takes him to the other one
+  without his password, and the page belongs to that school afterwards.
+*/
+test('schools: a person in two schools chooses one and switches from the top bar', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await visit(page, `/login`);
+  await page.fill('#identifier', 'p.habimana@markova.edu');
+  await page.fill('#password', PASS);
+  await page.click('button:has-text("Sign In")');
+  await page.click('button:has-text("Dev shortcut")', { timeout: 60000 });
+  await page.click('button:has-text("Verify & Continue")');
+
+  const asked = await page
+    .waitForSelector('text=Which school?', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  if (asked) {
+    assert(await page.isVisible('button:has-text("Markova Academy")'), 'Markova Academy not offered');
+    await page.click('button:has-text("G.S. Umucyo")');
+  }
+  await page.waitForURL(/\/(parent|teacher)$/, { timeout: 90000 });
+  await settled(page);
+
+  const from = new URL(page.url()).pathname;
+  const [here, there, lands] =
+    from === '/parent'
+      ? ['G.S. Umucyo', 'Markova Academy', '/teacher']
+      : ['Markova Academy', 'G.S. Umucyo', '/parent'];
+  const switcher = page.locator('button[aria-label^="School: "]');
+  await switcher.waitFor({ timeout: 30000 });
+  assert(
+    (await switcher.getAttribute('aria-label')).startsWith(`School: ${here}.`),
+    `switcher should name ${here}`,
+  );
+
+  await switcher.click();
+  await page.click(`button[aria-label^="${there},"]`);
+  await page.waitForURL(`**${lands}`, { timeout: 90000 });
+  await settled(page);
+  await page.waitForFunction(
+    (name) => document.title.startsWith(name),
+    there,
+    { timeout: 30000 },
+  );
+  const now = await page.locator('button[aria-label^="School: "]').getAttribute('aria-label');
+  assert(now.startsWith(`School: ${there}.`), `switcher should now name ${there}, said ${now}`);
+  await ctx.close();
+});
+
 test('auth: invalid password shows error and stays on /login', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();

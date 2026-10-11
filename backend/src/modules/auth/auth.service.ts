@@ -4,6 +4,8 @@ import {
   UnauthorizedException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
+  NotFoundException,
   HttpException,
   HttpStatus,
   Logger,
@@ -15,7 +17,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { DeliveryQueue } from '../../jobs/delivery.queue';
-import { Role } from '@prisma/client';
+import { Prisma, Role, SchoolStatus } from '@prisma/client';
+import { withPlatform, withSchool } from '../../prisma/request-context';
 import {
   hashPassword,
   needsRehash,
@@ -29,6 +32,8 @@ import {
   ChangePasswordDto,
   RequestPasswordResetDto,
   ResetPasswordDto,
+  ChangeLoginDto,
+  ConfirmLoginChangeDto,
 } from './dto';
 
 const MAX_SESSIONS = 3;
@@ -42,6 +47,35 @@ const OTP_TTL_SECONDS = OTP_EXPIRY_MINUTES * 60; // 300s (5 min)
 const RESEND_COOLDOWN_SECONDS = 30; // min gap between OTP resends
 const FAILED_ATTEMPTS_TTL_SECONDS = 900; // 15 min
 const RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
+
+/** A school record, as the sign in and the school list need it. */
+const MEMBER = {
+  id: true,
+  accountId: true,
+  role: true,
+  firstName: true,
+  lastName: true,
+  photoUrl: true,
+  school: { select: { id: true, name: true, slug: true } },
+} as const;
+
+type Member = {
+  id: string;
+  accountId: string;
+  role: Role;
+  firstName: string;
+  lastName: string;
+  photoUrl: string | null;
+  school: { id: string; name: string; slug: string };
+};
+
+/** The login, as the sign in needs it. */
+type Login = {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  lastUserId: string | null;
+};
 
 @Injectable()
 export class AuthService {
@@ -62,21 +96,22 @@ export class AuthService {
       throw new BadRequestException('Email or phone is required');
     }
 
-    // Find user
-    const user = await this.prisma.user.findFirst({
+    /*
+      The login, found by what the person typed. One login serves every
+      school the person belongs to (docs/MULTI-SCHOOL-DESIGN.md), so this
+      finds the person, not a school record; which school opens is decided
+      once the password is right.
+    */
+    const account = await this.prisma.account.findFirst({
       where: dto.email ? { email: dto.email } : { phone: dto.phone },
     });
 
-    if (!user) {
+    if (!account) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!user.isActive) {
-      throw new ForbiddenException('Account is deactivated');
-    }
-
     // Check lockout
-    const identifier = user.id;
+    const identifier = account.id;
     const attemptsRaw = await this.redis.get('failed:' + identifier);
     const attempts = attemptsRaw
       ? JSON.parse(attemptsRaw)
@@ -92,11 +127,11 @@ export class AuthService {
     }
 
     // Verify password
-    if (!user.passwordHash) {
+    if (!account.passwordHash) {
       throw new UnauthorizedException('Password not set');
     }
 
-    const valid = await verifyPassword(dto.password, user.passwordHash);
+    const valid = await verifyPassword(dto.password, account.passwordHash);
     if (!valid) {
       await this.recordFailedAttempt(identifier);
       throw new UnauthorizedException('Invalid credentials');
@@ -120,27 +155,44 @@ export class AuthService {
       Wrapped, because a failed upgrade must not fail a sign-in that has
       already succeeded. The old hash still works; it is just still old.
     */
-    if (needsRehash(user.passwordHash)) {
+    if (needsRehash(account.passwordHash)) {
       try {
-        await this.prisma.user.update({
-          where: { id: user.id },
+        await this.prisma.account.update({
+          where: { id: account.id },
           data: { passwordHash: await hashPassword(dto.password) },
         });
       } catch {
-        this.logger.warn(`Could not upgrade the stored hash for ${user.id}`);
+        this.logger.warn(`Could not upgrade the stored hash for ${account.id}`);
       }
     }
 
     // Clear failed attempts on success
     await this.redis.del('failed:' + identifier);
 
-    // Students login directly (no OTP)
-    if (user.role === Role.STUDENT) {
-      return this.issueTokens(user.id, user.role, ipAddress, deviceInfo);
+    /*
+      Somewhere to go. A login whose every school record is closed, or whose
+      schools are all suspended, opens nothing. Checked after the password,
+      so a stranger typing a number learns nothing about it.
+    */
+    const members = await this.membersOf(account.id);
+    if (members.length === 0) {
+      throw new ForbiddenException('Account is deactivated');
+    }
+
+    /*
+      Students sign in without a code. A login that is anything more than a
+      student anywhere gets the code, because it opens that too: a teacher
+      at one school who studies at another is protected like a teacher.
+    */
+    if (members.every((m) => m.role === Role.STUDENT)) {
+      return this.enter(account, members, ipAddress, deviceInfo);
     }
 
     // For admin/teacher/parent/librarian - generate + send OTP
-    const { sessionId, devOtp } = await this.createAndSendOtp(user);
+    const { sessionId, devOtp } = await this.createAndSendOtp(
+      account,
+      members[0].firstName,
+    );
 
     return {
       requiresOtp: true,
@@ -158,7 +210,10 @@ export class AuthService {
     if (!sessionRaw) {
       throw new UnauthorizedException('Invalid or expired OTP session');
     }
-    const session = JSON.parse(sessionRaw) as { userId: string };
+    const session = JSON.parse(sessionRaw) as {
+      accountId?: string;
+      userId?: string;
+    };
 
     // Rate-limit: one resend per RESEND_COOLDOWN_SECONDS per session
     const cooldownOk = await this.redis.set(
@@ -175,15 +230,18 @@ export class AuthService {
       );
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-    if (!user || !user.isActive) {
+    const account = await this.loginOf(session);
+    const members = account ? await this.membersOf(account.id) : [];
+    if (!account || members.length === 0) {
       throw new UnauthorizedException('Invalid or expired OTP session');
     }
 
     // Reuse the same sessionId so the client doesn't have to swap it
-    const { devOtp } = await this.createAndSendOtp(user, dto.sessionId);
+    const { devOtp } = await this.createAndSendOtp(
+      account,
+      members[0].firstName,
+      dto.sessionId,
+    );
 
     return {
       sessionId: dto.sessionId,
@@ -196,12 +254,8 @@ export class AuthService {
   // ─── Generate, store, and email an OTP (shared by login + resend) ───────────
 
   private async createAndSendOtp(
-    user: {
-      id: string;
-      email: string | null;
-      phone: string | null;
-      firstName: string;
-    },
+    account: { id: string; email: string | null; phone: string | null },
+    firstName: string,
     existingSessionId?: string,
   ): Promise<{ sessionId: string; devOtp?: string }> {
     const otp = this.generateOtp();
@@ -210,7 +264,7 @@ export class AuthService {
     await this.redis.set(
       'otp:' + sessionId,
       JSON.stringify({
-        userId: user.id,
+        accountId: account.id,
         otp,
         expiresAt: new Date(
           Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000,
@@ -237,10 +291,10 @@ export class AuthService {
      * plucked: a sign-in code has expired by then anyway, so trying longer
      * would deliver something already useless.
      */
-    if (user.email) {
+    if (account.email) {
       await this.delivery.email({
-        to: user.email,
-        name: user.firstName,
+        to: account.email,
+        name: firstName,
         subject: 'Your Markova Verification Code',
         urgent: true,
         body: `<p style="font-size: 16px;">Your verification code is:</p>
@@ -251,7 +305,7 @@ export class AuthService {
     // Who it went to, never the code. A code in the log lets anyone who can
     // read the log past the second step of sign in. Outside production it is
     // still returned below as devOtp.
-    this.logger.log(`OTP sent to ${user.email || user.phone}`);
+    this.logger.log(`OTP sent to ${account.email || account.phone}`);
 
     return {
       sessionId,
@@ -285,15 +339,13 @@ export class AuthService {
     // OTP valid - clean up and issue tokens
     await this.redis.del('otp:' + dto.sessionId);
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: session.userId },
-    });
-
-    if (!user) {
+    const account = await this.loginOf(session);
+    const members = account ? await this.membersOf(account.id) : [];
+    if (!account || members.length === 0) {
       throw new UnauthorizedException('User not found');
     }
 
-    return this.issueTokens(user.id, user.role, ipAddress, deviceInfo);
+    return this.enter(account, members, ipAddress, deviceInfo);
   }
 
   // ─── REFRESH TOKEN ─────────────────────────────────────────────────────────
@@ -324,12 +376,26 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // Issue new tokens
+      /*
+        Still welcome in this school. A school record closed by its school, or
+        a school the owner has suspended, ends the session here rather than
+        being renewed for another week. The person signs in again and lands in
+        one of their other schools.
+      */
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
+        select: {
+          ...MEMBER,
+          isActive: true,
+          school: { select: { ...MEMBER.school.select, status: true } },
+        },
       });
 
-      if (!user || !user.isActive) {
+      if (
+        !user ||
+        !user.isActive ||
+        user.school.status !== SchoolStatus.ACTIVE
+      ) {
         throw new UnauthorizedException('User not found or inactive');
       }
 
@@ -351,12 +417,7 @@ export class AuthService {
         data: { isActive: false },
       });
 
-      return this.issueTokens(
-        user.id,
-        user.role,
-        session.ipAddress,
-        session.deviceInfo,
-      );
+      return this.issueTokens(user, session.ipAddress, session.deviceInfo);
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid refresh token');
@@ -366,22 +427,25 @@ export class AuthService {
   // ─── CHANGE PASSWORD ───────────────────────────────────────────────────────
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    /* The password belongs to the login, so this changes it for every school
+       the person belongs to at once. */
+    const account = await this.accountOfUser(userId);
 
-    if (!user || !user.passwordHash) {
+    if (!account || !account.passwordHash) {
       throw new BadRequestException('User not found');
     }
 
-    const valid = await verifyPassword(dto.currentPassword, user.passwordHash);
+    const valid = await verifyPassword(
+      dto.currentPassword,
+      account.passwordHash,
+    );
     if (!valid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
     const hash = await hashPassword(dto.newPassword);
-    await this.prisma.user.update({
-      where: { id: userId },
+    await this.prisma.account.update({
+      where: { id: account.id },
       data: {
         passwordHash: hash,
         forcePasswordChange: false,
@@ -402,7 +466,7 @@ export class AuthService {
       that is gone immediately.
     */
     const { count } = await this.prisma.userSession.updateMany({
-      where: { userId, isActive: true },
+      where: { accountId: account.id, isActive: true },
       data: { isActive: false },
     });
 
@@ -419,20 +483,27 @@ export class AuthService {
       throw new BadRequestException('Email or phone is required');
     }
 
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.account.findFirst({
       where: dto.email ? { email: dto.email } : { phone: dto.phone },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        users: { select: { firstName: true }, take: 1 },
+      },
     });
 
     // Always return success to prevent user enumeration
     if (!user) {
       return { message: 'If the account exists, a reset link has been sent' };
     }
+    const firstName = user.users[0]?.firstName;
 
     const token = uuidv4();
     await this.redis.set(
       'reset:' + token,
       JSON.stringify({
-        userId: user.id,
+        accountId: user.id,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       }),
       'EX',
@@ -448,7 +519,7 @@ export class AuthService {
          inline it failed silently. */
       await this.delivery.email({
         to: user.email,
-        name: user.firstName,
+        name: firstName,
         subject: 'Password Reset - Markova',
         urgent: true,
         body: `<p>You requested a password reset. Click the button below to set a new password:</p>
@@ -499,9 +570,13 @@ export class AuthService {
       throw new BadRequestException('Reset token has expired');
     }
 
+    /* Links sent before logins existed name the person's record, whose id
+       their login was given when the two were split. */
+    const accountId: string = resetData.accountId ?? resetData.userId;
+
     const hash = await hashPassword(dto.newPassword);
-    await this.prisma.user.update({
-      where: { id: resetData.userId },
+    await this.prisma.account.update({
+      where: { id: accountId },
       data: {
         passwordHash: hash,
         forcePasswordChange: false,
@@ -512,7 +587,7 @@ export class AuthService {
 
     // Invalidate all sessions
     await this.prisma.userSession.updateMany({
-      where: { userId: resetData.userId },
+      where: { accountId },
       data: { isActive: false },
     });
 
@@ -521,17 +596,19 @@ export class AuthService {
 
   // ─── LOGOUT ────────────────────────────────────────────────────────────────
 
-  async logout(userId: string, token?: string) {
+  async logout(accountId: string, token?: string) {
+    /* Sessions belong to the login: signing out everywhere signs the person
+       out of every school on every device. */
     if (token) {
       // Logout specific session
       await this.prisma.userSession.updateMany({
-        where: { userId, token, isActive: true },
+        where: { accountId, token, isActive: true },
         data: { isActive: false },
       });
     } else {
       // Logout all sessions
       await this.prisma.userSession.updateMany({
-        where: { userId, isActive: true },
+        where: { accountId, isActive: true },
         data: { isActive: false },
       });
     }
@@ -541,9 +618,9 @@ export class AuthService {
 
   // ─── GET SESSIONS ──────────────────────────────────────────────────────────
 
-  async getSessions(userId: string) {
+  async getSessions(accountId: string) {
     return this.prisma.userSession.findMany({
-      where: { userId, isActive: true },
+      where: { accountId, isActive: true },
       select: {
         id: true,
         deviceInfo: true,
@@ -557,6 +634,15 @@ export class AuthService {
 
   // ─── UPDATE PROFILE ────────────────────────────────────────────────────────
 
+  /**
+   * The person's own details in this school: their name, and the phone the
+   * school reaches them on.
+   *
+   * Not how they sign in. That belongs to their login, is shared with their
+   * other schools, and changes only through `requestLoginChange`, after a
+   * code. So the phone here is free to match anybody's: it is a contact
+   * number, and a family can share one.
+   */
   async updateProfile(
     userId: string,
     dto: { firstName?: string; lastName?: string; phone?: string },
@@ -566,18 +652,140 @@ export class AuthService {
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
     if (dto.phone !== undefined) data.phone = dto.phone;
 
-    // Guard against a phone collision with another account.
-    if (data.phone) {
-      const existing = await this.prisma.user.findFirst({
-        where: { phone: data.phone, id: { not: userId } },
-        select: { id: true },
-      });
-      if (existing) {
-        throw new BadRequestException('That phone number is already in use');
-      }
+    await this.prisma.user.update({ where: { id: userId }, data });
+    return this.getProfile(userId);
+  }
+
+  // ─── CHANGE HOW YOU SIGN IN ────────────────────────────────────────────────
+
+  /**
+   * Start changing the email or phone the person signs in with.
+   *
+   * Only the person can, because the login is shared with every school they
+   * belong to and no one school may move it. A code goes to the new address,
+   * and nothing changes until it comes back: that proves the person holds
+   * it, so a typo cannot lock them out and nobody can point a login at
+   * somebody else's phone.
+   */
+  async requestLoginChange(userId: string, dto: ChangeLoginDto) {
+    const field = dto.email ? 'email' : dto.phone ? 'phone' : null;
+    if (!field || (dto.email && dto.phone)) {
+      throw new BadRequestException('Give a new email or a new phone number');
+    }
+    const value = (field === 'email' ? dto.email! : dto.phone!).trim();
+
+    const account = await this.accountOfUser(userId);
+    if (!account) throw new UnauthorizedException('User not found');
+    if (account[field] === value) {
+      throw new BadRequestException(`You already sign in with that ${field}`);
     }
 
-    await this.prisma.user.update({ where: { id: userId }, data });
+    /* The person is signed in and is choosing their own address, so saying
+       it is taken tells them nothing they could not learn by trying. */
+    const taken = await withPlatform(() =>
+      this.prisma.account.count({ where: { [field]: value } }),
+    );
+    if (taken) {
+      throw new ConflictException(
+        `That ${field === 'email' ? 'email' : 'phone number'} is already used to sign in to Markova`,
+      );
+    }
+
+    const code = this.generateOtp();
+    const sessionId = uuidv4();
+    await this.redis.set(
+      'login_change:' + sessionId,
+      JSON.stringify({ accountId: account.id, field, value, code }),
+      'EX',
+      OTP_TTL_SECONDS,
+    );
+
+    if (field === 'email') {
+      await this.delivery.email({
+        to: value,
+        subject: 'Confirm your new Markova sign in',
+        urgent: true,
+        body: `<p>Your code to start signing in to Markova with this email is:</p>
+         <p style="font-size: 32px; font-weight: bold; color: #1B4F72; letter-spacing: 4px; text-align: center; margin: 20px 0;">${code}</p>
+         <p>It expires in ${OTP_EXPIRY_MINUTES} minutes. If you did not ask for this, ignore this email.</p>`,
+      });
+    } else {
+      await this.delivery.sms({
+        phone: value,
+        urgent: true,
+        message: `Your Markova code to sign in with this phone is ${code}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+      });
+    }
+    this.logger.log(`Sign in change code sent to ${value}`);
+
+    return {
+      sessionId,
+      message: `A code is on its way to ${value}`,
+      ...(this.configService.get('NODE_ENV') !== 'production' && {
+        devOtp: code,
+      }),
+    };
+  }
+
+  /**
+   * Finish the change, with the code the new address received.
+   *
+   * The login changes once and every school sees it. Each school's contact
+   * details that were the old address move with it, because they were the
+   * same thing; a contact a school had set to something else stays as the
+   * school set it.
+   */
+  async confirmLoginChange(userId: string, dto: ConfirmLoginChangeDto) {
+    const raw = await this.redis.get('login_change:' + dto.sessionId);
+    if (!raw) throw new BadRequestException('That code has expired');
+    const pending = JSON.parse(raw) as {
+      accountId: string;
+      field: 'email' | 'phone';
+      value: string;
+      code: string;
+    };
+
+    const account = await this.accountOfUser(userId);
+    if (!account || account.id !== pending.accountId) {
+      throw new BadRequestException('That code has expired');
+    }
+    if (pending.code !== dto.code) {
+      await this.redis.del('login_change:' + dto.sessionId);
+      throw new BadRequestException(
+        'That code is not right. Ask for a new one.',
+      );
+    }
+    await this.redis.del('login_change:' + dto.sessionId);
+
+    const { field, value } = pending;
+    const old = account[field];
+    try {
+      await withPlatform(() =>
+        this.prisma.$transaction(async (tx) => {
+          await tx.account.update({
+            where: { id: account.id },
+            data: { [field]: value },
+          });
+          if (old) {
+            await tx.user.updateMany({
+              where: { accountId: account.id, [field]: old },
+              data: { [field]: value },
+            });
+          }
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Somebody started signing in with that a moment ago. Choose another.',
+        );
+      }
+      throw error;
+    }
+
     return this.getProfile(userId);
   }
 
@@ -598,9 +806,13 @@ export class AuthService {
         // it where this person has to sign.
         signatureUrl: true,
         isActive: true,
-        forcePasswordChange: true,
         lastLoginAt: true,
         createdAt: true,
+        school: { select: { id: true, name: true, slug: true } },
+        /* How the person signs in, shown on their own profile only. */
+        account: {
+          select: { email: true, phone: true, forcePasswordChange: true },
+        },
         student: {
           select: {
             id: true,
@@ -651,9 +863,11 @@ export class AuthService {
     }
 
     // Flatten role-specific IDs onto the user object for convenience
-    const { student, teacher, parentStudents, ...rest } = user as any;
+    const { student, teacher, parentStudents, account, ...rest } = user as any;
     return {
       ...rest,
+      forcePasswordChange: account.forcePasswordChange,
+      login: { email: account.email, phone: account.phone },
       ...(student && {
         studentId: student.id,
         classSectionId: student.classSectionId,
@@ -669,87 +883,271 @@ export class AuthService {
 
   // ─── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
-  private async issueTokens(
-    userId: string,
-    role: string,
+  // ─── YOUR SCHOOLS ──────────────────────────────────────────────────────────
+
+  /**
+   * Every school the signed-in person can open, with what is waiting in each.
+   *
+   * The list the switcher shows. One entry per school record, so a teacher
+   * who is also a parent at the same school sees that school twice, once for
+   * each role. Each count is read inside its own school, behind that school's
+   * wall, as that record: nothing from one school is read while in another.
+   */
+  async schools(accountId: string, currentUserId: string) {
+    const members = await this.membersOf(accountId);
+    return Promise.all(
+      members.map(async (m) => ({
+        ...this.membership(m),
+        current: m.id === currentUserId,
+        unreadMessages: await withSchool(m.school.id, () =>
+          this.prisma.message.count({
+            where: {
+              conversation: { participants: { some: { userId: m.id } } },
+              senderUserId: { not: m.id },
+              reads: { none: { userId: m.id } },
+            },
+          }),
+        ),
+      })),
+    );
+  }
+
+  /**
+   * Open another of the person's schools, without asking for the password.
+   *
+   * The person proved who they are when they signed in; the session they
+   * hold says so. What is checked here is that the school record is theirs,
+   * still open, and in a school that is not suspended. The session moves with
+   * them: the refresh token in hand stops working and a new pair, for the
+   * other school, takes its place.
+   */
+  async switchSchool(
+    accountId: string,
+    targetUserId: string,
+    refreshToken: string,
+  ) {
+    const members = await this.membersOf(accountId);
+    const target = members.find((m) => m.id === targetUserId);
+    if (!target) {
+      throw new NotFoundException('That school is not on your list');
+    }
+
+    const { count } = await this.prisma.userSession.updateMany({
+      where: { accountId, token: refreshToken, isActive: true },
+      data: { isActive: false },
+    });
+    if (count === 0) {
+      throw new UnauthorizedException('Your session has ended. Sign in again.');
+    }
+
+    const session = await this.prisma.userSession.findFirst({
+      where: { accountId, token: refreshToken },
+      select: { ipAddress: true, deviceInfo: true },
+    });
+    return {
+      ...(await this.issueTokens(
+        target,
+        session?.ipAddress,
+        session?.deviceInfo,
+      )),
+      schools: members.map((m) => this.membership(m)),
+    };
+  }
+
+  // ─── PRIVATE HELPERS ───────────────────────────────────────────────────────
+
+  /**
+   * Into a school, at the end of a sign in.
+   *
+   * One school record: straight in. Several: the one used last, and if the
+   * person has never chosen, the first, with `chooseSchool` set so the app
+   * asks them which they meant before showing anything.
+   */
+  private async enter(
+    account: Login,
+    members: Member[],
     ipAddress?: string | null,
     deviceInfo?: string | null,
   ) {
-    const payload = { sub: userId, role };
-
-    // `typ` says which kind of token this is. The two used to be
-    // indistinguishable once decoded, so anything holding a refresh token could
-    // present it wherever an access token was expected and get seven days of
-    // access instead of fifteen minutes. Separate secrets are the primary
-    // defence and are now enforced at boot; this is the second one, and it
-    // holds even if the keys are ever misconfigured again.
-    const accessToken = this.jwtService.sign(
-      { ...payload, typ: ACCESS_TOKEN_TYPE, jti: uuidv4() },
-      { expiresIn: ACCESS_TOKEN_EXPIRY },
+    const last = members.find((m) => m.id === account.lastUserId);
+    const tokens = await this.issueTokens(
+      last ?? members[0],
+      ipAddress,
+      deviceInfo,
     );
+    return {
+      ...tokens,
+      schools: members.map((m) => this.membership(m)),
+      chooseSchool: members.length > 1 && !last,
+    };
+  }
 
-    const refreshToken = this.jwtService.sign(
-      { ...payload, typ: REFRESH_TOKEN_TYPE, jti: uuidv4() },
-      {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: REFRESH_TOKEN_EXPIRY,
-      },
+  /** One line of the school list. */
+  private membership(m: Member) {
+    return {
+      userId: m.id,
+      role: m.role,
+      school: m.school,
+    };
+  }
+
+  /**
+   * The school records a login may open: still open, in a school that is
+   * not suspended, ordered so the list reads the same every time.
+   *
+   * Above the wall between schools, because a person's schools are by
+   * definition more than the one they are in. It reads only this login's
+   * own records.
+   */
+  private membersOf(accountId: string): Promise<Member[]> {
+    return withPlatform(() =>
+      this.prisma.user.findMany({
+        where: {
+          accountId,
+          isActive: true,
+          school: { status: SchoolStatus.ACTIVE },
+        },
+        select: MEMBER,
+        orderBy: [{ school: { name: 'asc' } }, { role: 'asc' }],
+      }),
     );
+  }
 
-    // Enforce max sessions
-    const activeSessions = await this.prisma.userSession.findMany({
-      where: { userId, isActive: true },
-      orderBy: { createdAt: 'asc' },
+  /** The login a pending code or reset link was made for. */
+  private loginOf(pending: { accountId?: string; userId?: string }) {
+    /* Codes made before logins existed name the person's record, whose id
+       their login was given when the two were split. */
+    const id = pending.accountId ?? pending.userId;
+    if (!id) return Promise.resolve(null);
+    return this.prisma.account.findUnique({
+      where: { id },
+      select: { id: true, email: true, phone: true, lastUserId: true },
     });
+  }
 
-    if (activeSessions.length >= MAX_SESSIONS) {
-      // Deactivate oldest sessions
-      const toDeactivate = activeSessions.slice(
-        0,
-        activeSessions.length - MAX_SESSIONS + 1,
-      );
-      await this.prisma.userSession.updateMany({
-        where: { id: { in: toDeactivate.map((s) => s.id) } },
-        data: { isActive: false },
-      });
-    }
-
-    // Create new session
-    await this.prisma.userSession.create({
-      data: {
-        userId,
-        token: refreshToken,
-        ipAddress: ipAddress || null,
-        deviceInfo: deviceInfo || null,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
-
-    // Update last login
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastLoginAt: new Date() },
-    });
-
+  /** The login behind a school record. */
+  private async accountOfUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true,
-        email: true,
-        phone: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-        photoUrl: true,
-        forcePasswordChange: true,
+        account: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            passwordHash: true,
+          },
+        },
       },
     });
+    return user?.account ?? null;
+  }
 
-    return {
-      accessToken,
-      refreshToken,
-      user,
-    };
+  /**
+   * A token pair for one school record.
+   *
+   * Each access token is for one person in one school with one role, which
+   * is what every guard and every query already expects. `acc` names the
+   * login, so the guard can check the record still belongs to it.
+   *
+   * Above the wall between schools: when switching, the person is still
+   * inside the school they are leaving while this writes to the one they are
+   * going to. It writes only their own session, record and login.
+   */
+  private issueTokens(
+    member: Pick<Member, 'id' | 'accountId' | 'role'>,
+    ipAddress?: string | null,
+    deviceInfo?: string | null,
+  ) {
+    return withPlatform(async () => {
+      const payload = {
+        sub: member.id,
+        acc: member.accountId,
+        role: member.role,
+      };
+
+      // `typ` says which kind of token this is. The two used to be
+      // indistinguishable once decoded, so anything holding a refresh token
+      // could present it wherever an access token was expected and get seven
+      // days of access instead of fifteen minutes. Separate secrets are the
+      // primary defence and are now enforced at boot; this is the second one,
+      // and it holds even if the keys are ever misconfigured again.
+      const accessToken = this.jwtService.sign(
+        { ...payload, typ: ACCESS_TOKEN_TYPE, jti: uuidv4() },
+        { expiresIn: ACCESS_TOKEN_EXPIRY },
+      );
+
+      const refreshToken = this.jwtService.sign(
+        { ...payload, typ: REFRESH_TOKEN_TYPE, jti: uuidv4() },
+        {
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+          expiresIn: REFRESH_TOKEN_EXPIRY,
+        },
+      );
+
+      // At most MAX_SESSIONS devices per person, across all their schools.
+      const activeSessions = await this.prisma.userSession.findMany({
+        where: { accountId: member.accountId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (activeSessions.length >= MAX_SESSIONS) {
+        // Deactivate oldest sessions
+        const toDeactivate = activeSessions.slice(
+          0,
+          activeSessions.length - MAX_SESSIONS + 1,
+        );
+        await this.prisma.userSession.updateMany({
+          where: { id: { in: toDeactivate.map((s) => s.id) } },
+          data: { isActive: false },
+        });
+      }
+
+      // Create new session
+      await this.prisma.userSession.create({
+        data: {
+          accountId: member.accountId,
+          userId: member.id,
+          token: refreshToken,
+          ipAddress: ipAddress || null,
+          deviceInfo: deviceInfo || null,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+      });
+
+      /* Last opened, per school, and which school to open next time. */
+      const now = new Date();
+      await this.prisma.user.update({
+        where: { id: member.id },
+        data: { lastLoginAt: now },
+      });
+      await this.prisma.account.update({
+        where: { id: member.accountId },
+        data: { lastLoginAt: now, lastUserId: member.id },
+      });
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: member.id },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          role: true,
+          firstName: true,
+          lastName: true,
+          photoUrl: true,
+          school: { select: { id: true, name: true, slug: true } },
+          account: { select: { forcePasswordChange: true } },
+        },
+      });
+      const { account, ...rest } = user!;
+
+      return {
+        accessToken,
+        refreshToken,
+        user: { ...rest, forcePasswordChange: account.forcePasswordChange },
+      };
+    });
   }
 
   private generateOtp(): string {

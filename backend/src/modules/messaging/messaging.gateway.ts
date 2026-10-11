@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   withPlatform,
@@ -219,6 +220,12 @@ export class MessagingGateway
     return withRequestContext(context, async () => await fn());
   }
 
+  /*
+    Never throws. Nest calls this from the socket's own close event, where a
+    rejected promise is nobody's to catch: it ended the whole process. A
+    person removed while their chat was open did it, and so did any database
+    hiccup at the moment somebody closed a tab.
+  */
   async handleDisconnect(client: Socket) {
     // A socket that never got as far as signing in has nothing to clean up.
     if (!client.data?.context) return;
@@ -232,9 +239,10 @@ export class MessagingGateway
         if (sockets.size === 0) {
           this.onlineUsers.delete(userId);
 
-          // Update lastSeenAt
+          // Update lastSeenAt. updateMany, so a person who is no longer
+          // there is nothing to update rather than an error.
           const now = new Date();
-          await this.prisma.user.update({
+          await this.prisma.user.updateMany({
             where: { id: userId },
             data: { lastSeenAt: now },
           });
@@ -243,8 +251,14 @@ export class MessagingGateway
           await this.broadcastPresence(userId, false, now);
         }
       }
+    }).catch((error: unknown) => {
+      this.disconnectLogger.warn(
+        `Could not record a disconnect: ${String(error)}`,
+      );
     });
   }
+
+  private readonly disconnectLogger = new Logger('MessagingGateway');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MESSAGE EVENTS
