@@ -21,6 +21,7 @@ import {
   SendMessageDto,
 } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
+import { pausesOn, schoolDay, untilWords } from '../../common/student-standing';
 
 /** Who is in a conversation, as the check for a watcher reads them. */
 const PRESENT = {
@@ -445,6 +446,25 @@ export class MessagingService {
       throw new ForbiddenException(
         'This is an announcement. Message the school directly to reply.',
       );
+    }
+
+    /* A suspended student keeps the class chat, to follow what the class is
+       doing, and cannot post in it until they are back. */
+    if (conversation?.classSectionId) {
+      const student = await this.prisma.student.findUnique({
+        where: { userId: senderUserId },
+        select: { id: true },
+      });
+      const pause = student
+        ? (await pausesOn(this.prisma, [student.id], schoolDay())).get(
+            student.id,
+          )
+        : undefined;
+      if (pause?.kind === 'SUSPENDED') {
+        throw new ForbiddenException(
+          `You are suspended ${untilWords(pause.endsOn)}. You can read the class chat, and post in it again when you are back.`,
+        );
+      }
     }
 
     /*

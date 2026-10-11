@@ -69,7 +69,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           },
           school: { select: { status: true } },
           teacher: { select: { id: true } },
-          student: { select: { id: true } },
+          student: { select: { id: true, status: true } },
         },
       }),
     );
@@ -96,6 +96,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       platformRole: account.platformRole,
       teacherId: user.teacher?.id || null,
       studentId: user.student?.id || null,
+      /* Read by FormerStudentInterceptor: a student who has left sees only
+         their own past. */
+      studentStatus: user.student?.status ?? null,
     };
   }
 }

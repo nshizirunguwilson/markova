@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import * as express from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { OpenToFormerStudents } from '../../common/decorators';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
@@ -94,6 +95,7 @@ export class ReportsController {
     await this.feeGate.assertYearReleased(user.role, studentId, academicYearId);
   }
 
+  @OpenToFormerStudents()
   @Get('term/:studentId')
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
@@ -134,6 +136,7 @@ export class ReportsController {
     return this.service.suggestReportComments(studentId, termId);
   }
 
+  @OpenToFormerStudents()
   @Get('term/:studentId/html')
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
@@ -149,6 +152,7 @@ export class ReportsController {
     return this.service.generateTermReportHtml(studentId, termId);
   }
 
+  @OpenToFormerStudents()
   @Get('term/:studentId/pdf')
   // Bulk class downloads fetch these one per student; a dedicated budget
   // keeps them from tripping the app-wide 100 req/min limit.
@@ -184,6 +188,7 @@ export class ReportsController {
    * process that is not serving anybody, and the request that started it
    * returns in milliseconds.
    */
+  @OpenToFormerStudents()
   @Post('render')
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @Throttle({ default: { ttl: 60000, limit: 240 } })
@@ -215,6 +220,7 @@ export class ReportsController {
     return { id, state: 'queued' as const };
   }
 
+  @OpenToFormerStudents()
   @Get('render/:id')
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @Throttle({ default: { ttl: 60000, limit: 600 } })
@@ -223,6 +229,7 @@ export class ReportsController {
     return this.renders.status(id, userId);
   }
 
+  @OpenToFormerStudents()
   @Get('render/:id/download')
   @Roles('ADMIN', 'HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @Throttle({ default: { ttl: 60000, limit: 240 } })
@@ -261,6 +268,7 @@ export class ReportsController {
     );
   }
 
+  @OpenToFormerStudents()
   @Get('year/:studentId')
   @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get year report data' })
@@ -273,6 +281,7 @@ export class ReportsController {
     return this.service.getYearReportData(studentId, academicYearId);
   }
 
+  @OpenToFormerStudents()
   @Get('year/:studentId/html')
   // Bulk class downloads fetch these one per student, like the term cards.
   @Throttle({ default: { ttl: 60000, limit: 240 } })
@@ -287,6 +296,7 @@ export class ReportsController {
     return this.service.generateYearReportHtml(studentId, academicYearId);
   }
 
+  @OpenToFormerStudents()
   @Get('year/:studentId/pdf')
   @Throttle({ default: { ttl: 60000, limit: 240 } })
   @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')

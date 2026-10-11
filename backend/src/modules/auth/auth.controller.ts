@@ -9,6 +9,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { OpenToFormerStudents } from '../../common/decorators';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withPlatform } from '../../prisma/request-context';
@@ -30,6 +31,8 @@ import { CurrentUser } from '../../common/decorators';
 import type { Request } from 'express';
 
 @ApiTags('Auth')
+// A student who has left still manages their own account.
+@OpenToFormerStudents()
 @Controller('auth')
 /*
   Signing in, codes, refreshing a token and resetting a password all happen
