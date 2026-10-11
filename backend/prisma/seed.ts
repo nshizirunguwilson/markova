@@ -5902,8 +5902,14 @@ async function seedPeopleInSeveralSchools(
 
   // A parent at Markova Academy whose other child boards at E.S. Ubumwe.
   await inSchool(firstSchoolId);
+  /* Named outright: the seed's owner connection is not held by the wall,
+     so app.school_id alone would let this find a parent of any school. */
   const parentHere = await prisma.user.findFirstOrThrow({
-    where: { role: Role.PARENT, phone: { not: '+250788100000' } },
+    where: {
+      schoolId: firstSchoolId,
+      role: Role.PARENT,
+      phone: { not: '+250788100000' },
+    },
     orderBy: { code: 'asc' },
     include: { account: true },
   });
