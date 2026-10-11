@@ -537,7 +537,9 @@ model ClassSection {
   admissionOffers       AdmissionOffer[]
 
   /// The class's own group chat. One per class, created with the class.
-  groupChat Conversation?
+  groupChat    Conversation?
+  /// The class teacher and any other duty tied to this class.
+  teacherRoles TeacherRole[]
 
   // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
   // null) are additionally guarded in AcademicService.
@@ -732,10 +734,13 @@ model TeacherRole {
   school         School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   teacherId      String      @map("teacher_id")
   role           SpecialRole
+  /// The class a class teacher leads. A real link, so it can only ever
+  /// name a class of the same school (links_stay_inside_a_school).
   classSectionId String?     @map("class_section_id")
   department     String?
 
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classSection ClassSection? @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, role, classSectionId])
   @@index([teacherId])
