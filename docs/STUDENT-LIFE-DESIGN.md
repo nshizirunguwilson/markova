@@ -1,6 +1,6 @@
 # The student items: thinking before building
 
-_Written 12 October 2026, before any code. Covers six near-work items from
+_Written 11 October 2026, before any code. Covers six near-work items from
 [BLIND-SPOTS.md](BLIND-SPOTS.md): A8, A9, B5, B6, B7 and B8._
 
 For each item: the real situation, what Markova does **today** (checked in
@@ -428,7 +428,7 @@ tests through the real API, browser checks, the accessibility audit, and
 
 ## Decided
 
-On 12 October 2026 every recommendation above was agreed, along with the two
+On 11 October 2026 every recommendation above was agreed, along with the two
 foundations and the order:
 
 1. B8: a suspended student may sign in to see homework, and cannot post in the

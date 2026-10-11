@@ -45,6 +45,7 @@ describe('DisciplineService', () => {
     beforeEach(() => {
       prisma.student.findUnique.mockResolvedValue({
         id: 'student-1',
+        status: 'ACTIVE',
         disciplinePoints: 100,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
       });

@@ -155,7 +155,7 @@ export class UsersService {
     if (classSectionId || studentStatus) {
       where.student = {
         ...(classSectionId && { classSectionId }),
-        ...(studentStatus && { status: studentStatus as any }),
+        ...(studentStatus && { status: studentStatus }),
       };
     }
 
@@ -267,6 +267,7 @@ export class UsersService {
         signatureUrl: true,
         isActive: true,
         safeguardingLead: true,
+        passedAwayOn: true,
         /* How this person signs in. The school shows it so it can tell them,
            and cannot change it: see resetLogin. */
         account: {
@@ -663,6 +664,15 @@ export class UsersService {
       },
     });
 
+    /* A student's standing changes through their journey, which keeps the
+       day, the reason and who decided, and does what the change means. An
+       edit that sets it to what it already is changes nothing. */
+    if (user.student && dto.status && dto.status !== user.student.status) {
+      throw new BadRequestException(
+        "Change a student's standing from their Journey, so the day and the reason are kept",
+      );
+    }
+
     // Update student-specific fields
     if (user.student) {
       await this.prisma.student.update({
@@ -671,7 +681,6 @@ export class UsersService {
           ...(dto.classSectionId && { classSectionId: dto.classSectionId }),
           ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
           ...(dto.gender && { gender: dto.gender }),
-          ...(dto.status && { status: dto.status }),
           ...(dto.bloodType !== undefined && { bloodType: dto.bloodType }),
           ...(dto.allergies !== undefined && { allergies: dto.allergies }),
           ...(dto.medicalConditions !== undefined && {

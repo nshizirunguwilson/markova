@@ -24,7 +24,11 @@ import { useAuthStore } from "@/stores/auth-store";
 import { ThemeSwitch } from "@/components/ui/theme-switch";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { getNavigation, type NavItem } from "@/lib/navigation";
+import {
+  getNavigation,
+  isFormerStudent,
+  type NavItem,
+} from "@/lib/navigation";
 import {
   useUnreadCount,
   useNotifications,
@@ -99,7 +103,7 @@ export function Topbar({ onToggleSidebar, sidebarOpen = false }: TopbarProps) {
   // memoizes this for us, and a hand-written useMemo here only gave the
   // compiler a dependency list it could not verify.
   const allNavItems: NavItem[] = user?.role
-    ? getNavigation(user.role).flatMap((s) => s.items)
+    ? getNavigation(user.role, isFormerStudent(user)).flatMap((s) => s.items)
     : [];
 
   const searchResults = useMemo(() => {

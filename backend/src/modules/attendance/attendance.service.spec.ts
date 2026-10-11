@@ -43,6 +43,7 @@ describe('AttendanceService', () => {
 
   const student = {
     id: 'student-1',
+    status: 'ACTIVE',
     classSectionId: 'section-1',
     studentIdNumber: 'STD-2026-001',
     nfcCardId: '1111 2222 3333',
@@ -214,6 +215,12 @@ describe('AttendanceService', () => {
         { studentId: 's-2', status: 'ABSENT' },
       ],
     };
+
+    // Both on the roll, neither out of school.
+    beforeEach(() => {
+      prisma.student.findMany.mockResolvedValue([{ id: 's-1' }, { id: 's-2' }]);
+      prisma.student.findUnique.mockResolvedValue(student);
+    });
 
     it('records every student', async () => {
       const result = await service.bulkMarkAttendance(
@@ -526,6 +533,25 @@ describe('AttendanceService', () => {
       prisma.attendance.groupBy.mockResolvedValue([
         { studentId: 's-1', _count: 30 },
       ]);
+      prisma.student.findUnique.mockResolvedValue({ status: 'ACTIVE' });
+    });
+
+    it('leaves out the family of a child suspended this week', async () => {
+      prisma.studentPause.findMany.mockResolvedValue([
+        {
+          studentId: 's-1',
+          kind: 'SUSPENDED',
+          startsOn: new Date(0),
+          endsOn: null,
+          reason: 'Fighting',
+        },
+      ]);
+      prisma.parentStudent.findMany.mockResolvedValue([
+        { parentUserId: 'p-1', parent: { firstName: 'C', email: 'c@x.rw' } },
+      ]);
+      const result = await service.sendChronicAbsenteeismAlerts();
+      expect(result.alertsSent).toBe(0);
+      expect(notifications.send).not.toHaveBeenCalled();
     });
 
     it('writes to the families of everyone over the line', async () => {
@@ -1054,6 +1080,8 @@ describe('alerting the families of chronically absent children', () => {
     jest
       .spyOn(service, 'getChronicallyAbsent')
       .mockResolvedValue({ students: [chronic], threshold: 20 } as never);
+    // The child is in school this week, not suspended or away.
+    prisma.student.findUnique.mockResolvedValue({ status: 'ACTIVE' });
   });
 
   it('emails a parent who has an address', async () => {
@@ -1194,5 +1222,186 @@ describe('the attendance dashboard when today is empty', () => {
     prisma.attendance.findFirst.mockResolvedValue(null);
     const out = await service.getDashboardData();
     expect(out.isFallback).toBe(false);
+  });
+});
+
+/**
+ * A student suspended or away is on the register but neither present nor
+ * absent, and their family is never texted that they were absent. One who
+ * has left is not on the register at all (B8 and A9).
+ */
+describe('AttendanceService and a student out of school', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let notifications: { send: jest.Mock };
+  let service: AttendanceService;
+  const smsQueue = { sms: jest.fn(), email: jest.fn() };
+
+  const suspendedUntil20th = {
+    studentId: 'suspended',
+    kind: 'SUSPENDED',
+    startsOn: new Date('2026-10-13T00:00:00Z'),
+    endsOn: new Date('2026-10-20T00:00:00Z'),
+    reason: 'Fighting',
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    notifications = { send: jest.fn().mockResolvedValue({}) };
+    smsQueue.sms.mockReset();
+    service = new AttendanceService(
+      prisma,
+      notifications as unknown as NotificationsService,
+      smsQueue as never,
+    );
+    prisma.attendance.findFirst.mockResolvedValue(null);
+    prisma.attendance.create.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: `att-${data.studentId}`, ...data }),
+    );
+    prisma.parentStudent.findMany.mockResolvedValue([
+      {
+        parentUserId: 'parent-1',
+        parent: { phone: '+250788100000', email: null, firstName: 'Claudine' },
+        student: { user: { firstName: 'Keza', lastName: 'Habimana' } },
+      },
+    ]);
+  });
+
+  const student = (id: string, status = 'ACTIVE') => ({
+    id,
+    status,
+    classSectionId: 'section-1',
+    studentIdNumber: id,
+    user: { firstName: 'Keza', lastName: 'Habimana' },
+  });
+
+  it('leaves a suspended student out of a register taken for the class', async () => {
+    prisma.studentPause.findMany.mockResolvedValue([suspendedUntil20th]);
+    prisma.student.findMany.mockResolvedValue([
+      { id: 'present' },
+      { id: 'suspended' },
+    ]);
+    const result = await service.bulkMarkAttendance(
+      {
+        classSectionId: 'section-1',
+        date: '2026-10-14',
+        type: 'daily',
+        records: [
+          { studentId: 'present', status: 'PRESENT' },
+          { studentId: 'suspended', status: 'ABSENT' },
+        ],
+      } as never,
+      'teacher-1',
+    );
+    expect(result.count).toBe(1);
+    expect(result.skipped).toEqual([
+      { studentId: 'suspended', reason: 'Suspended' },
+    ]);
+    expect(prisma.attendance.create).toHaveBeenCalledTimes(1);
+    expect(smsQueue.sms).not.toHaveBeenCalled();
+    expect(notifications.send).not.toHaveBeenCalled();
+  });
+
+  it('leaves a student who has left out of it too', async () => {
+    prisma.student.findMany.mockResolvedValue([]);
+    const result = await service.bulkMarkAttendance(
+      {
+        classSectionId: 'section-1',
+        date: '2026-10-14',
+        type: 'daily',
+        records: [{ studentId: 'gone', status: 'ABSENT' }],
+      } as never,
+      'teacher-1',
+    );
+    expect(result.skipped).toEqual([
+      { studentId: 'gone', reason: 'Not on the roll' },
+    ]);
+  });
+
+  it('refuses to mark one suspended student, and says until when', async () => {
+    prisma.student.findUnique.mockResolvedValue(student('suspended'));
+    prisma.studentPause.findMany.mockResolvedValue([suspendedUntil20th]);
+    await expect(
+      service.markAttendance(
+        {
+          studentId: 'suspended',
+          classSectionId: 'section-1',
+          date: '2026-10-14',
+          type: 'daily',
+          status: 'ABSENT',
+        } as never,
+        'teacher-1',
+      ),
+    ).rejects.toThrow(
+      'Keza Habimana is suspended until 20 October, so is not marked present or absent',
+    );
+  });
+
+  it('turns a suspended student away at the gate scanner', async () => {
+    prisma.student.findFirst.mockResolvedValue(student('suspended'));
+    prisma.studentPause.findMany.mockResolvedValue([suspendedUntil20th]);
+    await expect(
+      service.processQrScan(
+        { qrData: 'suspended', classSectionId: 'section-1' },
+        'guard-1',
+      ),
+    ).rejects.toThrow(/is suspended until 20 October/);
+    expect(prisma.attendance.create).not.toHaveBeenCalled();
+  });
+
+  it('turns away a student who has left, saying so', async () => {
+    prisma.student.findFirst.mockResolvedValue(student('gone', 'EXPELLED'));
+    await expect(
+      service.processQrScan(
+        { qrData: 'gone', classSectionId: 'section-1' },
+        'guard-1',
+      ),
+    ).rejects.toThrow('Keza Habimana is not on the roll (expelled)');
+  });
+
+  it('shows a paused student on the class register, in none of the counts', async () => {
+    prisma.student.findMany.mockResolvedValue([
+      { ...student('present'), attendances: [{ status: 'PRESENT' }] },
+      { ...student('suspended'), attendances: [] },
+    ]);
+    prisma.studentPause.findMany.mockResolvedValue([suspendedUntil20th]);
+    const register = await service.getClassAttendance(
+      'section-1',
+      '2026-10-14',
+    );
+    expect(register).toMatchObject({
+      total: 1,
+      present: 1,
+      absent: 0,
+      paused: 1,
+      rate: 100,
+    });
+    const shown = register.students.find((s) => s.studentId === 'suspended');
+    expect(shown).toMatchObject({
+      status: null,
+      pause: { kind: 'SUSPENDED', label: 'Suspended' },
+    });
+  });
+
+  it('texts the family of an absent student in school as before', async () => {
+    prisma.student.findUnique.mockResolvedValue(student('s1'));
+    prisma.studentPause.findMany.mockResolvedValue([]);
+    await service.markAttendance(
+      {
+        studentId: 's1',
+        classSectionId: 'section-1',
+        date: '2026-10-14',
+        type: 'daily',
+        status: 'ABSENT',
+      } as never,
+      'teacher-1',
+    );
+    const told =
+      notifications.send.mock.calls.length + smsQueue.sms.mock.calls.length;
+    expect(told).toBeGreaterThan(0);
+    // Only parents whose accounts are open.
+    expect(prisma.parentStudent.findMany.mock.calls[0][0].where).toEqual({
+      studentId: 's1',
+      parent: { isActive: true },
+    });
   });
 });

@@ -44,7 +44,17 @@ describe('NotificationsService', () => {
     prisma.pushToken.findMany.mockResolvedValue([]);
     prisma.pushToken.upsert.mockResolvedValue({});
     prisma.user.findUnique.mockResolvedValue(null);
-    prisma.user.findMany.mockResolvedValue([]);
+    /* Everybody asked about has an open account and no email, unless a
+       spec says otherwise. */
+    prisma.user.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        (where?.id?.in ?? []).map((id: string) => ({
+          id,
+          email: null,
+          firstName: null,
+        })),
+      ),
+    );
     jest.spyOn((service as any).logger, 'log').mockImplementation();
     jest.spyOn((service as any).logger, 'error').mockImplementation();
     return service;
@@ -131,6 +141,7 @@ describe('NotificationsService', () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
         email: 'a@markova.edu',
         firstName: 'Aline',
       });
@@ -150,7 +161,10 @@ describe('NotificationsService', () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
       const error = jest.spyOn((service as any).logger, 'error');
-      prisma.user.findUnique.mockResolvedValue({ email: 'a@markova.edu' });
+      prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
+        email: 'a@markova.edu',
+      });
       sendMail.mockRejectedValue(new Error('boom'));
 
       await service.send({
@@ -168,7 +182,7 @@ describe('NotificationsService', () => {
     it('sends nothing to a person with no phone on record', async () => {
       build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      prisma.user.findUnique.mockResolvedValue({ phone: null });
+      prisma.user.findUnique.mockResolvedValue({ isActive: true, phone: null });
       await service.send({
         userId: 'user-1',
         title: 'X',
@@ -181,7 +195,10 @@ describe('NotificationsService', () => {
     it('sends an SMS to a person who has a phone', async () => {
       build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+      prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
+        phone: '+250788100000',
+      });
       await service.send({
         userId: 'user-1',
         title: 'X',
@@ -227,7 +244,10 @@ describe('NotificationsService', () => {
     it('still keeps the in-app record when the SMS fails', async () => {
       build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+      prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
+        phone: '+250788100000',
+      });
       twilioCreate.mockRejectedValue(new Error('rejected by carrier'));
       await expect(
         service.send({
@@ -242,7 +262,7 @@ describe('NotificationsService', () => {
     it('sends nothing to a person with no email on record', async () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
-      prisma.user.findUnique.mockResolvedValue({ email: null });
+      prisma.user.findUnique.mockResolvedValue({ isActive: true, email: null });
       await service.send({
         userId: 'user-1',
         title: 'X',
@@ -256,6 +276,7 @@ describe('NotificationsService', () => {
       build({ SMTP_HOST: 'smtp.brevo.com', SMTP_FROM_NAME: 'Markova TSS' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
         email: 'c@markova.edu',
         firstName: 'Claudine',
       });
@@ -277,6 +298,7 @@ describe('NotificationsService', () => {
       build({ SMTP_HOST: 'smtp.brevo.com', SMTP_FROM_NAME: 'Markova TSS' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
         email: 'c@markova.edu',
         firstName: 'Claudine',
       });
@@ -302,6 +324,7 @@ describe('NotificationsService', () => {
       build({ SMTP_HOST: 'smtp.brevo.com' });
       service.onModuleInit();
       prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
         email: 'x@markova.edu',
         firstName: null,
       });
@@ -416,7 +439,10 @@ describe('NotificationsService', () => {
     it('keeps sending after one SMS fails', async () => {
       build({ TWILIO_SID: 'AC1', TWILIO_TOKEN: 'tok' });
       service.onModuleInit();
-      prisma.user.findUnique.mockResolvedValue({ phone: '+250788' });
+      prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
+        phone: '+250788',
+      });
       await expect(
         service.sendBulk({
           userIds: ['u-1', 'u-2'],
@@ -486,6 +512,7 @@ describe('NotificationsService', () => {
     /* The school record a push is for, and its login's phones. */
     beforeEach(() => {
       prisma.user.findUnique.mockResolvedValue({
+        isActive: true,
         accountId: 'acc-1',
         schoolId: 'school-1',
         school: { name: 'Markova Academy' },
@@ -636,6 +663,7 @@ describe('what a push notification carries with it', () => {
     prisma.notification.create.mockResolvedValue({ id: 'n-1' });
     prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
     prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
       accountId: 'acc-1',
       schoolId: 'school-1',
       school: { name: 'Markova Academy' },
@@ -739,6 +767,7 @@ describe('what a push notification carries with it', () => {
     service = new NotificationsService(prisma, config);
     prisma.pushToken.findMany.mockResolvedValue([{ token: 'ExpoToken[a]' }]);
     prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
       accountId: 'acc-1',
       schoolId: 'school-1',
       school: { name: 'Markova Academy' },
@@ -852,5 +881,69 @@ describe('a broadcast where some of it fails', () => {
     } as never);
 
     expect(logged).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Nothing goes out to a closed account: a person who passed away, or who left
+ * the school. Every sender in the app ends here, so this is the last check
+ * standing between a grieving family and a text.
+ */
+describe('a notification to a closed account', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: NotificationsService;
+  let sms: jest.SpyInstance;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new NotificationsService(prisma, {
+      get: () => undefined,
+    } as unknown as ConfigService);
+    prisma.notification.create.mockResolvedValue({ id: 'n-1' });
+    prisma.notification.createMany.mockResolvedValue({ count: 0 });
+    sms = jest.spyOn(service, 'sendSMSToPhone').mockResolvedValue(undefined);
+  });
+
+  it('sends no text to a closed account', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: false,
+      phone: '+250788100000',
+    });
+    await service.send({
+      userId: 'parent-1',
+      type: 'SMS',
+      title: 'Absent',
+      message: 'Your child was absent today',
+    } as never);
+    expect(sms).not.toHaveBeenCalled();
+  });
+
+  it('still texts an open one', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      phone: '+250788100000',
+    });
+    await service.send({
+      userId: 'parent-1',
+      type: 'SMS',
+      title: 'Absent',
+      message: 'Your child was absent today',
+    } as never);
+    expect(sms).toHaveBeenCalledWith('+250788100000', expect.any(String));
+  });
+
+  it('leaves closed accounts out of a broadcast', async () => {
+    prisma.user.findMany.mockResolvedValue([{ id: 'open-1' }]);
+    const result = await service.sendBulk({
+      userIds: ['open-1', 'closed-1'],
+      title: 'Sports day',
+      message: 'Friday',
+      type: 'PUSH',
+    } as never);
+    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({
+      id: { in: ['open-1', 'closed-1'] },
+      isActive: true,
+    });
+    expect(result).toEqual({ count: 1 });
   });
 });

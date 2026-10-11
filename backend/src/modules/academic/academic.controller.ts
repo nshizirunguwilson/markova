@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { OpenToFormerStudents } from '../../common/decorators';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SubjectScope } from '@prisma/client';
 import { AcademicService } from './academic.service';
@@ -95,6 +96,7 @@ export class AcademicController {
 
   // ─── ACADEMIC YEARS ─────────────────────────────────────────────────────────
 
+  @OpenToFormerStudents()
   @Get('years')
   @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'List all academic years' })
@@ -135,6 +137,7 @@ export class AcademicController {
 
   // ─── TERMS ──────────────────────────────────────────────────────────────────
 
+  @OpenToFormerStudents()
   @Get('terms')
   @Roles(...ALL_ROLES)
   @ApiOperation({ summary: 'List all terms (optionally filter by year)' })

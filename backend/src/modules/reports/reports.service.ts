@@ -13,6 +13,12 @@ import { withPlatform, withSchool } from '../../prisma/request-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import {
+  STANDING_LABEL,
+  pausesOn,
+  schoolDay,
+  untilWords,
+} from '../../common/student-standing';
+import {
   TERM_CONDUCT_MARK,
   conductPercentage,
   conductRemark,
@@ -906,7 +912,7 @@ export class ReportsService implements OnModuleDestroy {
     // for ever.
     if (student.status !== 'ACTIVE') {
       throw new BadRequestException(
-        `Cannot issue a card to a student who is ${student.status.toLowerCase()}. Set them back to active first.`,
+        `Cannot issue a card to a student who is ${STANDING_LABEL[student.status].toLowerCase()}. Readmit them first.`,
       );
     }
     if (!student.user?.isActive) {
@@ -1022,6 +1028,7 @@ export class ReportsService implements OnModuleDestroy {
     const student = await this.prisma.student.findUnique({
       where: { cardCode: code },
       select: {
+        id: true,
         studentIdNumber: true,
         status: true,
         cardIssuedAt: true,
@@ -1058,12 +1065,37 @@ export class ReportsService implements OnModuleDestroy {
       };
     }
 
+    /* Suspended for these days: the card is real and comes back to life on
+       the first day back, with nothing for anybody to restore. */
+    const pause =
+      student.status === 'ACTIVE'
+        ? (await pausesOn(this.prisma, [student.id], schoolDay())).get(
+            student.id,
+          )
+        : undefined;
+    if (pause?.kind === 'SUSPENDED') {
+      return {
+        valid: false,
+        // A suspension always has its last day.
+        reason: `This student is suspended ${untilWords(pause.endsOn)}, and is not to be let in.`,
+        suspended: true,
+        student: {
+          name: `${student.user.firstName} ${student.user.lastName}`,
+          studentIdNumber: student.studentIdNumber,
+          level: student.classSection?.classLevel?.name ?? null,
+          photoUrl: student.user.photoUrl,
+          status: student.status,
+        },
+        issuedAt: student.cardIssuedAt,
+      };
+    }
+
     return {
       valid: student.status === 'ACTIVE',
       reason:
         student.status === 'ACTIVE'
           ? null
-          : `This student is no longer enrolled (${student.status.toLowerCase()}).`,
+          : `This student is no longer enrolled (${STANDING_LABEL[student.status].toLowerCase()}).`,
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,

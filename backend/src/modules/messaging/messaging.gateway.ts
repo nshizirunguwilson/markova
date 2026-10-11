@@ -151,9 +151,17 @@ export class MessagingGateway
       // Above the wall between schools: the socket does not know its school
       // until the person is found. Everything after this runs inside it.
       const user = await withPlatform(() =>
-        this.prisma.user.findUnique({ where: { id: payload.sub } }),
+        this.prisma.user.findUnique({
+          where: { id: payload.sub },
+          include: { student: { select: { status: true } } },
+        }),
       );
-      if (!user || !user.isActive) {
+      // A student who has left has no part in the school's chat any more.
+      if (
+        !user ||
+        !user.isActive ||
+        (user.student && user.student.status !== 'ACTIVE')
+      ) {
         client.disconnect();
         return;
       }

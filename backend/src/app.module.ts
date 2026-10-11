@@ -26,6 +26,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HelpModule } from './modules/help/help.module';
 import { HealthModule } from './modules/health/health.module';
+import { JourneyModule } from './modules/journey/journey.module';
+import { FormerStudentInterceptor } from './common/interceptors/former-student.interceptor';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
 import { CommonModule } from './common/common.module';
@@ -56,6 +58,7 @@ import { JobsModule } from './jobs/jobs.module';
     CommonModule,
     AuthModule,
     UsersModule,
+    JourneyModule,
     SchoolConfigModule,
     AcademicModule,
     MarksModule,
@@ -95,6 +98,11 @@ import { JobsModule } from './jobs/jobs.module';
       interceptors and this one only needs to run before the handler, which it
       does either way.
     */
+    // A student who has left sees their past report cards and nothing else.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: FormerStudentInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: RlsInterceptor,

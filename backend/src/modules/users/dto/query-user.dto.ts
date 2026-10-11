@@ -1,6 +1,6 @@
 import { IsEnum, IsIn, IsOptional, IsBoolean, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { Role, StudentStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { PaginationDto } from '../../../common/dto';
 
@@ -29,12 +29,12 @@ export class QueryUserDto extends PaginationDto {
   classSectionId?: string;
 
   @ApiPropertyOptional({
-    enum: ['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'],
+    enum: StudentStatus,
     description: 'Filter students by enrollment status',
   })
   @IsOptional()
-  @IsIn(['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED'])
-  studentStatus?: string;
+  @IsEnum(StudentStatus)
+  studentStatus?: StudentStatus;
 
   @ApiPropertyOptional({
     enum: ['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'],

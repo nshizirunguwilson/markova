@@ -71,16 +71,19 @@ describe('ReportsService', () => {
      * always filtered on ACTIVE; the single one did not, so a card issued to
      * somebody who had left worked for ever.
      */
-    it.each(['GRADUATED', 'TRANSFERRED', 'INACTIVE'])(
-      'refuses a student who is %s',
-      async (status) => {
-        prisma.student.findUnique.mockResolvedValue(student({ status }));
-        await expect(service.issueIdCard('student-1')).rejects.toThrow(
-          /Cannot issue a card to a student who is/,
-        );
-        expect(prisma.student.update).not.toHaveBeenCalled();
-      },
-    );
+    it.each([
+      'GRADUATED',
+      'TRANSFERRED',
+      'WITHDRAWN',
+      'EXPELLED',
+      'PASSED_AWAY',
+    ])('refuses a student who is %s', async (status) => {
+      prisma.student.findUnique.mockResolvedValue(student({ status }));
+      await expect(service.issueIdCard('student-1')).rejects.toThrow(
+        /Cannot issue a card to a student who is/,
+      );
+      expect(prisma.student.update).not.toHaveBeenCalled();
+    });
 
     it('refuses a card against a deactivated account', async () => {
       prisma.student.findUnique.mockResolvedValue(

@@ -76,10 +76,11 @@ export function useMarkRead() {
  * always answered `unreadCount` - so the sidebar badge silently read zero
  * and has never appeared.
  */
-export function useUnreadMessageCount() {
+export function useUnreadMessageCount(enabled = true) {
   return useQuery<{ unreadCount: number; mentionCount: number }>({
     queryKey: ["unread-messages"],
     queryFn: async () => (await api.get("/messaging/unread")).data,
+    enabled,
     // Light fallback polling every 60s in case socket disconnects
     refetchInterval: 60000,
   });

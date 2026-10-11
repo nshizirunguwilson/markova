@@ -22,6 +22,15 @@ import {
   RegisterNfcCardDto,
 } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
+import {
+  PAUSE_LABEL,
+  STANDING_LABEL,
+  asDay,
+  coversDay,
+  familyMayHear,
+  pausesOn,
+  untilWords,
+} from '../../common/student-standing';
 
 @Injectable()
 export class AttendanceService {
@@ -42,6 +51,7 @@ export class AttendanceService {
       include: { user: { select: { firstName: true, lastName: true } } },
     });
     if (!student) throw new NotFoundException('Student not found');
+    await this.refuseOffRegister(student, asDay(dto.date));
 
     try {
       const record = await this.upsertAttendanceRecord({
@@ -117,7 +127,30 @@ export class AttendanceService {
     const results = [];
     const notifyStudents: { studentId: string; status: string }[] = [];
 
+    /* A student suspended or away that day is not present and not absent:
+       they are left off, and the register shows why. One who has left the
+       roll is not on the register at all. */
+    const ids = dto.records.map((r) => r.studentId);
+    const day = asDay(dto.date);
+    const [paused, onRoll] = await Promise.all([
+      pausesOn(this.prisma, ids, day),
+      this.prisma.student.findMany({
+        where: { id: { in: ids }, status: 'ACTIVE' },
+        select: { id: true },
+      }),
+    ]);
+    const rollIds = new Set(onRoll.map((s) => s.id));
+    const skipped: { studentId: string; reason: string }[] = [];
+
     for (const record of dto.records) {
+      const pause = paused.get(record.studentId);
+      if (pause || !rollIds.has(record.studentId)) {
+        skipped.push({
+          studentId: record.studentId,
+          reason: pause ? PAUSE_LABEL[pause.kind] : 'Not on the roll',
+        });
+        continue;
+      }
       try {
         const att = await this.upsertAttendanceRecord({
           studentId: record.studentId,
@@ -146,7 +179,7 @@ export class AttendanceService {
       await this.notifyParentAbsence(studentId, dto.date, status);
     }
 
-    return { count: results.length, records: results };
+    return { count: results.length, records: results, skipped };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -170,6 +203,7 @@ export class AttendanceService {
 
     const now = new Date();
     const today = new Date(now.toISOString().slice(0, 10));
+    await this.refuseOffRegister(student, today);
     const type = dto.type || 'daily';
 
     // Prevent duplicate scans
@@ -231,6 +265,7 @@ export class AttendanceService {
 
     const now = new Date();
     const today = new Date(now.toISOString().slice(0, 10));
+    await this.refuseOffRegister(student, today);
     const type = dto.type || 'daily';
 
     const existing = await this.prisma.attendance.findFirst({
@@ -472,34 +507,55 @@ export class AttendanceService {
       orderBy: { user: { firstName: 'asc' } },
     });
 
-    const present = students.filter(
+    /* Suspended or away that day: on the register, showing why, and in
+       none of the counts. Counting them absent made a suspension look like
+       truancy, in the class's rate and in the child's. */
+    const paused = await pausesOn(
+      this.prisma,
+      students.map((s) => s.id),
+      asDay(date),
+    );
+    const here = students.filter((s) => !paused.has(s.id));
+
+    const present = here.filter(
       (s) => s.attendances[0]?.status === 'PRESENT',
     ).length;
-    const late = students.filter(
-      (s) => s.attendances[0]?.status === 'LATE',
-    ).length;
-    const absent = students.filter(
+    const late = here.filter((s) => s.attendances[0]?.status === 'LATE').length;
+    const absent = here.filter(
       (s) => !s.attendances[0] || s.attendances[0]?.status === 'ABSENT',
     ).length;
 
     return {
       date,
-      total: students.length,
+      total: here.length,
       present,
       late,
       absent,
+      paused: paused.size,
       rate:
-        students.length > 0
-          ? Math.round(((present + late) / students.length) * 100)
+        here.length > 0
+          ? Math.round(((present + late) / here.length) * 100)
           : 0,
-      students: students.map((s) => ({
-        studentId: s.id,
-        name: `${s.user.firstName} ${s.user.lastName}`,
-        studentIdNumber: s.studentIdNumber,
-        status: s.attendances[0]?.status || null,
-        scannedAt: s.attendances[0]?.scannedAt || null,
-        reasonCategory: s.attendances[0]?.reasonCategory || null,
-      })),
+      students: students.map((s) => {
+        const pause = paused.get(s.id);
+        return {
+          studentId: s.id,
+          name: `${s.user.firstName} ${s.user.lastName}`,
+          studentIdNumber: s.studentIdNumber,
+          status: pause ? null : s.attendances[0]?.status || null,
+          scannedAt: pause ? null : s.attendances[0]?.scannedAt || null,
+          reasonCategory: pause
+            ? null
+            : s.attendances[0]?.reasonCategory || null,
+          pause: pause
+            ? {
+                kind: pause.kind,
+                label: PAUSE_LABEL[pause.kind],
+                endsOn: pause.endsOn,
+              }
+            : null,
+        };
+      }),
     };
   }
 
@@ -676,6 +732,21 @@ export class AttendanceService {
       _count: true,
     });
 
+    // Students suspended or away that day are in none of the counts.
+    const pausedRows = await this.prisma.studentPause.findMany({
+      where: { ...coversDay(targetDate), student: { status: 'ACTIVE' } },
+      select: {
+        studentId: true,
+        student: { select: { classSectionId: true } },
+      },
+      distinct: ['studentId'],
+    });
+    const pausedIn: Record<string, number> = {};
+    for (const p of pausedRows) {
+      const section = p.student.classSectionId;
+      pausedIn[section] = (pausedIn[section] ?? 0) + 1;
+    }
+
     // Build lookup: { sectionId -> { PRESENT: n, LATE: n, ABSENT: n } }
     const attMap: Record<string, Record<string, number>> = {};
     for (const g of attendanceGroups) {
@@ -689,7 +760,8 @@ export class AttendanceService {
     );
 
     const sectionStats = sections.map((section) => {
-      const totalStudents = section._count.students;
+      const totalStudents =
+        section._count.students - (pausedIn[section.id] ?? 0);
       const sectionAtt = attMap[section.id] || {};
       const present = sectionAtt['PRESENT'] || 0;
       const late = sectionAtt['LATE'] || 0;
@@ -737,14 +809,50 @@ export class AttendanceService {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * Refuse to mark a student who is not on the register that day, saying why:
+   * at a gate, "suspended until 20 October" is the answer the guard needs.
+   */
+  private async refuseOffRegister(
+    student: {
+      id: string;
+      status: string;
+      user: { firstName: string; lastName: string };
+    },
+    day: Date,
+  ) {
+    const name = `${student.user.firstName} ${student.user.lastName}`;
+    if (student.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        `${name} is not on the roll (${STANDING_LABEL[student.status as keyof typeof STANDING_LABEL].toLowerCase()})`,
+      );
+    }
+    const pause = (await pausesOn(this.prisma, [student.id], day)).get(
+      student.id,
+    );
+    if (pause) {
+      throw new BadRequestException(
+        `${name} is ${PAUSE_LABEL[pause.kind].toLowerCase()} ${untilWords(pause.endsOn)}`.trim() +
+          ', so is not marked present or absent',
+      );
+    }
+  }
+
   private async notifyParentAbsence(
     studentId: string,
     date: string,
     status: string = 'ABSENT',
   ) {
-    // Find parent links
+    // Never to a family whose child is suspended, away, gone or passed away.
+    if (
+      !(await familyMayHear(this.prisma, studentId, 'absence', asDay(date)))
+    ) {
+      return;
+    }
+
+    // Find parent links: only parents who are still with us and still here.
     const parentLinks = await this.prisma.parentStudent.findMany({
-      where: { studentId },
+      where: { studentId, parent: { isActive: true } },
       include: {
         parent: { select: { phone: true, email: true, firstName: true } },
         student: {
@@ -825,9 +933,14 @@ export class AttendanceService {
     let unreachable = 0;
 
     for (const student of students) {
+      /* A student suspended or away this week is out on the school's word;
+         their family is not sent a warning about it. */
+      if (!(await familyMayHear(this.prisma, student.studentId, 'absence'))) {
+        continue;
+      }
       // Find parent links for each chronically absent student
       const parentLinks = await this.prisma.parentStudent.findMany({
-        where: { studentId: student.studentId },
+        where: { studentId: student.studentId, parent: { isActive: true } },
         include: {
           parent: { select: { email: true, phone: true, firstName: true } },
         },

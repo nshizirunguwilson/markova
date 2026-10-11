@@ -582,3 +582,44 @@ describe("DashboardShell content motion", () => {
     ).toMatch(/the dashboard/i);
   });
 });
+
+/**
+ * A student who has left the school sees their report cards and their own
+ * profile, and is told why. Everything else sends them back there.
+ */
+describe("DashboardShell and a student who has left", () => {
+  const former = () => {
+    signIn("STUDENT", { studentStatus: "GRADUATED" } as never);
+    localStorage.setItem("access_token", "good");
+  };
+
+  it("sends them from anywhere else to their report cards", async () => {
+    h.pathname.current = "/student/marks";
+    former();
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() =>
+      expect(h.router.replace).toHaveBeenCalledWith("/student/reports"),
+    );
+    expect(screen.queryByText(/the dashboard/i)).not.toBeInTheDocument();
+  });
+
+  it("lets them open their report cards, and says they have left", async () => {
+    h.pathname.current = "/student/reports";
+    former();
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() => expect(screen.getByText(/the dashboard/i)).toBeInTheDocument());
+    expect(screen.getByTestId("former-student")).toHaveTextContent(
+      "You have left the school (graduated).",
+    );
+    expect(h.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("leaves a student on the roll alone, and tells them nothing", async () => {
+    h.pathname.current = "/student/marks";
+    signIn("STUDENT", { studentStatus: "ACTIVE" } as never);
+    localStorage.setItem("access_token", "good");
+    render(wrap(<DashboardShell><Child /></DashboardShell>));
+    await waitFor(() => expect(screen.getByText(/the dashboard/i)).toBeInTheDocument());
+    expect(screen.queryByTestId("former-student")).toBeNull();
+  });
+});

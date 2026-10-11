@@ -106,6 +106,14 @@ export class NotificationsService implements OnModuleInit {
       },
     });
 
+    /* Never out to a closed account: a person who passed away, or who has
+       left the school. The bell keeps the entry; no phone rings. */
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: { isActive: true },
+    });
+    if (!recipient?.isActive) return notification;
+
     // Dispatch to external channel
     try {
       switch (dto.type) {
@@ -138,6 +146,14 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async sendBulk(dto: BulkNotificationDto) {
+    /* Only people whose account is open (see send()), read once with what
+       an email needs. */
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: dto.userIds }, isActive: true },
+      select: { id: true, email: true, firstName: true },
+    });
+    dto = { ...dto, userIds: users.map((u) => u.id) };
+
     // Batch-create all DB notifications at once (avoids N+1)
     await this.prisma.notification.createMany({
       data: dto.userIds.map((userId) => ({
@@ -150,12 +166,6 @@ export class NotificationsService implements OnModuleInit {
 
     // Dispatch external notifications in parallel
     if (dto.type === 'EMAIL') {
-      // Batch fetch all user emails at once, then send in parallel
-      const users = await this.prisma.user.findMany({
-        where: { id: { in: dto.userIds } },
-        select: { id: true, email: true, firstName: true },
-      });
-
       if (this.transporter) {
         const fromName = await this.senderName();
         const fromEmail =

@@ -23,6 +23,7 @@ import { PocketMoneyModule } from './modules/pocket-money/pocket-money.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolConfigModule } from './modules/school-config/school-config.module';
 import { UsersModule } from './modules/users/users.module';
+import { JourneyModule } from './modules/journey/journey.module';
 import { CommonModule } from './common/common.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -41,6 +42,7 @@ const FEATURE_MODULES = [
   AuditModule,
   AuthModule,
   UsersModule,
+  JourneyModule,
   SchoolConfigModule,
   AcademicModule,
   MarksModule,

@@ -107,12 +107,6 @@ const cases: Record<string, Case> = {
     params: { studentId: ID, dateFrom: '2026-01-01', dateTo: '2026-08-24' },
     withoutItsKey: () => useApi.useAttendanceSummary(),
   },
-  'a register for one day': {
-    hook: () => useApi.useClassAttendance(ID, '2026-08-24'),
-    url: '/attendance/class',
-    params: { classSectionId: ID, date: '2026-08-24' },
-    withoutItsKey: () => useApi.useClassAttendance(ID),
-  },
   'the whole school’s attendance': {
     hook: () => useApi.useAttendanceDashboard('2026-08-24'),
     url: '/attendance/dashboard',
@@ -396,6 +390,45 @@ describe.each(
     const { result } = await run();
 
     expect((result.current as { fetchStatus: string }).fetchStatus).toBe('idle');
+    expect(http.get).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A day's register. The API answers with a summary holding the list in
+ * `students`; the hook hands back the list, which is what the screen reads.
+ * Reading the summary as the list is what broke a register already taken.
+ */
+describe('reading a register for one day', () => {
+  it('asks for the class and the day, and hands back the students', async () => {
+    givenApi({
+      '/attendance/class': {
+        total: 1,
+        students: [{ studentId: 's1', status: 'PRESENT', pause: null }],
+      },
+    });
+    const { run } = renderApiHook(() => useApi.useClassAttendance(ID, '2026-08-24'));
+    const { result } = await run();
+    await waitFor(() =>
+      expect((result.current as { data: unknown }).data).toEqual([
+        { studentId: 's1', status: 'PRESENT', pause: null },
+      ]),
+    );
+    expect(http.get).toHaveBeenCalledWith('/attendance/class', {
+      params: { classSectionId: ID, date: '2026-08-24' },
+    });
+  });
+
+  it('hands back nothing for a summary with no list', async () => {
+    givenApi({ '/attendance/class': {} });
+    const { run } = renderApiHook(() => useApi.useClassAttendance(ID, '2026-08-24'));
+    const { result } = await run();
+    await waitFor(() => expect((result.current as { data: unknown }).data).toEqual([]));
+  });
+
+  it('waits for a day', async () => {
+    const { run } = renderApiHook(() => useApi.useClassAttendance(ID));
+    await run();
     expect(http.get).not.toHaveBeenCalled();
   });
 });

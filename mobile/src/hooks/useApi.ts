@@ -148,13 +148,28 @@ export function useAttendanceSummary(studentId?: string, dateFrom?: string, date
   });
 }
 
+/** One student on a day's register, as the API sends it. */
+export interface RegisterRow {
+  studentId: string;
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | null;
+  /** Suspended or away that day: on the register, and never marked. */
+  pause?: { kind: 'SUSPENDED' | 'AWAY'; label: string; endsOn: string | null } | null;
+}
+
+/**
+ * A class's register for a day.
+ *
+ * The API answers with a summary that holds the list in `students`. This read
+ * it as the list itself, so a register already taken that day failed to load
+ * on the phone; it now unwraps it.
+ */
 export function useClassAttendance(classSectionId?: string, date?: string) {
-  return useQuery<AttendanceRecord[]>({
+  return useQuery<RegisterRow[]>({
     queryKey: ['class-attendance', classSectionId, date],
     queryFn: () =>
       api
         .get('/attendance/class', { params: { classSectionId, date } })
-        .then((r) => r.data),
+        .then((r) => (r.data?.students ?? []) as RegisterRow[]),
     enabled: !!classSectionId && !!date,
   });
 }

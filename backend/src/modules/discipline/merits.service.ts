@@ -5,6 +5,7 @@ import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { PaginatedResponse } from '../../common/dto/pagination.dto';
 import { AwardMeritDto, QueryMeritsDto } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
+import { familyMayHear } from '../../common/student-standing';
 
 /**
  * The other half of behaviour.
@@ -324,8 +325,10 @@ export class MeritsService {
     restored: number,
     newPoints: number,
   ) {
+    // Not to a family whose child has left or passed away.
+    if (!(await familyMayHear(this.prisma, studentId, 'news'))) return;
     const links = await this.prisma.parentStudent.findMany({
-      where: { studentId },
+      where: { studentId, parent: { isActive: true } },
       include: {
         parent: { select: { id: true, firstName: true } },
         student: {

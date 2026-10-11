@@ -127,6 +127,9 @@ describe('MessagingService keeping children safe in chat', () => {
       count: jest.fn().mockResolvedValue(0),
     },
     messageRead: { createMany: jest.fn() },
+    // Nobody here is suspended; that rule has its own tests.
+    student: { findUnique: jest.fn().mockResolvedValue(null) },
+    studentPause: { findMany: jest.fn().mockResolvedValue([]) },
     notification: {
       create: jest.fn(),
       findFirst: jest.fn().mockResolvedValue(null),

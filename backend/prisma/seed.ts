@@ -25,6 +25,8 @@ import {
   FeeAppliesTo,
   PaymentMethod,
   WaiverKind,
+  PauseKind,
+  JourneyStep,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK, YEAR_CONDUCT_MARK } from '../src/common/conduct';
@@ -3030,6 +3032,210 @@ async function main() {
     `  ✅ ${incidentCount} discipline incidents (${majorCount} major) + ${appealCount} appeals seeded`,
   );
 
+  // ─── JOURNEYS (suspended, away, left, came back) ────────────────────────────
+  //
+  // A school's year is not thirty children who all stay. Every suspension in
+  // the discipline book above becomes the days the student was out, so the
+  // register for those days shows "Suspended" rather than "Absent"; one
+  // student is suspended this week and one is away; and the people who left
+  // have the day and the reason kept. Nobody here has passed away: demo data
+  // is shown to people, and that path is proven by the tests instead.
+  let journeyCount = 0;
+  const journey = (data: any) => {
+    journeyCount++;
+    return prisma.studentJourneyEntry.create({ data });
+  };
+  /** Out of school for these days: the pause, and no register marks. */
+  const pauseSeed = async (
+    studentId: string,
+    kind: PauseKind,
+    startsOn: Date,
+    endsOn: Date | null,
+    reason: string,
+    incidentId?: string,
+  ) => {
+    await prisma.studentPause.create({
+      data: {
+        studentId,
+        kind,
+        startsOn,
+        endsOn,
+        reason,
+        disciplineIncidentId: incidentId ?? null,
+        recordedByUserId: admin.id,
+      },
+    });
+    await prisma.attendance.deleteMany({
+      where: {
+        studentId,
+        date: { gte: startsOn, ...(endsOn ? { lte: endsOn } : {}) },
+      },
+    });
+    await journey({
+      studentId,
+      step: kind === PauseKind.SUSPENDED ? JourneyStep.SUSPENDED : JourneyStep.AWAY,
+      happenedOn: startsOn,
+      until: endsOn,
+      reason,
+      recordedByUserId: admin.id,
+    });
+  };
+
+  // Every past suspension: three days at home, from the day after.
+  for (const incident of await prisma.disciplineIncident.findMany({
+    where: {
+      schoolId,
+      actionTaken: DisciplineAction.SUSPENSION,
+      date: { lt: addDays(today, -4) },
+    },
+    select: { id: true, studentId: true, date: true, description: true },
+  })) {
+    await pauseSeed(
+      incident.studentId,
+      PauseKind.SUSPENDED,
+      addDays(incident.date, 1),
+      addDays(incident.date, 3),
+      incident.description,
+      incident.id,
+    );
+  }
+
+  /* This week: one of student1's classmates is suspended and another is
+     away recovering from an operation, so the class register shows both
+     and student1's own chat shows a classmate who cannot post. */
+  const demoClass = enrolled.find(
+    (e) => e.user.email === 'student1@markova.edu',
+  )?.meta.section.id;
+  // From the end of the class list, well away from the student1 account.
+  const classmates = enrolled
+    .filter(
+      (e) =>
+        e.meta.section.id === demoClass &&
+        e.user.email !== 'student1@markova.edu',
+    )
+    .reverse();
+  if (classmates.length >= 2) {
+    const [suspended, away] = classmates;
+    const term = allYears[2].terms.find(
+      (t: any) => t.startDate <= today && t.endDate >= today,
+    );
+    if (term) {
+      const incident = await prisma.disciplineIncident.create({
+        data: {
+          studentId: suspended.student.id,
+          termId: term.id,
+          recordedByUserId: admin.id,
+          date: addDays(today, -1),
+          location: 'Dormitory',
+          description: 'Fighting in the dormitory after lights out',
+          pointsDeducted: 5,
+          actionTaken: DisciplineAction.SUSPENSION,
+        },
+      });
+      await pauseSeed(
+        suspended.student.id,
+        PauseKind.SUSPENDED,
+        today,
+        addDays(today, 4),
+        'Fighting in the dormitory after lights out',
+        incident.id,
+      );
+    }
+    await pauseSeed(
+      away.student.id,
+      PauseKind.AWAY,
+      addDays(today, -10),
+      null,
+      'Recovering from an operation at CHUK',
+    );
+  }
+
+  // Those who left: graduated or transferred at the end of their last year.
+  const alumniStudents = await prisma.student.findMany({
+    where: {
+      schoolId,
+      status: { in: [StudentStatus.GRADUATED, StudentStatus.TRANSFERRED] },
+    },
+    select: { id: true, status: true },
+  });
+  const lastYearEnd = allYears[1].year.endDate;
+  for (const a of alumniStudents) {
+    await journey({
+      studentId: a.id,
+      step:
+        a.status === StudentStatus.GRADUATED
+          ? JourneyStep.GRADUATED
+          : JourneyStep.TRANSFERRED,
+      happenedOn: lastYearEnd,
+      reason:
+        a.status === StudentStatus.GRADUATED
+          ? 'Finished Level 5'
+          : 'Moved to another school',
+      recordedByUserId: admin.id,
+    });
+  }
+
+  /* One graduate who can still sign in, as graduate@markova.edu, to show what
+     a student who has left sees: their past report cards, and nothing else. */
+  const graduate = alumniStudents.find(
+    (a) => a.status === StudentStatus.GRADUATED,
+  );
+  if (graduate) {
+    const g = await prisma.student.findUniqueOrThrow({
+      where: { id: graduate.id },
+      select: { userId: true },
+    });
+    await prisma.user.update({
+      where: { id: g.userId },
+      data: {
+        isActive: true,
+        email: 'graduate@markova.edu',
+        account: {
+          update: { email: 'graduate@markova.edu', forcePasswordChange: false },
+        },
+      },
+    });
+  }
+
+  // One expelled, after a serious incident and an appeal that failed.
+  const expelled = alumniStudents.find(
+    (a) => a.status === StudentStatus.TRANSFERRED,
+  );
+  if (expelled) {
+    await prisma.student.update({
+      where: { id: expelled.id },
+      data: { status: StudentStatus.EXPELLED },
+    });
+    await prisma.studentJourneyEntry.updateMany({
+      where: { studentId: expelled.id },
+      data: {
+        step: JourneyStep.EXPELLED,
+        reason: 'Theft from the school store, a second time',
+      },
+    });
+  }
+
+  // One who withdrew for a term to work, and came back to repeat the year.
+  const returner = classmates[2];
+  if (returner) {
+    await journey({
+      studentId: returner.student.id,
+      step: JourneyStep.WITHDRAWN,
+      happenedOn: addDays(allYears[1].year.startDate, 60),
+      reason: 'Left to help on the family farm',
+      recordedByUserId: admin.id,
+    });
+    await journey({
+      studentId: returner.student.id,
+      step: JourneyStep.READMITTED,
+      happenedOn: allYears[2].year.startDate,
+      reason: 'Back to repeat the year',
+      classSectionId: returner.meta.section.id,
+      recordedByUserId: admin.id,
+    });
+  }
+  console.log(`  ✅ ${journeyCount} journey steps seeded`);
+
   // ─── LIBRARY (REB textbooks, trade shelves, African literature) ─────────────
   // The catalog a Rwandan TSS actually holds: REB class-set textbooks per
   // subject and level, technical references per trade, African and Rwandan
@@ -5433,6 +5639,7 @@ async function main() {
   console.log('     Admin     wilsonshizirungu@gmail.com');
   console.log('     Teacher   aline.uwase@markova.edu');
   console.log('     Student   student1@markova.edu');
+  console.log('     Graduate  graduate@markova.edu (left the school: report cards only)');
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
