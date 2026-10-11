@@ -13,8 +13,8 @@ import { schoolDay } from '../src/common/student-standing';
  * A student's journey, through the real API (docs/STUDENT-LIFE-DESIGN.md,
  * B8 and A9).
  *
- * Uses the seeded Markova Academy: student27 is suspended this week, in
- * student1's class. Everything changed here is put back afterwards.
+ * Uses the seeded Markova Academy, where one of student1's classmates is
+ * suspended this week. Everything changed here is put back afterwards.
  */
 const PASSWORD = 'Password123!';
 const today = schoolDay().toISOString().slice(0, 10);
@@ -176,21 +176,34 @@ describe("a student's journey (e2e)", () => {
       id: string;
       classSectionId: string;
       userId: string;
+      email: string;
       parents: string[];
     };
 
     beforeAll(async () => {
       const s = await owner.student.findFirstOrThrow({
-        where: { user: { account: { email: 'student27@markova.edu' } } },
+        // Whoever the seed suspended this week (one of student1's classmates).
+        where: {
+          schoolId,
+          pauses: {
+            some: {
+              kind: 'SUSPENDED',
+              startsOn: { lte: schoolDay() },
+              endsOn: { gte: schoolDay() },
+            },
+          },
+        },
         select: {
           id: true,
           classSectionId: true,
           userId: true,
+          user: { select: { account: { select: { email: true } } } },
           parentStudents: { select: { parentUserId: true } },
         },
       });
       suspended = {
         ...s,
+        email: s.user.account.email!,
         parents: s.parentStudents.map((p) => p.parentUserId),
       };
     });
@@ -249,7 +262,7 @@ describe("a student's journey (e2e)", () => {
     });
 
     it('can sign in and read, and cannot post in the class chat', async () => {
-      const token = await tokenFor('student27@markova.edu');
+      const token = await tokenFor(suspended.email);
       const list = await api()
         .get('/api/messaging/conversations')
         .set('Authorization', `Bearer ${token}`)
