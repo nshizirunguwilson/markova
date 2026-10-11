@@ -184,6 +184,8 @@ else could ever see it. Now:
 - **Calm, not broken.** A parent sees "Keza has chosen to keep their health
   visits private." where the page would be, never an empty page or a red
   alert. Marks can show while attendance beside them is private.
+- **On the phone too**: the same notice on each child screen, and "Private"
+  rather than "0%" on the child's overview.
 - **No date of birth means under 18**, so nothing is hidden on a guess; the
   students list says how many have none, and lists them to fix.
 - **A note on the birthday** itself, telling the student the choice is theirs.
