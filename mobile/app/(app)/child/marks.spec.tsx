@@ -1,6 +1,6 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 
-import { givenApi, http, resetApi } from '@/test/api-mock';
+import { givenApi, givenApiFails, http, resetApi } from '@/test/api-mock';
 import { routerState, screenTitle } from '@/test/router-mock';
 import { parent, renderScreen, resetHarness, signedInAs } from '@/test/harness';
 
@@ -290,5 +290,28 @@ describe('looking at another term', () => {
       '/marks/term-results/student/student-1',
       expect.anything(),
     );
+  });
+});
+
+/** An adult child keeping this from their parents (A8): said calmly, not empty. */
+describe('a record an adult child keeps private', () => {
+  it('says so in the school\'s own sentence', async () => {
+    givenApiFails(
+      '/marks/term-results/student/student-1',
+      Object.assign(new Error('Forbidden'), {
+        response: {
+          status: 403,
+          data: {
+            reason: 'KEPT_PRIVATE',
+            message: 'Aline has chosen to keep their results (marks and report cards) private.',
+          },
+        },
+      }),
+    );
+    const screen = await open();
+    await waitFor(() =>
+      expect(screen.getByText('Aline has chosen to keep their results (marks and report cards) private.')).toBeTruthy(),
+    );
+    expect(screen.getByText(/From 18, a student decides/)).toBeTruthy();
   });
 });

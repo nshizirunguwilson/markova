@@ -21,6 +21,7 @@ import {
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
 import { Screen, Section, Row, RowGroup, Text, Stat, StatRow, Meter, Badge, Avatar } from '@/ui';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * One child at a glance, then a door into each part of their record.
@@ -50,9 +51,14 @@ export default function ChildOverview() {
     data: attendance,
     refetch: refetchAttendance,
     isRefetching,
+    error: attendanceError,
   } = useAttendanceSummary(studentId);
+  /* An adult child may keep their attendance and conduct, or their results,
+     from their parents (A8): those tiles say private rather than nought. */
+  const conductKept = Boolean(keptPrivate(attendanceError));
   const { data: discipline, refetch: refetchDiscipline } = useStudentDiscipline(studentId);
-  const { data: result } = useStudentTermResult(studentId, term?.id);
+  const { data: result, error: resultError } = useStudentTermResult(studentId, term?.id);
+  const resultsKept = Boolean(keptPrivate(resultError));
 
   const rate = attendance?.attendanceRate ?? 0;
   const points: number = child?.disciplinePoints ?? 100;
@@ -90,18 +96,27 @@ export default function ChildOverview() {
           </View>
 
           <StatRow>
-            <Stat
-              value={`${Math.round(rate)}%`}
-              label="Attendance"
-              detail={term?.name ?? 'This term'}
-              tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
-            />
-            <Stat
-              value={points}
-              label="Conduct points"
-              detail={incidents === 0 ? 'Nothing on record' : `${incidents} incident${incidents === 1 ? '' : 's'}`}
-              tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
-            />
+            {conductKept ? (
+              <>
+                <Stat value="Private" label="Attendance" detail="Kept private" />
+                <Stat value="Private" label="Conduct points" detail="Kept private" />
+              </>
+            ) : (
+              <>
+                <Stat
+                  value={`${Math.round(rate)}%`}
+                  label="Attendance"
+                  detail={term?.name ?? 'This term'}
+                  tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
+                />
+                <Stat
+                  value={points}
+                  label="Conduct points"
+                  detail={incidents === 0 ? 'Nothing on record' : `${incidents} incident${incidents === 1 ? '' : 's'}`}
+                  tone={points >= 90 ? 'positive' : points >= 60 ? 'caution' : 'critical'}
+                />
+              </>
+            )}
             {published ? (
               <Stat
                 value={(result as any)?.letterGrade ?? '-'}
@@ -112,25 +127,27 @@ export default function ChildOverview() {
             ) : null}
           </StatRow>
 
-          <Meter
-            value={rate}
-            label="Days present this term"
-            tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
-          />
+          {conductKept ? null : (
+            <Meter
+              value={rate}
+              label="Days present this term"
+              tone={rate >= 90 ? 'positive' : rate >= 75 ? 'caution' : 'critical'}
+            />
+          )}
         </View>
 
         <Section title="Their record">
           <RowGroup>
             <Row
               title="Marks"
-              subtitle={published ? 'Published for this term' : 'Not published yet'}
+              subtitle={resultsKept ? 'Kept private' : published ? 'Published for this term' : 'Not published yet'}
               lead={<TrendingUp size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
-              value={published ? undefined : <Badge label="Pending" tone="neutral" />}
+              value={published || resultsKept ? undefined : <Badge label="Pending" tone="neutral" />}
               onPress={() => router.push({ pathname: '/(app)/child/marks', params: { studentId, name } })}
             />
             <Row
               title="Attendance"
-              subtitle={`${Math.round(rate)}% this term`}
+              subtitle={conductKept ? 'Kept private' : `${Math.round(rate)}% this term`}
               lead={<CalendarDays size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
               onPress={() =>
                 router.push({ pathname: '/(app)/child/attendance', params: { studentId, name } })

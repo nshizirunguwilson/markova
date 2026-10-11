@@ -1,7 +1,7 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 
 import { defaultTheme } from '@/design/theme';
-import { givenApi, resetApi } from '@/test/api-mock';
+import { givenApi, givenApiFails, resetApi } from '@/test/api-mock';
 import { router, routerState, screenTitle } from '@/test/router-mock';
 import {
   parent,
@@ -318,5 +318,23 @@ describe('the doors into the record', () => {
     expect(
       screen.getByText('What the school is holding, and where it has gone'),
     ).toBeTruthy();
+  });
+});
+
+/** Attendance and conduct an adult child keeps private (A8): "Private", not 0%. */
+describe('an adult child who keeps attendance and conduct private', () => {
+  it('says private on those tiles, not nought', async () => {
+    givenApiFails(
+      '/attendance/student-summary',
+      Object.assign(new Error('Forbidden'), {
+        response: {
+          status: 403,
+          data: { reason: 'KEPT_PRIVATE', message: 'Aline has chosen to keep their attendance and discipline private.' },
+        },
+      }),
+    );
+    const screen = await open();
+    await waitFor(() => expect(screen.getAllByText('Private')).toHaveLength(2));
+    expect(screen.queryByText('0%')).toBeNull();
   });
 });

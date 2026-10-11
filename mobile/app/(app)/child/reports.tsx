@@ -8,6 +8,8 @@ import { useCurrentTerm, useStudentTermResult } from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
 import { Screen, Text, Button, Fact, Empty, Badge } from '@/ui';
+import { KeptPrivate } from '@/components/KeptPrivate';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * The report card.
@@ -25,11 +27,23 @@ export default function ChildReport() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
   const { data: term } = useCurrentTerm();
-  const { data: result } = useStudentTermResult(studentId, term?.id);
+  const { data: result, error } = useStudentTermResult(studentId, term?.id);
+  // An adult child may keep their results from their parents (A8).
+  const kept = keptPrivate(error);
 
   const r: any = result ?? {};
   const published = Boolean(r.isPublished);
   const code: string | undefined = r.verification?.code;
+
+  if (kept)
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Report card' }} />
+        <Screen>
+          <KeptPrivate message={kept} />
+        </Screen>
+      </>
+    );
 
   if (!published)
     return (

@@ -16,6 +16,8 @@ import {
   Fact,
   Text,
 } from '@/ui';
+import { KeptPrivate } from '@/components/KeptPrivate';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * A parent's view of the sick bay.
@@ -52,7 +54,9 @@ function when(iso: string) {
 export default function ChildHealth() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
-  const { data: card, isPending, refetch, isRefetching } = useEmergencyCard(studentId);
+  const { data: card, isPending, refetch, isRefetching, error } = useEmergencyCard(studentId);
+  // An adult child may keep their health visits from their parents (A8).
+  const kept = keptPrivate(error);
   const { data: visitPage } = useStudentVisits(studentId);
 
   const visits: ClinicVisit[] = visitPage?.data ?? [];
@@ -68,6 +72,8 @@ export default function ChildHealth() {
       >
         {isPending ? (
           <LoadingRows count={5} />
+        ) : kept ? (
+          <KeptPrivate message={kept} />
         ) : (
           <>
             <Section title="On record">

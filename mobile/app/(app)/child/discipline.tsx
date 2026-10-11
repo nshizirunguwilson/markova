@@ -15,6 +15,8 @@ import {
   Screen, Section, Text, Stat, StatRow, Meter, Badge, Button, Field,
   Empty, LoadingRows, Fact, statusTone, humanise,
 } from '@/ui';
+import { KeptPrivate } from '@/components/KeptPrivate';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * A child's conduct record, and the parent's right to answer it.
@@ -32,7 +34,9 @@ import {
 export default function ChildDiscipline() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
-  const { data, isPending, refetch, isRefetching } = useStudentDiscipline(studentId);
+  const { data, isPending, refetch, isRefetching, error } = useStudentDiscipline(studentId);
+  // An adult child may keep their conduct from their parents (A8).
+  const kept = keptPrivate(error);
   const { data: standing } = useStanding(studentId);
   const acknowledge = useAcknowledgeIncident();
   const appeal = useCreateAppeal();
@@ -68,6 +72,8 @@ export default function ChildDiscipline() {
       <Screen onRefresh={refetch} refreshing={isRefetching} contentContainerStyle={{ gap: space.xxl }}>
         {isPending ? (
           <LoadingRows count={4} />
+        ) : kept ? (
+          <KeptPrivate message={kept} />
         ) : (
           <>
             <View style={{ gap: space.lg }}>

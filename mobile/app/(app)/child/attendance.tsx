@@ -9,6 +9,8 @@ import {
   Screen, Section, Row, RowGroup, Text, Stat, StatRow, Meter, Badge,
   Empty, LoadingRows, statusTone, humanise,
 } from '@/ui';
+import { KeptPrivate } from '@/components/KeptPrivate';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * How often a child is actually in school.
@@ -26,7 +28,9 @@ export default function ChildAttendance() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
   const { data: term } = useCurrentTerm();
-  const { data, isPending, refetch, isRefetching } = useAttendanceSummary(studentId);
+  const { data, isPending, refetch, isRefetching, error } = useAttendanceSummary(studentId);
+  // An adult child may keep their attendance from their parents (A8).
+  const kept = keptPrivate(error);
 
   const s: any = data ?? {};
   const rate: number = s.attendanceRate ?? 0;
@@ -51,6 +55,8 @@ export default function ChildAttendance() {
       >
         {isPending ? (
           <LoadingRows count={6} />
+        ) : kept ? (
+          <KeptPrivate message={kept} />
         ) : (
           <>
             <View style={{ paddingHorizontal: space.xl, gap: space.xl }}>
