@@ -582,7 +582,7 @@ describe('UsersService', () => {
             ? {
                 id: 'user-1',
                 account: LOGIN,
-                student: { id: 'student-1' },
+                student: { id: 'student-1', status: 'ACTIVE' },
                 teacher: null,
               }
             : null,
@@ -644,11 +644,21 @@ describe('UsersService', () => {
 
     // Graduating or transferring a student is a status change, and it is the
     // one that decides whether they still count on the roll.
-    it('changes a student’s standing', async () => {
+    /* A standing changes through the student's journey, which keeps the
+       day and the reason and does what the change means. */
+    it('will not change a student’s standing from the edit form', async () => {
       asStudent();
-      await service.update('user-1', { status: 'GRADUATED' } as never);
-      expect(prisma.student.update.mock.calls[0][0].data.status).toBe(
-        'GRADUATED',
+      await expect(
+        service.update('user-1', { status: 'GRADUATED' } as never),
+      ).rejects.toThrow(/from their Journey/);
+      expect(prisma.student.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts the standing a student already has, and writes nothing for it', async () => {
+      asStudent();
+      await service.update('user-1', { status: 'ACTIVE' } as never);
+      expect(prisma.student.update.mock.calls[0][0].data).not.toHaveProperty(
+        'status',
       );
     });
 
@@ -973,7 +983,7 @@ describe('updating every field a student record carries', () => {
           ? {
               id: 'user-1',
               account: LOGIN,
-              student: { id: 'student-1' },
+              student: { id: 'student-1', status: 'ACTIVE' },
               teacher: null,
             }
           : null,
@@ -991,7 +1001,6 @@ describe('updating every field a student record carries', () => {
     expect(written).toMatchObject({
       classSectionId: 'section-1',
       gender: 'FEMALE',
-      status: 'ACTIVE',
       bloodType: 'A-',
       allergies: 'Penicillin',
       medicalConditions: 'Asthma',
@@ -1307,7 +1316,6 @@ describe('creating a record with everything on it', () => {
     expect(written).toMatchObject({
       classSectionId: 'section-1',
       gender: 'FEMALE',
-      status: 'ACTIVE',
       bloodType: 'A-',
       province: 'Kigali City',
       village: 'Karisimbi',
