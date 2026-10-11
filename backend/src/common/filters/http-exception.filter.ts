@@ -57,6 +57,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message = fields.length
         ? `That ${fields.join(' and ')} is already taken`
         : 'That value is already taken';
+    } else if (
+      !(exception instanceof HttpException) &&
+      exception instanceof Error &&
+      /cannot point at another school/.test(exception.message)
+    ) {
+      /*
+        The database refused a row naming another school's record (see the
+        links_stay_inside_a_school migration). To the school asking, that
+        record does not exist, so it is answered exactly as one that does not:
+        saying "it belongs to another school" would confirm it is there.
+      */
+      status = HttpStatus.NOT_FOUND;
+      error = 'Not Found';
+      message = 'Something this refers to was not found';
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
