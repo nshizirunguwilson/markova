@@ -51,7 +51,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | A6 | A parent with a basic phone, no smartphone and no internet | Some notices go by SMS. Report cards, marks and fees do not | [Future work](FUTURE-WORK.md#a6) |
 | A7 | A parent who reads only Kinyarwanda (54% of adults) | Everything is in English only. Checked | Near work |
 | A8 | A student turns 18 | Parents keep full access with no change | Near work |
-| A9 | A student or a parent dies | No careful way to handle it: messages and fee reminders keep going | Near work |
+| A9 | A student or a parent dies | **Done, 11 October 2026.** The principal records it; nothing more is ever sent about that student, and a parent's account closes. A child left with no parent or guardian is put to the principal, and the class teacher is told privately. See [below](#b8-and-a9-a-students-journey) | Done |
 
 ## B. Students
 
@@ -60,11 +60,11 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | B1 | A student has no phone and no email | Students sign in with invented addresses (`student1@markova.edu`) | Near work |
 | B2 | A student forgets their password and has no phone or email | No way back in | Near work |
 | B3 | Students want to check results on a phone during the holidays | Blocked on the phone app, and only the app blocks it: the server lets them in. Checked | Near work |
-| B4 | A member of staff privately messages a student | **Done, 12 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
+| B4 | A member of staff privately messages a student | **Done, 11 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
 | B5 | Students share computers in the school lab | Nothing signs them out when the next student sits down | Near work |
 | B6 | A student's photo is used on ID cards and in the app | No record of whether the family agreed | Near work |
 | B7 | A student with a disability needs extra exam time or a reader | Not recorded anywhere | Near work |
-| B8 | A student is expelled, or comes back after a long absence | Partly: a student can be marked as left | Near work |
+| B8 | A student is expelled, or comes back after a long absence | **Done, 11 October 2026.** Suspensions and time away are kept as dates; a suspended student is on the register as suspended, never marked absent, and their family is not texted. Leaving and coming back are recorded with the day and the reason. See [below](#b8-and-a9-a-students-journey) | Done |
 
 ## C. Schools
 
@@ -169,6 +169,35 @@ else could ever see it. Now:
   (nobody can answer it), or between two adults or two classmates.
 - **Who can be reached** is now checked when a chat is made, not only in the
   contact list: a parent cannot open a chat with somebody else's child.
+
+### B8 and A9: a student's journey
+
+Designed in [STUDENT-LIFE-DESIGN.md](STUDENT-LIFE-DESIGN.md). What was built:
+
+- **Standing and pauses.** A student is on the roll, or has left (withdrawn,
+  transferred, graduated, expelled, passed away). A student on the roll may be
+  suspended or away for a time. Pauses are dates, so a student is back on the
+  right day with nothing to remember, and past registers stay right.
+- **One rule for what stops**, used by registers, absence texts, the class
+  chat, sign in and ID cards (`backend/src/common/student-standing.ts`).
+- **Families.** Every message to a family about a student asks first; a test
+  fails if a new one does not. Nothing at all goes out to a closed account.
+- **Suspended:** on the register as suspended, never marked absent, no
+  absence texts, can sign in for homework, reads the class chat without
+  posting, card refused at the gate until they are back.
+- **Left:** off registers and the class chat, card revoked, can sign in only
+  to see their past report cards. **Readmitted:** back in the class chosen,
+  same student number, all history kept.
+- **Passed away:** the principal records it. Nothing more is sent, the account
+  closes, the record and past report cards stay for the family.
+- **A parent passed away:** their account closes; each child's class teacher
+  is told privately; a child left with nobody is put to the principal.
+- **Screens:** a Journey card on each student's page, "Passed away" on a
+  parent's page, suspended and away students on the register (web and phone),
+  and a report-cards-only view for a student who has left.
+- **Found on the way:** the phone register could not reopen a register
+  already taken that day (it read the server's reply in the wrong shape).
+  Fixed.
 
 Found but still open, for the mobile redesign: the head teacher and the bursar
 land in the parent's app on the phone.
