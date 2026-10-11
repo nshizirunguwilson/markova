@@ -44,6 +44,16 @@ export default function AdminStudentsPage() {
     classSectionId: sectionId || undefined,
     studentStatus: status || undefined,
   });
+  /* Students with no date of birth are treated as under 18, so their
+     parents see everything whatever their age (A8). The school is told how
+     many, and can list them to fix. */
+  const { data: undated } = useUsers({
+    role: "STUDENT",
+    studentStatus: "ACTIVE",
+    noDateOfBirth: true,
+    limit: 1,
+  });
+  const undatedCount: number = undated?.meta?.total ?? 0;
 
   const students = data?.data || [];
   const meta = data?.meta || { total: 0, page: 1, limit: 20, totalPages: 1 };
@@ -101,6 +111,38 @@ export default function AdminStudentsPage() {
           </>
         }
       />
+
+      {undatedCount > 0 && (
+        <Card padding="sm" className="mb-5">
+          <div
+            className="flex flex-wrap items-center justify-between gap-3"
+            data-testid="undated-students"
+          >
+            <p className="text-sm text-foreground">
+              {undatedCount === 1
+                ? "1 student has no date of birth."
+                : `${undatedCount} students have no date of birth.`}{" "}
+              <span className="text-muted">
+                They are treated as under 18, so their parents see all their
+                records. Adding the date lets a student of 18 decide.
+              </span>
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setFilters((f) => ({
+                  ...f,
+                  noDateOfBirth: f.noDateOfBirth ? undefined : true,
+                  page: 1,
+                }))
+              }
+            >
+              {filters.noDateOfBirth ? "Show everyone" : "Show them"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-4">

@@ -8,6 +8,8 @@ import { Calendar, Check, X, Clock, Users } from "lucide-react";
 import { toLocalDateString, classDisplayName } from "@/lib/utils";
 import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 interface Child {
   id: string;
@@ -39,7 +41,9 @@ export default function ParentAttendancePage() {
       .catch(() => {});
   }, [user?.id]);
 
-  const { data, isLoading } = useStudentAttendanceSummary(selectedChild);
+  const { data, isLoading, error } = useStudentAttendanceSummary(selectedChild);
+  // An adult child may keep their attendance and discipline private (A8).
+  const kept = keptPrivate(error);
 
   const calendarData = useMemo(() => {
     if (!data?.records) return [];
@@ -107,6 +111,8 @@ export default function ParentAttendancePage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : kept ? (
+        <KeptPrivateNotice message={kept} />
       ) : data ? (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

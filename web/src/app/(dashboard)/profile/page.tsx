@@ -14,6 +14,7 @@ import { resolveUploadUrl } from "@/lib/assets";
 import { labelForRole } from "@/types";
 import { SignInDetails } from "@/components/profile/sign-in-details";
 import { SignOutEverywhere } from "@/components/profile/sign-out-everywhere";
+import { WhatParentsSee } from "@/components/profile/what-parents-see";
 
 /**
  * Roles that put their name under a document the school issues.
@@ -323,6 +324,7 @@ export default function ProfilePage() {
       </Card>
 
       <SignInDetails />
+      <WhatParentsSee />
       <SignOutEverywhere />
 
       {/* Change Password */}

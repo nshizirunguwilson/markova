@@ -20,6 +20,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { Shield, AlertTriangle, Users, Gavel } from "lucide-react";
 import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 interface Child { id: string; name: string; className: string; }
 
@@ -57,7 +59,9 @@ export default function ParentDisciplinePage() {
     }).catch(() => {});
   }, [user?.id]);
 
-  const { data, isLoading } = useStudentDiscipline(selectedChild);
+  const { data, isLoading, error } = useStudentDiscipline(selectedChild);
+  // An adult child may keep their attendance and discipline private (A8).
+  const kept = keptPrivate(error);
 
   const handleAppeal = () => {
     if (!appealModal || !appealStatement.trim()) return;
@@ -103,6 +107,8 @@ export default function ParentDisciplinePage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : kept ? (
+        <KeptPrivateNotice message={kept} />
       ) : data ? (
         <>
           <Card>

@@ -437,3 +437,39 @@ describe("charts drawn from a record with no labels", () => {
     expect(document.body.textContent).not.toMatch(/NaN/);
   });
 });
+
+/** A parent whose adult child keeps part, or all, of this private (A8). */
+describe("StudentPerformance and an adult child's privacy", () => {
+  it("says calmly when the results are private", async () => {
+    serve(h.api, {
+      "/analytics/student": () => {
+        throw Object.assign(new Error("Forbidden"), {
+          response: {
+            status: 403,
+            data: {
+              reason: "KEPT_PRIVATE",
+              message: "Divine has chosen to keep their results (marks and report cards) private.",
+            },
+          },
+        });
+      },
+    });
+    render();
+    expect(await screen.findByTestId("kept-private", {}, { timeout: 8000 })).toHaveTextContent(
+      "Divine has chosen to keep their results",
+    );
+  });
+
+  it("shows marks, and attendance and conduct as private", async () => {
+    serve(h.api, {
+      "/analytics/student": {
+        ...profile([term("2026-2027", "Term 1", 82, 68)]),
+        attendanceKeptPrivate: true,
+      },
+    });
+    render();
+    await screen.findByRole("heading", { name: /Divine/ });
+    expect(screen.getAllByText("Private")).toHaveLength(2);
+    expect(screen.getAllByText("kept private")).toHaveLength(2);
+  });
+});

@@ -13,6 +13,8 @@ export interface UserFilters {
   isActive?: boolean;
   classSectionId?: string;
   studentStatus?: string;
+  /** Students the school has no date of birth for (treated as under 18). */
+  noDateOfBirth?: boolean;
   searchIn?: string;
 }
 

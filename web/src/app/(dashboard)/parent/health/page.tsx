@@ -14,6 +14,8 @@ import {
   type Dose,
 } from "@/hooks/use-clinic";
 import { HeartPulse, Phone, Pill } from "lucide-react";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 const OUTCOMES: Record<ClinicOutcome, string> = {
   RETURNED_TO_CLASS: "Went back to class",
@@ -62,7 +64,9 @@ export default function ParentHealthPage() {
   const childId = picked ?? children?.[0]?.id ?? "";
   const setChildId = (id: string) => setPicked(id);
 
-  const { data: card, isLoading } = useEmergencyCard(childId || undefined);
+  const { data: card, isLoading, error } = useEmergencyCard(childId || undefined);
+  // An adult child may keep their health visits from their parents (A8).
+  const kept = keptPrivate(error);
   const { data: visitPage } = useStudentVisits(childId || undefined);
   const { data: doses } = useStudentMedication(childId || undefined);
 
@@ -92,6 +96,8 @@ export default function ParentHealthPage() {
 
       {isLoading ? (
         <PageSpinner />
+      ) : kept ? (
+        <KeptPrivateNotice message={kept} />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
