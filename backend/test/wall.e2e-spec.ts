@@ -398,7 +398,9 @@ describe('the wall between schools', () => {
         });
 
       expect(accepted).toEqual([]);
-      expect(tried.size).toBeGreaterThanOrEqual(20);
+      /* 93 of the 118 links with the three-school demo seed; the rest are
+         tables one of the two schools has no rows in yet. */
+      expect(tried.size).toBeGreaterThanOrEqual(90);
     }, 180_000);
   });
 });

@@ -118,7 +118,10 @@ describe('each school keeps its own (e2e)', () => {
     ).id;
 
     const keza = await owner.student.findFirstOrThrow({
-      where: { schoolId: umucyo },
+      where: {
+        schoolId: umucyo,
+        user: { firstName: 'Keza', lastName: 'Habimana' },
+      },
     });
     kezaStudent = keza.id;
     kezaCard = `UMU-${tag.slice(-4)}-TEST`;
@@ -180,12 +183,16 @@ describe('each school keeps its own (e2e)', () => {
       .set('Authorization', `Bearer ${umucyoAdminToken}`)
       .expect(200);
 
-    const [books] = await owner.$queryRaw<{ n: bigint }[]>`
-      SELECT count(*) AS n FROM books WHERE school_id = ${umucyo}`;
-    expect(JSON.stringify(second.body)).not.toEqual(
-      JSON.stringify(academy.body),
-    );
-    expect(Number(books.n)).toBe(0);
+    /* Each answer is that school's own count, read from the database. */
+    const booksOf = async (slug: string) => {
+      const [row] = await owner.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM books b JOIN schools s ON s.id = b.school_id
+        WHERE s.slug = ${slug}`;
+      return Number(row.n);
+    };
+    expect(academy.body.totalBooks).toBe(await booksOf('markova-academy'));
+    expect(second.body.totalBooks).toBe(await booksOf('gs-umucyo'));
+    expect(second.body.totalBooks).not.toBe(academy.body.totalBooks);
   });
 
   it("stores an upload in the uploader's school's folder", async () => {

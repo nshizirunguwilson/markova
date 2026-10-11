@@ -435,8 +435,23 @@ function studentNumber(first: string, last: string, year: number, key: string): 
  * unconditionally is what produced things like `aaron.iradukunda959@`, which
  * is not an address any school would issue.
  */
-const usedEmails = new Set<string>();
+/*
+  The demo accounts of the other schools (seedSchool and
+  seedPeopleInSeveralSchools), held back from everybody else so their
+  addresses are the same after every seed rather than numbered by whoever
+  happened to be named first.
+*/
+const RESERVED_DEMO_EMAILS = new Map<string, string>([
+  ['Claudine Mukeshimana', 'c.mukeshimana@markova.edu'],
+  ['Jean Bosco Hakizimana', 'j.hakizimana@markova.edu'],
+  ['Vestine Uwamahoro', 'v.uwamahoro@markova.edu'],
+  ['Emmanuel Twagirayezu', 'e.twagirayezu@markova.edu'],
+  ['Divine Iradukunda', 'd.iradukunda@markova.edu'],
+]);
+const usedEmails = new Set<string>(RESERVED_DEMO_EMAILS.values());
 function emailFor(first: string, last: string): string {
+  const reserved = RESERVED_DEMO_EMAILS.get(`${first} ${last}`);
+  if (reserved) return reserved;
   const given = first.trim().split(' ')[0].toLowerCase();
   const family = last.trim().split(' ')[0].toLowerCase();
   const base = `${given[0]}.${family}`;
@@ -561,6 +576,8 @@ const usedPhones = new Set<string>([
   '+250788000014',
   '+250788000020',
   '+250788100000',
+  // The demo parent with a child at two schools (seedPeopleInSeveralSchools).
+  '+250788100002',
 ]);
 const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
 function realPhone(): string {
@@ -575,9 +592,12 @@ function realPhone(): string {
   }
 }
 
-const usedFullNames = new Set<string>();
 const nameKey = (first: string, last: string) =>
   `${first} ${last}`.toLowerCase();
+/* The reserved demo people (RESERVED_DEMO_EMAILS) are named by nobody else. */
+const usedFullNames = new Set<string>(
+  [...RESERVED_DEMO_EMAILS.keys()].map((n) => n.toLowerCase()),
+);
 
 function claimFullName(first: string, last: string): boolean {
   const key = nameKey(first, last);
@@ -5290,9 +5310,47 @@ async function main() {
     `  ✅ Signs of life: ${lifeRows.length} accounts carry real created/login dates (${neverActivated} never activated)`,
   );
 
-  const twoSchools = await seedSecondSchool(schoolId, academicYear, currentTerm);
-  console.log(
-    '  🏫 Second school: Patrick Habimana teaches here and is a parent at G.S. Umucyo',
+  const otherSchools: SchoolSpec[] = [
+    {
+      name: 'G.S. Umucyo',
+      slug: 'gs-umucyo',
+      motto: 'Light for every learner',
+      color: '#1E7B4A',
+      district: 'Gasabo',
+      boarding: false,
+      perClass: 22,
+      admin: ['Claudine', 'Mukeshimana'],
+      headTeacher: ['Jean Bosco', 'Hakizimana'],
+    },
+    {
+      name: 'E.S. Ubumwe',
+      slug: 'es-ubumwe',
+      motto: 'Together we grow',
+      color: '#7A1F2B',
+      district: 'Musanze',
+      boarding: true,
+      perClass: 25,
+      admin: ['Vestine', 'Uwamahoro'],
+      headTeacher: ['Emmanuel', 'Twagirayezu'],
+    },
+  ];
+  const others: SeededSchool[] = [];
+  for (const spec of otherSchools) {
+    others.push(
+      await seedSchool(
+        spec,
+        schoolId,
+        academicYear,
+        terms,
+        await bcrypt.hash('Password123!', 10),
+      ),
+    );
+    console.log(`  🏫 ${spec.name}: ${others[others.length - 1].students.length} students`);
+  }
+  const severalSchools = await seedPeopleInSeveralSchools(
+    schoolId,
+    others[0],
+    others[1],
   );
 
   const oClasses = sectionMetas.filter((m) => !m.trade).length;
@@ -5318,36 +5376,102 @@ async function main() {
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
-  console.log(
-    `   In two schools: ${twoSchools} (teacher here, parent at G.S. Umucyo)`,
-  );
+  console.log('   Other schools (no forced password change):');
+  for (const school of others) {
+    console.log(`     ${school.name}: admin ${school.admin}, head teacher ${school.headTeacher}`);
+  }
+  console.log('   People in two schools:');
+  for (const line of severalSchools) console.log(`     ${line}`);
 }
 
-/**
- * A second, small school, so one login across two schools can be seen and
- * tried: Patrick Habimana, who teaches at the first, is a parent there.
- *
- * Not the demo teacher: the demo accounts each open one school, so where
- * they land never depends on which school somebody opened last.
- *
- * Returns the address Patrick signs in with.
- *
- * Deliberately small: one class and one child. The full demo of several
- * Rwandan schools is step 3, part 5 (docs/MULTI-SCHOOL-DESIGN.md).
- */
-async function seedSecondSchool(
+// ─── MORE SCHOOLS ─────────────────────────────────────────────────────────────
+//
+// Step 3, part 5 of docs/MULTI-SCHOOL-DESIGN.md: three Rwandan schools in one
+// database, and people who belong to more than one of them.
+//
+// Markova Academy, above, is the full technical secondary school. The two
+// below are ordinary O-Level schools, smaller but complete enough to use:
+// classes, staff, students and parents, marks for the terms already sat,
+// recent attendance, a library and this term's fees. Every row is written
+// inside its own school (app.school_id), exactly as the application writes
+// them.
+
+interface SchoolSpec {
+  name: string;
+  slug: string;
+  motto: string;
+  color: string;
+  district: string;
+  boarding: boolean;
+  /** Students per class; there are six classes, Senior 1 to 3, A and B. */
+  perClass: number;
+  /** The demo admin and head teacher, named so their addresses never move. */
+  admin: [string, string];
+  headTeacher: [string, string];
+}
+
+interface TermLike {
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  isCurrent: boolean;
+  isClosed: boolean;
+}
+
+interface SeededSchool {
+  id: string;
+  name: string;
+  admin: string;
+  headTeacher: string;
+  /** Students by class, for the cross-school people below. */
+  students: { userId: string; studentId: string; sectionId: string }[];
+  mathematics: string;
+  sectionIds: string[];
+  yearId: string;
+}
+
+/** An adult name not used anywhere yet, however full the name pools get. */
+function freshAdultName(gender: Gender) {
+  try {
+    return adultName(gender);
+  } catch {
+    for (let t = 0; t < 500; t++) {
+      const first = adultWestern[gender]();
+      const last = `${adultKinya[gender]()} ${adultKinya[gender]()}`;
+      if (claimFullName(first, last)) return { first, last };
+    }
+    throw new Error('adult name space exhausted');
+  }
+}
+
+async function seedSchool(
+  spec: SchoolSpec,
   firstSchoolId: string,
   year: { name: string; startDate: Date; endDate: Date },
-  term: { name: string; startDate: Date; endDate: Date },
-): Promise<string> {
+  terms: TermLike[],
+  passwordHash: string,
+): Promise<SeededSchool> {
   const school = await prisma.school.create({
-    data: { name: 'G.S. Umucyo', slug: 'gs-umucyo' },
+    data: { name: spec.name, slug: spec.slug },
   });
   await prisma.$executeRaw`SELECT set_config('app.school_id', ${school.id}, false)`;
+  const today = startOfToday();
+  const yearNum = year.startDate.getUTCFullYear();
 
-  await prisma.schoolConfig.create({
-    data: { key: 'school_name', value: 'G.S. Umucyo' },
+  await prisma.schoolConfig.createMany({
+    data: [
+      { key: 'school_name', value: spec.name },
+      { key: 'school_motto', value: spec.motto },
+      { key: 'primary_color', value: spec.color },
+      { key: 'school_address', value: `${spec.district}, Rwanda` },
+      { key: 'school_phone', value: realPhone() },
+      { key: 'pass_threshold', value: '50' },
+      { key: 'starting_discipline_points', value: '40' },
+      { key: 'borrowing_limit', value: '3' },
+      { key: 'borrowing_duration_days', value: '14' },
+    ],
   });
+
   const academicYear = await prisma.academicYear.create({
     data: {
       name: year.name,
@@ -5356,51 +5480,373 @@ async function seedSecondSchool(
       isCurrent: true,
     },
   });
-  await prisma.term.create({
-    data: {
-      academicYearId: academicYear.id,
-      name: term.name,
-      startDate: term.startDate,
-      endDate: term.endDate,
-      isCurrent: true,
-    },
-  });
-  const level = await prisma.classLevel.create({
-    data: { name: 'Senior 1', order: 1, stage: 'O_LEVEL' },
-  });
-  const section = await prisma.classSection.create({
-    data: { classLevelId: level.id, name: 'A' },
-  });
+  const termRows = [];
+  for (const t of terms) {
+    termRows.push(
+      await prisma.term.create({
+        data: {
+          academicYearId: academicYear.id,
+          name: t.name,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          isCurrent: t.isCurrent,
+          isClosed: t.isClosed,
+        },
+      }),
+    );
+  }
+  const currentTerm = termRows.find((t) => t.isCurrent) ?? termRows[0];
 
-  const passwordHash = await bcrypt.hash('Password123!', 10);
-  const child = await prisma.user.create({
-    data: withLogin({
-      email: 'k.habimana.umucyo@markova.edu',
-      role: Role.STUDENT,
-      firstName: 'Keza',
-      lastName: 'Habimana',
-      isActive: true,
-      passwordHash,
-      forcePasswordChange: true,
-    }),
-  });
-  const student = await prisma.student.create({
-    data: {
-      userId: child.id,
-      studentIdNumber: studentNumber('Keza', 'Habimana', 2026, child.id),
-      classSectionId: section.id,
-      gender: Gender.FEMALE,
-      dateOfBirth: new Date('2013-05-20'),
-    },
-  });
+  // Senior 1 to 3, streams A and B.
+  const sections: { id: string; levelId: string; label: string }[] = [];
+  for (const level of O_LEVELS) {
+    const lvl = await prisma.classLevel.create({
+      data: { name: level.name, order: level.order, stage: 'O_LEVEL' },
+    });
+    for (const stream of ['A', 'B']) {
+      const section = await prisma.classSection.create({
+        data: { classLevelId: lvl.id, name: stream },
+      });
+      sections.push({
+        id: section.id,
+        levelId: lvl.id,
+        label: `${level.name} ${stream}`,
+      });
+    }
+  }
 
-  /* Patrick's existing login, with a second school record: a parent here.
-     A demo account like the others, so no forced password change. */
+  const subjects = [];
+  for (const sub of O_CORE_SUBJECTS) {
+    subjects.push(
+      await prisma.subject.create({
+        data: { name: sub.name, category: sub.category, scope: 'O_CORE' },
+      }),
+    );
+  }
+  const assessments = new Map<string, string>();
+  for (const name of ['CAT 1', 'CAT 2', 'End of Term Exam']) {
+    const at = await prisma.assessmentType.create({ data: { name } });
+    assessments.set(name, at.id);
+  }
+
+  // ── Staff ──
+  const staff = async (
+    role: Role,
+    gender: Gender,
+    code: string,
+    demo: boolean,
+    fixed?: [string, string],
+  ) => {
+    /* A fixed demo name is reserved up front, so it is always free. */
+    const { first, last } = fixed
+      ? { first: fixed[0], last: fixed[1] }
+      : freshAdultName(gender);
+    const born = 1975 + rand(20);
+    return prisma.user.create({
+      data: withLogin({
+        email: emailFor(first, last),
+        phone: realPhone(),
+        code,
+        role,
+        firstName: first,
+        lastName: last,
+        gender,
+        dateOfBirth: new Date(Date.UTC(born, rand(12), 1 + rand(27))),
+        nationalId: makeNid(gender, born),
+        nationality: 'Rwandan',
+        isActive: true,
+        passwordHash,
+        forcePasswordChange: !demo,
+      }),
+    });
+  };
+  const y = new Date().getFullYear();
+  const admin = await staff(
+    Role.ADMIN,
+    Gender.FEMALE,
+    `ADM-${y}-001`,
+    true,
+    spec.admin,
+  );
+  const head = await staff(
+    Role.HEAD_TEACHER,
+    Gender.MALE,
+    `ADM-${y}-002`,
+    true,
+    spec.headTeacher,
+  );
+  await staff(Role.BURSAR, Gender.FEMALE, `ADM-${y}-003`, false);
+  await staff(Role.LIBRARIAN, Gender.MALE, `LIB-${y}-001`, false);
+  if (spec.boarding) {
+    await staff(Role.PATRON, Gender.MALE, `ADM-${y}-004`, false);
+    await staff(Role.MATRON, Gender.FEMALE, `ADM-${y}-005`, false);
+    await staff(Role.NURSE, Gender.FEMALE, `ADM-${y}-006`, false);
+  }
+
+  /* One teacher per subject, each teaching it to every class. */
+  const teacherOf = new Map<string, string>();
+  const teacherUserOf = new Map<string, string>();
+  let tn = 0;
+  for (const subject of subjects) {
+    tn += 1;
+    const user = await staff(
+      Role.TEACHER,
+      tn % 2 ? Gender.FEMALE : Gender.MALE,
+      `TCH-${y}-${String(tn).padStart(3, '0')}`,
+      false,
+    );
+    const teacher = await prisma.teacher.create({
+      data: {
+        userId: user.id,
+        employmentStatus: 'FULL_TIME',
+        qualification: 'A0',
+        hireDate: new Date(Date.UTC(yearNum - 1 - rand(8), 0, 10)),
+        isActive: true,
+      },
+    });
+    teacherOf.set(subject.id, teacher.id);
+    teacherUserOf.set(subject.id, user.id);
+    await prisma.teacherSubjectClass.createMany({
+      data: sections.map((sec) => ({
+        teacherId: teacher.id,
+        subjectId: subject.id,
+        classSectionId: sec.id,
+        academicYearId: academicYear.id,
+      })),
+    });
+  }
+
+  // ── Students and their parents ──
+  const students: SeededSchool['students'] = [];
+  let parentN = 0;
+  for (const sec of sections) {
+    const counts = new Map<string, number>();
+    const levelOrder = Number(sec.label.split(' ')[1]);
+    for (let i = 0; i < spec.perClass; i++) {
+      const gender = i % 2 ? Gender.FEMALE : Gender.MALE;
+      const { first, last } = studentName(gender, counts);
+      const born = yearNum - 12 - levelOrder - rand(2);
+      const user = await prisma.user.create({
+        data: withLogin({
+          email: emailFor(first, last),
+          role: Role.STUDENT,
+          firstName: first,
+          lastName: last,
+          isActive: true,
+          passwordHash,
+          forcePasswordChange: true,
+        }),
+      });
+      const student = await prisma.student.create({
+        data: {
+          userId: user.id,
+          studentIdNumber: studentNumber(first, last, yearNum - levelOrder + 1, user.id),
+          classSectionId: sec.id,
+          gender,
+          dateOfBirth: new Date(Date.UTC(born, rand(12), 1 + rand(27))),
+          isBoarder: spec.boarding,
+          province: spec.district === 'Musanze' ? 'Northern' : 'Kigali City',
+          district: spec.district,
+        },
+      });
+      students.push({ userId: user.id, studentId: student.id, sectionId: sec.id });
+
+      /* A parent for each child, a few of them shared by siblings. */
+      const parentGender = chance(0.6) ? Gender.FEMALE : Gender.MALE;
+      const { first: pf, last: pl } = freshAdultName(parentGender);
+      parentN += 1;
+      const pBorn = born - 25 - rand(15);
+      const parent = await prisma.user.create({
+        data: withLogin({
+          phone: realPhone(),
+          code: `PAR-${y}-${String(parentN).padStart(4, '0')}`,
+          role: Role.PARENT,
+          firstName: pf,
+          lastName: pl,
+          gender: parentGender,
+          dateOfBirth: new Date(Date.UTC(pBorn, rand(12), 1 + rand(27))),
+          nationalId: makeNid(parentGender, pBorn),
+          nationality: 'Rwandan',
+          isActive: true,
+          passwordHash,
+          forcePasswordChange: true,
+        }),
+      });
+      await prisma.parentStudent.create({
+        data: {
+          parentUserId: parent.id,
+          studentId: student.id,
+          relationship: parentGender === Gender.FEMALE ? 'Mother' : 'Father',
+        },
+      });
+    }
+  }
+
+  // ── Marks, for the terms already under way ──
+  const markRows = [];
+  for (const term of termRows) {
+    if (term.startDate > today) continue;
+    for (const st of students) {
+      const ability = 35 + rand(50);
+      for (const subject of subjects) {
+        for (const [name, atId] of assessments) {
+          if (term.isCurrent && name === 'End of Term Exam') continue;
+          markRows.push({
+            studentId: st.studentId,
+            subjectId: subject.id,
+            classSectionId: st.sectionId,
+            termId: term.id,
+            assessmentTypeId: atId,
+            score: clamp(ability + rand(21) - 10, 10, 98),
+            maxScore: 100,
+            teacherId: teacherOf.get(subject.id)!,
+          });
+        }
+      }
+    }
+  }
+  for (let i = 0; i < markRows.length; i += 5000) {
+    await prisma.mark.createMany({ data: markRows.slice(i, i + 5000) });
+  }
+
+  // ── Attendance, for the last three weeks of school days ──
+  const attendanceRows = [];
+  for (let d = 21; d >= 0; d--) {
+    const day = addDays(today, -d);
+    const weekday = day.getUTCDay();
+    if (weekday === 0 || weekday === 6 || day < currentTerm.startDate) continue;
+    for (const st of students) {
+      const roll = Math.random();
+      attendanceRows.push({
+        studentId: st.studentId,
+        classSectionId: st.sectionId,
+        date: day,
+        type: 'daily',
+        status: roll < 0.9 ? 'PRESENT' : roll < 0.96 ? 'LATE' : 'ABSENT',
+        markedByUserId: head.id,
+      } as const);
+    }
+  }
+  for (let i = 0; i < attendanceRows.length; i += 5000) {
+    await prisma.attendance.createMany({
+      data: attendanceRows.slice(i, i + 5000),
+    });
+  }
+
+  // ── A small library, a few books out ──
+  const titles = [
+    ['Things Fall Apart', 'Chinua Achebe'],
+    ['A Grain of Wheat', 'Ngugi wa Thiongo'],
+    ['Mathematics for Rwanda Senior 1', 'REB'],
+    ['Mathematics for Rwanda Senior 2', 'REB'],
+    ['Physics for Rwanda Senior 3', 'REB'],
+    ['Biology and Health Sciences S1', 'REB'],
+    ['Amateka y\'u Rwanda', 'REB'],
+    ['Ikinyarwanda: Umwaka wa 2', 'REB'],
+    ['The River Between', 'Ngugi wa Thiongo'],
+    ['Entrepreneurship for Rwanda S2', 'REB'],
+  ];
+  const books = [];
+  for (let i = 0; i < titles.length; i++) {
+    books.push(
+      await prisma.book.create({
+        data: {
+          title: titles[i][0],
+          author: titles[i][1],
+          isbn: `978-99977-${spec.slug.length}${String(i).padStart(2, '0')}-${i % 10}`,
+          category: titles[i][1] === 'REB' ? 'Textbook' : 'Literature',
+          quantity: 6,
+          availableCount: 4,
+        },
+      }),
+    );
+  }
+  for (let i = 0; i < 12; i++) {
+    const borrower = students[rand(students.length)];
+    const out = addDays(today, -rand(25));
+    await prisma.bookLoan.create({
+      data: {
+        bookId: books[i % books.length].id,
+        borrowerUserId: borrower.userId,
+        checkedOutAt: out,
+        dueDate: addDays(out, 14),
+        status: addDays(out, 14) < today ? 'OVERDUE' : 'ACTIVE',
+      },
+    });
+  }
+
+  // ── This term's fees ──
+  const feeFor = spec.boarding ? 285_000 : 95_000;
+  const levels = [...new Set(sections.map((s) => s.levelId))];
+  for (const levelId of levels) {
+    await prisma.feeItem.createMany({
+      data: [
+        { termId: currentTerm.id, classLevelId: levelId, name: 'Tuition', amount: feeFor, position: 0 },
+        { termId: currentTerm.id, classLevelId: levelId, name: 'School feeding', amount: 30_000, position: 1 },
+      ],
+    });
+  }
+  for (const st of students) {
+    const invoice = await prisma.feeInvoice.create({
+      data: {
+        studentId: st.studentId,
+        termId: currentTerm.id,
+        total: feeFor + 30_000,
+      },
+    });
+    await prisma.feeInvoiceLine.createMany({
+      data: [
+        { invoiceId: invoice.id, name: 'Tuition', amount: feeFor, position: 0 },
+        { invoiceId: invoice.id, name: 'School feeding', amount: 30_000, position: 1 },
+      ],
+    });
+  }
+
+  await prisma.$executeRaw`SELECT set_config('app.school_id', ${firstSchoolId}, false)`;
+  return {
+    id: school.id,
+    name: spec.name,
+    admin: admin.email ?? '',
+    headTeacher: head.email ?? '',
+    students,
+    mathematics: subjects.find((sub) => sub.name === 'Mathematics')!.id,
+    sectionIds: sections.map((sec) => sec.id),
+    yearId: academicYear.id,
+  };
+}
+
+/**
+ * The people who make one login worth having: each belongs to two schools.
+ *
+ *   Patrick Habimana  teaches at Markova Academy, parent at G.S. Umucyo
+ *   Eric Niyonkuru    teaches Mathematics at Markova Academy and E.S. Ubumwe
+ *   a parent          with a child at Markova Academy and one at E.S. Ubumwe
+ *   a student         who moved from G.S. Umucyo to E.S. Ubumwe this year
+ *
+ * Each record is written inside the school it belongs to. Returns lines for
+ * the summary at the end of the seed.
+ */
+async function seedPeopleInSeveralSchools(
+  firstSchoolId: string,
+  umucyo: SeededSchool,
+  ubumwe: SeededSchool,
+): Promise<string[]> {
+  const inSchool = (id: string) =>
+    prisma.$executeRaw`SELECT set_config('app.school_id', ${id}, false)`;
+  const lines: string[] = [];
+
+  // Patrick: a parent at G.S. Umucyo, of the first child in Senior 1 A.
   const patrick = await prisma.account.update({
     where: { phone: '+250788000013' },
     data: { forcePasswordChange: false },
   });
-  const parent = await prisma.user.create({
+  await inSchool(umucyo.id);
+  const keza = umucyo.students[0];
+  await prisma.user.update({
+    where: { id: keza.userId },
+    data: { firstName: 'Keza', lastName: 'Habimana' },
+  });
+  const patrickParent = await prisma.user.create({
     data: {
       accountId: patrick.id,
       role: Role.PARENT,
@@ -5408,16 +5854,147 @@ async function seedSecondSchool(
       lastName: 'Habimana',
       email: patrick.email,
       phone: patrick.phone,
-      code: `PAR-${new Date().getFullYear()}-0001`,
       isActive: true,
     },
   });
   await prisma.parentStudent.create({
-    data: { parentUserId: parent.id, studentId: student.id, relationship: 'Father' },
+    data: {
+      parentUserId: patrickParent.id,
+      studentId: keza.studentId,
+      relationship: 'Father',
+    },
   });
+  lines.push(
+    `${patrick.email}: teacher at Markova Academy, parent of Keza at G.S. Umucyo`,
+  );
 
-  await prisma.$executeRaw`SELECT set_config('app.school_id', ${firstSchoolId}, false)`;
-  return patrick.email ?? patrick.phone ?? '';
+  // Eric: a second teaching post, Mathematics at E.S. Ubumwe.
+  const eric = await prisma.account.update({
+    where: { phone: '+250788000011' },
+    data: { forcePasswordChange: false },
+  });
+  await inSchool(ubumwe.id);
+  const ericThere = await prisma.user.create({
+    data: {
+      accountId: eric.id,
+      role: Role.TEACHER,
+      firstName: 'Eric',
+      lastName: 'Niyonkuru',
+      email: eric.email,
+      phone: eric.phone,
+      isActive: true,
+    },
+  });
+  const ericTeacher = await prisma.teacher.create({
+    data: { userId: ericThere.id, employmentStatus: 'PART_TIME', isActive: true },
+  });
+  await prisma.teacherSubjectClass.create({
+    data: {
+      teacherId: ericTeacher.id,
+      subjectId: ubumwe.mathematics,
+      classSectionId: ubumwe.sectionIds[ubumwe.sectionIds.length - 1],
+      academicYearId: ubumwe.yearId,
+    },
+  });
+  lines.push(
+    `${eric.email}: teacher at Markova Academy and at E.S. Ubumwe`,
+  );
+
+  // A parent at Markova Academy whose other child boards at E.S. Ubumwe.
+  await inSchool(firstSchoolId);
+  const parentHere = await prisma.user.findFirstOrThrow({
+    where: { role: Role.PARENT, phone: { not: '+250788100000' } },
+    orderBy: { code: 'asc' },
+    include: { account: true },
+  });
+  /* A fixed number, so the demo can be found again after every seed. */
+  const twoSchoolPhone = '+250788100002';
+  await prisma.account.update({
+    where: { id: parentHere.accountId },
+    data: { forcePasswordChange: false, phone: twoSchoolPhone },
+  });
+  await prisma.user.update({
+    where: { id: parentHere.id },
+    data: { phone: twoSchoolPhone },
+  });
+  parentHere.phone = twoSchoolPhone;
+  parentHere.account.phone = twoSchoolPhone;
+  await inSchool(ubumwe.id);
+  const parentThere = await prisma.user.create({
+    data: {
+      accountId: parentHere.accountId,
+      role: Role.PARENT,
+      firstName: parentHere.firstName,
+      lastName: parentHere.lastName,
+      phone: parentHere.phone,
+      email: parentHere.email,
+      gender: parentHere.gender,
+      isActive: true,
+    },
+  });
+  await prisma.parentStudent.create({
+    data: {
+      parentUserId: parentThere.id,
+      studentId: ubumwe.students[3].studentId,
+      relationship: parentHere.gender === Gender.FEMALE ? 'Mother' : 'Father',
+    },
+  });
+  lines.push(
+    `${parentHere.account.phone ?? parentHere.account.email} (phone login): parent at Markova Academy and at E.S. Ubumwe`,
+  );
+
+  // A student who moved: left G.S. Umucyo, now at E.S. Ubumwe, same login.
+  await inSchool(umucyo.id);
+  const mover = umucyo.students[umucyo.students.length - 1];
+  const moverEmail = emailFor('Divine', 'Iradukunda');
+  const moverUser = await prisma.user.update({
+    where: { id: mover.userId },
+    data: {
+      isActive: false,
+      ...(moverEmail && {
+        firstName: 'Divine',
+        lastName: 'Iradukunda',
+        email: moverEmail,
+        account: { update: { email: moverEmail } },
+      }),
+    },
+    include: { account: true },
+  });
+  await prisma.student.update({
+    where: { id: mover.studentId },
+    data: { status: 'TRANSFERRED' },
+  });
+  await inSchool(ubumwe.id);
+  const moverThere = await prisma.user.create({
+    data: {
+      accountId: moverUser.accountId,
+      role: Role.STUDENT,
+      firstName: moverUser.firstName,
+      lastName: moverUser.lastName,
+      email: moverUser.email,
+      isActive: true,
+    },
+  });
+  await prisma.student.create({
+    data: {
+      userId: moverThere.id,
+      studentIdNumber: studentNumber(
+        moverUser.firstName,
+        moverUser.lastName,
+        new Date().getFullYear(),
+        moverThere.id,
+      ),
+      classSectionId: ubumwe.sectionIds[ubumwe.sectionIds.length - 1],
+      previousSchool: umucyo.name,
+      isBoarder: true,
+    },
+  });
+  lines.push(
+    `${moverUser.account.email}: moved from G.S. Umucyo to E.S. Ubumwe`,
+  );
+
+  await inSchool(firstSchoolId);
+  return lines;
 }
 
 main()
