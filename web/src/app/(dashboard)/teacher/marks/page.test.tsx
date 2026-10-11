@@ -286,7 +286,7 @@ describe("entering marks while offline", () => {
     });
 
     await waitFor(() => expect(h.offline.get).toHaveBeenCalled());
-    const owner = h.offline.get.mock.calls[0][0];
+    const [owner] = h.offline.get.mock.calls[0] as unknown[];
     expect(typeof owner).toBe("string");
     await waitFor(() => {
       const batch = h.api.post.mock.calls.find((c) =>
