@@ -9,6 +9,7 @@ import { randomBytes, randomInt } from 'crypto';
 import { existsSync } from 'fs';
 import { SubjectScope } from '@prisma/client';
 import * as QRCode from 'qrcode';
+import { withPlatform, withSchool } from '../../prisma/request-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import {
@@ -69,6 +70,23 @@ function resolveChromePath(): string {
           '/usr/bin/google-chrome',
         ];
   return candidates.find((p) => existsSync(p)) ?? candidates[0];
+}
+
+/** What a gate sees when it scans a student's ID card. */
+export interface CardCheck {
+  valid: boolean;
+  reason: string | null;
+  suspended?: boolean;
+  student?: {
+    name: string;
+    studentIdNumber: string;
+    level: string | null;
+    photoUrl: string | null;
+    status: string;
+  };
+  issuedAt?: Date | null;
+  /** The school that issued the card, by name. */
+  issuedBy?: string;
 }
 
 @Injectable()
@@ -398,22 +416,39 @@ export class ReportsService implements OnModuleDestroy {
     if (!ReportsService.VERIFY_CODE.test(code)) {
       throw new NotFoundException('Report not found');
     }
-    const verification = await this.prisma.reportVerification.findUnique({
-      where: { code },
-      include: { termResult: true },
+    /*
+      The code is checked across every school, because whoever scans it has
+      no school to give, but that lookup answers only which school issued it.
+      Everything else is read inside that school: the report carries the
+      school's own name, crest and signatures, and read above the wall those
+      would be every school's at once.
+    */
+    const issuer = await withPlatform(() =>
+      this.prisma.reportVerification.findUnique({
+        where: { code },
+        select: { schoolId: true, school: { select: { name: true } } },
+      }),
+    );
+    if (!issuer) throw new NotFoundException('Report not found');
+
+    return withSchool(issuer.schoolId, async () => {
+      const verification = await this.prisma.reportVerification.findUnique({
+        where: { code },
+        include: { termResult: true },
+      });
+      if (!verification) throw new NotFoundException('Report not found');
+      const data = await this.getTermReportData(
+        verification.termResult.studentId,
+        verification.termResult.termId,
+      );
+      // The rendered sheet ships along so the verify page can show the
+      // digital original exactly as it prints.
+      const html = this.renderTermReportHtml(
+        data,
+        await this.verificationQr(data),
+      );
+      return { ...data, html, issuedBy: issuer.school.name };
     });
-    if (!verification) throw new NotFoundException('Report not found');
-    const data = await this.getTermReportData(
-      verification.termResult.studentId,
-      verification.termResult.termId,
-    );
-    // The rendered sheet ships along so the verify page can show the digital
-    // original exactly as it prints.
-    const html = this.renderTermReportHtml(
-      data,
-      await this.verificationQr(data),
-    );
-    return { ...data, html };
   }
 
   private async verificationQr(data: any): Promise<string | null> {
@@ -961,7 +996,29 @@ export class ReportsService implements OnModuleDestroy {
    * details, no address, nothing that turns a found card into a way to reach
    * a child.
    */
-  async verifyCardByCode(code: string) {
+  async verifyCardByCode(code: string): Promise<CardCheck> {
+    /* Which school issued it, across every school; then the rest inside
+       that school, as for a report. */
+    const issuer = await withPlatform(() =>
+      this.prisma.student.findUnique({
+        where: { cardCode: code },
+        select: { schoolId: true, school: { select: { name: true } } },
+      }),
+    );
+    if (!issuer) {
+      return {
+        valid: false,
+        reason:
+          'This card is not valid. It may have been reissued, or it was never issued by a school on Markova.',
+      };
+    }
+    return withSchool(issuer.schoolId, async () => ({
+      ...(await this.checkCard(code)),
+      issuedBy: issuer.school.name,
+    }));
+  }
+
+  private async checkCard(code: string): Promise<CardCheck> {
     const student = await this.prisma.student.findUnique({
       where: { cardCode: code },
       select: {

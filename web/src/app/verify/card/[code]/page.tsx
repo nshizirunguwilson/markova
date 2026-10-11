@@ -19,6 +19,8 @@ interface CardCheck {
     status: string;
   };
   issuedAt?: string | null;
+  /** The school that issued the card. */
+  issuedBy?: string;
 }
 
 async function fetchCard(code: string): Promise<CardCheck | null> {
@@ -70,7 +72,7 @@ export default async function VerifyCardPage({
         tone="invalid"
         icon={<ShieldX className="h-7 w-7 text-danger" />}
         title="Not a valid card"
-        body={check.reason ?? "This card was not issued by this school."}
+        body={check.reason ?? "This card was not issued by any school on Markova."}
         code={code}
       />
     );
@@ -128,6 +130,12 @@ export default async function VerifyCardPage({
           </p>
         </div>
       </div>
+
+      {check.issuedBy && (
+        <p className="mt-4 text-sm text-foreground-muted">
+          Issued by <span className="font-medium text-foreground">{check.issuedBy}</span>
+        </p>
+      )}
 
       <p className="mt-5 text-xs text-muted">
         A card can be photocopied; a face cannot. If the photo above does not
