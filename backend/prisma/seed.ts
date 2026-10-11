@@ -1016,6 +1016,8 @@ async function main() {
   let bursarUser: any = null;
   /** Kept so the head teacher can be given a signature to sign cards with. */
   let headTeacherUser: any = null;
+  /** The school's safeguarding leads: they watch over chats with students. */
+  const safeguardingLeads: any[] = [];
 
   for (const person of boardingStaff) {
     const created = await prisma.user.create({
@@ -1033,8 +1035,14 @@ async function main() {
         lastName: person.lastName,
         isActive: true,
         forcePasswordChange: false, // demo account
+        /* The patron and the matron look after the boarders day and night,
+           so they are the ones the school names to watch over every chat
+           between a member of staff and a student. */
+        safeguardingLead:
+          person.role === Role.PATRON || person.role === Role.MATRON,
       }),
     });
+    if (created.safeguardingLead) safeguardingLeads.push(created);
     if (person.role === Role.BURSAR) bursarUser = created;
     if (person.role === Role.HEAD_TEACHER) headTeacherUser = created;
   }
@@ -3501,6 +3509,58 @@ async function main() {
     convCount++;
     msgCount += 2;
   }
+  /*
+    A student asking a teacher something, the way it now always happens: the
+    school's safeguarding leads are in the chat too, watching over it. No
+    member of staff talks to a child where nobody else can see.
+  */
+  const askingStudent = enrolled.find(
+    (e) => e.user.email === 'student1@markova.edu',
+  )?.user;
+  if (askingStudent && teacherUsers[0] && safeguardingLeads.length > 0) {
+    const conv = await prisma.conversation.create({
+      data: {
+        type: ConversationType.ONE_ON_ONE,
+        createdByUserId: askingStudent.id,
+      },
+    });
+    await prisma.conversationParticipant.createMany({
+      data: [
+        { conversationId: conv.id, userId: askingStudent.id, isAdmin: true },
+        { conversationId: conv.id, userId: teacherUsers[0].id },
+        ...safeguardingLeads.map((l) => ({
+          conversationId: conv.id,
+          userId: l.id,
+          watching: true,
+        })),
+      ],
+    });
+    const lines: [any, string][] = [
+      [
+        askingStudent,
+        'Good morning teacher, I missed Tuesday. Which exercise was the homework?',
+      ],
+      [
+        teacherUsers[0],
+        'Good morning. Exercise 4 on page 61, the first ten questions. Ask your deskmate for the notes.',
+      ],
+      [askingStudent, 'Thank you, I will hand it in on Friday.'],
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      await prisma.message.create({
+        data: {
+          conversationId: conv.id,
+          senderUserId: lines[i][0].id,
+          content: lines[i][1],
+          contentType: MessageContentType.TEXT,
+          createdAt: minDate(addDays(today, -(lines.length - i)), today),
+        },
+      });
+      msgCount++;
+    }
+    convCount++;
+  }
+
   // ─── THE CLASS GROUPS ───────────────────────────────────────────────────────
   //
   // Every class has one, and nobody creates it. It holds the class and the
