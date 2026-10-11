@@ -1088,6 +1088,91 @@ test('messaging: a student has their class group without anyone making it', asyn
 });
 
 /**
+ * No child alone in a chat with an adult.
+ *
+ * Every chat between staff and a student holds somebody watching over it,
+ * and the student is told who, in plain words at the top of the chat. The
+ * seed has student1 asking a teacher something, with the school's two
+ * safeguarding leads, the patron and the matron, watching.
+ */
+test('safeguarding: a student sees who watches over their chat with a teacher', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'STUDENT');
+  await visit(page, `/student/messages`);
+
+  const chat = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/messaging/conversations`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    });
+    const body = await res.json();
+    const list = body.data || body;
+    const me = JSON.parse(atob(localStorage.getItem('access_token').split('.')[1])).sub;
+    const watched = (list || []).find((c) => c.participants.some((p) => p.watching));
+    if (!watched) return null;
+    const talker = watched.participants.find((p) => !p.watching && p.user.id !== me);
+    return {
+      talker: `${talker.user.firstName} ${talker.user.lastName}`,
+      watchers: watched.participants.filter((p) => p.watching).map((p) => p.user.firstName),
+    };
+  }, API);
+  assert(chat, 'the seeded chat with a teacher has nobody watching over it');
+  assert(chat.watchers.length === 2, `expected both leads watching, saw ${chat.watchers.join(', ')}`);
+
+  // Named after the teacher, never after whoever watches.
+  // "Name" or "Name, 2 unread".
+  await page.getByRole('button', { name: new RegExp(`^${chat.talker}(,|$)`) }).first().click();
+  const notice = page.getByTestId('watch-notice');
+  await notice.waitFor({ timeout: 15000 });
+  const text = await notice.innerText();
+  for (const name of ['Beatrice', 'Emmanuel']) {
+    assert(text.includes(name), `the notice does not name ${name}: "${text}"`);
+  }
+  assert(/no child is ever alone with an adult/.test(text), `the notice does not say why: "${text}"`);
+
+  await ctx.close();
+});
+
+/**
+ * The principal names a safeguarding lead from the person's own page, and
+ * can stand them down again. Tried on the nurse, who is not one, and put back.
+ */
+test('safeguarding: the principal names a lead and stands them down', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin');
+
+  const nurse = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/users?role=NURSE`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    });
+    const body = await res.json();
+    return (body.data || [])[0]?.id ?? null;
+  }, API);
+  assert(nurse, 'the seed has no nurse');
+
+  await visit(page, `/admin/users/${nurse}`);
+  const status = page.getByTestId('safeguarding-status');
+  await status.waitFor({ timeout: 15000 });
+  assert((await status.innerText()).startsWith('Not a'), 'the nurse is already a lead');
+
+  try {
+    await page.getByRole('button', { name: 'Make safeguarding lead' }).click();
+    await page.getByRole('button', { name: 'Stand down as safeguarding lead' }).waitFor({ timeout: 15000 });
+    assert(
+      /Watches over every chat/.test(await status.innerText()),
+      'naming the nurse a lead did not show',
+    );
+  } finally {
+    const down = page.getByRole('button', { name: 'Stand down as safeguarding lead' });
+    if (await down.count()) await down.click();
+  }
+  await page.getByRole('button', { name: 'Make safeguarding lead' }).waitFor({ timeout: 15000 });
+  assert((await status.innerText()).startsWith('Not a'), 'standing the nurse down did not show');
+
+  await ctx.close();
+});
+
+/**
  * The school-wide announcement tool stays where it was. A student sending to
  * four hundred families is not a feature.
  */
