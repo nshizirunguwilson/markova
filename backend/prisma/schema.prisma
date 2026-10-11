@@ -71,11 +71,34 @@ enum TeacherQualification {
   A2
 }
 
+/// Whether a student is on the roll, and if not, why they left. A student who
+/// is suspended or away is still on the roll: see StudentPause.
 enum StudentStatus {
   ACTIVE
-  INACTIVE
+  WITHDRAWN
   GRADUATED
   TRANSFERRED
+  EXPELLED
+  PASSED_AWAY
+}
+
+/// Time out of school for a student who stays on the roll.
+enum PauseKind {
+  SUSPENDED
+  AWAY
+}
+
+/// One step in a student's journey through the school.
+enum JourneyStep {
+  SUSPENDED
+  AWAY
+  BACK
+  WITHDRAWN
+  EXPELLED
+  TRANSFERRED
+  GRADUATED
+  PASSED_AWAY
+  READMITTED
 }
 
 enum Gender {
@@ -188,6 +211,8 @@ model School {
   timetables                Timetable[]
   students                  Student[]
   parentStudents            ParentStudent[]
+  studentPauses             StudentPause[]
+  studentJourney            StudentJourneyEntry[]
   teachers                  Teacher[]
   teacherRoles              TeacherRole[]
   teacherSubjectClasses     TeacherSubjectClass[]
@@ -327,6 +352,9 @@ model User {
   isActive         Boolean   @default(true) @map("is_active")
   /// Sees every chat between a member of staff and a student.
   safeguardingLead Boolean   @default(false) @map("safeguarding_lead")
+  /// Recorded by the principal. The person's record is kept; nothing more is
+  /// sent to them.
+  passedAwayOn     DateTime? @map("passed_away_on") @db.Date
   /// When the person last opened this school: per school, so one school
   /// never learns when somebody used another.
   lastLoginAt      DateTime? @map("last_login_at")
@@ -369,6 +397,8 @@ model User {
   applicationEvents       ApplicationEvent[]         @relation("ApplicationEventActor")
   applicationNotes        ApplicationNote[]          @relation("ApplicationNoteAuthor")
   admissionOffers         AdmissionOffer[]           @relation("AdmissionOfferedBy")
+  pausesRecorded          StudentPause[]             @relation("PauseRecordedBy")
+  journeyRecorded         StudentJourneyEntry[]      @relation("JourneyRecordedBy")
 
   @@unique([schoolId, code])
   @@unique([schoolId, nationalId])
@@ -542,6 +572,7 @@ model ClassSection {
   groupChat    Conversation?
   /// The class teacher and any other duty tied to this class.
   teacherRoles TeacherRole[]
+  journeyBack  StudentJourneyEntry[]
 
   // Postgres treats NULLs as distinct, so duplicate O-Level names (tradeId
   // null) are additionally guarded in AcademicService.
@@ -678,12 +709,70 @@ model Student {
   healthRecord        StudentHealthRecord?
   feeInvoices         FeeInvoice[]
   application         Application?
+  pauses              StudentPause[]
+  journey             StudentJourneyEntry[]
 
   @@unique([schoolId, studentIdNumber])
   @@unique([schoolId, nfcCardId])
   @@index([classSectionId])
   @@index([status])
   @@map("students")
+}
+
+/// Time out of school for a student who stays on the roll: a suspension, or
+/// time away for illness or a new baby. Dates, not a switch, so "was she
+/// suspended on the 14th" is answered from the record and a student is back
+/// on the right day without anything having to remember to bring them back.
+model StudentPause {
+  id                   String    @id @default(uuid())
+  schoolId             String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school               School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentId            String    @map("student_id")
+  kind                 PauseKind
+  startsOn             DateTime  @map("starts_on") @db.Date
+  /// The last day out. Open for time away whose end is not known yet.
+  endsOn               DateTime? @map("ends_on") @db.Date
+  reason               String
+  note                 String?
+  /// The discipline record a suspension was decided on, when there is one.
+  disciplineIncidentId String?   @map("discipline_incident_id")
+  recordedByUserId     String?   @map("recorded_by_user_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  student    Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  incident   DisciplineIncident? @relation(fields: [disciplineIncidentId], references: [id], onDelete: SetNull)
+  recordedBy User?               @relation("PauseRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, startsOn])
+  @@index([schoolId])
+  @@map("student_pauses")
+}
+
+/// A student's journey: every change in their standing, with the day, the
+/// reason and who decided. Never deleted.
+model StudentJourneyEntry {
+  id               String      @id @default(uuid())
+  schoolId         String      @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentId        String      @map("student_id")
+  step             JourneyStep
+  happenedOn       DateTime    @map("happened_on") @db.Date
+  /// The last day of a suspension or time away.
+  until            DateTime?   @db.Date
+  reason           String?
+  note             String?
+  /// The class a student came back to.
+  classSectionId   String?     @map("class_section_id")
+  recordedByUserId String?     @map("recorded_by_user_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSection ClassSection? @relation(fields: [classSectionId], references: [id], onDelete: SetNull)
+  recordedBy   User?         @relation("JourneyRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, happenedOn])
+  @@index([schoolId])
+  @@map("student_journey")
 }
 
 model ParentStudent {
@@ -969,6 +1058,7 @@ model DisciplineIncident {
   recordedBy User    @relation("RecordedByUser", fields: [recordedByUserId], references: [id])
 
   appeals DisciplineAppeal[]
+  pauses  StudentPause[]
 
   @@index([studentId])
   @@index([termId])

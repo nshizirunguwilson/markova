@@ -33,6 +33,8 @@ const modelNames = [
   'timetable',
   'student',
   'parentStudent',
+  'studentPause',
+  'studentJourneyEntry',
   'teacher',
   'teacherRole',
   'teacherSubjectClass',
@@ -110,7 +112,12 @@ export function createMockPrisma(): MockPrisma & PrismaService {
               _max: {},
               _count: 0,
             })
-          : jest.fn();
+          : /* Nobody is suspended or away unless a spec says so: the
+               question is asked on every register and every message to a
+               family, and most specs are about something else. */
+            model === 'studentPause' && method === 'findMany'
+            ? jest.fn().mockResolvedValue([])
+            : jest.fn();
     }
     mock[model] = modelMock;
   }
