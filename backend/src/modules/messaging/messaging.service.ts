@@ -22,6 +22,18 @@ import {
 } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
 
+/** Who is in a conversation, as the check for a watcher reads them. */
+const PRESENT = {
+  userId: true,
+  watching: true,
+  user: { select: { role: true, isActive: true } },
+} as const;
+type Present = {
+  userId: string;
+  watching: boolean;
+  user: { role: Role; isActive: boolean };
+};
+
 @Injectable()
 export class MessagingService {
   constructor(private prisma: PrismaService) {}
@@ -30,15 +42,19 @@ export class MessagingService {
     dto: CreateConversationDto,
     createdByUserId: string,
   ) {
-    // For ONE_ON_ONE, check if conversation already exists
+    // Only people this person could have found in their contacts.
+    await this.refuseUnreachable(createdByUserId, dto.participantUserIds);
+
+    // For ONE_ON_ONE, check if conversation already exists. Whoever watches
+    // over it is not one of the two people talking.
     if (dto.type === 'ONE_ON_ONE' && dto.participantUserIds.length === 1) {
+      const pair = [createdByUserId, dto.participantUserIds[0]];
       const existing = await this.prisma.conversation.findFirst({
         where: {
           type: 'ONE_ON_ONE',
+          AND: pair.map((userId) => ({ participants: { some: { userId } } })),
           participants: {
-            every: {
-              userId: { in: [createdByUserId, dto.participantUserIds[0]] },
-            },
+            none: { userId: { notIn: pair }, watching: false },
           },
         },
         include: {
@@ -61,8 +77,12 @@ export class MessagingService {
 
     const allParticipants = [
       createdByUserId,
-      ...dto.participantUserIds.filter((id) => id !== createdByUserId),
+      ...new Set(dto.participantUserIds.filter((id) => id !== createdByUserId)),
     ];
+    const watchers = await this.watchersNeeded(
+      { type: dto.type },
+      await this.newcomers(allParticipants),
+    );
 
     return this.prisma.conversation.create({
       data: {
@@ -70,10 +90,13 @@ export class MessagingService {
         name: dto.name,
         createdByUserId,
         participants: {
-          create: allParticipants.map((userId, i) => ({
-            userId,
-            isAdmin: i === 0,
-          })),
+          create: [
+            ...allParticipants.map((userId, i) => ({
+              userId,
+              isAdmin: i === 0,
+            })),
+            ...watchers.map((userId) => ({ userId, watching: true })),
+          ],
         },
       },
       include: {
@@ -384,9 +407,37 @@ export class MessagingService {
         type: true,
         name: true,
         createdByUserId: true,
-        participants: { select: { userId: true, isAdmin: true } },
+        classSectionId: true,
+        participants: {
+          select: {
+            userId: true,
+            isAdmin: true,
+            watching: true,
+            user: { select: { role: true, isActive: true } },
+          },
+        },
       },
     });
+
+    /*
+      Somebody watches over a chat between a student and an adult before
+      anything more is said in it. Checked on every message rather than only
+      when the chat was made: a lead named today, or one who has left, changes
+      who should be watching chats that already exist.
+    */
+    const watchers = conversation
+      ? await this.watchersNeeded(conversation, conversation.participants ?? [])
+      : [];
+    if (conversation && watchers.length > 0) {
+      await this.prisma.conversationParticipant.createMany({
+        data: watchers.map((userId) => ({
+          conversationId: conversation.id,
+          userId,
+          watching: true,
+        })),
+        skipDuplicates: true,
+      });
+    }
     if (
       conversation?.type === 'BROADCAST' &&
       conversation.createdByUserId !== senderUserId
@@ -402,9 +453,10 @@ export class MessagingService {
       one failure the whole design exists to prevent: the sender believes
       somebody was told, and nobody was.
     */
-    const participantIds = (conversation?.participants ?? []).map(
-      (p) => p.userId,
-    );
+    const participantIds = [
+      ...(conversation?.participants ?? []).map((p) => p.userId),
+      ...watchers,
+    ];
     const refusal = refuseMention(dto.content ?? '', {
       conversationType: conversation?.type ?? 'GROUP',
       participantIds,
@@ -477,10 +529,18 @@ export class MessagingService {
       people named get one that says so, and is never rolled up under a
       count.
     */
+    /* Whoever watches over the chat reads it when they choose to, and is
+       only called to it when somebody names them. */
+    const watching = new Set([
+      ...(conversation?.participants ?? [])
+        .filter((p) => p.watching)
+        .map((p) => p.userId),
+      ...watchers,
+    ]);
     await this.leaveNotifications(
       message,
       conversation,
-      participantIds,
+      participantIds.filter((id) => !watching.has(id) || named.includes(id)),
       senderUserId,
       new Set(named),
     );
@@ -585,7 +645,7 @@ export class MessagingService {
   }
 
   async markAsRead(conversationId: string, userId: string) {
-    await this.ensureParticipant(conversationId, userId);
+    const me = await this.ensureParticipant(conversationId, userId);
 
     const unreadMessages = await this.prisma.message.findMany({
       where: {
@@ -627,6 +687,11 @@ export class MessagingService {
       skipDuplicates: true,
     });
 
+    /* Somebody watching over the chat having read it does not mean the
+       person it was written to has: the sender is not told. */
+    if (me.watching)
+      return { count: unreadMessages.length, readMessageIds: [] };
+
     const readMessageIds = unreadMessages.map((m) => m.id);
 
     // Update message status to READ for messages where all participants have read
@@ -651,7 +716,10 @@ export class MessagingService {
     const [messages, mentions] = await Promise.all([
       this.prisma.message.count({
         where: {
-          conversation: { participants: { some: { userId } } },
+          // A chat somebody only watches over is not waiting on them.
+          conversation: {
+            participants: { some: { userId, watching: false } },
+          },
           senderUserId: { not: userId },
           reads: { none: { userId } },
         },
@@ -672,7 +740,9 @@ export class MessagingService {
   async getUnreadCount(userId: string) {
     const count = await this.prisma.message.count({
       where: {
-        conversation: { participants: { some: { userId } } },
+        conversation: {
+          participants: { some: { userId, watching: false } },
+        },
         senderUserId: { not: userId },
         reads: { none: { userId } },
       },
@@ -700,45 +770,8 @@ export class MessagingService {
    * unable to message the person at the next desk is.
    */
   async getContacts(userId: string, search?: string) {
-    const me = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        role: true,
-        student: { select: { classSectionId: true, status: true } },
-      },
-    });
-    if (!me) return { data: [] };
-
-    // Every role that works for the school. Derived from the enum rather than
-    // listed, so a role added later is reachable the day it exists - the
-    // hand-written version had already gone stale twice.
-    const STUDENTS_AND_FAMILY: string[] = [Role.STUDENT, Role.PARENT];
-    const STAFF = Object.values(Role).filter(
-      (r) => !STUDENTS_AND_FAMILY.includes(r),
-    );
-    const isStaff = STAFF.includes(me.role);
-
-    const where: any = { isActive: true, id: { not: userId } };
-
-    if (!isStaff) {
-      const classmates =
-        me.role === Role.STUDENT &&
-        me.student?.status === 'ACTIVE' &&
-        me.student.classSectionId
-          ? {
-              student: {
-                classSectionId: me.student.classSectionId,
-                status: 'ACTIVE' as const,
-              },
-            }
-          : null;
-
-      where.AND = [
-        classmates
-          ? { OR: [{ role: { in: STAFF } }, classmates] }
-          : { role: { in: STAFF } },
-      ];
-    }
+    const where = await this.reachableFrom(userId);
+    if (!where) return { data: [] };
 
     if (search && search.trim()) {
       const q = search.trim();
@@ -858,6 +891,146 @@ export class MessagingService {
     });
     if (!participant)
       throw new ForbiddenException('Not a participant of this conversation');
+    return participant;
+  }
+
+  // ─── NO CHILD ALONE IN A CHAT ─────────────────────────────────────────────
+  //
+  // A member of staff could open a private chat with any student and nobody
+  // else could ever see it. Schools keep children safe with the same rule on
+  // paper and in person: an adult is never alone with a child where nobody
+  // can see. So every chat with a student and an adult in it also holds
+  // somebody who watches over it - the school's safeguarding lead, or the
+  // principal where the school has not named one.
+  //
+  // Not the student's parent. A child telling a teacher about trouble at home
+  // has to be able to do it without that home reading along.
+  //
+  // A class group is the whole class with its teacher, and an announcement
+  // cannot be answered, so neither is private and neither needs a watcher.
+
+  /**
+   * Who has to join a conversation so that no child in it is alone with an
+   * adult, given who will be in it. Empty when nobody has to.
+   */
+  private async watchersNeeded(
+    conversation: { type: string; classSectionId?: string | null },
+    people: Present[],
+  ): Promise<string[]> {
+    if (conversation.type === 'BROADCAST' || conversation.classSectionId) {
+      return [];
+    }
+    const here = people.filter((p) => p.user?.isActive);
+    const aStudent = here.some((p) => p.user.role === Role.STUDENT);
+    const anAdult = here.some(
+      (p) => !p.watching && p.user.role !== Role.STUDENT,
+    );
+    if (!aStudent || !anAdult) return [];
+    if (here.some((p) => p.watching)) return [];
+
+    const present = new Set(people.map((p) => p.userId));
+    const leads = await this.prisma.user.findMany({
+      where: {
+        safeguardingLead: true,
+        isActive: true,
+        role: { notIn: [Role.STUDENT, Role.PARENT] },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    const freeLeads = leads.map((l) => l.id).filter((id) => !present.has(id));
+    // Every lead, when the school has a team of them: they share the work.
+    if (freeLeads.length > 0) return freeLeads;
+
+    // No lead free to watch: the principal, then the head teacher.
+    const fallback = await this.prisma.user.findMany({
+      where: { role: { in: [Role.ADMIN, Role.HEAD_TEACHER] }, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, role: true },
+    });
+    const next = [
+      ...fallback.filter((u) => u.role === Role.ADMIN),
+      ...fallback.filter((u) => u.role === Role.HEAD_TEACHER),
+    ].find((u) => !present.has(u.id));
+    if (next) return [next.id];
+
+    throw new BadRequestException(
+      'Nobody at this school can watch over a chat with a student yet. Ask the principal to name a safeguarding lead.',
+    );
+  }
+
+  /** People about to join a conversation, as `watchersNeeded` reads them. */
+  private async newcomers(ids: string[]): Promise<Present[]> {
+    if (ids.length === 0) return [];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, role: true, isActive: true },
+    });
+    return users.map((user) => ({ userId: user.id, watching: false, user }));
+  }
+
+  /**
+   * The people a person may start a conversation with, as a filter on users.
+   *
+   * Staff may reach anybody. A student may reach the staff, and their own
+   * classmates. A parent reaches the staff only.
+   */
+  private async reachableFrom(userId: string): Promise<any> {
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        student: { select: { classSectionId: true, status: true } },
+      },
+    });
+    if (!me) return null;
+
+    // Every role that works for the school. Derived from the enum rather than
+    // listed, so a role added later is reachable the day it exists - the
+    // hand-written version had already gone stale twice.
+    const STUDENTS_AND_FAMILY: string[] = [Role.STUDENT, Role.PARENT];
+    const STAFF = Object.values(Role).filter(
+      (r) => !STUDENTS_AND_FAMILY.includes(r),
+    );
+
+    const where: any = { isActive: true, id: { not: userId } };
+    if (STAFF.includes(me.role)) return where;
+
+    const classmates =
+      me.role === Role.STUDENT &&
+      me.student?.status === 'ACTIVE' &&
+      me.student.classSectionId
+        ? {
+            student: {
+              classSectionId: me.student.classSectionId,
+              status: 'ACTIVE' as const,
+            },
+          }
+        : null;
+
+    where.AND = [
+      classmates
+        ? { OR: [{ role: { in: STAFF } }, classmates] }
+        : { role: { in: STAFF } },
+    ];
+    return where;
+  }
+
+  /** Refuse a conversation with anybody this person may not reach. */
+  private async refuseUnreachable(userId: string, others: string[]) {
+    const wanted = [...new Set(others)].filter((id) => id !== userId);
+    if (wanted.length === 0) return;
+    const reach = await this.reachableFrom(userId);
+    const found = reach
+      ? await this.prisma.user.count({
+          where: { AND: [reach, { id: { in: wanted } }] },
+        })
+      : 0;
+    if (found !== wanted.length) {
+      throw new ForbiddenException(
+        'You cannot start a conversation with somebody on that list',
+      );
+    }
   }
 
   // ─── BROADCAST ────────────────────────────────────────────────────────────
@@ -1040,17 +1213,38 @@ export class MessagingService {
   ) {
     await this.ensureGroupAdmin(conversationId, byUserId);
 
-    const existing = await this.prisma.conversationParticipant.findMany({
-      where: { conversationId },
-      select: { userId: true },
+    await this.refuseUnreachable(byUserId, userIds);
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        type: true,
+        classSectionId: true,
+        participants: { select: PRESENT },
+      },
     });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    const existing = conversation.participants;
     const already = new Set(existing.map((p) => p.userId));
     const toAdd = [...new Set(userIds)].filter((id) => !already.has(id));
 
     if (toAdd.length === 0) return { added: 0 };
 
+    // A student added to a room of adults brings somebody to watch over it.
+    const watchers = await this.watchersNeeded(conversation, [
+      ...existing,
+      ...(await this.newcomers(toAdd)),
+    ]);
+
     await this.prisma.conversationParticipant.createMany({
-      data: toAdd.map((userId) => ({ conversationId, userId })),
+      data: [
+        ...toAdd.map((userId) => ({ conversationId, userId })),
+        ...watchers.map((userId) => ({
+          conversationId,
+          userId,
+          watching: true,
+        })),
+      ],
       skipDuplicates: true,
     });
     return { added: toAdd.length };
@@ -1079,12 +1273,35 @@ export class MessagingService {
     });
     const leaving = await this.prisma.conversationParticipant.findFirst({
       where: { conversationId, userId },
-      select: { isAdmin: true },
+      select: { isAdmin: true, watching: true },
     });
     if (leaving?.isAdmin && admins <= 1) {
       throw new BadRequestException(
         'Make somebody else an admin first, or the group is left with nobody to manage it',
       );
+    }
+
+    // The last person watching over a chat with a student stays in it.
+    if (leaving?.watching) {
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: {
+          type: true,
+          classSectionId: true,
+          participants: { select: PRESENT },
+        },
+      });
+      const staying = (conversation?.participants ?? []).filter(
+        (p) => p.userId !== userId,
+      );
+      if (
+        conversation &&
+        (await this.watchersNeeded(conversation, staying)).length > 0
+      ) {
+        throw new BadRequestException(
+          'A student is in this chat, so the person watching over it stays',
+        );
+      }
     }
 
     await this.prisma.conversationParticipant.deleteMany({

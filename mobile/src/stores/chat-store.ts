@@ -30,6 +30,8 @@ export interface Conversation {
   participants: {
     id: string;
     userId: string;
+    /** Here to watch over a chat between a student and an adult. */
+    watching?: boolean;
     user: {
       id: string;
       firstName: string;

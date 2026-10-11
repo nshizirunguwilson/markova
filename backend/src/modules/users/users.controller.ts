@@ -34,6 +34,7 @@ import {
   QueryUserDto,
   ResetLoginDto,
   BulkImportDto,
+  SafeguardingLeadDto,
 } from './dto';
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -167,6 +168,19 @@ export class UsersController {
     @Body() dto: ResetLoginDto,
   ) {
     return this.usersService.resetLogin(id, dto);
+  }
+
+  @Put(':id/safeguarding-lead')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary:
+      'Name a member of staff a safeguarding lead, or stop them being one',
+  })
+  async setSafeguardingLead(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SafeguardingLeadDto,
+  ) {
+    return this.usersService.setSafeguardingLead(id, dto.lead);
   }
 
   @Delete(':id')

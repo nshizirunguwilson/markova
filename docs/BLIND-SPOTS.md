@@ -60,7 +60,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | B1 | A student has no phone and no email | Students sign in with invented addresses (`student1@markova.edu`) | Near work |
 | B2 | A student forgets their password and has no phone or email | No way back in | Near work |
 | B3 | Students want to check results on a phone during the holidays | Blocked on the phone app, and only the app blocks it: the server lets them in. Checked | Near work |
-| B4 | A member of staff privately messages a student | **Any staff member can start a private chat with any student, and nobody else can see it.** A child safety gap. Checked | Near work |
+| B4 | A member of staff privately messages a student | **Done, 12 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
 | B5 | Students share computers in the school lab | Nothing signs them out when the next student sits down | Near work |
 | B6 | A student's photo is used on ID cards and in the app | No record of whether the family agreed | Near work |
 | B7 | A student with a disability needs extra exam time or a reader | Not recorded anywhere | Near work |
@@ -145,6 +145,30 @@ These came up during the first steps and are done, listed so they are not
 searched for twice: secrets in the logs, failed messages never resent, the
 mobile app unable to start, blank photos, report cards in the wrong font in
 production, and the seed that could not run.
+
+### B4: no child alone in a chat
+
+Any member of staff could open a private chat with any student, and nobody
+else could ever see it. Now:
+
+- **Who watches.** The principal names safeguarding leads on a staff member's
+  page (People, then the person, then Safeguarding). Every lead watches over
+  every chat between staff and a student. A school that names nobody has its
+  principal watch, and the head teacher when it is the principal talking.
+- **When.** Added the moment such a chat is made, when a student is added to
+  a group of adults, and before any message is sent into an older chat that
+  has nobody watching (a lead who has left no longer counts).
+- **Told, not hidden.** The top of the chat says who is watching and why, to
+  the student as much as to the teacher.
+- **Cannot be removed.** The last person watching cannot be removed or leave.
+- **Quiet for the watcher.** No bell and no badge for every message, only when
+  named. Their reading never shows the sender a "Read".
+- **Not the parent.** A child telling a teacher about trouble at home must be
+  able to do it without that home reading along, so parents are not added.
+- **Not needed** in a class group (the whole class is there), an announcement
+  (nobody can answer it), or between two adults or two classmates.
+- **Who can be reached** is now checked when a chat is made, not only in the
+  contact list: a parent cannot open a chat with somebody else's child.
 
 Found but still open, for the mobile redesign: the head teacher and the bursar
 land in the parent's app on the phone.

@@ -1818,3 +1818,68 @@ describe('resetting how somebody signs in', () => {
     );
   });
 });
+
+/**
+ * A safeguarding lead watches over every chat between staff and a student,
+ * so the post is for staff, and for staff who still work at the school.
+ */
+describe('UsersService naming a safeguarding lead', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: UsersService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new UsersService(prisma, accountsFor(prisma));
+    prisma.user.update.mockImplementation((args: any) =>
+      Promise.resolve({ id: args.where.id, ...args.data }),
+    );
+  });
+
+  const someone = (role: string, isActive = true) =>
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role, isActive });
+
+  it('names a member of staff', async () => {
+    someone('MATRON');
+    await expect(service.setSafeguardingLead('u1', true)).resolves.toEqual({
+      id: 'u1',
+      safeguardingLead: true,
+    });
+  });
+
+  it('stands somebody down', async () => {
+    someone('MATRON');
+    await service.setSafeguardingLead('u1', false);
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { safeguardingLead: false } }),
+    );
+  });
+
+  it.each(['STUDENT', 'PARENT'])('refuses a %s', async (role) => {
+    someone(role);
+    await expect(service.setSafeguardingLead('u1', true)).rejects.toThrow(
+      /member of staff/,
+    );
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses somebody who no longer works here', async () => {
+    someone('TEACHER', false);
+    await expect(service.setSafeguardingLead('u1', true)).rejects.toThrow(
+      /no longer works here/,
+    );
+  });
+
+  it('stands down somebody who has left', async () => {
+    someone('TEACHER', false);
+    await expect(
+      service.setSafeguardingLead('u1', false),
+    ).resolves.toBeTruthy();
+  });
+
+  it('says so when there is nobody of that id', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.setSafeguardingLead('nope', true)).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});

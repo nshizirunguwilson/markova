@@ -292,45 +292,47 @@ model SchoolConfig {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  schoolId     String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
-  school       School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  id               String    @id @default(uuid())
+  schoolId         String    @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   /// The login this school record belongs to. One person, one Account; one
   /// User in each school they belong to.
-  accountId    String    @map("account_id")
-  account      Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  accountId        String    @map("account_id")
+  account          Account   @relation(fields: [accountId], references: [id], onDelete: Restrict)
   /// How this school reaches the person. Starts as their sign in email and
   /// phone, and the school may change it: it is the school's own contact
   /// record, not how the person signs in (that is on Account).
-  email        String?
-  phone        String?
+  email            String?
+  phone            String?
   // Role-based registration code for staff and parents (TCH/PAR/LIB/ADM).
   // Students carry theirs on Student.studentIdNumber (STD prefix).
-  code         String?
+  code             String?
   // NIDA 16-digit national identification number (stored without spaces).
-  nationalId   String?   @map("national_id")
-  nationality  String?
+  nationalId       String?   @map("national_id")
+  nationality      String?
   // For staff and parents. Students carry theirs on Student, which stays
   // the single source of truth for student demographics.
-  gender       Gender?
-  dateOfBirth  DateTime? @map("date_of_birth")
-  role         Role
-  firstName    String    @map("first_name")
-  lastName     String    @map("last_name")
-  photoUrl     String?   @map("photo_url")
+  gender           Gender?
+  dateOfBirth      DateTime? @map("date_of_birth")
+  role             Role
+  firstName        String    @map("first_name")
+  lastName         String    @map("last_name")
+  photoUrl         String?   @map("photo_url")
   /// The person's own signature, uploaded from their own profile, printed
   /// where a document needs their name under a line. Deliberately not the
   /// school's signature from the branding settings: a report card carries a
   /// class teacher's and a head teacher's marks, and one file shared between
   /// them would put the same hand under both.
-  signatureUrl String?   @map("signature_url")
-  isActive     Boolean   @default(true) @map("is_active")
+  signatureUrl     String?   @map("signature_url")
+  isActive         Boolean   @default(true) @map("is_active")
+  /// Sees every chat between a member of staff and a student.
+  safeguardingLead Boolean   @default(false) @map("safeguarding_lead")
   /// When the person last opened this school: per school, so one school
   /// never learns when somebody used another.
-  lastLoginAt  DateTime? @map("last_login_at")
-  lastSeenAt   DateTime? @map("last_seen_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt      DateTime? @map("last_login_at")
+  lastSeenAt       DateTime? @map("last_seen_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   // Relations
   sessions                UserSession[]
@@ -1146,6 +1148,8 @@ model ConversationParticipant {
   userId         String   @map("user_id")
   joinedAt       DateTime @default(now()) @map("joined_at")
   isAdmin        Boolean  @default(false) @map("is_admin")
+  /// Here to watch over a chat between a student and an adult, not to talk.
+  watching       Boolean  @default(false)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
