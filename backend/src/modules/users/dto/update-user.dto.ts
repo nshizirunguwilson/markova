@@ -261,3 +261,13 @@ export class BulkImportDto {
   @IsObject({ each: true })
   rows: Record<string, unknown>[];
 }
+
+/**
+ * Whether a member of staff is one of the school's safeguarding leads, who
+ * watch over every chat between staff and a student.
+ */
+export class SafeguardingLeadDto {
+  @ApiProperty()
+  @IsBoolean()
+  lead: boolean;
+}

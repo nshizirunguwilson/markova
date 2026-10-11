@@ -266,6 +266,7 @@ export class UsersService {
         // class teacher or head teacher has to sign.
         signatureUrl: true,
         isActive: true,
+        safeguardingLead: true,
         /* How this person signs in. The school shows it so it can tell them,
            and cannot change it: see resetLogin. */
         account: {
@@ -753,6 +754,35 @@ export class UsersService {
    * they must change when they first sign in. Every device they were signed
    * in on is signed out.
    */
+  /**
+   * Name a member of staff a safeguarding lead, or stop them being one.
+   *
+   * A lead watches over every chat between a member of staff and a student,
+   * so it is a post for staff: a student or a parent cannot hold it.
+   */
+  async setSafeguardingLead(id: string, lead: boolean) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (lead && (user.role === Role.STUDENT || user.role === Role.PARENT)) {
+      throw new BadRequestException(
+        'Only a member of staff can be a safeguarding lead',
+      );
+    }
+    if (lead && !user.isActive) {
+      throw new BadRequestException(
+        'This person no longer works here, so cannot be a safeguarding lead',
+      );
+    }
+    return this.prisma.user.update({
+      where: { id },
+      data: { safeguardingLead: lead },
+      select: { id: true, safeguardingLead: true },
+    });
+  }
+
   async resetLogin(id: string, dto: { email?: string; phone?: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id },
