@@ -17,6 +17,7 @@ import {
 } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
 import { familyMayHear } from '../../common/student-standing';
+import { assertParentMaySee } from '../../common/parent-sharing';
 
 @Injectable()
 export class DisciplineService {
@@ -248,6 +249,7 @@ export class DisciplineService {
       submittedByUserId,
       role,
       incident.studentId,
+      'conduct',
     );
 
     // Check for existing pending appeal
@@ -370,6 +372,7 @@ export class DisciplineService {
       throw new ForbiddenException(
         'Not authorized to acknowledge this incident',
       );
+    await assertParentMaySee(this.prisma, incident.studentId, 'conduct');
 
     return this.prisma.disciplineIncident.update({
       where: { id: incidentId },
@@ -455,7 +458,7 @@ export class DisciplineService {
     newPoints: number,
   ) {
     // Not to a family whose child has left or passed away.
-    if (!(await familyMayHear(this.prisma, studentId, 'news'))) return;
+    if (!(await familyMayHear(this.prisma, studentId, 'conduct'))) return;
     const parentLinks = await this.prisma.parentStudent.findMany({
       where: { studentId, parent: { isActive: true } },
       include: {

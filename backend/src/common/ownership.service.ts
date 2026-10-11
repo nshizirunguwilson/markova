@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Sharing, assertParentMaySee, parentKept } from './parent-sharing';
 
 @Injectable()
 export class OwnershipService {
@@ -14,11 +15,17 @@ export class OwnershipService {
    * The head teacher sits with the first group because reading every child's
    * record is the post: they confirm each report card before it is issued,
    * which cannot be done without opening it.
+   *
+   * `sharing` says what kind of record this is. A parent is refused a kind
+   * their adult child keeps private (see common/parent-sharing.ts); every
+   * route a parent can reach names its kind, and parent-routes.spec.ts
+   * fails for one that does not.
    */
   async verifyStudentAccess(
     userId: string,
     role: string,
     studentId: string,
+    sharing?: Sharing,
   ): Promise<void> {
     if (role === 'ADMIN' || role === 'HEAD_TEACHER' || role === 'TEACHER')
       return;
@@ -45,11 +52,17 @@ export class OwnershipService {
           'Access denied: student is not linked to your account',
         );
       }
+      if (sharing) await assertParentMaySee(this.prisma, studentId, sharing);
       return;
     }
 
     // Unknown role - deny by default
     throw new ForbiddenException('Access denied');
+  }
+
+  /** Whether a parent is kept from this kind of record about the student. */
+  parentKept(studentId: string, sharing: Sharing): Promise<boolean> {
+    return parentKept(this.prisma, studentId, sharing);
   }
 
   /**

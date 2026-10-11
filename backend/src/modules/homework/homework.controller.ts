@@ -108,7 +108,12 @@ export class HomeworkController {
     @Query('classSectionId') classSectionId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     return this.service.getStudentHomework(studentId, classSectionId);
   }
 }

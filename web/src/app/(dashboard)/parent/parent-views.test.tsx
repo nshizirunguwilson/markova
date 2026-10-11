@@ -147,3 +147,34 @@ describe("a parent with no children linked", () => {
     await waitFor(() => expect(document.body.textContent).not.toBeNull());
   });
 });
+
+/**
+ * An adult child keeping something from their parents (A8). The page says so
+ * calmly, in the API's own sentence, instead of looking empty or broken.
+ */
+describe("a parent whose adult child keeps a record private", () => {
+  const keptError = (what: string) => () => {
+    throw Object.assign(new Error("Forbidden"), {
+      response: {
+        status: 403,
+        data: {
+          reason: "KEPT_PRIVATE",
+          message: `Divine has chosen to keep their ${what} private.`,
+        },
+      },
+    });
+  };
+
+  it.each([
+    ["marks", ParentMarks, "/marks/term-results/student", "results (marks and report cards)"],
+    ["attendance", ParentAttendance, "/attendance/student-summary", "attendance and discipline"],
+    ["discipline", ParentDiscipline, "/discipline/student", "attendance and discipline"],
+    ["reports", ParentReports, "/reports/term/", "results (marks and report cards)"],
+  ] as const)("says so on the %s page", async (_name, Page, url, what) => {
+    serve(h.api, { ...routes, [url]: keptError(what) });
+    await mount(Page);
+    await chooseCascadingFilters(4).catch(() => undefined);
+    const notice = await screen.findByTestId("kept-private", {}, { timeout: 8000 });
+    expect(notice).toHaveTextContent(`Divine has chosen to keep their ${what} private.`);
+  }, 20000);
+});

@@ -9,6 +9,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { BarChart3, Clock, Users } from "lucide-react";
 import api from "@/lib/api";
 import { WithheldNotice } from "@/components/finance/withheld-notice";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 interface Child {
   id: string; // student ID
@@ -51,7 +53,9 @@ export default function ParentMarksPage() {
   }, [user?.id]);
 
 
-  const { data, isLoading } = useStudentTermResult(selectedChild, selectedTerm);
+  const { data, isLoading, error } = useStudentTermResult(selectedChild, selectedTerm);
+  // An adult child may keep their results from their parents (A8).
+  const kept = keptPrivate(error);
   const result = data?.result;
   const marks = data?.marks || [];
   // The school releases marks when it is ready; until then the API withholds
@@ -145,6 +149,8 @@ export default function ParentMarksPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : kept ? (
+        <KeptPrivateNotice message={kept} />
       ) : withheld ? (
         <WithheldNotice withheld={withheld} feesHref="/parent/fees" what="marks" />
       ) : (

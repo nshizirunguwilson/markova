@@ -1,7 +1,7 @@
 import { waitFor } from '@testing-library/react-native';
 
 import { defaultTheme } from '@/design/theme';
-import { givenApi, resetApi } from '@/test/api-mock';
+import { givenApi, givenApiFails, resetApi } from '@/test/api-mock';
 import { routerState, screenTitle } from '@/test/router-mock';
 import {
   parent,
@@ -247,5 +247,28 @@ describe('the visits themselves', () => {
     const screen = await open();
 
     await waitFor(() => expect(screen.getByLabelText('Loading')).toBeTruthy());
+  });
+});
+
+/** An adult child keeping this from their parents (A8): said calmly, not empty. */
+describe('a record an adult child keeps private', () => {
+  it('says so in the school\'s own sentence', async () => {
+    givenApiFails(
+      '/clinic/student/student-1',
+      Object.assign(new Error('Forbidden'), {
+        response: {
+          status: 403,
+          data: {
+            reason: 'KEPT_PRIVATE',
+            message: 'Aline has chosen to keep their health visits private.',
+          },
+        },
+      }),
+    );
+    const screen = await open();
+    await waitFor(() =>
+      expect(screen.getByText('Aline has chosen to keep their health visits private.')).toBeTruthy(),
+    );
+    expect(screen.getByText(/From 18, a student decides/)).toBeTruthy();
   });
 });

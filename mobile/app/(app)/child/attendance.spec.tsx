@@ -1,7 +1,7 @@
 import { waitFor } from '@testing-library/react-native';
 
 import { defaultTheme } from '@/design/theme';
-import { givenApi, resetApi } from '@/test/api-mock';
+import { givenApi, givenApiFails, resetApi } from '@/test/api-mock';
 import { routerState, screenTitle } from '@/test/router-mock';
 import {
   meterFill,
@@ -248,5 +248,28 @@ describe('every day missed', () => {
     );
     expect(screen.getByText('Not a single day missed this term.')).toBeTruthy();
     expect(screen.getByText('Nothing missed')).toBeTruthy();
+  });
+});
+
+/** An adult child keeping this from their parents (A8): said calmly, not empty. */
+describe('a record an adult child keeps private', () => {
+  it('says so in the school\'s own sentence', async () => {
+    givenApiFails(
+      '/attendance/student-summary',
+      Object.assign(new Error('Forbidden'), {
+        response: {
+          status: 403,
+          data: {
+            reason: 'KEPT_PRIVATE',
+            message: 'Aline has chosen to keep their attendance and discipline private.',
+          },
+        },
+      }),
+    );
+    const screen = await open();
+    await waitFor(() =>
+      expect(screen.getByText('Aline has chosen to keep their attendance and discipline private.')).toBeTruthy(),
+    );
+    expect(screen.getByText(/From 18, a student decides/)).toBeTruthy();
   });
 });

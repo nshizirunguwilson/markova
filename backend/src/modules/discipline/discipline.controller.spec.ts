@@ -185,7 +185,7 @@ describe('DisciplineController', () => {
         call,
         on: 'ownership',
         calls: 'verifyStudentAccess',
-        withArgs: [parent.id, 'PARENT', 'student-1'],
+        withArgs: [parent.id, 'PARENT', 'student-1', 'conduct'],
       });
     });
 
@@ -200,7 +200,7 @@ describe('DisciplineController', () => {
         call: (c) => c.getIncident('inc-1', parent),
         on: 'ownership',
         calls: 'verifyStudentAccess',
-        withArgs: [parent.id, 'PARENT', 'student-1'],
+        withArgs: [parent.id, 'PARENT', 'student-1', 'conduct'],
       });
     });
 

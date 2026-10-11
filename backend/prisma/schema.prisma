@@ -695,6 +695,13 @@ model Student {
   cardSuspendedAt   DateTime?     @map("card_suspended_at")
   status            StudentStatus @default(ACTIVE)
   disciplinePoints  Int           @default(100) @map("discipline_points")
+  /// From 18 a student decides what their parents see (A8 in
+  /// docs/STUDENT-LIFE-DESIGN.md). Everything is shared until they say
+  /// otherwise; fees are always shared with whoever pays.
+  sharesResults     Boolean       @default(true) @map("shares_results")
+  sharesConduct     Boolean       @default(true) @map("shares_conduct")
+  sharesHealth      Boolean       @default(true) @map("shares_health")
+  sharingChangedAt  DateTime?     @map("sharing_changed_at")
   createdAt         DateTime      @default(now()) @map("created_at")
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

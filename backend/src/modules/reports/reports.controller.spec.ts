@@ -330,7 +330,7 @@ describe('ReportsController', () => {
         call,
         on: 'ownership',
         calls: 'verifyStudentAccess',
-        withArgs: [parent.id, 'PARENT', 'student-1'],
+        withArgs: [parent.id, 'PARENT', 'student-1', 'results'],
       });
     });
   });

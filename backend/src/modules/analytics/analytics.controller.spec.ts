@@ -32,7 +32,7 @@ describe('AnalyticsController', () => {
     'getStudentAnalytics',
     'getParentChildTrends',
   ]);
-  const ownership = mockService(['verifyStudentAccess']);
+  const ownership = mockService(['verifyStudentAccess', 'parentKept']);
 
   const withTeacherId = { ...teacher, teacherId: 'teacher-1' };
 
@@ -40,6 +40,8 @@ describe('AnalyticsController', () => {
 
   beforeEach(async () => {
     clearMocks(service, ownership);
+    // Nothing kept from the parent unless a test says so.
+    ownership.parentKept.mockResolvedValue(false);
     run = await controllerHarness(AnalyticsController, [
       { token: AnalyticsService, name: 'service', mock: service },
       { token: OwnershipService, name: 'ownership', mock: ownership },
@@ -151,7 +153,7 @@ describe('AnalyticsController', () => {
         call,
         on: 'ownership',
         calls: 'verifyStudentAccess',
-        withArgs: [parent.id, 'PARENT', 'student-1'],
+        withArgs: [parent.id, 'PARENT', 'student-1', 'results'],
       });
     });
 

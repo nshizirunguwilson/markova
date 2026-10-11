@@ -26,6 +26,9 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   // Graduated last year, and can still sign in: report cards only.
   GRADUATE: { email: 'graduate@markova.edu', password: PASS },
+  // 18, keeps their health visits from their parents; and that parent.
+  ADULT: { email: 'adult@markova.edu', password: PASS },
+  ADULT_PARENT: { phone: '+250788199999', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
@@ -280,6 +283,26 @@ test('auth: password show/hide toggle reveals the password', async (browser) => 
 });
 
 /**
+ * Sign in through the page itself, waiting out the sign in limit as
+ * apiLogin does: ten attempts a minute is spent quickly by a suite that signs
+ * in as every role, and a refusal here is not what any check is about.
+ */
+async function uiSignIn(page, identifier, { shared = false } = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await visit(page, '/login');
+    await page.fill('#identifier', identifier);
+    await page.fill('#password', PASS);
+    if (shared) await page.check('text=This is a shared computer');
+    const answer = page.waitForResponse((r) => r.url().endsWith('/auth/login'), { timeout: 30000 });
+    await page.click('button:has-text("Sign In")');
+    const res = await answer;
+    if (res.status() !== 429) return res;
+    await wait(61000);
+  }
+  throw new Error(`sign in for ${identifier} stayed rate limited`);
+}
+
+/**
  * A shared computer (B5): a student signing in at the school lab.
  *
  * The sign in is kept only in this tab, so the next person to open the
@@ -291,10 +314,7 @@ test('shared computer: a student is signed out when the lab computer is left alo
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.clock.install();
-  await visit(page, '/login');
-  await page.fill('#identifier', ACCOUNTS.STUDENT.email);
-  await page.fill('#password', PASS);
-  await page.click('button:has-text("Sign In")');
+  await uiSignIn(page, ACCOUNTS.STUDENT.email);
   await page.waitForURL('**/student', { timeout: 60000 });
 
   const kept = await page.evaluate(() => ({
@@ -334,11 +354,7 @@ test('shared computer: a student is signed out when the lab computer is left alo
 test('auth: signing out ends the session on the server', async (browser) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await visit(page, '/login');
-  await page.fill('#identifier', ACCOUNTS.TEACHER.email);
-  await page.fill('#password', PASS);
-  await page.check('text=This is a shared computer');
-  await page.click('button:has-text("Sign In")');
+  await uiSignIn(page, ACCOUNTS.TEACHER.email, { shared: true });
   const otp = page.locator('input[autocomplete="one-time-code"], #otp').first();
   await otp.waitFor({ timeout: 30000 });
   const code = await page.evaluate(() => document.body.innerText.match(/\b\d{6}\b/)?.[0]);
@@ -1181,6 +1197,74 @@ test('messaging: a student has their class group without anyone making it', asyn
   // The class, plus the adult who answers for it.
   assert(group.members >= 2, `the class group has only ${group.members} in it`);
 
+  await ctx.close();
+});
+
+/**
+ * A student of 18 decides what their parents see (A8). The seeded adult
+ * keeps their health visits private: their parent is told so calmly on the
+ * health page, and still sees their marks.
+ */
+test('turning 18: a parent is told calmly what their adult child keeps private', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADULT_PARENT');
+  const adult = await getTokens('ADULT');
+  // Asked from inside the app, which the API allows; a blank page may not.
+  await visit(page, '/parent');
+  const name = await page.evaluate(async ([api, token]) => {
+    const me = await fetch(`${api}/auth/profile`, {
+      headers: { authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    return `${me.firstName} ${me.lastName}`;
+  }, [API, adult.accessToken]);
+
+  await visit(page, '/parent/health');
+  const picker = page.getByLabel('Child');
+  if (await picker.count()) await picker.selectOption({ label: name });
+  const notice = page.getByTestId('kept-private');
+  await notice.waitFor({ timeout: 20000 });
+  assert(
+    /has chosen to keep their health visits private/.test(await notice.innerText()),
+    'the health page does not say the visits are private',
+  );
+  assert(!(await page.getByText(/Allergic to/).count()), 'health details still shown');
+  await ctx.close();
+});
+
+test('turning 18: the student chooses on their profile, and can change their mind', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADULT');
+  await visit(page, '/profile');
+  const health = page.getByRole('switch', { name: /Health visits/ });
+  await health.waitFor({ timeout: 20000 });
+  assert(!(await health.isChecked()), 'the seeded adult should keep health private');
+  const results = page.getByRole('switch', { name: /^Results/ });
+  assert(await results.isChecked(), 'results should start shared');
+
+  /* Clicked, not check()ed: the switch moves once the server has saved the
+     choice, and check() expects it to move at once. */
+  try {
+    await results.click();
+    await page.waitForFunction(
+      () => !document.querySelector('#share-results').checked,
+      null,
+      { timeout: 10000 },
+    );
+    await results.click();
+    await page.waitForFunction(
+      () => document.querySelector('#share-results').checked,
+      null,
+      { timeout: 10000 },
+    );
+  } finally {
+    // Whatever happened above, leave the demo as the seed made it.
+    const { accessToken } = await getTokens('ADULT');
+    await fetch(`${API}/students/me/sharing`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ results: true }),
+    });
+  }
   await ctx.close();
 });
 

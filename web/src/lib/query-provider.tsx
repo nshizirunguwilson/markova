@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { errorMessage } from "./errors";
+import { keptPrivate } from "./kept-private";
 
 /**
  * A failed read used to be silent.
@@ -50,6 +51,9 @@ export function createQueryClient() {
         const status = (error as { response?: { status?: number } })?.response
           ?.status;
         if (status === 401) return;
+        /* Something an adult child keeps from their parents is not a fault:
+           the page says so calmly, and a red alert would say the opposite. */
+        if (keptPrivate(error)) return;
         announce(error, "Could not load this. Please try again.");
       },
     }),

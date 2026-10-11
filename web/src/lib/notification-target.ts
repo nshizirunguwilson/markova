@@ -31,6 +31,7 @@ export type NotificationSubject =
   | "ACTIVITY"
   | "CLINIC"
   | "POCKET_MONEY"
+  | "SHARING"
   | "SYSTEM";
 
 export interface NotificationLike {
@@ -108,6 +109,10 @@ const ROUTES: Record<NotificationSubject, Partial<Record<Role, string>>> = {
     TEACHER: "/teacher/discipline",
     STUDENT: "/student/discipline",
     PARENT: "/parent/discipline",
+  },
+  /* A student of 18 deciding what their parents see: on their profile. */
+  SHARING: {
+    STUDENT: "/profile",
   },
   BOOK_LOAN: {
     ADMIN: "/admin/library",

@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderPage, serve, serveFailure } from "@/test/page";
 import { classLevel, classSection, populatedRoutes } from "@/test/fixtures";
 
@@ -713,5 +713,59 @@ describe("pressing Enter with nothing typed", () => {
         .find(([u]: any[]) => String(u).startsWith("/users?"));
       expect(String(last![0])).not.toMatch(/search=/);
     });
+  });
+});
+
+/**
+ * Students with no date of birth are treated as under 18, so their parents
+ * see everything (A8). The school is told how many, and can list them.
+ */
+describe("students with no date of birth", () => {
+  const page = (rows: unknown[], total: number) => ({
+    data: rows,
+    meta: { total, page: 1, limit: 20, totalPages: 1 },
+  });
+
+  /** The usual routes, with the people list answered by what it asks for. */
+  const withUndated = (undated: number, asked: string[] = []) => {
+    serve(h.api, populatedRoutes);
+    const usual = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation(async (url: string, config?: unknown) => {
+      const u = String(url);
+      if (!u.startsWith("/users?")) return usual(url, config);
+      asked.push(u);
+      if (u.includes("noDateOfBirth=true") && u.includes("limit=1")) {
+        return { data: page([studentRow(2)], undated) };
+      }
+      return { data: page([studentRow(1)], 1) };
+    });
+  };
+
+  it("says how many, and lists them on request", async () => {
+    const asked: string[] = [];
+    withUndated(3, asked);
+    renderPage(StudentsPage, { role: "ADMIN" });
+    const notice = await screen.findByTestId("undated-students");
+    expect(notice).toHaveTextContent("3 students have no date of birth.");
+    fireEvent.click(within(notice).getByRole("button", { name: "Show them" }));
+    await waitFor(() =>
+      expect(asked.some((u) => u.includes("noDateOfBirth=true") && u.includes("limit=20"))).toBe(true),
+    );
+    expect(within(notice).getByRole("button", { name: "Show everyone" })).toBeInTheDocument();
+  });
+
+  it("says one student, not one students", async () => {
+    withUndated(1);
+    renderPage(StudentsPage, { role: "ADMIN" });
+    expect(await screen.findByTestId("undated-students")).toHaveTextContent(
+      "1 student has no date of birth.",
+    );
+  });
+
+  it("says nothing when every student has one", async () => {
+    withUndated(0);
+    renderPage(StudentsPage, { role: "ADMIN" });
+    await screen.findAllByText(/Divine/);
+    expect(screen.queryByTestId("undated-students")).toBeNull();
   });
 });

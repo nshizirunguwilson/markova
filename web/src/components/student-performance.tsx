@@ -9,6 +9,8 @@ import { useStudentProfile } from "@/hooks/use-analytics";
 import { viz } from "@/lib/chart-theme";
 import { useChartTheme } from "@/hooks/use-chart-theme";
 import { ShieldCheck } from "lucide-react";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 /**
  * Shared across the admin student page, the student portal and the parent
@@ -39,7 +41,11 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
      the resolved theme, so the option builders below take a single
      stable dependency instead of four the compiler cannot track. */
   const chart = useChartTheme();
-  const { data, isLoading } = useStudentProfile(studentId);
+  const { data, isLoading, error } = useStudentProfile(studentId);
+  /* For a parent of an adult child: the results may be private altogether,
+     or only the attendance and conduct beside them (A8). */
+  const kept = keptPrivate(error);
+  const conductPrivate = !!data?.attendanceKeptPrivate;
 
   const terms = data?.terms ?? [];
   const latest = terms.length ? terms[terms.length - 1] : null;
@@ -280,6 +286,7 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
   }, [terms, latest, chart]);
 
   if (isLoading) return <PageSpinner />;
+  if (kept) return <KeptPrivateNotice message={kept} />;
   if (!data) {
     return (
       <div className="py-24 text-center text-muted">Student not found.</div>
@@ -305,19 +312,25 @@ export function StudentPerformance({ studentId }: { studentId: string }) {
     },
     {
       label: "Attendance",
-      value: latest?.attendancePct != null ? `${latest.attendancePct}%` : "-",
-      sub: latest?.termName ?? "",
+      value: conductPrivate
+        ? "Private"
+        : latest?.attendancePct != null
+          ? `${latest.attendancePct}%`
+          : "-",
+      sub: conductPrivate ? "kept private" : (latest?.termName ?? ""),
     },
     {
       label: "Conduct",
       // Out of forty for the term, with the percentage under it: the raw mark
       // alone does not say whether thirty-two is good.
-      value:
-        s?.disciplinePoints == null
+      value: conductPrivate
+        ? "Private"
+        : s?.disciplinePoints == null
           ? "-"
           : `${s.disciplinePoints} / ${TERM_CONDUCT_MARK}`,
-      sub:
-        s?.disciplinePoints == null
+      sub: conductPrivate
+        ? "kept private"
+        : s?.disciplinePoints == null
           ? "not marked yet"
           : `${conductPercentage(s.disciplinePoints, TERM_CONDUCT_MARK)}% this term`,
     },

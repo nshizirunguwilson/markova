@@ -65,7 +65,12 @@ export class ReportsController {
     studentId: string,
     termId: string,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     if (user.role !== 'STUDENT' && user.role !== 'PARENT') return;
 
     const issued = await this.service.isReportCardIssued(studentId, termId);
@@ -91,7 +96,12 @@ export class ReportsController {
     studentId: string,
     academicYearId: string,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     await this.feeGate.assertYearReleased(user.role, studentId, academicYearId);
   }
 
@@ -132,7 +142,12 @@ export class ReportsController {
     @Query('termId', ParseUUIDPipe) termId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     return this.service.suggestReportComments(studentId, termId);
   }
 
@@ -204,6 +219,7 @@ export class ReportsController {
         user.id,
         user.role,
         dto.studentId,
+        'results',
       );
     }
 

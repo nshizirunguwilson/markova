@@ -69,6 +69,7 @@ export class DisciplineController {
         user.id,
         user.role,
         (incident as any).studentId,
+        'conduct',
       );
       return incident;
     }
@@ -101,7 +102,12 @@ export class DisciplineController {
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'conduct',
+    );
     return this.service.getStudentDiscipline(studentId);
   }
 
@@ -193,7 +199,12 @@ export class DisciplineController {
     @CurrentUser() user: any,
     @Query('termId') termId?: string,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'conduct',
+    );
     return this.merits.standing(studentId, termId);
   }
 }

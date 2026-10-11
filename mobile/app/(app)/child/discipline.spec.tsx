@@ -509,3 +509,26 @@ describe('appealing one', () => {
     expect(screen.queryByRole('button', { name: 'Appeal this' })).toBeNull();
   });
 });
+
+/** An adult child keeping this from their parents (A8): said calmly, not empty. */
+describe('a record an adult child keeps private', () => {
+  it('says so in the school\'s own sentence', async () => {
+    givenApiFails(
+      '/discipline/student/student-1',
+      Object.assign(new Error('Forbidden'), {
+        response: {
+          status: 403,
+          data: {
+            reason: 'KEPT_PRIVATE',
+            message: 'Aline has chosen to keep their attendance and discipline private.',
+          },
+        },
+      }),
+    );
+    const screen = await open();
+    await waitFor(() =>
+      expect(screen.getByText('Aline has chosen to keep their attendance and discipline private.')).toBeTruthy(),
+    );
+    expect(screen.getByText(/From 18, a student decides/)).toBeTruthy();
+  });
+});

@@ -29,7 +29,13 @@ describe('what a standing stops', () => {
     expect(active).toEqual({
       onRegister: true,
       takesAttendance: true,
-      family: { absence: true, news: true, debt: true },
+      family: {
+        absence: true,
+        conduct: true,
+        health: true,
+        news: true,
+        debt: true,
+      },
       newInvoices: true,
       classChat: 'member',
       signIn: 'full',
@@ -92,6 +98,8 @@ describe('what a standing stops', () => {
   it('never writes to the family of a student who passed away, about anything', () => {
     expect(passedAway.family).toEqual({
       absence: false,
+      conduct: false,
+      health: false,
       news: false,
       debt: false,
     });
@@ -188,5 +196,35 @@ describe('who is paused on a day', () => {
     const reader = db([]);
     reader.student.findUnique.mockResolvedValue(null);
     expect(await familyMayHear(reader, 'nobody', 'news')).toBe(false);
+  });
+});
+
+/** An adult child decides what their parents hear (A8). */
+describe('what an adult student lets their family hear', () => {
+  const db = (sharing: Record<string, boolean>) => ({
+    studentPause: { findMany: jest.fn().mockResolvedValue([]) },
+    student: {
+      findUnique: jest.fn().mockResolvedValue({
+        status: 'ACTIVE',
+        dateOfBirth: asDay('2000-01-01'),
+        sharesResults: true,
+        sharesConduct: true,
+        sharesHealth: true,
+        ...sharing,
+      }),
+    },
+  });
+
+  it('sends no absence text or conduct notice when attendance and discipline are private', async () => {
+    const reader = db({ sharesConduct: false });
+    expect(await familyMayHear(reader as never, 's1', 'absence')).toBe(false);
+    expect(await familyMayHear(reader as never, 's1', 'conduct')).toBe(false);
+    expect(await familyMayHear(reader as never, 's1', 'news')).toBe(true);
+  });
+
+  it('sends no health notice when health is private', async () => {
+    const reader = db({ sharesHealth: false });
+    expect(await familyMayHear(reader as never, 's1', 'health')).toBe(false);
+    expect(await familyMayHear(reader as never, 's1', 'absence')).toBe(true);
   });
 });

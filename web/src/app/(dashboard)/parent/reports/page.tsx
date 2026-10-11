@@ -17,6 +17,8 @@ import { Clock, FileText, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
 import { PageHeader } from "@/components/layout/page-header";
+import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
+import { keptPrivate } from "@/lib/kept-private";
 
 interface Child { id: string; name: string; }
 
@@ -37,7 +39,10 @@ export default function ParentReportsPage() {
    * a 403; only one of them is something a family can do anything about.
    */
   const withheld = withheldFrom(error);
-  const notIssued = !withheld && (error as any)?.response?.status === 403;
+  // An adult child may keep their results from their parents (A8).
+  const kept = keptPrivate(error);
+  const notIssued =
+    !withheld && !kept && (error as any)?.response?.status === 403;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -109,6 +114,8 @@ export default function ParentReportsPage() {
 
       {isLoading && <div className="text-center py-8"><Spinner /></div>}
 
+      {kept && !isLoading && <KeptPrivateNotice message={kept} />}
+
       {withheld && !isLoading && (
         <WithheldNotice
           withheld={withheld}
@@ -172,7 +179,7 @@ export default function ParentReportsPage() {
         </Card>
       )}
 
-      {!isLoading && !report && termId && (
+      {!isLoading && !report && termId && !kept && (
         <Card className="p-8 text-center text-muted">
           <FileText className="w-12 h-12 mx-auto mb-2 text-border-strong" />
           No report card available for this term

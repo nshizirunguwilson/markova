@@ -297,3 +297,28 @@ describe("a child who was sent out to a health centre", () => {
     expect(screen.queryByText(/Sent to:/)).toBeNull();
   });
 });
+
+/** An adult child may keep their health visits from their parents (A8). */
+describe("the health page for an adult child who keeps it private", () => {
+  it("says so calmly instead of an empty record", async () => {
+    const kept = () => {
+      throw Object.assign(new Error("Forbidden"), {
+        response: {
+          status: 403,
+          data: { reason: "KEPT_PRIVATE", message: "Divine has chosen to keep their health visits private." },
+        },
+      });
+    };
+    serve(h.api, {
+      ...routes,
+      "/clinic/student/student-1/medication": kept,
+      "/clinic/student/student-1/visits": kept,
+      "/clinic/student/student-1": kept,
+    });
+    renderPage(ParentHealthPage, { role: "PARENT", user: { id: "user-1" } });
+    expect(await screen.findByTestId("kept-private", {}, { timeout: 8000 })).toHaveTextContent(
+      "Divine has chosen to keep their health visits private.",
+    );
+    expect(screen.queryByText(/Allergic to/)).toBeNull();
+  });
+});

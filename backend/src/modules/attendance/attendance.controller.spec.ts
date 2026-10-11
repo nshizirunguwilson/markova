@@ -195,7 +195,7 @@ describe('AttendanceController', () => {
         c.getStudentSummary('student-1', undefined, undefined, parent),
       on: 'ownership',
       calls: 'verifyStudentAccess',
-      withArgs: [parent.id, 'PARENT', 'student-1'],
+      withArgs: [parent.id, 'PARENT', 'student-1', 'conduct'],
     });
   });
 });

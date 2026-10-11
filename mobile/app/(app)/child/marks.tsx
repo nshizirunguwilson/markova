@@ -5,6 +5,8 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useStudentTermResult, useTerms, useAcademicYears, useCurrentTerm } from '@/hooks/useApi';
 import { space } from '@/design/tokens';
 import { Screen, Section, Row, RowGroup, Text, Segmented, Stat, StatRow, Empty, LoadingRows, Badge } from '@/ui';
+import { KeptPrivate } from '@/components/KeptPrivate';
+import { keptPrivate } from '@/lib/kept-private';
 
 /**
  * A child's marks, by subject, for one term.
@@ -28,7 +30,9 @@ export default function ChildMarks() {
   const [termId, setTermId] = useState<string>('');
   const active = termId || current?.id || '';
 
-  const { data: result, isPending, fetchStatus } = useStudentTermResult(studentId, active);
+  const { data: result, isPending, fetchStatus, error } = useStudentTermResult(studentId, active);
+  // An adult child may keep their results from their parents (A8).
+  const kept = keptPrivate(error);
 
   // The year and the term both have to arrive before the result can even be
   // asked for. Reading isPending alone showed the empty state, then a
@@ -57,6 +61,8 @@ export default function ChildMarks() {
 
         {loading ? (
           <LoadingRows count={6} />
+        ) : kept ? (
+          <KeptPrivate message={kept} />
         ) : !published ? (
           <Empty
             title="Not published yet"
