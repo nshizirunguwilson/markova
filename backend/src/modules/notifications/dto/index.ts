@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsString,
   IsOptional,
   IsUUID,
@@ -39,4 +40,16 @@ export class BulkNotificationDto {
   @ApiProperty({ enum: NotificationType })
   @IsEnum(NotificationType)
   type: NotificationType;
+}
+
+/** A phone, registered for push notifications. */
+export class RegisterPushTokenDto {
+  @ApiProperty({ example: 'ExponentPushToken[xxxxxxxx]' })
+  @IsString()
+  @MaxLength(255)
+  token: string;
+
+  @ApiProperty({ enum: ['ios', 'android', 'web'] })
+  @IsIn(['ios', 'android', 'web'])
+  platform: string;
 }

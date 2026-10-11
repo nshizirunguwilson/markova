@@ -51,6 +51,38 @@ describe('HttpExceptionFilter', () => {
     expect(body.statusCode).toBe(403);
   });
 
+  /* To the school asking, another school's record does not exist, and the
+     answer must not say otherwise. */
+  it("answers a link to another school's record as not found", () => {
+    const { status, body } = run(
+      new Error(
+        "Raw query failed. A row in class_sections cannot point at another school's class_levels (class_sections.class_level_id = abc)",
+      ),
+    );
+    expect(status).toHaveBeenCalledWith(404);
+    expect(body.message).toBe('Something this refers to was not found');
+    expect(JSON.stringify(body)).not.toContain('another school');
+  });
+
+  it('answers a reference to a record that is not there as not found', () => {
+    const { status, body } = run(
+      Object.assign(new Error('Foreign key constraint violated'), {
+        code: 'P2003',
+      }),
+    );
+    expect(status).toHaveBeenCalledWith(404);
+    expect(body.message).toBe('Something this refers to was not found');
+  });
+
+  it('answers a change to a record that is not there as not found', () => {
+    const { status } = run(
+      Object.assign(new Error('Record to delete does not exist'), {
+        code: 'P2025',
+      }),
+    );
+    expect(status).toHaveBeenCalledWith(404);
+  });
+
   it('passes a plain message through', () => {
     const { body } = run(new HttpException('Nope', HttpStatus.FORBIDDEN));
     expect(body.message).toBe('Nope');

@@ -12,7 +12,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
-import { CreateNotificationDto, BulkNotificationDto } from './dto';
+import {
+  CreateNotificationDto,
+  BulkNotificationDto,
+  RegisterPushTokenDto,
+} from './dto';
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -73,7 +77,7 @@ export class NotificationsController {
   @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Register push notification token' })
   registerPushToken(
-    @Body() body: { token: string; platform: string },
+    @Body() body: RegisterPushTokenDto,
     @CurrentUser() user: any,
   ) {
     /* Registered to the login, so the phone hears from every school the

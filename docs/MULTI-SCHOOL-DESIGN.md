@@ -1,6 +1,6 @@
 # One person, many schools
 
-_A plan for step 3, written 10 October 2026. Parts 1 to 4 are built; see
+_A plan for step 3, written 10 October 2026. All five parts are built; see
 section 11._
 
 Markova will hold many schools in one database. Keeping schools apart is the
@@ -226,7 +226,16 @@ Each part is its own pull request, tested before the next one starts:
    the school record that saved them.
 5. Prove it: demo data with three Rwandan schools, and a test that tries to
    reach another school's data through every part of the system. All attempts
-   must fail.
+   must fail. **Done.** Markova Academy, G.S. Umucyo (a Kigali day school) and
+   E.S. Ubumwe (a Musanze boarding school), with a teacher, a parent and a
+   student who each belong to two of them. The sweep calls every route, as
+   every role, with the other school's ids in the path, the query and the
+   body: 284 routes, 7,880 calls, nothing read and nothing changed. Breaking
+   the wall on one table makes it fail, so it does catch a leak. It found one
+   real gap (a class teacher's class could be another school's) and a class
+   of them: a foreign key is checked without the wall, so a row could point at
+   another school's record. Every link between two school tables now refuses
+   that.
 
 **The phone app** keeps working as it is: it opens the school used last. Its
 side panel of schools is built with the mobile redesign (step 8).
@@ -329,3 +338,16 @@ What part 4 built:
 - **The delivery queue** records the school a message was queued in and the
   worker sends it inside that school.
 - **Tests:** `test/per-school.e2e-spec.ts`.
+
+What part 5 built:
+
+- **Links stay inside a school:** after every insert or update, a check per
+  table refuses any row whose foreign key points at another school's row
+  (`app_same_school`). A migration that adds a foreign key between school
+  tables ends with `SELECT app_install_same_school_checks();`; the wall test
+  fails if a link has no check. The API answers such a request, like one
+  naming a record that does not exist, with "not found".
+- **The sweep:** `test/no-way-across.e2e-spec.ts`, built from the API's own
+  OpenAPI description, so new routes are swept without anybody adding them.
+- **Demo data:** see the demo accounts in the project notes. The e2e suites
+  run one at a time (`maxWorkers: 1`), because they share the one database.

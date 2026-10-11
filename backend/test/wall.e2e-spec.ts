@@ -263,4 +263,144 @@ describe('the wall between schools', () => {
       expect(row.bypass).toBe('');
     });
   });
+
+  /*
+    Links between schools. The wall decides which rows a school sees, but a
+    foreign key is checked by Postgres without it: naming another school's id
+    in a request used to tie the two schools' records together. Every foreign
+    key between two school tables now refuses a row of another school.
+  */
+  describe('links between schools', () => {
+    type Link = { child: string; col: string; parent: string; pcol: string };
+    let links: Link[];
+
+    beforeAll(async () => {
+      links = await owner.$queryRaw<Link[]>`
+        SELECT tc.table_name AS child, kcu.column_name AS col,
+               ccu.table_name AS parent, ccu.column_name AS pcol
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name
+         AND kcu.table_schema = tc.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+         AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
+          AND ccu.table_name <> 'schools'
+          AND EXISTS (SELECT 1 FROM information_schema.columns c
+                      WHERE c.table_schema = 'public'
+                        AND c.table_name = tc.table_name
+                        AND c.column_name = 'school_id')
+          AND EXISTS (SELECT 1 FROM information_schema.columns c
+                      WHERE c.table_schema = 'public'
+                        AND c.table_name = ccu.table_name
+                        AND c.column_name = 'school_id')`;
+    });
+
+    it('checks every link between two school tables', async () => {
+      expect(links.length).toBeGreaterThanOrEqual(100);
+      const triggers = await owner.$queryRaw<{ child: string; args: string }[]>`
+        SELECT c.relname AS child,
+               encode(t.tgargs, 'escape') AS args
+        FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+        WHERE t.tgname IN ('same_school_insert', 'same_school_update')`;
+      const missing: string[] = [];
+      for (const l of links) {
+        const own = triggers.filter((t) => t.child === l.child);
+        const args = own.map((t) => t.args.split('\\000'));
+        const covered =
+          own.length === 2 &&
+          args.every((a) =>
+            a.some(
+              (_, i) =>
+                i % 3 === 0 &&
+                a[i] === l.col &&
+                a[i + 1] === l.parent &&
+                a[i + 2] === l.pcol,
+            ),
+          );
+        if (!covered) missing.push(`${l.child}.${l.col} -> ${l.parent}`);
+      }
+      expect(missing).toEqual([]);
+    });
+
+    it("refuses a row pointing at another school's row, through the application", async () => {
+      await expect(
+        inFirst(() =>
+          app.classSection.create({
+            data: { classLevelId: secondLevelId, name: `${tag} Across` },
+          }),
+        ),
+      ).rejects.toThrow(/another school/);
+      await expect(
+        owner.classSection.count({ where: { name: `${tag} Across` } }),
+      ).resolves.toBe(0);
+    });
+
+    /*
+      Every link, both ways between the seeded schools, wherever both have a
+      row to try it with: an existing row is pointed at the other school's
+      row, and has to be refused. Inside one transaction that is rolled back,
+      so nothing is changed.
+    */
+    it("refuses every link to another school's row, wherever there is data to try it", async () => {
+      const schools = await owner.school.findMany({
+        where: { slug: { in: ['markova-academy', 'gs-umucyo'] } },
+        select: { id: true },
+      });
+      expect(schools).toHaveLength(2);
+      const tried = new Set<string>();
+      const accepted: string[] = [];
+
+      await owner
+        .$transaction(
+          async (tx) => {
+            for (const l of links) {
+              for (const [here, there] of [
+                [schools[0].id, schools[1].id],
+                [schools[1].id, schools[0].id],
+              ]) {
+                const [row] = await tx.$queryRawUnsafe<{ id: string }[]>(
+                  `SELECT id::text FROM "${l.child}" WHERE school_id = $1 LIMIT 1`,
+                  here,
+                );
+                const [target] = await tx.$queryRawUnsafe<{ v: string }[]>(
+                  `SELECT "${l.pcol}"::text AS v FROM "${l.parent}" WHERE school_id = $1 LIMIT 1`,
+                  there,
+                );
+                if (!row || !target) continue;
+                tried.add(`${l.child}.${l.col}`);
+                await tx.$executeRawUnsafe('SAVEPOINT across');
+                try {
+                  await tx.$executeRawUnsafe(
+                    `UPDATE "${l.child}" SET "${l.col}" = $1 WHERE id::text = $2`,
+                    target.v,
+                    row.id,
+                  );
+                  accepted.push(`${l.child}.${l.col} -> ${l.parent}`);
+                } catch (error) {
+                  if (!/another school/.test(String(error))) {
+                    /* Refused for another reason first (a unique rule, say).
+                       Not proof either way, so not counted. */
+                    tried.delete(`${l.child}.${l.col}`);
+                  }
+                }
+                await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT across');
+              }
+            }
+            throw new Error('roll back');
+          },
+          { timeout: 120_000 },
+        )
+        .catch((error: Error) => {
+          if (error.message !== 'roll back') throw error;
+        });
+
+      expect(accepted).toEqual([]);
+      /* 93 of the 118 links with the three-school demo seed; the rest are
+         tables one of the two schools has no rows in yet. */
+      expect(tried.size).toBeGreaterThanOrEqual(90);
+    }, 180_000);
+  });
 });

@@ -7,13 +7,16 @@ import {
   IsEnum,
   IsDateString,
   IsArray,
+  IsObject,
+  ArrayMaxSize,
   Matches,
   MaxLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   Gender,
+  Role,
   EmploymentStatus,
   StudentStatus,
   TeacherQualification,
@@ -239,4 +242,22 @@ export class ResetLoginDto {
   @IsString()
   @Matches(/^\+?[0-9 ]{9,15}$/, { message: 'Enter a phone number' })
   phone?: string;
+}
+
+/**
+ * Rows of a spreadsheet to import, all of one role.
+ *
+ * The rows are checked one by one by the import itself, which names the row
+ * that is wrong; this only makes sure there is a list of them to check.
+ */
+export class BulkImportDto {
+  @ApiProperty({ enum: Role })
+  @IsEnum(Role)
+  role: Role;
+
+  @ApiProperty({ type: 'array', items: { type: 'object' } })
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @IsObject({ each: true })
+  rows: Record<string, unknown>[];
 }
