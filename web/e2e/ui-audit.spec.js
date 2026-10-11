@@ -26,6 +26,9 @@ const ACCOUNTS = {
   STUDENT: { email: 'student1@markova.edu', password: PASS },
   // Graduated last year, and can still sign in: report cards only.
   GRADUATE: { email: 'graduate@markova.edu', password: PASS },
+  // 18, keeps their health visits from their parents; and that parent.
+  ADULT: { email: 'adult@markova.edu', password: PASS },
+  ADULT_PARENT: { phone: '+250788199999', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
@@ -1181,6 +1184,61 @@ test('messaging: a student has their class group without anyone making it', asyn
   // The class, plus the adult who answers for it.
   assert(group.members >= 2, `the class group has only ${group.members} in it`);
 
+  await ctx.close();
+});
+
+/**
+ * A student of 18 decides what their parents see (A8). The seeded adult
+ * keeps their health visits private: their parent is told so calmly on the
+ * health page, and still sees their marks.
+ */
+test('turning 18: a parent is told calmly what their adult child keeps private', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADULT_PARENT');
+  const adult = await getTokens('ADULT');
+  const name = await page.evaluate(async ([api, token]) => {
+    const me = await fetch(`${api}/auth/profile`, {
+      headers: { authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    return `${me.firstName} ${me.lastName}`;
+  }, [API, adult.accessToken]);
+
+  await visit(page, '/parent/health');
+  const picker = page.getByLabel('Child');
+  if (await picker.count()) await picker.selectOption({ label: name });
+  const notice = page.getByTestId('kept-private');
+  await notice.waitFor({ timeout: 20000 });
+  assert(
+    /has chosen to keep their health visits private/.test(await notice.innerText()),
+    'the health page does not say the visits are private',
+  );
+  assert(!(await page.getByText(/Allergic to/).count()), 'health details still shown');
+  await ctx.close();
+});
+
+test('turning 18: the student chooses on their profile, and can change their mind', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADULT');
+  await visit(page, '/profile');
+  const health = page.getByRole('switch', { name: /Health visits/ });
+  await health.waitFor({ timeout: 20000 });
+  assert(!(await health.isChecked()), 'the seeded adult should keep health private');
+  const results = page.getByRole('switch', { name: /^Results/ });
+  assert(await results.isChecked(), 'results should start shared');
+
+  await results.uncheck();
+  await page.waitForFunction(
+    () => !document.querySelector('#share-results').checked,
+    null,
+    { timeout: 10000 },
+  );
+  // Put it back as the seed left it.
+  await results.check();
+  await page.waitForFunction(
+    () => document.querySelector('#share-results').checked,
+    null,
+    { timeout: 10000 },
+  );
   await ctx.close();
 });
 

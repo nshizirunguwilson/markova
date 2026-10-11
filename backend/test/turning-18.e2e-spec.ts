@@ -20,6 +20,13 @@ describe('a student turning 18 (e2e)', () => {
   let app: INestApplication<App>;
   let owner: PrismaClient;
   const relaxed: { id: string; forcePasswordChange: boolean }[] = [];
+  const sharingBefore: {
+    id: string;
+    sharesResults: boolean;
+    sharesConduct: boolean;
+    sharesHealth: boolean;
+    sharingChangedAt: Date | null;
+  }[] = [];
 
   let adult: { id: string; userId: string; email: string };
   let parentToken: string;
@@ -105,7 +112,8 @@ describe('a student turning 18 (e2e)', () => {
       schoolId: school.id,
       status: 'ACTIVE' as const,
       pauses: { none: {} },
-      user: { account: { email: { not: null } } },
+      // Not the demo adult the seed keeps private (adult@markova.edu).
+      user: { account: { email: { not: null, notIn: ['adult@markova.edu'] } } },
       parentStudents: { some: { parent: { isActive: true } } },
     };
     const pick = async (dateOfBirth: object) => {
@@ -127,6 +135,21 @@ describe('a student turning 18 (e2e)', () => {
     const m = await pick({ gt: eighteenYearsAgo });
     minor = { id: m.id, userId: m.userId, email: m.user.account.email! };
 
+    for (const id of [adult.id, minor.id]) {
+      sharingBefore.push(
+        await owner.student.findUniqueOrThrow({
+          where: { id },
+          select: {
+            id: true,
+            sharesResults: true,
+            sharesConduct: true,
+            sharesHealth: true,
+            sharingChangedAt: true,
+          },
+        }),
+      );
+    }
+
     const parent = a.parentStudents[0].parent;
     parentId = parent.id;
     parentToken = await signIn(
@@ -138,15 +161,11 @@ describe('a student turning 18 (e2e)', () => {
   });
 
   afterAll(async () => {
-    await owner.student.updateMany({
-      where: { id: { in: [adult.id, minor.id] } },
-      data: {
-        sharesResults: true,
-        sharesConduct: true,
-        sharesHealth: true,
-        sharingChangedAt: null,
-      },
-    });
+    // Exactly as they were before.
+    for (const before of sharingBefore) {
+      const { id, ...data } = before;
+      await owner.student.update({ where: { id }, data });
+    }
     for (const a of relaxed) {
       await owner.account.update({
         where: { id: a.id },
