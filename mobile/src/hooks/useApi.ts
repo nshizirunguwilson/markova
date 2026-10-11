@@ -1280,6 +1280,32 @@ export function useEmergencyCard(studentId?: string) {
   });
 }
 
+/**
+ * A child's support plan for tests and exams (B7): what the school does for a
+ * student with special needs. The family reads it; the school keeps it.
+ */
+export type SupportPlanAnswer = {
+  plan: {
+    needWords?: string[];
+    needNote?: string | null;
+    arrangements: string[];
+    reviewOn: string | null;
+    agreedWith?: string | null;
+  } | null;
+};
+
+export function useSupportPlan(studentId?: string) {
+  return useQuery({
+    queryKey: ['support-plan', studentId],
+    queryFn: () =>
+      api
+        .get<SupportPlanAnswer>(`/students/${studentId}/support-plan`)
+        .then((r) => r.data),
+    enabled: !!studentId,
+    retry: false,
+  });
+}
+
 export function useStudentVisits(studentId?: string) {
   return useQuery<{ data: ClinicVisit[] }>({
     queryKey: ['clinic-student-visits', studentId],

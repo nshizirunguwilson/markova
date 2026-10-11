@@ -2,7 +2,12 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 import { HeartPulse } from 'lucide-react-native';
 
-import { useEmergencyCard, useStudentVisits, type ClinicVisit } from '@/hooks/useApi';
+import {
+  useEmergencyCard,
+  useStudentVisits,
+  useSupportPlan,
+  type ClinicVisit,
+} from '@/hooks/useApi';
 import { useTheme } from '@/design';
 import { space } from '@/design/tokens';
 import {
@@ -51,6 +56,15 @@ function when(iso: string) {
   });
 }
 
+function day(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export default function ChildHealth() {
   const t = useTheme();
   const { studentId, name } = useLocalSearchParams<{ studentId: string; name?: string }>();
@@ -58,6 +72,9 @@ export default function ChildHealth() {
   // An adult child may keep their health visits from their parents (A8).
   const kept = keptPrivate(error);
   const { data: visitPage } = useStudentVisits(studentId);
+  // Only there when the school keeps one; nothing to say otherwise (B7).
+  const { data: support } = useSupportPlan(studentId);
+  const plan = support?.plan;
 
   const visits: ClinicVisit[] = visitPage?.data ?? [];
   const record = card?.student?.healthRecord;
@@ -126,6 +143,32 @@ export default function ChildHealth() {
                 />
               </RowGroup>
             </Section>
+
+            {plan && (
+              <Section title="Support in exams">
+                <RowGroup>
+                  {!!plan.needWords?.length && (
+                    <Fact label="Needs" value={plan.needWords.join(', ')} />
+                  )}
+                  <Fact
+                    label="In tests and exams"
+                    value={
+                      plan.arrangements.length
+                        ? plan.arrangements.join(', ')
+                        : 'Nothing different'
+                    }
+                  />
+                  {plan.agreedWith ? (
+                    <Fact label="Agreed with" value={plan.agreedWith} />
+                  ) : null}
+                  <Fact
+                    label="Looked at again"
+                    value={plan.reviewOn ? day(plan.reviewOn) : 'No date set'}
+                    last
+                  />
+                </RowGroup>
+              </Section>
+            )}
 
             <Section title="Visits to the sick bay">
               {visits.length === 0 ? (

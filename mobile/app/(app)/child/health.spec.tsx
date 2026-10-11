@@ -272,3 +272,73 @@ describe('a record an adult child keeps private', () => {
     expect(screen.getByText(/From 18, a student decides/)).toBeTruthy();
   });
 });
+
+/**
+ * A child with special needs has a support plan (B7). The family reads it
+ * here; the Director of Studies and the nurse keep it.
+ */
+describe('the support plan', () => {
+  const withPlan = (plan: unknown) =>
+    givenApi({
+      '/clinic/student/student-1': { student: { healthRecord: {} } },
+      '/clinic/student/student-1/visits': { data: [] },
+      '/students/student-1/support-plan': { plan },
+    });
+
+  it('shows what the school does in tests and exams, and why', async () => {
+    withPlan({
+      needWords: ['Seeing'],
+      arrangements: ['25% extra time', 'Large print'],
+      reviewOn: '2027-01-15T00:00:00.000Z',
+      agreedWith: 'The family',
+    });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Support in exams')).toBeTruthy(),
+    );
+    expect(screen.getByText('Seeing')).toBeTruthy();
+    expect(screen.getByText('25% extra time, Large print')).toBeTruthy();
+    expect(screen.getByText('The family')).toBeTruthy();
+    expect(screen.getByText('15 January 2027')).toBeTruthy();
+  });
+
+  it('says plainly when nothing changes in the exam room, or no date is set', async () => {
+    withPlan({ needWords: [], arrangements: [], reviewOn: null });
+
+    const screen = await open();
+
+    await waitFor(() =>
+      expect(screen.getByText('Nothing different')).toBeTruthy(),
+    );
+    expect(screen.getByText('No date set')).toBeTruthy();
+    expect(screen.queryByText('Needs')).toBeNull();
+    expect(screen.queryByText('Agreed with')).toBeNull();
+  });
+
+  it('says nothing about support when there is no plan', async () => {
+    withPlan(null);
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('On record')).toBeTruthy());
+    expect(screen.queryByText('Support in exams')).toBeNull();
+  });
+
+  it('says nothing about support when the school cannot share it', async () => {
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('On record')).toBeTruthy());
+    expect(screen.queryByText('Support in exams')).toBeNull();
+  });
+
+  it('offers the family nothing to change', async () => {
+    withPlan({ arrangements: ['Reader'], reviewOn: null });
+
+    const screen = await open();
+
+    await waitFor(() => expect(screen.getByText('Reader')).toBeTruthy());
+    expect(pressableCount(screen)).toBe(0);
+  });
+});
