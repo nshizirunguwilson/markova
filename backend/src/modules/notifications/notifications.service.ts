@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { withPlatform } from '../../prisma/request-context';
+import { currentRequest, withPlatform } from '../../prisma/request-context';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
 import { Twilio } from 'twilio';
@@ -46,6 +46,25 @@ export class NotificationsService implements OnModuleInit {
     private prisma: PrismaService,
     private config: ConfigService,
   ) {}
+
+  /**
+   * Who an email says it is from.
+   *
+   * Inside a school, the school: a fees reminder from Kigali Hill signed
+   * "Markova School" leaves a parent at two schools guessing which. Outside
+   * one (a sign in code, a reset link, which belong to the login), the
+   * install's own name.
+   */
+  private async senderName(): Promise<string> {
+    const fallback: string =
+      this.config.get('SMTP_FROM_NAME') || 'Markova School';
+    const schoolId = currentRequest()?.schoolId;
+    if (!schoolId) return fallback;
+    const school = await this.prisma.school
+      .findUnique({ where: { id: schoolId }, select: { name: true } })
+      .catch(() => null);
+    return school?.name ?? fallback;
+  }
 
   onModuleInit() {
     const host = this.config.get('SMTP_HOST');
@@ -141,7 +160,7 @@ export class NotificationsService implements OnModuleInit {
       });
 
       if (this.transporter) {
-        const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+        const fromName = await this.senderName();
         const fromEmail =
           this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
@@ -397,7 +416,7 @@ export class NotificationsService implements OnModuleInit {
     if (!user?.email) return;
     if (!this.transporter) return;
 
-    const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+    const fromName = await this.senderName();
     const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
     await this.transporter.sendMail({

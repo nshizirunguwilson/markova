@@ -1,3 +1,4 @@
+import { withSchool } from '../../prisma/request-context';
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
@@ -269,6 +270,32 @@ describe('NotificationsService', () => {
       expect(mail.subject).toBe('Report card published');
       expect(mail.html).toContain('Dear Claudine');
       expect(mail.from).toContain('Markova TSS');
+    });
+
+    /* A parent at two schools needs to know which one is writing. */
+    it("signs an email from inside a school with the school's name", async () => {
+      build({ SMTP_HOST: 'smtp.brevo.com', SMTP_FROM_NAME: 'Markova TSS' });
+      service.onModuleInit();
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'c@markova.edu',
+        firstName: 'Claudine',
+      });
+      prisma.school.findUnique.mockResolvedValue({ name: 'G.S. Umucyo' });
+      await withSchool('school-2', () =>
+        service.send({
+          userId: 'user-1',
+          title: 'Fees reminder',
+          message: 'Term 3 fees are due',
+          type: 'EMAIL',
+        } as never),
+      );
+      const mail = sendMail.mock.calls[0][0];
+      expect(mail.from).toContain('G.S. Umucyo');
+      expect(mail.html).toContain('automated message from G.S. Umucyo');
+      expect(prisma.school.findUnique).toHaveBeenCalledWith({
+        where: { id: 'school-2' },
+        select: { name: true },
+      });
     });
 
     it('addresses somebody whose name is missing without leaving a gap', async () => {
