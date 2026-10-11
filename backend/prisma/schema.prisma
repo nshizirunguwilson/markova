@@ -88,6 +88,32 @@ enum PauseKind {
   AWAY
 }
 
+/// What a student with special educational needs needs (B7). A short list a
+/// school can count, with a note for the rest.
+enum SupportNeed {
+  SEEING
+  HEARING
+  MOVING
+  LEARNING
+  SPEECH
+  LONG_TERM_ILLNESS
+  OTHER
+}
+
+/// What is done for them in tests and exams.
+enum SupportArrangement {
+  EXTRA_TIME
+  READER
+  SCRIBE
+  LARGE_PRINT
+  BRAILLE
+  SIGN_LANGUAGE
+  SEPARATE_ROOM
+  REST_BREAKS
+  NEAR_THE_FRONT
+  USE_A_COMPUTER
+}
+
 /// One step in a student's journey through the school.
 enum JourneyStep {
   SUSPENDED
@@ -213,6 +239,7 @@ model School {
   parentStudents            ParentStudent[]
   studentPauses             StudentPause[]
   studentJourney            StudentJourneyEntry[]
+  supportPlans              SupportPlan[]
   teachers                  Teacher[]
   teacherRoles              TeacherRole[]
   teacherSubjectClasses     TeacherSubjectClass[]
@@ -399,6 +426,7 @@ model User {
   admissionOffers         AdmissionOffer[]           @relation("AdmissionOfferedBy")
   pausesRecorded          StudentPause[]             @relation("PauseRecordedBy")
   journeyRecorded         StudentJourneyEntry[]      @relation("JourneyRecordedBy")
+  supportPlansUpdated     SupportPlan[]              @relation("SupportPlanUpdatedBy")
 
   @@unique([schoolId, code])
   @@unique([schoolId, nationalId])
@@ -724,6 +752,7 @@ model Student {
   application         Application?
   pauses              StudentPause[]
   journey             StudentJourneyEntry[]
+  supportPlan         SupportPlan?
 
   @@unique([schoolId, studentIdNumber])
   @@unique([schoolId, nfcCardId])
@@ -786,6 +815,37 @@ model StudentJourneyEntry {
   @@index([studentId, happenedOn])
   @@index([schoolId])
   @@map("student_journey")
+}
+
+/// A student's support plan (B7 in docs/STUDENT-LIFE-DESIGN.md): what they
+/// need, and what is done for them in tests and exams. Kept by the Director
+/// of Studies and the nurse. The need is private to them, the principal and
+/// the family; a teacher sees only the arrangements, for the students they
+/// teach.
+model SupportPlan {
+  id               String               @id @default(uuid())
+  schoolId         String               @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School               @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentId        String               @unique @map("student_id")
+  needs            SupportNeed[]
+  needNote         String?              @map("need_note")
+  arrangements     SupportArrangement[]
+  /// With EXTRA_TIME: how much, as a share of the exam's time.
+  extraTimePercent Int?                 @map("extra_time_percent")
+  otherArrangement String?              @map("other_arrangement")
+  /// When the plan is next looked at again.
+  reviewOn         DateTime?            @map("review_on") @db.Date
+  /// Who it was agreed with: the family, the district SNE officer.
+  agreedWith       String?              @map("agreed_with")
+  updatedByUserId  String?              @map("updated_by_user_id")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("SupportPlanUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId])
+  @@map("support_plans")
 }
 
 model ParentStudent {

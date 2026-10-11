@@ -35,6 +35,7 @@ const modelNames = [
   'parentStudent',
   'studentPause',
   'studentJourneyEntry',
+  'supportPlan',
   'teacher',
   'teacherRole',
   'teacherSubjectClass',
