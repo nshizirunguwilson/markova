@@ -1,13 +1,20 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": ["node_modules/(?!uuid)"],
+  "transformIgnorePatterns": [
+    "node_modules/(?!uuid)"
+  ],
   "moduleNameMapper": {
     "^puppeteer-core$": "<rootDir>/../src/__test__/puppeteer-stub.ts"
-  }
+  },
+  "maxWorkers": 1
 }
