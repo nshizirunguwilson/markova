@@ -10,6 +10,7 @@ import {
   DeliveryJob,
 } from './jobs.constants';
 import type { EmailJob, SmsJob } from './delivery.queue';
+import { withSchool } from '../prisma/request-context';
 
 /**
  * Sending the messages, off the request thread and with real retries.
@@ -28,6 +29,14 @@ export class DeliveryProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
+    /* Inside the school that queued it, when there was one. */
+    const schoolId = (job.data as { schoolId?: string }).schoolId;
+    return schoolId
+      ? withSchool(schoolId, () => this.send(job))
+      : this.send(job);
+  }
+
+  private async send(job: Job): Promise<void> {
     const attempt = job.attemptsMade + 1;
 
     try {

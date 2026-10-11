@@ -2,6 +2,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 
+import { currentRequest } from '../prisma/request-context';
+
 import {
   DELIVERY_ATTEMPTS,
   DELIVERY_BACKOFF_MS,
@@ -17,12 +19,15 @@ export interface EmailJob {
   body: string;
   /** Marks the message as one somebody is waiting on right now. */
   urgent?: boolean;
+  /** The school that sent it, filled in when queued; see DeliveryQueue.add. */
+  schoolId?: string;
 }
 
 export interface SmsJob {
   phone: string;
   message: string;
   urgent?: boolean;
+  schoolId?: string;
 }
 
 /**
@@ -65,8 +70,13 @@ export class DeliveryQueue {
     data: EmailJob | SmsJob,
     urgent?: boolean,
   ): Promise<void> {
+    /* The school it is sent from goes with it, read here rather than passed
+       by every caller: the worker sends it inside that school, so it is
+       signed by the school. A sign in code has no school and is signed by
+       Markova. */
+    const schoolId = currentRequest()?.schoolId;
     try {
-      await this.queue.add(name, data, {
+      await this.queue.add(name, schoolId ? { ...data, schoolId } : data, {
         attempts: DELIVERY_ATTEMPTS,
         backoff: { type: 'exponential', delay: DELIVERY_BACKOFF_MS },
         /* A sign-in code goes in front of a fees reminder. Somebody is

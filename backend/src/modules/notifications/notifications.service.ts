@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { currentRequest, withPlatform } from '../../prisma/request-context';
+import { withPlatform } from '../../prisma/request-context';
+import { currentSchoolName } from '../../common/school-name';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
 import { Twilio } from 'twilio';
@@ -55,15 +56,11 @@ export class NotificationsService implements OnModuleInit {
    * one (a sign in code, a reset link, which belong to the login), the
    * install's own name.
    */
-  private async senderName(): Promise<string> {
-    const fallback: string =
-      this.config.get('SMTP_FROM_NAME') || 'Markova School';
-    const schoolId = currentRequest()?.schoolId;
-    if (!schoolId) return fallback;
-    const school = await this.prisma.school
-      .findUnique({ where: { id: schoolId }, select: { name: true } })
-      .catch(() => null);
-    return school?.name ?? fallback;
+  private senderName(): Promise<string> {
+    return currentSchoolName(
+      this.prisma,
+      this.config.get('SMTP_FROM_NAME') || 'Markova School',
+    );
   }
 
   onModuleInit() {
@@ -453,7 +450,7 @@ export class NotificationsService implements OnModuleInit {
       return;
     }
 
-    const fromName = this.config.get('SMTP_FROM_NAME') || 'Markova School';
+    const fromName = await this.senderName();
     const fromEmail = this.config.get('SMTP_FROM') || 'no-reply@markova.edu';
 
     // No try/catch here: a failure has to reach the delivery queue so it retries.
