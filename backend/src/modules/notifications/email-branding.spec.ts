@@ -56,6 +56,7 @@ describe('the header on an email the school sends', () => {
 
   const sendOne = (firstName: string | null = 'Aline') => {
     prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
       email: 'a.uwase@markova.edu',
       firstName,
     });
@@ -130,6 +131,7 @@ describe('sending email from a school with no SMTP account', () => {
 
   it('still writes the notification a person will see in the app', async () => {
     prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
       email: 'a.uwase@markova.edu',
       firstName: 'Aline',
     });
@@ -180,13 +182,20 @@ describe('a broadcast by SMS', () => {
     prisma = createMockPrisma();
     service = new NotificationsService(prisma, config);
     prisma.notification.createMany.mockResolvedValue({ count: 2 });
+    // Everybody written to has an open account.
+    prisma.user.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.id.in.map((id: string) => ({ id }))),
+    );
     jest.spyOn((service as any).logger, 'log').mockImplementation();
     logged = jest.spyOn((service as any).logger, 'error').mockImplementation();
     service.onModuleInit();
   });
 
   it('writes one notification per person', async () => {
-    prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      phone: '+250788100000',
+    });
 
     const result = await service.sendBulk({
       userIds: ['u-1', 'u-2'],
@@ -217,7 +226,10 @@ describe('a broadcast by SMS', () => {
   });
 
   it('says nothing when every number took it', async () => {
-    prisma.user.findUnique.mockResolvedValue({ phone: '+250788100000' });
+    prisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      phone: '+250788100000',
+    });
 
     await service.sendBulk({
       userIds: ['u-1'],

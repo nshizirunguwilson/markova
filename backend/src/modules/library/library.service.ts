@@ -304,7 +304,13 @@ export class LibraryService {
    */
   async remindOverdue() {
     const overdue = await this.prisma.bookLoan.findMany({
-      where: { status: 'ACTIVE', dueDate: { lt: new Date() } },
+      /* Not to a borrower whose account has closed: a student who passed
+         away is never chased for a book. */
+      where: {
+        status: 'ACTIVE',
+        dueDate: { lt: new Date() },
+        borrower: { isActive: true },
+      },
       include: {
         book: { select: { title: true, author: true } },
         borrower: {
@@ -405,6 +411,7 @@ export class LibraryService {
           gte: new Date(),
           lte: twoDaysFromNow,
         },
+        borrower: { isActive: true },
       },
       include: {
         book: { select: { title: true } },

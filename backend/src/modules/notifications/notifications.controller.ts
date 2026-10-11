@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { OpenToFormerStudents } from '../../common/decorators';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import {
@@ -42,6 +43,7 @@ export class NotificationsController {
     return this.service.sendBulk(dto);
   }
 
+  @OpenToFormerStudents()
   @Get()
   @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Get user notifications' })
@@ -52,6 +54,7 @@ export class NotificationsController {
     );
   }
 
+  @OpenToFormerStudents()
   @Get('unread')
   @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Get unread notification count' })

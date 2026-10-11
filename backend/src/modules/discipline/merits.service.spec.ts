@@ -26,6 +26,7 @@ describe('MeritsService', () => {
       groupBy: jest.fn(),
     },
     student: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    studentPause: { findMany: jest.fn().mockResolvedValue([]) },
     parentStudent: { findMany: jest.fn() },
     notification: { create: jest.fn() },
     schoolConfig: { findFirst: jest.fn() },
@@ -60,6 +61,7 @@ describe('MeritsService', () => {
   describe('awarding a merit', () => {
     it('records what it was for and who gave it', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 80,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -80,6 +82,7 @@ describe('MeritsService', () => {
 
     it('restores the points to the conduct score', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 80,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -98,6 +101,7 @@ describe('MeritsService', () => {
     // merits against trouble they have not caused yet.
     it('never takes a student above a clean sheet', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 100,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -111,6 +115,7 @@ describe('MeritsService', () => {
 
     it('restores only the gap when the merit is bigger than it', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 97,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -126,6 +131,7 @@ describe('MeritsService', () => {
     // whether or not there were points left to give back.
     it('still records the merit when there is nothing to restore', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 100,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -143,6 +149,7 @@ describe('MeritsService', () => {
     it('reads the clean sheet from the school config', async () => {
       prisma.schoolConfig.findFirst.mockResolvedValue({ value: '50' });
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 48,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -163,6 +170,7 @@ describe('MeritsService', () => {
     // learns to dread the message.
     it('tells the family, the same way trouble is told', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 80,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -183,6 +191,7 @@ describe('MeritsService', () => {
 
     it('does not lose the award when the message fails to send', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         disciplinePoints: 80,
         user: { firstName: 'Divine', lastName: 'Niyonkuru' },
@@ -208,6 +217,7 @@ describe('MeritsService', () => {
   describe('one student, both sides', () => {
     beforeEach(() => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         studentIdNumber: 'STD-2025-231419-167',
         disciplinePoints: 82,
@@ -224,6 +234,7 @@ describe('MeritsService', () => {
 
     it('says zero rather than a negative for a spotless record', async () => {
       prisma.student.findUnique.mockResolvedValue({
+        status: 'ACTIVE',
         id: 'student-1',
         studentIdNumber: 'STD-2025-231419-167',
         disciplinePoints: 100,
@@ -592,6 +603,7 @@ describe('the merits service on a partly set-up school', () => {
       groupBy: jest.fn(),
     },
     student: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    studentPause: { findMany: jest.fn().mockResolvedValue([]) },
     parentStudent: { findMany: jest.fn() },
     notification: { create: jest.fn() },
     schoolConfig: { findFirst: jest.fn() },

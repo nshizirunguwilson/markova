@@ -16,6 +16,7 @@ import {
   QueryIncidentsDto,
 } from './dto';
 import { NotificationSubject } from '../../common/notification-target';
+import { familyMayHear } from '../../common/student-standing';
 
 @Injectable()
 export class DisciplineService {
@@ -453,8 +454,10 @@ export class DisciplineService {
     pointsDeducted: number,
     newPoints: number,
   ) {
+    // Not to a family whose child has left or passed away.
+    if (!(await familyMayHear(this.prisma, studentId, 'news'))) return;
     const parentLinks = await this.prisma.parentStudent.findMany({
-      where: { studentId },
+      where: { studentId, parent: { isActive: true } },
       include: {
         parent: { select: { id: true, firstName: true, phone: true } },
         student: {
