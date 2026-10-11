@@ -3106,12 +3106,14 @@ async function main() {
   const demoClass = enrolled.find(
     (e) => e.user.email === 'student1@markova.edu',
   )?.meta.section.id;
-  const classmates = enrolled.filter(
-    (e) =>
-      e.meta.section.id === demoClass &&
-      e.user.email !== 'student1@markova.edu' &&
-      !String(e.user.email ?? '').startsWith('student'),
-  );
+  // From the end of the class list, well away from the student1 account.
+  const classmates = enrolled
+    .filter(
+      (e) =>
+        e.meta.section.id === demoClass &&
+        e.user.email !== 'student1@markova.edu',
+    )
+    .reverse();
   if (classmates.length >= 2) {
     const [suspended, away] = classmates;
     const term = allYears[2].terms.find(
