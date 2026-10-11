@@ -426,15 +426,16 @@ Each one ships the way B4 did: its own branch and pull request, unit tests,
 tests through the real API, browser checks, the accessibility audit, and
 "done" only when all of that passes.
 
-## Questions for you
+## Decided
 
-1. B8: may a suspended student sign in to see homework? (I recommend yes.)
-2. A9: tell the class teacher privately when a student's parent passes away?
-   (I recommend yes.)
-3. B5: 10 minutes idle on a shared computer, and also 60 minutes for everyone
-   else? (I recommend both.)
-4. A8: health visits shared by default from 18, or private by default? (I lean
-   shared, the student can turn it off.)
-5. B7: parents see the support plan, read only? (I recommend yes.)
-6. B6: keep the photo on the public card check? (I recommend yes, smaller,
-   first name only.)
+On 12 October 2026 every recommendation above was agreed, along with the two
+foundations and the order:
+
+1. B8: a suspended student may sign in to see homework, and cannot post in the
+   class chat.
+2. A9: the class teacher is told privately when a student's parent passes away.
+3. B5: 10 minutes idle on a shared computer, and 60 minutes for everyone else.
+4. A8: from 18, health visits stay shared by default; the student can turn
+   them off.
+5. B7: parents see the support plan, read only.
+6. B6: the photo stays on the public card check, smaller, first name only.
