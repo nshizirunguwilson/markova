@@ -76,6 +76,12 @@ export class NotificationsController {
     @Body() body: { token: string; platform: string },
     @CurrentUser() user: any,
   ) {
-    return this.service.registerPushToken(user.id, body.token, body.platform);
+    /* Registered to the login, so the phone hears from every school the
+       person belongs to, not only the one open now. */
+    return this.service.registerPushToken(
+      user.accountId,
+      body.token,
+      body.platform,
+    );
   }
 }

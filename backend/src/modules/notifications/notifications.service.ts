@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withPlatform } from '../../prisma/request-context';
 import { CreateNotificationDto, BulkNotificationDto } from './dto';
 import * as nodemailer from 'nodemailer';
 import { Twilio } from 'twilio';
@@ -237,14 +238,48 @@ export class NotificationsService implements OnModuleInit {
   // PUSH TOKEN MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async registerPushToken(userId: string, token: string, platform: string) {
-    // Upsert - same token might be re-registered on app restart
+  /**
+   * A phone, for a login.
+   *
+   * Upserted on the token: the app re-registers on every start, and a phone
+   * somebody else then signs in on moves to their login.
+   */
+  async registerPushToken(accountId: string, token: string, platform: string) {
     await this.prisma.pushToken.upsert({
       where: { token },
-      update: { userId, platform, updatedAt: new Date() },
-      create: { userId, token, platform },
+      update: { accountId, platform, updatedAt: new Date() },
+      create: { accountId, token, platform },
     });
     return { success: true };
+  }
+
+  /**
+   * Where a push for this school record goes, and how it is labelled.
+   *
+   * The phones of the record's login, whichever school was open when they
+   * registered. For somebody in more than one school the title starts with
+   * the school's name, or "Marks published" would not say whose.
+   */
+  private async pushTarget(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        accountId: true,
+        schoolId: true,
+        school: { select: { name: true } },
+      },
+    });
+    if (!user) return null;
+    const schools = await withPlatform(() =>
+      this.prisma.user.count({
+        where: {
+          accountId: user.accountId,
+          isActive: true,
+          school: { status: 'ACTIVE' },
+        },
+      }),
+    );
+    return { ...user, named: schools > 1 };
   }
 
   async sendPushNotification(
@@ -253,20 +288,23 @@ export class NotificationsService implements OnModuleInit {
     body: string,
     data?: Record<string, string>,
   ) {
+    const target = await this.pushTarget(userId);
+    if (!target) return;
     const tokens = await this.prisma.pushToken.findMany({
-      where: { userId },
+      where: { accountId: target.accountId },
       select: { token: true },
     });
 
     if (tokens.length === 0) return;
 
-    // Send via Expo Push API
+    // Send via Expo Push API. The data names the school record, so the app
+    // can open the right school when the notification is tapped.
     const messages = tokens.map((t) => ({
       to: t.token,
       sound: 'default' as const,
-      title,
+      title: target.named ? `${target.school.name}: ${title}` : title,
       body,
-      data: data || {},
+      data: { ...(data || {}), schoolId: target.schoolId, userId },
     }));
 
     try {

@@ -86,10 +86,11 @@ describe('NotificationsController', () => {
       call: (c) =>
         c.registerPushToken(
           { token: 'ExpoToken[abc]', platform: 'ios' },
-          admin,
+          { ...admin, accountId: 'acc-1' },
         ),
       calls: 'registerPushToken',
-      withArgs: [admin.id, 'ExpoToken[abc]', 'ios'],
+      /* To the login, so the phone hears from every school. */
+      withArgs: ['acc-1', 'ExpoToken[abc]', 'ios'],
     },
   ];
 
