@@ -45,7 +45,14 @@ describe('MessagingService', () => {
       updateMany: jest.fn(),
     },
     messageRead: { createMany: jest.fn() },
-    user: { findUnique: jest.fn(), findMany: jest.fn() },
+    user: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  };
+
+  /** The caller works for the school, so may reach anybody named. */
+  const asStaff = (reachable: number) => {
+    mockPrisma.user.findUnique.mockResolvedValue({ role: 'TEACHER' });
+    mockPrisma.user.count.mockResolvedValue(reachable);
+    mockPrisma.user.findMany.mockResolvedValue([]);
   };
 
   /** The caller is a participant of the conversation. */
@@ -206,13 +213,14 @@ describe('MessagingService', () => {
       expect(where.senderUserId).toEqual({ not: 'u1' });
       expect(where.reads).toEqual({ none: { userId: 'u1' } });
       expect(where.conversation).toEqual({
-        participants: { some: { userId: 'u1' } },
+        participants: { some: { userId: 'u1', watching: false } },
       });
     });
   });
 
   describe('createConversation()', () => {
     it('reuses the existing one-on-one thread instead of creating a duplicate', async () => {
+      asStaff(1);
       mockPrisma.conversation.findFirst.mockResolvedValue({ id: 'existing' });
 
       const result = await service.createConversation(
@@ -225,6 +233,7 @@ describe('MessagingService', () => {
     });
 
     it('always includes the creator, and only once', async () => {
+      asStaff(2);
       mockPrisma.conversation.findFirst.mockResolvedValue(null);
       mockPrisma.conversation.create.mockResolvedValue({});
 
@@ -448,9 +457,11 @@ describe('MessagingService', () => {
 
     it('adds people a group admin names', async () => {
       asGroupAdmin();
-      mockPrisma.conversationParticipant.findMany.mockResolvedValue([
-        { userId: 'u1' },
-      ]);
+      asStaff(2);
+      mockPrisma.conversation.findUnique.mockResolvedValue({
+        type: 'GROUP',
+        participants: [{ userId: 'u1', watching: false }],
+      });
       mockPrisma.conversationParticipant.createMany.mockResolvedValue({
         count: 2,
       });
@@ -480,10 +491,14 @@ describe('MessagingService', () => {
 
     it('does not add somebody already in the group twice', async () => {
       asGroupAdmin();
-      mockPrisma.conversationParticipant.findMany.mockResolvedValue([
-        { userId: 'u1' },
-        { userId: 'u2' },
-      ]);
+      asStaff(1);
+      mockPrisma.conversation.findUnique.mockResolvedValue({
+        type: 'GROUP',
+        participants: [
+          { userId: 'u1', watching: false },
+          { userId: 'u2', watching: false },
+        ],
+      });
 
       const result = await service.addParticipants('conv-1', ['u2'], 'u1');
       expect(result.added).toBe(0);
