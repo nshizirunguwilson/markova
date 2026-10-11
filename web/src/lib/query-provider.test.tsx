@@ -90,6 +90,24 @@ describe("failed reads", () => {
     expect(h.toast.error).not.toHaveBeenCalled();
   });
 
+  // An adult child keeping something private is said calmly by the page; a red
+  // alert on top would say something had gone wrong.
+  it("stays quiet when something is kept private", async () => {
+    const kept = Object.assign(new Error("Forbidden"), {
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: { reason: "KEPT_PRIVATE", message: "Keza has chosen to keep their health visits private." },
+      },
+    });
+    renderHook(
+      () => useQuery({ queryKey: ["k"], queryFn: () => Promise.reject(kept), retry: false }),
+      { wrapper },
+    );
+    await waitFor(() => expect(client.getQueryState(["k"])?.status).toBe("error"));
+    expect(h.toast.error).not.toHaveBeenCalled();
+  });
+
   // A background refetch that fails still leaves usable data on screen.
   it("stays quiet when a refetch fails but data is already shown", async () => {
     client.setQueryData(["e"], [{ id: 1 }]);

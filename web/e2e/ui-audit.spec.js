@@ -1196,6 +1196,8 @@ test('turning 18: a parent is told calmly what their adult child keeps private',
   const ctx = await browser.newContext();
   const page = await authedPage(ctx, 'ADULT_PARENT');
   const adult = await getTokens('ADULT');
+  // Asked from inside the app, which the API allows; a blank page may not.
+  await visit(page, '/parent');
   const name = await page.evaluate(async ([api, token]) => {
     const me = await fetch(`${api}/auth/profile`, {
       headers: { authorization: `Bearer ${token}` },
@@ -1226,19 +1228,30 @@ test('turning 18: the student chooses on their profile, and can change their min
   const results = page.getByRole('switch', { name: /^Results/ });
   assert(await results.isChecked(), 'results should start shared');
 
-  await results.uncheck();
-  await page.waitForFunction(
-    () => !document.querySelector('#share-results').checked,
-    null,
-    { timeout: 10000 },
-  );
-  // Put it back as the seed left it.
-  await results.check();
-  await page.waitForFunction(
-    () => document.querySelector('#share-results').checked,
-    null,
-    { timeout: 10000 },
-  );
+  /* Clicked, not check()ed: the switch moves once the server has saved the
+     choice, and check() expects it to move at once. */
+  try {
+    await results.click();
+    await page.waitForFunction(
+      () => !document.querySelector('#share-results').checked,
+      null,
+      { timeout: 10000 },
+    );
+    await results.click();
+    await page.waitForFunction(
+      () => document.querySelector('#share-results').checked,
+      null,
+      { timeout: 10000 },
+    );
+  } finally {
+    // Whatever happened above, leave the demo as the seed made it.
+    const { accessToken } = await getTokens('ADULT');
+    await fetch(`${API}/students/me/sharing`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ results: true }),
+    });
+  }
   await ctx.close();
 });
 
