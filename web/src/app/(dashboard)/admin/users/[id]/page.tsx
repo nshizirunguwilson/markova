@@ -29,6 +29,7 @@ import { NationalIdInput } from "@/components/ui/national-id-input";
 import { formatNid, validateNid } from "@/lib/person-form";
 import { labelForRole } from "@/types";
 import { ResetSignIn } from "@/components/profile/reset-sign-in";
+import { SafeguardingLead } from "@/components/people/safeguarding-lead";
 
 const selectCls =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -622,6 +623,12 @@ export default function UserDetailPage() {
               />
             </div>
           </Card>
+          <SafeguardingLead
+            userId={user.id}
+            role={user.role}
+            isActive={!!user.isActive}
+            lead={!!user.safeguardingLead}
+          />
         </div>
       </div>
     </div>
