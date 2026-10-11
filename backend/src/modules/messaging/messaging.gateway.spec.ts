@@ -565,16 +565,46 @@ describe('MessagingGateway', () => {
       await gateway.handleTyping(typist(), { conversationId: 'conv-1' });
       expect(emit).not.toHaveBeenCalled();
     });
+
+    /* Somebody outside a conversation cannot make its members' screens say
+       they are typing, and another school's conversation has nobody in it
+       as far as this school can see. */
+    it('says nothing for somebody who is not in the thread', async () => {
+      messaging.getConversationParticipantIds.mockResolvedValue([
+        'user-2',
+        'user-3',
+      ]);
+      await gateway.handleTyping(typist(), { conversationId: 'conv-1' });
+      await gateway.handleStopTyping(typist(), { conversationId: 'conv-1' });
+      expect(emit).not.toHaveBeenCalled();
+    });
   });
 
   /**
    * A conversation created after a socket connected is not in that socket's
    * rooms yet, which is why joining is an explicit event.
    */
-  it('joins a conversation created after the socket connected', () => {
-    const client = socket();
-    gateway.handleJoinConversation(client, { conversationId: 'conv-9' });
+  it('joins a conversation created after the socket connected', async () => {
+    messaging.getConversationParticipantIds.mockResolvedValue(['user-1']);
+    const client = socket({ data: { user: { sub: 'user-1' } } });
+    await gateway.handleJoinConversation(client, { conversationId: 'conv-9' });
     expect(client.join).toHaveBeenCalledWith('conv:conv-9');
+  });
+
+  /* A room is joined only by somebody in the conversation, or anybody who
+     learned an id could listen in, from any school. */
+  it("refuses to join somebody else's conversation", async () => {
+    messaging.getConversationParticipantIds.mockResolvedValue(['user-2']);
+    const client = socket({ data: { user: { sub: 'user-1' } } });
+    await gateway.handleJoinConversation(client, { conversationId: 'conv-9' });
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
+  it('refuses a socket that never signed in', async () => {
+    const client = socket({ data: {} });
+    await expect(
+      gateway.handleJoinConversation(client, { conversationId: 'conv-9' }),
+    ).rejects.toThrow(/not signed in/);
   });
 
   /**
