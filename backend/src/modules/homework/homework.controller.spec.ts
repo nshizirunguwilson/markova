@@ -124,7 +124,7 @@ describe('HomeworkController', () => {
         call: (c) => c.getStudentHomework('student-1', 'section-1', parent),
         on: 'ownership',
         calls: 'verifyStudentAccess',
-        withArgs: [parent.id, 'PARENT', 'student-1'],
+        withArgs: [parent.id, 'PARENT', 'student-1', 'results'],
       });
     });
 

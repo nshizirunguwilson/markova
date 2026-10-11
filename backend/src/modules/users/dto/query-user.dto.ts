@@ -36,6 +36,20 @@ export class QueryUserDto extends PaginationDto {
   @IsEnum(StudentStatus)
   studentStatus?: StudentStatus;
 
+  /**
+   * Students the school has no date of birth for. They are treated as under
+   * 18, so their parents see everything: the school is shown who they are.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ obj }) =>
+    obj.noDateOfBirth === true || obj.noDateOfBirth === 'true'
+      ? true
+      : undefined,
+  )
+  @IsBoolean()
+  noDateOfBirth?: boolean;
+
   @ApiPropertyOptional({
     enum: ['all', 'name', 'class', 'email', 'phone', 'code', 'role', 'status'],
     description: 'Restrict the search to one field group',

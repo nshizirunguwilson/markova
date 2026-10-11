@@ -150,7 +150,12 @@ export class MarksController {
     @Query('termId') termId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     const withheld = await this.feeGate.withholdingFor(
       user.role,
       studentId,
@@ -270,7 +275,12 @@ export class MarksController {
     @Query('academicYearId') academicYearId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     const withheld = await this.feeGate.withholdingForYear(
       user.role,
       studentId,
@@ -290,7 +300,12 @@ export class MarksController {
     @Query('termId') termId: string,
     @CurrentUser() user: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
     // A student or a parent sees the card only once the school has issued it,
     // which is a separate decision from releasing the marks. Staff always see
     // it: they have to read the thing before issuing it.

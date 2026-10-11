@@ -35,6 +35,7 @@ export class UsersService {
       isActive,
       classSectionId,
       studentStatus,
+      noDateOfBirth,
       searchIn,
     } = query;
     const skip = (page - 1) * limit;
@@ -152,10 +153,11 @@ export class UsersService {
       });
     }
 
-    if (classSectionId || studentStatus) {
+    if (classSectionId || studentStatus || noDateOfBirth) {
       where.student = {
         ...(classSectionId && { classSectionId }),
         ...(studentStatus && { status: studentStatus }),
+        ...(noDateOfBirth && { dateOfBirth: null }),
       };
     }
 

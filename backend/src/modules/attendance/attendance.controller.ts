@@ -90,7 +90,12 @@ export class AttendanceController {
     @Query('dateTo') dateTo?: string,
     @CurrentUser() user?: any,
   ) {
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'conduct',
+    );
     return this.service.getStudentSummary(studentId, dateFrom, dateTo);
   }
 

@@ -39,6 +39,7 @@ import {
 import { Roles, ANY_ROLE } from '../../common/decorators';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards';
+import { keptFromParents } from '../../common/parent-sharing';
 import {
   fileFilterFor,
   filenameFor,
@@ -136,7 +137,19 @@ export class UsersController {
     if (current.role !== 'ADMIN' && current.id !== id) {
       throw new ForbiddenException('You can only access your own profile');
     }
-    return this.usersService.findOne(id);
+    const user = await this.usersService.findOne(id);
+    /* A parent's own record carries each child's. What an adult child keeps
+       private (their health notes, their conduct score) is left out. */
+    if (current.role === 'PARENT' && Array.isArray(user.parentStudents)) {
+      return {
+        ...user,
+        parentStudents: user.parentStudents.map((link: any) => ({
+          ...link,
+          student: withoutKept(link.student),
+        })),
+      };
+    }
+    return user;
   }
 
   @Post()
@@ -333,4 +346,26 @@ export class UsersController {
     );
     res.send(template);
   }
+}
+
+/** A child's record as a parent sees it, without what the child keeps private. */
+function withoutKept<T extends Record<string, any>>(student: T): T {
+  if (!student) return student;
+  const shown: Record<string, any> = { ...student };
+  if (keptFromParents(student as any, 'health')) {
+    for (const field of [
+      'bloodType',
+      'allergies',
+      'medicalConditions',
+      'disability',
+    ]) {
+      shown[field] = null;
+    }
+    shown.healthKeptPrivate = true;
+  }
+  if (keptFromParents(student as any, 'conduct')) {
+    shown.disciplinePoints = null;
+    shown.conductKeptPrivate = true;
+  }
+  return shown as T;
 }

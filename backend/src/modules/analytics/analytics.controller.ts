@@ -94,8 +94,30 @@ export class AnalyticsController {
     @CurrentUser() user: any,
   ) {
     // Students see only themselves, parents only their own children.
-    await this.ownership.verifyStudentAccess(user.id, user.role, studentId);
-    return this.service.getStudentProfileAnalytics(studentId, user.role);
+    await this.ownership.verifyStudentAccess(
+      user.id,
+      user.role,
+      studentId,
+      'results',
+    );
+    const profile = await this.service.getStudentProfileAnalytics(
+      studentId,
+      user.role,
+    );
+    /* Marks, but not attendance or conduct, for a parent whose adult child
+       keeps those private. */
+    if (
+      user.role === 'PARENT' &&
+      (await this.ownership.parentKept(studentId, 'conduct'))
+    ) {
+      return {
+        ...profile,
+        student: { ...profile.student, disciplinePoints: null },
+        terms: profile.terms.map((t) => ({ ...t, attendancePct: null })),
+        attendanceKeptPrivate: true,
+      };
+    }
+    return profile;
   }
 
   // ── Teacher ───────────────────────────────────────────────────────────────
@@ -130,6 +152,7 @@ export class AnalyticsController {
       req.user.id,
       req.user.role,
       studentId,
+      'results',
     );
     return this.service.getStudentAnalytics(studentId, termId, req.user?.role);
   }
@@ -149,7 +172,16 @@ export class AnalyticsController {
       req.user.id,
       req.user.role,
       studentId,
+      'results',
     );
-    return this.service.getParentChildTrends(studentId, academicYearId);
+    const trends = await this.service.getParentChildTrends(
+      studentId,
+      academicYearId,
+    );
+    // The same for the trends: marks, not attendance, when that is private.
+    if (await this.ownership.parentKept(studentId, 'conduct')) {
+      return { ...trends, attendance: null, attendanceKeptPrivate: true };
+    }
+    return trends;
   }
 }
