@@ -24,6 +24,8 @@ const PASS = 'Password123!';
 const ACCOUNTS = {
   ADMIN: { email: 'wilsonshizirungu@gmail.com', password: PASS },
   STUDENT: { email: 'student1@markova.edu', password: PASS },
+  // Graduated last year, and can still sign in: report cards only.
+  GRADUATE: { email: 'graduate@markova.edu', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   PARENT: { phone: '+250788100000', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
@@ -1083,6 +1085,121 @@ test('messaging: a student has their class group without anyone making it', asyn
   assert(group.name, 'the class group has no name');
   // The class, plus the adult who answers for it.
   assert(group.members >= 2, `the class group has only ${group.members} in it`);
+
+  await ctx.close();
+});
+
+/**
+ * A student's journey (docs/STUDENT-LIFE-DESIGN.md, B8 and A9).
+ *
+ * The seed suspends one of student1's classmates this week. On the register
+ * that student shows as suspended, with nothing to tap, so nobody marks them
+ * absent and their family is not texted.
+ */
+test('journey: the register shows a suspended student, with nothing to tap', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/attendance');
+
+  // student1's class, and its year.
+  const where = await page.evaluate(async ([api, student]) => {
+    const login = await fetch(`${api}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(student),
+    }).then((r) => r.json());
+    const me = await fetch(`${api}/auth/profile`, {
+      headers: { authorization: `Bearer ${login.accessToken}` },
+    }).then((r) => r.json());
+    const sections = await fetch(`${api}/academic/sections`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    }).then((r) => r.json());
+    const section = sections.find((s) => s.id === me.classSectionId);
+    return section ? { section: section.id, level: section.classLevelId } : null;
+  }, [API, ACCOUNTS.STUDENT]);
+  assert(where, "could not find student1's class");
+
+  await page.selectOption('#f-class-level', where.level);
+  await page.selectOption('#f-section', where.section);
+  const badge = page.getByText(/^Suspended until \d+ \w+$/).first();
+  await badge.waitFor({ timeout: 20000 });
+  const row = badge.locator('xpath=..');
+  assert(
+    (await row.getByRole('button').count()) === 0,
+    'a suspended student can still be tapped present or absent',
+  );
+  assert(
+    await page.getByText(/\d+ suspended or away/).isVisible(),
+    'the register does not say how many are out of school',
+  );
+
+  await ctx.close();
+});
+
+/**
+ * The principal suspends a student from their page, sees it, and brings them
+ * back the same day: the whole round trip, as the school would do it.
+ */
+test('journey: the principal suspends a student and brings them back', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin');
+
+  const userId = await page.evaluate(async (api) => {
+    const res = await fetch(`${api}/users?role=STUDENT&search=student3@markova.edu`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    });
+    return ((await res.json()).data || [])[0]?.id ?? null;
+  }, API);
+  assert(userId, 'the seed has no student3');
+
+  await visit(page, `/admin/users/${userId}`);
+  const standing = page.getByTestId('journey-standing');
+  await standing.waitFor({ timeout: 20000 });
+  // From an earlier run that stopped half way.
+  const back = page.getByRole('button', { name: 'Back at school' });
+  if (await back.count()) {
+    await back.click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Back at school' }).click();
+    await page.getByRole('button', { name: 'Suspend' }).waitFor({ timeout: 15000 });
+  }
+
+  await page.getByRole('button', { name: 'Suspend' }).click();
+  const dialog = page.getByRole('dialog');
+  const today = await page.evaluate(() =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Kigali' }).format(new Date()),
+  );
+  await dialog.getByLabel('Last day out').fill(today);
+  await dialog.getByLabel('Reason').fill('Browser check: suspended for the day');
+  await dialog.getByRole('button', { name: 'Suspend' }).click();
+  await page.getByText(/^Suspended until/).first().waitFor({ timeout: 15000 });
+
+  await page.getByRole('button', { name: 'Back at school' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Back at school' }).click();
+  await page.getByRole('button', { name: 'Suspend' }).waitFor({ timeout: 15000 });
+  const history = await page.getByRole('list', { name: 'Journey so far' }).innerText();
+  assert(/Back at school/.test(history), `the journey does not show the return: ${history}`);
+
+  await ctx.close();
+});
+
+/**
+ * A student who has left sees their report cards, is told why, and is sent
+ * back there from any other page.
+ */
+test('journey: a graduate sees only their report cards', async (browser) => {
+  const ctx = await browser.newContext();
+  const page = await authedPage(ctx, 'GRADUATE');
+  await page.goto(`${WEB}/student/marks`, { waitUntil: 'domcontentloaded' });
+  await page.waitForURL('**/student/reports', { timeout: 20000 });
+  const notice = page.getByTestId('former-student');
+  await notice.waitFor({ timeout: 15000 });
+  assert(/left the school \(graduated\)/.test(await notice.innerText()), 'no notice that they left');
+  const menu = await page.locator('aside nav a, nav a').allInnerTexts();
+  assert(
+    !menu.some((t) => /My Marks|Messages|School Fees/.test(t)),
+    `a graduate's menu still offers: ${menu.join(', ')}`,
+  );
 
   await ctx.close();
 });

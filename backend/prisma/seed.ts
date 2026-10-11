@@ -3175,6 +3175,28 @@ async function main() {
     });
   }
 
+  /* One graduate who can still sign in, as graduate@markova.edu, to show what
+     a student who has left sees: their past report cards, and nothing else. */
+  const graduate = alumniStudents.find(
+    (a) => a.status === StudentStatus.GRADUATED,
+  );
+  if (graduate) {
+    const g = await prisma.student.findUniqueOrThrow({
+      where: { id: graduate.id },
+      select: { userId: true },
+    });
+    await prisma.user.update({
+      where: { id: g.userId },
+      data: {
+        isActive: true,
+        email: 'graduate@markova.edu',
+        account: {
+          update: { email: 'graduate@markova.edu', forcePasswordChange: false },
+        },
+      },
+    });
+  }
+
   // One expelled, after a serious incident and an appeal that failed.
   const expelled = alumniStudents.find(
     (a) => a.status === StudentStatus.TRANSFERRED,
@@ -5617,6 +5639,7 @@ async function main() {
   console.log('     Admin     wilsonshizirungu@gmail.com');
   console.log('     Teacher   aline.uwase@markova.edu');
   console.log('     Student   student1@markova.edu');
+  console.log('     Graduate  graduate@markova.edu (left the school: report cards only)');
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
   console.log('     Parent    +250788100000 (phone login)');
