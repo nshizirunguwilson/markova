@@ -1,4 +1,10 @@
 import { PauseKind, Prisma, StudentStatus } from '@prisma/client';
+import {
+  SHARING_SELECT,
+  Sharing,
+  SharingRecord,
+  keptFromParents,
+} from './parent-sharing';
 
 /**
  * What a student's standing means, written once.
@@ -28,7 +34,11 @@ export const PAUSE_LABEL: Record<PauseKind, string> = {
 export type FamilyNews =
   /** "Your child was absent or late today." */
   | 'absence'
-  /** Homework, merits, discipline, announcements: school life. */
+  /** Discipline and merits: the child's conduct. */
+  | 'conduct'
+  /** A visit to the sick bay. */
+  | 'health'
+  /** Homework, announcements: school life. */
   | 'news'
   /** Something still owed: a library book. */
   | 'debt';
@@ -59,6 +69,8 @@ export function whatStops(
     takesAttendance: onRoll && !pause,
     family: {
       absence: onRoll && !pause,
+      conduct: onRoll,
+      health: onRoll,
       news: onRoll,
       debt: !passedAway,
     },
@@ -181,8 +193,8 @@ interface StandingReader extends PauseReader {
   student: {
     findUnique(args: {
       where: { id: string };
-      select: { status: true };
-    }): Promise<{ status: StudentStatus } | null>;
+      select: { status: true } & typeof SHARING_SELECT;
+    }): Promise<({ status: StudentStatus } & SharingRecord) | null>;
   };
 }
 
@@ -201,9 +213,20 @@ export async function familyMayHear(
 ): Promise<boolean> {
   const student = await db.student.findUnique({
     where: { id: studentId },
-    select: { status: true },
+    select: { status: true, ...SHARING_SELECT },
   });
   if (!student) return false;
   const pause = (await pausesOn(db, [studentId], day)).get(studentId);
-  return whatStops(student.status, pause?.kind ?? null).family[kind];
+  if (!whatStops(student.status, pause?.kind ?? null).family[kind]) {
+    return false;
+  }
+  /* An adult child decides what their parents hear: their attendance and
+     conduct, and their health, are theirs to share (common/parent-sharing.ts). */
+  const sharing: Sharing | null =
+    kind === 'absence' || kind === 'conduct'
+      ? 'conduct'
+      : kind === 'health'
+        ? 'health'
+        : null;
+  return !(sharing && keptFromParents(student, sharing, day));
 }

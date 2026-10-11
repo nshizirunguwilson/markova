@@ -14,6 +14,7 @@ import {
   UpdateVisitDto,
   VisitQueryDto,
 } from './dto';
+import { assertParentMaySee } from '../../common/parent-sharing';
 
 /**
  * The sick bay.
@@ -91,7 +92,11 @@ export class ClinicService {
         where: { parentUserId: viewer.userId, studentId },
         select: { id: true },
       });
-      if (link) return;
+      if (link) {
+        // An adult child may keep their health visits from their parents.
+        await assertParentMaySee(this.prisma, studentId, 'health');
+        return;
+      }
       throw new ForbiddenException(
         'You can only see the health record of your own child',
       );

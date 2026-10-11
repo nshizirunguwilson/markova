@@ -326,7 +326,7 @@ export class MeritsService {
     newPoints: number,
   ) {
     // Not to a family whose child has left or passed away.
-    if (!(await familyMayHear(this.prisma, studentId, 'news'))) return;
+    if (!(await familyMayHear(this.prisma, studentId, 'conduct'))) return;
     const links = await this.prisma.parentStudent.findMany({
       where: { studentId, parent: { isActive: true } },
       include: {

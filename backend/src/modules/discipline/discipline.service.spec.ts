@@ -268,6 +268,7 @@ describe('DisciplineService', () => {
         'parent-1',
         'PARENT',
         'student-1',
+        'conduct',
       );
     });
 
