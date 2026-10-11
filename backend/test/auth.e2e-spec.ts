@@ -384,9 +384,15 @@ describe('Auth (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/api/auth/logout')
         .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+        .send({ refreshToken: loginRes.body.refreshToken })
         .expect(201);
 
-      expect(res.body.message).toBe('Logged out successfully');
+      expect(res.body).toMatchObject({ message: 'Signed out', ended: 1 });
+      // Ended on the server, not only forgotten by the browser.
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .send({ refreshToken: loginRes.body.refreshToken })
+        .expect(401);
     });
 
     it('should return 401 when logging out without token', async () => {

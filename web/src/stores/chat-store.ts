@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { QueryClient } from "@tanstack/react-query";
+import { accessToken } from "@/lib/session";
 
 /**
  * How long a "typing" notice survives without being renewed.
@@ -268,7 +269,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // Handle reconnection - refresh token
     socket.on("connect_error", async () => {
-      const newToken = localStorage.getItem("access_token");
+      const newToken = accessToken();
       if (newToken && newToken !== token) {
         socket.auth = { token: newToken };
       }

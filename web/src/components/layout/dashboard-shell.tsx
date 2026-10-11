@@ -5,6 +5,8 @@ import { useRouter, usePathname, useSelectedLayoutSegments } from "next/navigati
 import { useAuthStore } from "@/stores/auth-store";
 import { useSocketConnection } from "@/hooks/use-socket";
 import { useMessageAlerts } from "@/hooks/use-message-alerts";
+import { useIdleSignOut } from "@/hooks/use-idle-sign-out";
+import { IdleWarning } from "./idle-warning";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageSpinner } from "@/components/ui/spinner";
@@ -15,6 +17,7 @@ import {
   isFormerStudent,
 } from "@/lib/navigation";
 import { STANDING_LABEL } from "@/lib/standing";
+import { accessToken } from "@/lib/session";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -164,6 +167,9 @@ export function DashboardShell({
   // Initialize WebSocket connection for real-time chat
   useSocketConnection();
 
+  // A computer nobody is using signs out: ten minutes on a shared one.
+  const idle = useIdleSignOut(isAuthenticated);
+
   // A message that arrives while somebody is entering marks is otherwise
   // invisible - the thread updates on a page nobody is looking at.
   useMessageAlerts();
@@ -201,7 +207,7 @@ export function DashboardShell({
 
   useEffect(() => {
     async function checkAuth() {
-      const token = localStorage.getItem("access_token");
+      const token = accessToken();
       if (!token) {
         logout();
         router.push("/login");
@@ -268,6 +274,7 @@ export function DashboardShell({
           onClick={closeSidebar}
         />
       )}
+      <IdleWarning state={idle.state} onStay={idle.stillHere} />
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       <Topbar onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
       {/*

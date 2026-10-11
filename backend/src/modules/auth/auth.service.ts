@@ -43,6 +43,21 @@ const OTP_EXPIRY_MINUTES = 5;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
+/*
+  A shared computer: a school lab, a cyber café (docs/STUDENT-LIFE-DESIGN.md,
+  B5). The browser signs out after ten minutes without use; the server holds
+  the same line in case the browser does not. Its access tokens last five
+  minutes, so a session in use is refreshed at least that often, and a refresh
+  more than fifteen minutes after the last one (five of token, ten idle) means
+  nobody was there. Whatever happens, it ends with the school day.
+*/
+const SHARED_ACCESS_TOKEN_EXPIRY = '5m';
+const SHARED_IDLE_MS = 15 * 60 * 1000;
+const SHARED_LONGEST_MS = 12 * 60 * 60 * 1000;
+
+/** How a sign in carries on: on a shared computer or not, and since when. */
+type Chain = { shared: boolean; startedAt?: Date };
+
 const OTP_TTL_SECONDS = OTP_EXPIRY_MINUTES * 60; // 300s (5 min)
 const RESEND_COOLDOWN_SECONDS = 30; // min gap between OTP resends
 const FAILED_ATTEMPTS_TTL_SECONDS = 900; // 15 min
@@ -185,13 +200,21 @@ export class AuthService {
       at one school who studies at another is protected like a teacher.
     */
     if (members.every((m) => m.role === Role.STUDENT)) {
-      return this.enter(account, members, ipAddress, deviceInfo);
+      return this.enter(
+        account,
+        members,
+        ipAddress,
+        deviceInfo,
+        dto.sharedDevice,
+      );
     }
 
     // For admin/teacher/parent/librarian - generate + send OTP
     const { sessionId, devOtp } = await this.createAndSendOtp(
       account,
       members[0].firstName,
+      undefined,
+      dto.sharedDevice,
     );
 
     return {
@@ -213,6 +236,7 @@ export class AuthService {
     const session = JSON.parse(sessionRaw) as {
       accountId?: string;
       userId?: string;
+      sharedDevice?: boolean;
     };
 
     // Rate-limit: one resend per RESEND_COOLDOWN_SECONDS per session
@@ -241,6 +265,7 @@ export class AuthService {
       account,
       members[0].firstName,
       dto.sessionId,
+      session.sharedDevice,
     );
 
     return {
@@ -257,6 +282,7 @@ export class AuthService {
     account: { id: string; email: string | null; phone: string | null },
     firstName: string,
     existingSessionId?: string,
+    sharedDevice?: boolean,
   ): Promise<{ sessionId: string; devOtp?: string }> {
     const otp = this.generateOtp();
     const sessionId = existingSessionId ?? uuidv4();
@@ -266,6 +292,9 @@ export class AuthService {
       JSON.stringify({
         accountId: account.id,
         otp,
+        // Remembered until the code is entered: the choice was made on the
+        // sign in page, before the code was asked for.
+        ...(sharedDevice !== undefined && { sharedDevice }),
         expiresAt: new Date(
           Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000,
         ).toISOString(),
@@ -345,7 +374,13 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return this.enter(account, members, ipAddress, deviceInfo);
+    return this.enter(
+      account,
+      members,
+      ipAddress,
+      deviceInfo,
+      session.sharedDevice,
+    );
   }
 
   // ─── REFRESH TOKEN ─────────────────────────────────────────────────────────
@@ -374,6 +409,25 @@ export class AuthService {
 
       if (!session) {
         throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      /* On a shared computer: nobody there for a while, or the school day is
+         over. The next person to sit down does not inherit the sign in. */
+      if (session.shared) {
+        const now = Date.now();
+        const idle = now - session.createdAt.getTime() > SHARED_IDLE_MS;
+        const tooLong = now - session.startedAt.getTime() > SHARED_LONGEST_MS;
+        if (idle || tooLong) {
+          await this.prisma.userSession.update({
+            where: { id: session.id },
+            data: { isActive: false },
+          });
+          throw new UnauthorizedException(
+            idle
+              ? 'Signed out after a while without use, on a shared computer'
+              : 'Signed out at the end of the day, on a shared computer',
+          );
+        }
       }
 
       /*
@@ -417,7 +471,10 @@ export class AuthService {
         data: { isActive: false },
       });
 
-      return this.issueTokens(user, session.ipAddress, session.deviceInfo);
+      return this.issueTokens(user, session.ipAddress, session.deviceInfo, {
+        shared: session.shared,
+        startedAt: session.startedAt,
+      });
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid refresh token');
@@ -596,24 +653,37 @@ export class AuthService {
 
   // ─── LOGOUT ────────────────────────────────────────────────────────────────
 
-  async logout(accountId: string, token?: string) {
-    /* Sessions belong to the login: signing out everywhere signs the person
-       out of every school on every device. */
-    if (token) {
-      // Logout specific session
-      await this.prisma.userSession.updateMany({
-        where: { accountId, token, isActive: true },
-        data: { isActive: false },
-      });
-    } else {
-      // Logout all sessions
-      await this.prisma.userSession.updateMany({
+  /**
+   * Signing out: this computer, or everywhere.
+   *
+   * A session is kept under its refresh token, so that is what has to be
+   * named. This used to be given the access token from the request header,
+   * which no session is stored under, so signing out ended nothing on the
+   * server and "everywhere" could never be asked for: a refresh token left on
+   * a lab computer stayed good for a week.
+   *
+   * Sessions belong to the login: everywhere means every school on every
+   * device.
+   */
+  async logout(
+    accountId: string,
+    dto: { refreshToken?: string; everywhere?: boolean } = {},
+  ) {
+    if (dto.everywhere) {
+      const { count } = await this.prisma.userSession.updateMany({
         where: { accountId, isActive: true },
         data: { isActive: false },
       });
+      return { message: 'Signed out everywhere', ended: count };
     }
-
-    return { message: 'Logged out successfully' };
+    if (dto.refreshToken) {
+      const { count } = await this.prisma.userSession.updateMany({
+        where: { accountId, token: dto.refreshToken, isActive: true },
+        data: { isActive: false },
+      });
+      return { message: 'Signed out', ended: count };
+    }
+    return { message: 'Signed out', ended: 0 };
   }
 
   // ─── GET SESSIONS ──────────────────────────────────────────────────────────
@@ -625,6 +695,8 @@ export class AuthService {
         id: true,
         deviceInfo: true,
         ipAddress: true,
+        shared: true,
+        startedAt: true,
         createdAt: true,
         expiresAt: true,
       },
@@ -945,13 +1017,23 @@ export class AuthService {
 
     const session = await this.prisma.userSession.findFirst({
       where: { accountId, token: refreshToken },
-      select: { ipAddress: true, deviceInfo: true },
+      select: {
+        ipAddress: true,
+        deviceInfo: true,
+        shared: true,
+        startedAt: true,
+      },
     });
     return {
       ...(await this.issueTokens(
         target,
         session?.ipAddress,
         session?.deviceInfo,
+        {
+          // A student's record is always opened as on a shared computer.
+          shared: !!session?.shared || target.role === Role.STUDENT,
+          startedAt: session?.startedAt,
+        },
       )),
       schools: members.map((m) => this.membership(m)),
     };
@@ -971,13 +1053,16 @@ export class AuthService {
     members: Member[],
     ipAddress?: string | null,
     deviceInfo?: string | null,
+    sharedDevice?: boolean,
   ) {
     const last = members.find((m) => m.id === account.lastUserId);
-    const tokens = await this.issueTokens(
-      last ?? members[0],
-      ipAddress,
-      deviceInfo,
-    );
+    const opening = last ?? members[0];
+    /* A student is treated as on a shared computer, always: most have no
+       computer of their own and sign in at the school lab. Anybody else
+       says so on the sign in page. */
+    const tokens = await this.issueTokens(opening, ipAddress, deviceInfo, {
+      shared: sharedDevice === true || opening.role === Role.STUDENT,
+    });
     return {
       ...tokens,
       schools: members.map((m) => this.membership(m)),
@@ -1061,6 +1146,7 @@ export class AuthService {
     member: Pick<Member, 'id' | 'accountId' | 'role'>,
     ipAddress?: string | null,
     deviceInfo?: string | null,
+    chain: Chain = { shared: false },
   ) {
     return withPlatform(async () => {
       const payload = {
@@ -1077,7 +1163,11 @@ export class AuthService {
       // and it holds even if the keys are ever misconfigured again.
       const accessToken = this.jwtService.sign(
         { ...payload, typ: ACCESS_TOKEN_TYPE, jti: uuidv4() },
-        { expiresIn: ACCESS_TOKEN_EXPIRY },
+        {
+          expiresIn: chain.shared
+            ? SHARED_ACCESS_TOKEN_EXPIRY
+            : ACCESS_TOKEN_EXPIRY,
+        },
       );
 
       const refreshToken = this.jwtService.sign(
@@ -1114,6 +1204,8 @@ export class AuthService {
           token: refreshToken,
           ipAddress: ipAddress || null,
           deviceInfo: deviceInfo || null,
+          shared: chain.shared,
+          ...(chain.startedAt && { startedAt: chain.startedAt }),
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         },
       });
@@ -1148,6 +1240,9 @@ export class AuthService {
       return {
         accessToken,
         refreshToken,
+        /* So the browser keeps the sign in only until it closes, and signs
+           out after ten minutes without use. */
+        sharedDevice: chain.shared,
         user: { ...rest, forcePasswordChange: account.forcePasswordChange },
       };
     });

@@ -112,6 +112,12 @@ describe('no way across to another school (e2e)', () => {
   /** Every id the victim's records have, for spotting one in an answer. */
   const victimAll = new Set<string>();
   const tokens = new Map<string, string>();
+  /* Each role's refresh token, and when its access token was last renewed.
+     The sweep runs for many minutes and a student's access token lasts five
+     (they are always on a shared computer), so tokens are renewed as it goes
+     rather than quietly expiring half way through. */
+  const refreshTokens = new Map<string, string>();
+  const renewedAt = new Map<string, number>();
   let schoolTables: string[];
 
   const idsFor = (table: string) =>
@@ -334,6 +340,8 @@ describe('no way across to another school (e2e)', () => {
             .post('/api/auth/verify-otp')
             .send({ sessionId: first.body.sessionId, otp: first.body.devOtp });
       tokens.set(role, done.body.accessToken as string);
+      refreshTokens.set(role, done.body.refreshToken as string);
+      renewedAt.set(role, Date.now());
     }
   }, 300_000);
 
@@ -379,7 +387,23 @@ describe('no way across to another school (e2e)', () => {
     /* Every victim id the sweep puts into a request. */
     const sent = new Set([...victimIds.values()].flat());
     const crashes: string[] = [];
+    /* A call refused as not signed in tested nothing. Counted, so a sweep
+       whose tokens ran out cannot pass by proving nothing. */
+    const signedOut: string[] = [];
     let calls = 0;
+    const freshToken = async (role: string) => {
+      if (Date.now() - (renewedAt.get(role) ?? 0) > 3 * 60 * 1000) {
+        const res = await request(app.getHttpServer())
+          .post('/api/auth/refresh')
+          .send({ refreshToken: refreshTokens.get(role) });
+        if (res.status === 201) {
+          tokens.set(role, res.body.accessToken as string);
+          refreshTokens.set(role, res.body.refreshToken as string);
+          renewedAt.set(role, Date.now());
+        }
+      }
+      return tokens.get(role);
+    };
     let routes = 0;
 
     for (const [path, item] of Object.entries(document.paths)) {
@@ -442,10 +466,11 @@ describe('no way across to another school (e2e)', () => {
           ] as const) {
             for (const role of ROLES) {
               calls += 1;
+              const token = await freshToken(role);
               const req = request(app.getHttpServer())
                 [method](url)
                 .query(query)
-                .set('Authorization', `Bearer ${tokens.get(role)}`)
+                .set('Authorization', `Bearer ${token}`)
                 .timeout(20_000);
               const res = await (body ? req.send(body) : req).catch(
                 (e: Error) => ({ status: 0, text: e.message }) as const,
@@ -454,6 +479,11 @@ describe('no way across to another school (e2e)', () => {
                 crashes.push(
                   `${role} ${method.toUpperCase()} ${url} -> ${res.status}`,
                 );
+                continue;
+              }
+              // The sign in routes answer 401 for a wrong code or password.
+              if (res.status === 401 && !url.startsWith('/api/auth/')) {
+                signedOut.push(`${role} ${method.toUpperCase()} ${url}`);
                 continue;
               }
               if (res.status >= 200 && res.status < 300) {
@@ -485,11 +515,13 @@ describe('no way across to another school (e2e)', () => {
 
     console.log(
       `Swept ${routes} routes with ${calls} calls as ${ROLES.length} roles; ` +
-        `${leaks.length} leaks, ${changed.length} tables changed, ${crashes.length} server errors.`,
+        `${leaks.length} leaks, ${changed.length} tables changed, ${crashes.length} server errors, ` +
+        `${signedOut.length} refused as signed out.`,
     );
     expect(leaks).toEqual([]);
     expect(changed).toEqual([]);
     expect(crashes).toEqual([]);
+    expect(signedOut).toEqual([]);
     expect(routes).toBeGreaterThan(250);
   }, 1_800_000);
 });

@@ -6,7 +6,6 @@ import {
   Body,
   UseGuards,
   Req,
-  Headers,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { OpenToFormerStudents } from '../../common/decorators';
@@ -26,6 +25,7 @@ import {
   SwitchSchoolDto,
   ChangeLoginDto,
   ConfirmLoginChangeDto,
+  LogoutDto,
 } from './dto';
 import { CurrentUser } from '../../common/decorators';
 import type { Request } from 'express';
@@ -110,11 +110,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout current session or all sessions' })
   async logout(
     @CurrentUser('accountId') accountId: string,
-    @Headers('authorization') auth: string,
+    @Body() dto: LogoutDto,
   ) {
-    // Extract token from Bearer header for single-session logout
-    const token = auth?.replace('Bearer ', '');
-    return this.authService.logout(accountId, token);
+    return this.authService.logout(accountId, dto);
   }
 
   @Get('sessions')

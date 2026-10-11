@@ -423,6 +423,12 @@ model UserSession {
   ipAddress  String?  @map("ip_address")
   token      String   @unique
   isActive   Boolean  @default(true) @map("is_active")
+  /// Signed in on a shared computer (a school lab, a cyber café): ends after
+  /// a few minutes without use, and at the end of the school day.
+  shared     Boolean  @default(false)
+  /// When this sign in began. Each refresh makes a new row, so createdAt is
+  /// the last refresh; this is carried from row to row.
+  startedAt  DateTime @default(now()) @map("started_at")
   createdAt  DateTime @default(now()) @map("created_at")
   expiresAt  DateTime @map("expires_at")
 

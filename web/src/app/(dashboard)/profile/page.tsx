@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { resolveUploadUrl } from "@/lib/assets";
 import { labelForRole } from "@/types";
 import { SignInDetails } from "@/components/profile/sign-in-details";
+import { SignOutEverywhere } from "@/components/profile/sign-out-everywhere";
 
 /**
  * Roles that put their name under a document the school issues.
@@ -322,6 +323,7 @@ export default function ProfilePage() {
       </Card>
 
       <SignInDetails />
+      <SignOutEverywhere />
 
       {/* Change Password */}
       <Card className="p-6 space-y-4">

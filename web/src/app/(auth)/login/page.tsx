@@ -17,6 +17,7 @@ import { errorMessage } from "@/lib/errors";
 import { homeFor } from "@/lib/navigation";
 import { switchSchool, type Membership } from "@/lib/schools";
 import { labelForRole } from "@/types";
+import { beginSession } from "@/lib/session";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,16 @@ export default function LoginPage() {
   const [choosing, setChoosing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  /* A school lab or a cyber café. A student is always treated as on one,
+     whatever is ticked here. */
+  const [sharedDevice, setSharedDevice] = useState(false);
+  /* Why the last sign in ended, when it ended on its own. */
+  const [signedOutIdle, setSignedOutIdle] = useState(false);
+  useEffect(() => {
+    setSignedOutIdle(
+      new URLSearchParams(window.location.search).get("signedOut") === "idle",
+    );
+  }, []);
   const [otpSessionId, setOtpSessionId] = useState("");
   const [pendingUser, setPendingUser] = useState<any>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -98,9 +109,11 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const isEmail = data.identifier.includes("@");
-      const payload = isEmail
-        ? { email: data.identifier, password: data.password }
-        : { phone: data.identifier, password: data.password };
+      const payload = {
+        ...(isEmail ? { email: data.identifier } : { phone: data.identifier }),
+        password: data.password,
+        ...(sharedDevice && { sharedDevice: true }),
+      };
 
       const res = await api.post("/auth/login", payload);
 
@@ -217,12 +230,12 @@ export default function LoginPage() {
   function handleLoginSuccess(data: {
     accessToken: string;
     refreshToken: string;
+    sharedDevice?: boolean;
     user: any;
     schools?: Membership[];
     chooseSchool?: boolean;
   }) {
-    localStorage.setItem("access_token", data.accessToken);
-    localStorage.setItem("refresh_token", data.refreshToken);
+    beginSession(data);
     setSchools(data.schools ?? []);
     setAskSchool(!!data.chooseSchool);
 
@@ -272,6 +285,14 @@ export default function LoginPage() {
     <AuthShell>
 
         {/* Step: Login */}
+        {step === "login" && signedOutIdle && (
+          <p
+            role="status"
+            className="mb-4 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
+          >
+            You were signed out because nobody used this computer for a while.
+          </p>
+        )}
         {step === "login" && (
           <form
             method="post"
@@ -307,6 +328,22 @@ export default function LoginPage() {
                   <Eye className="h-4 w-4" />
                 )}
               </button>
+            </div>
+
+            <div>
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={sharedDevice}
+                  onChange={(e) => setSharedDevice(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border"
+                />
+                <span>This is a shared computer (a school lab or a cyber café)</span>
+              </label>
+              <p className="mt-1 pl-6 text-xs text-muted">
+                You are signed out when the browser closes, or after 10 minutes
+                without use. Students are always signed in this way.
+              </p>
             </div>
 
             <Button
