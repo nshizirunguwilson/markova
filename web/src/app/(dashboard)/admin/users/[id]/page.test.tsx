@@ -408,7 +408,7 @@ describe("the sections that depend on the role", () => {
   // dashboard empty, so it has to be visible on their record.
   it("copes with a parent who has no children linked", async () => {
     await mount({ ...parent, parentStudents: [] });
-    expect(screen.getByText(/Jean/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Jean/ })).toBeInTheDocument();
   });
 
   // By the section heading: a student's own record already carries a "Father"

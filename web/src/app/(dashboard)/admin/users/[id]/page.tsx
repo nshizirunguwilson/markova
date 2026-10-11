@@ -30,6 +30,9 @@ import { formatNid, validateNid } from "@/lib/person-form";
 import { labelForRole } from "@/types";
 import { ResetSignIn } from "@/components/profile/reset-sign-in";
 import { SafeguardingLead } from "@/components/people/safeguarding-lead";
+import { StudentJourney } from "@/components/people/student-journey";
+import { ParentPassedAway } from "@/components/people/parent-passed-away";
+import { STANDING_LABEL } from "@/lib/standing";
 
 const selectCls =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -385,7 +388,11 @@ export default function UserDetailPage() {
                 />
                 <InfoField
                   label="Status"
-                  value={user.student.status}
+                  value={
+                    STANDING_LABEL[
+                      user.student.status as keyof typeof STANDING_LABEL
+                    ] ?? user.student.status
+                  }
                 />
                 <InfoField
                   label="Discipline Points"
@@ -629,6 +636,20 @@ export default function UserDetailPage() {
             isActive={!!user.isActive}
             lead={!!user.safeguardingLead}
           />
+          {user.student?.id && (
+            <StudentJourney
+              studentId={user.student.id}
+              userId={user.id}
+              name={`${user.firstName} ${user.lastName}`}
+            />
+          )}
+          {user.role === "PARENT" && (
+            <ParentPassedAway
+              userId={user.id}
+              name={`${user.firstName} ${user.lastName}`}
+              passedAwayOn={user.passedAwayOn ?? null}
+            />
+          )}
         </div>
       </div>
     </div>

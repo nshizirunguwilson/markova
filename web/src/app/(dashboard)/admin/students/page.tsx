@@ -22,6 +22,7 @@ import { useClassLevels, useSections } from "@/hooks/use-academic";
 import { exportData } from "@/lib/export";
 import { Search, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { STANDING_LABEL } from "@/lib/standing";
 
 export default function AdminStudentsPage() {
   const router = useRouter();
@@ -155,9 +156,11 @@ export default function AdminStudentsPage() {
               setFilters((f) => ({ ...f, page: 1 }));
             }}
           >
-            <option value="ACTIVE">Active</option>
-            <option value="GRADUATED">Graduated</option>
-            <option value="TRANSFERRED">Transferred</option>
+            {Object.entries(STANDING_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
             <option value="">All statuses</option>
           </select>
         </div>
@@ -255,14 +258,15 @@ export default function AdminStudentsPage() {
                             ? "success"
                             : user.student?.status === "GRADUATED"
                               ? "info"
-                              : user.student?.status === "TRANSFERRED"
-                                ? "warning"
-                                : "danger"
+                              : user.student?.status === "EXPELLED"
+                                ? "danger"
+                                : "default"
                         }
                       >
                         {user.student?.status
-                          ? user.student.status.charAt(0) +
-                            user.student.status.slice(1).toLowerCase()
+                          ? (STANDING_LABEL[
+                              user.student.status as keyof typeof STANDING_LABEL
+                            ] ?? user.student.status)
                           : user.isActive
                             ? "Active"
                             : "Inactive"}

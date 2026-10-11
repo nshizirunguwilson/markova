@@ -267,6 +267,7 @@ export class UsersService {
         signatureUrl: true,
         isActive: true,
         safeguardingLead: true,
+        passedAwayOn: true,
         /* How this person signs in. The school shows it so it can tell them,
            and cannot change it: see resetLogin. */
         account: {
