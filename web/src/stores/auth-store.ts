@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Role } from "@/types";
 import type { SchoolRef } from "@/lib/schools";
+import type { StudentStatus } from "@/lib/standing";
 
 export interface User {
   id: string;
@@ -27,6 +28,9 @@ export interface User {
   // Flattened from student/teacher relations (set by getProfile)
   studentId?: string;
   classSectionId?: string;
+  /* A student who has left sees only their report cards: see
+     lib/standing.ts. */
+  studentStatus?: StudentStatus;
   teacherId?: string;
 }
 

@@ -9,7 +9,12 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageSpinner } from "@/components/ui/spinner";
 import api from "@/lib/api";
-import { homeFor } from "@/lib/navigation";
+import {
+  FORMER_STUDENT_PAGES,
+  homeFor,
+  isFormerStudent,
+} from "@/lib/navigation";
+import { STANDING_LABEL } from "@/lib/standing";
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -143,6 +148,19 @@ export function DashboardShell({
     }
   }, [roleMismatch, user, router]);
 
+  /* A student who has left sees their report cards and their own profile.
+     The API refuses the rest; sending them there first saves them a page
+     of errors. */
+  const former = isFormerStudent(user);
+  const formerElsewhere =
+    former &&
+    !FORMER_STUDENT_PAGES.some(
+      (page) => pathname === page || pathname.startsWith(`${page}/`),
+    );
+  useEffect(() => {
+    if (formerElsewhere) router.replace("/student/reports");
+  }, [formerElsewhere, router]);
+
   // Initialize WebSocket connection for real-time chat
   useSocketConnection();
 
@@ -221,7 +239,7 @@ export function DashboardShell({
   }
 
   // Wrong role for this route - render nothing while the effect above redirects.
-  if (roleMismatch) {
+  if (roleMismatch || formerElsewhere) {
     return null;
   }
 
@@ -276,6 +294,15 @@ export function DashboardShell({
         id="main-content"
         className="motion-fade-in ml-0 mt-[5.5rem] p-4 lg:ml-[17rem] lg:mt-24 lg:p-6"
       >
+        {former && user.studentStatus && (
+          <p
+            data-testid="former-student"
+            className="mb-4 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground"
+          >
+            You have left the school ({STANDING_LABEL[user.studentStatus].toLowerCase()}).
+            You can still open your report cards here.
+          </p>
+        )}
         {children}
       </main>
     </div>

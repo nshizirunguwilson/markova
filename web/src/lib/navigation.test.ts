@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getNavigation } from "./navigation";
+import {
+  FORMER_STUDENT_PAGES,
+  getNavigation,
+  isFormerStudent,
+} from "./navigation";
 import type { Role } from "@/types";
 
 const ROLES: Role[] = ["ADMIN", "TEACHER", "STUDENT", "PARENT", "LIBRARIAN"];
@@ -300,4 +304,24 @@ describe("the grading page", () => {
       expect(hrefsFor(role)).not.toContain("/grading");
     },
   );
+});
+
+describe("a student who has left", () => {
+  it("is a student whose standing is not on the roll", () => {
+    expect(isFormerStudent({ role: "STUDENT", studentStatus: "GRADUATED" })).toBe(true);
+    expect(isFormerStudent({ role: "STUDENT", studentStatus: "ACTIVE" })).toBe(false);
+    expect(isFormerStudent({ role: "STUDENT" })).toBe(false);
+    expect(isFormerStudent({ role: "PARENT", studentStatus: "GRADUATED" })).toBe(false);
+    expect(isFormerStudent(null)).toBe(false);
+  });
+
+  it("sees only their report cards in the menu", () => {
+    const items = getNavigation("STUDENT", true).flatMap((s) => s.items);
+    expect(items.map((i) => i.href)).toEqual(["/student/reports"]);
+    expect(FORMER_STUDENT_PAGES).toContain("/student/reports");
+  });
+
+  it("leaves everybody else's menu as it was", () => {
+    expect(getNavigation("PARENT", true)).toEqual(getNavigation("PARENT"));
+  });
 });

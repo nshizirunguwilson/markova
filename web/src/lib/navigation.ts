@@ -184,6 +184,31 @@ const studentNav: NavSection[] = [
   },
 ];
 
+/**
+ * A student who has left the school: their report cards, and nothing else.
+ * The API refuses every other page to them; see
+ * backend/src/common/interceptors/former-student.interceptor.ts.
+ */
+const formerStudentNav: NavSection[] = [
+  {
+    items: [{ label: "Report Card", href: "/student/reports", icon: FileText }],
+  },
+];
+
+/** The pages a student who has left may still open. */
+export const FORMER_STUDENT_PAGES = ["/student/reports", "/profile"];
+
+/** A student no longer on the roll: withdrawn, expelled, moved or graduated. */
+export function isFormerStudent(
+  user: { role?: string; studentStatus?: string | null } | null | undefined,
+): boolean {
+  return (
+    user?.role === "STUDENT" &&
+    !!user.studentStatus &&
+    user.studentStatus !== "ACTIVE"
+  );
+}
+
 const parentNav: NavSection[] = [
   {
     items: [
@@ -385,7 +410,8 @@ export function homeFor(role: string): string {
   return `/${role.toLowerCase()}`;
 }
 
-export function getNavigation(role: Role): NavSection[] {
+export function getNavigation(role: Role, formerStudent = false): NavSection[] {
+  if (role === "STUDENT" && formerStudent) return formerStudentNav;
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,
     HEAD_TEACHER: headTeacherNav,

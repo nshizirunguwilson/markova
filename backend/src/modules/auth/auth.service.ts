@@ -817,6 +817,8 @@ export class AuthService {
           select: {
             id: true,
             classSectionId: true,
+            // A student who has left sees only their report cards.
+            status: true,
           },
         },
         teacher: {
@@ -871,6 +873,7 @@ export class AuthService {
       ...(student && {
         studentId: student.id,
         classSectionId: student.classSectionId,
+        studentStatus: student.status,
       }),
       ...(teacher && { teacherId: teacher.id }),
       // Shaped as `Student` (nested `user` and `classSection`), which is what

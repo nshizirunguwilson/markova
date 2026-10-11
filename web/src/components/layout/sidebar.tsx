@@ -4,7 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavigation, type NavSection } from "@/lib/navigation";
+import {
+  getNavigation,
+  isFormerStudent,
+  type NavSection,
+} from "@/lib/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useUnreadMessageCount } from "@/hooks/use-messaging";
@@ -50,10 +54,12 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const isDesktop = useIsDesktop();
   const user = useAuthStore((s) => s.user);
   const schoolName = useBrandStore((s) => s.schoolName);
-  const sections = getNavigation((user?.role || "ADMIN") as Role);
+  const former = isFormerStudent(user);
+  const sections = getNavigation((user?.role || "ADMIN") as Role, former);
   // The same count the chat itself keeps; the socket invalidates it as
   // messages arrive, so the badge follows without polling.
-  const { data: unreadMessages } = useUnreadMessageCount();
+  // A student who has left has no part in the school's chat any more.
+  const { data: unreadMessages } = useUnreadMessageCount(!former);
   const unread = unreadMessages?.unreadCount ?? 0;
   /* A mention is somebody waiting on an answer, which is not the same as one
      more message in a group of thirty. The badge changes colour rather than
