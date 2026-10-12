@@ -48,7 +48,11 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
+      # As a real install runs: the app as markova_app, which the row level
+      # security holds, and migrations and the seed as the owner. The first
+      # migration that needs it creates markova_app.
+      DATABASE_URL: postgresql://markova_app:markova_app@localhost:5432/markova_test
+      DIRECT_DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
       REDIS_URL: redis://localhost:6379
       # Distinct, and long enough to model the production rules the app checks
       # at boot. See backend/src/config/env.validation.ts.
@@ -102,9 +106,6 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
-      # The thresholds in package.json are a ratchet: raise them, never lower
-      # them. They are what stops a screen being added with no test at all.
-      - run: npx jest --silent --coverage
       - run: npm run lint
       # Coverage is enforced, not just reported. The thresholds live in
       # vitest.config.ts and are meant to ratchet upward, never down.
@@ -146,7 +147,8 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
+      DATABASE_URL: postgresql://markova_app:markova_app@localhost:5432/markova_test
+      DIRECT_DATABASE_URL: postgresql://markova:password@localhost:5432/markova_test
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-access-secret-0123456789abcdef0123456789abcdef
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210fedcba9876543210
