@@ -62,7 +62,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | B3 | Students want to check results on a phone during the holidays | Blocked on the phone app, and only the app blocks it: the server lets them in. Checked | Near work |
 | B4 | A member of staff privately messages a student | **Done, 11 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
 | B5 | Students share computers in the school lab | **Done, 11 October 2026.** A student's sign in lasts only until the browser closes, and ends after 10 minutes without use (staff tick "shared computer" for the same). Signing out now ends the session on the server too. See [below](#b5-shared-computers) | Done |
-| B6 | A student's photo is used on ID cards and in the app | No record of whether the family agreed | Near work |
+| B6 | A student's photo is used on ID cards and in the app | **Done, 12 October 2026.** Families answer three questions about the photo (ID card, in the app, publicity), in the app or on the admission form, and the office copies in paper forms. A No to the app hides the photo from classmates and other parents; a No to cards leaves it off the card and report card. The public card check now shows the first name only and a smaller photo. See [below](#b6-the-students-photo) | Done |
 | B7 | A student with a disability needs extra exam time or a reader | **Done, 12 October 2026.** Each student with special needs can have a support plan: the need, and what to do in tests and exams. Teachers see only what to do, for their own students; every exam has a sheet for the invigilator. See [below](#b7-exam-arrangements) | Done |
 | B8 | A student is expelled, or comes back after a long absence | **Done, 11 October 2026.** Suspensions and time away are kept as dates; a suspended student is on the register as suspended, never marked absent, and their family is not texted. Leaving and coming back are recorded with the day and the reason. See [below](#b8-and-a9-a-students-journey) | Done |
 
@@ -210,6 +210,32 @@ else could ever see it. Now:
   It named the wrong token and the web never called it, so a refresh token
   copied off a computer worked for a week after "sign out", and "sign out
   everywhere" could never happen. Fixed, and proven in the browser.
+
+### B6: the student's photo
+
+- **Three answers per student**, each Yes, No or not asked yet: on the ID card
+  and report card, in the app for classmates and other parents, and in the
+  school's publicity. Every answer is kept with who gave it and how (in the
+  app, on a paper form, on the admission form).
+- **Who answers:** a parent, for a child under 18, on the web profile or the
+  phone. From 18 the student answers, and the parent is told so. The office
+  copies in a signed paper form, naming who signed it. The admission form
+  asks the three questions, and the answers follow the child in.
+- **What a No changes:**
+  - **In the app:** classmates and other parents see initials instead of the
+    photo, everywhere a person appears (chats, contacts, new messages). The
+    staff still see it, and so does the child's own family.
+  - **On cards:** the ID card, the report card and the gate check carry no
+    photo. The ID card page warns before printing.
+  - **Publicity:** Markova publishes nothing itself. The office has a
+    "Photos" page listing who may and may not appear, ready to export.
+- **Until a family answers**, the card and the app keep the photo, and
+  publicity counts as No. The Photos page counts who has not been asked.
+- **The public card check** (anyone who scans a card) now shows the first
+  name only and a smaller photo, as agreed.
+- **Demo:** about 7 in 10 families answered on paper, 3 in 10 not asked yet.
+  Andy Cyizere, in student1's class, said No to the app, so student1 sees
+  initials for them in the class chat.
 
 ### B7: exam arrangements
 
