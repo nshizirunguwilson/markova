@@ -17,7 +17,7 @@ jobs:
   backend:
     name: Backend (typecheck + lint + tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: backend
@@ -86,14 +86,15 @@ jobs:
       # to hold the demo data first.
       - run: npx prisma db seed
 
+      # The cross-school sweep alone calls every route as every role.
       - name: E2E tests
-        timeout-minutes: 8
+        timeout-minutes: 20
         run: npm run test:e2e -- --passWithNoTests
 
   web:
     name: Web (typecheck + lint + tests + build)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: web
@@ -122,7 +123,7 @@ jobs:
   web-e2e:
     name: Web (browser audit + accessibility)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 70
 
     services:
       postgres:
@@ -156,6 +157,9 @@ jobs:
       JWT_REFRESH_SECRET: ci-refresh-secret-fedcba9876543210fedcba9876543210
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
       CORS_ORIGINS: http://localhost:3001
+      # The seed makes three schools, so the public pages (sign in, the
+      # admissions form) need telling which one this site is for.
+      DEFAULT_SCHOOL: markova-academy
       WEB: http://localhost:3001
       API: http://localhost:3000/api
 
@@ -207,12 +211,14 @@ jobs:
           done
           curl -sf http://localhost:3001/login
 
+      # Sized to the suites as they are: 140 checks, and every page as every
+      # role, in both themes. Each took over six minutes on a runner.
       - name: Browser audit
-        timeout-minutes: 6
+        timeout-minutes: 20
         run: node web/e2e/ui-audit.spec.js
 
       - name: Accessibility audit
-        timeout-minutes: 6
+        timeout-minutes: 20
         run: node web/e2e/a11y-audit.spec.js
 
       - name: Server logs
