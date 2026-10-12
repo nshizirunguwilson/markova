@@ -107,6 +107,21 @@ describe("a genuine card", () => {
     expect(screen.getByText("WN")).toBeInTheDocument();
   });
 
+  // A family that said No to the photo on cards (B6): the API sends none.
+  it("says the card carries no photo, rather than asking for a face", async () => {
+    serveCheck({ ...enrolled, student: { ...enrolled.student, name: "Wilson", photoUrl: null } });
+    await renderPage();
+    expect(screen.getByText(/This card carries no photo/)).toBeInTheDocument();
+    expect(screen.queryByText(/Compare the photo below/)).toBeNull();
+  });
+
+  // Anybody can scan a card, so the photo is only big enough to match a face.
+  it("keeps the photo small", async () => {
+    serveCheck(enrolled);
+    await renderPage();
+    expect(screen.getByRole("img", { name: /Photo of/ })).toHaveClass("h-20", "w-15");
+  });
+
   it("copes with a student whose class has been removed", async () => {
     serveCheck({ ...enrolled, student: { ...enrolled.student, level: null } });
     await renderPage();

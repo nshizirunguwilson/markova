@@ -94,21 +94,25 @@ export default async function VerifyCardPage({
       title={check.valid ? "Valid student card" : "Card is not current"}
       body={
         check.reason ??
-        "Compare the photo below with the person holding the card."
+        (photo
+          ? "Compare the photo below with the person holding the card."
+          : "This card carries no photo. Check the student number with the school if in doubt.")
       }
       code={code}
     >
       <div className="mt-6 flex items-center gap-5 rounded-xl border border-border bg-surface-muted p-5 text-left">
-        <div className="h-28 w-21 shrink-0 overflow-hidden rounded-lg bg-accent">
+        {/* Anybody can scan a card, so the photo is only big enough to match
+            a face, beside the first name only (B6). */}
+        <div className="h-20 w-15 shrink-0 overflow-hidden rounded-lg bg-accent">
           {photo ? (
             /* eslint-disable-next-line @next/next/no-img-element -- runtime upload on the API origin */
             <img
               src={photo}
               alt={`Photo of ${student.name}`}
-              className="h-28 w-21 object-cover"
+              className="h-20 w-15 object-cover"
             />
           ) : (
-            <div className="flex h-28 w-21 items-center justify-center text-2xl font-bold text-primary">
+            <div className="flex h-20 w-15 items-center justify-center text-xl font-bold text-primary">
               {student.name
                 .split(" ")
                 .slice(0, 2)

@@ -33,6 +33,7 @@ import { SafeguardingLead } from "@/components/people/safeguarding-lead";
 import { StudentJourney } from "@/components/people/student-journey";
 import { ParentsSee } from "@/components/people/parents-see";
 import { SupportPlanCard } from "@/components/support/support-plan-card";
+import { PhotoConsentCard } from "@/components/photo-consent/photo-consent-card";
 import { ParentPassedAway } from "@/components/people/parent-passed-away";
 import { STANDING_LABEL } from "@/lib/standing";
 
@@ -645,6 +646,13 @@ export default function UserDetailPage() {
             <SupportPlanCard
               studentId={user.student.id}
               name={`${user.firstName} ${user.lastName}`}
+            />
+          )}
+          {user.student?.id && (
+            <PhotoConsentCard
+              studentId={user.student.id}
+              name={`${user.firstName} ${user.lastName}`}
+              office
             />
           )}
           {user.student?.id && (

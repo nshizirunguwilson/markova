@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/harness";
 import { admissionsRoutes } from "@/test/admissions-fixtures";
 
@@ -220,6 +220,21 @@ describe("sending it", () => {
     await click(button(/Send the application/));
     await waitFor(() => expect(h.api.post).toHaveBeenCalled());
     expect(h.api.post.mock.calls[0][1].examMark).toBeUndefined();
+  });
+
+  // The three photo questions (B6): answered ones go, a blank stays unsaid.
+  it("sends the family's photo answers, and nothing for one left blank", async () => {
+    await mount();
+    await fillTheMinimum();
+    const answer = (question: string, a: "Yes" | "No") =>
+      click(within(screen.getByRole("group", { name: question })).getByLabelText(a));
+    await answer("On the ID card and report card", "Yes");
+    await answer("In the school's publicity", "No");
+    await click(button(/Send the application/));
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    const sent = h.api.post.mock.calls[0][1];
+    expect(sent).toMatchObject({ photoForId: "YES", photoPublicity: "NO" });
+    expect(sent.photoInApp).toBeUndefined();
   });
 
   /**

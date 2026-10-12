@@ -16,6 +16,8 @@ import { SignInDetails } from "@/components/profile/sign-in-details";
 import { SignOutEverywhere } from "@/components/profile/sign-out-everywhere";
 import { WhatParentsSee } from "@/components/profile/what-parents-see";
 import { SupportPlanCard } from "@/components/support/support-plan-card";
+import { MyPhotoConsent } from "@/components/photo-consent/photo-consent-card";
+import { useMyChildren } from "@/hooks/use-children";
 
 /**
  * Roles that put their name under a document the school issues.
@@ -31,6 +33,8 @@ const SIGNS_SOMETHING = ["ADMIN", "HEAD_TEACHER", "TEACHER", "PARENT"];
 
 export default function ProfilePage() {
   const { user, setUser } = useAuthStore();
+  // A parent answers about each child's photo here (B6).
+  const { data: children } = useMyChildren();
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -333,6 +337,12 @@ export default function ProfilePage() {
           hideWhenEmpty
         />
       )}
+      <MyPhotoConsent
+        role={user?.role}
+        studentId={user?.studentId}
+        name={`${user.firstName} ${user.lastName}`}
+        childList={children}
+      />
       <SignOutEverywhere />
 
       {/* Change Password */}

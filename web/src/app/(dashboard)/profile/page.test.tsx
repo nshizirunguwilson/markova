@@ -1006,3 +1006,50 @@ describe("a student's own support plan", () => {
     expect(await screen.findByTestId("support-plan")).toHaveTextContent("Large print");
   });
 });
+
+/** A parent answers about each child's photo on their profile (B6). */
+describe("a family's photo answers", () => {
+  const consent = {
+    forId: "YES",
+    inApp: "YES",
+    publicity: "NOT_ASKED",
+    answeredBy: "FAMILY",
+    mayAnswer: true,
+    history: [],
+  };
+
+  it("gives a parent one card for each child", async () => {
+    serve(h.api, {
+      ...routes,
+      "/users/user-1": {
+        ...me,
+        role: "PARENT",
+        parentStudents: [
+          { student: { id: "s1", studentIdNumber: "STD-1", user: { firstName: "Keza", lastName: "Uwase" } } },
+          { student: { id: "s2", studentIdNumber: "STD-2", user: { firstName: "Eric", lastName: "Uwase" } } },
+        ],
+      },
+      "/students/s1/photo-consent": consent,
+      "/students/s2/photo-consent": consent,
+    });
+    renderPage(ProfilePage, { role: "PARENT", user: { id: "user-1", firstName: "Aline", lastName: "Uwase" } });
+    expect(await screen.findByText("Keza's photo")).toBeInTheDocument();
+    expect(await screen.findByText("Eric's photo")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Answer" })).toHaveLength(2);
+  });
+
+  it("shows a student their own", async () => {
+    serve(h.api, {
+      ...routes,
+      "/students/me/sharing": { adult: false, knowsBirthday: true, results: true, conduct: true, health: true, changedAt: null },
+      "/students/student-1/photo-consent": { ...consent, mayAnswer: false },
+    });
+    renderPage(ProfilePage, {
+      role: "STUDENT",
+      user: { firstName: "Aline", lastName: "Uwase", studentId: "student-1" },
+    });
+    expect(await screen.findByTestId("photo-consent-who")).toHaveTextContent(
+      "Your parents answer this until you are 18.",
+    );
+  });
+});

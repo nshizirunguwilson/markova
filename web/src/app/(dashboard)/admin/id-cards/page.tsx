@@ -97,6 +97,8 @@ export default function AdminIdCardsPage() {
   const items: any[] = data?.items || [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 25, totalPages: 1 };
   const issuedItems = items.filter((i) => i.hasCard);
+  // The family said No to the photo on cards (B6): those print without it.
+  const withoutPhoto = issuedItems.filter((i) => i.photoForId === "NO" && i.hasPhoto);
 
   const handlePrint = () => {
     setShowPrint(true);
@@ -133,6 +135,17 @@ export default function AdminIdCardsPage() {
           )}
         </div>
       </div>
+
+      {withoutPhoto.length > 0 && (
+        <p
+          role="status"
+          className="rounded-xl border border-warning/30 bg-warning-wash px-4 py-3 text-sm text-foreground print:hidden"
+        >
+          {withoutPhoto.length === 1
+            ? `${withoutPhoto[0].name}'s family said No to the photo on cards, so that card prints without it.`
+            : `${withoutPhoto.length} families on this page said No to the photo on cards, so those cards print without it.`}
+        </p>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 print:hidden">
@@ -236,7 +249,14 @@ export default function AdminIdCardsPage() {
             <TableBody>
               {items.map((it) => (
                 <TableRow key={it.id}>
-                  <TableCell className="font-medium">{it.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {it.name}
+                    {it.photoForId === "NO" && it.hasPhoto && (
+                      <Badge variant="warning" className="ml-2">
+                        No photo on the card
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted">{it.class}</TableCell>
                   <TableCell className="font-mono text-xs">{it.studentIdNumber}</TableCell>
                   <TableCell>

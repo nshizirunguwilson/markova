@@ -632,3 +632,24 @@ describe("a parent and the children on their record", () => {
     expect(child.textContent).toContain("-");
   });
 });
+
+/** The office copies a family's paper form in on the student's page (B6). */
+describe("a student's photo answers", () => {
+  it("shows them, and offers to copy in a signed form", async () => {
+    serve(h.api, {
+      ...routesFor(student),
+      "/students/student-1/photo-consent": {
+        forId: "YES",
+        inApp: "NO",
+        publicity: "NO",
+        answeredBy: "FAMILY",
+        mayAnswer: true,
+        history: [],
+      },
+    });
+    renderPage(UserDetailPage, { role: "ADMIN" });
+    const card = await screen.findByTestId("photo-consent");
+    expect(card).toHaveTextContent("In the app, for classmates and other parents");
+    expect(screen.getByRole("button", { name: "Copy in a signed form" })).toBeInTheDocument();
+  });
+});
