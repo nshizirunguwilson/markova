@@ -29,8 +29,14 @@ describe('photo consent (e2e)', () => {
   const before: Answers[] = [];
 
   let student1: { token: string; userId: string };
-  let classmate: { id: string; userId: string; photoUrl: string; firstName: string };
+  let classmate: {
+    id: string;
+    userId: string;
+    photoUrl: string;
+    firstName: string;
+  };
   let conversationId: string;
+  let madeConversation = false;
   let admin: string;
   let teacher: string;
   let parent: string;
@@ -65,7 +71,8 @@ describe('photo consent (e2e)', () => {
   };
 
   const as = (token: string) => ({
-    get: (url: string) => api().get(url).set('Authorization', `Bearer ${token}`),
+    get: (url: string) =>
+      api().get(url).set('Authorization', `Bearer ${token}`),
     put: (url: string, body: object) =>
       api().put(url).set('Authorization', `Bearer ${token}`).send(body),
     post: (url: string, body: object) =>
@@ -76,7 +83,12 @@ describe('photo consent (e2e)', () => {
     before.push(
       await owner.student.findUniqueOrThrow({
         where: { id },
-        select: { id: true, photoForId: true, photoInApp: true, photoPublicity: true },
+        select: {
+          id: true,
+          photoForId: true,
+          photoInApp: true,
+          photoPublicity: true,
+        },
       }),
     );
   };
@@ -110,7 +122,8 @@ describe('photo consent (e2e)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
     owner = new PrismaClient({
-      datasourceUrl: process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
+      datasourceUrl:
+        process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL,
     });
     await owner.$connect();
 
@@ -118,49 +131,64 @@ describe('photo consent (e2e)', () => {
       where: { slug: 'markova-academy' },
     });
     const me = await owner.student.findFirstOrThrow({
-      where: { schoolId: school.id, user: { account: { email: 'student1@markova.edu' } } },
-      select: { userId: true, classSectionId: true },
-    });
-    // A classmate with a photo, in a chat with student1, with a parent.
-    const conversation = await owner.conversation.findFirstOrThrow({
       where: {
         schoolId: school.id,
-        participants: { some: { userId: me.userId } },
-        AND: {
-          participants: {
-            some: {
-              user: {
-                photoUrl: { not: null },
-                student: {
-                  classSectionId: me.classSectionId,
-                  parentStudents: { some: { parent: { isActive: true } } },
-                },
-                id: { not: me.userId },
-              },
-            },
-          },
-        },
+        user: { account: { email: 'student1@markova.edu' } },
       },
-      select: { id: true },
+      select: { userId: true, classSectionId: true },
     });
-    conversationId = conversation.id;
+    // A classmate with a photo and a parent.
     const mate = await owner.student.findFirstOrThrow({
       where: {
         classSectionId: me.classSectionId,
         userId: { not: me.userId },
-        user: {
-          photoUrl: { not: null },
-          conversationMemberships: { some: { conversationId } },
-        },
+        status: 'ACTIVE',
+        user: { photoUrl: { not: null } },
         parentStudents: { some: { parent: { isActive: true } } },
       },
       select: {
         id: true,
         userId: true,
         user: { select: { photoUrl: true, firstName: true } },
-        parentStudents: { take: 1, select: { parent: { select: { account: true } } } },
+        parentStudents: {
+          take: 1,
+          select: { parent: { select: { account: true } } },
+        },
       },
     });
+    /* A conversation the two share. The seed is random, so there may be
+       none; then one is made here, and removed afterwards. */
+    const shared = await owner.conversation.findFirst({
+      where: {
+        schoolId: school.id,
+        AND: [
+          { participants: { some: { userId: me.userId } } },
+          { participants: { some: { userId: mate.userId } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (shared) {
+      conversationId = shared.id;
+    } else {
+      conversationId = (
+        await owner.conversation.create({
+          data: {
+            schoolId: school.id,
+            type: 'GROUP',
+            name: 'Photo consent test',
+            createdByUserId: me.userId,
+            participants: {
+              create: [
+                { schoolId: school.id, userId: me.userId },
+                { schoolId: school.id, userId: mate.userId },
+              ],
+            },
+          },
+        })
+      ).id;
+      madeConversation = true;
+    }
     classmate = {
       id: mate.id,
       userId: mate.userId,
@@ -189,7 +217,10 @@ describe('photo consent (e2e)', () => {
         id: { not: mate.id },
         user: { photoUrl: { not: null } },
       },
-      select: { id: true, user: { select: { firstName: true, lastName: true } } },
+      select: {
+        id: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
     });
     card = {
       id: carded.id,
@@ -199,7 +230,10 @@ describe('photo consent (e2e)', () => {
     };
     await remember(card.id);
 
-    student1 = { token: await signIn({ email: 'student1@markova.edu' }), userId: me.userId };
+    student1 = {
+      token: await signIn({ email: 'student1@markova.edu' }),
+      userId: me.userId,
+    };
     admin = await signIn({ email: 'wilsonshizirungu@gmail.com' });
     teacher = await signIn({ email: 'aline.uwase@markova.edu' });
     const p = mate.parentStudents[0].parent.account;
@@ -213,11 +247,20 @@ describe('photo consent (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (madeConversation) {
+      await owner.conversation.delete({ where: { id: conversationId } });
+    }
     // The card issued here never existed.
-    await owner.student.update({
-      where: { id: card.id },
-      data: { nfcCardId: null, cardCode: null, cardIssuedAt: null, cardSuspendedAt: null },
-    });
+    if (card)
+      await owner.student.update({
+        where: { id: card.id },
+        data: {
+          nfcCardId: null,
+          cardCode: null,
+          cardIssuedAt: null,
+          cardSuspendedAt: null,
+        },
+      });
     for (const { id, ...data } of before) {
       await owner.student.update({ where: { id }, data });
     }
@@ -258,13 +301,17 @@ describe('photo consent (e2e)', () => {
     });
 
     it('nor in the list of conversations', async () => {
-      const res = await as(student1.token).get('/api/messaging/conversations').expect(200);
+      const res = await as(student1.token)
+        .get('/api/messaging/conversations')
+        .expect(200);
       expect(JSON.stringify(res.body)).not.toContain(classmate.photoUrl);
     });
 
     it('still shows the photo to the staff', async () => {
       const res = await as(admin)
-        .get(`/api/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`)
+        .get(
+          `/api/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`,
+        )
         .expect(200);
       expect(JSON.stringify(res.body)).toContain(classmate.photoUrl);
     });
@@ -323,11 +370,17 @@ describe('photo consent (e2e)', () => {
     });
 
     it('keeps the office list to the office', async () => {
-      const res = await as(admin).get('/api/photo-consent/register').expect(200);
+      const res = await as(admin)
+        .get('/api/photo-consent/register')
+        .expect(200);
       expect(res.body.counts.students).toBeGreaterThan(0);
-      expect(res.body.students.map((s: any) => s.studentId)).toContain(classmate.id);
+      expect(res.body.students.map((s: any) => s.studentId)).toContain(
+        classmate.id,
+      );
       await as(teacher).get('/api/photo-consent/register').expect(403);
-      await as(teacher).get(`/api/students/${classmate.id}/photo-consent`).expect(403);
+      await as(teacher)
+        .get(`/api/students/${classmate.id}/photo-consent`)
+        .expect(403);
     });
   });
 
@@ -339,10 +392,15 @@ describe('photo consent (e2e)', () => {
     });
 
     it('shows no photo where the family said No to it on cards', async () => {
-      await owner.student.update({ where: { id: card.id }, data: { photoForId: 'NO' } });
+      await owner.student.update({
+        where: { id: card.id },
+        data: { photoForId: 'NO' },
+      });
       const res = await api().get(`/api/verify/card/${card.code}`).expect(200);
       expect(res.body.student.photoUrl).toBeNull();
-      const printed = await as(admin).get(`/api/reports/id-card/${card.id}`).expect(200);
+      const printed = await as(admin)
+        .get(`/api/reports/id-card/${card.id}`)
+        .expect(200);
       expect(printed.body.student.photoUrl).toBeNull();
     });
   });

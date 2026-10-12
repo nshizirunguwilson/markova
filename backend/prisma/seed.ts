@@ -5468,6 +5468,7 @@ async function main() {
       orderBy: { studentIdNumber: 'asc' },
       select: {
         id: true,
+        userId: true,
         classSectionId: true,
         pauses: { select: { id: true } },
         user: { select: { firstName: true, lastName: true, photoUrl: true, account: { select: { email: true } } } },
@@ -5478,10 +5479,21 @@ async function main() {
       },
     });
     const student1 = everyone.find((s) => s.user.account?.email === 'student1@markova.edu');
+    // Somebody student1 actually shares a chat with, so the initials show.
+    const chatsOfStudent1 = student1
+      ? await prisma.conversationParticipant.findMany({
+          where: { userId: student1.userId },
+          select: { conversation: { select: { participants: { select: { userId: true } } } } },
+        })
+      : [];
+    const sharesAChat = new Set(
+      chatsOfStudent1.flatMap((c) => c.conversation.participants.map((p) => p.userId)),
+    );
     const keptFromApp = everyone.find(
       (s) =>
         s.classSectionId === student1?.classSectionId &&
         s.id !== student1?.id &&
+        sharesAChat.has(s.userId) &&
         !!s.user.photoUrl &&
         s.pauses.length === 0,
     );

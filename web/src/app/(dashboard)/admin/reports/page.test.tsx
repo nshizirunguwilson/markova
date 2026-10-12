@@ -2082,3 +2082,93 @@ describe("what the page no longer offers", () => {
     expect(screen.queryByText(/The whole school/i)).toBeNull();
   });
 });
+
+/** The principal's letters: pick a student, a kind, generate, then save or print. */
+describe("writing a letter", () => {
+  const withStudent = (pdf: unknown = new Blob(["%PDF"])) =>
+    serve(h.api, {
+      ...routes,
+      "/users": {
+        data: [
+          {
+            id: "u1",
+            firstName: "Keza",
+            lastName: "Habimana",
+            student: { id: "s1", studentIdNumber: "STD-1", classSection: { name: "A" } },
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 8, totalPages: 1 },
+      },
+      "/reports/document": { html: "<p>Letter</p>", title: "Transfer Letter - Keza" },
+      "/reports/document/pdf": pdf,
+    });
+
+  const writeOne = async () => {
+    renderPage(ReportsPage, { role: "ADMIN" });
+    const input = await screen.findByLabelText("Student");
+    fireEvent.focus(input);
+    fireEvent.click(await screen.findByText("Keza Habimana"));
+    fireEvent.change(screen.getByLabelText("Document type"), { target: { value: "transcript" } });
+    fireEvent.click(screen.getByRole("button", { name: /Generate/ }));
+    await screen.findByText("Transfer Letter - Keza");
+  };
+
+  it("generates the chosen kind for the chosen student", async () => {
+    withStudent();
+    await writeOne();
+    expect(h.api.post).toHaveBeenCalledWith("/reports/document", { studentId: "s1", type: "transcript" });
+    expect(h.toast.success).toHaveBeenCalledWith("Document generated");
+  });
+
+  it("saves it as an A4 PDF named after it", async () => {
+    withStudent();
+    await writeOne();
+    fireEvent.click(screen.getByRole("button", { name: /Download PDF/ }));
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledWith("Downloaded PDF"));
+    expect(h.api.post).toHaveBeenCalledWith(
+      "/reports/document/pdf",
+      { studentId: "s1", type: "transcript" },
+      { responseType: "blob" },
+    );
+  });
+
+  it("says so when the PDF cannot be made", async () => {
+    withStudent(() => {
+      throw new Error("down");
+    });
+    await writeOne();
+    fireEvent.click(screen.getByRole("button", { name: /Download PDF/ }));
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Failed to download the document"),
+    );
+  });
+
+  it("prints it", async () => {
+    withStudent();
+    await writeOne();
+    fireEvent.click(screen.getByRole("button", { name: /^Print$/ }));
+    // Printed through a hidden frame holding the letter, not a new window.
+    const frame = document.querySelector("iframe[aria-hidden='true']");
+    expect(frame).not.toBeNull();
+    expect(h.toast.error).not.toHaveBeenCalled();
+  });
+
+  it("says so when it cannot be generated", async () => {
+    withStudent();
+    serve(h.api, {
+      ...routes,
+      "/users": {
+        data: [{ id: "u1", firstName: "Keza", lastName: "Habimana", student: { id: "s1" } }],
+        meta: {},
+      },
+      "/reports/document": () => {
+        throw new Error("down");
+      },
+    });
+    renderPage(ReportsPage, { role: "ADMIN" });
+    fireEvent.focus(await screen.findByLabelText("Student"));
+    fireEvent.click(await screen.findByText("Keza Habimana"));
+    fireEvent.click(screen.getByRole("button", { name: /Generate/ }));
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("Failed to generate"));
+  });
+});

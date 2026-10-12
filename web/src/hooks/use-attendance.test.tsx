@@ -1,8 +1,9 @@
-import { beforeEach, describe, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   assertMutation,
   assertQuery,
+  runMutation,
   type MutationCase,
   type QueryCase,
 } from "@/test/hooks";
@@ -18,9 +19,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-}));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 import * as attendance from "./use-attendance";
 
@@ -48,5 +48,49 @@ describe("use-attendance queries", () => {
 describe("use-attendance mutations", () => {
   it.each(mutations)("$name writes its endpoint and reports failure", async (c) => {
     await assertMutation(api, c);
+  });
+});
+
+/** What the person scanning, or telling families, is told. */
+describe("use-attendance messages", () => {
+  beforeEach(() => Object.values(toast).forEach((t) => t.mockReset()));
+
+  it("says a second scan is a second scan, not a failure", async () => {
+    api.post.mockResolvedValue({ data: { duplicate: true, student: { name: "Keza" } } });
+    await runMutation(() => attendance.useQrScan(), { qrData: "x" });
+    expect(toast.info).toHaveBeenCalledWith("Keza already scanned");
+  });
+
+  it("names the student and the mark, or says recorded", async () => {
+    api.post.mockResolvedValue({ data: {} });
+    await runMutation(() => attendance.useQrScan(), { qrData: "x" });
+    expect(toast.success).toHaveBeenCalledWith("Student: recorded");
+  });
+
+  it.each([
+    [{ studentsIdentified: 0, alertsSent: 0, unreachable: 0 }, "Nobody needed telling.", null],
+    [{ studentsIdentified: 1, alertsSent: 1, unreachable: 0 }, "Told 1 family about 1 child.", null],
+    [
+      { studentsIdentified: 3, alertsSent: 4, unreachable: 2 },
+      "Told 4 families about 3 children.",
+      "2 families have no email or phone on file and will need a call.",
+    ],
+    [
+      { studentsIdentified: 2, alertsSent: 2, unreachable: 1 },
+      "Told 2 families about 2 children.",
+      "1 family has no email or phone on file and will need a call.",
+    ],
+  ])("tells the families of absent children, and who needs a call", async (r, said, warned) => {
+    api.post.mockResolvedValue({ data: r });
+    await runMutation(() => attendance.useAlertChronicFamilies());
+    expect(toast.success).toHaveBeenCalledWith(said);
+    if (warned) expect(toast.warning).toHaveBeenCalledWith(warned);
+    else expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("says when the alerts could not go", async () => {
+    api.post.mockRejectedValue(new Error("down"));
+    await runMutation(() => attendance.useAlertChronicFamilies()).catch(() => {});
+    expect(toast.error).toHaveBeenCalledWith("Could not send the alerts");
   });
 });

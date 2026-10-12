@@ -1353,10 +1353,7 @@ export class MessagingService {
    * are handled by the PhotoInterceptor, which knows who is asking.
    */
   async withoutKeptPhotos<T>(payload: T): Promise<T> {
-    const hidden = await keptOutOfApp(
-      this.prisma,
-      peopleWithPhotos(payload),
-    );
+    const hidden = await keptOutOfApp(this.prisma, peopleWithPhotos(payload));
     return withoutPhotos(payload, hidden);
   }
 

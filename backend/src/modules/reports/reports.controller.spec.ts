@@ -6,6 +6,7 @@ import { ReportsService } from './reports.service';
 import { OwnershipService } from '../../common/ownership.service';
 import { FeeGateService } from '../../common/fee-gate.service';
 import { RenderQueue } from '../../jobs/render.queue';
+import { RenderJob } from '../../jobs/jobs.constants';
 import {
   buildController,
   clearMocks,
@@ -621,5 +622,141 @@ describe('a report card held over unpaid fees', () => {
       });
       expect(service.getYearReportData).toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * The render queue's routes, a drafted comment and the annual report PDF:
+ * each checks whose student it is before doing anything.
+ */
+describe('ReportsController, renders and drafts', () => {
+  const service = mockService([
+    'suggestReportComments',
+    'generateYearReportPdf',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+  const feeGate = {
+    assertReleased: jest.fn().mockResolvedValue(undefined),
+    assertYearReleased: jest.fn().mockResolvedValue(undefined),
+  };
+  const renders = mockService(['enqueue', 'status', 'collect']);
+  let ctl: ReportsController;
+  const res = () => ({ set: jest.fn(), end: jest.fn() });
+  const teacherUser = { id: 'u-t', role: 'TEACHER' };
+
+  beforeEach(async () => {
+    clearMocks(service, ownership, renders, feeGate as never);
+    service.isReportCardIssued.mockResolvedValue(true);
+    renders.enqueue.mockResolvedValue('job-1');
+    ctl = await buildController(ReportsController, [
+      { token: ReportsService, name: 'service', mock: service },
+      { token: OwnershipService, name: 'ownership', mock: ownership },
+      { token: FeeGateService, name: 'feeGate', mock: feeGate as never },
+      { token: RenderQueue, name: 'renders', mock: renders },
+    ]);
+  });
+
+  it('drafts comments only after checking whose student', async () => {
+    await ctl.suggestComments('s1', 't1', teacherUser);
+    expect(ownership.verifyStudentAccess).toHaveBeenCalledWith(
+      'u-t',
+      'TEACHER',
+      's1',
+      'results',
+    );
+    expect(service.suggestReportComments).toHaveBeenCalledWith('s1', 't1');
+  });
+
+  it('queues a term report as the person who asked', async () => {
+    const reply = await ctl.queueRender(
+      { kind: RenderJob.TERM_REPORT, studentId: 's1', termId: 't1' },
+      teacherUser,
+    );
+    expect(reply).toEqual({ id: 'job-1', state: 'queued' });
+    expect(renders.enqueue).toHaveBeenCalledWith(
+      RenderJob.TERM_REPORT,
+      {
+        studentId: 's1',
+        termId: 't1',
+        academicYearId: undefined,
+        type: undefined,
+      },
+      'u-t',
+    );
+  });
+
+  it('checks ownership before queueing any other kind too', async () => {
+    await ctl.queueRender(
+      {
+        kind: RenderJob.YEAR_REPORT,
+        studentId: 's1',
+        academicYearId: 'y1',
+      },
+      teacherUser,
+    );
+    expect(ownership.verifyStudentAccess).toHaveBeenCalledWith(
+      'u-t',
+      'TEACHER',
+      's1',
+      'results',
+    );
+    expect(renders.enqueue).toHaveBeenCalled();
+  });
+
+  it('reports how far a render is, for its requester only', async () => {
+    renders.status.mockResolvedValue({ state: 'active' });
+    expect(await ctl.renderStatus('job-1', 'u-t')).toEqual({ state: 'active' });
+    expect(renders.status).toHaveBeenCalledWith('job-1', 'u-t');
+  });
+
+  it('hands over a finished PDF, or a zip, with the right headers', async () => {
+    renders.status.mockResolvedValue({ state: 'done', filename: 'card.pdf' });
+    renders.collect.mockResolvedValue(Buffer.from('%PDF'));
+    const r = res();
+    await ctl.collectRender('job-1', 'u-t', r as never);
+    expect(r.set.mock.calls[0][0]['Content-Type']).toBe('application/pdf');
+    expect(r.end).toHaveBeenCalled();
+
+    renders.status.mockResolvedValue({ state: 'done', filename: 'cards.zip' });
+    const z = res();
+    await ctl.collectRender('job-1', 'u-t', z as never);
+    expect(z.set.mock.calls[0][0]['Content-Type']).toBe('application/zip');
+  });
+
+  it('refuses one not finished, and says why one failed', async () => {
+    renders.status.mockResolvedValue({ state: 'active' });
+    await expect(
+      ctl.collectRender('job-1', 'u-t', res() as never),
+    ).rejects.toThrow('That render is not finished yet.');
+    renders.status.mockResolvedValue({
+      state: 'failed',
+      error: 'Chrome would not start',
+    });
+    await expect(
+      ctl.collectRender('job-1', 'u-t', res() as never),
+    ).rejects.toThrow('Chrome would not start');
+    renders.status.mockResolvedValue({ state: 'failed' });
+    await expect(
+      ctl.collectRender('job-1', 'u-t', res() as never),
+    ).rejects.toThrow('That render failed.');
+    expect(renders.collect).not.toHaveBeenCalled();
+  });
+
+  it('sends the annual report PDF after the year checks', async () => {
+    service.generateYearReportPdf.mockResolvedValue(Buffer.from('%PDF'));
+    const r = res();
+    await ctl.getYearReportPdf('s1', 'y1', r as never, {
+      id: 'u-p',
+      role: 'PARENT',
+    });
+    expect(feeGate.assertYearReleased).toHaveBeenCalledWith(
+      'PARENT',
+      's1',
+      'y1',
+    );
+    expect(r.set.mock.calls[0][0]['Content-Disposition']).toBe(
+      'attachment; filename="annual-report-s1.pdf"',
+    );
   });
 });

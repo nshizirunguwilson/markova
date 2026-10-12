@@ -311,4 +311,70 @@ describe('SupportService', () => {
       });
     });
   });
+
+  describe('the edges', () => {
+    it('tells a teacher there is no plan, when there is none', async () => {
+      prisma.supportPlan.findUnique.mockResolvedValue(null);
+      prisma.teacherSubjectClass.count.mockResolvedValue(1);
+      expect(
+        await service.forStudent('s1', { id: 't', role: 'TEACHER' }),
+      ).toEqual({
+        plan: null,
+        teacherView: true,
+      });
+    });
+
+    it('counts nobody as teaching who has no teacher record', async () => {
+      prisma.teacher.findFirst.mockResolvedValue(null);
+      await expect(
+        service.forStudent('s1', { id: 'x', role: 'TEACHER' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('names nobody as the last to change a plan with no author', async () => {
+      prisma.supportPlan.findUnique.mockResolvedValue({
+        ...plan,
+        updatedBy: null,
+      });
+      const r = await service.forStudent('s1', { id: 'n', role: 'NURSE' });
+      expect((r.plan as { updatedBy: unknown }).updatedBy).toBeNull();
+    });
+
+    it('will not keep a plan for a student who is not there', async () => {
+      prisma.student.findUnique.mockResolvedValue(null);
+      await expect(
+        service.save('nobody', { needs: [], arrangements: [] }, 'u'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('keeps the optional parts blank, and a review date as a day', async () => {
+      prisma.supportPlan.upsert.mockResolvedValue({ ...plan, updatedBy: null });
+      await service.save(
+        's1',
+        {
+          needs: ['OTHER'],
+          arrangements: ['READER'],
+          needNote: '  ',
+          otherArrangement: '',
+          agreedWith: ' ',
+          reviewOn: '2027-03-01T10:00:00Z',
+        } as never,
+        'u',
+      );
+      const data = prisma.supportPlan.upsert.mock.calls[0][0].update;
+      expect(data).toMatchObject({
+        needNote: null,
+        otherArrangement: null,
+        agreedWith: null,
+        extraTimePercent: null,
+      });
+      expect(data.reviewOn.toISOString()).toBe('2027-03-01T00:00:00.000Z');
+    });
+
+    it('refuses a class list to anybody but its teachers and the readers', async () => {
+      await expect(
+        service.forClass('c1', { id: 'l', role: 'LIBRARIAN' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

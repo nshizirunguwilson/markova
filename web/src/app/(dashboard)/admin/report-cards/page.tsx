@@ -222,11 +222,19 @@ export default function ReportCardsPage() {
     );
   };
 
-  const drawUp = async (r: Result, which: "teacher" | "head") => {
+  const drawUp = (r: Result, which: "teacher" | "head") => {
     const studentId = r.student?.id;
     if (!studentId || !term) return;
-    const both = await suggest.mutateAsync({ studentId, termId: term });
-    setDraft(which === "teacher" ? both.classTeacher : both.headTeacher);
+    /* mutate, not mutateAsync: a draft that cannot be written is already
+       said by the hook's toast, and awaiting it here left the rejection
+       with nothing to catch it. */
+    suggest.mutate(
+      { studentId, termId: term },
+      {
+        onSuccess: (both) =>
+          setDraft(which === "teacher" ? both.classTeacher : both.headTeacher),
+      },
+    );
   };
 
   return (

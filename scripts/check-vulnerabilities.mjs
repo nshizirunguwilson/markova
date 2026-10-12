@@ -46,6 +46,51 @@ const ACCEPTED = [
       'point upgrading @sentry/nestjs resolves it properly.',
   },
   {
+    package: '@opentelemetry/instrumentation-knex',
+    advisory: 'GHSA-qqmp-wf37-98f9',
+    since: '2026-10-12',
+    why: [
+      'Part of the @opentelemetry set @sentry/node 9 pins (see @opentelemetry/core',
+      'above). The advisory is that these instrumentations put the database user',
+      'name into traces. Each one only wraps its own driver, and Markova loads',
+      'none of them: it talks to PostgreSQL through Prisma, never through knex,',
+      'mysql or tedious (SQL Server). Traces leave only when SENTRY_DSN is set.',
+    ].join(' '),
+    urgentIf:
+      'the API starts using knex, mysql or tedious, or @sentry/nestjs is ' +
+      'upgraded to the release with @opentelemetry 0.65 or later (fixes this).',
+  },
+  {
+    package: '@opentelemetry/instrumentation-mysql',
+    advisory: 'GHSA-qqmp-wf37-98f9',
+    since: '2026-10-12',
+    why: [
+      'Part of the @opentelemetry set @sentry/node 9 pins (see @opentelemetry/core',
+      'above). The advisory is that these instrumentations put the database user',
+      'name into traces. Each one only wraps its own driver, and Markova loads',
+      'none of them: it talks to PostgreSQL through Prisma, never through knex,',
+      'mysql or tedious (SQL Server). Traces leave only when SENTRY_DSN is set.',
+    ].join(' '),
+    urgentIf:
+      'the API starts using knex, mysql or tedious, or @sentry/nestjs is ' +
+      'upgraded to the release with @opentelemetry 0.65 or later (fixes this).',
+  },
+  {
+    package: '@opentelemetry/instrumentation-tedious',
+    advisory: 'GHSA-qqmp-wf37-98f9',
+    since: '2026-10-12',
+    why: [
+      'Part of the @opentelemetry set @sentry/node 9 pins (see @opentelemetry/core',
+      'above). The advisory is that these instrumentations put the database user',
+      'name into traces. Each one only wraps its own driver, and Markova loads',
+      'none of them: it talks to PostgreSQL through Prisma, never through knex,',
+      'mysql or tedious (SQL Server). Traces leave only when SENTRY_DSN is set.',
+    ].join(' '),
+    urgentIf:
+      'the API starts using knex, mysql or tedious, or @sentry/nestjs is ' +
+      'upgraded to the release with @opentelemetry 0.65 or later (fixes this).',
+  },
+  {
     package: 'extract-zip',
     advisory: 'GHSA-jmr9-qjv8-65gv',
     since: '2026-08-31',

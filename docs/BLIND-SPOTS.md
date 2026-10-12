@@ -234,8 +234,9 @@ else could ever see it. Now:
 - **The public card check** (anyone who scans a card) now shows the first
   name only and a smaller photo, as agreed.
 - **Demo:** about 7 in 10 families answered on paper, 3 in 10 not asked yet.
-  Andy Cyizere, in student1's class, said No to the app, so student1 sees
-  initials for them in the class chat.
+  One of student1's classmates said No to the app, so student1 sees initials
+  for them in the chat, and another student said No to cards. The seed is
+  random, so it prints both names at the end of its run.
 
 ### B7: exam arrangements
 

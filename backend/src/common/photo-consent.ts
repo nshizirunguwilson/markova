@@ -39,8 +39,7 @@ const STAFF = new Set<string>([
 ]);
 
 /** Whether a viewer is held to the "in the app" answer at all. */
-export const heldToInApp = (role?: string | null) =>
-  !!role && !STAFF.has(role);
+export const heldToInApp = (role?: string | null) => !!role && !STAFF.has(role);
 
 /** Publicity counts as No until somebody says Yes. */
 export const mayPublish = (answer: PhotoAnswer) => answer === 'YES';
