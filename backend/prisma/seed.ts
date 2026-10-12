@@ -5455,6 +5455,85 @@ async function main() {
   }
   console.log(`  ✅ ${photoRows.length} profile avatars generated and linked`);
 
+  // ─── PHOTO CONSENT (what each family agreed to for the photo) ──────────────
+  //
+  // B6, after the photos above: three answers per student, from the paper form families signed at the
+  // start of the year. Three in ten have not been asked yet, as in any real
+  // school. One of student1's classmates said No to the app, so student1 sees
+  // initials where that photo would be; another student said No to the photo
+  // on cards, so their card prints without it.
+  {
+    const everyone = await prisma.student.findMany({
+      where: { schoolId, status: StudentStatus.ACTIVE },
+      orderBy: { studentIdNumber: 'asc' },
+      select: {
+        id: true,
+        classSectionId: true,
+        pauses: { select: { id: true } },
+        user: { select: { firstName: true, lastName: true, photoUrl: true, account: { select: { email: true } } } },
+        parentStudents: {
+          take: 1,
+          select: { relationship: true, parent: { select: { firstName: true, lastName: true } } },
+        },
+      },
+    });
+    const student1 = everyone.find((s) => s.user.account?.email === 'student1@markova.edu');
+    const keptFromApp = everyone.find(
+      (s) =>
+        s.classSectionId === student1?.classSectionId &&
+        s.id !== student1?.id &&
+        !!s.user.photoUrl &&
+        s.pauses.length === 0,
+    );
+    const keptFromCard = everyone.find(
+      (s) => s.classSectionId !== student1?.classSectionId && !!s.user.photoUrl && s.pauses.length === 0,
+    );
+    type Answer = 'YES' | 'NO' | 'NOT_ASKED';
+    const answers = new Map<string, { forId: Answer; inApp: Answer; publicity: Answer }>();
+    everyone.forEach((s, i) => {
+      if (i % 10 < 3) return; // not asked yet
+      answers.set(s.id, { forId: 'YES', inApp: 'YES', publicity: i % 10 === 3 ? 'NO' : 'YES' });
+    });
+    if (keptFromApp) answers.set(keptFromApp.id, { forId: 'YES', inApp: 'NO', publicity: 'NO' });
+    if (keptFromCard) answers.set(keptFromCard.id, { forId: 'NO', inApp: 'YES', publicity: 'NO' });
+
+    const signedBy = (s: (typeof everyone)[number]) => {
+      const link = s.parentStudents[0];
+      return link
+        ? `${link.parent.firstName} ${link.parent.lastName} (${link.relationship ?? 'parent'})`
+        : 'The family';
+    };
+    const asked = everyone.filter((s) => answers.has(s.id));
+    await prisma.photoConsentRecord.createMany({
+      data: asked.map((s) => ({
+        schoolId,
+        studentId: s.id,
+        ...answers.get(s.id)!,
+        how: 'PAPER_FORM' as const,
+        answeredBy: signedBy(s),
+        recordedByUserId: admin.id,
+      })),
+    });
+    // One update per combination of answers rather than one per student.
+    const groups = new Map<string, string[]>();
+    for (const s of asked) {
+      const key = JSON.stringify(answers.get(s.id));
+      groups.set(key, [...(groups.get(key) ?? []), s.id]);
+    }
+    for (const [key, ids] of groups) {
+      const a = JSON.parse(key);
+      await prisma.student.updateMany({
+        where: { id: { in: ids } },
+        data: { photoForId: a.forId, photoInApp: a.inApp, photoPublicity: a.publicity },
+      });
+    }
+    console.log(
+      `  ✅ Photo answers: ${asked.length} answered, ${everyone.length - asked.length} not asked yet` +
+        (keptFromApp ? `; ${keptFromApp.user.firstName} ${keptFromApp.user.lastName} (student1's class) said No to the app` : '') +
+        (keptFromCard ? `; ${keptFromCard.user.firstName} ${keptFromCard.user.lastName} said No to cards` : ''),
+    );
+  }
+
   // ─── SIGNATURES ─────────────────────────────────────────────────────────────
   //
   // A handwritten mark for each person who signs a document, generated the
