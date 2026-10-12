@@ -100,6 +100,20 @@ enum SupportNeed {
   OTHER
 }
 
+/// A family's answer about one use of a student's photo (B6).
+enum PhotoAnswer {
+  YES
+  NO
+  NOT_ASKED
+}
+
+/// How a photo answer reached the school.
+enum ConsentHow {
+  IN_THE_APP
+  PAPER_FORM
+  ADMISSION_FORM
+}
+
 /// What is done for them in tests and exams.
 enum SupportArrangement {
   EXTRA_TIME
@@ -240,6 +254,7 @@ model School {
   studentPauses             StudentPause[]
   studentJourney            StudentJourneyEntry[]
   supportPlans              SupportPlan[]
+  photoConsentRecords       PhotoConsentRecord[]
   teachers                  Teacher[]
   teacherRoles              TeacherRole[]
   teacherSubjectClasses     TeacherSubjectClass[]
@@ -427,6 +442,7 @@ model User {
   pausesRecorded          StudentPause[]             @relation("PauseRecordedBy")
   journeyRecorded         StudentJourneyEntry[]      @relation("JourneyRecordedBy")
   supportPlansUpdated     SupportPlan[]              @relation("SupportPlanUpdatedBy")
+  photoConsentsRecorded   PhotoConsentRecord[]       @relation("PhotoConsentRecordedBy")
 
   @@unique([schoolId, code])
   @@unique([schoolId, nationalId])
@@ -730,6 +746,13 @@ model Student {
   sharesConduct     Boolean       @default(true) @map("shares_conduct")
   sharesHealth      Boolean       @default(true) @map("shares_health")
   sharingChangedAt  DateTime?     @map("sharing_changed_at")
+  /// What the family agreed to for the student's photo (B6 in
+  /// docs/STUDENT-LIFE-DESIGN.md): on the ID card and report card, in the app
+  /// for classmates and other parents to see, and in the school's publicity.
+  /// Every change is kept in PhotoConsentRecord.
+  photoForId        PhotoAnswer   @default(NOT_ASKED) @map("photo_for_id")
+  photoInApp        PhotoAnswer   @default(NOT_ASKED) @map("photo_in_app")
+  photoPublicity    PhotoAnswer   @default(NOT_ASKED) @map("photo_publicity")
   createdAt         DateTime      @default(now()) @map("created_at")
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -753,6 +776,7 @@ model Student {
   pauses              StudentPause[]
   journey             StudentJourneyEntry[]
   supportPlan         SupportPlan?
+  photoConsents       PhotoConsentRecord[]
 
   @@unique([schoolId, studentIdNumber])
   @@unique([schoolId, nfcCardId])
@@ -846,6 +870,30 @@ model SupportPlan {
 
   @@index([schoolId])
   @@map("support_plans")
+}
+
+/// One answer about a student's photo, as it was given. Never changed: a new
+/// answer is a new row, so the school can always show who agreed and when.
+model PhotoConsentRecord {
+  id               String      @id @default(uuid())
+  schoolId         String      @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school           School      @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  studentId        String      @map("student_id")
+  forId            PhotoAnswer @map("for_id")
+  inApp            PhotoAnswer @map("in_app")
+  publicity        PhotoAnswer
+  how              ConsentHow
+  /// Who gave the answer, in words: "Jean Habimana (parent)".
+  answeredBy       String      @map("answered_by")
+  recordedByUserId String?     @map("recorded_by_user_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedBy User?   @relation("PhotoConsentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, createdAt])
+  @@index([schoolId])
+  @@map("photo_consent_records")
 }
 
 model ParentStudent {
@@ -2338,6 +2386,11 @@ model Application {
 
   /// Anything the family wanted the school to know.
   note String?
+
+  // ── the photo (B6): the family's three answers, carried to the student ──
+  photoForId     PhotoAnswer @default(NOT_ASKED) @map("photo_for_id")
+  photoInApp     PhotoAnswer @default(NOT_ASKED) @map("photo_in_app")
+  photoPublicity PhotoAnswer @default(NOT_ASKED) @map("photo_publicity")
 
   // ── what became of it ─────────────────────────────────────────────────
   submittedAt DateTime  @default(now()) @map("submitted_at")

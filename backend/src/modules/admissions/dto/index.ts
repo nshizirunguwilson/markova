@@ -21,6 +21,7 @@ import {
   AdmissionFunding,
   ApplicationStatus,
   Gender,
+  PhotoAnswer,
 } from '@prisma/client';
 
 /**
@@ -248,6 +249,23 @@ export class SubmitApplicationDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+
+  /* The three questions about the child's photo (B6). Left out means the
+     family was not asked, which counts as No for publicity. */
+  @ApiPropertyOptional({ enum: [PhotoAnswer.YES, PhotoAnswer.NO] })
+  @IsOptional()
+  @IsEnum([PhotoAnswer.YES, PhotoAnswer.NO])
+  photoForId?: PhotoAnswer;
+
+  @ApiPropertyOptional({ enum: [PhotoAnswer.YES, PhotoAnswer.NO] })
+  @IsOptional()
+  @IsEnum([PhotoAnswer.YES, PhotoAnswer.NO])
+  photoInApp?: PhotoAnswer;
+
+  @ApiPropertyOptional({ enum: [PhotoAnswer.YES, PhotoAnswer.NO] })
+  @IsOptional()
+  @IsEnum([PhotoAnswer.YES, PhotoAnswer.NO])
+  photoPublicity?: PhotoAnswer;
 }
 
 /** Which pile of the queue to show. */

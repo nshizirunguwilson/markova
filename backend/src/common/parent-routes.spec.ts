@@ -90,6 +90,14 @@ const PARENT_ROUTES: Record<string, Line> = {
   'GET /reports/term/:studentId': { kind: 'results', proof: 'assertMayRead' },
   // The family's own child's support plan, held to 'health' in the service.
   'GET /students/:id/support-plan': { kind: 'health', proof: 'forStudent' },
+  // The family's own answers about the photo, which from 18 the student gives
+  // instead (PhotoConsentService refuses the parent then).
+  'GET /students/:id/photo-consent': {
+    never: 'The family’s own answers, not a record about the child.',
+  },
+  'PUT /students/:id/photo-consent': {
+    never: 'The family’s own answers, not a record about the child.',
+  },
   'GET /reports/term/:studentId/html': {
     kind: 'results',
     proof: 'assertMayRead',

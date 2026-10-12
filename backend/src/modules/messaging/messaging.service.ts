@@ -5,6 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import {
+  keptOutOfApp,
+  peopleWithPhotos,
+  withoutPhotos,
+} from '../../common/photo-consent';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   MENTION_REFUSAL,
@@ -1340,6 +1345,19 @@ export class MessagingService {
       where: { id: conversationId },
       data: { name },
     });
+  }
+
+  /**
+   * A payload that goes to everyone in a room at once, without the photo of
+   * any student whose family said No to the app (B6). Replies to one person
+   * are handled by the PhotoInterceptor, which knows who is asking.
+   */
+  async withoutKeptPhotos<T>(payload: T): Promise<T> {
+    const hidden = await keptOutOfApp(
+      this.prisma,
+      peopleWithPhotos(payload),
+    );
+    return withoutPhotos(payload, hidden);
   }
 
   async getParticipants(conversationId: string, userId: string) {

@@ -36,6 +36,7 @@ const modelNames = [
   'studentPause',
   'studentJourneyEntry',
   'supportPlan',
+  'photoConsentRecord',
   'teacher',
   'teacherRole',
   'teacherSubjectClass',

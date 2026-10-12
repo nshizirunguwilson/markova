@@ -253,6 +253,9 @@ export class AdmissionsService {
           secondGuardianName: dto.secondGuardianName?.trim() || null,
           secondGuardianPhone: dto.secondGuardianPhone?.trim() || null,
           note: dto.note?.trim() || null,
+          photoForId: dto.photoForId ?? 'NOT_ASKED',
+          photoInApp: dto.photoInApp ?? 'NOT_ASKED',
+          photoPublicity: dto.photoPublicity ?? 'NOT_ASKED',
         },
       });
 
@@ -968,6 +971,9 @@ export class AdmissionsService {
           cell: application.cell,
           village: application.village,
           disability: application.disability,
+          photoForId: application.photoForId,
+          photoInApp: application.photoInApp,
+          photoPublicity: application.photoPublicity,
           insuranceNumber: application.insuranceNumber,
           religion: application.religion,
           fatherName: application.guardianRelation
@@ -1022,6 +1028,28 @@ export class AdmissionsService {
           relationship: application.guardianRelation,
         },
       });
+
+      /* The photo answers from the form become the student's first record
+         of them, with who gave them (B6). */
+      if (
+        [
+          application.photoForId,
+          application.photoInApp,
+          application.photoPublicity,
+        ].some((a) => a === 'YES' || a === 'NO')
+      ) {
+        await tx.photoConsentRecord.create({
+          data: {
+            studentId: student.id,
+            forId: application.photoForId,
+            inApp: application.photoInApp,
+            publicity: application.photoPublicity,
+            how: 'ADMISSION_FORM',
+            answeredBy: `${application.guardianName} (${application.guardianRelation})`,
+            recordedByUserId: userId,
+          },
+        });
+      }
 
       await this.move(tx, application, 'ENROLLED', 'Enrolled', userId);
       await tx.application.update({

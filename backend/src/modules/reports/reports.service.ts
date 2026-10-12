@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { randomBytes, randomInt } from 'crypto';
 import { existsSync } from 'fs';
-import { SubjectScope } from '@prisma/client';
+import { PhotoAnswer, SubjectScope } from '@prisma/client';
+import { photoOnCard } from '../../common/photo-consent';
 import * as QRCode from 'qrcode';
 import { withPlatform, withSchool } from '../../prisma/request-context';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -93,6 +94,27 @@ export interface CardCheck {
   issuedAt?: Date | null;
   /** The school that issued the card, by name. */
   issuedBy?: string;
+}
+
+/**
+ * What anybody who scans a card sees, signed in or not: enough for a guard
+ * to match a face, and no more. The first name only, and the photo unless
+ * the family said No to it on cards (B6).
+ */
+function seenAtTheGate(student: {
+  studentIdNumber: string;
+  status: string;
+  photoForId: PhotoAnswer;
+  user: { firstName: string; photoUrl: string | null };
+  classSection: { classLevel: { name: string } | null } | null;
+}): NonNullable<CardCheck['student']> {
+  return {
+    name: student.user.firstName,
+    studentIdNumber: student.studentIdNumber,
+    level: student.classSection?.classLevel?.name ?? null,
+    photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+    status: student.status,
+  };
 }
 
 @Injectable()
@@ -315,7 +337,8 @@ export class ReportsService implements OnModuleDestroy {
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
-        photoUrl: student.user.photoUrl,
+        // Not where the family said No to the photo on cards (B6).
+        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
         class: classDisplayName(student.classSection),
         stage: classLevel.stage,
         trade: trade
@@ -542,7 +565,7 @@ export class ReportsService implements OnModuleDestroy {
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
-        photoUrl: student.user.photoUrl,
+        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
         stage: student.classSection.classLevel.stage,
         class: [
           student.classSection.classLevel.name,
@@ -793,7 +816,7 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         cardId: student.nfcCardId,
-        photoUrl: student.user.photoUrl,
+        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
         class: classDisplayName(student.classSection),
         qrData: student.nfcCardId || student.studentIdNumber, // QR encodes the card if issued
       },
@@ -1033,7 +1056,8 @@ export class ReportsService implements OnModuleDestroy {
         status: true,
         cardIssuedAt: true,
         cardSuspendedAt: true,
-        user: { select: { firstName: true, lastName: true, photoUrl: true } },
+        photoForId: true,
+        user: { select: { firstName: true, photoUrl: true } },
         classSection: { select: { classLevel: { select: { name: true } } } },
       },
     });
@@ -1054,13 +1078,7 @@ export class ReportsService implements OnModuleDestroy {
         reason:
           'This card is suspended. It was reported lost or withheld, and is not valid until the school restores it.',
         suspended: true,
-        student: {
-          name: `${student.user.firstName} ${student.user.lastName}`,
-          studentIdNumber: student.studentIdNumber,
-          level: student.classSection?.classLevel?.name ?? null,
-          photoUrl: student.user.photoUrl,
-          status: student.status,
-        },
+        student: seenAtTheGate(student),
         issuedAt: student.cardIssuedAt,
       };
     }
@@ -1079,13 +1097,7 @@ export class ReportsService implements OnModuleDestroy {
         // A suspension always has its last day.
         reason: `This student is suspended ${untilWords(pause.endsOn)}, and is not to be let in.`,
         suspended: true,
-        student: {
-          name: `${student.user.firstName} ${student.user.lastName}`,
-          studentIdNumber: student.studentIdNumber,
-          level: student.classSection?.classLevel?.name ?? null,
-          photoUrl: student.user.photoUrl,
-          status: student.status,
-        },
+        student: seenAtTheGate(student),
         issuedAt: student.cardIssuedAt,
       };
     }
@@ -1096,13 +1108,7 @@ export class ReportsService implements OnModuleDestroy {
         student.status === 'ACTIVE'
           ? null
           : `This student is no longer enrolled (${STANDING_LABEL[student.status].toLowerCase()}).`,
-      student: {
-        name: `${student.user.firstName} ${student.user.lastName}`,
-        studentIdNumber: student.studentIdNumber,
-        level: student.classSection?.classLevel?.name ?? null,
-        photoUrl: student.user.photoUrl,
-        status: student.status,
-      },
+      student: seenAtTheGate(student),
       issuedAt: student.cardIssuedAt,
     };
   }
@@ -1181,7 +1187,10 @@ export class ReportsService implements OnModuleDestroy {
       id: s.id,
       name: `${s.user.firstName} ${s.user.lastName}`,
       studentIdNumber: s.studentIdNumber,
-      photoUrl: s.user.photoUrl,
+      // The card prints without the photo where the family said No (B6).
+      photoUrl: photoOnCard(s.photoForId) ? s.user.photoUrl : null,
+      photoForId: s.photoForId,
+      hasPhoto: !!s.user.photoUrl,
       class: classDisplayName(s.classSection),
       level: s.classSection?.classLevel?.name ?? null,
       classSectionId: s.classSectionId,

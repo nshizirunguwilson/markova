@@ -61,6 +61,7 @@ describe('MessagingGateway', () => {
       sendMessage: jest.fn().mockResolvedValue({ id: 'msg-1' }),
       markAsRead: jest.fn().mockResolvedValue({ count: 0, readMessageIds: [] }),
       updateMessageStatus: jest.fn().mockResolvedValue({}),
+      withoutKeptPhotos: jest.fn((m: unknown) => Promise.resolve(m)),
     };
     jwt = { verify: jest.fn().mockReturnValue({ sub: 'user-1' }) };
 
@@ -621,6 +622,23 @@ describe('MessagingGateway', () => {
       await gateway.broadcastNewMessage('conv-1', { id: 'msg-1' });
       expect(to).toHaveBeenCalledWith(['user:user-1', 'user:user-2']);
       expect(emit).toHaveBeenCalledWith('newMessage', { id: 'msg-1' });
+    });
+
+    // The whole room gets one copy, classmates included (B6).
+    it('sends it without the photo of a sender kept out of the app', async () => {
+      messaging.getConversationParticipantIds.mockResolvedValue(['user-1']);
+      messaging.withoutKeptPhotos.mockResolvedValue({
+        id: 'msg-1',
+        sender: { id: 'student-1', photoUrl: null },
+      });
+      await gateway.broadcastNewMessage('conv-1', {
+        id: 'msg-1',
+        sender: { id: 'student-1', photoUrl: '/a.jpg' },
+      });
+      expect(emit).toHaveBeenCalledWith('newMessage', {
+        id: 'msg-1',
+        sender: { id: 'student-1', photoUrl: null },
+      });
     });
 
     it('pushes nowhere when a conversation has nobody in it', async () => {
