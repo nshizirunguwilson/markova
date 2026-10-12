@@ -442,6 +442,48 @@ describe('JourneyService', () => {
         service.parentPassedAway('parent-1', { on: '2026-10-10' }),
       ).rejects.toThrow(/already been recorded/);
     });
+
+    it('says when there is nobody of that id', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await expect(
+        service.parentPassedAway('nobody', { on: '2026-10-10' }),
+      ).rejects.toThrow(/User not found/);
+    });
+
+    it('tells nobody privately in a class with no class teacher', async () => {
+      prisma.user.findUnique.mockResolvedValue(mother([child('s1')]));
+      prisma.parentStudent.count.mockResolvedValue(1);
+      prisma.teacherRole.findFirst.mockResolvedValue(null);
+      await service.parentPassedAway('parent-1', { on: '2026-10-10' });
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('says parent where the relationship was never written down', async () => {
+      prisma.user.findUnique.mockResolvedValue(
+        mother([{ ...child('s1'), relationship: '' }]),
+      );
+      prisma.parentStudent.count.mockResolvedValue(1);
+      await service.parentPassedAway('parent-1', { on: '2026-10-10' });
+      expect(notified()[0].title).toBe(
+        "Keza Habimana's parent has passed away",
+      );
+    });
+  });
+
+  it('asks the shared rule whether a family may hear', async () => {
+    prisma.student.findUnique.mockResolvedValue(null);
+    expect(await service.familyMayHear('nobody', 'news')).toBe(false);
+  });
+
+  it('says what a student who has left cannot be marked', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      id: 's1',
+      status: 'GRADUATED',
+      user: { firstName: 'Keza', lastName: 'H' },
+    });
+    await expect(
+      service.pause('s1', 'AWAY', { from: '2026-10-12' } as never, 'u'),
+    ).rejects.toThrow(/cannot be marked away/);
   });
 
   describe('reading a journey', () => {

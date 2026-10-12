@@ -532,3 +532,50 @@ describe('marks held over unpaid fees', () => {
     });
   });
 });
+
+/** The Director of Studies' routes: the morning view, and standing behind cards. */
+describe('MarksController, the Director of Studies', () => {
+  const service = mockService(['confirmReportCards', 'publishReportCards']);
+  const dashboard = { overview: jest.fn().mockResolvedValue({ classes: [] }) };
+  let run: (c: RouteCase) => Promise<void>;
+
+  beforeEach(async () => {
+    clearMocks(service, dashboard);
+    run = await controllerHarness(
+      MarksController,
+      wiring({
+        service,
+        ownership: mockService(['verifyStudentAccess']),
+        feeGate: mockService(['assertReleased']),
+        dashboard,
+      }),
+    );
+  });
+
+  it('opens the morning view for a term', () =>
+    run({
+      name: 'overview',
+      call: (c) => c.headTeacherOverview('term-1'),
+      on: 'dashboard',
+      calls: 'overview',
+      withArgs: ['term-1'],
+    }));
+
+  it('confirms a class’s cards as the person confirming', () =>
+    run({
+      name: 'confirm',
+      call: (c) =>
+        c.confirmReportCards({ classSectionId: 'c1' }, { id: 'dos-1' }),
+      calls: 'confirmReportCards',
+      withArgs: [{ classSectionId: 'c1' }, 'dos-1'],
+    }));
+
+  it('issues or withdraws a class’s cards', () =>
+    run({
+      name: 'publish',
+      call: (c) =>
+        c.publishReportCards({ classSectionId: 'c1', publish: true }),
+      calls: 'publishReportCards',
+      withArgs: [{ classSectionId: 'c1', publish: true }],
+    }));
+});

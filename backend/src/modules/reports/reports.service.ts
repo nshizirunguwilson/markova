@@ -338,7 +338,9 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         // Not where the family said No to the photo on cards (B6).
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         class: classDisplayName(student.classSection),
         stage: classLevel.stage,
         trade: trade
@@ -565,7 +567,9 @@ export class ReportsService implements OnModuleDestroy {
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         stage: student.classSection.classLevel.stage,
         class: [
           student.classSection.classLevel.name,
@@ -816,7 +820,9 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         cardId: student.nfcCardId,
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         class: classDisplayName(student.classSection),
         qrData: student.nfcCardId || student.studentIdNumber, // QR encodes the card if issued
       },

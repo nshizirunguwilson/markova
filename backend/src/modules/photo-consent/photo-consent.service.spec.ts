@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PhotoConsentService } from './photo-consent.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 
@@ -40,7 +44,11 @@ describe('PhotoConsentService', () => {
   describe('reading the answers', () => {
     it('shows a parent their child’s answers, and lets them answer', async () => {
       const r = await service.forStudent('s1', { id: 'p1', role: 'PARENT' });
-      expect(ownership.verifyStudentAccess).toHaveBeenCalledWith('p1', 'PARENT', 's1');
+      expect(ownership.verifyStudentAccess).toHaveBeenCalledWith(
+        'p1',
+        'PARENT',
+        's1',
+      );
       expect(r).toMatchObject({
         forId: 'NOT_ASKED',
         answeredBy: 'FAMILY',
@@ -50,9 +58,15 @@ describe('PhotoConsentService', () => {
 
     it('hands the answer to the student from 18, not the parent', async () => {
       prisma.student.findUnique.mockResolvedValue(student(adult));
-      const parent = await service.forStudent('s1', { id: 'p1', role: 'PARENT' });
+      const parent = await service.forStudent('s1', {
+        id: 'p1',
+        role: 'PARENT',
+      });
       expect(parent).toMatchObject({ answeredBy: 'STUDENT', mayAnswer: false });
-      const self = await service.forStudent('s1', { id: 'u1', role: 'STUDENT' });
+      const self = await service.forStudent('s1', {
+        id: 'u1',
+        role: 'STUDENT',
+      });
       expect(self.mayAnswer).toBe(true);
     });
 
@@ -112,11 +126,14 @@ describe('PhotoConsentService', () => {
 
     it('lets a student of 18 answer for themselves', async () => {
       prisma.student.findUnique.mockResolvedValue(student(adult));
-      prisma.user.findUnique.mockResolvedValue({ firstName: 'Keza', lastName: 'Uwase' });
+      prisma.user.findUnique.mockResolvedValue({
+        firstName: 'Keza',
+        lastName: 'Uwase',
+      });
       await service.answer('s1', yes, { id: 'u1', role: 'STUDENT' });
-      expect(prisma.photoConsentRecord.create.mock.calls[0][0].data.answeredBy).toBe(
-        'Keza Uwase (the student)',
-      );
+      expect(
+        prisma.photoConsentRecord.create.mock.calls[0][0].data.answeredBy,
+      ).toBe('Keza Uwase (the student)');
     });
 
     it('refuses a student under 18', async () => {
@@ -131,7 +148,9 @@ describe('PhotoConsentService', () => {
         { ...yes, answeredBy: '  Marie Mukamana (mother) ' },
         { id: 'a', role: 'ADMIN' },
       );
-      expect(prisma.photoConsentRecord.create.mock.calls[0][0].data).toMatchObject({
+      expect(
+        prisma.photoConsentRecord.create.mock.calls[0][0].data,
+      ).toMatchObject({
         how: 'PAPER_FORM',
         answeredBy: 'Marie Mukamana (mother)',
         recordedByUserId: 'a',
@@ -154,7 +173,11 @@ describe('PhotoConsentService', () => {
       photoInApp: 'YES',
       photoPublicity: 'YES',
       user: { firstName: name, lastName: 'X', photoUrl: '/p.jpg' },
-      classSection: { name: cls, classLevel: { name: 'Senior 1' }, trade: null },
+      classSection: {
+        name: cls,
+        classLevel: { name: 'Senior 1' },
+        trade: null,
+      },
       ...over,
     });
 
@@ -162,7 +185,11 @@ describe('PhotoConsentService', () => {
       prisma.student.findMany.mockResolvedValue([
         row('Eric', 'B', {}),
         row('Aline', 'A', { photoPublicity: 'NOT_ASKED' }),
-        row('Keza', 'A', { photoInApp: 'NO', photoForId: 'NO', photoPublicity: 'NO' }),
+        row('Keza', 'A', {
+          photoInApp: 'NO',
+          photoForId: 'NO',
+          photoPublicity: 'NO',
+        }),
       ]);
       const r = await service.register();
       expect(r.counts).toEqual({
@@ -172,14 +199,53 @@ describe('PhotoConsentService', () => {
         notInApp: 1,
         notOnCard: 1,
       });
-      expect(r.students.map((s) => s.name)).toEqual(['Aline X', 'Keza X', 'Eric X']);
-      expect(r.students[0]).toMatchObject({ hasPhoto: true, publicity: 'NOT_ASKED' });
+      expect(r.students.map((s) => s.name)).toEqual([
+        'Aline X',
+        'Keza X',
+        'Eric X',
+      ]);
+      expect(r.students[0]).toMatchObject({
+        hasPhoto: true,
+        publicity: 'NOT_ASKED',
+      });
     });
 
     it('lists only students on the roll', async () => {
       prisma.student.findMany.mockResolvedValue([]);
       await service.register();
-      expect(prisma.student.findMany.mock.calls[0][0].where).toEqual({ status: 'ACTIVE' });
+      expect(prisma.student.findMany.mock.calls[0][0].where).toEqual({
+        status: 'ACTIVE',
+      });
     });
+  });
+
+  it('lets nobody else answer, nor see the form', async () => {
+    const r = await service.forStudent('s1', { id: 't', role: 'TEACHER' });
+    expect(r.mayAnswer).toBe(false);
+  });
+
+  it('records a parent by role even when their name cannot be read', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await service.answer(
+      's1',
+      { forId: 'YES', inApp: 'YES', publicity: 'YES' },
+      { id: 'p1', role: 'PARENT' },
+    );
+    expect(
+      prisma.photoConsentRecord.create.mock.calls[0][0].data.answeredBy,
+    ).toBe('A parent');
+  });
+
+  it('says the student when an adult student’s name cannot be read', async () => {
+    prisma.student.findUnique.mockResolvedValue(student(adult));
+    prisma.user.findUnique.mockResolvedValue({ firstName: '', lastName: null });
+    await service.answer(
+      's1',
+      { forId: 'YES', inApp: 'YES', publicity: 'YES' },
+      { id: 'u1', role: 'STUDENT' },
+    );
+    expect(
+      prisma.photoConsentRecord.create.mock.calls[0][0].data.answeredBy,
+    ).toBe('The student');
   });
 });

@@ -38,7 +38,9 @@ export class PhotoConsentController {
 
   @Put('students/:id/photo-consent')
   @Roles('ADMIN', 'PARENT', 'STUDENT')
-  @ApiOperation({ summary: "Answer the three questions about a student's photo" })
+  @ApiOperation({
+    summary: "Answer the three questions about a student's photo",
+  })
   answer(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: PhotoConsentDto,

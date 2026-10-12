@@ -104,11 +104,16 @@ describe('report card data', () => {
     // The report card is the second place the card answer covers (B6).
     it('prints the photo unless the family said No to it on cards', async () => {
       expect(
-        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+        (await service.getTermReportData('student-1', 'term-1')).student
+          .photoUrl,
       ).toBe('/p.jpg');
-      prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+      prisma.student.findUnique.mockResolvedValue({
+        ...student,
+        photoForId: 'NO',
+      });
       expect(
-        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+        (await service.getTermReportData('student-1', 'term-1')).student
+          .photoUrl,
       ).toBeNull();
     });
 
@@ -553,7 +558,10 @@ describe('ID card data', () => {
   });
 
   it('carries no face where the family said No to the photo on cards', async () => {
-    prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+    prisma.student.findUnique.mockResolvedValue({
+      ...student,
+      photoForId: 'NO',
+    });
     const data = await service.generateIdCardData('student-1');
     expect(data.student.photoUrl).toBeNull();
   });

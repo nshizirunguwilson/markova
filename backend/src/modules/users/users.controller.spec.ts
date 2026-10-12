@@ -436,3 +436,98 @@ describe('UsersController and the welfare staff', () => {
     );
   });
 });
+
+/** The routes added with many schools, safeguarding and an adult child. */
+describe('UsersController, logins, leads and a parent’s own record', () => {
+  const service = mockService(['findOne', 'resetLogin', 'setSafeguardingLead']);
+  let run: (c: RouteCase) => Promise<void>;
+
+  beforeEach(async () => {
+    clearMocks(service);
+    run = await controllerHarness(UsersController, [
+      { token: UsersService, name: 'service', mock: service },
+    ]);
+  });
+
+  it('resets a login', () =>
+    run({
+      name: 'reset',
+      call: (c) => c.resetLogin('u-9', { email: 'a@markova.edu' }),
+      calls: 'resetLogin',
+      withArgs: ['u-9', { email: 'a@markova.edu' }],
+    }));
+
+  it('names a safeguarding lead, or stops them being one', () =>
+    run({
+      name: 'lead',
+      call: (c) => c.setSafeguardingLead('u-9', { lead: true }),
+      calls: 'setSafeguardingLead',
+      withArgs: ['u-9', true],
+    }));
+
+  /* A8: what an adult child keeps private is left out of the parent's own
+     record, and nothing else is. */
+  it('gives a parent their children without what an adult child keeps private', async () => {
+    const born = new Date();
+    born.setUTCFullYear(born.getUTCFullYear() - 20);
+    service.findOne.mockResolvedValue({
+      id: parent.id,
+      parentStudents: [
+        {
+          student: {
+            id: 'adult',
+            dateOfBirth: born,
+            sharesHealth: false,
+            sharesConduct: false,
+            sharesResults: true,
+            allergies: 'Peanuts',
+            bloodType: 'O+',
+            disciplinePoints: 80,
+          },
+        },
+        {
+          student: {
+            id: 'child',
+            dateOfBirth: new Date('2014-01-01'),
+            sharesHealth: false,
+            sharesConduct: false,
+            allergies: 'Dust',
+            disciplinePoints: 95,
+          },
+        },
+        { student: null },
+      ],
+    });
+    let reply: any;
+    await run({
+      name: 'own',
+      call: async (c) => (reply = await c.findOne(parent.id, parent)),
+      calls: 'findOne',
+    });
+    const [adult, child, none] = reply.parentStudents.map(
+      (l: any) => l.student,
+    );
+    expect(adult).toMatchObject({
+      allergies: null,
+      bloodType: null,
+      healthKeptPrivate: true,
+      disciplinePoints: null,
+      conductKeptPrivate: true,
+    });
+    // Under 18 nothing is kept from the family, whatever the switches say.
+    expect(child).toMatchObject({ allergies: 'Dust', disciplinePoints: 95 });
+    expect(child.healthKeptPrivate).toBeUndefined();
+    expect(none).toBeNull();
+  });
+
+  it('hands anybody else their own record untouched', async () => {
+    service.findOne.mockResolvedValue({ id: admin.id, role: 'ADMIN' });
+    let reply: any;
+    await run({
+      name: 'own',
+      call: async (c) => (reply = await c.findOne(admin.id, admin)),
+      calls: 'findOne',
+    });
+    expect(reply).toEqual({ id: admin.id, role: 'ADMIN' });
+  });
+});

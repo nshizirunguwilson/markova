@@ -389,6 +389,30 @@ describe('AdmissionsService', () => {
       ).rejects.toThrow(/expire in the past/i);
     });
 
+    it('refuses a class that does not exist', async () => {
+      prisma.classSection.findUnique.mockResolvedValue(null);
+      await expect(
+        service.makeOffer('app-1', offerDto, 'admin-1'),
+      ).rejects.toThrow(/class does not exist/);
+    });
+
+    it('refuses an expiry it cannot read', async () => {
+      await expect(
+        service.makeOffer(
+          'app-1',
+          { classSectionId: 'section-1', expiresAt: 'soon' },
+          'admin-1',
+        ),
+      ).rejects.toThrow(/cannot be read/);
+    });
+
+    it('refuses when the intake itself has gone', async () => {
+      prisma.admissionIntake.findUnique.mockResolvedValue(null);
+      await expect(
+        service.makeOffer('app-1', offerDto, 'admin-1'),
+      ).rejects.toThrow(/Intake not found/);
+    });
+
     it('takes the boarding choice from the family when none is given', async () => {
       await service.makeOffer('app-1', offerDto, 'admin-1');
       expect(prisma.admissionOffer.create).toHaveBeenCalledWith(
@@ -964,10 +988,19 @@ describe('AdmissionsService', () => {
         row({ status: 'SUBMITTED' }),
         row({ status: 'UNDER_REVIEW' }),
         row({ status: 'INFO_REQUESTED' }),
+        row({ status: 'WAITLISTED' }),
+        row({ status: 'OFFERED' }),
+        row({ status: 'ACCEPTED' }),
         row({ status: 'REJECTED' }),
       ]);
       const result = await service.queue({});
-      expect(result.buckets).toEqual({ TO_DECIDE: 2, WAITING: 1, DECIDED: 1 });
+      expect(result.buckets).toEqual({
+        TO_DECIDE: 2,
+        WAITING: 1,
+        WAITLISTED: 1,
+        OFFERED: 2,
+        DECIDED: 1,
+      });
     });
 
     it('narrows to one pile when asked', async () => {
@@ -1025,6 +1058,13 @@ describe('AdmissionsService', () => {
       expect(result.duplicates.alreadyStudent).toMatchObject({
         studentIdNumber: 'STD-2025-0001',
       });
+    });
+
+    it('says when there is no such application', async () => {
+      prisma.application.findUnique.mockResolvedValue(null);
+      await expect(service.one('nope')).rejects.toThrow(
+        /Application not found/,
+      );
     });
   });
 
@@ -1091,6 +1131,41 @@ describe('AdmissionsService', () => {
           closesAt: '2026-08-01',
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    const round = {
+      academicYearId: 'y',
+      classLevelId: 'l',
+      entryPoint: 'SENIOR_ONE',
+      name: '  Senior 1, 2027 ',
+      places: 40,
+      opensAt: '2026-06-01',
+      closesAt: '2026-08-01',
+    };
+
+    it('refuses dates it cannot read', async () => {
+      await expect(
+        service.saveIntake({ ...round, opensAt: 'June' }),
+      ).rejects.toThrow(/cannot be read/);
+    });
+
+    it('opens a new round, open unless told otherwise, name trimmed', async () => {
+      await service.saveIntake(round);
+      expect(prisma.admissionIntake.create.mock.calls[0][0].data).toMatchObject(
+        {
+          name: 'Senior 1, 2027',
+          isOpen: true,
+        },
+      );
+    });
+
+    it('changes a round that exists', async () => {
+      prisma.admissionIntake.findUnique.mockResolvedValue({ id: 'i1' });
+      await service.saveIntake({ ...round, id: 'i1', isOpen: false });
+      expect(prisma.admissionIntake.update).toHaveBeenCalledWith({
+        where: { id: 'i1' },
+        data: expect.objectContaining({ isOpen: false }),
+      });
     });
   });
 
