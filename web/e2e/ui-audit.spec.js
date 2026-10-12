@@ -3045,10 +3045,20 @@ test('support: the Director of Studies changes a plan, and it shows', async (bro
 
 
 /**
- * A student's photo (B6). The seed has Andy Cyizere, in student1's class,
- * whose family said No to the app, and Audrey Amani, whose family said No to
+ * A student's photo (B6). The seed has one of student1's classmates whose
+ * family said No to the app, and another student whose family said No to
  * the photo on cards. Found through the API, not hard-coded ids.
  */
+/** The students whose family said No, from the office's own list. */
+async function saidNo(page) {
+  const list = await apiAs(page, 'ADMIN', '/photo-consent/register');
+  const rows = list?.students ?? [];
+  return {
+    toApp: rows.filter((r) => r.inApp === 'NO' && r.hasPhoto),
+    toCard: rows.filter((r) => r.forId === 'NO' && r.hasPhoto),
+  };
+}
+
 async function findStudentUser(page, name) {
   const found = await apiAs(page, 'ADMIN', `/users?role=STUDENT&search=${encodeURIComponent(name)}&limit=5`);
   return (found?.data ?? []).find((u) => `${u.firstName} ${u.lastName}` === name) ?? null;
@@ -3063,29 +3073,41 @@ test('photos: a classmate whose family said No shows as initials in the chat', a
     if (r.url().includes('/messaging/')) bodies.push(await r.text().catch(() => ''));
   });
   await visit(page, '/student/messages');
-  const andy = await findStudentUser(page, 'Andy Cyizere');
-  assert(andy?.photoUrl, 'the seed has no photo for Andy Cyizere');
-  const photoFile = andy.photoUrl.split('/').pop();
+  // The seed makes one of student1's classmates say No to the app; which one
+  // changes with every seed, so ask.
+  const me = await apiAs(page, 'STUDENT', '/auth/profile');
+  const register = await apiAs(page, 'ADMIN', '/photo-consent/register');
+  const mine = (register?.students ?? []).find((r) => r.userId === me.id);
+  const { toApp } = await saidNo(page);
+  const mate = toApp.find((r) => r.class === mine?.class && r.userId !== me.id);
+  assert(mate, 'the seed has nobody who said No to the app');
+  const classmate = await findStudentUser(page, mate.name);
+  assert(classmate?.photoUrl, `the seed has no photo for ${mate.name}`);
+  const photoFile = classmate.photoUrl.split('/').pop();
 
   // The conversation they share, and open it.
   const conversations = (await apiAs(page, 'STUDENT', '/messaging/conversations')) ?? [];
   const shared = conversations.find((c) =>
-    (c.participants ?? []).some((p) => (p.user?.id ?? p.userId) === andy.id),
+    (c.participants ?? []).some((p) => (p.user?.id ?? p.userId) === classmate.id),
   );
-  assert(shared, 'student1 shares no conversation with Andy Cyizere');
+  assert(shared, `student1 shares no conversation with ${mate.name}`);
   await page.getByText(shared.name, { exact: false }).first().click();
   await wait(2500);
 
   assert(bodies.length > 0, 'the messages page made no calls to watch');
   assert(
     bodies.every((b) => !b.includes(photoFile)),
-    "Andy's photo reached student1's browser",
+    "The classmate's photo reached student1's browser",
   );
   const shown = await page.$$eval('img', (imgs) => imgs.map((i) => i.getAttribute('src') ?? ''));
-  assert(!shown.some((src) => src.includes(photoFile)), "Andy's photo is on student1's screen");
+  assert(!shown.some((src) => src.includes(photoFile)), "The classmate's photo is on student1's screen");
 
   // The staff still see it.
-  const staff = await apiAs(page, 'ADMIN', `/messaging/contacts?search=Andy`);
+  const staff = await apiAs(
+    page,
+    'ADMIN',
+    `/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`,
+  );
   assert(JSON.stringify(staff ?? '').includes(photoFile), 'the staff lost the photo too');
   await ctx.close();
 });
@@ -3096,15 +3118,17 @@ test('photos: the office lists who said No, and a card without a photo says so a
   await visit(page, '/admin/photo-consent');
   const list = page.getByRole('list', { name: 'Photo answers' });
   await list.waitFor({ timeout: 30000 });
+  const { toApp, toCard } = await saidNo(page);
+  assert(toApp.length && toCard.length, 'the seed has nobody who said No');
   await page.selectOption('#consent-view', 'not-app');
-  await page.getByText('Andy Cyizere').first().waitFor({ timeout: 10000 });
+  await page.getByText(toApp[0].name).first().waitFor({ timeout: 10000 });
   await page.selectOption('#consent-view', 'not-card');
-  await page.getByText('Audrey Amani').first().waitFor({ timeout: 10000 });
+  await page.getByText(toCard[0].name).first().waitFor({ timeout: 10000 });
 
-  // Issue Audrey a card, check it as a stranger at the gate, then take it back.
-  const audrey = await findStudentUser(page, 'Audrey Amani');
-  const studentId = audrey?.student?.id;
-  assert(studentId, 'the seed has no Audrey Amani');
+  // Issue them a card, check it as a stranger at the gate, then take it back.
+  const studentId = toCard[0].studentId;
+  const [first, ...rest] = toCard[0].name.split(' ');
+  const last = rest.join(' ');
   const issued = await apiAs(page, 'ADMIN', '/reports/id-cards/issue', {
     method: 'POST',
     body: JSON.stringify({ studentId }),
@@ -3115,9 +3139,9 @@ test('photos: the office lists who said No, and a card without a photo says so a
     await gate.goto(`${WEB}/verify/card/${issued.cardCode}`, { waitUntil: 'domcontentloaded' });
     await gate.getByText(/This card carries no photo/).waitFor({ timeout: 20000 });
     const body = await gate.innerText('body');
-    assert(body.includes('Audrey'), 'the gate does not name her');
-    assert(!body.includes('Amani'), 'the gate shows a stranger her family name');
-    assert((await gate.locator('img[alt^="Photo of"]').count()) === 0, 'the gate shows her photo');
+    assert(body.includes(first), 'the gate does not name them');
+    assert(!body.includes(last), 'the gate shows a stranger their family name');
+    assert((await gate.locator('img[alt^="Photo of"]').count()) === 0, 'the gate shows their photo');
     await gate.context().close();
   } finally {
     await apiAs(page, 'ADMIN', '/reports/id-cards/revoke', {
