@@ -55,7 +55,7 @@ const ROUTES = {
     '/admin/pocket-money', '/admin/health', '/admin/activities', '/admin/settings',
     '/admin/help', '/admin/onboarding', '/admin/profile',
     '/admin/admissions', '/admin/admissions/intakes', '/admin/report-cards',
-    '/grading'],
+    '/admin/support', '/grading'],
   TEACHER: ['/teacher', '/teacher/marks', '/teacher/homework', '/teacher/attendance',
     '/teacher/discipline', '/teacher/messages', '/teacher/announcements',
     '/teacher/activities',
@@ -76,14 +76,14 @@ const ROUTES = {
   // The head teacher runs the academic side and nothing else.
   HEAD_TEACHER: ['/head-teacher', '/admin/report-cards', '/admin/marks', '/admin/reports',
     '/admin/classes',
-    '/admin/timetable', '/admin/teachers', '/admin/attendance', '/grading',
+    '/admin/timetable', '/admin/teachers', '/admin/attendance', '/admin/support', '/grading',
     '/profile', '/messages', '/help'],
   // The boarding staff and the nurse: their own dashboards, plus the welfare
   // pages under /admin the shell lets them through to.
   PATRON: ['/boarding', '/admin/pocket-money', '/admin/health', '/admin/activities',
     '/messages', '/help'],
   MATRON: ['/boarding', '/admin/pocket-money', '/admin/health', '/messages', '/help'],
-  NURSE: ['/nurse', '/admin/health', '/messages', '/help'],
+  NURSE: ['/nurse', '/admin/health', '/admin/support', '/messages', '/help'],
 };
 
 /* Reached without an account at all: a family applying, and a family

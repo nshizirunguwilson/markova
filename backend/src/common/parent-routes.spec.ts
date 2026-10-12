@@ -88,6 +88,8 @@ const PARENT_ROUTES: Record<string, Line> = {
   'GET /analytics/student/:studentId': results,
   'GET /analytics/parent/child/:studentId/trends': results,
   'GET /reports/term/:studentId': { kind: 'results', proof: 'assertMayRead' },
+  // The family's own child's support plan, held to 'health' in the service.
+  'GET /students/:id/support-plan': { kind: 'health', proof: 'forStudent' },
   'GET /reports/term/:studentId/html': {
     kind: 'results',
     proof: 'assertMayRead',

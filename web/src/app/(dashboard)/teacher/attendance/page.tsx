@@ -8,6 +8,8 @@ import { pauseWords } from "@/lib/standing";
 import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExamHelp } from "@/components/support/exam-help";
+import { useClassSupport } from "@/hooks/use-support";
 
 type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 
@@ -33,6 +35,9 @@ export default function TeacherAttendancePage() {
   // explicit choice wins, otherwise fall back to the server default.
   const selectedSection = selectedSectionChoice || sections?.[0]?.id || "";
   const { data: classData, isLoading } = useClassAttendance(selectedSection, date);
+  /* Who has exam arrangements, by student: what to do, never why (B7). */
+  const { data: supported } = useClassSupport(selectedSection);
+  const examHelp = new Map((supported ?? []).map((s) => [s.studentId, s.arrangements]));
   const bulkAttendance = useBulkAttendance();
   const qrScan = useQrScan();
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -237,7 +242,10 @@ export default function TeacherAttendancePage() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted w-6">{i + 1}</span>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{s.name}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {s.name}
+                        <ExamHelp arrangements={examHelp.get(s.studentId)} />
+                      </p>
                       <p className="text-xs text-muted font-mono">{s.studentIdNumber}</p>
                     </div>
                   </div>

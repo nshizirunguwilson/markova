@@ -150,7 +150,7 @@ describe("the roles that share pages under /admin", () => {
     /* The patron and the matron share one menu: the same job on opposite
        sides of the school. */
     ["MATRON", ["/admin/pocket-money", "/admin/health", "/admin/activities"]],
-    ["NURSE", ["/admin/health"]],
+    ["NURSE", ["/admin/health", "/admin/support"]],
     [
       "HEAD_TEACHER",
       [
@@ -162,6 +162,7 @@ describe("the roles that share pages under /admin", () => {
         /* The exam timetable, for the same reason as the lesson one: the DOS
            sets it and the principal reads it. */
         "/admin/exams",
+        "/admin/support",
         "/admin/teachers",
         "/admin/attendance",
       ],

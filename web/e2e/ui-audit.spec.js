@@ -2918,6 +2918,131 @@ test('dos: the marks page speaks to the person reading it', async (browser) => {
 });
 
 
+
+/**
+ * Exam arrangements (B7). The seed turns the disabilities written at
+ * enrolment into support plans; these checks find them through the API rather
+ * than naming a student, so a reseed cannot break them.
+ */
+async function apiAs(page, role, path, init = {}) {
+  const { accessToken } = await getTokens(role);
+  return page.evaluate(
+    async ([url, token, init]) => {
+      const r = await fetch(url, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+      return r.ok ? r.json() : null;
+    },
+    [`${API}${path}`, accessToken, init],
+  );
+}
+
+test('support: the exam sheet lists who needs what, with the extra minutes', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/admin/exams');
+  const exams = (await apiAs(page, 'HEAD_TEACHER', '/academic/exams')) ?? [];
+  let found = null;
+  for (const e of exams.slice(0, 80)) {
+    const sheet = await apiAs(page, 'HEAD_TEACHER', `/support/exams/${e.id}/sheet`);
+    const timed = sheet?.students.find((s) => s.extraMinutes > 0);
+    if (timed) {
+      found = { id: e.id, student: timed };
+      break;
+    }
+  }
+  assert(found, 'no exam on the timetable has a student with extra time');
+
+  await visit(page, `/admin/exams/${found.id}/arrangements`);
+  const sheet = page.getByTestId('exam-sheet');
+  await sheet.waitFor({ timeout: 30000 });
+  const text = await sheet.innerText();
+  assert(text.includes(found.student.name), 'the sheet does not name the student');
+  assert(
+    text.includes(`${found.student.extraMinutes}`),
+    'the sheet does not give the extra minutes',
+  );
+  assert(
+    await page.getByRole('button', { name: /Print/ }).isVisible(),
+    'the sheet has no Print button',
+  );
+  await ctx.close();
+});
+
+test('support: a teacher sees what to do on the register, never why', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'TEACHER');
+  await visit(page, '/teacher/attendance');
+  const sections = (await apiAs(page, 'TEACHER', '/academic/sections')) ?? [];
+  let where = null;
+  for (const s of sections) {
+    const list = await apiAs(page, 'TEACHER', `/support/class/${s.id}`);
+    if (list?.length) {
+      where = { section: s.id, level: s.classLevelId, row: list[0] };
+      break;
+    }
+  }
+  assert(where, 'Aline teaches no class with a support plan');
+
+  await page.selectOption('#f-class-level', where.level);
+  await page.selectOption('#f-section', where.section);
+  const help = page.getByTestId('exam-help').first();
+  await help.waitFor({ timeout: 20000 });
+  const text = await help.innerText();
+  assert(
+    text.includes(where.row.arrangements[0]),
+    `the register says "${text}", not what to do`,
+  );
+  const body = await page.innerText('body');
+  assert(
+    !/Seeing|Hearing|Learning|vision|impairment/i.test(text) && !/Needs/.test(body),
+    'the teacher is shown the need, not only what to do',
+  );
+  await ctx.close();
+});
+
+test('support: the Director of Studies changes a plan, and it shows', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'HEAD_TEACHER');
+  await visit(page, '/admin/support');
+  const list = page.getByRole('list', { name: 'Support plans' });
+  await list.waitFor({ timeout: 30000 });
+  const register = await apiAs(page, 'HEAD_TEACHER', '/support/register');
+  const first = register[0];
+  const before = (await apiAs(page, 'HEAD_TEACHER', `/students/${first.studentId}/support-plan`)).plan;
+  const agreed = `The family, ${Date.now()}`;
+  try {
+    await list.getByRole('button').filter({ hasText: first.name }).first().click();
+    await page.getByRole('button', { name: 'Change the plan' }).click();
+    const field = page.getByLabel('Agreed with');
+    await field.waitFor({ timeout: 10000 });
+    await field.fill(agreed);
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText(`Agreed with ${agreed}`).waitFor({ timeout: 15000 });
+  } finally {
+    // As the seed left it.
+    await apiAs(page, 'HEAD_TEACHER', `/students/${first.studentId}/support-plan`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        needs: before.needs,
+        arrangements: before.arrangementCodes,
+        ...(before.extraTimePercent && { extraTimePercent: before.extraTimePercent }),
+        ...(before.otherArrangement && { otherArrangement: before.otherArrangement }),
+        ...(before.needNote && { needNote: before.needNote }),
+        ...(before.reviewOn && { reviewOn: before.reviewOn.slice(0, 10) }),
+        ...(before.agreedWith && { agreedWith: before.agreedWith }),
+      }),
+    });
+  }
+  const after = (await apiAs(page, 'HEAD_TEACHER', `/students/${first.studentId}/support-plan`)).plan;
+  assert(after.agreedWith === before.agreedWith, 'the plan was not put back as it was');
+  await ctx.close();
+});
+
 (async () => {
   const only = process.argv[2]; // optional substring filter
   const browser = await chromium.launch({ headless: true });

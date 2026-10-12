@@ -16,6 +16,7 @@ import {
 import { HeartPulse, Phone, Pill } from "lucide-react";
 import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
 import { keptPrivate } from "@/lib/kept-private";
+import { SupportPlanCard } from "@/components/support/support-plan-card";
 
 const OUTCOMES: Record<ClinicOutcome, string> = {
   RETURNED_TO_CLASS: "Went back to class",
@@ -100,6 +101,14 @@ export default function ParentHealthPage() {
         <KeptPrivateNotice message={kept} />
       ) : (
         <>
+          {/* What the school does for them in exams, when they have a plan. */}
+          {childId && (
+            <SupportPlanCard
+              studentId={childId}
+              name={children?.find((c) => c.id === childId)?.name ?? "your child"}
+              hideWhenEmpty
+            />
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card padding="sm" className="border-danger/40 bg-danger/5">
               {/* `text-muted` on this tint is 4.49:1 - one hundredth under AA.

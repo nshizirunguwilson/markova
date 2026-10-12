@@ -408,6 +408,21 @@ describe("the roster", () => {
     expect(document.body.textContent).toContain("Keza");
   }, 20000);
 
+  // What to do for a student with a support plan, beside their name (B7).
+  it("marks a student with exam arrangements", async () => {
+    const first = (routes as any)["/attendance/class-students"]?.[0]?.id ?? "student-1";
+    serve(h.api, {
+      ...routes,
+      "/support/class/": [
+        { studentId: first, name: "x", studentIdNumber: "x", arrangements: ["A reader"] },
+      ],
+    });
+    await withRoster();
+    await waitFor(() =>
+      expect(document.querySelector('[data-testid="exam-help"]')?.textContent).toContain("A reader"),
+    );
+  }, 20000);
+
   // A mark already recorded has to appear, or a teacher re-enters the lot.
   it("shows the marks already on file", async () => {
     await withRoster();

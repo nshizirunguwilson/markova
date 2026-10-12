@@ -27,6 +27,8 @@ import {
   WaiverKind,
   PauseKind,
   JourneyStep,
+  SupportNeed,
+  SupportArrangement,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK, YEAR_CONDUCT_MARK } from '../src/common/conduct';
@@ -3289,6 +3291,83 @@ async function main() {
         });
       }
     }
+  }
+
+  // ─── SUPPORT PLANS (exam arrangements for special needs) ────────────────────
+  //
+  // Every student whose enrolment recorded a disability has a plan the
+  // Director of Studies keeps (B7): what they need, and what is done for them
+  // in exams. One of them is in a class the demo teacher, Aline, teaches, so
+  // her class list and her exam sheets show it.
+  {
+    const PLANS: Record<string, any> = {
+      'Visual impairment': {
+        needs: [SupportNeed.SEEING],
+        arrangements: [SupportArrangement.EXTRA_TIME, SupportArrangement.LARGE_PRINT, SupportArrangement.NEAR_THE_FRONT],
+        extraTimePercent: 25,
+      },
+      'Low vision': {
+        needs: [SupportNeed.SEEING],
+        arrangements: [SupportArrangement.LARGE_PRINT, SupportArrangement.NEAR_THE_FRONT],
+      },
+      'Hearing impairment': {
+        needs: [SupportNeed.HEARING],
+        arrangements: [SupportArrangement.NEAR_THE_FRONT],
+        otherArrangement: 'Instructions written down, not only read aloud',
+      },
+      'Physical disability': {
+        needs: [SupportNeed.MOVING],
+        arrangements: [SupportArrangement.EXTRA_TIME, SupportArrangement.USE_A_COMPUTER],
+        extraTimePercent: 25,
+        otherArrangement: 'A ground-floor room',
+      },
+      'Learning difficulty': {
+        needs: [SupportNeed.LEARNING],
+        arrangements: [SupportArrangement.EXTRA_TIME, SupportArrangement.READER, SupportArrangement.REST_BREAKS],
+        extraTimePercent: 25,
+      },
+    };
+    const reviewOn = allYears[2].year.endDate;
+    const plan = (studentId: string, kind: string) =>
+      prisma.supportPlan.create({
+        data: {
+          studentId,
+          ...PLANS[kind],
+          needNote: `${kind}, recorded at enrolment.`,
+          reviewOn,
+          agreedWith: 'The family and the class teacher',
+          updatedByUserId: headTeacherUser?.id ?? admin.id,
+        },
+      });
+    const recorded = await prisma.student.findMany({
+      where: { schoolId, status: StudentStatus.ACTIVE, disability: { in: Object.keys(PLANS) } },
+      select: { id: true, disability: true },
+    });
+    for (const r of recorded) await plan(r.id, r.disability!);
+
+    const aline = await prisma.teacher.findFirst({
+      where: { schoolId, user: { account: { email: 'aline.uwase@markova.edu' } } },
+      select: { id: true },
+    });
+    const hers = aline
+      ? await prisma.teacherSubjectClass.findFirst({
+          where: { teacherId: aline.id },
+          select: { classSectionId: true },
+        })
+      : null;
+    if (hers) {
+      const already = await prisma.supportPlan.count({
+        where: { student: { classSectionId: hers.classSectionId, status: StudentStatus.ACTIVE } },
+      });
+      if (already === 0) {
+        const someone = await prisma.student.findFirst({
+          where: { classSectionId: hers.classSectionId, status: StudentStatus.ACTIVE, pauses: { none: {} } },
+          select: { id: true },
+        });
+        if (someone) await plan(someone.id, 'Learning difficulty');
+      }
+    }
+    console.log(`  ✅ ${await prisma.supportPlan.count({ where: { schoolId } })} support plans seeded`);
   }
 
   // ─── LIBRARY (REB textbooks, trade shelves, African literature) ─────────────

@@ -63,7 +63,7 @@ A list written at a desk will still miss things. Four habits catch the rest:
 | B4 | A member of staff privately messages a student | **Done, 11 October 2026.** Every chat between staff and a student now also holds somebody watching over it: the school's safeguarding leads, or the principal where none is named. Everyone in the chat is told who. See [below](#b4-no-child-alone-in-a-chat) | Done |
 | B5 | Students share computers in the school lab | **Done, 11 October 2026.** A student's sign in lasts only until the browser closes, and ends after 10 minutes without use (staff tick "shared computer" for the same). Signing out now ends the session on the server too. See [below](#b5-shared-computers) | Done |
 | B6 | A student's photo is used on ID cards and in the app | No record of whether the family agreed | Near work |
-| B7 | A student with a disability needs extra exam time or a reader | Not recorded anywhere | Near work |
+| B7 | A student with a disability needs extra exam time or a reader | **Done, 12 October 2026.** Each student with special needs can have a support plan: the need, and what to do in tests and exams. Teachers see only what to do, for their own students; every exam has a sheet for the invigilator. See [below](#b7-exam-arrangements) | Done |
 | B8 | A student is expelled, or comes back after a long absence | **Done, 11 October 2026.** Suspensions and time away are kept as dates; a suspended student is on the register as suspended, never marked absent, and their family is not texted. Leaving and coming back are recorded with the day and the reason. See [below](#b8-and-a9-a-students-journey) | Done |
 
 ## C. Schools
@@ -210,6 +210,26 @@ else could ever see it. Now:
   It named the wrong token and the web never called it, so a refresh token
   copied off a computer worked for a week after "sign out", and "sign out
   everywhere" could never happen. Fixed, and proven in the browser.
+
+### B7: exam arrangements
+
+- **A support plan** per student with special needs: the need (seeing,
+  hearing, moving, learning, speech, long-term illness), what to do in tests
+  and exams (extra time as a percentage, a reader, a scribe, large print,
+  braille, sign language, a separate room, rest breaks, a seat at the front,
+  a computer), when to look at it again and who it was agreed with.
+- **Who sees what.** The Director of Studies and the nurse keep it. The
+  principal reads it, and every opening is written to the audit log. The
+  family reads their own child's, on the web and the phone (an adult student
+  can keep it private, with their health). A teacher sees only what to do,
+  never why, and only for students they teach: on the register and the mark
+  book, as "In tests and exams: ...".
+- **The exam room.** Every exam on the timetable has an arrangements sheet to
+  print, with the extra minutes worked out from the exam's own times.
+- **The register** on "Support plans" lists every plan by class, for the
+  national exam registration, marks plans past their date, and exports.
+- **Demo:** the seed turns the disabilities written at enrolment into plans,
+  including one in a class Aline Uwase teaches.
 
 ### B8 and A9: a student's journey
 

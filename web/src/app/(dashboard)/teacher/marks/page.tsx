@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import { savePendingMarks, getPendingMarks, deletePendingMark, getPendingCount, SharedComputerError } from "@/lib/offline-db";
 import { PageHeader } from "@/components/layout/page-header";
+import { ExamHelp } from "@/components/support/exam-help";
+import { useClassSupport } from "@/hooks/use-support";
 
 interface Assignment {
   id: string;
@@ -59,6 +61,9 @@ export default function TeacherMarksPage() {
   const assignment = assignments.find((a) => a.id === selectedAssignment);
   const subjectId = assignment?.subjectId;
   const classSectionId = assignment?.classSectionId;
+  /* Who has exam arrangements, by student: what to do, never why (B7). */
+  const { data: supported } = useClassSupport(classSectionId);
+  const examHelp = new Map((supported ?? []).map((s) => [s.studentId, s.arrangements]));
 
   const { data: completion, isLoading: loadingCompletion } = useMarksCompletion(
     classSectionId,
@@ -360,7 +365,10 @@ export default function TeacherMarksPage() {
                   <tr key={entry.studentId} className="border-b border-border/50">
                     <td className="py-2 pr-4 text-sm text-muted">{i + 1}</td>
                     <td className="py-2 pr-4 text-sm font-mono">{entry.studentIdNumber}</td>
-                    <td className="py-2 pr-4 text-sm font-medium">{entry.name}</td>
+                    <td className="py-2 pr-4 text-sm font-medium">
+                      {entry.name}
+                      <ExamHelp arrangements={examHelp.get(entry.studentId)} />
+                    </td>
                     <td className="py-2 pr-4">
                       <input
                         type="number"
