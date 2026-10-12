@@ -376,6 +376,14 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async markTeacherAttendance(dto: MarkTeacherAttendanceDto) {
+    /* Only a teacher of this school. One of another school is not found here
+       (the wall hides them), and the write would only be refused by the
+       database, which reads as a crash rather than an answer. */
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { id: dto.teacherId },
+      select: { id: true },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found');
     return this.prisma.teacherAttendance.upsert({
       where: {
         teacherId_date: {

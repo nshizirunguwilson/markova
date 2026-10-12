@@ -157,7 +157,8 @@ describe('each school keeps its own (e2e)', () => {
     const res = await api().get(`/api/verify/card/${kezaCard}`).expect(200);
     expect(res.body.valid).toBe(true);
     expect(res.body.issuedBy).toBe('G.S. Umucyo');
-    expect(res.body.student.name).toBe('Keza Habimana');
+    // The first name only: anybody can scan a card (B6).
+    expect(res.body.student.name).toBe('Keza');
   });
 
   it('names no school for a card nobody issued', async () => {

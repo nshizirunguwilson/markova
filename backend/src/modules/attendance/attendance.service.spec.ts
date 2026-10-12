@@ -764,6 +764,7 @@ describe('AttendanceService', () => {
    */
   describe('staff', () => {
     it('records a teacher for a day, replacing any earlier mark', async () => {
+      prisma.teacher.findUnique.mockResolvedValue({ id: 'teacher-1' });
       prisma.teacherAttendance.upsert.mockResolvedValue({});
       await service.markTeacherAttendance({
         teacherId: 'teacher-1',
@@ -773,6 +774,19 @@ describe('AttendanceService', () => {
       const call = prisma.teacherAttendance.upsert.mock.calls[0][0];
       expect(call.where.teacherId_date.teacherId).toBe('teacher-1');
       expect(call.update.status).toBe('PRESENT');
+    });
+
+    // A teacher of another school is hidden by the wall, so not found here.
+    it('refuses a teacher it cannot find, before writing anything', async () => {
+      prisma.teacher.findUnique.mockResolvedValue(null);
+      await expect(
+        service.markTeacherAttendance({
+          teacherId: 'elsewhere',
+          date: '2026-08-20',
+          status: 'PRESENT',
+        } as never),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.teacherAttendance.upsert).not.toHaveBeenCalled();
     });
 
     it('refuses a scan matching no member of staff', async () => {
