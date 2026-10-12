@@ -20,9 +20,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-}));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 import * as library from "./use-library";
 
@@ -118,5 +117,30 @@ describe("reading the rows out of a response", () => {
     expect(library.rowsOf({ data: null })).toEqual([]);
     expect(library.rowsOf({ data: "not a list" })).toEqual([]);
     expect(library.rowsOf("a string")).toEqual([]);
+  });
+});
+
+/** Chasing late books: the reminders, and who cannot be reached. */
+describe("reminding borrowers", () => {
+  beforeEach(() => Object.values(toast).forEach((t) => t.mockReset()));
+
+  it.each([
+    [0, null],
+    [1, "1 borrower has no email or phone on file, so they were not reminded."],
+    [3, "3 borrowers have no email or phone on file, so they were not reminded."],
+  ])("says what was sent, and %s unreachable", async (unreachable, warned) => {
+    h.api.post.mockResolvedValue({
+      data: { overdue: 6, reminded: 6 - unreachable, unreachable, message: "Reminded the borrowers" },
+    });
+    await runMutation(() => library.useRemindOverdue());
+    expect(toast.success).toHaveBeenCalledWith("Reminded the borrowers");
+    if (warned) expect(toast.warning).toHaveBeenCalledWith(warned);
+    else expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("says when the reminders could not go", async () => {
+    h.api.post.mockRejectedValue(new Error("down"));
+    await runMutation(() => library.useRemindOverdue()).catch(() => {});
+    expect(toast.error).toHaveBeenCalledWith("Could not send the reminders");
   });
 });

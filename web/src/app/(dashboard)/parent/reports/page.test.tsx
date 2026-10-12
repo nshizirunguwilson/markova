@@ -206,3 +206,62 @@ describe("printing the card", () => {
     expect(screen.getByText(/Keza Uwimana/)).toBeInTheDocument();
   });
 });
+
+/** When printing cannot happen, the parent is told why, in words. */
+describe("printing that fails", () => {
+  const pressPrint = async () => {
+    mount();
+    await screen.findByLabelText("Select Year");
+    await chooseTerm();
+    await screen.findByText(/Keza Uwimana/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Print/ }));
+    });
+  };
+
+  it("says a card not issued yet is not issued yet", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-1/html": () => {
+        throw Object.assign(new Error("Forbidden"), { response: { status: 403 } });
+      },
+    });
+    await pressPrint();
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("This report card has not been issued yet"),
+    );
+  });
+
+  it("says the card could not be loaded for anything else", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-1/html": () => {
+        throw new Error("down");
+      },
+    });
+    await pressPrint();
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Could not load the official report card"),
+    );
+  });
+
+  it("says when the browser will not print an empty sheet", async () => {
+    serve(h.api, { ...routes, "/reports/term/student-1/html": "" });
+    await pressPrint();
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Your browser would not open the print dialog"),
+    );
+  });
+
+  it("shows dashes where a card has no figures yet", async () => {
+    serve(h.api, {
+      ...routes,
+      "/reports/term/student-1": { ...report, result: { average: null, letterGrade: null }, classStats: {} },
+      "/reports/term": { ...report, result: { average: null, letterGrade: null }, classStats: {} },
+    });
+    mount();
+    await chooseTerm();
+    await screen.findByText(/Keza Uwimana/);
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(3);
+  });
+});
