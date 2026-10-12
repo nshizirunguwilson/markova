@@ -3,6 +3,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
 import { validateEnv } from './config/env.validation';
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { PhotoInterceptor } from './common/interceptors/photo.interceptor';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
@@ -29,6 +30,7 @@ import { HealthModule } from './modules/health/health.module';
 import { JourneyModule } from './modules/journey/journey.module';
 import { SharingModule } from './modules/sharing/sharing.module';
 import { SupportModule } from './modules/support/support.module';
+import { PhotoConsentModule } from './modules/photo-consent/photo-consent.module';
 import { FormerStudentInterceptor } from './common/interceptors/former-student.interceptor';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
@@ -63,6 +65,7 @@ import { JobsModule } from './jobs/jobs.module';
     JourneyModule,
     SharingModule,
     SupportModule,
+    PhotoConsentModule,
     SchoolConfigModule,
     AcademicModule,
     MarksModule,
@@ -110,6 +113,11 @@ import { JobsModule } from './jobs/jobs.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: RlsInterceptor,
+    },
+    // A family's No to the app keeps a student's photo from classmates (B6).
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PhotoInterceptor,
     },
   ],
 })

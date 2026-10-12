@@ -101,6 +101,17 @@ describe('report card data', () => {
       expect(data.term).toEqual({ name: 'Term 3', academicYear: '2026' });
     });
 
+    // The report card is the second place the card answer covers (B6).
+    it('prints the photo unless the family said No to it on cards', async () => {
+      expect(
+        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+      ).toBe('/p.jpg');
+      prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+      expect(
+        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+      ).toBeNull();
+    });
+
     it('names the trade on a TVET card', async () => {
       prisma.student.findUnique.mockResolvedValue({
         ...student,
@@ -539,6 +550,12 @@ describe('ID card data', () => {
       photoUrl: '/p.jpg',
       class: 'Senior 1 A',
     });
+  });
+
+  it('carries no face where the family said No to the photo on cards', async () => {
+    prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+    const data = await service.generateIdCardData('student-1');
+    expect(data.student.photoUrl).toBeNull();
   });
 
   // Before a card is issued there is no card number, and the student number

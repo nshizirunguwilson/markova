@@ -95,7 +95,14 @@ export class MessagingGateway
   async broadcastNewMessage(conversationId: string, message: unknown) {
     const rooms = await this.participantRooms(conversationId);
     if (rooms.length > 0) {
-      this.server.to(rooms).emit('newMessage', message);
+      // One copy goes to the whole room, classmates included, so a sender
+      // whose family said No to the app goes out without their photo (B6).
+      this.server
+        .to(rooms)
+        .emit(
+          'newMessage',
+          await this.messagingService.withoutKeptPhotos(message),
+        );
     }
   }
 

@@ -276,6 +276,7 @@ describe("what the principal no longer runs", () => {
     "/admin/users",
     "/admin/finance",
     "/admin/id-cards",
+    "/admin/photo-consent",
     "/admin/settings",
     "/admin/discipline",
   ])("leaves the principal %s", (href) => {

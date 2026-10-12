@@ -321,13 +321,48 @@ describe('ReportsService', () => {
       const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
       expect(result.valid).toBe(true);
       expect(result.reason).toBeNull();
+      // Anybody can scan a card, so the first name only (B6).
       expect(result.student).toEqual({
-        name: 'Divine Niyonkuru',
+        name: 'Divine',
         studentIdNumber: 'STD-2026-001',
         level: 'Senior 1',
         photoUrl: '/p.png',
         status: 'ACTIVE',
       });
+    });
+
+    it('shows no photo where the family said No to it on cards', async () => {
+      prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
+        studentIdNumber: 'STD-2026-001',
+        status: 'ACTIVE',
+        cardIssuedAt: null,
+        cardSuspendedAt: null,
+        photoForId: 'NO',
+        user: { firstName: 'Divine', photoUrl: '/p.png' },
+        classSection: null,
+      });
+      const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+      expect(result.student!.photoUrl).toBeNull();
+    });
+
+    it('never asks for the surname of the student it shows', async () => {
+      prisma.student.findUnique.mockResolvedValue({
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
+        studentIdNumber: 'STD-2026-001',
+        status: 'ACTIVE',
+        cardIssuedAt: null,
+        cardSuspendedAt: null,
+        user: { firstName: 'Divine', photoUrl: null },
+        classSection: null,
+      });
+      await service.verifyCardByCode('ABCD-EFGH-JKMN');
+      const check = prisma.student.findUnique.mock.calls
+        .map(([args]) => args.select)
+        .find((select) => select?.photoForId);
+      expect(check.user.select).toEqual({ firstName: true, photoUrl: true });
     });
 
     // The photo is the point: it is what catches a real card being carried by
@@ -385,7 +420,7 @@ describe('ReportsService', () => {
       expect(result.valid).toBe(false);
       expect(result.suspended).toBe(true);
       expect(result.reason).toMatch(/suspended/i);
-      expect(result.student!.name).toBe('Divine Niyonkuru');
+      expect(result.student!.name).toBe('Divine');
     });
 
     it('refuses a card belonging to somebody who has left', async () => {
@@ -730,6 +765,32 @@ describe('the summary an office reads back after a card action', () => {
     });
   });
 
+  // The card prints without the photo, and says why, where the family said
+  // No to it on cards (B6).
+  it('leaves the photo off a card the family said No to', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...placed,
+      photoForId: 'NO',
+      user: { ...placed.user, photoUrl: '/p.png' },
+    });
+    const summary = await service.issueIdCard('student-1');
+    expect(summary).toMatchObject({
+      photoUrl: null,
+      photoForId: 'NO',
+      hasPhoto: true,
+    });
+  });
+
+  it('keeps the photo on a card until the family says No', async () => {
+    prisma.student.findUnique.mockResolvedValue({
+      ...placed,
+      photoForId: 'NOT_ASKED',
+      user: { ...placed.user, photoUrl: '/p.png' },
+    });
+    const summary = await service.issueIdCard('student-1');
+    expect(summary.photoUrl).toBe('/p.png');
+  });
+
   /**
    * A student admitted mid-term is on the roll before they are placed. They
    * cannot be ISSUED a card in that state - the card prints the class - but
@@ -833,7 +894,7 @@ describe('a card the school has withheld', () => {
     expect(result).toMatchObject({
       valid: false,
       suspended: true,
-      student: { name: 'Divine Niyonkuru', level: 'Senior 1' },
+      student: { name: 'Divine', level: 'Senior 1' },
     });
   });
 

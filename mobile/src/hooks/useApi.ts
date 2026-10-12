@@ -1306,6 +1306,44 @@ export function useSupportPlan(studentId?: string) {
   });
 }
 
+/**
+ * What a family agreed to for a child's photo (B6): on the ID card, in the
+ * app for classmates and other parents, and in the school's publicity. A
+ * parent answers until the child is 18; from then the student does.
+ */
+export type PhotoAnswer = 'YES' | 'NO' | 'NOT_ASKED';
+export type PhotoConsent = {
+  forId: PhotoAnswer;
+  inApp: PhotoAnswer;
+  publicity: PhotoAnswer;
+  answeredBy: 'FAMILY' | 'STUDENT';
+  mayAnswer: boolean;
+  history: { id: string; how: string; answeredBy: string; createdAt: string }[];
+};
+
+export function usePhotoConsent(studentId?: string) {
+  return useQuery({
+    queryKey: ['photo-consent', studentId],
+    queryFn: () =>
+      api
+        .get<PhotoConsent>(`/students/${studentId}/photo-consent`)
+        .then((r) => r.data),
+    enabled: !!studentId,
+    retry: false,
+  });
+}
+
+export function useAnswerPhotoConsent(studentId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Pick<PhotoConsent, 'forId' | 'inApp' | 'publicity'>) =>
+      api
+        .put<PhotoConsent>(`/students/${studentId}/photo-consent`, body)
+        .then((r) => r.data),
+    onSuccess: (data) => qc.setQueryData(['photo-consent', studentId], data),
+  });
+}
+
 export function useStudentVisits(studentId?: string) {
   return useQuery<{ data: ClinicVisit[] }>({
     queryKey: ['clinic-student-visits', studentId],

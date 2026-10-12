@@ -5,6 +5,14 @@ import Link from "next/link";
 import { Button, Card, CardTitle, Input } from "@/components/ui";
 import { useOpenIntakes, useSubmitApplication } from "@/hooks/use-admissions";
 import { ENTRY_LABEL, FUNDING_LABEL, type Funding } from "@/lib/admissions";
+import { PHOTO_USES, type PhotoUse } from "@/hooks/use-photo-consent";
+
+/** Where each photo answer sits in the form. */
+const PHOTO_FIELD = {
+  forId: "photoForId",
+  inApp: "photoInApp",
+  publicity: "photoPublicity",
+} as const satisfies Record<PhotoUse, string>;
 import { CheckCircle2, Copy, Send } from "lucide-react";
 
 /**
@@ -70,6 +78,10 @@ export default function ApplyPage() {
     guardianEmail: "",
     guardianRelation: "Mother",
     note: "",
+    // The three photo questions (B6). Blank is "not asked".
+    photoForId: "",
+    photoInApp: "",
+    photoPublicity: "",
   });
   const set = (k: keyof typeof f, v: string | boolean) =>
     setF((was) => ({ ...was, [k]: v }));
@@ -112,6 +124,9 @@ export default function ApplyPage() {
         guardianEmail: f.guardianEmail.trim() || undefined,
         guardianRelation: f.guardianRelation,
         note: f.note.trim() || undefined,
+        photoForId: f.photoForId || undefined,
+        photoInApp: f.photoInApp || undefined,
+        photoPublicity: f.photoPublicity || undefined,
       })
       .then((r) => setDone({ reference: r.reference }))
       .catch(() => {});
@@ -472,6 +487,36 @@ export default function ApplyPage() {
                 onChange={(e) => set("note", e.target.value)}
                 placeholder="Optional"
               />
+            </div>
+          </Card>
+
+          <Card>
+            <CardTitle>Your child&apos;s photo</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              May the school use your child&apos;s photo for each of these? You can
+              change your answers later in the app.
+            </p>
+            <div className="mt-4 space-y-4">
+              {PHOTO_USES.map((u) => (
+                <fieldset key={u.key}>
+                  <legend className="text-sm font-medium text-foreground">{u.label}</legend>
+                  <p className="mb-1 text-xs text-muted">{u.hint}</p>
+                  <div className="flex gap-4">
+                    {(["YES", "NO"] as const).map((a) => (
+                      <label key={a} className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="radio"
+                          name={`apply-${u.key}`}
+                          checked={f[PHOTO_FIELD[u.key]] === a}
+                          onChange={() => set(PHOTO_FIELD[u.key], a)}
+                          className="h-4 w-4"
+                        />
+                        {a === "YES" ? "Yes" : "No"}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
             </div>
           </Card>
 

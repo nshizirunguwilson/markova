@@ -1,4 +1,5 @@
 import {
+  Camera,
   Accessibility,
   LayoutDashboard,
   Users,
@@ -77,6 +78,8 @@ const adminNav: NavSection[] = [
          They are not listed here, and the API refuses them, so a menu that
          offered them would be a menu that leads to a refusal. */
       { label: "ID Cards", href: "/admin/id-cards", icon: CreditCard },
+      // What each family agreed to for the photo (B6).
+      { label: "Photos", href: "/admin/photo-consent", icon: Camera },
       /* Transfer letters, transcripts and testimonials. The principal signs
          these, and until now had no way to reach the page that makes them:
          it sat only in the DOS's menu, where every button on it was refused. */

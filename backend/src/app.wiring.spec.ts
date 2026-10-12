@@ -26,6 +26,7 @@ import { UsersModule } from './modules/users/users.module';
 import { JourneyModule } from './modules/journey/journey.module';
 import { SharingModule } from './modules/sharing/sharing.module';
 import { SupportModule } from './modules/support/support.module';
+import { PhotoConsentModule } from './modules/photo-consent/photo-consent.module';
 import { CommonModule } from './common/common.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -47,6 +48,7 @@ const FEATURE_MODULES = [
   JourneyModule,
   SharingModule,
   SupportModule,
+  PhotoConsentModule,
   SchoolConfigModule,
   AcademicModule,
   MarksModule,

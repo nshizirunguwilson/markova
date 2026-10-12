@@ -55,6 +55,7 @@ describe('AdmissionsService', () => {
     },
     school: { findUnique: jest.fn() },
     parentStudent: { create: jest.fn() },
+    photoConsentRecord: { create: jest.fn() },
     currentSchoolId: jest.fn().mockResolvedValue('school-1'),
     $transaction: jest.fn(),
   };
@@ -153,6 +154,20 @@ describe('AdmissionsService', () => {
           data: expect.objectContaining({ toStatus: 'SUBMITTED' }),
         }),
       );
+    });
+
+    // The photo questions on the form (B6): a blank is "not asked yet".
+    it('keeps the family’s photo answers, and a blank as not asked', async () => {
+      await service.submit({
+        ...(submission as object),
+        photoForId: 'YES',
+        photoInApp: 'NO',
+      } as never);
+      expect(prisma.application.create.mock.calls[0][0].data).toMatchObject({
+        photoForId: 'YES',
+        photoInApp: 'NO',
+        photoPublicity: 'NOT_ASKED',
+      });
     });
 
     it('refuses an intake that is closed', async () => {
@@ -751,6 +766,37 @@ describe('AdmissionsService', () => {
           }),
         }),
       );
+    });
+
+    // The photo answers on the form are the student's first record of them (B6).
+    it('carries the photo answers over, and keeps who gave them', async () => {
+      prisma.application.findUnique.mockResolvedValue(
+        application({
+          status: 'ACCEPTED',
+          photoForId: 'YES',
+          photoInApp: 'YES',
+          photoPublicity: 'NO',
+        }),
+      );
+      await service.enrol('app-1', 'admin-1');
+      expect(prisma.student.create.mock.calls[0][0].data).toMatchObject({
+        photoForId: 'YES',
+        photoInApp: 'YES',
+        photoPublicity: 'NO',
+      });
+      const record = prisma.photoConsentRecord.create.mock.calls[0][0].data;
+      expect(record).toMatchObject({
+        studentId: 'student-1',
+        publicity: 'NO',
+        how: 'ADMISSION_FORM',
+        recordedByUserId: 'admin-1',
+      });
+      expect(record.answeredBy).toMatch(/\(.+\)$/);
+    });
+
+    it('records no answer for a family the form never asked', async () => {
+      await service.enrol('app-1', 'admin-1');
+      expect(prisma.photoConsentRecord.create).not.toHaveBeenCalled();
     });
 
     it('freezes the application against the student it became', async () => {

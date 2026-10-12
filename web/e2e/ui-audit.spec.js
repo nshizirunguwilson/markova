@@ -3043,6 +3043,135 @@ test('support: the Director of Studies changes a plan, and it shows', async (bro
   await ctx.close();
 });
 
+
+/**
+ * A student's photo (B6). The seed has Andy Cyizere, in student1's class,
+ * whose family said No to the app, and Audrey Amani, whose family said No to
+ * the photo on cards. Found through the API, not hard-coded ids.
+ */
+async function findStudentUser(page, name) {
+  const found = await apiAs(page, 'ADMIN', `/users?role=STUDENT&search=${encodeURIComponent(name)}&limit=5`);
+  return (found?.data ?? []).find((u) => `${u.firstName} ${u.lastName}` === name) ?? null;
+}
+
+test('photos: a classmate whose family said No shows as initials in the chat', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'STUDENT');
+  // Everything the API sends this student, as the browser receives it.
+  const bodies = [];
+  page.on('response', async (r) => {
+    if (r.url().includes('/messaging/')) bodies.push(await r.text().catch(() => ''));
+  });
+  await visit(page, '/student/messages');
+  const andy = await findStudentUser(page, 'Andy Cyizere');
+  assert(andy?.photoUrl, 'the seed has no photo for Andy Cyizere');
+  const photoFile = andy.photoUrl.split('/').pop();
+
+  // The conversation they share, and open it.
+  const conversations = (await apiAs(page, 'STUDENT', '/messaging/conversations')) ?? [];
+  const shared = conversations.find((c) =>
+    (c.participants ?? []).some((p) => (p.user?.id ?? p.userId) === andy.id),
+  );
+  assert(shared, 'student1 shares no conversation with Andy Cyizere');
+  await page.getByText(shared.name, { exact: false }).first().click();
+  await wait(2500);
+
+  assert(bodies.length > 0, 'the messages page made no calls to watch');
+  assert(
+    bodies.every((b) => !b.includes(photoFile)),
+    "Andy's photo reached student1's browser",
+  );
+  const shown = await page.$$eval('img', (imgs) => imgs.map((i) => i.getAttribute('src') ?? ''));
+  assert(!shown.some((src) => src.includes(photoFile)), "Andy's photo is on student1's screen");
+
+  // The staff still see it.
+  const staff = await apiAs(page, 'ADMIN', `/messaging/contacts?search=Andy`);
+  assert(JSON.stringify(staff ?? '').includes(photoFile), 'the staff lost the photo too');
+  await ctx.close();
+});
+
+test('photos: the office lists who said No, and a card without a photo says so at the gate', async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'ADMIN');
+  await visit(page, '/admin/photo-consent');
+  const list = page.getByRole('list', { name: 'Photo answers' });
+  await list.waitFor({ timeout: 30000 });
+  await page.selectOption('#consent-view', 'not-app');
+  await page.getByText('Andy Cyizere').first().waitFor({ timeout: 10000 });
+  await page.selectOption('#consent-view', 'not-card');
+  await page.getByText('Audrey Amani').first().waitFor({ timeout: 10000 });
+
+  // Issue Audrey a card, check it as a stranger at the gate, then take it back.
+  const audrey = await findStudentUser(page, 'Audrey Amani');
+  const studentId = audrey?.student?.id;
+  assert(studentId, 'the seed has no Audrey Amani');
+  const issued = await apiAs(page, 'ADMIN', '/reports/id-cards/issue', {
+    method: 'POST',
+    body: JSON.stringify({ studentId }),
+  });
+  try {
+    assert(issued?.cardCode, 'the card was not issued');
+    const gate = await (await browser.newContext()).newPage();
+    await gate.goto(`${WEB}/verify/card/${issued.cardCode}`, { waitUntil: 'domcontentloaded' });
+    await gate.getByText(/This card carries no photo/).waitFor({ timeout: 20000 });
+    const body = await gate.innerText('body');
+    assert(body.includes('Audrey'), 'the gate does not name her');
+    assert(!body.includes('Amani'), 'the gate shows a stranger her family name');
+    assert((await gate.locator('img[alt^="Photo of"]').count()) === 0, 'the gate shows her photo');
+    await gate.context().close();
+  } finally {
+    await apiAs(page, 'ADMIN', '/reports/id-cards/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ studentId }),
+    });
+  }
+  await ctx.close();
+});
+
+test("photos: a parent answers on their profile, and it is kept with their name", async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await authedPage(ctx, 'PARENT');
+  await visit(page, '/parent/profile');
+  const card = page.getByTestId('photo-consent').first();
+  await card.waitFor({ timeout: 30000 });
+  const studentId = await page.evaluate(async (api) => {
+    const me = await fetch(`${api}/auth/profile`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    }).then((r) => r.json());
+    const record = await fetch(`${api}/users/${me.id}`, {
+      headers: { authorization: `Bearer ${localStorage.getItem('access_token')}` },
+    }).then((r) => r.json());
+    return record.parentStudents?.[0]?.student?.id ?? null;
+  }, API);
+  assert(studentId, 'the demo parent has no child');
+  const before = await apiAs(page, 'PARENT', `/students/${studentId}/photo-consent`);
+  const flip = before.publicity === 'YES' ? 'No' : 'Yes';
+  try {
+    await card.getByRole('button', { name: /Answer|Change the answers/ }).click();
+    for (const question of ['On the ID card and report card', 'In the app, for classmates and other parents']) {
+      const group = card.getByRole('group', { name: question });
+      const current = before[question.startsWith('On the ID') ? 'forId' : 'inApp'];
+      await group.getByLabel(current === 'NO' ? 'No' : 'Yes').check();
+    }
+    await card.getByRole('group', { name: "In the school's publicity" }).getByLabel(flip).check();
+    await card.getByRole('button', { name: 'Save' }).click();
+    await card.getByText(/Answered by .*\(parent\) in the app/).waitFor({ timeout: 15000 });
+    const after = await apiAs(page, 'PARENT', `/students/${studentId}/photo-consent`);
+    assert(after.publicity === (flip === 'Yes' ? 'YES' : 'NO'), 'the answer was not saved');
+  } finally {
+    // The answers as they were; the record of this change stays, as it should.
+    await apiAs(page, 'PARENT', `/students/${studentId}/photo-consent`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        forId: before.forId,
+        inApp: before.inApp,
+        publicity: before.publicity,
+      }),
+    });
+  }
+  await ctx.close();
+});
+
 (async () => {
   const only = process.argv[2]; // optional substring filter
   const browser = await chromium.launch({ headless: true });

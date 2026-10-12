@@ -1802,3 +1802,21 @@ describe('MessagingService mentions', () => {
     });
   });
 });
+
+// What goes to a whole room at once (B6).
+describe('MessagingService, a message for the whole room', () => {
+  it('goes without the photo of a student kept out of the app', async () => {
+    const db = {
+      student: {
+        findMany: jest.fn().mockResolvedValue([{ userId: 'student-1' }]),
+      },
+    };
+    const service = new MessagingService(db as never);
+    const out = await service.withoutKeptPhotos({
+      sender: { id: 'student-1', photoUrl: '/a.jpg' },
+      replyTo: { sender: { id: 'teacher-1', photoUrl: '/t.jpg' } },
+    });
+    expect(out.sender.photoUrl).toBeNull();
+    expect(out.replyTo.sender.photoUrl).toBe('/t.jpg');
+  });
+});

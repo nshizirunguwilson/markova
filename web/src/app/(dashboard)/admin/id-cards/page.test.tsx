@@ -149,6 +149,46 @@ describe("the registry", () => {
   });
 });
 
+/** A family that said No to the photo on cards (B6). */
+describe("a family that said No to the photo on cards", () => {
+  const said = (over: Record<string, unknown>[]) =>
+    serve(h.api, {
+      ...routes,
+      "/reports/id-cards/registry": {
+        ...routes["/reports/id-cards/registry"],
+        items: over,
+      },
+    });
+
+  it("marks the student, and warns before printing", async () => {
+    said([{ ...withCard, photoForId: "NO", hasPhoto: true }, withoutCard]);
+    renderPage(IdCardsPage, { role: "ADMIN" });
+    await screen.findByText("No photo on the card");
+    expect(screen.getByText("No photo on the card").closest("tr")).toHaveTextContent(
+      "Divine Niyonkuru",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Divine Niyonkuru's family said No to the photo on cards, so that card prints without it.",
+    );
+  });
+
+  it("counts them when there are several", async () => {
+    said([
+      { ...withCard, photoForId: "NO", hasPhoto: true },
+      { ...withCard, id: "student-3", name: "Eric Mugisha", photoForId: "NO", hasPhoto: true },
+    ]);
+    await mount();
+    expect(screen.getByRole("status")).toHaveTextContent("2 families on this page said No");
+  });
+
+  it("says nothing where there is no photo to leave off", async () => {
+    said([{ ...withCard, photoForId: "NO", hasPhoto: false }]);
+    await mount();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(rowFor(/Divine Niyonkuru/).textContent).not.toMatch(/No photo on the card/);
+  });
+});
+
 describe("narrowing the registry", () => {
   it("filters to the students who still need a card", async () => {
     await mount();
