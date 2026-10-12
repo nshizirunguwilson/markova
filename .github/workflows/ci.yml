@@ -186,7 +186,7 @@ jobs:
         timeout-minutes: 6
         run: |
           npm run build
-          node dist/src/main.js > /tmp/api.log 2>&1 &
+          node dist/main.js > /tmp/api.log 2>&1 &
           for i in $(seq 1 60); do
             curl -sf http://localhost:3000/api/health && break
             sleep 2
