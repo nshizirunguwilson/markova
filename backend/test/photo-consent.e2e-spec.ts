@@ -36,6 +36,7 @@ describe('photo consent (e2e)', () => {
     firstName: string;
   };
   let conversationId: string;
+  let madeConversation = false;
   let admin: string;
   let teacher: string;
   let parent: string;
@@ -136,37 +137,13 @@ describe('photo consent (e2e)', () => {
       },
       select: { userId: true, classSectionId: true },
     });
-    // A classmate with a photo, in a chat with student1, with a parent.
-    const conversation = await owner.conversation.findFirstOrThrow({
-      where: {
-        schoolId: school.id,
-        participants: { some: { userId: me.userId } },
-        AND: {
-          participants: {
-            some: {
-              user: {
-                photoUrl: { not: null },
-                student: {
-                  classSectionId: me.classSectionId,
-                  parentStudents: { some: { parent: { isActive: true } } },
-                },
-                id: { not: me.userId },
-              },
-            },
-          },
-        },
-      },
-      select: { id: true },
-    });
-    conversationId = conversation.id;
+    // A classmate with a photo and a parent.
     const mate = await owner.student.findFirstOrThrow({
       where: {
         classSectionId: me.classSectionId,
         userId: { not: me.userId },
-        user: {
-          photoUrl: { not: null },
-          conversationMemberships: { some: { conversationId } },
-        },
+        status: 'ACTIVE',
+        user: { photoUrl: { not: null } },
         parentStudents: { some: { parent: { isActive: true } } },
       },
       select: {
@@ -179,6 +156,39 @@ describe('photo consent (e2e)', () => {
         },
       },
     });
+    /* A conversation the two share. The seed is random, so there may be
+       none; then one is made here, and removed afterwards. */
+    const shared = await owner.conversation.findFirst({
+      where: {
+        schoolId: school.id,
+        AND: [
+          { participants: { some: { userId: me.userId } } },
+          { participants: { some: { userId: mate.userId } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (shared) {
+      conversationId = shared.id;
+    } else {
+      conversationId = (
+        await owner.conversation.create({
+          data: {
+            schoolId: school.id,
+            type: 'GROUP',
+            name: 'Photo consent test',
+            createdByUserId: me.userId,
+            participants: {
+              create: [
+                { schoolId: school.id, userId: me.userId },
+                { schoolId: school.id, userId: mate.userId },
+              ],
+            },
+          },
+        })
+      ).id;
+      madeConversation = true;
+    }
     classmate = {
       id: mate.id,
       userId: mate.userId,
@@ -237,16 +247,20 @@ describe('photo consent (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (madeConversation) {
+      await owner.conversation.delete({ where: { id: conversationId } });
+    }
     // The card issued here never existed.
-    await owner.student.update({
-      where: { id: card.id },
-      data: {
-        nfcCardId: null,
-        cardCode: null,
-        cardIssuedAt: null,
-        cardSuspendedAt: null,
-      },
-    });
+    if (card)
+      await owner.student.update({
+        where: { id: card.id },
+        data: {
+          nfcCardId: null,
+          cardCode: null,
+          cardIssuedAt: null,
+          cardSuspendedAt: null,
+        },
+      });
     for (const { id, ...data } of before) {
       await owner.student.update({ where: { id }, data });
     }

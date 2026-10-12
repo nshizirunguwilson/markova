@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -156,6 +157,9 @@ export class MarksController {
       studentId,
       'results',
     );
+    /* After whose student it is, so a family kept out hears that first. The
+       fee check reads one term's invoice, and without a term it crashed. */
+    if (!termId) throw new BadRequestException('Say which term');
     const withheld = await this.feeGate.withholdingFor(
       user.role,
       studentId,
@@ -306,6 +310,7 @@ export class MarksController {
       studentId,
       'results',
     );
+    if (!termId) throw new BadRequestException('Say which term');
     // A student or a parent sees the card only once the school has issued it,
     // which is a separate decision from releasing the marks. Staff always see
     // it: they have to read the thing before issuing it.

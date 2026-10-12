@@ -579,3 +579,39 @@ describe('MarksController, the Director of Studies', () => {
       withArgs: [{ classSectionId: 'c1', publish: true }],
     }));
 });
+
+/* A family's results need a term: the fee check reads that term's invoice,
+   and without one it crashed. Whose student it is is still asked first. */
+describe('MarksController, a request with no term', () => {
+  const service = mockService([
+    'getStudentTermResult',
+    'getReportCardData',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+  const feeGate = mockService(['withholdingFor']);
+  let ctl: MarksController;
+
+  beforeEach(async () => {
+    clearMocks(service, ownership, feeGate);
+    ctl = await buildController(
+      MarksController,
+      wiring({ service, ownership, feeGate }),
+    );
+  });
+
+  it.each([
+    [
+      'the term result',
+      (c: MarksController) => c.getStudentTermResult('s1', '', parent),
+    ],
+    [
+      'the report card',
+      (c: MarksController) => c.getReportCard('s1', '', parent),
+    ],
+  ])('refuses %s, after checking whose student', async (_what, call) => {
+    await expect(call(ctl)).rejects.toThrow('Say which term');
+    expect(ownership.verifyStudentAccess).toHaveBeenCalled();
+    expect(feeGate.withholdingFor).not.toHaveBeenCalled();
+  });
+});
