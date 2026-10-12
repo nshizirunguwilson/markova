@@ -9,6 +9,7 @@ import {
   HeartPulse,
   Wallet,
   PartyPopper,
+  Camera,
 } from 'lucide-react-native';
 
 import {
@@ -213,6 +214,14 @@ export default function ChildOverview() {
               lead={<Wallet size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
               onPress={() =>
                 router.push({ pathname: '/(app)/child/money', params: { studentId, name } })
+              }
+            />
+            <Row
+              title="Photo"
+              subtitle="Where the school may use it"
+              lead={<Camera size={20} color={t.fg.tertiary} strokeWidth={1.9} />}
+              onPress={() =>
+                router.push({ pathname: '/(app)/child/photo', params: { studentId, name } })
               }
               last
             />

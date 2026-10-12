@@ -251,6 +251,7 @@ describe('the doors into the record', () => {
     ['Activities', '/(app)/child/activities'],
     ['Health', '/(app)/child/health'],
     ['Pocket money', '/(app)/child/money'],
+    ['Photo', '/(app)/child/photo'],
   ])('opens %s, carrying who it is about', async (label, pathname) => {
     const screen = await open();
     // The rows draw before the profile lands, so wait for the name they will
@@ -278,8 +279,8 @@ describe('the doors into the record', () => {
     expect(
       screen.getByText('Available once the school publishes'),
     ).toBeTruthy();
-    // Eight rows, one of which cannot be touched at all.
-    expect(pressableCount(screen)).toBe(7);
+    // Nine rows, one of which cannot be touched at all.
+    expect(pressableCount(screen)).toBe(8);
   });
 
   it('opens it once there is one to read', async () => {
@@ -290,7 +291,7 @@ describe('the doors into the record', () => {
     });
     const screen = await open();
     await waitFor(() => expect(screen.getByText('Ready to read')).toBeTruthy());
-    expect(pressableCount(screen)).toBe(8);
+    expect(pressableCount(screen)).toBe(9);
 
     await fireEvent.press(screen.getByText('Report card'));
 
