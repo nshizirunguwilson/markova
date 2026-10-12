@@ -55,7 +55,7 @@ const ROUTES = {
     '/admin/pocket-money', '/admin/health', '/admin/activities', '/admin/settings',
     '/admin/help', '/admin/onboarding', '/admin/profile',
     '/admin/admissions', '/admin/admissions/intakes', '/admin/report-cards',
-    '/admin/support', '/grading'],
+    '/admin/support', '/admin/photo-consent', '/grading'],
   TEACHER: ['/teacher', '/teacher/marks', '/teacher/homework', '/teacher/attendance',
     '/teacher/discipline', '/teacher/messages', '/teacher/announcements',
     '/teacher/activities',
