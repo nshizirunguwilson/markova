@@ -460,3 +460,41 @@ describe("getting somewhere else from here", () => {
     );
   });
 });
+
+/** A thin file: what the page says where the record has gaps. */
+describe("a teacher whose record has gaps", () => {
+  const sparse = {
+    ...teacher,
+    forcePasswordChange: true,
+    lastLoginAt: null,
+    teacher: {
+      ...teacher.teacher,
+      employmentStatus: null,
+      roles: [{ id: "r-9", role: "SOMETHING_NEW", department: null, classSection: null }],
+      teacherSubjectClasses: [
+        { id: "a-9", subject: null, classSection: null },
+        assignment("a-1", "Mathematics", senior2B),
+      ],
+      timetables: [
+        period("p-1", 3, "08:00", "09:00", "Mathematics", senior2B),
+        period("p-2", 3, "09:00", "10:00", "Physics", senior2B),
+        period("p-9", 9, "08:00", "09:00", "Chemistry", senior2B),
+      ],
+    },
+  };
+
+  it("still reads, saying plainly what is missing", async () => {
+    await mount(sparse);
+    expect(await screen.findByText(/Aline Uwase/)).toBeInTheDocument();
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/SOMETHING_NEW/);
+    expect(body).toMatch(/Day 9/);
+    expect(body).toMatch(/Never/);
+    expect(body).toMatch(/Yes/);
+  });
+
+  it("copes with a teacher who has no teacher record at all", async () => {
+    await mount({ ...teacher, teacher: null });
+    expect(await screen.findByText(/Aline Uwase/)).toBeInTheDocument();
+  });
+});
