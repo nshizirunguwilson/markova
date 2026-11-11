@@ -41,6 +41,7 @@ import {
   Gavel,
 } from "lucide-react";
 import { toLocalDateString, classDisplayName } from "@/lib/utils";
+import { day } from "@/lib/dates";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -200,7 +201,7 @@ export default function AdminDisciplinePage() {
               <TableBody>
                 {incidents.map((inc: any) => (
                   <TableRow key={inc.id}>
-                    <TableCell className="text-sm">{new Date(inc.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-sm">{day(inc.date)}</TableCell>
                     <TableCell className="font-medium">
                       {inc.student?.user?.firstName ?? "Unknown"} {inc.student?.user?.lastName ?? ""}
                     </TableCell>
@@ -306,7 +307,7 @@ export default function AdminDisciplinePage() {
                   {merits.data.map((m: any) => (
                     <TableRow key={m.id}>
                       <TableCell className="text-sm">
-                        {new Date(m.date).toLocaleDateString()}
+                        {day(m.date)}
                       </TableCell>
                       <TableCell className="font-medium">
                         {m.student?.user?.firstName} {m.student?.user?.lastName}
@@ -430,7 +431,7 @@ export default function AdminDisciplinePage() {
                     </p>
                     <p className="mt-1 text-xs text-muted">
                       By {a.submittedBy?.firstName ?? "someone"} {a.submittedBy?.lastName ?? ""} on{" "}
-                      {new Date(a.createdAt).toLocaleDateString()}
+                      {day(a.createdAt)}
                     </p>
                   </div>
                   <div className="flex gap-2">

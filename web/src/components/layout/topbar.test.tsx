@@ -633,7 +633,8 @@ describe("Topbar notification age", () => {
   it("gives the date once it is more than a week old", async () => {
     await openWith(ago(10 * DAY));
     expect(screen.queryByText(/ago/)).toBeNull();
-    expect(document.body.textContent).toMatch(/\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}/);
+    // Day first, month in letters: never 11/12 or 12/11.
+    expect(document.body.textContent).toMatch(/\d{1,2} [A-Z][a-z]{2} \d{4}/);
   });
 
   // The boundaries are where an off-by-one shows up.

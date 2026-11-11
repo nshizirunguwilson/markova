@@ -36,6 +36,7 @@ import { SupportPlanCard } from "@/components/support/support-plan-card";
 import { PhotoConsentCard } from "@/components/photo-consent/photo-consent-card";
 import { ParentPassedAway } from "@/components/people/parent-passed-away";
 import { STANDING_LABEL } from "@/lib/standing";
+import { day, dayAndTime } from "@/lib/dates";
 
 const selectCls =
   "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -354,7 +355,7 @@ export default function UserDetailPage() {
                         label="Date of Birth"
                         value={
                           user.dateOfBirth
-                            ? new Date(user.dateOfBirth).toLocaleDateString()
+                            ? day(user.dateOfBirth)
                             : "-"
                         }
                       />
@@ -363,7 +364,7 @@ export default function UserDetailPage() {
                   <InfoField
                     icon={Calendar}
                     label="Joined"
-                    value={new Date(user.createdAt).toLocaleDateString()}
+                    value={day(user.createdAt)}
                   />
                 </>
               )}
@@ -405,9 +406,7 @@ export default function UserDetailPage() {
                   label="Date of Birth"
                   value={
                     user.student.dateOfBirth
-                      ? new Date(
-                          user.student.dateOfBirth
-                        ).toLocaleDateString()
+                      ? day(user.student.dateOfBirth)
                       : "-"
                   }
                 />
@@ -415,7 +414,7 @@ export default function UserDetailPage() {
                   label="Enrolled"
                   value={
                     user.student.enrollmentDate
-                      ? new Date(user.student.enrollmentDate).toLocaleDateString()
+                      ? day(user.student.enrollmentDate)
                       : "-"
                   }
                 />
@@ -544,7 +543,7 @@ export default function UserDetailPage() {
                       label="Hired"
                       value={
                         user.teacher.hireDate
-                          ? new Date(user.teacher.hireDate).toLocaleDateString()
+                          ? day(user.teacher.hireDate)
                           : "-"
                       }
                     />
@@ -623,7 +622,7 @@ export default function UserDetailPage() {
                 label="Last Login"
                 value={
                   user.lastLoginAt
-                    ? new Date(user.lastLoginAt).toLocaleString()
+                    ? dayAndTime(user.lastLoginAt)
                     : "Never"
                 }
               />

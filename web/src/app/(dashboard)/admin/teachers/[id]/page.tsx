@@ -31,6 +31,7 @@ import {
 import { useUser } from "@/hooks/use-users";
 import { classDisplayName } from "@/lib/utils";
 import { formatNid } from "@/lib/person-form";
+import { day, dayAndTime } from "@/lib/dates";
 
 /** Timetable rows carry 1=Monday … 7=Sunday. */
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -376,7 +377,7 @@ export default function TeacherDetailPage() {
                 label="Hired"
                 value={
                   teacher?.hireDate
-                    ? new Date(teacher.hireDate).toLocaleDateString()
+                    ? day(teacher.hireDate)
                     : "-"
                 }
               />
@@ -397,7 +398,7 @@ export default function TeacherDetailPage() {
                 label="Date of birth"
                 value={
                   user.dateOfBirth
-                    ? new Date(user.dateOfBirth).toLocaleDateString()
+                    ? day(user.dateOfBirth)
                     : "-"
                 }
               />
@@ -411,7 +412,7 @@ export default function TeacherDetailPage() {
                 label="Last login"
                 value={
                   user.lastLoginAt
-                    ? new Date(user.lastLoginAt).toLocaleString()
+                    ? dayAndTime(user.lastLoginAt)
                     : "Never"
                 }
               />
@@ -421,7 +422,7 @@ export default function TeacherDetailPage() {
               />
               <Field
                 label="Joined"
-                value={new Date(user.createdAt).toLocaleDateString()}
+                value={day(user.createdAt)}
               />
             </div>
           </Card>

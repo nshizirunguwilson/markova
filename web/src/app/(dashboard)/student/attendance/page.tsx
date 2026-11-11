@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { DATE_LOCALE } from "@/lib/dates";
 
 export default function StudentAttendancePage() {
   const { user } = useAuthStore();
@@ -52,7 +53,7 @@ export default function StudentAttendancePage() {
     return days;
   }, [data, viewDate]);
 
-  const monthName = viewDate.toLocaleString("default", {
+  const monthName = viewDate.toLocaleString(DATE_LOCALE, {
     month: "long",
     year: "numeric",
   });

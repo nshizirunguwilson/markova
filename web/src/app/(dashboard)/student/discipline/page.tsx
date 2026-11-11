@@ -9,6 +9,7 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { Shield, AlertTriangle, Award } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -117,7 +118,7 @@ export default function StudentDisciplinePage() {
                           {m.description}
                         </p>
                         <p className="mt-1 text-xs text-muted">
-                          {new Date(m.date).toLocaleDateString()} · by{" "}
+                          {day(m.date)} · by{" "}
                           {m.awardedBy.firstName} {m.awardedBy.lastName}
                         </p>
                       </div>
@@ -148,7 +149,7 @@ export default function StudentDisciplinePage() {
                       <div>
                         <p className="text-sm font-medium text-foreground">{inc.description}</p>
                         <p className="mt-1 text-xs text-muted">
-                          {new Date(inc.date).toLocaleDateString()}
+                          {day(inc.date)}
                           {inc.time && ` at ${inc.time}`}
                           {inc.location && ` - ${inc.location}`}
                         </p>

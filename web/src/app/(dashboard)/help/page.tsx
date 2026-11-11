@@ -13,6 +13,7 @@ import { useFaqs, useMyTickets, useCreateTicket } from "@/hooks/use-help";
 import { Search, HelpCircle, Plus, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 export default function HelpPage() {
   const [search, setSearch] = useState("");
@@ -147,7 +148,7 @@ export default function HelpPage() {
                   <h3 className="font-medium">{ticket.title}</h3>
                   <p className="text-sm text-muted mt-1">{ticket.description}</p>
                   <p className="text-xs text-muted mt-2">
-                    {new Date(ticket.createdAt).toLocaleDateString()}
+                    {day(ticket.createdAt)}
                   </p>
                 </div>
                 <Badge className={statusColor(ticket.status)}>{ticket.status}</Badge>

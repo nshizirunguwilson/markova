@@ -26,6 +26,7 @@ import {
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 export default function AdminHelpPage() {
   const [tab, setTab] = useState<"faqs" | "tickets">("faqs");
@@ -248,7 +249,7 @@ export default function AdminHelpPage() {
                       <TableCell>
                         <Badge className={statusColor(ticket.status)}>{ticket.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{new Date(ticket.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm">{day(ticket.createdAt)}</TableCell>
                       <TableCell>
                         <select
                           className="border rounded px-2 py-1 text-xs"

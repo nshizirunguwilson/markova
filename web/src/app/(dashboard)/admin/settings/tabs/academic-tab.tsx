@@ -14,6 +14,7 @@ import {
 } from "@/hooks/use-academic";
 import { Plus, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
+import { day } from "@/lib/dates";
 
 export function AcademicTab() {
   const { data: years } = useAcademicYears();
@@ -56,7 +57,7 @@ export function AcademicTab() {
             <div key={y.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
               <span className="font-medium">{y.name}</span>
               <span className="text-sm text-muted">
-                {new Date(y.startDate).toLocaleDateString()} - {new Date(y.endDate).toLocaleDateString()}
+                {day(y.startDate)} - {day(y.endDate)}
               </span>
               {y.isCurrent && <Badge variant="success">Current</Badge>}
             </div>
@@ -86,7 +87,7 @@ export function AcademicTab() {
               <div className="flex items-center gap-3">
                 <span className="font-medium">{t.name}</span>
                 <span className="text-sm text-muted">
-                  {new Date(t.startDate).toLocaleDateString()} - {new Date(t.endDate).toLocaleDateString()}
+                  {day(t.startDate)} - {day(t.endDate)}
                 </span>
                 {t.isCurrent && <Badge variant="success">Current</Badge>}
                 {t.isClosed && <Badge variant="danger">Closed</Badge>}

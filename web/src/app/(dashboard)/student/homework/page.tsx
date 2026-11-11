@@ -5,6 +5,7 @@ import { useStudentHomework, useSubmitHomework } from "@/hooks/use-homework";
 import { useAuthStore } from "@/stores/auth-store";
 import { FileText, Upload, Check, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 export default function StudentHomeworkPage() {
   const { user } = useAuthStore();
@@ -60,7 +61,7 @@ export default function StudentHomeworkPage() {
                     )}
                     <div className="mt-2 flex items-center gap-3 text-xs text-muted">
                       <span>
-                        Due: {new Date(hw.dueDate).toLocaleDateString()}
+                        Due: {day(hw.dueDate)}
                       </span>
                       {hw.maxMarks && <span>Max: {hw.maxMarks}</span>}
                       <span>

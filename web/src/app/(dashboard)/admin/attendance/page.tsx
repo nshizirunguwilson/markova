@@ -24,6 +24,7 @@ import { Calendar, AlertTriangle, Users, TrendingDown,
 } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { DATE_LOCALE } from "@/lib/dates";
 
 export default function AdminAttendancePage() {
   const [date, setDate] = useState(toLocalDateString(new Date()));
@@ -109,7 +110,7 @@ export default function AdminAttendancePage() {
               {dashboard.isFallback && (
                 <div className="mb-4 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground-muted">
                   The register has not been taken today yet. This is{" "}
-                  {new Date(dashboard.date).toLocaleDateString(undefined, {
+                  {new Date(dashboard.date).toLocaleDateString(DATE_LOCALE, {
                     weekday: "long",
                     day: "numeric",
                     month: "long",

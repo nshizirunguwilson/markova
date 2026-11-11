@@ -21,6 +21,7 @@ import { useUpcomingActivities, type Activity } from "@/hooks/use-activities";
 import { useClinicSummary, useClinicVisits } from "@/hooks/use-clinic";
 import { usePocketMoneyOverview } from "@/hooks/use-pocket-money";
 import { useAuthStore } from "@/stores/auth-store";
+import { DATE_LOCALE } from "@/lib/dates";
 
 /** Rwandan francs, written the way they are said. */
 export function frw(amount: number | undefined | null): string {
@@ -35,13 +36,13 @@ export function whenIs(iso: string, now: Date = new Date()): string {
   const midnight = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((midnight(date) - midnight(now)) / 86_400_000);
-  const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleTimeString(DATE_LOCALE, { hour: "2-digit", minute: "2-digit" });
   if (days === 0) return `Today, ${time}`;
   if (days === 1) return `Tomorrow, ${time}`;
   if (days > 1 && days < 7) {
-    return `${date.toLocaleDateString(undefined, { weekday: "long" })}, ${time}`;
+    return `${date.toLocaleDateString(DATE_LOCALE, { weekday: "long" })}, ${time}`;
   }
-  return `${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${time}`;
+  return `${date.toLocaleDateString(DATE_LOCALE, { day: "numeric", month: "short" })}, ${time}`;
 }
 
 /**

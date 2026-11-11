@@ -22,6 +22,7 @@ import { StudentPicker } from "@/components/student-picker";
 import { AlertTriangle, Plus } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -92,7 +93,7 @@ export default function TeacherDisciplinePage() {
               <TableBody>
                 {incidents.map((inc: any) => (
                   <TableRow key={inc.id}>
-                    <TableCell>{new Date(inc.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{day(inc.date)}</TableCell>
                     <TableCell className="font-medium">
                       {`${inc.student?.user?.firstName ?? ""} ${
                         inc.student?.user?.lastName ?? ""

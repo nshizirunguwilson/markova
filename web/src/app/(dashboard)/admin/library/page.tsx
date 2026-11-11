@@ -49,6 +49,7 @@ import { exportData } from "@/lib/export";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToday, daysFromToday } from "@/hooks/use-today";
+import { day } from "@/lib/dates";
 
 type Tab = "books" | "loans" | "overdue" | "analytics";
 
@@ -193,8 +194,8 @@ export default function AdminLibraryPage() {
         data: activeLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
-          _checkoutDate: new Date(l.checkoutDate).toLocaleDateString(),
-          _dueDate: new Date(l.dueDate).toLocaleDateString(),
+          _checkoutDate: day(l.checkoutDate),
+          _dueDate: day(l.dueDate),
         })),
       });
     } else if (tab === "overdue") {
@@ -210,7 +211,7 @@ export default function AdminLibraryPage() {
         data: overdueLoans.map((l: any) => ({
           ...l,
           _borrower: `${l.borrower?.firstName || ""} ${l.borrower?.lastName || ""}`.trim(),
-          _dueDate: new Date(l.dueDate).toLocaleDateString(),
+          _dueDate: day(l.dueDate),
           _daysOverdue: Math.ceil((Date.now() - new Date(l.dueDate).getTime()) / (1000 * 60 * 60 * 24)),
         })),
       });
@@ -380,8 +381,8 @@ export default function AdminLibraryPage() {
                   <TableRow key={l.id}>
                     <TableCell className="font-medium">{l.book?.title}</TableCell>
                     <TableCell>{l.borrower?.firstName} {l.borrower?.lastName}</TableCell>
-                    <TableCell>{new Date(l.checkoutDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(l.dueDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{day(l.checkoutDate)}</TableCell>
+                    <TableCell>{day(l.dueDate)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
@@ -456,7 +457,7 @@ export default function AdminLibraryPage() {
                     <TableRow key={l.id}>
                       <TableCell className="font-medium">{l.book?.title}</TableCell>
                       <TableCell>{l.borrower?.firstName} {l.borrower?.lastName}</TableCell>
-                      <TableCell>{new Date(l.dueDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{day(l.dueDate)}</TableCell>
                       <TableCell>
                         <Badge variant="danger">{daysOverdue} days</Badge>
                       </TableCell>

@@ -17,6 +17,7 @@ import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToday, daysFromToday } from "@/hooks/use-today";
+import { day } from "@/lib/dates";
 
 export default function StudentLibraryPage() {
   const today = useToday();
@@ -88,7 +89,7 @@ export default function StudentLibraryPage() {
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-muted">
-                              Due: {new Date(loan.dueDate).toLocaleDateString()}
+                              Due: {day(loan.dueDate)}
                             </p>
                             {isOverdue ? (
                               <Badge variant="danger">
@@ -136,11 +137,11 @@ export default function StudentLibraryPage() {
                               {loan.book?.title ?? "Unknown book"}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {new Date(loan.checkedOutAt).toLocaleDateString()}
+                              {day(loan.checkedOutAt)}
                             </TableCell>
                             <TableCell className="text-sm">
                               {loan.returnedAt
-                                ? new Date(loan.returnedAt).toLocaleDateString()
+                                ? day(loan.returnedAt)
                                 : "-"}
                             </TableCell>
                             <TableCell>

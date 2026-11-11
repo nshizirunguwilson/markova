@@ -44,6 +44,7 @@ import {
 import { toLocalDateString, classDisplayName, sectionLabel } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 /**
  * Who an assessment is for is fixed once it exists, so those four controls are
@@ -235,7 +236,7 @@ export default function AdminHomeworkPage() {
         ...hw,
         _class: classDisplayName(hw.classSection),
         _teacher: `${hw.teacher?.firstName || ""} ${hw.teacher?.lastName || ""}`.trim(),
-        _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-",
+        _dueDate: hw.dueDate ? day(hw.dueDate) : "-",
       })),
     });
   };
@@ -349,7 +350,7 @@ export default function AdminHomeworkPage() {
                     {hw.teacher?.firstName} {hw.teacher?.lastName}
                   </TableCell>
                   <TableCell>
-                    {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-"}
+                    {hw.dueDate ? day(hw.dueDate) : "-"}
                   </TableCell>
                   <TableCell>{hw.maxMarks ?? "-"}</TableCell>
                   <TableCell className="text-right">
