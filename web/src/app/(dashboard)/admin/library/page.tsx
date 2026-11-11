@@ -18,6 +18,7 @@ import {
   PageSpinner,
   Modal,
   ExportDropdown,
+  LoadFailed,
 } from "@/components/ui";
 import {
   useBooks,
@@ -84,7 +85,12 @@ export default function AdminLibraryPage() {
   const [tab, setTab] = useState<Tab>("books");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: booksResponse, isLoading: loadingBooks } = useBooks(
+  const {
+    data: booksResponse,
+    isLoading: loadingBooks,
+    isError: booksFailed,
+    refetch: reloadBooks,
+  } = useBooks(
     searchQuery ? { search: searchQuery } : undefined
   );
   const books = rowsOf<any>(booksResponse);
@@ -289,7 +295,7 @@ export default function AdminLibraryPage() {
             </div>
           </Card>
 
-          {!loadingBooks && books && (
+          {!loadingBooks && !booksFailed && books && (
             <p className="mb-3 text-sm text-muted">
               Showing {booksMeta?.total ?? books.length} books
             </p>
@@ -297,6 +303,8 @@ export default function AdminLibraryPage() {
 
           {loadingBooks ? (
             <PageSpinner />
+          ) : booksFailed ? (
+            <LoadFailed what="the books" onRetry={() => reloadBooks()} />
           ) : (
             <div className="overflow-x-auto">
             <Table>

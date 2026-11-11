@@ -14,6 +14,7 @@ import {
   TableCell,
   Modal,
   Input,
+  LoadFailed,
 } from "@/components/ui";
 import {
   useBooks,
@@ -29,7 +30,7 @@ import { Plus, Trash2, Search, BookOpen, ArrowDownToLine, ArrowUpFromLine } from
 export default function LibrarianBooksPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
-  const { data: booksResponse, isLoading } = useBooks({
+  const { data: booksResponse, isLoading, isError, refetch } = useBooks({
     ...(search && { search }),
     ...(category && { category }),
   });
@@ -131,6 +132,8 @@ export default function LibrarianBooksPage() {
       {/* Books Table */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner size="lg" /></div>
+      ) : isError ? (
+        <LoadFailed what="the books" onRetry={() => refetch()} />
       ) : books.length > 0 ? (
         <Card>
           <div className="overflow-x-auto">

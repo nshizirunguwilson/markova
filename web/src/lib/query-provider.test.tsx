@@ -51,6 +51,28 @@ describe("failed reads", () => {
     expect(h.toast.error.mock.calls[0][0]).not.toContain("The server said no");
   });
 
+  // The toast was the only sign a list had failed, and it had nothing to
+  // press. Retry reloads whatever failed.
+  it("offers a retry that loads the failed read again", async () => {
+    let calls = 0;
+    renderHook(
+      () =>
+        useQuery({
+          queryKey: ["r"],
+          queryFn: () => {
+            calls += 1;
+            return calls === 1 ? Promise.reject(failure(400)) : Promise.resolve(["a book"]);
+          },
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    const options = h.toast.error.mock.calls[0][1] as { action: { label: string; onClick: () => void } };
+    expect(options.action.label).toBe("Retry");
+    options.action.onClick();
+    await waitFor(() => expect(client.getQueryData(["r"])).toEqual(["a book"]));
+  });
+
   it("says the server is unreachable rather than blaming the request", async () => {
     const offline = Object.assign(new Error("Network Error"), { isAxiosError: true });
     renderHook(
