@@ -89,9 +89,8 @@ describe('drafting the comments on a card', () => {
       aggregate: 15,
       aggregateMax: 18,
     });
-    prisma.termResult.findMany.mockResolvedValue(
-      Array.from({ length: 30 }, () => ({ average: 65 })),
-    );
+    // A class of 30, as the database reports it (app_class_term_figures).
+    prisma.$queryRaw.mockResolvedValue([{ total: 30, average: 65 }]);
     prisma.teacherRole.findFirst.mockResolvedValue(null);
     prisma.attendance.count.mockResolvedValue(60);
     prisma.schoolConfig.findMany.mockResolvedValue([

@@ -76,9 +76,8 @@ describe('who the report card belongs to', () => {
       aggregateMax: 30,
     });
     // Thirty in the class, so the summary's "4 of 30" is a real figure.
-    prisma.termResult.findMany.mockResolvedValue(
-      Array.from({ length: 30 }, () => ({ average: 60 })),
-    );
+    // A class of 30, as the database reports it (app_class_term_figures).
+    prisma.$queryRaw.mockResolvedValue([{ total: 30, average: 60 }]);
     prisma.teacherRole.findFirst.mockResolvedValue({
       teacher: { user: { firstName: 'Speciose', lastName: 'Mukarugwiza' } },
     });
@@ -258,11 +257,7 @@ describe('who the report card belongs to', () => {
 
     it('counts the class they were in, not the one they moved to', async () => {
       await card();
-      expect(prisma.termResult.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ classSectionId: 'section-then' }),
-        }),
-      );
+      expect(prisma.$queryRaw.mock.calls[0].slice(1)[0]).toBe('section-then');
     });
 
     it('names the teacher of that class', async () => {
@@ -279,11 +274,7 @@ describe('who the report card belongs to', () => {
     it('falls back to the current class when nothing was computed', async () => {
       prisma.termResult.findFirst.mockResolvedValue(null);
       await card();
-      expect(prisma.termResult.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ classSectionId: 'section-1' }),
-        }),
-      );
+      expect(prisma.$queryRaw.mock.calls[0].slice(1)[0]).toBe('section-1');
     });
   });
 

@@ -179,19 +179,22 @@ describe('report card data', () => {
   });
 
   describe('where the student stands in the class', () => {
-    it('averages the class the student is actually in', async () => {
-      prisma.termResult.findMany.mockResolvedValue([
-        { average: 60 },
-        { average: 80 },
-      ]);
+    /*
+      The class's size and average come from the database as two numbers
+      (app_class_term_figures), never as everybody's rows, so a child or a
+      parent reading the card gets the whole class's figures.
+    */
+    it('asks the database for the figures of the class the student is in', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ total: 2, average: 70 }]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.classStats).toMatchObject({
         classAverage: 70,
         totalStudents: 2,
       });
-      expect(prisma.termResult.findMany).toHaveBeenCalledWith({
-        where: { classSectionId: 'section-1', termId: 'term-1' },
-      });
+      const [sql, ...values] = prisma.$queryRaw.mock.calls[0];
+      expect(sql.join('?')).toContain('app_class_term_figures');
+      expect(values).toEqual(['section-1', 'term-1']);
+      expect(prisma.termResult.findMany).not.toHaveBeenCalled();
     });
 
     // A class nobody has been marked in has no average, and printing 0 would
@@ -201,11 +204,10 @@ describe('report card data', () => {
       expect(data.classStats.classAverage).toBeNull();
     });
 
-    it('counts a missing average as zero rather than dropping the student', async () => {
-      prisma.termResult.findMany.mockResolvedValue([
-        { average: 80 },
-        { average: null },
-      ]);
+    // The database counts a missing average as zero (COALESCE in the
+    // function); the card takes its numbers as they come.
+    it('prints the figures the database gives, whatever type they arrive in', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ total: 2, average: '40' }]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.classStats.classAverage).toBe(40);
       expect(data.classStats.totalStudents).toBe(2);
