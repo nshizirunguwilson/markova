@@ -66,6 +66,14 @@ describe('bulk import', () => {
   */
   it('joins somebody who already signs in to their login', async () => {
     prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        firstName: student.firstName,
+        lastName: student.lastName,
+        nationalId: null,
+        schoolId: 'elsewhere',
+      },
+    ]);
     await service.bulkImport([student]);
     expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(
       'acc-existing',
@@ -77,13 +85,21 @@ describe('bulk import', () => {
     prisma.account.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'acc-existing' }]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        firstName: 'Divine',
+        lastName: 'Niyonkuru',
+        nationalId: null,
+        schoolId: 'school-1',
+      },
+    ]);
     prisma.user.findFirst.mockResolvedValue({
-      firstName: 'Keza',
-      lastName: 'Ishimwe',
+      firstName: 'Divine',
+      lastName: 'Niyonkuru',
     });
     await expect(
       service.bulkImport([student, { ...student, email: 'k@markova.edu' }]),
-    ).rejects.toThrow(/^Row 2: Keza Ishimwe is already a student here$/);
+    ).rejects.toThrow(/^Row 2: Divine Niyonkuru is already a student here$/);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 

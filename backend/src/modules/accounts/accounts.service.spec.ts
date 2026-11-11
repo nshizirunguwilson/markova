@@ -13,6 +13,7 @@ describe('AccountsService', () => {
       },
       school: { findUnique: jest.fn() },
       currentSchoolId: jest.fn().mockResolvedValue('school-lnd'),
+      user: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const delivery = {
       email: jest.fn().mockResolvedValue(undefined),
@@ -51,6 +52,86 @@ describe('AccountsService', () => {
       const { service, prisma } = build();
       await service.loginFor(null, null);
       expect(prisma.account.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  /*
+    Every school writes addresses as initial.lastname@markova.edu, so two
+    different people share one by construction. Joining a login is for the
+    same person in a second role or school, never for a namesake.
+  */
+  describe('joining a login only for the same person', () => {
+    const existing = { accountId: 'acc-1', isNew: false };
+    const valentine = {
+      firstName: 'Valentine',
+      lastName: 'Mukantwari',
+      nationalId: null,
+      schoolId: 'school-lnd',
+    };
+
+    it('lets a new login through without asking', async () => {
+      const { service, prisma } = build();
+      await service.refuseSomebodyElse(
+        { accountId: 'new', isNew: true },
+        { firstName: 'Vestine', lastName: 'Mukantwari' },
+      );
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('joins the same person, names in any order and with a middle name', async () => {
+      const { service, prisma } = build();
+      prisma.user.findMany.mockResolvedValue([
+        { ...valentine, firstName: 'Valentine Mukantwari', lastName: 'Uwera' },
+      ]);
+      await expect(
+        service.refuseSomebodyElse(existing, {
+          firstName: 'Uwera',
+          lastName: 'Valentine',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('joins on the same national ID even when the name is written differently', async () => {
+      const { service, prisma } = build();
+      prisma.user.findMany.mockResolvedValue([
+        { ...valentine, nationalId: '1 1985 7 0123456 0 12' },
+      ]);
+      await expect(
+        service.refuseSomebodyElse(existing, {
+          firstName: 'Valentina',
+          lastName: 'Mukantwari',
+          nationalId: '1 1985 7 0123456 0 12',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('refuses a namesake in this school and says who holds the address', async () => {
+      const { service, prisma } = build();
+      prisma.user.findMany.mockResolvedValue([valentine]);
+      await expect(
+        service.refuseSomebodyElse(existing, {
+          firstName: 'Vestine',
+          lastName: 'Mukantwari',
+        }),
+      ).rejects.toThrow(
+        'That email or phone number already belongs to Valentine Mukantwari. Give Vestine their own.',
+      );
+    });
+
+    it('refuses somebody at another school without saying who', async () => {
+      const { service, prisma } = build();
+      prisma.user.findMany.mockResolvedValue([
+        { ...valentine, schoolId: 'school-other' },
+      ]);
+      const refusal = service.refuseSomebodyElse(
+        existing,
+        { firstName: 'Odette', lastName: 'Mukashyaka' },
+        3,
+      );
+      await expect(refusal).rejects.toThrow(ConflictException);
+      await expect(refusal).rejects.toThrow(
+        'Row 3: That email or phone number is already used by somebody else. Give Odette their own.',
+      );
     });
   });
 

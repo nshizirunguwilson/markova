@@ -1,7 +1,7 @@
 import { accountsFor } from '../../__test__/accounts';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { createMockPrisma } from '../../__test__/prisma-mock';
+import { TEST_SCHOOL_ID, createMockPrisma } from '../../__test__/prisma-mock';
 
 /**
  * Accounts, and the things that make one usable.
@@ -56,6 +56,14 @@ describe('UsersService', () => {
     prisma.student.create.mockResolvedValue({});
     prisma.student.findUnique.mockResolvedValue(null);
     prisma.parentStudent.create.mockResolvedValue({});
+  });
+
+  /* Whoever already holds a login: by default the same person, in this school. */
+  const holder = (p: { firstName: string; lastName: string }) => ({
+    firstName: p.firstName,
+    lastName: p.lastName,
+    nationalId: null,
+    schoolId: TEST_SCHOOL_ID,
   });
 
   const teacher = {
@@ -137,6 +145,7 @@ describe('UsersService', () => {
   describe('identifiers already in use', () => {
     it('joins somebody who already signs in, rather than refusing them', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       await service.create(teacher);
       expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(
         'acc-existing',
@@ -164,6 +173,7 @@ describe('UsersService', () => {
 
     it('refuses the same person in the same role twice', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       prisma.user.findFirst.mockResolvedValue({
         firstName: 'Aline',
         lastName: 'Uwase',
@@ -177,6 +187,7 @@ describe('UsersService', () => {
     /* A teacher here can also be a parent here: a second record. */
     it('asks only about the role being added', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       await service.create(teacher);
       expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
         accountId: 'acc-existing',

@@ -447,6 +447,7 @@ export class UsersService {
       either way (see AccountsService).
     */
     const login = await this.accounts.loginFor(dto.email, dto.phone);
+    await this.accounts.refuseSomebodyElse(login, dto);
     await this.refuseSameRoleTwice(login, dto.role);
 
     if (dto.nationalId) {
@@ -973,7 +974,10 @@ export class UsersService {
       const login = again
         ? { accountId: again.accountId, isNew: false }
         : await this.accounts.loginFor(email, phone);
-      if (!again) await this.refuseSameRoleTwice(login, role, i + 1);
+      if (!again) {
+        await this.accounts.refuseSomebodyElse(login, rows[i], i + 1);
+        await this.refuseSameRoleTwice(login, role, i + 1);
+      }
       if (
         again &&
         logins.some(
