@@ -866,7 +866,9 @@ async function main() {
     { key: 'school_website', value: 'https://markova.edu' },
     // Both are printed on every letter the school issues: the head teacher
     // signs it, and a receiving school checks the registration number.
-    { key: 'head_teacher_name', value: 'Aline Uwase' },
+    // The same person who holds the head teacher's account below. It named
+    // a classroom teacher, so letters and report cards disagreed.
+    { key: 'head_teacher_name', value: 'Speciose Mukarugwiza' },
     { key: 'registration_number', value: 'REB/2015/0142' },
     { key: 'email_provider', value: 'smtp' },
   ];

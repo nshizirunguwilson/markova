@@ -127,6 +127,27 @@ describe('the letterhead on an official document', () => {
       expect(doc.html).toMatch(/Head Teacher, Markova TSS/);
     });
 
+    /* The finding: the transfer letter was signed in the name typed into the
+       settings while the report card named the holder of the head teacher's
+       account, so two documents issued the same day named two people. */
+    it('signs in the name of whoever holds the post, over a stale setting', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        firstName: 'Speciose',
+        lastName: 'Mukarugwiza',
+        signatureUrl: null,
+      });
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/Speciose Mukarugwiza/);
+      expect(doc.html).not.toMatch(/Aline Uwase/);
+      expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
+        role: 'HEAD_TEACHER',
+        isActive: true,
+      });
+    });
+
     it('prints the registration number on the letterhead', async () => {
       const doc = await service.generateDocument(
         'student-1',
