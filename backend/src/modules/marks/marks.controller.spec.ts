@@ -112,9 +112,9 @@ describe('MarksController', () => {
     },
     {
       name: 'the list, filtered',
-      call: (c) => c.findAll({ termId: 'term-1' }),
+      call: (c) => c.findAll({ termId: 'term-1' }, withTeacherId),
       calls: 'findAll',
-      withArgs: [{ termId: 'term-1' }],
+      withArgs: [{ termId: 'term-1' }, withTeacherId],
     },
     {
       name: 'how much of a class is still unmarked',
@@ -125,9 +125,9 @@ describe('MarksController', () => {
     },
     {
       name: 'one mark',
-      call: (c) => c.findById('mark-1'),
+      call: (c) => c.findById('mark-1', withTeacherId),
       calls: 'findById',
-      withArgs: ['mark-1'],
+      withArgs: ['mark-1', withTeacherId],
     },
     {
       name: 'a mark corrected by the teacher who entered it',

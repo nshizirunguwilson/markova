@@ -23,6 +23,8 @@ const permissions = {
   classesLedBy: jest.fn().mockResolvedValue([]),
   mayWriteClassTeacherComment: jest.fn().mockResolvedValue(true),
   mayWriteHeadTeacherComment: jest.fn().mockReturnValue(true),
+  mayEnterMarks: jest.fn(),
+  marksReadableBy: jest.fn(),
 };
 
 describe('MarksService', () => {
@@ -43,6 +45,12 @@ describe('MarksService', () => {
     prisma.mark.update.mockResolvedValue({ id: 'mark-1' });
     prisma.mark.delete.mockResolvedValue({ id: 'mark-1' });
     prisma.schoolConfig.findFirst.mockResolvedValue(null);
+    permissions.mayEnterMarks.mockReset().mockResolvedValue(true);
+    permissions.marksReadableBy.mockReset().mockResolvedValue(null);
+    // every student asked about is in the class, unless a test says otherwise
+    prisma.student.count.mockImplementation(
+      async ({ where }: any) => where.id.in.length,
+    );
   });
 
   const mark = {
@@ -53,6 +61,147 @@ describe('MarksService', () => {
     assessmentTypeId: 'assess-1',
     score: 17,
   };
+
+  /**
+   * Whose mark book it is. A teacher enters marks only for a subject they
+   * teach to that class; anybody's marks go only to students in that class.
+   */
+  describe('whose marks a teacher may enter', () => {
+    it('refuses a subject or class the teacher does not teach', async () => {
+      permissions.mayEnterMarks.mockResolvedValue(false);
+      await expect(service.create(mark as never, 'teacher-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prisma.mark.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses a whole class at once from a teacher who does not teach it', async () => {
+      permissions.mayEnterMarks.mockResolvedValue(false);
+      await expect(
+        service.batchEntry(
+          { ...mark, marks: [{ studentId: 's-1', score: 10 }] },
+          'teacher-1',
+        ),
+      ).rejects.toThrow(/do not teach/);
+      expect(prisma.mark.upsert).not.toHaveBeenCalled();
+    });
+
+    it('asks about the subject, the class and the term being entered', async () => {
+      await service.create(mark as never, 'teacher-1');
+      expect(permissions.mayEnterMarks).toHaveBeenCalledWith('teacher-1', {
+        subjectId: 'subject-1',
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        assessmentTypeId: 'assess-1',
+        studentId: 'student-1',
+        score: 17,
+      });
+    });
+
+    it('does not ask about the head teacher, who keeps the whole mark book', async () => {
+      prisma.teacherSubjectClass.findFirst.mockResolvedValue({
+        teacherId: 't-9',
+      });
+      await service.create(mark as never, null, 'HEAD_TEACHER');
+      expect(permissions.mayEnterMarks).not.toHaveBeenCalled();
+      expect(prisma.mark.upsert).toHaveBeenCalled();
+    });
+
+    it('refuses a student who is not in that class, whoever enters it', async () => {
+      prisma.student.count.mockResolvedValue(0);
+      await expect(service.create(mark as never, 'teacher-1')).rejects.toThrow(
+        /not in that class/,
+      );
+      prisma.teacherSubjectClass.findFirst.mockResolvedValue({
+        teacherId: 't-9',
+      });
+      await expect(
+        service.create(mark as never, null, 'HEAD_TEACHER'),
+      ).rejects.toThrow(/not in that class/);
+      expect(prisma.mark.upsert).not.toHaveBeenCalled();
+    });
+
+    it('says how many of a batch are in the wrong class', async () => {
+      prisma.student.count.mockResolvedValue(1);
+      await expect(
+        service.batchEntry(
+          {
+            ...mark,
+            marks: [
+              { studentId: 's-1', score: 10 },
+              { studentId: 's-2', score: 11 },
+              { studentId: 's-3', score: 12 },
+            ],
+          },
+          'teacher-1',
+        ),
+      ).rejects.toThrow(/2 of these students are not in that class/);
+    });
+  });
+
+  describe('whose marks a teacher may read', () => {
+    beforeEach(() => {
+      prisma.mark.findMany.mockResolvedValue([]);
+      prisma.mark.count.mockResolvedValue(0);
+    });
+
+    it('limits a teacher to what they teach and the class they lead', async () => {
+      permissions.marksReadableBy.mockResolvedValue([
+        { subjectId: 'subject-1', classSectionId: 'section-1' },
+        { classSectionId: 'section-2' },
+      ]);
+      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      const where = prisma.mark.findMany.mock.calls[0][0].where;
+      expect(where.OR).toEqual([
+        { subjectId: 'subject-1', classSectionId: 'section-1' },
+        { classSectionId: 'section-2' },
+      ]);
+    });
+
+    it('shows a teacher who teaches nothing no marks at all', async () => {
+      permissions.marksReadableBy.mockResolvedValue([]);
+      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      expect(prisma.mark.findMany.mock.calls[0][0].where.OR).toEqual([
+        { id: '' },
+      ]);
+    });
+
+    it('puts no limit on the head teacher or the DOS duty', async () => {
+      await service.findAll({} as never, { role: 'HEAD_TEACHER' });
+      expect(prisma.mark.findMany.mock.calls[0][0].where.OR).toBeUndefined();
+      permissions.marksReadableBy.mockResolvedValue(null);
+      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      expect(prisma.mark.findMany.mock.calls[1][0].where.OR).toBeUndefined();
+    });
+
+    it('answers "not found" for a single mark outside what the teacher may read', async () => {
+      prisma.mark.findUnique.mockResolvedValue({
+        id: 'm-1',
+        classSectionId: 'section-9',
+        subjectId: 'subject-1',
+      });
+      permissions.marksReadableBy.mockResolvedValue([
+        { subjectId: 'subject-1', classSectionId: 'section-1' },
+      ]);
+      await expect(
+        service.findById('m-1', { role: 'TEACHER', teacherId: 't-1' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('opens a single mark of a class the teacher leads, in any subject', async () => {
+      prisma.mark.findUnique.mockResolvedValue({
+        id: 'm-1',
+        classSectionId: 'section-2',
+        subjectId: 'subject-7',
+      });
+      permissions.marksReadableBy.mockResolvedValue([
+        { classSectionId: 'section-2' },
+      ]);
+      await expect(
+        service.findById('m-1', { role: 'TEACHER', teacherId: 't-1' }),
+      ).resolves.toMatchObject({ id: 'm-1' });
+    });
+  });
 
   /**
    * Closing a term is what stops a mark changing after the report card went
@@ -1473,6 +1622,9 @@ describe('a whole class entered at once', () => {
     });
     prisma.mark.upsert.mockResolvedValue({ id: 'mark-1' });
     prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
+    prisma.student.count.mockImplementation(
+      async ({ where }: any) => where.id.in.length,
+    );
   });
 
   it('refuses a subject the school does not teach', async () => {

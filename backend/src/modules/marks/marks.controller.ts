@@ -78,8 +78,8 @@ export class MarksController {
   @Get()
   @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query marks with filters' })
-  findAll(@Query() query: QueryMarksDto) {
-    return this.service.findAll(query);
+  findAll(@Query() query: QueryMarksDto, @CurrentUser() user: any) {
+    return this.service.findAll(query, user);
   }
 
   @Get('completion')
@@ -102,8 +102,8 @@ export class MarksController {
   @Get(':id')
   @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get a single mark by ID' })
-  findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findById(id);
+  findById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.service.findById(id, user);
   }
 
   @Put(':id')

@@ -97,6 +97,79 @@ export class Permissions {
     return !!link;
   }
 
+  /**
+   * Does this teacher also hold the Director of Studies duty?
+   *
+   * A teacher who is the school's DOS looks after every class's mark book,
+   * not only the classes they teach, so the limits below do not apply to them.
+   */
+  async holdsDosDuty(teacherId: string | undefined): Promise<boolean> {
+    if (!teacherId) return false;
+    const duty = await this.prisma.teacherRole.findFirst({
+      where: { role: 'DOS', teacherId },
+      select: { id: true },
+    });
+    return !!duty;
+  }
+
+  /**
+   * May this teacher enter marks in this subject for this class?
+   *
+   * Only for a subject they teach to that class in the year the term belongs
+   * to. A mark is credited to the teacher who entered it, so a mark entered
+   * for somebody else's class would put one teacher's name on another's work.
+   */
+  async mayEnterMarks(
+    teacherId: string | undefined,
+    where: { subjectId: string; classSectionId: string; termId: string },
+  ): Promise<boolean> {
+    if (!teacherId) return false;
+    if (await this.holdsDosDuty(teacherId)) return true;
+    const term = await this.prisma.term.findFirst({
+      where: { id: where.termId },
+      select: { academicYearId: true },
+    });
+    if (!term) return false;
+    const teaches = await this.prisma.teacherSubjectClass.findFirst({
+      where: {
+        teacherId,
+        subjectId: where.subjectId,
+        classSectionId: where.classSectionId,
+        academicYearId: term.academicYearId,
+      },
+      select: { id: true },
+    });
+    return !!teaches;
+  }
+
+  /**
+   * Which marks may this teacher read?
+   *
+   * Their own subjects in the classes they teach, and every subject of a
+   * class they lead, because the class teacher writes the comment on the
+   * whole card. Null means no limit (the DOS duty). An empty list means none.
+   */
+  async marksReadableBy(
+    teacherId: string | undefined,
+  ): Promise<null | Array<{ subjectId?: string; classSectionId: string }>> {
+    if (!teacherId) return [];
+    if (await this.holdsDosDuty(teacherId)) return null;
+    const [taught, led] = await Promise.all([
+      this.prisma.teacherSubjectClass.findMany({
+        where: { teacherId },
+        select: { subjectId: true, classSectionId: true },
+      }),
+      this.classesLedBy(teacherId),
+    ]);
+    return [
+      ...taught.map((t) => ({
+        subjectId: t.subjectId,
+        classSectionId: t.classSectionId,
+      })),
+      ...led.map((classSectionId) => ({ classSectionId })),
+    ];
+  }
+
   /** Is this the student's own record? */
   async isSelf(userId: string, studentId: string): Promise<boolean> {
     const student = await this.prisma.student.findFirst({
