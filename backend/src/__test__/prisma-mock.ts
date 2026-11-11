@@ -73,6 +73,7 @@ const modelNames = [
   'studentHealthRecord',
   'meritAward',
   'reportVerification',
+  'feeInvoice',
 ] as const;
 
 type MockPrisma = {

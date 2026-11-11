@@ -56,6 +56,11 @@ describe('report card data', () => {
   beforeEach(() => {
     prisma = createMockPrisma();
     service = new ReportsService(prisma);
+    // Nothing owed, no book out, nothing open: the usual leaver.
+    prisma.feeInvoice.findMany.mockResolvedValue([]);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.disciplineAppeal.count.mockResolvedValue(0);
+    prisma.studentPause.findMany.mockResolvedValue([]);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.term.findUnique.mockResolvedValue(term);
@@ -392,6 +397,11 @@ describe('documents', () => {
     ]);
     prisma.disciplineIncident.findMany.mockResolvedValue([]);
     prisma.termResult.findMany.mockResolvedValue([]);
+    // Nothing owed, no book out, nothing open: the usual leaver.
+    prisma.feeInvoice.findMany.mockResolvedValue([]);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.disciplineAppeal.count.mockResolvedValue(0);
+    prisma.studentPause.findMany.mockResolvedValue([]);
   });
 
   it('refuses a student who does not exist', async () => {

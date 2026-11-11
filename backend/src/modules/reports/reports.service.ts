@@ -62,6 +62,7 @@ import {
   suggestComments,
   type CommentFacts,
 } from '../../common/report-comments';
+import { feeStanding, formatRwf } from '../../common/fees';
 
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -649,6 +650,55 @@ export class ReportsService implements OnModuleDestroy {
   // DOCUMENT GENERATION
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * What is still open as a student leaves: fees owed across every term,
+   * library books not back, and any disciplinary matter not yet closed.
+   *
+   * Read for the transfer letter, which certifies these to the next school.
+   * A book counts until it is returned: one marked lost has not come back.
+   */
+  async leavingStanding(
+    studentId: string,
+    userId: string,
+  ): Promise<{ owed: number; booksOut: number; openMatters: string[] }> {
+    const [invoices, booksOut, appeals, pause] = await Promise.all([
+      this.prisma.feeInvoice.findMany({
+        where: { studentId },
+        select: {
+          total: true,
+          payments: { select: { amount: true, voidedAt: true } },
+          waivers: { select: { amount: true, revokedAt: true } },
+        },
+      }),
+      this.prisma.bookLoan.count({
+        where: {
+          borrowerUserId: userId,
+          status: { in: ['ACTIVE', 'OVERDUE', 'LOST'] },
+        },
+      }),
+      this.prisma.disciplineAppeal.count({
+        where: { status: 'PENDING', incident: { studentId } },
+      }),
+      pausesOn(this.prisma, [studentId], schoolDay()).then((m) =>
+        m.get(studentId),
+      ),
+    ]);
+    const owed = invoices.reduce(
+      (sum, i) => sum + feeStanding(i.total, i.payments, i.waivers).balance,
+      0,
+    );
+    const openMatters: string[] = [];
+    if (pause?.kind === 'SUSPENDED') {
+      openMatters.push('the student is suspended at the time of leaving');
+    }
+    if (appeals > 0) {
+      openMatters.push(
+        `${appeals} ${appeals === 1 ? 'appeal against a disciplinary decision has' : 'appeals against disciplinary decisions have'} not yet been decided`,
+      );
+    }
+    return { owed, booksOut, openMatters };
+  }
+
   async generateDocument(
     studentId: string,
     type: string,
@@ -687,23 +737,39 @@ export class ReportsService implements OnModuleDestroy {
         // are, how long they were here, what class they leave from and
         // therefore join, and that they leave in good standing with nothing
         // outstanding. The previous version was one sentence.
+        /*
+          Everything the letter certifies about money, property and conduct
+          is looked up, never assumed. It used to state that nothing was owed
+          and nothing was pending as fixed text, so a letter went out saying
+          no fees remained for a child who owed 120,500 RWF.
+        */
+        const leaving = await this.leavingStanding(student.id, student.userId);
+        const conduct =
+          typeof student.disciplinePoints === 'number'
+            ? ` Their conduct while with us stands at <strong>${student.disciplinePoints}</strong> points out of the school's full mark.`
+            : '';
+        const standing = leaving.openMatters.length
+          ? ` A disciplinary matter is still open: ${leaving.openMatters.join(' and ')}.`
+          : ' They leave in good standing, with no disciplinary matter pending against them.';
+        const property =
+          leaving.booksOut === 0
+            ? 'All library books issued to the student have been returned'
+            : `${leaving.booksOut} library ${leaving.booksOut === 1 ? 'book issued to the student has' : 'books issued to the student have'} not been returned`;
+        const money =
+          leaving.owed === 0
+            ? 'no school fees remain outstanding'
+            : `<strong>${formatRwf(leaving.owed)}</strong> in school fees remains outstanding`;
         const body = `
           <p>This is to certify that ${particulars} was a bona fide student of
           ${school.name}${enrolled ? `, admitted on ${enrolled}` : ''}, and was
           enrolled in <strong>${className}</strong> at the time of leaving.</p>
 
           <p>The student is hereby transferred from this institution with effect
-          from <strong>${today}</strong>.${
-            typeof student.disciplinePoints === 'number'
-              ? ` Their conduct while with us stands at <strong>${student.disciplinePoints}</strong> points out of the school's full mark, and they`
-              : ' They'
-          } leave in good standing with no disciplinary matter pending against
-          them.</p>
+          from <strong>${today}</strong>.${conduct}${standing}</p>
 
-          <p>All school property issued to the student has been returned and no
-          financial obligation to this school remains outstanding. Their
-          academic records for the period of study are available on request and
-          will be released directly to the admitting institution.</p>
+          <p>${property}, and ${money}. Their academic records for the period
+          of study are available on request and will be released directly to
+          the admitting institution.</p>
 
           <p>We kindly request the receiving institution to admit
           ${name} into the class following ${escapeHtml(
