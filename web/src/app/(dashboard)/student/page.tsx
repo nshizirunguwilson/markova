@@ -19,6 +19,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { LatestMarks } from "@/components/student/latest-marks";
+import { WhatsDue } from "@/components/student/whats-due";
 
 export default function StudentDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -53,6 +55,13 @@ export default function StudentDashboard() {
           title={<>Welcome back, {user?.firstName}</>}
           description="Student Dashboard"
         />
+      </div>
+
+      {/* What a student opens the app for: what to hand in, and how the
+          last piece of work went. */}
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <WhatsDue studentId={user?.studentId} classSectionId={user?.classSectionId} />
+        <LatestMarks studentId={user?.studentId} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
