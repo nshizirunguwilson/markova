@@ -437,3 +437,10 @@ export class SaveIntakeDto {
   @IsBoolean()
   isOpen?: boolean;
 }
+
+/** A family attaching a document from the status page. Sent as form fields. */
+export class FamilyDocumentDto extends StatusLookupDto {
+  @ApiProperty({ enum: AdmissionDocumentKind })
+  @IsEnum(AdmissionDocumentKind)
+  kind: AdmissionDocumentKind;
+}

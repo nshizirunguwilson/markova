@@ -15,6 +15,7 @@ import {
   type ApplicationStatus,
 } from "@/lib/admissions";
 import { CheckCircle2, FileText, Lock, Search } from "lucide-react";
+import { SendDocuments } from "@/components/admissions/send-documents";
 
 /**
  * Where a family checks on their own application.
@@ -140,13 +141,19 @@ export default function AdmissionsStatusPage() {
                     ))}
                   </ul>
                   <p className="mt-2 text-sm text-warning">
-                    Take these to the school office, or send them to the address
-                    on the admissions page.
+                    Send them below, or take them to the school office.
                   </p>
                 </div>
               </div>
             </Card>
           )}
+
+          <SendDocuments
+            status={status}
+            reference={reference.trim()}
+            dateOfBirth={dateOfBirth}
+            onSent={() => check.mutate({ reference: reference.trim(), dateOfBirth })}
+          />
 
           {offer && (
             <Card className={offerStands ? "border-success/40" : undefined}>
