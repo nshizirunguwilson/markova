@@ -95,11 +95,19 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // A network blip is not an expired session. Keep the tokens so a later
-        // attempt can refresh again; only a real rejection from the API ends
-        // the session.
-        if (axios.isAxiosError(refreshError) && refreshError.response) {
+        // attempt can refresh again; only the API saying the session is no
+        // longer valid ends it.
+        const status = axios.isAxiosError(refreshError)
+          ? refreshError.response?.status
+          : undefined;
+        if (status === 401 || status === 403) {
           toast.error("Your session has expired. Please log in again.");
           redirectToLogin();
+        } else if (status === 429) {
+          /* Too many at once is not an expired session either. It signed the
+             matron, the nurse and the admin out mid-task when two sessions on
+             one computer shared the allowance. The next request refreshes. */
+          toast.error("The school is busy. Wait a moment and try again.");
         }
         return Promise.reject(error);
       }

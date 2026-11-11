@@ -191,6 +191,26 @@ describe("refreshing an expired session", () => {
     expect(localStorage.getItem("refresh_token")).toBeNull();
   });
 
+  /* The finding: two sessions on one computer shared the refresh allowance,
+     the refresh came back 429, and the page signed the matron out mid-task. */
+  it("keeps the session when the refresh is only refused for being busy", async () => {
+    localStorage.setItem("access_token", "old-access");
+    localStorage.setItem("refresh_token", "still-good");
+    axiosPost.mockRejectedValue(
+      Object.assign(new Error("Too Many Requests"), {
+        isAxiosError: true,
+        response: { status: 429, data: {} },
+      }),
+    );
+
+    await responseErrorHandler()(failure("/users")).catch(() => undefined);
+
+    expect(toast.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("session has expired"),
+    );
+    expect(localStorage.getItem("refresh_token")).toBe("still-good");
+  });
+
   // A dropped connection is not an expired session. Throwing the tokens away
   // for a network blip would sign a teacher out every time the wifi wobbles.
   it("keeps the tokens when the refresh never reached the server", async () => {

@@ -1,5 +1,6 @@
 import { RedisService } from './redis/redis.service';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+import { addressTracker, throttleTracker } from './common/throttler/tracker';
 import { validateEnv } from './config/env.validation';
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -53,7 +54,27 @@ import { JobsModule } from './jobs/jobs.module';
     ThrottlerModule.forRootAsync({
       inject: [RedisService],
       useFactory: (redis: RedisService) => ({
-        throttlers: [{ name: 'default', ttl: 60000, limit: 100 }],
+        throttlers: [
+          /* Per person where the request says who, so one school's shared
+             address is not one shared allowance. See tracker.ts. */
+          {
+            name: 'default',
+            ttl: 60000,
+            limit: 100,
+            getTracker: throttleTracker({
+              access: process.env.JWT_SECRET,
+              refresh: process.env.JWT_REFRESH_SECRET,
+            }),
+          },
+          /* The outer limit per address, generous enough for a whole school
+             behind one router and still a stop to a flood from one place. */
+          {
+            name: 'address',
+            ttl: 60000,
+            limit: 3000,
+            getTracker: addressTracker,
+          },
+        ],
         storage: new RedisThrottlerStorage(redis),
       }),
     }),
