@@ -125,11 +125,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function mount(user: unknown = teacher) {
+async function mount(user: unknown = teacher, role = "ADMIN") {
   serve(h.api, { ...routes, "/users/u-1": user });
-  renderPage(TeacherDetailPage, { role: "ADMIN" });
+  renderPage(TeacherDetailPage, { role });
   await waitFor(() => expect(document.body.textContent).not.toBe(""));
 }
+
+/* The Director of Studies opens this page to see a teacher's classes. Only
+   the principal edits a person's record, so only they are offered it. */
+describe("who may edit the teacher", () => {
+  it("offers the principal Edit details", async () => {
+    await mount();
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByRole("button", { name: /edit details/i })).toBeInTheDocument();
+  });
+
+  it("shows the Director of Studies the page without it", async () => {
+    await mount(teacher, "HEAD_TEACHER");
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.queryByRole("button", { name: /edit details/i })).toBeNull();
+  });
+});
 
 describe("who this teacher is", () => {
   it("names them and their staff number", async () => {

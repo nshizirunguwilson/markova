@@ -134,10 +134,20 @@ export class UsersController {
   ) {
     // Non-admins may only fetch their own record (e.g. a parent loading their
     // linked children). Admins may fetch anyone.
-    if (current.role !== 'ADMIN' && current.id !== id) {
+    //
+    // One exception: the Director of Studies opens a teacher's page, to see
+    // what they teach and name them class teacher or head of department. The
+    // menu offered Teachers and the page answered "Teacher not found", because
+    // this refused the record. A teacher's record only: a parent's or a
+    // student's stays closed to them here.
+    const mayReadTeacher = current.role === 'HEAD_TEACHER' && current.id !== id;
+    if (current.role !== 'ADMIN' && current.id !== id && !mayReadTeacher) {
       throw new ForbiddenException('You can only access your own profile');
     }
     const user = await this.usersService.findOne(id);
+    if (mayReadTeacher && user.role !== 'TEACHER') {
+      throw new ForbiddenException('You can only access your own profile');
+    }
     /* A parent's own record carries each child's. What an adult child keeps
        private (their health notes, their conduct score) is left out. */
     if (current.role === 'PARENT' && Array.isArray(user.parentStudents)) {
