@@ -10,6 +10,9 @@ import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExamHelp } from "@/components/support/exam-help";
 import { useClassSupport } from "@/hooks/use-support";
+import { neverArrived, useOfflineRegister } from "@/hooks/use-offline-register";
+import { useAuthStore } from "@/stores/auth-store";
+import { CloudOff } from "lucide-react";
 
 type Status = "PRESENT" | "ABSENT" | "LATE" | null;
 
@@ -39,6 +42,8 @@ export default function TeacherAttendancePage() {
   const { data: supported } = useClassSupport(selectedSection);
   const examHelp = new Map((supported ?? []).map((s) => [s.studentId, s.arrangements]));
   const bulkAttendance = useBulkAttendance();
+  const { user } = useAuthStore();
+  const offline = useOfflineRegister(user?.id);
   const qrScan = useQrScan();
   const qrInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,11 +88,22 @@ export default function TeacherAttendancePage() {
       .filter(([, status]) => status !== null)
       .map(([studentId, status]) => ({ studentId, status: status as string }));
     if (records.length === 0) return;
-    bulkAttendance.mutate({
+    const register = {
       classSectionId: selectedSection,
       date,
       type: "daily",
       records,
+    };
+    // No connection: keep it on the device rather than lose it.
+    if (!offline.online) {
+      offline.keep(register);
+      return;
+    }
+    bulkAttendance.mutate(register, {
+      // The save left but never arrived: the network dropped mid-save.
+      onError: (e) => {
+        if (neverArrived(e)) offline.keep(register);
+      },
     });
   };
 
@@ -113,6 +129,22 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="space-y-6">
+      {(!offline.online || offline.pending > 0) && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-wash px-4 py-3 text-sm"
+        >
+          <CloudOff className="h-4 w-4 shrink-0" aria-hidden />
+          {!offline.online
+            ? "You are offline. Take the register as usual: it is kept on this device and saved when the connection comes back."
+            : `${offline.pending} register${offline.pending === 1 ? "" : "s"} taken offline waiting to be saved.`}
+          {offline.online && offline.pending > 0 && (
+            <Button size="sm" variant="secondary" className="ml-auto" onClick={() => offline.send()}>
+              Save now
+            </Button>
+          )}
+        </div>
+      )}
       <PageHeader
         title="Attendance"
         description="Mark student attendance"

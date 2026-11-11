@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
+import { getPendingRegisters, savePendingRegister } from "@/lib/offline-db";
 
 const h = vi.hoisted(() => {
   const fn = () => vi.fn();
@@ -661,4 +664,72 @@ describe("a student with a support plan on the register", () => {
       "In tests and exams: 25% extra time, Large print",
     );
   }, 20000);
+});
+
+/* The finding: only the marks page kept work on the device, so a register
+   taken during a network drop was lost when saving failed. */
+describe("a register taken without a connection", () => {
+  const setOnline = (value: boolean) =>
+    Object.defineProperty(window.navigator, "onLine", { value, configurable: true });
+
+  beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory();
+    setOnline(true);
+  });
+  afterEach(() => setOnline(true));
+
+  const button = (name: RegExp) =>
+    screen.queryAllByRole("button").find((b) => name.test((b.textContent ?? "").trim()));
+  const click = async (el: Element | undefined) => {
+    expect(el).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(el as Element);
+    });
+  };
+  const bulkCalls = () =>
+    h.api.post.mock.calls.filter(([url]: any[]) => String(url).includes("/attendance/bulk"));
+
+  async function takeRegister() {
+    await mount();
+    await pickClass();
+    await waitFor(() => expect(screen.getByText(/Divine/)).toBeInTheDocument());
+    await click(button(/all present|mark all/i));
+    await click(button(/^save/i));
+  }
+
+  it("keeps the register on the device when offline, and says so", async () => {
+    setOnline(false);
+    await takeRegister();
+    await waitFor(async () => expect(await getPendingRegisters()).toHaveLength(1));
+    expect(bulkCalls()).toHaveLength(0);
+    expect(screen.getByRole("status").textContent).toMatch(/kept on this device/);
+  });
+
+  it("keeps it when the connection drops in the middle of the save", async () => {
+    const drop = Object.assign(new Error("Network Error"), { isAxiosError: true });
+    h.api.post.mockImplementation((url: string) =>
+      String(url).includes("/attendance/bulk") ? Promise.reject(drop) : Promise.resolve({ data: {} }),
+    );
+    await takeRegister();
+    await waitFor(async () => expect(await getPendingRegisters()).toHaveLength(1));
+  });
+
+  it("does not keep one the server refused, which would only be refused again", async () => {
+    const refused = Object.assign(new Error("Bad"), { isAxiosError: true, response: { status: 400, data: {} } });
+    h.api.post.mockImplementation((url: string) =>
+      String(url).includes("/attendance/bulk") ? Promise.reject(refused) : Promise.resolve({ data: {} }),
+    );
+    await takeRegister();
+    await waitFor(() => expect(bulkCalls().length).toBeGreaterThan(0));
+    expect(await getPendingRegisters()).toHaveLength(0);
+  });
+
+  it("saves a kept register once the connection is back", async () => {
+    const kept = { classSectionId: "section-1", date: "2026-11-11", type: "daily", records: [{ studentId: "s-1", status: "LATE" }] };
+    await savePendingRegister(kept);
+    h.api.post.mockResolvedValue({ data: { count: 1 } });
+    await mount();
+    await waitFor(() => expect(bulkCalls()[0]?.[1]).toEqual(kept));
+    await waitFor(async () => expect(await getPendingRegisters()).toHaveLength(0));
+  });
 });

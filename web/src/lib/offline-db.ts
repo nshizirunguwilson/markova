@@ -1,16 +1,22 @@
 import { isShared } from "@/lib/session";
 
 const DB_NAME = "markova-offline";
-const DB_VERSION = 1;
-const STORE_NAME = "pending-marks";
+/* 2 added the register queue. An existing database keeps its marks queue:
+   the upgrade only creates the store that is missing. */
+const DB_VERSION = 2;
+const MARKS = "pending-marks";
+const REGISTERS = "pending-registers";
+type Queue = typeof MARKS | typeof REGISTERS;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+      for (const store of [MARKS, REGISTERS]) {
+        if (!db.objectStoreNames.contains(store)) {
+          db.createObjectStore(store, { keyPath: "id", autoIncrement: true });
+        }
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -33,19 +39,16 @@ const mine = (entry: { owner?: string }, owner?: string) =>
 
 /** Refused on a shared computer: see savePendingMarks. */
 export class SharedComputerError extends Error {
-  constructor() {
-    super("Marks are not kept on a shared computer. Save them once you are back online.");
+  constructor(what = "Marks") {
+    super(`${what} are not kept on a shared computer. Save them once you are back online.`);
   }
 }
 
-export async function savePendingMarks(payload: any, owner?: string): Promise<void> {
-  /* Nothing is left behind on a shared computer: the next person to sit
-     down would find a class's marks in the browser. */
-  if (isShared()) throw new SharedComputerError();
+async function save(queue: Queue, payload: any, owner?: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).add({
+    const tx = db.transaction(queue, "readwrite");
+    tx.objectStore(queue).add({
       ...payload,
       ...(owner && { owner }),
       savedAt: Date.now(),
@@ -55,22 +58,52 @@ export async function savePendingMarks(payload: any, owner?: string): Promise<vo
   });
 }
 
-export async function getPendingMarks(owner?: string): Promise<any[]> {
+async function list(queue: Queue, owner?: string): Promise<any[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const request = tx.objectStore(STORE_NAME).getAll();
+    const tx = db.transaction(queue, "readonly");
+    const request = tx.objectStore(queue).getAll();
     request.onsuccess = () =>
       resolve(request.result.filter((entry) => mine(entry, owner)));
     request.onerror = () => reject(request.error);
   });
 }
 
+async function remove(queue: Queue, id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(queue, "readwrite");
+    tx.objectStore(queue).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* ── Marks ─────────────────────────────────────────────────────────────── */
+
+export async function savePendingMarks(payload: any, owner?: string): Promise<void> {
+  /* Nothing is left behind on a shared computer: the next person to sit
+     down would find a class's marks in the browser. */
+  if (isShared()) throw new SharedComputerError();
+  return save(MARKS, payload, owner);
+}
+
+export function getPendingMarks(owner?: string): Promise<any[]> {
+  return list(MARKS, owner);
+}
+
+/**
+ * Empty every queue on this computer.
+ *
+ * Called on signing out of a shared computer, so it takes the registers as
+ * well as the marks: both name children and say where they were.
+ */
 export async function clearPendingMarks(): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).clear();
+    const tx = db.transaction([MARKS, REGISTERS], "readwrite");
+    tx.objectStore(MARKS).clear();
+    tx.objectStore(REGISTERS).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -83,16 +116,33 @@ export async function clearPendingMarks(): Promise<void> {
  * through, so a batch where one call failed left the ones that had succeeded
  * sitting in the queue to be posted again on the next attempt.
  */
-export async function deletePendingMark(id: number): Promise<void> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+export function deletePendingMark(id: number): Promise<void> {
+  return remove(MARKS, id);
 }
 
 export async function getPendingCount(owner?: string): Promise<number> {
   return (await getPendingMarks(owner)).length;
+}
+
+/* ── Registers ─────────────────────────────────────────────────────────── */
+
+/*
+  A register taken while the connection is down.
+
+  Only the marks page kept work on the device, so a register taken during a
+  network drop was lost when saving failed, and a register is the legal record
+  of who was in the building. The same rules as marks: kept to the school
+  record that took it, and never on a shared computer.
+*/
+export async function savePendingRegister(payload: any, owner?: string): Promise<void> {
+  if (isShared()) throw new SharedComputerError("Registers");
+  return save(REGISTERS, payload, owner);
+}
+
+export function getPendingRegisters(owner?: string): Promise<any[]> {
+  return list(REGISTERS, owner);
+}
+
+export function deletePendingRegister(id: number): Promise<void> {
+  return remove(REGISTERS, id);
 }
