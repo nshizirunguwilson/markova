@@ -255,6 +255,84 @@ describe('MarksService', () => {
    * another's marking, and the class teacher's comment would be defending
    * numbers they never entered.
    */
+  /* The finding: after a mark changed, the average and position stayed as
+     they were until the DOS pressed calculate again, and the issued card
+     showed the family the old figures. */
+  describe('a changed mark corrects the results downstream', () => {
+    let recalc: jest.SpyInstance;
+    let recalcYear: jest.SpyInstance;
+    beforeEach(() => {
+      recalc = jest
+        .spyOn(service, 'calculateTermResults')
+        .mockResolvedValue({ count: 0, results: [] } as never);
+      recalcYear = jest
+        .spyOn(service, 'calculateYearResults')
+        .mockResolvedValue({} as never);
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: false,
+        academicYearId: 'year-1',
+      });
+    });
+
+    it('recalculates a class whose results were already worked out', async () => {
+      prisma.termResult.count.mockResolvedValue(28);
+      await service.create(mark, 'teacher-1');
+      expect(recalc).toHaveBeenCalledWith({
+        classSectionId: mark.classSectionId,
+        termId: 'term-1',
+      });
+    });
+
+    it('leaves a class alone before its first calculation', async () => {
+      prisma.termResult.count.mockResolvedValue(0);
+      await service.create(mark, 'teacher-1');
+      expect(recalc).not.toHaveBeenCalled();
+    });
+
+    it('recalculates after a mark is corrected and after one is deleted', async () => {
+      prisma.termResult.count.mockResolvedValue(28);
+      prisma.mark.findUnique.mockResolvedValue({
+        id: 'mark-1',
+        teacherId: 'teacher-1',
+        classSectionId: 'section-1',
+        termId: 'term-1',
+        maxScore: 20,
+      });
+      await service.update('mark-1', { score: 15 } as never, 'teacher-1');
+      await service.delete('mark-1', 'teacher-1');
+      expect(recalc).toHaveBeenCalledTimes(2);
+    });
+
+    it('recalculates once for a whole sheet, not once per student', async () => {
+      prisma.termResult.count.mockResolvedValue(28);
+      await service.batchEntry(
+        {
+          classSectionId: 'section-1',
+          subjectId: 'subject-1',
+          termId: 'term-1',
+          assessmentTypeId: 'assess-1',
+          marks: [
+            { studentId: 'student-1', score: 14 },
+            { studentId: 'student-2', score: 11 },
+          ],
+        } as never,
+        'teacher-1',
+      );
+      expect(recalc).toHaveBeenCalledTimes(1);
+    });
+
+    it("refreshes the year's results too when they exist", async () => {
+      prisma.termResult.count.mockResolvedValue(28);
+      prisma.yearResult.count.mockResolvedValue(28);
+      await service.create(mark, 'teacher-1');
+      expect(recalcYear).toHaveBeenCalledWith({
+        classSectionId: mark.classSectionId,
+        academicYearId: 'year-1',
+      });
+    });
+  });
+
   describe('whose mark it is', () => {
     beforeEach(() =>
       prisma.mark.findUnique.mockResolvedValue({
