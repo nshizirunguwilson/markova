@@ -62,6 +62,7 @@ export class AcademicService {
   }
 
   async createYear(dto: CreateAcademicYearDto) {
+    endsAfterStart('A school year', dto.startDate, dto.endDate);
     if (dto.isCurrent) {
       await this.prisma.academicYear.updateMany({
         where: { isCurrent: true },
@@ -79,7 +80,21 @@ export class AcademicService {
   }
 
   async updateYear(id: string, dto: UpdateAcademicYearDto) {
-    await this.findYearById(id);
+    const year = await this.findYearById(id);
+    if (dto.startDate || dto.endDate) {
+      const start = dto.startDate ? new Date(dto.startDate) : year.startDate;
+      const end = dto.endDate ? new Date(dto.endDate) : year.endDate;
+      endsAfterStart('A school year', start, end);
+      // Moving a year's dates must not leave one of its terms outside it.
+      const outside = (year.terms ?? []).find(
+        (t) => t.startDate < start || t.endDate > end,
+      );
+      if (outside) {
+        throw new BadRequestException(
+          `${outside.name} runs from ${day(outside.startDate)} to ${day(outside.endDate)}, outside the new dates. Move the term first.`,
+        );
+      }
+    }
     if (dto.isCurrent) {
       await this.prisma.academicYear.updateMany({
         where: { isCurrent: true },
@@ -144,6 +159,11 @@ export class AcademicService {
   }
 
   async createTerm(dto: CreateTermDto) {
+    await this.assertTermFits(
+      dto.academicYearId,
+      new Date(dto.startDate),
+      new Date(dto.endDate),
+    );
     if (dto.isCurrent) {
       await this.prisma.term.updateMany({
         where: { isCurrent: true },
@@ -162,7 +182,15 @@ export class AcademicService {
   }
 
   async updateTerm(id: string, dto: UpdateTermDto) {
-    await this.findTermById(id);
+    const term = await this.findTermById(id);
+    if (dto.startDate || dto.endDate) {
+      await this.assertTermFits(
+        term.academicYearId,
+        dto.startDate ? new Date(dto.startDate) : term.startDate,
+        dto.endDate ? new Date(dto.endDate) : term.endDate,
+        id,
+      );
+    }
     if (dto.isCurrent) {
       await this.prisma.term.updateMany({
         where: { isCurrent: true },
@@ -179,6 +207,40 @@ export class AcademicService {
         ...(dto.isClosed !== undefined && { isClosed: dto.isClosed }),
       },
     });
+  }
+
+  /**
+   * A term has to make sense as a stretch of the calendar: it ends after it
+   * starts, it sits inside its school year, and it does not overlap another
+   * term of the same year. Each of these was saved without complaint, and a
+   * mark, a register or a fee invoice then lands in whichever term the date
+   * happens to match first.
+   */
+  private async assertTermFits(
+    academicYearId: string,
+    start: Date,
+    end: Date,
+    exceptTermId?: string,
+  ) {
+    endsAfterStart('A term', start, end);
+    const year = await this.prisma.academicYear.findUnique({
+      where: { id: academicYearId },
+      include: { terms: true },
+    });
+    if (!year) throw new NotFoundException('Academic year not found');
+    if (start < year.startDate || end > year.endDate) {
+      throw new BadRequestException(
+        `A term of ${year.name} has to fall between ${day(year.startDate)} and ${day(year.endDate)}`,
+      );
+    }
+    const clash = (year.terms ?? []).find(
+      (t) => t.id !== exceptTermId && t.startDate <= end && t.endDate >= start,
+    );
+    if (clash) {
+      throw new BadRequestException(
+        `That overlaps ${clash.name}, which runs from ${day(clash.startDate)} to ${day(clash.endDate)}`,
+      );
+    }
   }
 
   async closeTerm(id: string) {
@@ -1132,5 +1194,31 @@ export class AcademicService {
       promotedStudents: promoted,
       retainedStudents: retained,
     };
+  }
+}
+
+/** A date as a school writes it, 2 February 2026. */
+function day(d: Date): string {
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Africa/Kigali',
+  });
+}
+
+/** Refuse a stretch of time that ends before, or on the day, it starts. */
+function endsAfterStart(
+  what: string,
+  start: Date | string,
+  end: Date | string,
+) {
+  const a = new Date(start);
+  const b = new Date(end);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) {
+    throw new BadRequestException(`${what} needs a start and an end date`);
+  }
+  if (b <= a) {
+    throw new BadRequestException(`${what} has to end after it starts`);
   }
 }

@@ -154,7 +154,96 @@ describe('AcademicService', () => {
       );
     });
 
+    const year2027 = {
+      id: 'year-1',
+      name: '2027',
+      startDate: new Date('2027-01-01'),
+      endDate: new Date('2027-11-30'),
+      terms: [
+        {
+          id: 'term-2',
+          name: 'Term 2',
+          startDate: new Date('2027-04-20'),
+          endDate: new Date('2027-07-20'),
+        },
+      ],
+    };
+
+    /* Each of these was saved without complaint in the test run: a year
+       ending before it starts, a term ending before it starts, and a 2043
+       term inside the 2040 to 2041 year. */
+    it('refuses a school year that ends before it starts', async () => {
+      await expect(
+        service.createYear({
+          name: '2028',
+          startDate: '2028-11-30',
+          endDate: '2028-01-08',
+        } as any),
+      ).rejects.toThrow('A school year has to end after it starts');
+      expect(prisma.academicYear.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a term that ends before it starts', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 1',
+          startDate: '2027-04-01',
+          endDate: '2027-01-08',
+        }),
+      ).rejects.toThrow('A term has to end after it starts');
+    });
+
+    it('refuses a term outside its school year', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 3',
+          startDate: '2043-09-01',
+          endDate: '2043-11-20',
+        }),
+      ).rejects.toThrow('has to fall between');
+      expect(prisma.term.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a term that overlaps another', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 1',
+          startDate: '2027-01-08',
+          endDate: '2027-05-01',
+        }),
+      ).rejects.toThrow('That overlaps Term 2');
+    });
+
+    it('lets a term be moved without clashing with itself', async () => {
+      prisma.term.findUnique.mockResolvedValue({
+        ...year2027.terms[0],
+        academicYearId: 'year-1',
+      });
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      prisma.term.update.mockResolvedValue({});
+      await service.updateTerm('term-2', { endDate: '2027-07-25' });
+      expect(prisma.term.update).toHaveBeenCalled();
+    });
+
+    it('refuses moving a year away from one of its terms', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.updateYear('year-1', { endDate: '2027-06-30' }),
+      ).rejects.toThrow('Term 2 runs from');
+      expect(prisma.academicYear.update).not.toHaveBeenCalled();
+    });
+
     it('stands the previous current term down when a new one is made current', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue({
+        ...year2027,
+        terms: [],
+      });
       prisma.term.create.mockResolvedValue({});
       await service.createTerm({
         academicYearId: 'year-1',
