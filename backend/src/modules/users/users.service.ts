@@ -1215,7 +1215,7 @@ export class UsersService {
   }
 
   // Role-based registration code for everyone who is not a student:
-  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001.
+  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001, NUR-2026-002.
   private async generateUserCode(
     role: Role,
     client: Prisma.TransactionClient,
@@ -1225,6 +1225,14 @@ export class UsersService {
       [Role.PARENT]: 'PAR',
       [Role.LIBRARIAN]: 'LIB',
       [Role.ADMIN]: 'ADM',
+      /* The same prefixes the seed gives its one of each. These five were
+         left out, so the seeded bursar had BUR-2026-001 and the second
+         bursar a school hired had no number at all. */
+      [Role.BURSAR]: 'BUR',
+      [Role.PATRON]: 'PAT',
+      [Role.MATRON]: 'MAT',
+      [Role.NURSE]: 'NUR',
+      [Role.HEAD_TEACHER]: 'HTC',
     };
     const rolePrefix = prefixes[role];
     if (!rolePrefix) return null;

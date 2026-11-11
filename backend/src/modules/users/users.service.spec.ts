@@ -391,6 +391,26 @@ describe('UsersService', () => {
       expect(prisma.user.create.mock.calls[0][0].data.code).toBeNull();
     });
 
+    /* New staff of these five roles got no number, though the seeded one of
+       each has one. */
+    it.each([
+      ['BURSAR', 'BUR'],
+      ['PATRON', 'PAT'],
+      ['MATRON', 'MAT'],
+      ['NURSE', 'NUR'],
+      ['HEAD_TEACHER', 'HTC'],
+    ])('gives a new %s a staff number', async (role, prefix) => {
+      prisma.user.findFirst.mockResolvedValue({ code: `${prefix}-2026-001` });
+      await service.create({
+        ...teacher,
+        role,
+        email: `new.${prefix.toLowerCase()}@markova.edu`,
+      } as never);
+      expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
+        new RegExp(`^${prefix}-\\d{4}-002$`),
+      );
+    });
+
     it('continues the sequence from the last one issued', async () => {
       prisma.user.findFirst.mockResolvedValue({ code: 'TCH-2026-041' });
       await service.create(teacher);
