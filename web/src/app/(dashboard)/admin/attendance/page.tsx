@@ -119,7 +119,7 @@ export default function AdminAttendancePage() {
               )}
 
               {/* Overall Stats */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                 <Card>
                   <p className="text-xs text-muted">Total Students</p>
                   <p className="text-2xl font-bold text-foreground">{dashboard.overall?.totalStudents ?? 0}</p>
@@ -135,6 +135,10 @@ export default function AdminAttendancePage() {
                 <Card>
                   <p className="text-xs text-muted">Absent</p>
                   <p className="text-2xl font-bold text-danger">{dashboard.overall?.absent ?? 0}</p>
+                </Card>
+                <Card>
+                  <p className="text-xs text-muted">Excused</p>
+                  <p className="text-2xl font-bold text-info">{dashboard.overall?.excused ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Attendance Rate</p>
@@ -156,6 +160,7 @@ export default function AdminAttendancePage() {
                         <TableHead>Present</TableHead>
                         <TableHead>Late</TableHead>
                         <TableHead>Absent</TableHead>
+                        <TableHead>Excused</TableHead>
                         <TableHead>Rate</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -168,6 +173,7 @@ export default function AdminAttendancePage() {
                           <TableCell className="text-success">{s.present}</TableCell>
                           <TableCell className="text-warning">{s.late}</TableCell>
                           <TableCell className="text-danger">{s.absent}</TableCell>
+                          <TableCell className="text-info">{s.excused ?? 0}</TableCell>
                           <TableCell>
                             <span className={`font-bold ${s.rate >= 90 ? "text-success" : s.rate >= 75 ? "text-warning" : "text-danger"}`}>
                               {s.rate}%

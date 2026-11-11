@@ -2753,6 +2753,16 @@ async function main() {
       } else if (chance(prof.lateP * (dow === 1 ? 1.6 : 1))) {
         status = AttendanceStatus.LATE;
       }
+      /* An absence the school accepted is an excused day, counted apart
+         (src/common/attendance-count.ts). The sick runs above become excused
+         days too, which is what a run of sick days is. */
+      if (
+        status === AttendanceStatus.ABSENT &&
+        reason !== null &&
+        reason !== AbsenceReason.UNEXCUSED
+      ) {
+        status = AttendanceStatus.EXCUSED;
+      }
       // Kigali mornings, stored in UTC (CAT = UTC+2): the gate scan lands
       // 07:40-08:05 local, latecomers 08:05-08:45.
       const scannedAt =

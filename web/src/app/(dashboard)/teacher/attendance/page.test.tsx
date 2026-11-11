@@ -285,7 +285,8 @@ describe("the status cycle", () => {
     await waitFor(() => expect(document.body.textContent).toMatch(/absent/i));
   }, 20000);
 
-  it("wraps absent back to present", async () => {
+  // An absence the school accepts: sick, a family matter, or leave it gave.
+  it("moves absent to excused", async () => {
     await withRoster(["ABSENT", null]);
     const row = studentRow();
     if (!row) return;
@@ -293,7 +294,20 @@ describe("the status cycle", () => {
     await act(async () => {
       fireEvent.click(row);
     });
-    await waitFor(() => expect(document.body.textContent).toMatch(/present/i));
+    await waitFor(() => expect(document.body.textContent).toMatch(/excused/i));
+  }, 20000);
+
+  it("wraps excused back to present", async () => {
+    await withRoster(["EXCUSED", null]);
+    const row = studentRow();
+    if (!row) return;
+
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    await waitFor(() =>
+      expect(row.textContent ?? "").toMatch(/present/i),
+    );
   }, 20000);
 
   // Only the students actually marked are sent. Sending the rest would write a

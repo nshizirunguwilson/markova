@@ -172,9 +172,23 @@ describe('report card data', () => {
     it('reports both halves of the fraction', async () => {
       prisma.attendance.count
         .mockResolvedValueOnce(60)
-        .mockResolvedValueOnce(57);
+        .mockResolvedValueOnce(57)
+        .mockResolvedValueOnce(0);
       const data = await service.getTermReportData('student-1', 'term-1');
-      expect(data.attendance).toEqual({ present: 57, total: 60 });
+      expect(data.attendance).toEqual({ present: 57, total: 60, excused: 0 });
+    });
+
+    // Two days in hospital are not two days of missing school.
+    it('leaves excused days out of the fraction and prints them apart', async () => {
+      prisma.attendance.count
+        .mockResolvedValueOnce(60)
+        .mockResolvedValueOnce(57)
+        .mockResolvedValueOnce(2);
+      const data = await service.getTermReportData('student-1', 'term-1');
+      expect(data.attendance).toEqual({ present: 57, total: 58, excused: 2 });
+      expect(prisma.attendance.count.mock.calls[2][0].where.status).toBe(
+        'EXCUSED',
+      );
     });
   });
 

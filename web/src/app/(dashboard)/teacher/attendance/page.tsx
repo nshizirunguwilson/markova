@@ -5,13 +5,15 @@ import { Card, CardTitle, Button, Badge, Spinner } from "@/components/ui";
 import { useSections, useClassLevels } from "@/hooks/use-academic";
 import { useClassAttendance, useBulkAttendance, useQrScan } from "@/hooks/use-attendance";
 import { pauseWords } from "@/lib/standing";
-import { Camera, Check, X, Clock, Save, QrCode } from "lucide-react";
+import { Camera, Check, X, Clock, Save, QrCode, ShieldCheck } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
 import { ExamHelp } from "@/components/support/exam-help";
 import { useClassSupport } from "@/hooks/use-support";
 
-type Status = "PRESENT" | "ABSENT" | "LATE" | null;
+/* EXCUSED is an absence the school has accepted (sick, family, leave). It is
+   counted apart from absences and the family is not told. */
+type Status = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" | null;
 
 export default function TeacherAttendancePage() {
   const { data: classLevels } = useClassLevels();
@@ -72,7 +74,15 @@ export default function TeacherAttendancePage() {
     setLocalStatuses((prev) => {
       const current = prev[studentId];
       const next: Status =
-        current === null ? "PRESENT" : current === "PRESENT" ? "LATE" : current === "LATE" ? "ABSENT" : "PRESENT";
+        current === null
+          ? "PRESENT"
+          : current === "PRESENT"
+            ? "LATE"
+            : current === "LATE"
+              ? "ABSENT"
+              : current === "ABSENT"
+                ? "EXCUSED"
+                : "PRESENT";
       return { ...prev, [studentId]: next };
     });
   };
@@ -110,6 +120,7 @@ export default function TeacherAttendancePage() {
   const present = Object.values(localStatuses).filter((s) => s === "PRESENT").length;
   const late = Object.values(localStatuses).filter((s) => s === "LATE").length;
   const absent = Object.values(localStatuses).filter((s) => s === "ABSENT").length;
+  const excused = Object.values(localStatuses).filter((s) => s === "EXCUSED").length;
 
   return (
     <div className="space-y-6">
@@ -194,7 +205,7 @@ export default function TeacherAttendancePage() {
 
       {/* Summary Stats */}
       {classData && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+<div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <Card>
             <p className="text-xs text-muted">Total</p>
             <p className="text-2xl font-bold text-foreground">{classData.total}</p>
@@ -216,6 +227,10 @@ export default function TeacherAttendancePage() {
           <Card>
             <p className="text-xs text-muted">Absent</p>
             <p className="text-2xl font-bold text-danger">{absent}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-muted">Excused</p>
+            <p className="text-2xl font-bold text-info">{excused}</p>
           </Card>
         </div>
       )}
@@ -268,6 +283,8 @@ export default function TeacherAttendancePage() {
                         <Badge variant="warning"><Clock className="mr-1 h-3 w-3" /> Late</Badge>
                       ) : status === "ABSENT" ? (
                         <Badge variant="danger"><X className="mr-1 h-3 w-3" /> Absent</Badge>
+                      ) : status === "EXCUSED" ? (
+                        <Badge variant="info"><ShieldCheck className="mr-1 h-3 w-3" /> Excused</Badge>
                       ) : (
                         <Badge>Tap to mark</Badge>
                       )}

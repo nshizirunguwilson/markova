@@ -271,18 +271,24 @@ export class ReportsService implements OnModuleDestroy {
       orderBy: { id: 'asc' },
     });
 
-    const [attendanceTotal, attendancePresent] = await Promise.all([
-      this.prisma.attendance.count({
-        where: { studentId, date: { gte: term.startDate, lte: term.endDate } },
-      }),
-      this.prisma.attendance.count({
-        where: {
-          studentId,
-          date: { gte: term.startDate, lte: term.endDate },
-          status: { in: ['PRESENT', 'LATE'] },
-        },
-      }),
-    ]);
+    /* The days the card counts: every day on the register but the excused
+       ones. "58 of 60" for a child who spent two of them in hospital said
+       they had missed school twice; the excused days are printed apart. */
+    const inTerm = {
+      studentId,
+      date: { gte: term.startDate, lte: term.endDate },
+    };
+    const [attendanceDays, attendancePresent, attendanceExcused] =
+      await Promise.all([
+        this.prisma.attendance.count({ where: inTerm }),
+        this.prisma.attendance.count({
+          where: { ...inTerm, status: { in: ['PRESENT', 'LATE'] } },
+        }),
+        this.prisma.attendance.count({
+          where: { ...inTerm, status: 'EXCUSED' },
+        }),
+      ]);
+    const attendanceTotal = attendanceDays - attendanceExcused;
 
     /*
       Conduct, for this term rather than as a running total across the year.
@@ -372,7 +378,11 @@ export class ReportsService implements OnModuleDestroy {
       guardian: guardian
         ? `${guardian.parent.firstName} ${guardian.parent.lastName}`
         : null,
-      attendance: { present: attendancePresent, total: attendanceTotal },
+      attendance: {
+        present: attendancePresent,
+        total: attendanceTotal,
+        excused: attendanceExcused,
+      },
       /*
         This term's conduct, out of forty. `outOf` travels with it so the
         sheet never has to assume the mark: a school that sets a different
