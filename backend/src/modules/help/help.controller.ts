@@ -20,8 +20,9 @@ import {
   CreateTicketDto,
   UpdateTicketStatusDto,
 } from './dto';
-import { Roles, ANY_ROLE } from '../../common/decorators';
+import { Roles, ANY_ROLE, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
+import { Role } from '@prisma/client';
 
 @ApiTags('Help')
 @Controller('help')
@@ -35,8 +36,11 @@ export class HelpController {
   @Get('faqs')
   @Roles(...ANY_ROLE)
   @ApiOperation({ summary: 'Search FAQ articles' })
-  findFaqs(@Query('search') search?: string) {
-    return this.service.findAllFaqs(search);
+  findFaqs(
+    @CurrentUser() user: { role: Role },
+    @Query('search') search?: string,
+  ) {
+    return this.service.findAllFaqs(search, user.role);
   }
 
   @Get('faqs/admin')

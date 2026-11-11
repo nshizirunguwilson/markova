@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateFaqDto,
@@ -31,14 +32,34 @@ export class HelpService {
     return this.prisma.faqArticle.delete({ where: { id } });
   }
 
-  async findAllFaqs(search?: string) {
-    const where: any = { isPublished: true };
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { content: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+  /**
+   * The questions written for this reader.
+   *
+   * A question with no audience is for everyone; one with an audience is
+   * shown only to those roles. Everybody used to get the same list, so the
+   * nurse was told how to check her child's marks.
+   */
+  async findAllFaqs(search: string | undefined, role: Role) {
+    const where: Prisma.FaqArticleWhereInput = {
+      isPublished: true,
+      AND: [
+        { OR: [{ audience: { isEmpty: true } }, { audience: { has: role } }] },
+        ...(search
+          ? [
+              {
+                OR: [
+                  {
+                    title: { contains: search, mode: 'insensitive' as const },
+                  },
+                  {
+                    content: { contains: search, mode: 'insensitive' as const },
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
     return this.prisma.faqArticle.findMany({
       where,
       orderBy: [{ displayOrder: 'asc' }, { title: 'asc' }],

@@ -40,9 +40,9 @@ describe('HelpController', () => {
   const cases: RouteCase[] = [
     {
       name: 'the published questions',
-      call: (c) => c.findFaqs('password'),
+      call: (c) => c.findFaqs({ role: 'NURSE' }, 'password'),
       calls: 'findAllFaqs',
-      withArgs: ['password'],
+      withArgs: ['password', 'NURSE'],
     },
     {
       name: 'every question, including the unpublished',

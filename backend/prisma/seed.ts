@@ -30,6 +30,7 @@ import {
   SupportNeed,
   SupportArrangement,
 } from '@prisma/client';
+import { starterFaqRows } from '../src/modules/help/starter-faqs';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK, YEAR_CONDUCT_MARK } from '../src/common/conduct';
 import { chargesFor, invoiceTotal, nextReceiptNumber } from '../src/common/fees';
@@ -5271,13 +5272,8 @@ async function main() {
   console.log(`  ✅ ${meritRows.length} merits seeded`);
 
   // ─── FAQ ────────────────────────────────────────────────────────────────────
-  await prisma.faqArticle.createMany({
-    data: [
-      { title: 'How to reset my password?', content: 'Contact the school administrator to reset your password. You will receive an OTP on your registered phone number.', category: 'Account', displayOrder: 1 },
-      { title: "How to check my child's marks?", content: 'Log in to the parent portal, navigate to the Marks section, and select the relevant term.', category: 'Marks', displayOrder: 2 },
-      { title: 'How to report an absence?', content: 'Parents can report an absence through the mobile app or by contacting the class teacher directly.', category: 'Attendance', displayOrder: 3 },
-    ],
-  });
+  // One starter set, written per role: see starter-faqs.ts.
+  await prisma.faqArticle.createMany({ data: starterFaqRows() });
   console.log('  ✅ FAQ articles seeded');
 
   // ─── TIMETABLE (weighted weekly plan) ───────────────────────────────────────
