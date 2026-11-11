@@ -7,6 +7,7 @@ import {
 import { PocketMoneyKind, Role } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertOnSide, sideOf } from '../../common/boarding-side';
 
 /**
  * The school's pocket money ledger.
@@ -407,13 +408,19 @@ export class PocketMoneyService {
    * query per student, because the alternative is 700 round trips to draw one
    * screen.
    */
-  async overview(query: {
-    classSectionId?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async overview(
+    query: {
+      classSectionId?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+    role?: string,
+  ) {
     const where: any = { status: 'ACTIVE' };
+    // The patron's list is the boys and the matron's the girls.
+    const side = role ? sideOf(role) : null;
+    if (side) where.gender = side;
     if (query.classSectionId) where.classSectionId = query.classSectionId;
     if (query.search?.trim()) {
       const s = query.search.trim();
@@ -561,6 +568,22 @@ export class PocketMoneyService {
     return this.getAccount(student.id);
   }
 
+  /** Refuse a patron or matron a child from the other side. */
+  assertSide(role: string, studentId: string) {
+    return assertOnSide(this.prisma, role, studentId);
+  }
+
+  /** The same, for an entry being reversed, which names only itself. */
+  async assertSideOfEntry(role: string, transactionId: string) {
+    if (!sideOf(role)) return;
+    const entry = await this.prisma.pocketMoneyTransaction.findUnique({
+      where: { id: transactionId },
+      select: { account: { select: { studentId: true } } },
+    });
+    if (!entry) throw new NotFoundException('Entry not found');
+    await assertOnSide(this.prisma, role, entry.account.studentId);
+  }
+
   /**
    * Whether this user may see this student's money.
    *
@@ -568,8 +591,9 @@ export class PocketMoneyService {
    * their own parents. A teacher has no business in a child's finances.
    */
   async assertMayView(userId: string, role: Role, studentId: string) {
-    if (role === Role.ADMIN || role === Role.PATRON || role === Role.MATRON) {
-      return;
+    if (role === Role.ADMIN) return;
+    if (role === Role.PATRON || role === Role.MATRON) {
+      return assertOnSide(this.prisma, role, studentId);
     }
 
     if (role === Role.STUDENT) {
