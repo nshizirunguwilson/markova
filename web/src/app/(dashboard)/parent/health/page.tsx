@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Badge, Card, CardTitle, PageSpinner } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
-import { useMyChildren } from "@/hooks/use-children";
+import { useChosenChild, useMyChildren } from "@/hooks/use-children";
 import {
   useEmergencyCard,
   useStudentMedication,
@@ -56,14 +55,9 @@ function when(iso: string): string {
  */
 export default function ParentHealthPage() {
   const { data: children } = useMyChildren();
-  /**
-   * Null until the parent picks. Most parents here have one child, so falling
-   * back to the first means the page is useful the moment it loads without a
-   * copy of the choice to keep in step with the list arriving.
-   */
-  const [picked, setPicked] = useState<string | null>(null);
-  const childId = picked ?? children?.[0]?.id ?? "";
-  const setChildId = (id: string) => setPicked(id);
+  /* The choice is shared with the other parent pages. Until one is made it
+     falls to the first child: most parents here have one. */
+  const [childId, setChildId] = useChosenChild(children);
 
   const { data: card, isLoading, error } = useEmergencyCard(childId || undefined);
   // An adult child may keep their health visits from their parents (A8).

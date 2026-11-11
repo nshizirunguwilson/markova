@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { FamilyFees } from "@/components/finance/family-fees";
-import { useMyChildren } from "@/hooks/use-children";
+import { useChosenChild, useMyChildren } from "@/hooks/use-children";
 
 /**
  * A parent's fee account, one child at a time.
@@ -15,8 +14,7 @@ export default function ParentFeesPage() {
   const { data: kids } = useMyChildren();
   const children = (kids ?? []).map((c) => ({ id: c.id, name: c.name }));
 
-  const [picked, setPicked] = useState<string | null>(null);
-  const selected = picked ?? children[0]?.id ?? "";
+  const [selected, setPicked] = useChosenChild(children);
 
   return (
     <FamilyFees

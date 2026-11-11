@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
-import { useMyChildren } from "@/hooks/use-children";
+import { useChosenChild, useMyChildren } from "@/hooks/use-children";
 import {
   usePocketMoneyAccount,
   usePocketMoneyStatement,
@@ -53,10 +53,9 @@ export default function ParentPocketMoneyPage() {
   const { data: kids } = useMyChildren();
   const children: Child[] = (kids ?? []).map((c) => ({ id: c.id, name: c.name }));
 
-  /** Null until the parent picks. Most have one child, so the first will do. */
-  const [picked, setPicked] = useState<string | null>(null);
-  const selectedChild = picked ?? children[0]?.id ?? "";
-  const setSelectedChild = (id: string) => setPicked(id);
+  /* Shared with the other parent pages. Most have one child, so the first
+     will do until they pick. */
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
 
   const { data: account, isLoading } = usePocketMoneyAccount(
     selectedChild || undefined,

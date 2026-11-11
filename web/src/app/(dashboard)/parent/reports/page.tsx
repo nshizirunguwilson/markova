@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import {
   Card,
   CardTitle,
@@ -25,7 +26,8 @@ interface Child { id: string; name: string; }
 export default function ParentReportsPage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
   const [yearId, setYearId] = useState("");
   const [termId, setTermId] = useState("");
 
@@ -53,7 +55,6 @@ export default function ParentReportsPage() {
         name: `${ps.student?.user?.firstName} ${ps.student?.user?.lastName}`,
       }));
       setChildren(kids);
-      if (kids.length > 0) setSelectedChild(kids[0].id);
     }).catch(() => {});
   }, [user?.id]);
 

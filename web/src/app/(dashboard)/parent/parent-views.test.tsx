@@ -27,7 +27,7 @@ vi.mock("@/components/ui/echart", () => ({
   EChart: () => <div data-testid="chart" />,
 }));
 
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderPage, serve, serveAll, serveFailure } from "@/test/page";
 import { chooseCascadingFilters, exercisePage } from "@/test/exercise";
 import { edgeRoutes, populatedRoutes, students } from "@/test/fixtures";
@@ -133,6 +133,33 @@ describe("switching between children", () => {
       expect(h.api.get.mock.calls.length).toBeGreaterThanOrEqual(before),
     );
   }, 20000);
+});
+
+describe("the chosen child", () => {
+  const picker = () =>
+    Array.from(document.querySelectorAll("select")).find((el) =>
+      Array.from(el.options).some((o) => o.value === students[1].id),
+    ) as HTMLSelectElement | undefined;
+
+  // Each page used to start again from the first child, so a parent who
+  // picked their second on Marks was shown the first one's register next.
+  it("carries from marks to attendance", async () => {
+    await mount(ParentMarks);
+    await waitFor(() => expect(picker()).toBeTruthy());
+    expect(picker()!.value).toBe(students[0].id);
+    await act(async () => {
+      fireEvent.change(picker()!, { target: { value: students[1].id } });
+    });
+    cleanup();
+
+    await mount(ParentAttendance);
+    await waitFor(() => expect(picker()?.value).toBe(students[1].id));
+    await waitFor(() =>
+      expect(
+        h.api.get.mock.calls.some(([url]) => String(url).includes(students[1].id)),
+      ).toBe(true),
+    );
+  });
 });
 
 describe("a parent with no children linked", () => {
