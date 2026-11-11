@@ -8,7 +8,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { OpenToFormerStudents } from '../../common/decorators';
+import {
+  OpenBeforePasswordChange,
+  OpenToFormerStudents,
+} from '../../common/decorators';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withPlatform } from '../../prisma/request-context';
@@ -81,6 +84,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password (requires current password)' })
@@ -105,6 +109,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current session or all sessions' })
@@ -180,6 +185,7 @@ export class AuthController {
   }
 
   @Get('profile')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })

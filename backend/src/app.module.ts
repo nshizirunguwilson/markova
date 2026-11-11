@@ -32,6 +32,7 @@ import { SharingModule } from './modules/sharing/sharing.module';
 import { SupportModule } from './modules/support/support.module';
 import { PhotoConsentModule } from './modules/photo-consent/photo-consent.module';
 import { FormerStudentInterceptor } from './common/interceptors/former-student.interceptor';
+import { PasswordChangeInterceptor } from './common/interceptors/password-change.interceptor';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisModule } from './redis/redis.module';
 import { CommonModule } from './common/common.module';
@@ -109,6 +110,11 @@ import { JobsModule } from './jobs/jobs.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: FormerStudentInterceptor,
+    },
+    // A temporary password opens the password change and nothing else.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PasswordChangeInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,
