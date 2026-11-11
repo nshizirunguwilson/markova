@@ -1418,4 +1418,40 @@ describe('AttendanceService and a student out of school', () => {
       parent: { isActive: true },
     });
   });
+
+  describe('the classes a teacher watches', () => {
+    it('joins the classes taught this year with the one they lead', async () => {
+      prisma.teacherSubjectClass.findMany.mockResolvedValue([
+        { classSectionId: 'class-s1a' },
+        { classSectionId: 'class-s2b' },
+        { classSectionId: 'class-s1a' },
+      ]);
+      prisma.teacherRole.findMany.mockResolvedValue([
+        { classSectionId: 'class-s1a' },
+        { classSectionId: null },
+      ]);
+      await expect(service.classesWatchedBy('tch-aline')).resolves.toEqual([
+        'class-s1a',
+        'class-s2b',
+      ]);
+      expect(
+        prisma.teacherSubjectClass.findMany.mock.calls[0][0].where,
+      ).toEqual({ teacherId: 'tch-aline', academicYear: { isCurrent: true } });
+    });
+
+    it('is nobody for somebody who is not a teacher', async () => {
+      await expect(service.classesWatchedBy(null)).resolves.toEqual([]);
+    });
+
+    it('reads only those classes when narrowed', async () => {
+      prisma.student.findMany.mockResolvedValue([]);
+      prisma.attendance.groupBy.mockResolvedValue([]);
+      await service.getChronicallyAbsent(undefined, undefined, 1, 50, [
+        'class-s1a',
+      ]);
+      expect(
+        prisma.student.findMany.mock.calls.at(-1)[0].where.classSectionId,
+      ).toEqual({ in: ['class-s1a'] });
+    });
+  });
 });

@@ -6,6 +6,7 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -153,15 +154,32 @@ export class AttendanceController {
   // ── Chronic Absenteeism ─────────────────────────────────────────────────
 
   @Get('chronic')
-  @Roles('HEAD_TEACHER')
-  @ApiOperation({ summary: 'Get chronically absent students' })
-  getChronic(
+  @Roles('HEAD_TEACHER', 'TEACHER')
+  @ApiOperation({
+    summary:
+      'Students absent too often: the whole school for the DOS, their own classes for a teacher',
+  })
+  async getChronic(
     @Query('classSectionId') classSectionId?: string,
     @Query('threshold') threshold?: string,
+    @CurrentUser() user?: any,
   ) {
+    const limitTo = threshold ? Number(threshold) : undefined;
+    if (user?.role !== 'TEACHER') {
+      return this.service.getChronicallyAbsent(classSectionId, limitTo);
+    }
+    // A teacher is held to the classes they teach or lead. Sending the
+    // families an alert stays with the Director of Studies.
+    const mine = await this.service.classesWatchedBy(user.teacherId);
+    if (classSectionId && !mine.includes(classSectionId)) {
+      throw new ForbiddenException('You do not teach or lead that class');
+    }
     return this.service.getChronicallyAbsent(
       classSectionId,
-      threshold ? Number(threshold) : undefined,
+      limitTo,
+      1,
+      50,
+      mine,
     );
   }
 

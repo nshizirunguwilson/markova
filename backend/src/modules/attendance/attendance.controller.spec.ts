@@ -33,6 +33,7 @@ describe('AttendanceController', () => {
     'processTeacherQrScan',
     'getTeacherAttendance',
     'getChronicallyAbsent',
+    'classesWatchedBy',
     'sendChronicAbsenteeismAlerts',
     'getDashboardData',
   ]);
@@ -196,6 +197,54 @@ describe('AttendanceController', () => {
       on: 'ownership',
       calls: 'verifyStudentAccess',
       withArgs: [parent.id, 'PARENT', 'student-1', 'conduct'],
+    });
+  });
+
+  /* The list was the Director of Studies' alone, so the teacher who sees the
+     child every day was the one adult not told. */
+  describe('a teacher watching absence in their own classes', () => {
+    const aline = { id: 'u-aline', role: 'TEACHER', teacherId: 'tch-aline' };
+    const direct = () =>
+      new AttendanceController(service as never, ownership as never);
+
+    beforeEach(() =>
+      service.classesWatchedBy.mockResolvedValue(['class-s1a', 'class-s2b']),
+    );
+
+    it('is narrowed to the classes they teach or lead', async () => {
+      await direct().getChronic(undefined, undefined, aline);
+      expect(service.classesWatchedBy).toHaveBeenCalledWith('tch-aline');
+      expect(service.getChronicallyAbsent).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        1,
+        50,
+        ['class-s1a', 'class-s2b'],
+      );
+    });
+
+    it('is refused a class that is not theirs', async () => {
+      await expect(
+        direct().getChronic('class-s3b', undefined, aline),
+      ).rejects.toThrow('You do not teach or lead that class');
+      expect(service.getChronicallyAbsent).not.toHaveBeenCalled();
+    });
+
+    it('leaves the Director of Studies the whole school', async () => {
+      await direct().getChronic(undefined, '15', {
+        id: 'u-dos',
+        role: 'HEAD_TEACHER',
+      });
+      expect(service.getChronicallyAbsent).toHaveBeenCalledWith(undefined, 15);
+      expect(service.classesWatchedBy).not.toHaveBeenCalled();
+    });
+
+    it('still keeps alerting families for the Director of Studies', () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        AttendanceController.prototype.sendChronicAlerts,
+      );
+      expect(roles).toEqual(['HEAD_TEACHER']);
     });
   });
 });

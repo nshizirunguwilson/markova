@@ -13,6 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { AbsenceWatch } from "@/components/teacher/absence-watch";
 
 export default function TeacherDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -101,6 +102,10 @@ export default function TeacherDashboard() {
             </div>
           )}
         </Card>
+      </div>
+
+      <div className="mt-5">
+        <AbsenceWatch />
       </div>
 
       <div className="mt-8">
