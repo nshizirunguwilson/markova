@@ -151,7 +151,7 @@ Open `http://localhost:3001` in a browser.
 | Teacher | `aline.uwase@markova.academy` | OTP required |
 | Librarian | `librarian@markova.academy` | OTP required |
 | Student | `student1@markova.academy` | No OTP (direct token) |
-| Parent | phone `+250788100000` | OTP required |
+| Parent | phone `+250785639214` | OTP required |
 
 These five demo accounts skip the first-login forced password change so they
 land straight on their dashboard. All other seeded users still have it on, so
@@ -197,7 +197,7 @@ The seeded SMTP config is real (Brevo), so emails go out for real. **For testing
 ### 2.3 Login as Parent (phone)
 
 1. Toggle to **Phone** on the login form.
-2. Enter a parent phone (e.g. `+250788100000`) and `Password123!`.
+2. Enter a parent phone (e.g. `+250785639214`) and `Password123!`.
 3. Submit, enter OTP from email/console.
 
 **Expected:** parent dashboard.

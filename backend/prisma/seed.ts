@@ -572,18 +572,18 @@ function studentExtras(
 // subscriber digits, unique across the seed. Documented demo numbers are
 // reserved so they never collide.
 const usedPhones = new Set<string>([
-  '+250788000001',
-  '+250788000010',
-  '+250788000011',
-  '+250788000012',
-  '+250788000013',
-  '+250788000014',
-  '+250788000020',
-  '+250788100000',
+  '+250788459213',
+  '+250788634905',
+  '+250795177286',
+  '+250722808143',
+  '+250788291064',
+  '+250733425871',
+  '+250791536408',
+  '+250785639214',
   // The demo parent with a child at two schools (seedPeopleInSeveralSchools).
-  '+250788100002',
+  '+250726083157',
   // The parent of the demo student of 18 (A8).
-  '+250788199999',
+  '+250798405362',
 ]);
 const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
 function realPhone(): string {
@@ -861,7 +861,7 @@ async function main() {
     { key: 'borrowing_duration_days', value: '14' },
     { key: 'pass_threshold', value: '50' },
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
-    { key: 'school_phone', value: '+250788000000' },
+    { key: 'school_phone', value: '+250788304655' },
     { key: 'school_email', value: 'info@markova.edu' },
     { key: 'school_website', value: 'https://markova.edu' },
     // Both are printed on every letter the school issues: the head teacher
@@ -898,7 +898,7 @@ async function main() {
   const admin = await prisma.user.create({
     data: withLogin({
       email: 'wilsonshizirungu@gmail.com',
-      phone: '+250788000001',
+      phone: '+250788459213',
       code: `ADM-${new Date().getFullYear()}-001`,
       gender: Gender.MALE,
       dateOfBirth: new Date('1988-03-12'),
@@ -918,7 +918,7 @@ async function main() {
   const librarianUser = await prisma.user.create({
     data: withLogin({
       email: 'librarian@markova.edu',
-      phone: '+250788000020',
+      phone: '+250791536408',
       code: `LIB-${new Date().getFullYear()}-001`,
       gender: Gender.FEMALE,
       dateOfBirth: new Date('1992-07-04'),
@@ -956,7 +956,7 @@ async function main() {
   }[] = [
     {
       email: 'patron@markova.edu',
-      phone: '+250788000021',
+      phone: '+250788076312',
       code: `PAT-${new Date().getFullYear()}-001`,
       role: Role.PATRON,
       gender: Gender.MALE,
@@ -966,7 +966,7 @@ async function main() {
     },
     {
       email: 'matron@markova.edu',
-      phone: '+250788000022',
+      phone: '+250729445950',
       code: `MAT-${new Date().getFullYear()}-001`,
       role: Role.MATRON,
       gender: Gender.FEMALE,
@@ -976,7 +976,7 @@ async function main() {
     },
     {
       email: 'nurse@markova.edu',
-      phone: '+250788000023',
+      phone: '+250788812739',
       code: `NUR-${new Date().getFullYear()}-001`,
       role: Role.NURSE,
       gender: Gender.FEMALE,
@@ -992,7 +992,7 @@ async function main() {
     */
     {
       email: 'bursar@markova.edu',
-      phone: '+250788000024',
+      phone: '+250793628514',
       code: `BUR-${new Date().getFullYear()}-001`,
       role: Role.BURSAR,
       gender: Gender.MALE,
@@ -1008,7 +1008,7 @@ async function main() {
     */
     {
       email: 'headteacher@markova.edu',
-      phone: '+250788000025',
+      phone: '+250722974186',
       code: `HTC-${new Date().getFullYear()}-001`,
       role: Role.HEAD_TEACHER,
       gender: Gender.FEMALE,
@@ -1474,11 +1474,11 @@ async function main() {
   // The demo teacher keeps the address documented in CLAUDE.md; the other
   // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
-    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
-    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
-    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788634905', gender: Gender.FEMALE },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250795177286', gender: Gender.MALE },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250722808143', gender: Gender.FEMALE },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788291064', gender: Gender.MALE },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250733425871', gender: Gender.FEMALE },
   ];
   const teacherComponents = new Set<string>(
     fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
@@ -1901,7 +1901,7 @@ async function main() {
     const pBirthYear = yr - (32 + rand(24));
     const user = await prisma.user.create({
       data: withLogin({
-        phone: i === 0 ? '+250788100000' : realPhone(),
+        phone: i === 0 ? '+250785639214' : realPhone(),
         code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
         gender,
         dateOfBirth: new Date(Date.UTC(pBirthYear, rand(12), 1 + rand(27))),
@@ -1921,7 +1921,7 @@ async function main() {
     return user;
   };
 
-  // The documented demo parent first: +250788100000.
+  // The documented demo parent first: +250785639214.
   const demoParent = await createParent(Gender.MALE, { demo: true });
 
   // Family pairs for the lineage names.
@@ -3244,7 +3244,7 @@ async function main() {
   //
   // From 18 a student decides what their parents see (A8). One adult student
   // signs in as adult@markova.edu and keeps their health visits private; their
-  // parent signs in with +250788199999 and sees a calm notice on the health
+  // parent signs in with +250798405362 and sees a calm notice on the health
   // page, and everything else as before.
   {
     const eighteenYearsAgo = addDays(today, -18 * 366);
@@ -3283,11 +3283,11 @@ async function main() {
       if (parent) {
         await prisma.account.update({
           where: { id: parent.accountId },
-          data: { phone: '+250788199999', forcePasswordChange: false },
+          data: { phone: '+250798405362', forcePasswordChange: false },
         });
         await prisma.user.update({
           where: { id: parent.id },
-          data: { phone: '+250788199999' },
+          data: { phone: '+250798405362' },
         });
       }
     }
@@ -5866,10 +5866,10 @@ async function main() {
   console.log('     Student   student1@markova.edu');
   console.log('     Graduate  graduate@markova.edu (left the school: report cards only)');
   console.log('     Adult     adult@markova.edu (18+, keeps health visits private)');
-  console.log('     Their parent +250788199999 (phone login)');
+  console.log('     Their parent +250798405362 (phone login)');
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
-  console.log('     Parent    +250788100000 (phone login)');
+  console.log('     Parent    +250785639214 (phone login)');
   console.log('   Other schools (no forced password change):');
   for (const school of others) {
     console.log(`     ${school.name}: admin ${school.admin}, head teacher ${school.headTeacher}`);
@@ -6331,7 +6331,7 @@ async function seedPeopleInSeveralSchools(
 
   // Patrick: a parent at G.S. Umucyo, of the first child in Senior 1 A.
   const patrick = await prisma.account.update({
-    where: { phone: '+250788000013' },
+    where: { phone: '+250788291064' },
     data: { forcePasswordChange: false },
   });
   await inSchool(umucyo.id);
@@ -6364,7 +6364,7 @@ async function seedPeopleInSeveralSchools(
 
   // Eric: a second teaching post, Mathematics at E.S. Ubumwe.
   const eric = await prisma.account.update({
-    where: { phone: '+250788000011' },
+    where: { phone: '+250795177286' },
     data: { forcePasswordChange: false },
   });
   await inSchool(ubumwe.id);
@@ -6402,13 +6402,13 @@ async function seedPeopleInSeveralSchools(
     where: {
       schoolId: firstSchoolId,
       role: Role.PARENT,
-      phone: { not: '+250788100000' },
+      phone: { not: '+250785639214' },
     },
     orderBy: { code: 'asc' },
     include: { account: true },
   });
   /* A fixed number, so the demo can be found again after every seed. */
-  const twoSchoolPhone = '+250788100002';
+  const twoSchoolPhone = '+250726083157';
   await prisma.account.update({
     where: { id: parentHere.accountId },
     data: { forcePasswordChange: false, phone: twoSchoolPhone },

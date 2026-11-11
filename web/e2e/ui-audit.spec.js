@@ -28,9 +28,9 @@ const ACCOUNTS = {
   GRADUATE: { email: 'graduate@markova.edu', password: PASS },
   // 18, keeps their health visits from their parents; and that parent.
   ADULT: { email: 'adult@markova.edu', password: PASS },
-  ADULT_PARENT: { phone: '+250788199999', password: PASS },
+  ADULT_PARENT: { phone: '+250798405362', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
-  PARENT: { phone: '+250788100000', password: PASS },
+  PARENT: { phone: '+250785639214', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
   PATRON: { email: 'patron@markova.edu', password: PASS },
   MATRON: { email: 'matron@markova.edu', password: PASS },

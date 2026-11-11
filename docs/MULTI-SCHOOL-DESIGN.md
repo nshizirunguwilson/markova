@@ -49,7 +49,7 @@ Example: Ange.
 
 | | Holds |
 | --- | --- |
-| **Ange's login** | Phone +250788100000, her password |
+| **Ange's login** | Phone +250785639214, her password |
 | Her school record at **Kigali Hill** | Parent of Ivan |
 | Her school record at **Lycée Notre Dame** | Parent of Keza |
 
