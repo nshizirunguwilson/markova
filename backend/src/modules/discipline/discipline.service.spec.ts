@@ -210,12 +210,30 @@ describe('DisciplineService', () => {
         studentId: 'student-1',
         pointsDeducted: 5,
       });
+      prisma.student.findUnique.mockResolvedValue({ disciplinePoints: 90 });
       await service.deleteIncident('inc-1');
       expect(prisma.student.update).toHaveBeenCalledWith({
         where: { id: 'student-1' },
-        data: { disciplinePoints: { increment: 5 } },
+        data: { disciplinePoints: 95 },
       });
       expect(prisma.disciplineIncident.delete).toHaveBeenCalled();
+    });
+
+    /* The finding: a student who lost five, earned them back with merits and
+       then had the incident struck out stood above the full mark. The report
+       card printed the full mark and the transfer letter the higher figure. */
+    it('never gives back past the full mark', async () => {
+      prisma.disciplineIncident.findUnique.mockResolvedValue({
+        id: 'inc-1',
+        studentId: 'student-1',
+        pointsDeducted: 5,
+      });
+      prisma.student.findUnique.mockResolvedValue({ disciplinePoints: 98 });
+      await service.deleteIncident('inc-1');
+      expect(prisma.student.update).toHaveBeenCalledWith({
+        where: { id: 'student-1' },
+        data: { disciplinePoints: 100 },
+      });
     });
 
     it('refuses one that does not exist', async () => {
@@ -367,6 +385,7 @@ describe('DisciplineService', () => {
       });
 
       it('gives the points back when the appeal is upheld', async () => {
+        prisma.student.findUnique.mockResolvedValue({ disciplinePoints: 90 });
         await service.reviewAppeal(
           'ap-1',
           { status: 'APPROVED' } as never,
@@ -374,7 +393,20 @@ describe('DisciplineService', () => {
         );
         expect(prisma.student.update).toHaveBeenCalledWith({
           where: { id: 'student-1' },
-          data: { disciplinePoints: { increment: 5 } },
+          data: { disciplinePoints: 95 },
+        });
+      });
+
+      it('stops at the full mark when merits already made the points up', async () => {
+        prisma.student.findUnique.mockResolvedValue({ disciplinePoints: 100 });
+        await service.reviewAppeal(
+          'ap-1',
+          { status: 'APPROVED' } as never,
+          'admin-1',
+        );
+        expect(prisma.student.update).toHaveBeenCalledWith({
+          where: { id: 'student-1' },
+          data: { disciplinePoints: 100 },
         });
       });
 

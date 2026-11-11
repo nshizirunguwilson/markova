@@ -738,7 +738,10 @@ model Student {
   // back to life when it is found. Revoking destroys the code instead.
   cardSuspendedAt   DateTime?     @map("card_suspended_at")
   status            StudentStatus @default(ACTIVE)
-  disciplinePoints  Int           @default(100) @map("discipline_points")
+  /// Starts on the term's full conduct mark (TERM_CONDUCT_MARK). It was 100,
+  /// from before conduct was marked out of 40, so a student created without
+  /// naming it stood above the full mark.
+  disciplinePoints  Int           @default(40) @map("discipline_points")
   /// From 18 a student decides what their parents see (A8 in
   /// docs/STUDENT-LIFE-DESIGN.md). Everything is shared until they say
   /// otherwise; fees are always shared with whoever pays.
