@@ -538,6 +538,89 @@ describe('AcademicService', () => {
       });
     });
 
+    describe('a teacher or a class in two places at once', () => {
+      const lesson = {
+        classSectionId: 'class-s2a',
+        subjectId: 'sub-maths',
+        teacherId: 'tch-aline',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+      };
+      const existing = (over: object = {}) => ({
+        id: 'tt-9',
+        classSectionId: 'class-s3b',
+        teacherId: 'tch-aline',
+        dayOfWeek: 1,
+        startTime: '08:30',
+        endTime: '09:30',
+        subject: { name: 'Physics' },
+        teacher: { user: { firstName: 'Aline', lastName: 'Uwase' } },
+        classSection: { name: 'B', classLevel: { name: 'S3' } },
+        ...over,
+      });
+
+      it('refuses a teacher booked into two classes at once', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(existing());
+        await expect(service.createTimetable(lesson)).rejects.toThrow(
+          'Aline Uwase already teaches Physics to S3 B on Monday from 08:30 to 09:30',
+        );
+        expect(prisma.timetable.create).not.toHaveBeenCalled();
+      });
+
+      it('refuses a class given two lessons at once', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(
+          existing({
+            teacherId: 'tch-other',
+            classSectionId: 'class-s2a',
+            classSection: { name: 'A', classLevel: { name: 'S2' } },
+          }),
+        );
+        await expect(service.createTimetable(lesson)).rejects.toThrow(
+          'S2 A already has Physics on Monday',
+        );
+      });
+
+      it('asks only about overlapping lessons on the same day', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(null);
+        prisma.timetable.create.mockResolvedValue({});
+        await service.createTimetable(lesson);
+        const where = prisma.timetable.findFirst.mock.calls[0][0].where;
+        expect(where).toMatchObject({
+          dayOfWeek: 1,
+          startTime: { lt: '09:00' },
+          endTime: { gt: '08:00' },
+          OR: [{ teacherId: 'tch-aline' }, { classSectionId: 'class-s2a' }],
+        });
+      });
+
+      it('does not count a lesson being moved as clashing with itself', async () => {
+        prisma.timetable.findUnique.mockResolvedValue({
+          id: 'tt-1',
+          ...lesson,
+        });
+        prisma.timetable.findFirst.mockResolvedValue(null);
+        prisma.timetable.update.mockResolvedValue({});
+        await service.updateTimetable('tt-1', {
+          startTime: '08:15',
+          endTime: '09:15',
+        });
+        expect(prisma.timetable.findFirst.mock.calls[0][0].where.id).toEqual({
+          not: 'tt-1',
+        });
+      });
+
+      it('refuses a lesson that ends before it starts', async () => {
+        await expect(
+          service.createTimetable({
+            ...lesson,
+            startTime: '10:00',
+            endTime: '09:00',
+          }),
+        ).rejects.toThrow('A lesson has to end after it starts');
+      });
+    });
+
     it('places the good periods and names the bad ones by number', async () => {
       prisma.timetable.create
         .mockResolvedValueOnce({})
