@@ -93,9 +93,9 @@ describe('HomeworkController', () => {
     },
     {
       name: 'one student’s work',
-      call: (c) => c.getStudentHomework('student-1', 'section-1', parent),
+      call: (c) => c.getStudentHomework('student-1', parent),
       calls: 'getStudentHomework',
-      withArgs: ['student-1', 'section-1'],
+      withArgs: ['student-1'],
     },
   ];
 
@@ -121,7 +121,7 @@ describe('HomeworkController', () => {
     it('checks the student belongs to the person asking', async () => {
       await run({
         name: 'checked',
-        call: (c) => c.getStudentHomework('student-1', 'section-1', parent),
+        call: (c) => c.getStudentHomework('student-1', parent),
         on: 'ownership',
         calls: 'verifyStudentAccess',
         withArgs: [parent.id, 'PARENT', 'student-1', 'results'],
@@ -139,7 +139,7 @@ describe('HomeworkController', () => {
       await expect(
         c({
           name: 'blocked',
-          call: (ctl: any) => ctl.getStudentHomework('student-1', 's', parent),
+          call: (ctl: any) => ctl.getStudentHomework('student-1', parent),
           calls: 'getStudentHomework',
         }),
       ).rejects.toThrow();

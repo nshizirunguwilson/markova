@@ -418,27 +418,51 @@ describe('HomeworkService', () => {
    * own submission is flattened onto each row.
    */
   describe('what one student has been set', () => {
+    beforeEach(() => {
+      prisma.student.findFirst.mockResolvedValue({
+        classSectionId: 'section-1',
+      });
+    });
+
     it('flattens their own submission onto each piece of work', async () => {
       prisma.homework.findMany.mockResolvedValue([
         { id: 'hw-1', submissions: [{ id: 'sub-1', marks: 17 }] },
         { id: 'hw-2', submissions: [] },
       ]);
-      const result = await service.getStudentHomework('student-1', 'section-1');
+      const result = await service.getStudentHomework('student-1');
       expect(result[0].submission).toEqual({ id: 'sub-1', marks: 17 });
       expect(result[1].submission).toBeNull();
     });
 
     it('reads only their own submission, not the whole class’s', async () => {
       prisma.homework.findMany.mockResolvedValue([]);
-      await service.getStudentHomework('student-1', 'section-1');
+      await service.getStudentHomework('student-1');
       expect(
         prisma.homework.findMany.mock.calls[0][0].include.submissions.where,
       ).toEqual({ studentId: 'student-1' });
     });
 
+    /* The finding: an id that matched nobody returned all 118 homework
+       items in the school, because there was no class to filter on. */
+    it('refuses a student who does not exist rather than list everything', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(service.getStudentHomework('nobody')).rejects.toThrow(
+        'Student not found',
+      );
+      expect(prisma.homework.findMany).not.toHaveBeenCalled();
+    });
+
+    it('gives a student with no class an empty list', async () => {
+      prisma.student.findFirst.mockResolvedValue({ classSectionId: null });
+      await expect(service.getStudentHomework('student-1')).resolves.toEqual(
+        [],
+      );
+      expect(prisma.homework.findMany).not.toHaveBeenCalled();
+    });
+
     it('reads the work set for their class', async () => {
       prisma.homework.findMany.mockResolvedValue([]);
-      await service.getStudentHomework('student-1', 'section-1');
+      await service.getStudentHomework('student-1');
       expect(prisma.homework.findMany.mock.calls[0][0].where).toEqual({
         classSectionId: 'section-1',
       });

@@ -105,7 +105,6 @@ export class HomeworkController {
   @ApiOperation({ summary: 'Get homework for a student' })
   async getStudentHomework(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('classSectionId') classSectionId: string,
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(
@@ -114,6 +113,8 @@ export class HomeworkController {
       studentId,
       'results',
     );
-    return this.service.getStudentHomework(studentId, classSectionId);
+    // The class comes from the student, never from the request. A
+    // classSectionId the screens still send is ignored.
+    return this.service.getStudentHomework(studentId);
   }
 }
