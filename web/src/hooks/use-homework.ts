@@ -49,6 +49,26 @@ export function useDeleteHomework() {
   });
 }
 
+/**
+ * Upload the sheet a piece of work is set on (a past paper, a worksheet).
+ * Answers with where it landed and the name it had; the create or update
+ * then names both.
+ */
+export function useUploadSheet() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return (
+        await api.post("/homework/upload", body, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data as { fileUrl: string; fileName: string };
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "The file could not be uploaded")),
+  });
+}
+
 export function useSubmitHomework() {
   const qc = useQueryClient();
   return useMutation({

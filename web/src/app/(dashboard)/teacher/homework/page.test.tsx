@@ -257,6 +257,53 @@ describe("setting new homework", () => {
       expect((call![1] as any).classSectionId).toBe("section-1");
     });
   });
+
+  // The sheet is uploaded the moment it is picked, and the create then names
+  // where it landed and the name the teacher's file had.
+  it("sends the sheet it was set with", async () => {
+    const dialog = await openForm();
+    const select = within(dialog).getAllByRole("combobox")[0];
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "assign-1" } });
+    });
+    for (const box of within(dialog).getAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Physics past paper" } });
+      });
+    }
+
+    serve(h.api, {
+      ...routes,
+      "/homework/upload": {
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: "Paper 2 2025.pdf",
+      },
+    });
+    const file = new File(["%PDF-1.4"], "Paper 2 2025.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText("File (optional)"), {
+        target: { files: [file] },
+      });
+    });
+    await within(dialog).findByText("Paper 2 2025.pdf");
+
+    h.api.post.mockClear();
+    serve(h.api, routes);
+    const save = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(create|save|add)/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        ([url]: any[]) => String(url) === "/homework",
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).fileUrl).toBe("/uploads/schools/s-1/attachments/abc.pdf");
+      expect((call![1] as any).fileName).toBe("Paper 2 2025.pdf");
+    });
+  }, 15000);
 });
 
 describe("removing a homework", () => {

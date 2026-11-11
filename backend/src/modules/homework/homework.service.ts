@@ -38,6 +38,9 @@ export class HomeworkService {
         dueDate: new Date(dto.dueDate),
         maxMarks: dto.maxMarks,
         lateDeductionPerDay: dto.lateDeductionPerDay || 0,
+        // The sheet the work is set on, when the teacher attached one.
+        fileUrl: dto.fileUrl,
+        fileName: dto.fileName,
       },
       include: {
         subject: { select: { name: true } },
@@ -66,6 +69,11 @@ export class HomeworkService {
         ...(dto.maxMarks !== undefined && { maxMarks: dto.maxMarks }),
         ...(dto.lateDeductionPerDay !== undefined && {
           lateDeductionPerDay: dto.lateDeductionPerDay,
+        }),
+        /* An empty string takes the sheet off; undefined leaves it alone. */
+        ...(dto.fileUrl !== undefined && {
+          fileUrl: dto.fileUrl || null,
+          fileName: dto.fileUrl ? dto.fileName || null : null,
         }),
       },
     });

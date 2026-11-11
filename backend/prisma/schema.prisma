@@ -1286,6 +1286,10 @@ model Homework {
   dueDate             DateTime       @map("due_date")
   maxMarks            Float?         @map("max_marks")
   lateDeductionPerDay Float?         @default(0) @map("late_deduction_per_day")
+  /// The sheet the work is set on: a past paper, a worksheet, a reading.
+  fileUrl             String?        @map("file_url")
+  /// The name the teacher's file had, shown instead of the uuid on disk.
+  fileName            String?        @map("file_name")
   createdAt           DateTime       @default(now()) @map("created_at")
 
   teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
