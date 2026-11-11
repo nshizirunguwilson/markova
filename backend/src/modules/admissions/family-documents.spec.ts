@@ -15,6 +15,7 @@ describe('a family attaching a document', () => {
   const prisma: any = {
     application: { findUnique: jest.fn() },
     applicationDocument: { count: jest.fn(), create: jest.fn() },
+    account: { findMany: jest.fn(), create: jest.fn() },
   };
   const service = new AdmissionsService(prisma, accountsFor(prisma));
 
@@ -82,6 +83,28 @@ describe('a family attaching a document', () => {
     expect(
       prisma.applicationDocument.create.mock.calls[0][0].data.fileName,
     ).toBe('Birth certificate Keza.pdf');
+  });
+
+  it('names a file that came without a usable name', async () => {
+    await send({ ...pdf(), originalname: '' });
+    await send({ ...pdf(), originalname: '###.pdf' });
+    const names = prisma.applicationDocument.create.mock.calls.map(
+      (c: any) => c[0].data.fileName,
+    );
+    expect(names).toEqual(['document.pdf', 'document.pdf']);
+  });
+
+  it('takes a photograph as well as a PDF', async () => {
+    const png = {
+      buffer: Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0,
+      ]),
+      mimetype: 'image/png',
+      originalname: 'photo.png',
+      size: 10,
+    };
+    await send(png);
+    expect(stored()[0]).toMatch(/\.png$/);
   });
 
   // A wrong guess must leave nothing behind.
