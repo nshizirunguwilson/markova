@@ -661,6 +661,12 @@ test('modal: Cancel button closes the modal', async (browser) => {
 const RESP = [
   ['ADMIN', '/admin/attendance', 390], ['ADMIN', '/admin/attendance', 768],
   ['STUDENT', '/student/marks', 390],
+  // Slid sideways on a phone by 280, 38 and 14 px: a tab strip that did not
+  // scroll inside itself, a select as wide as its longest option, and a
+  // column of tabs that left the form beside it 120px.
+  ['ADMIN', '/admin/discipline', 390],
+  ['ADMIN', '/admin/homework', 390],
+  ['ADMIN', '/admin/settings', 390],
 ];
 for (const [role, route, width] of RESP) {
   test(`responsive: ${route} has no horizontal overflow at ${width}px`, async (browser) => {
