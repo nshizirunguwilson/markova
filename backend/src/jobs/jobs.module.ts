@@ -9,22 +9,23 @@ import { DeliveryProcessor } from './delivery.processor';
 import { DeliveryQueue } from './delivery.queue';
 import { RenderProcessor } from './render.processor';
 import { RenderQueue } from './render.queue';
+import { takesJobs } from './who-works';
 
 /**
  * The background work, and which processes do it.
  *
- * Every process can put work on the queue. Only a process started with
- * `WORKER=1` takes work off it, and that is the whole point of the split: the
- * API instances never launch a browser, so a run of report cards cannot make
- * the dashboard slow. Scale the two independently, which is what the compose
- * file does.
+ * Every process can put work on the queue. Which ones take it off is
+ * `takesJobs` (./who-works.ts): one process does everything unless the scaled
+ * stack splits it, where the API instances run with `WORKER=0` and never
+ * launch a browser, so a run of report cards cannot make the dashboard slow.
  *
- * Run the same image both ways:
+ * Run the same image three ways:
  *
- *   npm run start:prod              an API instance
+ *   npm run start:prod              answers requests and does the work
+ *   WORKER=0 npm run start:prod     an API instance only
  *   WORKER=1 npm run start:prod     a worker
  */
-const isWorker = process.env.WORKER === '1';
+const isWorker = takesJobs();
 
 @Module({
   imports: [
