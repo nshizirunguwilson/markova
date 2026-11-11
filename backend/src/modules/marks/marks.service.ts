@@ -33,6 +33,7 @@ import {
   PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
+import { mustExist } from '../../common/must-exist';
 
 @Injectable()
 export class MarksService {
@@ -897,6 +898,7 @@ export class MarksService {
   }
 
   async getStudentYearResult(studentId: string, academicYearId: string) {
+    await mustExist(this.prisma.student, studentId, 'Student');
     const result = await this.prisma.yearResult.findFirst({
       where: { studentId, academicYearId },
       include: {

@@ -30,6 +30,7 @@ describe('SupportService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.classSection.findFirst.mockResolvedValue({ id: 'class-1' });
     ownership = { verifyStudentAccess: jest.fn().mockResolvedValue(undefined) };
     service = new SupportService(prisma, ownership as never);
     prisma.student.findUnique.mockResolvedValue({

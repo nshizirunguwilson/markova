@@ -20,6 +20,7 @@ describe('AnalyticsService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
     service = new AnalyticsService(
       prisma,
@@ -570,6 +571,7 @@ describe('one student’s profile', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -830,6 +832,7 @@ describe('a teacher’s class', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -981,6 +984,7 @@ describe('a student’s own numbers', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -999,11 +1003,13 @@ describe('a student’s own numbers', () => {
     prisma.termResult.findFirst.mockResolvedValue(null);
   });
 
-  it('answers with nothing for a student who does not exist', async () => {
-    prisma.student.findUnique.mockResolvedValue(null);
+  /* It answered null, which the page drew as a student with no marks yet.
+     A mistyped id is now told apart from an empty record. */
+  it('refuses a student who does not exist', async () => {
+    prisma.student.findFirst.mockResolvedValue(null);
     await expect(
       service.getStudentAnalytics('nobody', 'term-1'),
-    ).resolves.toBeNull();
+    ).rejects.toThrow('Student not found');
   });
 
   it('averages each subject across its marks', async () => {
@@ -1056,6 +1062,7 @@ describe('a parent’s view of the year', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -1174,6 +1181,7 @@ describe('a profile assembled from thin records', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -1274,6 +1282,7 @@ describe('analytics a student may not see yet', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({

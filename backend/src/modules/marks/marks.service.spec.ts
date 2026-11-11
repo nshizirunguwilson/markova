@@ -32,6 +32,7 @@ describe('MarksService', () => {
   beforeEach(() => {
     permissions.isClassTeacherOf.mockReset().mockResolvedValue(true);
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new MarksService(prisma, permissions as never);
     prisma.term.findUnique.mockResolvedValue({ id: 'term-1', isClosed: false });
     prisma.subject.findUnique.mockResolvedValue({
