@@ -92,6 +92,9 @@ type Login = {
   lastUserId: string | null;
 };
 
+/** Wrong codes allowed per sign in code before it is thrown away. */
+const MAX_CODE_TRIES = 5;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -344,6 +347,32 @@ export class AuthService {
     };
   }
 
+  /**
+   * Count a wrong code against its session, and say how many tries are left.
+   *
+   * One mistyped digit used to delete the session, so the right code typed a
+   * second later was refused as well, and when changing a login the next try
+   * said the code had expired. Five tries per code: plenty for a thumb on a
+   * small screen, and still nowhere near enough to guess a six-digit code.
+   * The session keeps its own expiry; only the count changes.
+   */
+  private async wrongCode(
+    key: string,
+    record: { attempts?: number },
+  ): Promise<number> {
+    const attempts = (record.attempts ?? 0) + 1;
+    if (attempts >= MAX_CODE_TRIES) {
+      await this.redis.del(key);
+      return 0;
+    }
+    await this.redis.set(
+      key,
+      JSON.stringify({ ...record, attempts }),
+      'KEEPTTL',
+    );
+    return MAX_CODE_TRIES - attempts;
+  }
+
   // ─── VERIFY OTP (Step 2) ───────────────────────────────────────────────────
 
   async verifyOtp(dto: VerifyOtpDto, ipAddress?: string, deviceInfo?: string) {
@@ -361,8 +390,12 @@ export class AuthService {
     }
 
     if (session.otp !== dto.otp) {
-      await this.redis.del('otp:' + dto.sessionId);
-      throw new UnauthorizedException('Invalid OTP');
+      const left = await this.wrongCode('otp:' + dto.sessionId, session);
+      throw new UnauthorizedException(
+        left > 0
+          ? `That code is not right. You have ${left} ${left === 1 ? 'try' : 'tries'} left.`
+          : 'Too many wrong codes. Sign in again for a new one.',
+      );
     }
 
     // OTP valid - clean up and issue tokens
@@ -815,6 +848,7 @@ export class AuthService {
       field: 'email' | 'phone';
       value: string;
       code: string;
+      attempts?: number;
     };
 
     const account = await this.accountOfUser(userId);
@@ -822,9 +856,14 @@ export class AuthService {
       throw new BadRequestException('That code has expired');
     }
     if (pending.code !== dto.code) {
-      await this.redis.del('login_change:' + dto.sessionId);
+      const left = await this.wrongCode(
+        'login_change:' + dto.sessionId,
+        pending,
+      );
       throw new BadRequestException(
-        'That code is not right. Ask for a new one.',
+        left > 0
+          ? `That code is not right. You have ${left} ${left === 1 ? 'try' : 'tries'} left.`
+          : 'Too many wrong codes. Ask for a new one.',
       );
     }
     await this.redis.del('login_change:' + dto.sessionId);
