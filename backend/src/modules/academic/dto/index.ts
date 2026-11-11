@@ -581,3 +581,21 @@ export class CommitPromotionDto {
   @Type(() => PromotionDecisionItemDto)
   decisions: PromotionDecisionItemDto[];
 }
+
+/** Naming a teacher to a duty. See TeacherDutiesService. */
+export class AddTeacherDutyDto {
+  @ApiProperty({ enum: ['DOS', 'HOD', 'CLASS_TEACHER'] })
+  @IsEnum(['DOS', 'HOD', 'CLASS_TEACHER'])
+  role: 'DOS' | 'HOD' | 'CLASS_TEACHER';
+
+  @ApiPropertyOptional({ description: 'The class a class teacher leads' })
+  @IsOptional()
+  @IsUUID()
+  classSectionId?: string;
+
+  @ApiPropertyOptional({ example: 'Sciences' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  department?: string;
+}

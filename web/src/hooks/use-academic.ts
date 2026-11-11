@@ -398,3 +398,44 @@ export function useUpdateOnboarding() {
     },
   });
 }
+
+/* ── Teacher duties: class teacher, head of department, DOS ──────────── */
+
+export type TeacherDutyRole = "DOS" | "HOD" | "CLASS_TEACHER";
+
+/**
+ * Name a teacher to a duty. A class has one class teacher and a department
+ * one head, so this can hand a duty over; the answer names who held it.
+ */
+export function useAddTeacherDuty(teacherId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (duty: {
+      role: TeacherDutyRole;
+      classSectionId?: string;
+      department?: string;
+    }) =>
+      (await api.post(`/academic/teachers/${teacherId}/duties`, duty)).data as {
+        replaced: string | null;
+      },
+    onSuccess: (out) => {
+      // Both teachers' pages change when a duty is handed over.
+      qc.invalidateQueries({ queryKey: ["user"] });
+      toast.success(out.replaced ? `Handed over from ${out.replaced}` : "Duty added");
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not add the duty")),
+  });
+}
+
+export function useRemoveTeacherDuty(teacherId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dutyId: string) =>
+      (await api.delete(`/academic/teachers/${teacherId}/duties/${dutyId}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["user"] });
+      toast.success("Duty ended");
+    },
+    onError: (e: unknown) => toast.error(errorMessage(e, "Could not end the duty")),
+  });
+}
