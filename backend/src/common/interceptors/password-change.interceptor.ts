@@ -43,6 +43,8 @@ export class PasswordChangeInterceptor implements NestInterceptor {
       if (!open) {
         throw new ForbiddenException({
           statusCode: 403,
+          // Named, or the error filter labels the reply a server error.
+          error: 'Forbidden',
           message: 'Change your temporary password before going on.',
           reason: PASSWORD_CHANGE_REQUIRED,
         });

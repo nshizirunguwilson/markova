@@ -32,6 +32,7 @@ describe('PasswordChangeInterceptor', () => {
     }
     expect(error).toBeInstanceOf(ForbiddenException);
     expect(error.getResponse().reason).toBe(PASSWORD_CHANGE_REQUIRED);
+    expect(error.getResponse().error).toBe('Forbidden');
   });
 
   it('lets somebody with their own password through', () => {
