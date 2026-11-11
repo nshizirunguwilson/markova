@@ -147,3 +147,86 @@ describe("the term's name", () => {
     expect(termLabel(undefined, "t-1")).toBe("this term");
   });
 });
+
+describe("the records that do not fit the usual shape", () => {
+  it("writes a student with no class as a blank class, and a trade into the name", () => {
+    const out = registerExport(
+      [
+        row({ student: { ...student, classSection: null } }),
+        row({ student: { ...student, classSection: { id: "c-2", name: "B", classLevel: { name: "L4" }, trade: { code: "SOD" } } } }),
+      ],
+      "Term 2 2026",
+    );
+    expect(out.data[0].className).toBe("");
+    expect(out.data[1].className).toBe("L4 SOD B");
+  });
+
+  it("gives an empty statement for a family not yet invoiced", () => {
+    const out = accountExport(
+      {
+        student: { ...student, user: { firstName: "Keza", lastName: "Ingabire", photoUrl: null } },
+        invoice: null,
+        standing: null,
+        status: "NOT_INVOICED",
+      } as any,
+      "Term 1 2026",
+    );
+    expect(out.data).toEqual([]);
+    expect(out.title).toContain("Balance");
+  });
+
+  it("marks a withdrawn waiver and a payment with no reference or reason", () => {
+    const out = accountExport(
+      {
+        student: { ...student, user: { firstName: "Keza", lastName: "Ingabire", photoUrl: null } },
+        invoice: {
+          id: "inv-1",
+          total: 185000,
+          issuedAt: "2026-01-05T08:00:00Z",
+          lines: [],
+          payments: [
+            {
+              id: "p-1", receiptNumber: "RCT-2026-0007", amount: 5000, method: "CASH", reference: null,
+              paidAt: "2026-01-09T09:00:00Z", note: "Visiting day", voidedAt: "2026-01-10T09:00:00Z", voidReason: null,
+              recordedBy: null, voidedBy: null,
+            },
+            {
+              id: "p-2", receiptNumber: "RCT-2026-0008", amount: 7000, method: "CASH", reference: null,
+              paidAt: "2026-01-11T09:00:00Z", note: "Visiting day", voidedAt: null, voidReason: null,
+              recordedBy: null, voidedBy: null,
+            },
+          ],
+          waivers: [
+            {
+              id: "w-1", kind: "STAFF_CHILD", amount: 30000, reason: "Child of a teacher", createdAt: "2026-01-06T09:00:00Z",
+              revokedAt: "2026-01-12T09:00:00Z", revokeReason: null, grantedBy: null, revokedBy: null,
+            },
+            {
+              id: "w-2", kind: "STAFF_CHILD", amount: 30000, reason: "Child of a teacher", createdAt: "2026-01-13T09:00:00Z",
+              revokedAt: null, revokeReason: null, grantedBy: null, revokedBy: null,
+            },
+          ],
+        },
+        standing: { total: 185000, paid: 0, waived: 0, balance: 185000, cleared: false, settledFraction: 0 },
+        status: "UNPAID",
+      } as any,
+      "Term 1 2026",
+    );
+    const byDate = Object.fromEntries(out.data.map((r) => [r.date, r]));
+    expect(byDate["2026-01-09"].note).toBe("Voided:");
+    expect(byDate["2026-01-11"].note).toBe("Visiting day");
+    expect(byDate["2026-01-12"]).toBeUndefined();
+    expect(byDate["2026-01-06"].note).toBe("Withdrawn:");
+    expect(byDate["2026-01-13"].note).toBe("");
+  });
+
+  it("names a term that has no year by its name alone", () => {
+    expect(termLabel([{ id: "t-1", name: "Term 3" }], "t-1")).toBe("Term 3");
+  });
+
+  it("stops after one short page", async () => {
+    h.get.mockResolvedValueOnce({ data: { data: [row()], total: 1 } });
+    expect(await wholeRegister({ termId: "t-1" })).toHaveLength(1);
+    expect(h.get).toHaveBeenCalledTimes(1);
+  });
+});
