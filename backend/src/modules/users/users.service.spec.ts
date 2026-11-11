@@ -1245,6 +1245,22 @@ describe('the words the search box understands', () => {
     });
   });
 
+  // A level with no class picked used to list the whole school.
+  it('narrows to every class of one level', async () => {
+    const where = await whereFor({ classLevelId: 'level-1' });
+    expect(where.student).toEqual({
+      classSection: { classLevelId: 'level-1' },
+    });
+  });
+
+  it('lets one class speak over its level', async () => {
+    const where = await whereFor({
+      classLevelId: 'level-1',
+      classSectionId: 'section-1',
+    });
+    expect(where.student).toEqual({ classSectionId: 'section-1' });
+  });
+
   it('adds no student clause when neither was given', async () => {
     const where = await whereFor({ role: 'TEACHER' });
     expect(where.student).toBeUndefined();

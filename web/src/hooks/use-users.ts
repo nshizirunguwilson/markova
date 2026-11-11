@@ -12,6 +12,8 @@ export interface UserFilters {
   search?: string;
   isActive?: boolean;
   classSectionId?: string;
+  /** Every class of one level, when no one class is picked. */
+  classLevelId?: string;
   studentStatus?: string;
   /** Students the school has no date of birth for (treated as under 18). */
   noDateOfBirth?: boolean;
