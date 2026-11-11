@@ -10,10 +10,14 @@ import {
   Card,
   CardTitle,
   Input,
+  ExportDropdown,
   Modal,
   PageSpinner,
 } from "@/components/ui";
 import { PageHeader } from "@/components/layout/page-header";
+import { exportData } from "@/lib/export";
+import { accountExport, termLabel } from "@/lib/fee-exports";
+import { useTerms } from "@/hooks/use-academic";
 import { classDisplayName } from "@/lib/utils";
 import { TermPicker } from "@/components/finance/term-picker";
 import { FeeBar } from "@/components/finance/fee-bar";
@@ -77,6 +81,7 @@ export default function FeeAccountPage() {
 
   const [termId, setTermId] = useState(searchParams.get("termId") ?? "");
   const { data, isLoading } = useFeeAccount(studentId, termId || undefined);
+  const { data: terms } = useTerms();
 
   const [payOpen, setPayOpen] = useState(false);
   const [waiveOpen, setWaiveOpen] = useState(false);
@@ -186,7 +191,17 @@ export default function FeeAccountPage() {
               } · ${student.isBoarder ? "Boarder" : "Day student"}`
             : undefined
         }
-        actions={<TermPicker value={termId} onChange={setTermId} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TermPicker value={termId} onChange={setTermId} />
+            <ExportDropdown
+              onExport={(format) =>
+                data && exportData(format, accountExport(data, termLabel(terms, termId)))
+              }
+              disabled={!data?.invoice}
+            />
+          </div>
+        }
       />
 
       {/*
