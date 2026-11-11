@@ -157,7 +157,11 @@ export class MarksService {
       include: { term: true },
     });
     if (!mark) throw new NotFoundException('Mark not found');
-    if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
+    /* The same rule as editing: a subject teacher removes their own marks,
+       and the Director of Studies removes any, because clearing a mistake
+       from the mark book is the post. This checked for ADMIN, which the
+       route never lets in, so nobody above the teacher could remove one. */
+    if (role !== 'HEAD_TEACHER' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only delete your own marks');
     }
     await this.ensureTermOpen(mark.termId);
