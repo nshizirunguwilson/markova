@@ -972,6 +972,15 @@ export class UsersService {
     const seen = new Map<string, LoginFor>();
     for (let i = 0; i < rows.length; i++) {
       const { email, phone, role } = rows[i];
+      // A row with no name was a server error from the database's insert.
+      const missing = (['firstName', 'lastName'] as const).filter(
+        (k) => typeof rows[i][k] !== 'string' || !rows[i][k].trim(),
+      );
+      if (missing.length) {
+        throw new BadRequestException(
+          `Row ${i + 1}: a ${missing.map((k) => (k === 'firstName' ? 'first name' : 'last name')).join(' and a ')} is needed`,
+        );
+      }
       const again = [email, phone]
         .filter((k): k is string => !!k)
         .map((k) => seen.get(k))
@@ -1129,7 +1138,9 @@ export class UsersService {
       LIBRARIAN: 'email,phone,firstName,lastName,nationalId',
     };
 
-    return headers[role] || headers.STUDENT;
+    // Every other member of staff signs in the way the principal does. A
+    // bursar or a nurse was handed the student sheet.
+    return headers[role] ?? headers.ADMIN;
   }
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────
