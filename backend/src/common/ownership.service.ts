@@ -28,8 +28,13 @@ export class OwnershipService {
     studentId: string,
     sharing?: Sharing,
   ): Promise<void> {
-    if (role === 'ADMIN' || role === 'HEAD_TEACHER' || role === 'TEACHER')
+    if (role === 'ADMIN' || role === 'HEAD_TEACHER') return;
+
+    if (role === 'TEACHER') {
+      if (sharing === 'results')
+        await this.teacherReadsResults(userId, studentId);
       return;
+    }
 
     if (role === 'STUDENT') {
       const student = await this.prisma.student.findFirst({
@@ -67,6 +72,52 @@ export class OwnershipService {
 
     // Unknown role - deny by default
     throw new ForbiddenException('Access denied');
+  }
+
+  /**
+   * A teacher reads a pupil's results only for a class of their own: one they
+   * teach a subject to, or lead as class teacher. A Director of Studies or a
+   * head of department holds the duty across classes. Every teacher was let
+   * through, so any of them could open any pupil's report card, year report
+   * and mark-based comments, which s3-2 says they cannot.
+   */
+  private async teacherReadsResults(userId: string, studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { classSectionId: true },
+    });
+    if (!student) return; // the route answers not found
+    const teacher = await this.prisma.teacher.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    if (teacher) {
+      const [duty, teaches] = await Promise.all([
+        this.prisma.teacherRole.findFirst({
+          where: {
+            teacherId: teacher.id,
+            OR: [
+              { role: { in: ['DOS', 'HOD'] } },
+              { role: 'CLASS_TEACHER', classSectionId: student.classSectionId },
+            ],
+          },
+          select: { id: true },
+        }),
+        student.classSectionId
+          ? this.prisma.teacherSubjectClass.findFirst({
+              where: {
+                teacherId: teacher.id,
+                classSectionId: student.classSectionId,
+              },
+              select: { id: true },
+            })
+          : null,
+      ]);
+      if (duty || teaches) return;
+    }
+    throw new ForbiddenException(
+      'You can read the results only of pupils in a class you teach',
+    );
   }
 
   /** Whether a parent is kept from this kind of record about the student. */
