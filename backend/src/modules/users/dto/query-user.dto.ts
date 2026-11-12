@@ -28,6 +28,12 @@ export class QueryUserDto extends PaginationDto {
   @IsUUID()
   classSectionId?: string;
 
+  /** Every class of one level (Senior 3 A, B and C), when no one class is named. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  classLevelId?: string;
+
   @ApiPropertyOptional({
     enum: StudentStatus,
     description: 'Filter students by enrollment status',

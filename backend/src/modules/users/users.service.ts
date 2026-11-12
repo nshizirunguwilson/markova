@@ -34,6 +34,7 @@ export class UsersService {
       search,
       isActive,
       classSectionId,
+      classLevelId,
       studentStatus,
       noDateOfBirth,
       searchIn,
@@ -153,9 +154,13 @@ export class UsersService {
       });
     }
 
-    if (classSectionId || studentStatus || noDateOfBirth) {
+    if (classSectionId || classLevelId || studentStatus || noDateOfBirth) {
       where.student = {
         ...(classSectionId && { classSectionId }),
+        // One class is narrower than its level, so the level only speaks
+        // when no class is named.
+        ...(classLevelId &&
+          !classSectionId && { classSection: { classLevelId } }),
         ...(studentStatus && { status: studentStatus }),
         ...(noDateOfBirth && { dateOfBirth: null }),
       };
