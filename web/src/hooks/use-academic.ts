@@ -341,6 +341,16 @@ export function useTimetable(classSectionId?: string, teacherId?: string) {
   });
 }
 
+/** One teacher's whole week, across every class they teach. */
+export function useTeacherTimetable(teacherId?: string) {
+  return useQuery({
+    queryKey: ["timetable", "teacher", teacherId],
+    queryFn: async () =>
+      (await api.get(`/academic/timetable/teacher/${teacherId}`)).data,
+    enabled: !!teacherId,
+  });
+}
+
 export function useCreateTimetable() {
   const qc = useQueryClient();
   return useMutation({
