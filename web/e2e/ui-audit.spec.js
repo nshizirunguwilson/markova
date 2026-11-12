@@ -3107,11 +3107,13 @@ test('photos: a classmate whose family said No shows as initials in the chat', a
   const shown = await page.$$eval('img', (imgs) => imgs.map((i) => i.getAttribute('src') ?? ''));
   assert(!shown.some((src) => src.includes(photoFile)), "The classmate's photo is on student1's screen");
 
-  // The staff still see it.
+  /* The staff still see it. Asked for by address, which is theirs alone: the
+     search returns thirty people, and a first name shared by more than that
+     leaves the classmate off the list in some seeds. */
   const staff = await apiAs(
     page,
     'ADMIN',
-    `/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`,
+    `/messaging/contacts?search=${encodeURIComponent(classmate.email ?? classmate.lastName)}`,
   );
   assert(JSON.stringify(staff ?? '').includes(photoFile), 'the staff lost the photo too');
   await ctx.close();
