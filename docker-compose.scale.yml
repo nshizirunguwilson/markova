@@ -11,7 +11,7 @@
 # What this adds over the single-instance stack:
 #
 #   nginx        one door, TLS, flood control, load sharing
-#   api-1..3     stateless replicas, interchangeable
+#   api-1..3     stateless replicas, interchangeable, WORKER=0
 #   worker-1..2  the same image with WORKER=1, so they take PDF work off the
 #                queue and the API instances never launch a browser
 #   pgbouncer    three pools against one Postgres would exhaust its 100
@@ -48,6 +48,10 @@ x-api-base: &api-base
     # transaction pooling cannot hold the session state a migration needs.
     DIRECT_DATABASE_URL: postgresql://markova:password@postgres:5432/markova
     REDIS_URL: redis://redis:6379
+    # Answer requests and leave the queue to the workers. Unset, an instance
+    # would also send mail and render PDFs, which is right for one process
+    # and wrong here: a class of report cards would slow the dashboard.
+    WORKER: '0'
     CORS_ORIGINS: http://localhost
     APP_URL: http://localhost
     JWT_SECRET: ${JWT_SECRET:-change-me}
