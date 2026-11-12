@@ -27,6 +27,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HelpModule } from './modules/help/help.module';
 import { HealthModule } from './modules/health/health.module';
+import { SchoolsModule } from './modules/schools/schools.module';
 import { JourneyModule } from './modules/journey/journey.module';
 import { SharingModule } from './modules/sharing/sharing.module';
 import { SupportModule } from './modules/support/support.module';
@@ -86,6 +87,7 @@ import { JobsModule } from './jobs/jobs.module';
     AnalyticsModule,
     HelpModule,
     HealthModule,
+    SchoolsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -26,6 +26,9 @@ export interface User {
      profile only; distinct from `email` and `phone`, which are this
      school's contact details for them. */
   login?: { email: string | null; phone: string | null };
+  /* Set on the owner of the whole platform, the one login that may take
+     new schools on. Nobody else carries it, whatever their role. */
+  platformRole?: "OWNER" | null;
   // Flattened from student/teacher relations (set by getProfile)
   studentId?: string;
   classSectionId?: string;

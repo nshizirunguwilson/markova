@@ -5,13 +5,13 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
+import { generateTempPassword } from '../../common/temp-password';
 import { hashPassword } from '../../common/password';
 import { AccountsService, LoginFor } from '../accounts/accounts.service';
 import { labelForRole } from '../../common/role-labels';
@@ -829,7 +829,7 @@ export class UsersService {
       }
     }
 
-    const password = this.generateTempPassword();
+    const password = generateTempPassword();
     await this.prisma.$transaction(async (tx) => {
       await tx.account.update({
         where: { id: user.accountId },
@@ -1004,7 +1004,7 @@ export class UsersService {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const login = logins[i];
-        const password = this.generateTempPassword();
+        const password = generateTempPassword();
         const user = await tx.user.create({
           data: {
             accountId: login.accountId,
@@ -1121,24 +1121,6 @@ export class UsersService {
     };
 
     return headers[role] || headers.STUDENT;
-  }
-
-  // Same policy shape as the wizard's generator: 10 chars with an upper, a
-  // lower, a digit and a symbol guaranteed.
-  private generateTempPassword(): string {
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    const symbols = '!@#$%&*';
-    const all = lower + upper + digits + symbols;
-    const pick = (pool: string) => pool[randomInt(pool.length)];
-    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
-    while (chars.length < 10) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join('');
   }
 
   // ─── HELPERS ────────────────────────────────────────────────────────────────

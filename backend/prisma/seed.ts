@@ -912,7 +912,12 @@ async function main() {
       forcePasswordChange: false, // demo account - log straight into dashboard
     }),
   });
-  console.log('  ✅ Admin user seeded');
+  // The demo's platform owner: the one login that can take schools on.
+  await prisma.account.update({
+    where: { id: admin.accountId },
+    data: { platformRole: 'OWNER' },
+  });
+  console.log('  ✅ Admin user seeded (platform owner)');
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   const librarianUser = await prisma.user.create({

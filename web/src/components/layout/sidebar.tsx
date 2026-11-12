@@ -55,7 +55,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const schoolName = useBrandStore((s) => s.schoolName);
   const former = isFormerStudent(user);
-  const sections = getNavigation((user?.role || "ADMIN") as Role, former);
+  const sections = getNavigation(
+    (user?.role || "ADMIN") as Role,
+    former,
+    user?.platformRole === "OWNER",
+  );
   // The same count the chat itself keeps; the socket invalidates it as
   // messages arrive, so the badge follows without polling.
   // A student who has left has no part in the school's chat any more.

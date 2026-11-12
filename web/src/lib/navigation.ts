@@ -419,7 +419,19 @@ export function homeFor(role: string): string {
   return `/${role.toLowerCase()}`;
 }
 
-export function getNavigation(role: Role, formerStudent = false): NavSection[] {
+/* The platform's own menu, shown only to the owner of Markova: the login
+   that takes new schools on. Everybody else, admins included, never sees
+   it, and the API refuses them anyway. */
+const platformSection: NavSection = {
+  title: "Platform",
+  items: [{ label: "Schools", href: "/admin/schools", icon: School }],
+};
+
+export function getNavigation(
+  role: Role,
+  formerStudent = false,
+  platformOwner = false,
+): NavSection[] {
   if (role === "STUDENT" && formerStudent) return formerStudentNav;
   const navMap: Record<Role, NavSection[]> = {
     ADMIN: adminNav,
@@ -433,5 +445,8 @@ export function getNavigation(role: Role, formerStudent = false): NavSection[] {
     NURSE: nurseNav,
     BURSAR: bursarNav,
   };
-  return navMap[role] || adminNav;
+  const sections = navMap[role] || adminNav;
+  return platformOwner && role === "ADMIN"
+    ? [...sections, platformSection]
+    : sections;
 }

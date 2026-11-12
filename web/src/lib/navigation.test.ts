@@ -308,6 +308,27 @@ describe("the grading page", () => {
   );
 });
 
+/**
+ * The platform's own menu (#18). One login owns Markova; only it is offered
+ * the page that takes schools on, and only while signed in as an admin.
+ */
+describe("the owner of the platform", () => {
+  it("is offered the schools page", () => {
+    const hrefs = getNavigation("ADMIN", false, true).flatMap((s) =>
+      s.items.map((i) => i.href),
+    );
+    expect(hrefs).toContain("/admin/schools");
+  });
+
+  it("is the only one offered it", () => {
+    expect(hrefsFor("ADMIN")).not.toContain("/admin/schools");
+    const hrefs = getNavigation("TEACHER", false, true).flatMap((s) =>
+      s.items.map((i) => i.href),
+    );
+    expect(hrefs).not.toContain("/admin/schools");
+  });
+});
+
 describe("a student who has left", () => {
   it("is a student whose standing is not on the roll", () => {
     expect(isFormerStudent({ role: "STUDENT", studentStatus: "GRADUATED" })).toBe(true);

@@ -883,7 +883,12 @@ export class AuthService {
         school: { select: { id: true, name: true, slug: true } },
         /* How the person signs in, shown on their own profile only. */
         account: {
-          select: { email: true, phone: true, forcePasswordChange: true },
+          select: {
+            email: true,
+            phone: true,
+            forcePasswordChange: true,
+            platformRole: true,
+          },
         },
         student: {
           select: {
@@ -942,6 +947,8 @@ export class AuthService {
       ...rest,
       forcePasswordChange: account.forcePasswordChange,
       login: { email: account.email, phone: account.phone },
+      // Whoever runs Markova itself sees the platform screens.
+      platformRole: account.platformRole,
       ...(student && {
         studentId: student.id,
         classSectionId: student.classSectionId,
@@ -1232,7 +1239,9 @@ export class AuthService {
           lastName: true,
           photoUrl: true,
           school: { select: { id: true, name: true, slug: true } },
-          account: { select: { forcePasswordChange: true } },
+          account: {
+            select: { forcePasswordChange: true, platformRole: true },
+          },
         },
       });
       const { account, ...rest } = user!;
@@ -1243,7 +1252,13 @@ export class AuthService {
         /* So the browser keeps the sign in only until it closes, and signs
            out after ten minutes without use. */
         sharedDevice: chain.shared,
-        user: { ...rest, forcePasswordChange: account.forcePasswordChange },
+        user: {
+          ...rest,
+          forcePasswordChange: account.forcePasswordChange,
+          /* The owner of Markova sees the platform menu from the first
+             sign in, not only after a reload fetches the profile. */
+          platformRole: account.platformRole,
+        },
       };
     });
   }
