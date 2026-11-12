@@ -67,6 +67,11 @@ export class ActivitiesController {
   }
 
   @Get(':id')
+  /* Staff only, like the consent summary beside it. With no roles any
+     student or parent could open an activity and read every child on it,
+     with each family's consent answer and note. Families see theirs through
+     /activities/student/:id. */
+  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'One activity with its list of students' })
   findById(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findById(id);
