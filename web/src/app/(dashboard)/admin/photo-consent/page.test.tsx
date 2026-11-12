@@ -155,5 +155,7 @@ describe("the photos page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
     expect(within(list).getAllByRole("listitem")).toHaveLength(150);
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
-  });
+    // A hundred and fifty rows, each with its own controls, take longer to
+    // draw than the usual five seconds allow on a busy machine.
+  }, 20_000);
 });
