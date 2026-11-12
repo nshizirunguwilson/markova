@@ -12,7 +12,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   Gender,
@@ -259,6 +259,10 @@ export class BulkImportDto {
   @IsArray()
   @ArrayMaxSize(5000)
   @IsObject({ each: true })
+  /* Kept as objects. The app converts by declared type, and an array of
+     unknown rows otherwise becomes an array of empty arrays, which refused
+     every spreadsheet before the import read a single row. */
+  @Type(() => Object)
   rows: Record<string, unknown>[];
 }
 

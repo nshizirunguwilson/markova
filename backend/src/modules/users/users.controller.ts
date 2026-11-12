@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Res,
+  ParseEnumPipe,
   ParseUUIDPipe,
   ForbiddenException,
   BadRequestException,
@@ -347,7 +348,10 @@ export class UsersController {
   @Get('import-template/:role')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Download CSV template for bulk import' })
-  getTemplate(@Param('role') role: Role, @Res() res: Response) {
+  getTemplate(
+    @Param('role', new ParseEnumPipe(Role)) role: Role,
+    @Res() res: Response,
+  ) {
     const template = this.usersService.getImportTemplate(role);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(

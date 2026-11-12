@@ -127,6 +127,17 @@ describe('bulk import', () => {
     );
   });
 
+  // A row with no name was a server error from the database's insert.
+  it('names a row with no name before saving anything', async () => {
+    await expect(
+      service.bulkImport([{ ...student, lastName: '  ' }]),
+    ).rejects.toThrow('Row 1: a last name is needed');
+    await expect(
+      service.bulkImport([{ ...student, firstName: '', lastName: '' }]),
+    ).rejects.toThrow('Row 1: a first name and a last name are needed');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('refuses a student row with no class', async () => {
     await expect(
       service.bulkImport([{ ...student, classSectionId: undefined }]),
@@ -365,9 +376,11 @@ describe('the import template', () => {
     );
   });
 
-  it('falls back to the student columns for anything unrecognised', () => {
+  // A bursar or a nurse was handed the student sheet. The route refuses a
+  // role that does not exist before it gets here.
+  it('gives any other member of staff the staff columns', () => {
     expect(service.getImportTemplate('NURSE')).toBe(
-      service.getImportTemplate(Role.STUDENT),
+      service.getImportTemplate(Role.ADMIN),
     );
   });
 });
