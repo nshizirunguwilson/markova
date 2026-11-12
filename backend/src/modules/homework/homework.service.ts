@@ -290,9 +290,23 @@ export class HomeworkService {
   // STUDENT QUERIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getStudentHomework(studentId: string, classSectionId: string) {
+  /**
+   * The homework set for this student's own class.
+   *
+   * The class used to come from the request, and a request without one (or
+   * with a student id that matched nobody) had no class to filter on, so it
+   * returned every homework in the school.
+   */
+  async getStudentHomework(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId },
+      select: { classSectionId: true },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    if (!student.classSectionId) return [];
+
     const homeworks = await this.prisma.homework.findMany({
-      where: { classSectionId },
+      where: { classSectionId: student.classSectionId },
       include: {
         subject: { select: { name: true } },
         teacher: {
