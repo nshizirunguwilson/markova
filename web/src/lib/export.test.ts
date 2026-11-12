@@ -18,10 +18,12 @@ vi.mock("jspdf", () => ({
     save = h.save;
     text = h.text;
     setFontSize = h.setFontSize;
-    autoTable = h.autoTable;
   },
 }));
-vi.mock("jspdf-autotable", () => ({}));
+/* The real shape since version 5: a function that takes the document. The
+   old mock put autoTable on the document, which is why the tests passed while
+   every real export threw. */
+vi.mock("jspdf-autotable", () => ({ autoTable: h.autoTable }));
 
 /*
   ExcelJS rather than SheetJS: the SheetJS advisory has no fix available, so it
@@ -285,9 +287,8 @@ describe("exporting without a title", () => {
     await exportData("pdf", { filename: "students", columns, data });
 
     expect(h.text).not.toHaveBeenCalled();
-    // autoTable is a method on the document, so its only argument is the
-    // table spec.
-    const [options] = h.autoTable.mock.calls.at(-1)! as [any];
+    // autoTable takes the document first and the table spec second.
+    const [, options] = h.autoTable.mock.calls.at(-1)! as [any, any];
     expect(options.startY).toBe(14);
   });
 
@@ -295,7 +296,7 @@ describe("exporting without a title", () => {
     await exportData("pdf", { filename: "students", title: "Students", columns, data });
 
     expect(h.text).toHaveBeenCalledWith("Students", 14, 15);
-    const [options] = h.autoTable.mock.calls.at(-1)! as [any];
+    const [, options] = h.autoTable.mock.calls.at(-1)! as [any, any];
     expect(options.startY).toBe(22);
   });
 });
