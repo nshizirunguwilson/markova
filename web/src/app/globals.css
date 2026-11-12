@@ -30,6 +30,16 @@ body {
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
+
+  /*
+    A select is as wide as its longest option, whatever the screen. "Biology
+    and Health Sciences" made one 395px wide on a 390px phone and the whole
+    page slid sideways with it. It may be as wide as its options, up to the
+    width of what holds it.
+  */
+  select {
+    max-width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
