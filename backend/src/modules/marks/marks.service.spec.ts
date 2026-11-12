@@ -48,8 +48,8 @@ describe('MarksService', () => {
     permissions.mayEnterMarks.mockReset().mockResolvedValue(true);
     permissions.marksReadableBy.mockReset().mockResolvedValue(null);
     // every student asked about is in the class, unless a test says otherwise
-    prisma.student.count.mockImplementation(
-      ({ where }: any) => Promise.resolve(where.id.in.length),
+    prisma.student.count.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.id.in.length),
     );
   });
 
@@ -1622,8 +1622,8 @@ describe('a whole class entered at once', () => {
     });
     prisma.mark.upsert.mockResolvedValue({ id: 'mark-1' });
     prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
-    prisma.student.count.mockImplementation(
-      ({ where }: any) => Promise.resolve(where.id.in.length),
+    prisma.student.count.mockImplementation(({ where }: any) =>
+      Promise.resolve(where.id.in.length),
     );
   });
 
