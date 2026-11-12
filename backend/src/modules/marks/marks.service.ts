@@ -64,6 +64,9 @@ export class MarksService {
         `Score ${dto.score} exceeds max ${maxScore}`,
       );
     }
+    await this.assertMayEnter(dto, subject.name, teacherId, role, [
+      dto.studentId,
+    ]);
 
     /* The head teacher has no teacher profile of their own, so a mark they
        enter is credited to whoever teaches that subject to that class. */
@@ -175,6 +178,13 @@ export class MarksService {
       where: { id: dto.subjectId },
     });
     if (!subject) throw new NotFoundException('Subject not found');
+    await this.assertMayEnter(
+      dto,
+      subject.name,
+      teacherId,
+      role,
+      dto.marks.map((m) => m.studentId),
+    );
 
     /* The head teacher has no teacher profile of their own, so a mark they
        enter is credited to whoever teaches that subject to that class. */
@@ -231,11 +241,59 @@ export class MarksService {
     return { count: results.length, marks: results };
   }
 
-  async findAll(query: QueryMarksDto) {
+  /**
+   * Who may put a mark in this subject for this class, and for whom.
+   *
+   * A teacher only for a subject they teach to that class (the DOS duty
+   * covers every class); the head teacher for any. Whoever enters it, every
+   * student has to be in that class: a mark filed under the wrong class
+   * would sit on one class's sheet while counting towards another child.
+   */
+  private async assertMayEnter(
+    where: { subjectId: string; classSectionId: string; termId: string },
+    subjectName: string,
+    teacherId: string | null,
+    role: string,
+    studentIds: string[],
+  ) {
+    if (
+      role === 'TEACHER' &&
+      !(await this.permissions.mayEnterMarks(teacherId ?? undefined, where))
+    ) {
+      throw new ForbiddenException(
+        `You do not teach ${subjectName} to this class, so you cannot enter its marks`,
+      );
+    }
+    const unique = [...new Set(studentIds)];
+    const inClass = await this.prisma.student.count({
+      where: { id: { in: unique }, classSectionId: where.classSectionId },
+    });
+    if (inClass !== unique.length) {
+      throw new BadRequestException(
+        unique.length === 1
+          ? 'This student is not in that class'
+          : `${unique.length - inClass} of these students are not in that class`,
+      );
+    }
+  }
+
+  async findAll(
+    query: QueryMarksDto,
+    viewer?: { role: string; teacherId?: string | null },
+  ) {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    /* A teacher reads the marks of what they teach, and the whole card of a
+       class they lead; the DOS duty and the head teacher read everything. */
+    if (viewer?.role === 'TEACHER') {
+      const readable = await this.permissions.marksReadableBy(
+        viewer.teacherId ?? undefined,
+      );
+      if (readable !== null)
+        where.OR = readable.length ? readable : [{ id: '' }];
+    }
     if (query.studentId) where.studentId = query.studentId;
     if (query.subjectId) where.subjectId = query.subjectId;
     if (query.classSectionId) where.classSectionId = query.classSectionId;
@@ -266,7 +324,10 @@ export class MarksService {
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async findById(id: string) {
+  async findById(
+    id: string,
+    viewer?: { role: string; teacherId?: string | null },
+  ) {
     const mark = await this.prisma.mark.findUnique({
       where: { id },
       include: {
@@ -283,6 +344,20 @@ export class MarksService {
       },
     });
     if (!mark) throw new NotFoundException('Mark not found');
+    // Looked up by id, the same limits as the list: unreadable reads as absent.
+    if (viewer?.role === 'TEACHER') {
+      const readable = await this.permissions.marksReadableBy(
+        viewer.teacherId ?? undefined,
+      );
+      const allowed =
+        readable === null ||
+        readable.some(
+          (r) =>
+            r.classSectionId === mark.classSectionId &&
+            (!r.subjectId || r.subjectId === mark.subjectId),
+        );
+      if (!allowed) throw new NotFoundException('Mark not found');
+    }
     return mark;
   }
 
