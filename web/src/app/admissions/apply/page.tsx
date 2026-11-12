@@ -522,9 +522,10 @@ export default function ApplyPage() {
 
           <Card padding="sm">
             <p className="text-xs text-muted">
-              The school will ask for the supporting documents once it has read
-              the application: a birth certificate, the results slip, the last
-              report card, a photograph and the parent&apos;s national ID.
+              Once you have sent this, you can attach the supporting documents
+              from the status page with your reference: a birth certificate, the
+              results slip, the last report card, a photograph and the
+              parent&apos;s national ID.
             </p>
           </Card>
 

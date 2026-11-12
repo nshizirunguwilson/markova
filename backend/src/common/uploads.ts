@@ -19,7 +19,12 @@ import { retireStoredFile } from './file-validation';
  * never from anything the client sends.
  */
 export type UploadKind =
-  'branding' | 'photos' | 'signatures' | 'attachments' | 'replaced';
+  | 'branding'
+  | 'photos'
+  | 'signatures'
+  | 'attachments'
+  | 'admissions'
+  | 'replaced';
 
 /** The root on disk, served at `/uploads`. UPLOAD_DIR may be absolute. */
 export const uploadRoot = () =>

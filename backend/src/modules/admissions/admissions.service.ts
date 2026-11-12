@@ -6,6 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { attachmentMatchesType, baseMime } from '../../common/file-validation';
+import { schoolUploads, uploadUrl } from '../../common/uploads';
 import { Prisma, Role, StudentStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withPlatform } from '../../prisma/request-context';
@@ -809,6 +813,14 @@ export class AdmissionsService {
       submittedAt: full.submittedAt,
       /* Named in the words the family will use when they go looking for them. */
       stillNeeded: docs.missing.map((k) => DOCUMENT_LABEL[k]),
+      /* The same, as the kinds the upload takes, so the page can offer a
+         button for each thing still missing. */
+      stillNeededKinds: docs.missing,
+      sent: full.documents.map((d) => ({
+        kind: d.kind,
+        label: DOCUMENT_LABEL[d.kind as DocumentKind] ?? d.kind,
+        checked: !!d.verifiedAt,
+      })),
       offer: full.offers[0] ?? null,
       /* The reason is carried through: it is what a family is owed when they
          are turned away, and hiding it here just moves the phone call. */
@@ -858,6 +870,80 @@ export class AdmissionsService {
     return this.prisma.applicationDocument.create({
       data: { applicationId: id, kind: kind as never, fileUrl, fileName },
     });
+  }
+
+  /**
+   * A family attaches a document to their application from the status page.
+   *
+   * The forms promised it and the decks said parents attach their papers, but
+   * nothing took a file: the form said the school would ask later, and
+   * attachDocument above was never called. Every document in the database
+   * came from the seed.
+   *
+   * Reached without an account, so it is proved the same way as the status
+   * lookup: the reference and the applicant's date of birth. The file is held
+   * in memory until that proof passes, so a wrong guess leaves nothing on
+   * disk. Only PDFs and photographs, checked by their first bytes as well as
+   * the type the browser claimed, and a ceiling per application so the
+   * register cannot be filled with rubbish.
+   */
+  async attachFromFamily(
+    reference: string,
+    dateOfBirth: string,
+    kind: DocumentKind,
+    file: {
+      buffer: Buffer;
+      mimetype: string;
+      originalname: string;
+      size: number;
+    },
+    schoolId: string,
+  ) {
+    const application = await this.findByReference(reference, dateOfBirth);
+    if (FAMILY_CLOSED.includes(application.status)) {
+      throw new BadRequestException(
+        'This application is closed, so documents can no longer be added to it',
+      );
+    }
+
+    const type = baseMime(file.mimetype);
+    const extension = FAMILY_FILE_TYPES[type];
+    if (!extension || !attachmentMatchesType(file.buffer, type)) {
+      throw new BadRequestException('Send a PDF or a photograph (JPG or PNG)');
+    }
+    if (file.size > FAMILY_MAX_BYTES) {
+      throw new BadRequestException(
+        'That file is over 5 MB. Send a smaller copy.',
+      );
+    }
+
+    const already = await this.prisma.applicationDocument.count({
+      where: { applicationId: application.id },
+    });
+    if (already >= FAMILY_MAX_DOCUMENTS) {
+      throw new BadRequestException(
+        `An application holds at most ${FAMILY_MAX_DOCUMENTS} documents. Bring any others to the school office.`,
+      );
+    }
+
+    const { dir } = schoolUploads(schoolId, 'admissions');
+    mkdirSync(dir, { recursive: true });
+    const stored = `${randomUUID()}${extension}`;
+    writeFileSync(join(dir, stored), file.buffer);
+
+    const doc = await this.attachDocument(
+      application.id,
+      kind,
+      uploadUrl(schoolId, 'admissions', stored),
+      cleanFileName(file.originalname, extension),
+    );
+    return {
+      id: doc.id,
+      kind: doc.kind,
+      label: DOCUMENT_LABEL[kind] ?? kind,
+      fileName: doc.fileName,
+      uploadedAt: doc.uploadedAt,
+    };
   }
 
   /** The office has opened it and confirmed it is what it claims to be. */
@@ -1172,4 +1258,37 @@ export class AdmissionsService {
     }
     return { expired };
   }
+}
+
+/** Past these, a family has nothing left to send documents for. */
+const FAMILY_CLOSED: string[] = ['ENROLLED', 'REJECTED', 'WITHDRAWN'];
+
+/** What a family may send, and the extension each is stored under. */
+const FAMILY_FILE_TYPES: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+};
+
+/** A phone photo of a birth certificate is well under this. */
+export const FAMILY_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Enough for every kind on the list with a few to spare. */
+const FAMILY_MAX_DOCUMENTS = 15;
+
+/**
+ * The name the office sees, from the one the family's device gave it: only
+ * letters, digits, spaces and a few marks, never a path, and never longer
+ * than a register column.
+ */
+function cleanFileName(original: string, extension: string): string {
+  const base = (original || 'document')
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/\.[^.]*$/, '')
+    .replace(/[^\p{L}\p{N} ._()-]/gu, '')
+    .trim()
+    .slice(0, 80);
+  return `${base || 'document'}${extension}`;
 }

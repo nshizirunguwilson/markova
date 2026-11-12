@@ -278,3 +278,17 @@ describe('how many places are left', () => {
     expect(placesLeft(80, { offered: 0, accepted: 0, enrolled: 0 })).toBe(80);
   });
 });
+
+describe('a move that goes nowhere or comes too late', () => {
+  it('says an application is already where it was sent', () => {
+    expect(refuseMove('WAITLISTED', 'WAITLISTED')).toBe(
+      'This application is already waitlisted.',
+    );
+  });
+
+  it('refuses to reopen one that has finished', () => {
+    expect(refuseMove('ENROLLED', 'UNDER_REVIEW')).toMatch(
+      /cannot be changed\. A family who wants to be reconsidered applies again\.$/,
+    );
+  });
+});

@@ -420,6 +420,10 @@ export interface PublicStatus {
     };
   } | null;
   history: { status: ApplicationStatus; at: string; reason: string | null }[];
+  /** The kinds still missing, for the upload buttons. */
+  stillNeededKinds?: DocumentKind[];
+  /** What the family has sent so far, and whether the office has checked it. */
+  sent?: { kind: DocumentKind; label: string; checked: boolean }[];
 }
 
 export function useCheckStatus() {
@@ -460,5 +464,33 @@ export function useSubmitApplication() {
         id: string;
       },
     onError: (e) => toast.error(errorMessage(e, "Could not send that application")),
+  });
+}
+
+/**
+ * A family sends a document from the status page, proved by the reference and
+ * the date of birth like the status lookup itself.
+ */
+export function useSendDocument() {
+  return useMutation({
+    mutationFn: async (input: {
+      reference: string;
+      dateOfBirth: string;
+      kind: DocumentKind;
+      file: File;
+    }) => {
+      const body = new FormData();
+      body.append("reference", input.reference);
+      body.append("dateOfBirth", input.dateOfBirth);
+      body.append("kind", input.kind);
+      body.append("file", input.file);
+      return (
+        await api.post("/admissions/public/documents", body, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data as { label: string; fileName: string };
+    },
+    onSuccess: (out) => toast.success(`${out.label} sent to the school`),
+    onError: (e) => toast.error(errorMessage(e, "Could not send that document")),
   });
 }
