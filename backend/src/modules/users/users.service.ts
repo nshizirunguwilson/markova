@@ -978,7 +978,7 @@ export class UsersService {
       );
       if (missing.length) {
         throw new BadRequestException(
-          `Row ${i + 1}: a ${missing.map((k) => (k === 'firstName' ? 'first name' : 'last name')).join(' and a ')} is needed`,
+          `Row ${i + 1}: a ${missing.map((k) => (k === 'firstName' ? 'first name' : 'last name')).join(' and a ')} ${missing.length > 1 ? 'are' : 'is'} needed`,
         );
       }
       const again = [email, phone]
