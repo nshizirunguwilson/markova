@@ -162,6 +162,9 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
+  /// An absence the school has accepted: sick, a family matter, or leave it
+  /// gave. Counted apart from ABSENT everywhere (src/common/attendance-count.ts).
+  EXCUSED
 }
 
 enum AbsenceReason {

@@ -4,6 +4,12 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import {
+  attendanceRate,
+  familyIsTold,
+  settle,
+  tally,
+} from '../../common/attendance-count';
 import { PrismaService } from '../../prisma/prisma.service';
 import { currentSchoolName } from '../../common/school-name';
 import { classDisplayName } from '../../common/class-name';
@@ -53,6 +59,9 @@ export class AttendanceService {
     if (!student) throw new NotFoundException('Student not found');
     await this.refuseOffRegister(student, asDay(dto.date));
 
+    // The status and its reason are settled together: see attendance-count.
+    const mark = settle(dto.status, dto.reasonCategory);
+
     try {
       const record = await this.upsertAttendanceRecord({
         studentId: dto.studentId,
@@ -60,14 +69,14 @@ export class AttendanceService {
         date: new Date(dto.date),
         type: dto.type,
         subjectId: dto.subjectId || null,
-        status: dto.status as any,
-        reasonCategory: (dto.reasonCategory as any) || null,
+        ...mark,
         markedByUserId,
       });
 
-      // Send notifications for absences and late arrivals
-      if (dto.status === 'ABSENT' || dto.status === 'LATE') {
-        await this.notifyParentAbsence(dto.studentId, dto.date, dto.status);
+      /* Absent or late: the family is told. Not for an excused day, which
+         they asked for or already know about. */
+      if (familyIsTold(mark.status)) {
+        await this.notifyParentAbsence(dto.studentId, dto.date, mark.status);
       }
 
       return record;
@@ -151,6 +160,7 @@ export class AttendanceService {
         });
         continue;
       }
+      const mark = settle(record.status, record.reasonCategory);
       try {
         const att = await this.upsertAttendanceRecord({
           studentId: record.studentId,
@@ -158,15 +168,14 @@ export class AttendanceService {
           date: new Date(dto.date),
           type: dto.type,
           subjectId: dto.subjectId || null,
-          status: record.status as any,
-          reasonCategory: (record.reasonCategory as any) || null,
+          ...mark,
           markedByUserId,
         });
         results.push(att);
-        if (record.status === 'ABSENT' || record.status === 'LATE') {
+        if (familyIsTold(mark.status)) {
           notifyStudents.push({
             studentId: record.studentId,
-            status: record.status,
+            status: mark.status,
           });
         }
       } catch {
@@ -525,13 +534,12 @@ export class AttendanceService {
     );
     const here = students.filter((s) => !paused.has(s.id));
 
-    const present = here.filter(
-      (s) => s.attendances[0]?.status === 'PRESENT',
-    ).length;
-    const late = here.filter((s) => s.attendances[0]?.status === 'LATE').length;
-    const absent = here.filter(
-      (s) => !s.attendances[0] || s.attendances[0]?.status === 'ABSENT',
-    ).length;
+    /* A student nobody has marked yet counts as absent, as they always
+       have: the figure is "not here so far", and it falls as the register
+       is taken. An excused day is its own count and is left out of the rate. */
+    const { present, late, absent, excused, counted, rate } = tally(
+      here.map((s) => ({ status: s.attendances[0]?.status ?? 'ABSENT' })),
+    );
 
     return {
       date,
@@ -539,11 +547,9 @@ export class AttendanceService {
       present,
       late,
       absent,
+      excused,
       paused: paused.size,
-      rate:
-        here.length > 0
-          ? Math.round(((present + late) / here.length) * 100)
-          : 0,
+      rate: counted > 0 ? rate : 0,
       students: students.map((s) => {
         const pause = paused.get(s.id);
         return {
@@ -588,18 +594,16 @@ export class AttendanceService {
       orderBy: { date: 'asc' },
     });
 
-    const present = records.filter((r) => r.status === 'PRESENT').length;
-    const late = records.filter((r) => r.status === 'LATE').length;
-    const absent = records.filter((r) => r.status === 'ABSENT').length;
-    const total = records.length;
+    const { present, late, absent, excused, total, rate } = tally(records);
 
     return {
       total,
       present,
       late,
       absent,
-      attendanceRate:
-        total > 0 ? Math.round(((present + late) / total) * 100) : 0,
+      // Counted apart, and left out of the rate.
+      excused,
+      attendanceRate: rate,
       records: records.map((r) => ({
         date: r.date,
         status: r.status,
@@ -806,7 +810,9 @@ export class AttendanceService {
       const sectionAtt = attMap[section.id] || {};
       const present = sectionAtt['PRESENT'] || 0;
       const late = sectionAtt['LATE'] || 0;
-      const absent = totalStudents - present - late;
+      const excused = sectionAtt['EXCUSED'] || 0;
+      // Marked absent, or not marked at all yet.
+      const absent = totalStudents - present - late - excused;
 
       return {
         sectionId: section.id,
@@ -815,10 +821,8 @@ export class AttendanceService {
         present,
         late,
         absent,
-        rate:
-          totalStudents > 0
-            ? Math.round(((present + late) / totalStudents) * 100)
-            : 0,
+        excused,
+        rate: attendanceRate(present, late, totalStudents - excused),
         marked: markedSections.has(section.id),
       };
     });
@@ -826,6 +830,7 @@ export class AttendanceService {
     const totalStudents = sectionStats.reduce((s, c) => s + c.total, 0);
     const totalPresent = sectionStats.reduce((s, c) => s + c.present, 0);
     const totalLate = sectionStats.reduce((s, c) => s + c.late, 0);
+    const totalExcused = sectionStats.reduce((s, c) => s + c.excused, 0);
 
     return {
       date: targetDate.toISOString().slice(0, 10),
@@ -836,11 +841,13 @@ export class AttendanceService {
         totalStudents,
         present: totalPresent,
         late: totalLate,
-        absent: totalStudents - totalPresent - totalLate,
-        rate:
-          totalStudents > 0
-            ? Math.round(((totalPresent + totalLate) / totalStudents) * 100)
-            : 0,
+        absent: totalStudents - totalPresent - totalLate - totalExcused,
+        excused: totalExcused,
+        rate: attendanceRate(
+          totalPresent,
+          totalLate,
+          totalStudents - totalExcused,
+        ),
       },
       sections: sectionStats,
     };

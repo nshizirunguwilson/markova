@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { tally } from '../../common/attendance-count';
 import { PrismaService } from '../../prisma/prisma.service';
 import { classDisplayName } from '../../common/class-name';
 import { SubjectScope } from '@prisma/client';
@@ -275,21 +276,25 @@ export class AnalyticsService {
 
     const records = await this.prisma.attendance.findMany({ where });
 
-    const total = records.length;
-    const present = records.filter((r) => r.status === 'PRESENT').length;
-    const absent = records.filter((r) => r.status === 'ABSENT').length;
-    const late = records.filter((r) => r.status === 'LATE').length;
+    const { total, present, absent, late, excused, counted } = tally(records);
 
     // Day-by-day counts for the trend chart.
     const byDateMap = new Map<
       string,
-      { present: number; late: number; absent: number }
+      { present: number; late: number; absent: number; excused: number }
     >();
     for (const r of records) {
       const key = r.date.toISOString().slice(0, 10);
-      const e = byDateMap.get(key) ?? { present: 0, late: 0, absent: 0 };
+      const e = byDateMap.get(key) ?? {
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+      };
       if (r.status === 'PRESENT') e.present++;
       else if (r.status === 'LATE') e.late++;
+      // An excused day is not an absence: it used to fall into this count.
+      else if (r.status === 'EXCUSED') e.excused++;
       else e.absent++;
       byDateMap.set(key, e);
     }
@@ -302,7 +307,10 @@ export class AnalyticsService {
       present,
       absent,
       late,
-      attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+      excused,
+      /* On time, out of the days that count. Excused days are left out of
+         both halves, as they are everywhere else. */
+      attendanceRate: counted > 0 ? Math.round((present / counted) * 100) : 0,
       byDate,
     };
   }
@@ -541,9 +549,7 @@ export class AnalyticsService {
             a.date >= (term as any).startDate &&
             a.date <= (term as any).endDate,
         );
-        const presentish = termAttendance.filter(
-          (a) => a.status === 'PRESENT' || a.status === 'LATE',
-        ).length;
+        const termTally = tally(termAttendance);
 
         return {
           termId: term.id,
@@ -568,9 +574,7 @@ export class AnalyticsService {
           classAverage: own
             ? (classAvgByTerm.get(`${term.id}|${own.classSectionId}`) ?? null)
             : null,
-          attendancePct: termAttendance.length
-            ? Math.round((presentish / termAttendance.length) * 100)
-            : null,
+          attendancePct: termAttendance.length ? termTally.rate : null,
         };
       });
 
@@ -792,18 +796,17 @@ export class AnalyticsService {
     const attendanceRecords = await this.prisma.attendance.findMany({
       where: { studentId },
     });
-    const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(
-      (r) => r.status === 'PRESENT' || r.status === 'LATE',
-    ).length;
+    const days = tally(attendanceRecords);
 
     return {
       performanceTrends: trends,
       attendance: {
-        totalDays,
-        presentDays,
-        absentDays: totalDays - presentDays,
-        rate: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
+        totalDays: days.total,
+        presentDays: days.present + days.late,
+        absentDays: days.absent,
+        // Counted apart from absences, and left out of the rate.
+        excusedDays: days.excused,
+        rate: days.rate,
       },
     };
   }
