@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { useUpdateOnboarding } from "@/hooks/use-academic";
+import { useOnboardingStatus, useUpdateOnboarding } from "@/hooks/use-academic";
 import { toast } from "sonner";
 
 import { StepSchoolInfo } from "./steps/step-school-info";
@@ -51,6 +51,16 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const updateOnboarding = useUpdateOnboarding();
+
+  /* Pick up where the principal left off. The step was saved on every Next
+     and never read back, so leaving the page started setup again at step 1. */
+  const { data: saved } = useOnboardingStatus();
+  const [resumed, setResumed] = useState(false);
+  if (saved && !resumed) {
+    setResumed(true);
+    const step = Number(saved.currentStep);
+    if (!saved.completed && step > 0 && step < STEPS.length) setCurrentStep(step);
+  }
 
   const goNext = () => {
     if (currentStep < STEPS.length - 1) {

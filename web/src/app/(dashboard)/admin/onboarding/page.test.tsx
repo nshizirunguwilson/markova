@@ -217,3 +217,20 @@ describe("all ten steps", () => {
     });
   }, 30000);
 });
+
+/* The step was saved on every Next and never read back, so leaving the page
+   started setup again from the school's name. */
+describe("coming back to setup", () => {
+  it("opens at the step the principal reached", async () => {
+    serve(h.api, { ...routes, "/school-config/onboarding": { currentStep: 5, completed: false } });
+    await mount();
+    await waitFor(() => expect(document.body.textContent).toMatch(/Step 6 of 10/));
+  });
+
+  it("starts at the beginning once setup is finished", async () => {
+    serve(h.api, { ...routes, "/school-config/onboarding": { currentStep: 10, completed: true } });
+    await mount();
+    await waitFor(() => expect(h.api.get).toHaveBeenCalledWith("/school-config/onboarding"));
+    expect(document.body.textContent).toMatch(/Step 1 of 10/);
+  });
+});

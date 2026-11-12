@@ -397,6 +397,18 @@ export function useBulkUpsertConfig() {
   });
 }
 
+/** Where the setup wizard was left: the step reached, and whether it is done. */
+export function useOnboardingStatus() {
+  return useQuery({
+    queryKey: ["school-config", "onboarding"],
+    queryFn: async () =>
+      (await api.get("/school-config/onboarding")).data as {
+        currentStep: number;
+        completed: boolean;
+      },
+  });
+}
+
 export function useUpdateOnboarding() {
   const qc = useQueryClient();
   return useMutation({
