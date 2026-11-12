@@ -40,6 +40,7 @@ import api from "@/lib/api";
 import { toLocalDateString } from "@/lib/utils";
 import { checkCard, issueBlocker, tally } from "@/lib/report-card-step";
 import { PageHeader } from "@/components/layout/page-header";
+import { dayAndTime } from "@/lib/dates";
 
 export default function AdminMarksPage() {
   const { data: years } = useAcademicYears();
@@ -383,7 +384,7 @@ export default function AdminMarksPage() {
             </p>
             <p className="shrink-0 text-xs text-muted">
               {lastCalculated
-                ? `Last worked out ${new Date(lastCalculated).toLocaleString()}`
+                ? `Last worked out ${dayAndTime(lastCalculated)}`
                 : "Not worked out yet"}
             </p>
           </div>

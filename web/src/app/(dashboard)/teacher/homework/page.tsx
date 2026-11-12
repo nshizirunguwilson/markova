@@ -29,6 +29,7 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
 
 interface Assignment {
   id: string;
@@ -129,7 +130,7 @@ export default function TeacherHomeworkPage() {
                     <TableCell>{classDisplayName(hw.classSection)}</TableCell>
                     <TableCell>
                       <Badge variant={isPastDue ? "danger" : "default"}>
-                        {new Date(hw.dueDate).toLocaleDateString()}
+                        {day(hw.dueDate)}
                       </Badge>
                     </TableCell>
                     <TableCell>{hw._count?.submissions ?? 0}</TableCell>
@@ -159,7 +160,7 @@ export default function TeacherHomeworkPage() {
           <div className="space-y-4">
             <p className="text-sm text-muted">{viewingHw.description}</p>
             <p className="text-sm">
-              Due: {new Date(viewingHw.dueDate).toLocaleDateString()} | Max: {viewingHw.maxMarks} |
+              Due: {day(viewingHw.dueDate)} | Max: {viewingHw.maxMarks} |
               Submissions: {viewingHw.submissions?.length || 0}/{viewingHw.totalStudents}
             </p>
             {viewingHw.submissions?.length > 0 ? (
@@ -177,7 +178,7 @@ export default function TeacherHomeworkPage() {
                   {viewingHw.submissions.map((sub: any) => (
                     <TableRow key={sub.id}>
                       <TableCell>{sub.student?.user?.firstName} {sub.student?.user?.lastName}</TableCell>
-                      <TableCell className="text-sm">{new Date(sub.submittedAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm">{day(sub.submittedAt)}</TableCell>
                       <TableCell>{sub.isLate ? <Badge variant="warning">Late</Badge> : <Badge variant="success">On time</Badge>}</TableCell>
                       <TableCell>
                         {sub.marks !== null ? (

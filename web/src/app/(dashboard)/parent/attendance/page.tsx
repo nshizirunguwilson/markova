@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
 import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
 import { keptPrivate } from "@/lib/kept-private";
+import { DATE_LOCALE } from "@/lib/dates";
 
 interface Child {
   id: string;
@@ -65,7 +66,7 @@ export default function ParentAttendancePage() {
     return days;
   }, [data]);
 
-  const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const monthName = new Date().toLocaleString(DATE_LOCALE, { month: "long", year: "numeric" });
 
   return (
     <div className="space-y-6">

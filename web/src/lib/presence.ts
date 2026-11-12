@@ -1,4 +1,5 @@
 import { plainText as plainMentions } from "./mention-draft";
+import { day } from "@/lib/dates";
 /**
  * How long ago someone was last online, in words.
  *
@@ -22,7 +23,7 @@ export function formatLastSeen(date: string | null | undefined, now: Date = new 
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `last seen ${diffHr}h ago`;
 
-  return `last seen ${seen.toLocaleDateString()}`;
+  return `last seen ${day(seen)}`;
 }
 
 export type DeliveryStatus = "SENT" | "DELIVERED" | "READ";

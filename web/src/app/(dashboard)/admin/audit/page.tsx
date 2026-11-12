@@ -24,6 +24,7 @@ import {
 } from "@/hooks/use-audit";
 import { labelForRole } from "@/types";
 import type { Role } from "@/types";
+import { DATE_LOCALE, day } from "@/lib/dates";
 
 /**
  * Who changed what.
@@ -68,9 +69,9 @@ function When({ iso }: { iso: string }) {
   const at = new Date(iso);
   return (
     <span className="whitespace-nowrap tabular-nums">
-      {at.toLocaleDateString()}{" "}
+      {day(at)}{" "}
       <span className="text-muted">
-        {at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        {at.toLocaleTimeString(DATE_LOCALE, { hour: "2-digit", minute: "2-digit" })}
       </span>
     </span>
   );

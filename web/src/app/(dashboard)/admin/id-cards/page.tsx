@@ -35,6 +35,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { day } from "@/lib/dates";
 
 type StatusFilter = "all" | "issued" | "not_issued" | "suspended";
 
@@ -271,7 +272,7 @@ export default function AdminIdCardsPage() {
                   </TableCell>
                   <TableCell className="text-xs text-muted">
                     {it.cardIssuedAt
-                      ? new Date(it.cardIssuedAt).toLocaleDateString()
+                      ? day(it.cardIssuedAt)
                       : "-"}
                   </TableCell>
                   <TableCell className="text-right">

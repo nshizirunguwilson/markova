@@ -46,6 +46,7 @@ import { labelForRole } from "@/types";
 import { badgeCount, badgeLabel } from "@/lib/badge-count";
 import { SchoolList, SchoolSwitcher, openSchool } from "./school-switcher";
 import { useMySchools } from "@/hooks/use-schools";
+import { day } from "@/lib/dates";
 
 function timeAgo(dateStr: string): string {
   const now = Date.now();
@@ -58,7 +59,7 @@ function timeAgo(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return day(dateStr);
 }
 
 interface TopbarProps {
