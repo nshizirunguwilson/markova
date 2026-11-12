@@ -26,7 +26,7 @@ Counts: **1 CRITICAL, 1 HIGH, 1 MEDIUM (minor-overflow cluster), a few LOW/Open-
 ## 1. Methodology & setup
 
 - **Stack:** backend booted from `dist` (clean, 187 routes, db+redis ok); web `npm run dev` on :3001 (ready, `/login` 200). Database already seeded (Rwandan demo data: 330 students, 30 teachers, full records per entity - no page renders empty).
-- **Auth:** Playwright authenticates each role via the real API (session OTP handled through `devOtp`) and injects the resulting tokens into `localStorage` (`access_token`/`refresh_token`), then drives the **real rendered pages**. Demo accounts: admin `wilsonshizirungu@gmail.com`, teacher `aline.uwase@markova.academy`, librarian `librarian@markova.academy`, student `student1@markova.academy`, parent phone `+250788100000` (password `Password123!`).
+- **Auth:** Playwright authenticates each role via the real API (session OTP handled through `devOtp`) and injects the resulting tokens into `localStorage` (`access_token`/`refresh_token`), then drives the **real rendered pages**. Demo accounts: admin `wilsonshizirungu@gmail.com`, teacher `aline.uwase@markova.academy`, librarian `librarian@markova.academy`, student `student1@markova.academy`, parent phone `+250785639214` (password `Password123!`).
 - **Viewports:** 1440 (desktop), 768 (tablet), 390 (mobile).
 - **Signals captured per page:** final URL (redirect detection), console errors, uncaught page errors, network responses ≥400, blank/empty-body detection, heading presence, horizontal overflow (`scrollWidth − clientWidth`), and screenshots.
 - Recon scripts live under `/tmp/pw/` (`crawl.js`, `inventory.js`, `responsive.js`); formal regression specs are added in Phase 2 (§4).

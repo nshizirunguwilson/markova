@@ -248,7 +248,7 @@ describe('photo consent (e2e)', () => {
     teacher = await signIn({ email: 'aline.uwase@markova.edu' });
     const p = mate.parentStudents[0].parent.account;
     parent = await signIn(p.email ? { email: p.email } : { phone: p.phone! });
-    adultParent = await signIn({ phone: '+250788199999' });
+    adultParent = await signIn({ phone: '+250798405362' });
 
     const issued = await as(admin)
       .post('/api/reports/id-cards/issue', { studentId: card.id })

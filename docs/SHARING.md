@@ -166,7 +166,7 @@ Every seeded account uses the password `Password123!`.
 | Admin | `wilsonshizirungu@gmail.com` |
 | Teacher | `aline.uwase@markova.edu` |
 | Student | `student1@markova.edu` |
-| Parent | `+250788100000` (phone only) |
+| Parent | `+250785639214` (phone only) |
 | Librarian | `librarian@markova.edu` |
 | Patron | `patron@markova.edu` |
 | Matron | `matron@markova.edu` |

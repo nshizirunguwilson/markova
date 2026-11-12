@@ -154,7 +154,7 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 
 | Role | Sign in with |
 | --- | --- |
-| Admin | `wilsonshizirungu@gmail.com` or `+250788000001` |
+| Admin | `wilsonshizirungu@gmail.com` or `+250788459213` |
 | Head teacher | `headteacher@markova.edu` |
 | Teacher | `aline.uwase@markova.edu` |
 | Bursar | `bursar@markova.edu` |
@@ -163,7 +163,7 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 | Matron | `matron@markova.edu` |
 | Nurse | `nurse@markova.edu` |
 | Student | `student1@markova.edu` to `student30@markova.edu` (web only) |
-| Parent | `+250788100000` (phone only, no email) |
+| Parent | `+250785639214` (phone only, no email) |
 
 The seed builds three academic years: 2,478 accounts, 754 students on the roll
 and 525 who have left or graduated, 43 teachers, 28 classes, and a term in

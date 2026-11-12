@@ -130,7 +130,7 @@ describe('no child alone in a chat (e2e)', () => {
     }
     teacher = await signIn({ email: 'aline.uwase@markova.edu' });
     student = await signIn({ email: 'student2@markova.edu' });
-    parentToken = await signIn({ phone: '+250788100000' });
+    parentToken = await signIn({ phone: '+250785639214' });
   });
 
   afterAll(async () => {

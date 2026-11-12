@@ -118,7 +118,7 @@ mailbox. It is never written to the API log, and never returned in production.
 
 | Role | Sign in with | Lands on |
 | --- | --- | --- |
-| Admin (principal) | `wilsonshizirungu@gmail.com` or `+250788000001` | `/admin` |
+| Admin (principal) | `wilsonshizirungu@gmail.com` or `+250788459213` | `/admin` |
 | Head teacher (DOS) | `headteacher@markova.edu` | `/head-teacher` |
 | Teacher | `aline.uwase@markova.edu` | `/teacher` |
 | Student | `student1@markova.edu` through `student30@markova.edu` | `/student` |
@@ -306,7 +306,7 @@ Everything here is at `/login` unless stated.
 | Test | Steps | Expected |
 | --- | --- | --- |
 | By email | `aline.uwase@markova.edu` / `Password123!` | A one time code step, then `/teacher` |
-| By phone | `+250788000001` / `Password123!` | The same, then `/admin` |
+| By phone | `+250788459213` / `Password123!` | The same, then `/admin` |
 | Wrong password | Any account, `wrong` | "Invalid credentials". Not "session expired", and no reload |
 | Unknown address | `nobody@markova.edu` | The same message. It must not reveal whether the account exists |
 | Empty fields | Submit blank | Inline validation, no request sent |

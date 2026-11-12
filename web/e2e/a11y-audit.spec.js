@@ -35,7 +35,7 @@ const ACCOUNTS = {
   ADMIN: { email: 'wilsonshizirungu@gmail.com', password: PASS },
   TEACHER: { email: 'aline.uwase@markova.edu', password: PASS },
   STUDENT: { email: 'student1@markova.edu', password: PASS },
-  PARENT: { phone: '+250788100000', password: PASS },
+  PARENT: { phone: '+250785639214', password: PASS },
   LIBRARIAN: { email: 'librarian@markova.edu', password: PASS },
   BURSAR: { email: 'bursar@markova.edu', password: PASS },
   HEAD_TEACHER: { email: 'headteacher@markova.edu', password: PASS },
