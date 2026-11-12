@@ -319,13 +319,21 @@ export class ReportsService implements OnModuleDestroy {
       section it was computed against, and that is the one to count.
     */
     const classSectionId = termResult?.classSectionId ?? student.classSectionId;
-    const classResults = await this.prisma.termResult.findMany({
-      where: { classSectionId, termId },
-    });
+    /*
+      The size and average of the class, asked of the database as two
+      numbers. Read row by row, a child or parent sees only the child's own
+      result, so the card said "16 of 1" and gave the child's average as the
+      class's (see the class_term_figures migration).
+    */
+    const [figures] = classSectionId
+      ? await this.prisma.$queryRaw<
+          Array<{ total: number; average: number | null }>
+        >`SELECT * FROM app_class_term_figures(${classSectionId}, ${termId})`
+      : [{ total: 0, average: null }];
+    const classSize = Number(figures?.total ?? 0);
     const classAverage =
-      classResults.length > 0
-        ? classResults.reduce((s, r) => s + (r.average || 0), 0) /
-          classResults.length
+      classSize > 0 && figures.average !== null
+        ? Number(figures.average)
         : null;
 
     const school = await this.getSchoolInfo();
@@ -387,7 +395,7 @@ export class ReportsService implements OnModuleDestroy {
       result: termResult,
       classStats: {
         classAverage,
-        totalStudents: classResults.length,
+        totalStudents: classSize,
         rank: termResult?.rank || null,
       },
       verification: verification

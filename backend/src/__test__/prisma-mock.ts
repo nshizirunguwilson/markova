@@ -134,7 +134,7 @@ export function createMockPrisma(): MockPrisma & PrismaService {
   });
 
   // Raw SQL, for the handful of aggregate reads that drop to it.
-  mock.$queryRaw = jest.fn();
+  mock.$queryRaw = jest.fn().mockResolvedValue([]);
   mock.$queryRawUnsafe = jest.fn();
   mock.$executeRaw = jest.fn();
 
