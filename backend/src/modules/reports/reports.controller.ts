@@ -32,6 +32,7 @@ import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RenderJob } from '../../jobs/jobs.constants';
 import { RenderQueue } from '../../jobs/render.queue';
+import { schoolDay } from '../../common/student-standing';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -455,7 +456,7 @@ export class ReportsController {
   @ApiOperation({ summary: 'Export all system data as a ZIP of CSV files' })
   async exportAll(@Res() res: express.Response) {
     const zip = await this.service.exportEverythingZip();
-    const date = new Date().toISOString().slice(0, 10);
+    const date = schoolDay().toISOString().slice(0, 10);
     res.set({
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="markova-export-${date}.zip"`,

@@ -11,6 +11,9 @@ import {
   tally,
 } from '../../common/attendance-count';
 import { PrismaService } from '../../prisma/prisma.service';
+// The day in Kigali. toISOString() is UTC whatever the zone, so a scan
+// between midnight and 02:00 in Rwanda was filed under the day before.
+import { schoolDay } from '../../common/student-standing';
 import { currentSchoolName } from '../../common/school-name';
 import { classDisplayName } from '../../common/class-name';
 import { PaginatedResponse } from '../../common/dto';
@@ -211,7 +214,7 @@ export class AttendanceService {
     }
 
     const now = new Date();
-    const today = new Date(now.toISOString().slice(0, 10));
+    const today = schoolDay(now);
     await this.refuseOffRegister(student, today);
     const type = dto.type || 'daily';
 
@@ -273,7 +276,7 @@ export class AttendanceService {
     }
 
     const now = new Date();
-    const today = new Date(now.toISOString().slice(0, 10));
+    const today = schoolDay(now);
     await this.refuseOffRegister(student, today);
     const type = dto.type || 'daily';
 
@@ -422,7 +425,7 @@ export class AttendanceService {
     }
 
     const now = new Date();
-    const today = new Date(now.toISOString().slice(0, 10));
+    const today = schoolDay(now);
 
     const existing = await this.prisma.teacherAttendance.findFirst({
       where: { teacherId: teacher.id, date: today },
@@ -727,7 +730,7 @@ export class AttendanceService {
   async getDashboardData(date?: string) {
     const asked = date
       ? new Date(date)
-      : new Date(new Date().toISOString().slice(0, 10));
+      : schoolDay();
 
     /*
       Fall back to the last day the register was taken.
