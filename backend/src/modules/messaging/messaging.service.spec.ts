@@ -695,6 +695,46 @@ describe('MessagingService', () => {
         reads: { none: { userId: 'user-1' } },
       });
     });
+
+    /**
+     * Somebody watching over a chat is not being written to. The badge at
+     * the top already left their watched chats out; the list said "3 unread"
+     * beside the same chat.
+     */
+    it('counts nothing for the one watching, unless a message names them', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        {
+          ...conv('c-1', '2026-01-01'),
+          participants: [
+            { userId: 'user-1', watching: true },
+            { userId: 'user-2', watching: false },
+          ],
+        },
+      ]);
+      await service.getConversations('user-1');
+      expect(mockPrisma.message.count.mock.calls[0][0].where).toEqual({
+        conversationId: 'c-1',
+        senderUserId: { not: 'user-1' },
+        reads: { none: { userId: 'user-1' } },
+        mentions: { some: { userId: 'user-1' } },
+      });
+    });
+
+    it('still counts every message for the people the chat is between', async () => {
+      mockPrisma.conversation.findMany.mockResolvedValue([
+        {
+          ...conv('c-1', '2026-01-01'),
+          participants: [
+            { userId: 'user-1', watching: false },
+            { userId: 'user-9', watching: true },
+          ],
+        },
+      ]);
+      await service.getConversations('user-1');
+      expect(
+        mockPrisma.message.count.mock.calls[0][0].where.mentions,
+      ).toBeUndefined();
+    });
   });
 
   describe('reading a thread', () => {

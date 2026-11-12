@@ -334,11 +334,19 @@ export class MessagingService {
 
     const result = await Promise.all(
       conversations.map(async (conv) => {
+        /* A chat somebody only watches over is not waiting on them, so it
+           counts nothing for them here either: the badge at the top already
+           left it out, and the list beside it said "3 unread" all the same.
+           A message that names them is the one thing they are asked to read. */
+        const watching = conv.participants.some(
+          (p) => p.userId === userId && p.watching,
+        );
         const unreadCount = await this.prisma.message.count({
           where: {
             conversationId: conv.id,
             senderUserId: { not: userId },
             reads: { none: { userId } },
+            ...(watching && { mentions: { some: { userId } } }),
           },
         });
         return {
