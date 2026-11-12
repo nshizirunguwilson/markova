@@ -27,6 +27,15 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { day } from "@/lib/dates";
+import { ROLE_LABEL, type Role } from "@/types";
+
+const ROLES = Object.keys(ROLE_LABEL) as Role[];
+
+/** "Everyone", or the roles a question is written for. */
+function shownTo(audience: Role[] | undefined): string {
+  if (!audience?.length) return "Everyone";
+  return audience.map((role) => ROLE_LABEL[role] ?? role).join(", ");
+}
 
 export default function AdminHelpPage() {
   const [tab, setTab] = useState<"faqs" | "tickets">("faqs");
@@ -47,11 +56,13 @@ export default function AdminHelpPage() {
     category: "",
     displayOrder: 0,
     isPublished: true,
+    // Who the question is for. Nobody ticked means everyone.
+    audience: [] as Role[],
   });
 
   const openNewFaq = () => {
     setEditingFaq(null);
-    setFaqForm({ title: "", content: "", category: "", displayOrder: 0, isPublished: true });
+    setFaqForm({ title: "", content: "", category: "", displayOrder: 0, isPublished: true, audience: [] });
     setShowFaqModal(true);
   };
 
@@ -63,6 +74,7 @@ export default function AdminHelpPage() {
       category: faq.category || "",
       displayOrder: faq.displayOrder,
       isPublished: faq.isPublished,
+      audience: faq.audience ?? [],
     });
     setShowFaqModal(true);
   };
@@ -146,6 +158,7 @@ export default function AdminHelpPage() {
                     <TableHead>Order</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Category</TableHead>
+                    <TableHead>Shown to</TableHead>
                     <TableHead>Published</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -156,6 +169,7 @@ export default function AdminHelpPage() {
                       <TableCell>{faq.displayOrder}</TableCell>
                       <TableCell className="font-medium">{faq.title}</TableCell>
                       <TableCell>{faq.category || "-"}</TableCell>
+                      <TableCell className="text-sm">{shownTo(faq.audience)}</TableCell>
                       <TableCell>
                         <Badge className={faq.isPublished ? "bg-success-wash text-success" : "bg-surface-muted text-muted"}>
                           {faq.isPublished ? "Yes" : "No"}
@@ -193,6 +207,31 @@ export default function AdminHelpPage() {
                 <Input label="Category" value={faqForm.category} onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })} />
                 <Input label="Display Order" type="number" value={faqForm.displayOrder} onChange={(e) => setFaqForm({ ...faqForm, displayOrder: +e.target.value })} />
               </div>
+              <fieldset>
+                <legend className="text-sm font-medium">Who is it for?</legend>
+                <p className="mt-0.5 text-xs text-muted">
+                  Tick nobody and everyone sees it.
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+                  {ROLES.map((role) => (
+                    <label key={role} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={faqForm.audience.includes(role)}
+                        onChange={(e) =>
+                          setFaqForm({
+                            ...faqForm,
+                            audience: e.target.checked
+                              ? [...faqForm.audience, role]
+                              : faqForm.audience.filter((r) => r !== role),
+                          })
+                        }
+                      />
+                      {ROLE_LABEL[role]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={faqForm.isPublished} onChange={(e) => setFaqForm({ ...faqForm, isPublished: e.target.checked })} />
                 Published

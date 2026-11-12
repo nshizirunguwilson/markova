@@ -1567,6 +1567,8 @@ model FaqArticle {
   category     String?
   displayOrder Int     @default(0) @map("display_order")
   isPublished  Boolean @default(true) @map("is_published")
+  /// Who the question is for. Empty means everyone.
+  audience     Role[]  @default([])
 
   @@index([category])
   @@index([schoolId])
