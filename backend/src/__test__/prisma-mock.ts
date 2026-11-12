@@ -48,6 +48,7 @@ const modelNames = [
   'disciplineIncident',
   'disciplineAppeal',
   'book',
+  'bookCopy',
   'bookLoan',
   'homework',
   'homeworkSubmission',

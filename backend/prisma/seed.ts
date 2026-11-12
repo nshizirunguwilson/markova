@@ -771,6 +771,36 @@ function withLogin<
   };
 }
 
+/**
+ * Say which physical copy each open loan put out.
+ *
+ * Loans are seeded in bulk, so the copies are dealt afterwards: each book's
+ * open loans take its lowest-numbered copies in the order they went out,
+ * and a lost loan's copy is marked gone, exactly as the app would have.
+ */
+async function linkLoansToCopies() {
+  await prisma.$executeRawUnsafe(`
+    WITH open_loans AS (
+      SELECT l."id", l."book_id",
+             ROW_NUMBER() OVER (PARTITION BY l."book_id" ORDER BY l."checked_out_at") AS nth
+        FROM "book_loans" l
+       WHERE l."returned_at" IS NULL AND l."copy_id" IS NULL
+    )
+    UPDATE "book_loans" l
+       SET "copy_id" = c."id"
+      FROM open_loans o
+      JOIN "book_copies" c
+        ON c."book_id" = o."book_id" AND c."copy_number" = o."nth"
+     WHERE l."id" = o."id"
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE "book_copies" c
+       SET "standing" = 'LOST'
+      FROM "book_loans" l
+     WHERE l."copy_id" = c."id" AND l."status" = 'LOST'
+  `);
+}
+
 async function main() {
   console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
@@ -3464,6 +3494,12 @@ async function main() {
           shelfLocation: b.shelf,
           replacementCost: b.cost,
           isActive: true,
+          // One record per physical copy, numbered inside the cover.
+          copies: {
+            create: Array.from({ length: b.qty }, (_, n) => ({
+              copyNumber: n + 1,
+            })),
+          },
         },
       }),
     );
@@ -3552,6 +3588,7 @@ async function main() {
       data: { availableCount: { decrement: out } },
     });
   }
+  await linkLoansToCopies();
   console.log(
     `  ✅ ${books.length} library titles + ${loanRows.length} loans seeded (24 out, 6 overdue, 2 lost)`,
   );
@@ -6251,6 +6288,11 @@ async function seedSchool(
           category: titles[i][1] === 'REB' ? 'Textbook' : 'Literature',
           quantity: 6,
           availableCount: 4,
+          copies: {
+            create: Array.from({ length: 6 }, (_, n) => ({
+              copyNumber: n + 1,
+            })),
+          },
         },
       }),
     );
@@ -6268,6 +6310,7 @@ async function seedSchool(
       },
     });
   }
+  await linkLoansToCopies();
 
   // ── This term's fees ──
   const feeFor = spec.boarding ? 285_000 : 95_000;

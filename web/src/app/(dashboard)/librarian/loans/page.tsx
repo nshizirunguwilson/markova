@@ -67,6 +67,7 @@ export default function LibrarianLoansPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Book</TableHead>
+                <TableHead>Copy</TableHead>
                 <TableHead>Borrower</TableHead>
                 <TableHead>Checked Out</TableHead>
                 <TableHead>Due Date</TableHead>
@@ -82,6 +83,11 @@ export default function LibrarianLoansPage() {
                     <TableCell>
                       <p className="font-medium">{loan.book?.title ?? "Unknown book"}</p>
                       <p className="text-xs text-muted">{loan.book?.author ?? ""}</p>
+                    </TableCell>
+                    {/* Which physical copy: a dash on loans from before
+                        copies were tracked. */}
+                    <TableCell className="text-sm">
+                      {loan.copy?.copyNumber ?? "-"}
                     </TableCell>
                     <TableCell>
                       {loan.borrower?.firstName ?? ""} {loan.borrower?.lastName ?? ""}

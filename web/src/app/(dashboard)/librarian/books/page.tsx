@@ -48,7 +48,12 @@ export default function LibrarianBooksPage() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [form, setForm] = useState({ title: "", author: "", isbn: "", category: "", quantity: 1, barcode: "", replacementCost: 0 });
   const [checkoutForm, setCheckoutForm] = useState({ bookIdentifier: "", studentIdentifier: "" });
+  /* Which physical copy, from the number inside the cover. Blank means the
+     lowest-numbered copy on the shelf (giving out) or the oldest loan (taking
+     back). */
+  const [checkoutCopy, setCheckoutCopy] = useState("");
   const [returnForm, setReturnForm] = useState({ bookIdentifier: "" });
+  const [returnCopy, setReturnCopy] = useState("");
 
   const handleCreate = () => {
     createBook.mutate(form, {
@@ -219,10 +224,16 @@ export default function LibrarianBooksPage() {
           <Input label="Student (ID number)" value={checkoutForm.studentIdentifier}
             onChange={(e) => setCheckoutForm({ ...checkoutForm, studentIdentifier: e.target.value })}
             placeholder="Scan student QR or enter ID number" />
+          <Input label="Copy number (optional)" type="number" value={checkoutCopy}
+            onChange={(e) => setCheckoutCopy(e.target.value)}
+            placeholder="The number inside the cover" />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowCheckoutModal(false)}>Cancel</Button>
             <Button onClick={() => {
-              checkout.mutate(checkoutForm, { onSuccess: () => { setShowCheckoutModal(false); setCheckoutForm({ bookIdentifier: "", studentIdentifier: "" }); } });
+              checkout.mutate({
+                ...checkoutForm,
+                ...(checkoutCopy && { copyNumber: Number(checkoutCopy) }),
+              }, { onSuccess: () => { setShowCheckoutModal(false); setCheckoutForm({ bookIdentifier: "", studentIdentifier: "" }); setCheckoutCopy(""); } });
             }} isLoading={checkout.isPending}>Checkout</Button>
           </div>
         </div>
@@ -234,10 +245,16 @@ export default function LibrarianBooksPage() {
           <Input label="Book (barcode or ID)" value={returnForm.bookIdentifier}
             onChange={(e) => setReturnForm({ bookIdentifier: e.target.value })}
             placeholder="Scan barcode or enter book ID" />
+          <Input label="Copy number (optional)" type="number" value={returnCopy}
+            onChange={(e) => setReturnCopy(e.target.value)}
+            placeholder="The number inside the cover" />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowReturnModal(false)}>Cancel</Button>
             <Button onClick={() => {
-              returnBook.mutate(returnForm, { onSuccess: () => { setShowReturnModal(false); setReturnForm({ bookIdentifier: "" }); } });
+              returnBook.mutate({
+                ...returnForm,
+                ...(returnCopy && { copyNumber: Number(returnCopy) }),
+              }, { onSuccess: () => { setShowReturnModal(false); setReturnForm({ bookIdentifier: "" }); setReturnCopy(""); } });
             }} isLoading={returnBook.isPending}>Return</Button>
           </div>
         </div>
