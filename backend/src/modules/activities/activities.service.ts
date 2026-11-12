@@ -427,6 +427,21 @@ export class ActivitiesService {
       }
     }
 
+    // Both must be this school's. Without the check an id from elsewhere
+    // reaches the upsert, and the wall answers with an error nobody can read.
+    const [activity, student] = await Promise.all([
+      this.prisma.activity.findFirst({
+        where: { id: activityId },
+        select: { id: true },
+      }),
+      this.prisma.student.findFirst({
+        where: { id: studentId },
+        select: { id: true },
+      }),
+    ]);
+    if (!activity) throw new NotFoundException('Activity not found');
+    if (!student) throw new NotFoundException('Student not found');
+
     const participant = await this.prisma.activityParticipant.upsert({
       where: { activityId_studentId: { activityId, studentId } },
       create: {
