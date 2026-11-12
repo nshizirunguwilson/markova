@@ -428,14 +428,28 @@ describe('changing how you sign in', () => {
     });
   });
 
-  it('refuses a wrong code, and burns it', async () => {
+  /* A wrong code used to burn the request, and the next try wrongly said the
+     code had expired. It now costs one of five tries. */
+  it('refuses a wrong code, and leaves the right one usable', async () => {
     const { service, prisma, redis } = build();
     redis.get.mockResolvedValue(pending());
     await expect(
       service.confirmLoginChange('user-kh', { sessionId: 's', code: '000000' }),
-    ).rejects.toThrow(BadRequestException);
-    expect(redis.del).toHaveBeenCalledWith('login_change:s');
+    ).rejects.toThrow('You have 4 tries left');
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(redis.set.mock.calls.at(-1)[0]).toBe('login_change:s');
     expect(prisma.account.update).not.toHaveBeenCalled();
+  });
+
+  it('burns the code on the fifth wrong try', async () => {
+    const { service, redis } = build();
+    redis.get.mockResolvedValue(
+      JSON.stringify({ ...JSON.parse(pending()), attempts: 4 }),
+    );
+    await expect(
+      service.confirmLoginChange('user-kh', { sessionId: 's', code: '000000' }),
+    ).rejects.toThrow('Too many wrong codes');
+    expect(redis.del).toHaveBeenCalledWith('login_change:s');
   });
 
   /* A code is good only for the login it was sent for. */

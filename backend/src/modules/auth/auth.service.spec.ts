@@ -431,7 +431,9 @@ describe('AuthService', () => {
       expect(mockRedis.del).toHaveBeenCalledWith('otp:' + sessionId);
     });
 
-    it('should throw and delete OTP on wrong code', async () => {
+    /* One mistyped digit used to delete the session, so the right code typed
+       a second later was refused too. */
+    it('keeps the session after a wrong code, and counts it', async () => {
       const sessionData = {
         userId: 'user-1',
         otp: '999999',
@@ -441,8 +443,29 @@ describe('AuthService', () => {
 
       await expect(
         service.verifyOtp({ sessionId, otp: '000000' }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow('You have 4 tries left');
 
+      expect(mockRedis.del).not.toHaveBeenCalled();
+      const [key, value, keep] = mockRedis.set.mock.calls.at(-1);
+      expect(key).toBe('otp:' + sessionId);
+      expect(JSON.parse(value)).toMatchObject({ otp: '999999', attempts: 1 });
+      // The code keeps its own five minutes: a wrong try must not extend it.
+      expect(keep).toBe('KEEPTTL');
+    });
+
+    it('throws the code away on the fifth wrong try', async () => {
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          userId: 'user-1',
+          otp: '999999',
+          attempts: 4,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        }),
+      );
+
+      await expect(
+        service.verifyOtp({ sessionId, otp: '000000' }),
+      ).rejects.toThrow('Too many wrong codes');
       expect(mockRedis.del).toHaveBeenCalledWith('otp:' + sessionId);
     });
 
