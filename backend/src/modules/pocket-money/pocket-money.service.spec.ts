@@ -528,14 +528,33 @@ describe('PocketMoneyService', () => {
    * information.
    */
   describe('who may see an account', () => {
-    it.each(['ADMIN', 'PATRON', 'MATRON'])(
-      'lets %s see any student',
-      async (role) => {
-        await expect(
-          service.assertMayView('user-1', role as any, 'student-1'),
-        ).resolves.toBeUndefined();
-      },
-    );
+    it('lets the office see any student', async () => {
+      await expect(
+        service.assertMayView('user-1', 'ADMIN' as any, 'student-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('lets the patron see a boy and not a girl', async () => {
+      prisma.student.findFirst.mockResolvedValue({ gender: 'MALE' });
+      await expect(
+        service.assertMayView('user-1', 'PATRON' as any, 'student-1'),
+      ).resolves.toBeUndefined();
+      prisma.student.findFirst.mockResolvedValue({ gender: 'FEMALE' });
+      await expect(
+        service.assertMayView('user-1', 'PATRON' as any, 'student-1'),
+      ).rejects.toThrow('The matron looks after this student');
+    });
+
+    it('lets the matron see a girl and not a boy', async () => {
+      prisma.student.findFirst.mockResolvedValue({ gender: 'FEMALE' });
+      await expect(
+        service.assertMayView('user-1', 'MATRON' as any, 'student-1'),
+      ).resolves.toBeUndefined();
+      prisma.student.findFirst.mockResolvedValue({ gender: 'MALE' });
+      await expect(
+        service.assertMayView('user-1', 'MATRON' as any, 'student-1'),
+      ).rejects.toThrow('The patron looks after this student');
+    });
 
     it('lets a student see their own', async () => {
       prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
@@ -752,6 +771,17 @@ describe('PocketMoneyService', () => {
       expect(prisma.student.count.mock.calls[0][0].where).toMatchObject({
         status: 'ACTIVE',
       });
+    });
+
+    it('gives the patron the boys and the matron the girls', async () => {
+      await service.overview({}, 'PATRON');
+      expect(prisma.student.count.mock.calls[0][0].where.gender).toBe('MALE');
+      await service.overview({}, 'MATRON');
+      expect(prisma.student.count.mock.calls[1][0].where.gender).toBe('FEMALE');
+      await service.overview({}, 'ADMIN');
+      expect(
+        prisma.student.count.mock.calls[2][0].where.gender,
+      ).toBeUndefined();
     });
 
     it('narrows to one class', async () => {
