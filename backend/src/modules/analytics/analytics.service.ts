@@ -12,6 +12,7 @@ import {
   overallGrade,
 } from '../../common/grading';
 import { CacheService } from '../../common/cache.service';
+import { mustExist } from '../../common/must-exist';
 
 /** Admin analytics are aggregate scans; 60s of staleness is acceptable. */
 const CACHE_TTL_SECONDS = 60;
@@ -689,6 +690,7 @@ export class AnalyticsService {
     termId: string,
     viewerRole?: string,
   ) {
+    await mustExist(this.prisma.student, studentId, 'Student');
     const student = await this.prisma.student.findUnique({
       where: { id: studentId },
       include: { classSection: true },

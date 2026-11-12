@@ -33,6 +33,7 @@ describe('AcademicService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.teacher.findFirst.mockResolvedValue({ id: 'teacher-1' });
     service = new AcademicService(prisma, cache as never);
   });
 

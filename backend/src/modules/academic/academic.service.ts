@@ -33,6 +33,7 @@ import {
   UpdateExamScheduleDto,
   BulkExamScheduleDto,
 } from './dto';
+import { mustExist } from '../../common/must-exist';
 
 @Injectable()
 export class AcademicService {
@@ -778,6 +779,7 @@ export class AcademicService {
   }
 
   async findTeacherTimetable(teacherId: string) {
+    await mustExist(this.prisma.teacher, teacherId, 'Teacher');
     return this.prisma.timetable.findMany({
       where: { teacherId },
       include: {

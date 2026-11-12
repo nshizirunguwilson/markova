@@ -758,6 +758,10 @@ describe('FinanceService', () => {
   });
 
   describe('a student’s whole history', () => {
+    beforeEach(() =>
+      prisma.student.findFirst.mockResolvedValue({ id: 'student-1' }),
+    );
+
     it('gives each term its own standing', async () => {
       prisma.feeInvoice.findMany.mockResolvedValue([
         {
