@@ -1,3 +1,4 @@
+import { NotBlank } from '../../../common/not-blank';
 import {
   IsString,
   IsOptional,
@@ -232,6 +233,7 @@ export class UpdateClassSectionDto {
 export class CreateSubjectDto {
   @ApiProperty({ example: 'Mathematics' })
   @IsString()
+  @NotBlank()
   @MaxLength(255)
   name: string;
 
@@ -448,10 +450,12 @@ export class CreateExamScheduleDto {
 
   @ApiProperty({ example: '08:00' })
   @IsString()
+  @Matches(HHMM, { message: 'startTime must be a time like 08:00' })
   startTime: string;
 
   @ApiProperty({ example: '10:00' })
   @IsString()
+  @Matches(HHMM, { message: 'endTime must be a time like 08:00' })
   endTime: string;
 
   @ApiPropertyOptional({ example: 'Room 101' })
@@ -489,11 +493,13 @@ export class UpdateExamScheduleDto {
   @ApiPropertyOptional({ example: '08:00' })
   @IsOptional()
   @IsString()
+  @Matches(HHMM, { message: 'startTime must be a time like 08:00' })
   startTime?: string;
 
   @ApiPropertyOptional({ example: '10:00' })
   @IsOptional()
   @IsString()
+  @Matches(HHMM, { message: 'endTime must be a time like 08:00' })
   endTime?: string;
 
   @ApiPropertyOptional()

@@ -1,3 +1,4 @@
+import { NotBlank } from '../../../common/not-blank';
 import {
   IsIn,
   IsString,
@@ -46,6 +47,7 @@ export class BulkNotificationDto {
 export class RegisterPushTokenDto {
   @ApiProperty({ example: 'ExponentPushToken[xxxxxxxx]' })
   @IsString()
+  @NotBlank()
   @MaxLength(255)
   token: string;
 
