@@ -791,6 +791,7 @@ export class AcademicService {
   }
 
   async createTimetable(dto: CreateTimetableDto) {
+    await this.assertNoClash(dto);
     /* Cleared on write rather than left to expire. Somebody who reorganises a
        timetable looks at the screen straight afterwards, and a five minute
        stale answer would have them do it again. */
@@ -812,6 +813,16 @@ export class AcademicService {
   async updateTimetable(id: string, dto: UpdateTimetableDto) {
     const entry = await this.prisma.timetable.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Timetable entry not found');
+    await this.assertNoClash(
+      {
+        classSectionId: dto.classSectionId ?? entry.classSectionId,
+        teacherId: dto.teacherId ?? entry.teacherId,
+        dayOfWeek: dto.dayOfWeek ?? entry.dayOfWeek,
+        startTime: dto.startTime ?? entry.startTime,
+        endTime: dto.endTime ?? entry.endTime,
+      },
+      id,
+    );
 
     /* Both classes, because a period moved from one to another changes what
        each of them shows. Clearing only the new one would leave the old class
@@ -839,6 +850,61 @@ export class AcademicService {
         },
       },
     });
+  }
+
+  /**
+   * Refuse a lesson that puts a teacher, or a class, in two places at once.
+   *
+   * Both were saved without complaint, and the timetable screen was written
+   * to show the refusal this sends. Two lessons clash when they share a day
+   * and one starts before the other ends; back to back (08:00 to 09:00, then
+   * 09:00 to 10:00) is not a clash.
+   */
+  private async assertNoClash(
+    slot: {
+      classSectionId: string;
+      teacherId: string;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+    },
+    exceptId?: string,
+  ) {
+    if (slot.endTime <= slot.startTime) {
+      throw new BadRequestException('A lesson has to end after it starts');
+    }
+    const clash = await this.prisma.timetable.findFirst({
+      where: {
+        ...(exceptId && { id: { not: exceptId } }),
+        dayOfWeek: slot.dayOfWeek,
+        startTime: { lt: slot.endTime },
+        endTime: { gt: slot.startTime },
+        OR: [
+          { teacherId: slot.teacherId },
+          { classSectionId: slot.classSectionId },
+        ],
+      },
+      include: {
+        subject: { select: { name: true } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+        classSection: { include: { classLevel: { select: { name: true } } } },
+      },
+    });
+    if (!clash) return;
+
+    const when = `on ${WEEKDAYS[clash.dayOfWeek - 1] ?? 'that day'} from ${clash.startTime} to ${clash.endTime}`;
+    const klass = `${clash.classSection.classLevel.name} ${clash.classSection.name}`;
+    if (clash.teacherId === slot.teacherId) {
+      const who = `${clash.teacher.user.firstName} ${clash.teacher.user.lastName}`;
+      throw new ConflictException(
+        `${who} already teaches ${clash.subject.name} to ${klass} ${when}`,
+      );
+    }
+    throw new ConflictException(
+      `${klass} already has ${clash.subject.name} ${when}`,
+    );
   }
 
   async deleteTimetable(id: string) {
@@ -1222,3 +1288,13 @@ function endsAfterStart(
     throw new BadRequestException(`${what} has to end after it starts`);
   }
 }
+
+const WEEKDAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
