@@ -34,6 +34,8 @@ describe('photo consent (e2e)', () => {
     userId: string;
     photoUrl: string;
     firstName: string;
+    /* What nobody else is found by: their address, else their surname. */
+    findBy: string;
   };
   let conversationId: string;
   let madeConversation = false;
@@ -149,7 +151,14 @@ describe('photo consent (e2e)', () => {
       select: {
         id: true,
         userId: true,
-        user: { select: { photoUrl: true, firstName: true } },
+        user: {
+          select: {
+            photoUrl: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
         parentStudents: {
           take: 1,
           select: { parent: { select: { account: true } } },
@@ -194,6 +203,7 @@ describe('photo consent (e2e)', () => {
       userId: mate.userId,
       photoUrl: mate.user.photoUrl!,
       firstName: mate.user.firstName,
+      findBy: mate.user.email ?? mate.user.lastName,
     };
     await remember(mate.id);
     await owner.student.update({
@@ -308,9 +318,11 @@ describe('photo consent (e2e)', () => {
     });
 
     it('still shows the photo to the staff', async () => {
+      // The search answers with thirty people, and more than thirty may
+      // share a first name, so ask by something that is theirs alone.
       const res = await as(admin)
         .get(
-          `/api/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`,
+          `/api/messaging/contacts?search=${encodeURIComponent(classmate.findBy)}`,
         )
         .expect(200);
       expect(JSON.stringify(res.body)).toContain(classmate.photoUrl);
