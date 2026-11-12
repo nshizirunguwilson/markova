@@ -30,6 +30,7 @@ import {
 } from "@/components/ui";
 import { useUser } from "@/hooks/use-users";
 import { TeacherDutiesCard } from "@/components/teachers/teacher-duties-card";
+import { useAuthStore } from "@/stores/auth-store";
 import { classDisplayName } from "@/lib/utils";
 import { formatNid } from "@/lib/person-form";
 
@@ -81,6 +82,9 @@ export default function TeacherDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const { data: user, isLoading } = useUser(id);
+  /* Only the principal edits a person's record; the Director of Studies opens
+     this page to see what a teacher teaches, and the save would refuse them. */
+  const canEdit = useAuthStore((s) => s.user?.role) === "ADMIN";
 
   const teacher = user?.teacher;
   const assignments = useMemo(
@@ -203,9 +207,11 @@ export default function TeacherDetailPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => router.push(`/admin/users/${user.id}`)}>
-          <Pencil className="mr-2 h-4 w-4" /> Edit details
-        </Button>
+        {canEdit && (
+          <Button onClick={() => router.push(`/admin/users/${user.id}`)}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit details
+          </Button>
+        )}
       </div>
 
       {/* At a glance */}
