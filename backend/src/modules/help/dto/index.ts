@@ -1,3 +1,4 @@
+import { NotBlank } from '../../../common/not-blank';
 import {
   IsString,
   IsOptional,
@@ -22,7 +23,7 @@ export enum TicketStatus {
 // ── FAQ ─────────────────────────────────────────────────────────────────────────
 
 export class CreateFaqDto {
-  @ApiProperty() @IsString() @MaxLength(255) title: string;
+  @ApiProperty() @IsString() @NotBlank() @MaxLength(255) title: string;
   @ApiProperty() @IsString() @MaxLength(5000) content: string;
   @ApiPropertyOptional()
   @IsOptional()
@@ -71,7 +72,7 @@ export class UpdateFaqDto {
 
 export class CreateTicketDto {
   @ApiProperty() @IsString() @MaxLength(255) title: string;
-  @ApiProperty() @IsString() @MaxLength(5000) description: string;
+  @ApiProperty() @IsString() @NotBlank() @MaxLength(5000) description: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
