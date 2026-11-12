@@ -1,6 +1,7 @@
 import { ROLES_KEY } from '../../common/decorators';
 import { AcademicController } from './academic.controller';
 import { AcademicService } from './academic.service';
+import { TeacherDutiesService } from './teacher-duties.service';
 import {
   clearMocks,
   controllerHarness,
@@ -18,6 +19,7 @@ import {
  * delete a class. So every one is checked by name.
  */
 describe('AcademicController', () => {
+  const duties = mockService(['add', 'remove']);
   const service = mockService([
     'findAllYears',
     'findYearById',
@@ -76,6 +78,7 @@ describe('AcademicController', () => {
     clearMocks(service);
     run = await controllerHarness(AcademicController, [
       { token: AcademicService, name: 'service', mock: service },
+      { token: TeacherDutiesService, name: 'duties', mock: duties },
     ]);
   });
 

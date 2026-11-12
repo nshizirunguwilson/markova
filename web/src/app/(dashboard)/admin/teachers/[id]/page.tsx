@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui";
 import { useUser } from "@/hooks/use-users";
+import { TeacherDutiesCard } from "@/components/teachers/teacher-duties-card";
 import { classDisplayName } from "@/lib/utils";
 import { formatNid } from "@/lib/person-form";
 
@@ -228,6 +229,10 @@ export default function TeacherDetailPage() {
           icon={GraduationCap}
         />
       </div>
+
+      {teacher?.id && (
+        <TeacherDutiesCard teacherId={teacher.id} duties={teacher.roles ?? []} />
+      )}
 
       {/* Right now */}
       <Card>
