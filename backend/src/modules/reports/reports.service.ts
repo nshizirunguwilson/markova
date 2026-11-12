@@ -242,11 +242,7 @@ export class ReportsService implements OnModuleDestroy {
       what an unsigned card should look like rather than a blank the reader
       cannot account for.
     */
-    const headTeacher = await this.prisma.user.findFirst({
-      where: { role: 'HEAD_TEACHER', isActive: true },
-      select: { firstName: true, lastName: true, signatureUrl: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const headTeacher = await this.headTeacherInPost();
 
     /*
       The family's own signature, where one has been given.
@@ -1583,8 +1579,28 @@ export class ReportsService implements OnModuleDestroy {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * Who the head teacher is, for anything the school prints.
+   *
+   * One answer for every document. The report card read the holder of the
+   * head teacher's account and letters read a name typed into the settings,
+   * so a transfer letter and a report card issued the same day named two
+   * different people. The person in the post is the truth; the typed name is
+   * for a school between head teachers, or one that has not made the account.
+   */
+  private headTeacherInPost() {
+    return this.prisma.user.findFirst({
+      where: { role: 'HEAD_TEACHER', isActive: true },
+      select: { firstName: true, lastName: true, signatureUrl: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   private async getSchoolInfo() {
-    const configs = await this.prisma.schoolConfig.findMany();
+    const [configs, inPost] = await Promise.all([
+      this.prisma.schoolConfig.findMany(),
+      this.headTeacherInPost(),
+    ]);
     const map: Record<string, string> = {};
     for (const c of configs) map[c.key] = c.value;
     return {
@@ -1600,7 +1616,11 @@ export class ReportsService implements OnModuleDestroy {
       // Both are printed on every letter: the head teacher signs it, and a
       // receiving school checks the registration number. Optional, because a
       // school that has not filled them in still has to be able to issue one.
-      headTeacher: escapeHtml(map['head_teacher_name'] || ''),
+      headTeacher: escapeHtml(
+        inPost
+          ? `${inPost.firstName} ${inPost.lastName}`
+          : map['head_teacher_name'] || '',
+      ),
       registrationNumber: escapeHtml(map['registration_number'] || ''),
       primaryColor: sanitizeColor(map['primary_color']),
     };

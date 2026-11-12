@@ -56,10 +56,12 @@ export function GeneralTab() {
             signs it, and the registration number is what a receiving school
             or the district checks it against. */}
         <div className="grid grid-cols-2 gap-4">
+          {/* Only a fallback. Documents name whoever holds the head
+              teacher's account, so this and that can no longer disagree. */}
           <Input
             id="head_teacher_name"
-            label="Head Teacher"
-            placeholder="e.g. Aline Uwase"
+            label="Head Teacher (if nobody holds the account)"
+            placeholder="e.g. Speciose Mukarugwiza"
             {...register("head_teacher_name")}
           />
           <Input
