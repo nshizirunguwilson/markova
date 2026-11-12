@@ -4,6 +4,7 @@ import { forgetTokens, isShared, refreshToken } from "@/lib/session";
 import { clearPendingMarks } from "@/lib/offline-db";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatStore } from "@/stores/chat-store";
+import { useChildStore } from "@/stores/child-store";
 
 /**
  * Signing out, properly.
@@ -34,6 +35,7 @@ export async function signOut(
        forgets everything below; the session runs out on its own. */
   }
   useChatStore.getState().disconnect();
+  useChildStore.getState().forget();
   queryClient?.clear();
   if (shared) await clearPendingMarks().catch(() => undefined);
   forgetTokens();

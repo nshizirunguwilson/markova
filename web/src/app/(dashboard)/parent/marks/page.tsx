@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { classDisplayName } from "@/lib/utils";
 import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useAcademicYears, useTerms } from "@/hooks/use-academic";
@@ -25,7 +26,8 @@ export default function ParentMarksPage() {
   const { data: terms } = useTerms(currentYear?.id);
 
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
   const [selectedTermChoice, setSelectedTerm] = useState("");
   // Derived during render: the user's explicit choice wins, otherwise the
   // server's current term.
@@ -47,7 +49,6 @@ export default function ParentMarksPage() {
               : "",
           }))
         );
-        if (links.length > 0) setSelectedChild(links[0].student.id);
       })
       .catch(() => {});
   }, [user?.id]);

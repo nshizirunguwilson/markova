@@ -7,6 +7,7 @@ vi.mock("@/lib/offline-db", () => offline);
 
 import { QueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth-store";
+import { useChildStore } from "@/stores/child-store";
 import { beginSession, accessToken } from "./session";
 import { signOut } from "./sign-out";
 
@@ -59,6 +60,13 @@ describe("signing out", () => {
     beginSession({ accessToken: "a", refreshToken: "r" });
     await signOut(queryClient);
     expect(queryClient.getQueryData(["marks"])).toBeUndefined();
+  });
+
+  // The next parent to sign in must not start on somebody else's child.
+  it("forgets which child a parent was looking at", async () => {
+    useChildStore.getState().choose("student-2");
+    await signOut();
+    expect(useChildStore.getState().childId).toBeNull();
   });
 
   it("clears anything kept for offline on a shared computer, and nothing on one's own", async () => {

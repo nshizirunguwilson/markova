@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { useAuthStore } from "@/stores/auth-store";
 import { StudentPerformance } from "@/components/student-performance";
 import api from "@/lib/api";
@@ -15,7 +16,8 @@ interface Child {
 export default function ParentAnalyticsPage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -28,7 +30,6 @@ export default function ParentAnalyticsPage() {
           name: `${ps.student?.user?.firstName} ${ps.student?.user?.lastName}`,
         }));
         setChildren(kids);
-        if (kids.length > 0) setSelectedChild(kids[0].id);
       })
       .catch(() => {});
   }, [user?.id]);

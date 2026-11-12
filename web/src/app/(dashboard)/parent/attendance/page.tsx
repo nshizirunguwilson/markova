@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
@@ -21,7 +22,8 @@ interface Child {
 export default function ParentAttendancePage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -37,7 +39,6 @@ export default function ParentAttendancePage() {
             : "",
         }));
         setChildren(mapped);
-        if (mapped.length > 0) setSelectedChild(mapped[0].id);
       })
       .catch(() => {});
   }, [user?.id]);

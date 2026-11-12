@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { conductPercentage } from "@/lib/conduct";
 import { classDisplayName } from "@/lib/utils";
 import {
@@ -37,7 +38,8 @@ const ACTION_LABELS: Record<string, string> = {
 export default function ParentDisciplinePage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
   const [appealModal, setAppealModal] = useState<string | null>(null);
   const [appealStatement, setAppealStatement] = useState("");
 
@@ -56,7 +58,6 @@ export default function ParentDisciplinePage() {
           : "",
       }));
       setChildren(mapped);
-      if (mapped.length > 0) setSelectedChild(mapped[0].id);
     }).catch(() => {});
   }, [user?.id]);
 
