@@ -518,6 +518,17 @@ describe('MarksService', () => {
       ).resolves.toBeDefined();
     });
 
+    /* The finding: only the teacher who entered a mark could delete it; the
+       check named ADMIN, whom the route never lets in. */
+    it('lets the head teacher remove anybody’s', async () => {
+      await expect(
+        service.delete('mark-1', null, 'HEAD_TEACHER'),
+      ).resolves.toBeDefined();
+      expect(prisma.mark.delete).toHaveBeenCalledWith({
+        where: { id: 'mark-1' },
+      });
+    });
+
     it('refuses a mark that does not exist', async () => {
       prisma.mark.findUnique.mockResolvedValue(null);
       await expect(
