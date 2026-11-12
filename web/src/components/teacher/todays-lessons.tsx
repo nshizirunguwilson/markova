@@ -9,6 +9,8 @@ import { todaysLessons, type LessonState, type TimetableRow } from "@/lib/lesson
 import { classDisplayName } from "@/lib/utils";
 
 const STATE_WORD: Partial<Record<LessonState, string>> = {
+  // Said in a word, not by fading the row: faded text is too pale to read.
+  done: "Taught",
   now: "Now",
   next: "Next",
 };
@@ -63,17 +65,17 @@ export function TodaysLessons({
               key={row.id}
               className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
                 state === "now" ? "border-primary bg-accent-light" : "border-border"
-              } ${state === "done" ? "opacity-60" : ""}`}
+              }`}
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="shrink-0 text-sm tabular-nums text-muted">
+                <span className="shrink-0 text-sm tabular-nums text-foreground-muted">
                   {row.startTime} to {row.endTime}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-foreground">
                     {row.subject?.name ?? "Lesson"}
                   </span>
-                  <span className="text-xs text-muted">
+                  <span className="text-xs text-foreground-muted">
                     {classDisplayName(row.classSection as never)}
                     {row.room ? `, ${row.room}` : ""}
                   </span>

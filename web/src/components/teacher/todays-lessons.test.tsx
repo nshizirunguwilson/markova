@@ -77,6 +77,8 @@ describe("today's lessons", () => {
     mount(week, at(16, 0));
     await screen.findByText("Physics");
     expect(screen.getByText("All taught")).toBeInTheDocument();
+    // Each one says it in a word; a faded row is too pale to read.
+    expect(screen.getAllByText("Taught").length).toBeGreaterThan(0);
     expect(screen.queryByText("Now")).toBeNull();
     expect(screen.queryByText("Next")).toBeNull();
   });
