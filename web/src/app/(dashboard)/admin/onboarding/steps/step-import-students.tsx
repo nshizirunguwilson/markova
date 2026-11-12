@@ -3,6 +3,9 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, GraduationCap } from "lucide-react";
 import { Button, Badge } from "@/components/ui";
+import { NewPasswords, type NewPassword } from "@/components/people/new-passwords";
+import { useSections } from "@/hooks/use-academic";
+import { classDisplayName } from "@/lib/utils";
 import { useBulkImport, useUsers } from "@/hooks/use-users";
 
 export function StepImportStudents() {
@@ -10,9 +13,24 @@ export function StepImportStudents() {
   const bulkImport = useBulkImport();
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
+  const [credentials, setCredentials] = useState<NewPassword[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const students = usersData?.data || [];
+  const { data: sections } = useSections();
+
+  /* A principal knows "Senior 1 A", not the id behind it. A class column is
+     matched to its id here; a classSectionId column still works as before. */
+  const norm = (v: unknown) => String(v).toLowerCase().replace(/\s+/g, " ").trim();
+  const idFor = (name: unknown): string | undefined =>
+    ((sections as any[]) ?? []).find((s) => norm(classDisplayName(s)) === norm(name))?.id;
+  const withClassIds = (rows: any[]) =>
+    rows.map(({ class: name, ...row }) =>
+      row.classSectionId || !name ? row : { ...row, classSectionId: idFor(name) },
+    );
+  const unknownClasses = Array.from(
+    new Set(parsedRows.map((r) => r.class).filter((name) => name && !idFor(name))),
+  );
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -35,15 +53,19 @@ export function StepImportStudents() {
   };
 
   const handleImport = () => {
-    bulkImport.mutate({ role: "STUDENT", rows: parsedRows }, {
-      onSuccess: () => { setParsedRows([]); setFileName(""); },
+    bulkImport.mutate({ role: "STUDENT", rows: withClassIds(parsedRows) }, {
+      onSuccess: (result: { credentials?: NewPassword[] }) => {
+        setCredentials(result?.credentials ?? []);
+        setParsedRows([]);
+        setFileName("");
+      },
     });
   };
 
   return (
     <div>
       <h2 className="mb-1 text-lg font-semibold text-foreground">Import Students</h2>
-      <p className="mb-6 text-sm text-muted">Add students via CSV: email, firstName, lastName, classSectionId, gender, dateOfBirth</p>
+      <p className="mb-6 text-sm text-muted">Add students via CSV: email, firstName, lastName, class (e.g. Senior 1 A), gender, dateOfBirth</p>
 
       {students.length > 0 && (
         <div className="mb-6 rounded-lg border border-border p-4">
@@ -70,11 +92,25 @@ export function StepImportStudents() {
         <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFile}  aria-label="Choose a student CSV file"/>
       </div>
 
+      {unknownClasses.length > 0 && (
+        <p role="alert" className="mt-4 text-sm text-danger">
+          No class called {unknownClasses.join(", ")}. Add it in the Classes step, or check the spelling.
+        </p>
+      )}
+
       {parsedRows.length > 0 && (
-        <Button className="mt-4" onClick={handleImport} isLoading={bulkImport.isPending}>
+        <Button
+          className="mt-4"
+          onClick={handleImport}
+          isLoading={bulkImport.isPending}
+          disabled={unknownClasses.length > 0}
+        >
           Import {parsedRows.length} Students
         </Button>
       )}
+      <div className="mt-4">
+        <NewPasswords credentials={credentials} fileName="student_credentials.csv" />
+      </div>
     </div>
   );
 }

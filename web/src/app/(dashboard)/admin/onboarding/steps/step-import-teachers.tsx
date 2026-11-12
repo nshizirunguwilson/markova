@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, Users } from "lucide-react";
 import { Button, Badge } from "@/components/ui";
+import { NewPasswords, type NewPassword } from "@/components/people/new-passwords";
 import { useBulkImport, useUsers } from "@/hooks/use-users";
 
 export function StepImportTeachers() {
@@ -10,6 +11,7 @@ export function StepImportTeachers() {
   const bulkImport = useBulkImport();
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
+  const [credentials, setCredentials] = useState<NewPassword[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const teachers = usersData?.data || [];
@@ -36,7 +38,11 @@ export function StepImportTeachers() {
 
   const handleImport = () => {
     bulkImport.mutate({ role: "TEACHER", rows: parsedRows }, {
-      onSuccess: () => { setParsedRows([]); setFileName(""); },
+      onSuccess: (result: { credentials?: NewPassword[] }) => {
+        setCredentials(result?.credentials ?? []);
+        setParsedRows([]);
+        setFileName("");
+      },
     });
   };
 
@@ -81,6 +87,9 @@ export function StepImportTeachers() {
           Import {parsedRows.length} Teachers
         </Button>
       )}
+      <div className="mt-4">
+        <NewPasswords credentials={credentials} fileName="teacher_credentials.csv" />
+      </div>
     </div>
   );
 }

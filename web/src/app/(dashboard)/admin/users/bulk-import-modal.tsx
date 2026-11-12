@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Download, FileText, AlertCircle, KeyRound } from "lucide-react";
+import { Upload, Download, FileText, AlertCircle } from "lucide-react";
 import { Modal, Button, Badge } from "@/components/ui";
 import { useBulkImport } from "@/hooks/use-users";
+import { NewPasswords } from "@/components/people/new-passwords";
 import api from "@/lib/api";
 
 interface Props {
@@ -107,19 +108,6 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
     }
   };
 
-  const downloadCredentials = () => {
-    const csv = [
-      "name,login,password",
-      ...credentials.map((c) => `${c.name},${c.login},${c.password}`),
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${role.toLowerCase()}_credentials.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
 
   const handleReset = () => {
     setParsedRows([]);
@@ -223,34 +211,10 @@ export function BulkImportModal({ isOpen, onClose }: Props) {
         )}
 
         {/* Credentials - shown once, right after a successful import */}
-        {credentials.length > 0 && (
-          <div className="rounded-lg border border-primary/30 bg-accent-light/50 p-4">
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-primary">
-              <KeyRound className="h-4 w-4" />
-              {credentials.length} users created, each with their own password
-            </div>
-            <p className="mb-3 text-xs text-muted">
-              Download and share these safely. They are shown only now, and
-              every user must change their password on first login.
-            </p>
-            <div className="mb-3 max-h-36 overflow-auto rounded border border-border bg-surface text-xs">
-              {credentials.slice(0, 6).map((c, i) => (
-                <div key={i} className="flex justify-between border-b border-border px-2 py-1 last:border-0">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="text-muted">{c.login}</span>
-                  <span className="font-mono">{c.password}</span>
-                </div>
-              ))}
-              {credentials.length > 6 && (
-                <p className="px-2 py-1 text-muted">…and {credentials.length - 6} more in the file</p>
-              )}
-            </div>
-            <Button size="sm" onClick={downloadCredentials}>
-              <Download className="mr-2 h-4 w-4" />
-              Download credentials CSV
-            </Button>
-          </div>
-        )}
+        <NewPasswords
+          credentials={credentials}
+          fileName={`${role.toLowerCase()}_credentials.csv`}
+        />
 
         {/* Errors */}
         {errors.length > 0 && (

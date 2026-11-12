@@ -137,3 +137,61 @@ describe.each(steps)("importing $name", ({ Step, role }) => {
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
   });
 });
+
+/* Found testing a fresh school end to end: the steps dropped the passwords
+   the import made, so nobody brought in during setup could sign in. */
+describe.each(steps)("after importing $name", ({ Step }) => {
+  it("shows each new person's first password, once", async () => {
+    serve(h.api, {
+      ...populatedRoutes,
+      "/users/bulk-import": {
+        created: 1,
+        errors: [],
+        credentials: [
+          { name: "Divine Niyonkuru", login: "d.niyonkuru@markova.edu", password: "Ab3$xY9!qz" },
+        ],
+      },
+    });
+    renderWithProviders(<Step />);
+    if (!(await upload(`${HEADER}\n${ROWS[0]}`))) return;
+    await waitFor(() => expect(importButton()).toBeTruthy());
+    await userEvent.setup().click(importButton()!);
+
+    expect(await screen.findByText("Ab3$xY9!qz")).toBeInTheDocument();
+    expect(screen.getByText(/1 users created/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /download credentials csv/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("a student sheet naming classes", () => {
+  const sheet = (cls: string) =>
+    `firstName,lastName,email,class\nDivine,Niyonkuru,d.n@markova.edu,${cls}`;
+
+  it("sends the id of the class it names", async () => {
+    h.api.post.mockResolvedValue({ data: { created: 1, errors: [], credentials: [] } });
+    renderWithProviders(<StepImportStudents />);
+    await upload(sheet("senior 1  a"));
+    await waitFor(() => expect(importButton()).toBeTruthy());
+    await userEvent.setup().click(importButton()!);
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    const [, body] = h.api.post.mock.calls[0];
+    expect(body.rows[0]).toEqual({
+      firstName: "Divine",
+      lastName: "Niyonkuru",
+      email: "d.n@markova.edu",
+      classSectionId: "section-1",
+    });
+  });
+
+  it("says which class it cannot find", async () => {
+    renderWithProviders(<StepImportStudents />);
+    await upload(sheet("Senior 9 Z"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No class called Senior 9 Z",
+    );
+    expect(importButton()).toBeDisabled();
+  });
+});
