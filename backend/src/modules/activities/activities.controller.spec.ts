@@ -1,3 +1,4 @@
+import { ROLES_KEY } from '../../common/decorators/roles.decorator';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import {
@@ -173,5 +174,16 @@ describe('ActivitiesController', () => {
 
   it.each(cases)('$name', async (c) => {
     await run(c);
+  });
+});
+
+/* The list on one activity carries every family's consent answer and note.
+   It had no roles, so any student or parent could read them all. */
+describe('who reads the list on one activity', () => {
+  it('is staff only, the same as the consent summary', () => {
+    const roles = (name: keyof ActivitiesController) =>
+      Reflect.getMetadata(ROLES_KEY, ActivitiesController.prototype[name]);
+    expect(roles('findById')).toEqual(['ADMIN', 'TEACHER', 'PATRON', 'MATRON']);
+    expect(roles('findById')).toEqual(roles('consentSummary'));
   });
 });
