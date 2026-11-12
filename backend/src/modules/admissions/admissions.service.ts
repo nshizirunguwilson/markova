@@ -818,7 +818,7 @@ export class AdmissionsService {
       stillNeededKinds: docs.missing,
       sent: full.documents.map((d) => ({
         kind: d.kind,
-        label: DOCUMENT_LABEL[d.kind as DocumentKind] ?? d.kind,
+        label: DOCUMENT_LABEL[d.kind] ?? d.kind,
         checked: !!d.verifiedAt,
       })),
       offer: full.offers[0] ?? null,

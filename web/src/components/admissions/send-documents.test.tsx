@@ -70,4 +70,44 @@ describe("sending documents from the status page", () => {
     show(status({ status: "ENROLLED" }));
     expect(screen.queryByText("Send documents")).toBeNull();
   });
+  it("says a document is waiting when the school has not checked it yet", () => {
+    show(status({ sent: [{ kind: "PASSPORT_PHOTO", label: "Passport photo", checked: false }] }));
+    expect(screen.getByText("waiting to be checked")).toBeTruthy();
+  });
+
+  it("names a kind of document it has no words for by its code", () => {
+    show(status({ stillNeededKinds: ["SOMETHING_NEW"], sent: [] }));
+    expect(screen.getByRole("button", { name: "Send SOMETHING_NEW" })).toBeTruthy();
+    expect(screen.queryByText("Already sent")).toBeNull();
+  });
+
+  it("sends nothing when the picker is closed without a file, or before a kind is chosen", () => {
+    show();
+    // No kind chosen yet: a file arriving on its own goes nowhere.
+    pick(new File(["%PDF-1.7"], "bc.pdf", { type: "application/pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Birth certificate" }));
+    fireEvent.change(screen.getByLabelText("Choose the file to send"), { target: { files: [] } });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("shows the list of what was sent once nothing more is needed", () => {
+    show(status({ stillNeededKinds: undefined, stillNeeded: [] }));
+    expect(screen.getByText("Already sent")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Send / })).toBeNull();
+  });
+
+  it("offers nothing when nothing is needed and nothing was sent", () => {
+    show(status({ stillNeededKinds: [], sent: undefined }));
+    expect(screen.queryByText("Send documents")).toBeNull();
+  });
+
+  it("shows the button working while a file is on its way", async () => {
+    api.post.mockReturnValue(new Promise(() => {}));
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Send Birth certificate" }));
+    pick(new File(["%PDF-1.7"], "bc.pdf", { type: "application/pdf" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Send Birth certificate" })).toBeDisabled(),
+    );
+  });
 });

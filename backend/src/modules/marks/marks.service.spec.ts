@@ -88,7 +88,7 @@ describe('MarksService', () => {
     });
 
     it('asks about the subject, the class and the term being entered', async () => {
-      await service.create(mark as never, 'teacher-1');
+      await service.create(mark, 'teacher-1');
       expect(permissions.mayEnterMarks).toHaveBeenCalledWith('teacher-1', {
         subjectId: 'subject-1',
         classSectionId: 'section-1',
@@ -103,7 +103,7 @@ describe('MarksService', () => {
       prisma.teacherSubjectClass.findFirst.mockResolvedValue({
         teacherId: 't-9',
       });
-      await service.create(mark as never, null, 'HEAD_TEACHER');
+      await service.create(mark, null, 'HEAD_TEACHER');
       expect(permissions.mayEnterMarks).not.toHaveBeenCalled();
       expect(prisma.mark.upsert).toHaveBeenCalled();
     });
@@ -151,7 +151,7 @@ describe('MarksService', () => {
         { subjectId: 'subject-1', classSectionId: 'section-1' },
         { classSectionId: 'section-2' },
       ]);
-      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      await service.findAll({}, { role: 'TEACHER', teacherId: 't-1' });
       const where = prisma.mark.findMany.mock.calls[0][0].where;
       expect(where.OR).toEqual([
         { subjectId: 'subject-1', classSectionId: 'section-1' },
@@ -161,17 +161,17 @@ describe('MarksService', () => {
 
     it('shows a teacher who teaches nothing no marks at all', async () => {
       permissions.marksReadableBy.mockResolvedValue([]);
-      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      await service.findAll({}, { role: 'TEACHER', teacherId: 't-1' });
       expect(prisma.mark.findMany.mock.calls[0][0].where.OR).toEqual([
         { id: '' },
       ]);
     });
 
     it('puts no limit on the head teacher or the DOS duty', async () => {
-      await service.findAll({} as never, { role: 'HEAD_TEACHER' });
+      await service.findAll({}, { role: 'HEAD_TEACHER' });
       expect(prisma.mark.findMany.mock.calls[0][0].where.OR).toBeUndefined();
       permissions.marksReadableBy.mockResolvedValue(null);
-      await service.findAll({} as never, { role: 'TEACHER', teacherId: 't-1' });
+      await service.findAll({}, { role: 'TEACHER', teacherId: 't-1' });
       expect(prisma.mark.findMany.mock.calls[1][0].where.OR).toBeUndefined();
     });
 
@@ -414,7 +414,7 @@ describe('MarksService', () => {
     beforeEach(() => {
       recalc = jest
         .spyOn(service, 'calculateTermResults')
-        .mockResolvedValue({ count: 0, results: [] } as never);
+        .mockResolvedValue({ count: 0, results: [] });
       recalcYear = jest
         .spyOn(service, 'calculateYearResults')
         .mockResolvedValue({} as never);
@@ -449,7 +449,7 @@ describe('MarksService', () => {
         termId: 'term-1',
         maxScore: 20,
       });
-      await service.update('mark-1', { score: 15 } as never, 'teacher-1');
+      await service.update('mark-1', { score: 15 }, 'teacher-1');
       await service.delete('mark-1', 'teacher-1');
       expect(recalc).toHaveBeenCalledTimes(2);
     });
@@ -466,7 +466,7 @@ describe('MarksService', () => {
             { studentId: 'student-1', score: 14 },
             { studentId: 'student-2', score: 11 },
           ],
-        } as never,
+        },
         'teacher-1',
       );
       expect(recalc).toHaveBeenCalledTimes(1);

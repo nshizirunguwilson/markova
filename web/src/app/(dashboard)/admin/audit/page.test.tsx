@@ -139,4 +139,28 @@ describe("narrowing it down", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Previous" }));
     await waitFor(() => expect(lastParams.page).toBe(1));
   });
+  it("drops each filter again when it is set back to anything", async () => {
+    serve(h.api, routes(trail([entry()], { total: 60, pages: 3, page: 2 })));
+    const plain = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation((url: string, config?: { params?: Record<string, unknown> }) => {
+      if (url === "/audit") lastParams = config?.params ?? {};
+      return plain(url, config);
+    });
+    renderPage(AuditPage, { role: "ADMIN" });
+    await screen.findByText("Speciose Mukarugwiza");
+    await screen.findByRole("option", { name: "Support plan" });
+    fireEvent.change(screen.getByLabelText("Kind of record"), { target: { value: "users" } });
+    fireEvent.change(screen.getByLabelText("What happened"), { target: { value: "POST" } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-01" } });
+    await waitFor(() => expect(lastParams).toMatchObject({ entityType: "users", action: "POST" }));
+    fireEvent.change(screen.getByLabelText("Kind of record"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("What happened"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "" } });
+    await waitFor(() => {
+      expect(lastParams.entityType).toBeUndefined();
+      expect(lastParams.action).toBeUndefined();
+      expect(lastParams.from).toBeUndefined();
+    });
+
+  });
 });

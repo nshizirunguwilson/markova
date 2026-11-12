@@ -114,7 +114,11 @@ describe('SchoolsService', () => {
     it('keeps a phone-only principal with no empty-string email', async () => {
       await service.create({
         ...dto,
-        admin: { firstName: 'Beatha', lastName: 'Uwimana', phone: '+250788123456' },
+        admin: {
+          firstName: 'Beatha',
+          lastName: 'Uwimana',
+          phone: '+250788123456',
+        },
       });
       expect(prisma.user.create.mock.calls[0][0].data).toMatchObject({
         email: null,

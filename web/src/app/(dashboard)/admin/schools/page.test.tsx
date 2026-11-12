@@ -143,4 +143,45 @@ describe("the schools page", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/temporary password/i)).not.toBeInTheDocument();
   });
+  it("says so when no school has been taken on yet", async () => {
+    serve(h.api, { "/schools": [] });
+    renderPage(PlatformSchoolsPage, { user: owner });
+    expect(
+      await screen.findByText(/No schools yet\. Take the first one on\./),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a short name the owner typed, and takes a principal by email alone", async () => {
+    h.api.post.mockResolvedValue({ data: takenOn });
+    renderPage(PlatformSchoolsPage, { user: owner });
+    await screen.findByText("Markova Academy");
+
+    fireEvent.click(screen.getByRole("button", { name: /take a school on/i }));
+    fireEvent.change(screen.getByLabelText(/short name/i), {
+      target: { value: "nyamirambo" },
+    });
+    fillPrincipal();
+    // Typed by hand, so the name no longer rewrites it.
+    expect(screen.getByLabelText(/short name/i)).toHaveValue("nyamirambo");
+    fireEvent.change(screen.getByLabelText(/phone/i), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "c.mukamana@markova.edu" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /take it on/i }));
+
+    await waitFor(() =>
+      expect(h.api.post).toHaveBeenCalledWith(
+        "/schools",
+        expect.objectContaining({
+          slug: "nyamirambo",
+          admin: expect.objectContaining({
+            email: "c.mukamana@markova.edu",
+            phone: undefined,
+          }),
+        }),
+      ),
+    );
+  });
 });

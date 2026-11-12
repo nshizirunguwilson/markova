@@ -11,6 +11,8 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+const ex = vi.hoisted(() => ({ exportData: vi.fn() }));
+vi.mock("@/lib/export", () => ({ exportData: ex.exportData }));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/admin/finance",
@@ -425,6 +427,76 @@ describe("narrowing the roll", () => {
     });
     await waitFor(() =>
       expect(document.body.textContent).toMatch(/No students match that/i),
+    );
+  });
+});
+
+/**
+ * The board asks for the term's arrears, not page one of them, so an export
+ * fetches every row for the filters on screen.
+ */
+describe("taking the register away", () => {
+  const exportAs = async (label: RegExp) => {
+    await click(screen.getByRole("button", { name: /^export$/i }));
+    await click(screen.getByRole("button", { name: label }));
+  };
+  const wholeRollAsked = () =>
+    h.api.get.mock.calls
+      .filter(([url, cfg]) => url === "/finance/register" && cfg?.params?.limit === 200)
+      .map(([, cfg]) => cfg.params);
+
+  beforeEach(() => {
+    ex.exportData.mockReset();
+    ex.exportData.mockResolvedValue(undefined);
+  });
+
+  it("exports the whole roll when nothing narrows it", async () => {
+    await mount();
+    await exportAs(/csv/i);
+    await waitFor(() => expect(ex.exportData).toHaveBeenCalled());
+    expect(ex.exportData.mock.calls[0][0]).toBe("csv");
+    const asked = wholeRollAsked().at(-1)!;
+    expect(asked.status).toBeUndefined();
+    expect(asked.search).toBeUndefined();
+    expect(asked.classSectionId).toBeUndefined();
+  });
+
+  it("exports only what the filters on screen show", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/Fee status/i), {
+        target: { value: "UNPAID" },
+      });
+      fireEvent.change(screen.getByLabelText(/Search students/i), {
+        target: { value: "Uwase" },
+      });
+    });
+    await waitFor(
+      () =>
+        expect(h.api.get).toHaveBeenCalledWith(
+          "/finance/register",
+          expect.objectContaining({
+            params: expect.objectContaining({ search: "Uwase" }),
+          }),
+        ),
+      { timeout: 3000 },
+    );
+    await exportAs(/excel/i);
+    await waitFor(() => expect(ex.exportData).toHaveBeenCalled());
+    expect(wholeRollAsked().at(-1)).toMatchObject({
+      status: "UNPAID",
+      search: "Uwase",
+    });
+  });
+
+  it("says so when the export cannot be made", async () => {
+    ex.exportData.mockRejectedValue(new Error("no disk"));
+    await mount();
+    await exportAs(/csv/i);
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "Could not export the register. Please try again.",
+      ),
     );
   });
 });

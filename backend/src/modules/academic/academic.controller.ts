@@ -566,7 +566,7 @@ export class AcademicController {
     @Param('teacherId', ParseUUIDPipe) teacherId: string,
     @Body() dto: AddTeacherDutyDto,
   ) {
-    return this.duties.add(teacherId, dto as never);
+    return this.duties.add(teacherId, dto);
   }
 
   @Delete('teachers/:teacherId/duties/:dutyId')

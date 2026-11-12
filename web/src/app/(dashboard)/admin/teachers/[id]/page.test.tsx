@@ -22,6 +22,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { cellTexts, renderPage, serve } from "@/test/page";
 import { populatedRoutes } from "@/test/fixtures";
 
+import type { Role } from "@/types";
 import TeacherDetailPage, { currentLesson } from "./page";
 
 /**
@@ -125,7 +126,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function mount(user: unknown = teacher, role = "ADMIN") {
+async function mount(user: unknown = teacher, role: Role = "ADMIN") {
   serve(h.api, { ...routes, "/users/u-1": user });
   renderPage(TeacherDetailPage, { role });
   await waitFor(() => expect(document.body.textContent).not.toBe(""));

@@ -14,7 +14,7 @@ import { tooLargeMessage } from './attachment-limits';
  */
 describe('the fallbacks in the small helpers', () => {
   it('allows no move out of a state it does not know', () => {
-    expect(canMove('ARCHIVED' as never, 'SUBMITTED' as never)).toBe(false);
+    expect(canMove('ARCHIVED' as never, 'SUBMITTED')).toBe(false);
   });
 
   it('asks for nothing at an entry point it does not know, and calls that complete', () => {
@@ -23,8 +23,8 @@ describe('the fallbacks in the small helpers', () => {
   });
 
   it('puts a score below every band in the lowest one', () => {
-    const lowest = gradeFor('O_CORE' as never, -1);
-    expect(lowest).toEqual(gradeFor('O_CORE' as never, 0));
+    const lowest = gradeFor('O_CORE', -1);
+    expect(lowest).toEqual(gradeFor('O_CORE', 0));
     expect(overallGrade(-1)).toEqual(overallGrade(0));
   });
 
