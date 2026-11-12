@@ -728,9 +728,7 @@ export class AttendanceService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async getDashboardData(date?: string) {
-    const asked = date
-      ? new Date(date)
-      : schoolDay();
+    const asked = date ? new Date(date) : schoolDay();
 
     /*
       Fall back to the last day the register was taken.
