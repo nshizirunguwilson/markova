@@ -112,6 +112,36 @@ describe("the submissions for one homework", () => {
     expect(dialog.textContent).toMatch(/Keza Mutesi/);
   });
 
+  // The sheet the work was set on is one tap away from the marking.
+  it("links to the sheet under the name it was uploaded with", async () => {
+    serve(h.api, {
+      ...routes,
+      "/homework/hw-1": {
+        ...homework,
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: "Paper 2 2025.pdf",
+      },
+    });
+    const dialog = await openSubmissions();
+    const link = await within(dialog).findByRole("link", { name: /Paper 2 2025\.pdf/ });
+    expect(link.getAttribute("href")).toMatch(/\/uploads\/schools\/s-1\/attachments\/abc\.pdf$/);
+  });
+
+  it("still links to a sheet that was stored without a name", async () => {
+    serve(h.api, {
+      ...routes,
+      "/homework/hw-1": {
+        ...homework,
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: null,
+      },
+    });
+    const dialog = await openSubmissions();
+    expect(
+      await within(dialog).findByRole("link", { name: /The sheet for this work/ }),
+    ).toBeInTheDocument();
+  });
+
   // Late work is marked down, so which submissions were late has to be plain
   // before any marks are entered.
   it("marks which ones came in late", async () => {

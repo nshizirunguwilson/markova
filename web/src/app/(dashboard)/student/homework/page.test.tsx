@@ -76,8 +76,15 @@ const withSheet = assignment({
   fileName: "Paper 2 2025.pdf",
 });
 
+const withNamelessSheet = assignment({
+  id: "hw-7",
+  title: "Chemistry worksheet",
+  fileUrl: "/uploads/schools/s-1/attachments/def.pdf",
+  fileName: null,
+});
+
 const routes = {
-  "/homework/student": [todo, submitted, late, graded, overdue, withSheet],
+  "/homework/student": [todo, submitted, late, graded, overdue, withSheet, withNamelessSheet],
   "/homework/submit": { id: "sub-9" },
 };
 
@@ -102,6 +109,12 @@ function cardFor(title: RegExp) {
 }
 
 describe("the homework list", () => {
+  it("links to a sheet that was stored without a name", async () => {
+    await mount();
+    const link = screen.getByRole("link", { name: /The sheet for this work/ });
+    expect(link.getAttribute("href")).toMatch(/def\.pdf$/);
+  });
+
   it("lists every assignment", async () => {
     await mount();
     expect(screen.getByText(/Essay on Imigani/)).toBeInTheDocument();
