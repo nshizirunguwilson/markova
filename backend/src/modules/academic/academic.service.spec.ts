@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { AcademicService } from './academic.service';
+import { AcademicService, rowProblem } from './academic.service';
 import { createMockPrisma } from '../../__test__/prisma-mock';
 
 /**
@@ -303,11 +303,31 @@ describe('AcademicService', () => {
       prisma.term.findUnique.mockResolvedValue({
         id: 'term-1',
         isClosed: true,
+        startDate: new Date('2025-01-06'),
+        endDate: new Date('2025-04-04'),
       });
       prisma.term.update.mockResolvedValue({});
       await service.reopenTerm('term-1');
       expect(prisma.term.update.mock.calls[0][0].data).toEqual({
         isClosed: false,
+      });
+    });
+
+    it('makes a reopened term current when it runs today and none is', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-12T09:00:00Z'));
+      prisma.term.findUnique.mockResolvedValue({
+        id: 'term-1',
+        isClosed: true,
+        startDate: new Date('2026-09-07'),
+        endDate: new Date('2026-12-11'),
+      });
+      prisma.term.findFirst.mockResolvedValue(null);
+      prisma.term.update.mockResolvedValue({});
+      await service.reopenTerm('term-1');
+      jest.useRealTimers();
+      expect(prisma.term.update.mock.calls[0][0].data).toEqual({
+        isClosed: false,
+        isCurrent: true,
       });
     });
 
@@ -714,7 +734,7 @@ describe('AcademicService', () => {
     it('places the good periods and names the bad ones by number', async () => {
       prisma.timetable.create
         .mockResolvedValueOnce({})
-        .mockRejectedValueOnce(new Error('Clash at 08:00'))
+        .mockRejectedValueOnce(new BadRequestException('Clash at 08:00'))
         .mockResolvedValueOnce({});
 
       const result = await service.bulkCreateTimetable({
@@ -1006,7 +1026,7 @@ describe('AcademicService', () => {
 
     it('places the good papers and names the bad ones by number', async () => {
       prisma.examSchedule.create
-        .mockRejectedValueOnce(new Error('Room double booked'))
+        .mockRejectedValueOnce(new BadRequestException('Room double booked'))
         .mockResolvedValue({});
 
       const result = await service.bulkCreateExamSchedules({
@@ -1744,6 +1764,118 @@ describe('editing the week', () => {
     it('clears every class on a bulk import', async () => {
       await service.bulkCreateTimetable({ entries: [] });
       expect(cache.forgetMatching).toHaveBeenCalledWith('cache:timetable:*');
+    });
+  });
+
+  /* Found testing the routes the first full run could only reach. */
+  describe('input that made no sense', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('refuses an exam that ends before it starts', async () => {
+      await expect(
+        service.createExamSchedule({
+          classSectionId: 's',
+          subjectId: 'm',
+          termId: 't',
+          examDate: '2026-12-01',
+          startTime: '11:00',
+          endTime: '09:00',
+        }),
+      ).rejects.toThrow('An exam has to end after it starts');
+      expect(prisma.examSchedule.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses an exam moved to end before it starts', async () => {
+      prisma.examSchedule.findUnique.mockResolvedValue({
+        id: 'e',
+        startTime: '08:00',
+        endTime: '10:00',
+      });
+      await expect(
+        service.updateExamSchedule('e', { startTime: '10:30' }),
+      ).rejects.toThrow('An exam has to end after it starts');
+    });
+
+    it("names a row's problem without the database's own words", () => {
+      const prismaError = Object.assign(
+        new Error('Invalid `this.prisma.x.create()` invocation in /srv/app.ts'),
+        { code: 'P2003' },
+      );
+      expect(rowProblem(prismaError)).toBe('something it names was not found');
+      expect(rowProblem(Object.assign(new Error('x'), { code: 'P2002' }))).toBe(
+        'it is already there',
+      );
+      expect(rowProblem(new Error('/srv/app.ts:706'))).toBe(
+        'it could not be saved',
+      );
+      expect(rowProblem(new BadRequestException('Clash at 08:00'))).toBe(
+        'Clash at 08:00',
+      );
+    });
+
+    it('makes a new term current when it runs today and the school has none', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-12T09:00:00Z'));
+      prisma.academicYear.findUnique.mockResolvedValue({
+        id: 'y',
+        startDate: new Date('2026-09-01'),
+        endDate: new Date('2027-07-31'),
+      });
+      prisma.term.findMany.mockResolvedValue([]);
+      prisma.term.findFirst.mockResolvedValue(null);
+      prisma.term.create.mockResolvedValue({});
+      await service.createTerm({
+        academicYearId: 'y',
+        name: 'Term 1',
+        startDate: '2026-09-07',
+        endDate: '2026-12-11',
+      });
+      expect(prisma.term.create.mock.calls[0][0].data.isCurrent).toBe(true);
+    });
+
+    it('leaves a new term alone when another is current', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-12T09:00:00Z'));
+      prisma.academicYear.findUnique.mockResolvedValue({
+        id: 'y',
+        startDate: new Date('2026-09-01'),
+        endDate: new Date('2027-07-31'),
+      });
+      prisma.term.findMany.mockResolvedValue([]);
+      prisma.term.findFirst.mockResolvedValue({ id: 'other' });
+      prisma.term.create.mockResolvedValue({});
+      await service.createTerm({
+        academicYearId: 'y',
+        name: 'Term 1',
+        startDate: '2026-09-07',
+        endDate: '2026-12-11',
+      });
+      expect(prisma.term.create.mock.calls[0][0].data.isCurrent).toBe(false);
+    });
+
+    it('refuses to promote a class into itself', async () => {
+      await expect(
+        service.promoteStudents({
+          fromClassSectionId: 'c',
+          toClassSectionId: 'c',
+          academicYearId: 'y',
+        }),
+      ).rejects.toThrow('Promote into a different class');
+    });
+
+    it('takes a pass mark of 0 as 0', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        {
+          id: 's1',
+          user: { firstName: 'Keza', lastName: 'Uwase' },
+          yearResults: [{ id: 'y1', yearlyAverage: 20 }],
+        },
+      ]);
+      const result = await service.promoteStudents({
+        fromClassSectionId: 'a',
+        toClassSectionId: 'b',
+        academicYearId: 'y',
+        passThreshold: 0,
+      });
+      expect(result.promoted).toBe(1);
     });
   });
 });

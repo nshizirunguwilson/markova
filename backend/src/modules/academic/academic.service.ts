@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -34,6 +35,7 @@ import {
   BulkExamScheduleDto,
 } from './dto';
 import { mustExist } from '../../common/must-exist';
+import { schoolDay } from '../../common/student-standing';
 
 @Injectable()
 export class AcademicService {
@@ -171,15 +173,34 @@ export class AcademicService {
         data: { isCurrent: false },
       });
     }
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
     return this.prisma.term.create({
       data: {
         academicYearId: dto.academicYearId,
         name: dto.name,
-        startDate: new Date(dto.startDate),
-        endDate: new Date(dto.endDate),
-        isCurrent: dto.isCurrent || false,
+        startDate,
+        endDate,
+        isCurrent:
+          dto.isCurrent || (await this.takesOverToday(startDate, endDate)),
       },
     });
+  }
+
+  /**
+   * Whether a term that runs today should be the current one because the
+   * school has none. A school set up in the wizard had a current year and no
+   * current term, so marks and registers had nothing to hang on; and closing
+   * a term then reopening it left the school without one.
+   */
+  private async takesOverToday(start: Date, end: Date, exceptId?: string) {
+    const today = schoolDay();
+    if (!start || !end || today < start || today > end) return false;
+    const current = await this.prisma.term.findFirst({
+      where: { isCurrent: true, ...(exceptId && { id: { not: exceptId } }) },
+      select: { id: true },
+    });
+    return !current;
   }
 
   async updateTerm(id: string, dto: UpdateTermDto) {
@@ -260,9 +281,10 @@ export class AcademicService {
     if (!term.isClosed) {
       throw new BadRequestException('Term is not closed');
     }
+    const current = await this.takesOverToday(term.startDate, term.endDate, id);
     return this.prisma.term.update({
       where: { id },
-      data: { isClosed: false },
+      data: { isClosed: false, ...(current && { isCurrent: true }) },
     });
   }
 
@@ -725,7 +747,7 @@ export class AcademicService {
         await this.createAssignment(dto.assignments[i]);
         results.created++;
       } catch (error: any) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`);
+        results.errors.push(`Row ${i + 1}: ${rowProblem(error)}`);
       }
     }
 
@@ -928,7 +950,7 @@ export class AcademicService {
         await this.createTimetable(dto.entries[i]);
         results.created++;
       } catch (error: any) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`);
+        results.errors.push(`Row ${i + 1}: ${rowProblem(error)}`);
       }
     }
 
@@ -957,7 +979,16 @@ export class AcademicService {
     });
   }
 
+  /* The lesson timetable refused this and the exam timetable did not, so a
+     paper could end before it began. */
+  private assertExamTimes(startTime: string, endTime: string) {
+    if (endTime <= startTime) {
+      throw new BadRequestException('An exam has to end after it starts');
+    }
+  }
+
   async createExamSchedule(dto: CreateExamScheduleDto) {
+    this.assertExamTimes(dto.startTime, dto.endTime);
     return this.prisma.examSchedule.create({
       data: {
         classSectionId: dto.classSectionId,
@@ -982,6 +1013,10 @@ export class AcademicService {
   async updateExamSchedule(id: string, dto: UpdateExamScheduleDto) {
     const entry = await this.prisma.examSchedule.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Exam schedule not found');
+    this.assertExamTimes(
+      dto.startTime ?? entry.startTime,
+      dto.endTime ?? entry.endTime,
+    );
 
     return this.prisma.examSchedule.update({
       where: { id },
@@ -1020,7 +1055,7 @@ export class AcademicService {
         await this.createExamSchedule(dto.entries[i]);
         results.created++;
       } catch (error: any) {
-        results.errors.push(`Row ${i + 1}: ${error.message}`);
+        results.errors.push(`Row ${i + 1}: ${rowProblem(error)}`);
       }
     }
 
@@ -1032,7 +1067,11 @@ export class AcademicService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async promoteStudents(dto: PromoteStudentsDto) {
-    const threshold = dto.passThreshold || 50;
+    // A pass mark of 0 is a pass mark; || read it as 50.
+    const threshold = dto.passThreshold ?? 50;
+    if (dto.fromClassSectionId === dto.toClassSectionId) {
+      throw new BadRequestException('Promote into a different class');
+    }
 
     // Get all students in source class with their year results
     const students = await this.prisma.student.findMany({
@@ -1300,3 +1339,18 @@ const WEEKDAYS = [
   'Saturday',
   'Sunday',
 ];
+
+/**
+ * What a row of a bulk add says went wrong. A refusal of our own reads as
+ * written; anything from the database handed back Prisma's whole message,
+ * with the server's file paths and source lines, to whoever sent the file.
+ */
+export function rowProblem(error: unknown): string {
+  if (error instanceof HttpException) return error.message;
+  const code = (error as { code?: string })?.code;
+  if (code === 'P2003' || code === 'P2025') {
+    return 'something it names was not found';
+  }
+  if (code === 'P2002') return 'it is already there';
+  return 'it could not be saved';
+}
