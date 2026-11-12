@@ -100,7 +100,7 @@ export class DisciplineService {
         await this.prisma.student.update({
           where: { id: incident.studentId },
           data: {
-            disciplinePoints: Math.max(0, student.disciplinePoints - diff),
+            disciplinePoints: await this.held(student.disciplinePoints - diff),
           },
         });
       }
@@ -131,10 +131,7 @@ export class DisciplineService {
     if (!incident) throw new NotFoundException('Incident not found');
 
     // Restore points
-    await this.prisma.student.update({
-      where: { id: incident.studentId },
-      data: { disciplinePoints: { increment: incident.pointsDeducted } },
-    });
+    await this.giveBack(incident.studentId, incident.pointsDeducted);
 
     return this.prisma.disciplineIncident.delete({ where: { id } });
   }
@@ -320,12 +317,10 @@ export class DisciplineService {
 
     // If approved, restore points
     if (dto.status === 'APPROVED') {
-      await this.prisma.student.update({
-        where: { id: appeal.incident.studentId },
-        data: {
-          disciplinePoints: { increment: appeal.incident.pointsDeducted },
-        },
-      });
+      await this.giveBack(
+        appeal.incident.studentId,
+        appeal.incident.pointsDeducted,
+      );
     }
 
     return updatedAppeal;
@@ -443,6 +438,35 @@ export class DisciplineService {
   // ═══════════════════════════════════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * A conduct standing held between nothing and the full mark.
+   *
+   * Merits were already stopped at the full mark, but points given back were
+   * not. A student who lost five, earned them back with merits and then had
+   * the incident overturned stood at 45 out of 40: the report card printed
+   * 40 and the transfer letter 45. The recognition and the overturned
+   * incident both stay on the record; the mark itself cannot pass a clean
+   * sheet.
+   */
+  private async held(points: number): Promise<number> {
+    return Math.max(0, Math.min(await this.getStartingPoints(), points));
+  }
+
+  /** Give points back after an incident is removed or an appeal is upheld. */
+  private async giveBack(studentId: string, points: number) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { disciplinePoints: true },
+    });
+    if (!student) return;
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: {
+        disciplinePoints: await this.held(student.disciplinePoints + points),
+      },
+    });
+  }
 
   private async getStartingPoints(): Promise<number> {
     const config = await this.prisma.schoolConfig.findFirst({

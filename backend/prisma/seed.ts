@@ -6141,6 +6141,9 @@ async function seedSchool(
           isBoarder: spec.boarding,
           province: spec.district === 'Musanze' ? 'Northern' : 'Kigali City',
           district: spec.district,
+          // Named, or the student takes the column's default and stands above
+          // the school's own full mark.
+          disciplinePoints: TERM_CONDUCT_MARK,
         },
       });
       students.push({ userId: user.id, studentId: student.id, sectionId: sec.id });
@@ -6490,6 +6493,7 @@ async function seedPeopleInSeveralSchools(
       classSectionId: ubumwe.sectionIds[ubumwe.sectionIds.length - 1],
       previousSchool: umucyo.name,
       isBoarder: true,
+      disciplinePoints: TERM_CONDUCT_MARK,
     },
   });
   lines.push(
