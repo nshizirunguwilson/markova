@@ -394,7 +394,27 @@ export class ActivitiesService {
     return { added, alreadyOn: students.length - added };
   }
 
+  /**
+   * Take a student off an activity.
+   *
+   * Deleting by the pair rather than by a row id means a double click cannot
+   * fail on the second attempt, so a student already off the list is still a
+   * success. But an activity or a student that does not exist is not: that is
+   * a mistyped id, and answering success made it look like a removal.
+   */
   async removeParticipant(activityId: string, studentId: string) {
+    const [activity, student] = await Promise.all([
+      this.prisma.activity.findUnique({
+        where: { id: activityId },
+        select: { id: true },
+      }),
+      this.prisma.student.findFirst({
+        where: { id: studentId },
+        select: { id: true },
+      }),
+    ]);
+    if (!activity) throw new NotFoundException('Activity not found');
+    if (!student) throw new NotFoundException('Student not found');
     await this.prisma.activityParticipant.deleteMany({
       where: { activityId, studentId },
     });

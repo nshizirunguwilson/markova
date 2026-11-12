@@ -734,6 +734,11 @@ describe('ActivitiesService', () => {
    * id means a double click cannot fail on the second attempt.
    */
   describe('taking a student off the list', () => {
+    beforeEach(() => {
+      prisma.activity.findUnique.mockResolvedValue({ id: 'act-1' });
+      prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
+    });
+
     it('removes them by the activity and the student', async () => {
       prisma.activityParticipant.deleteMany.mockResolvedValue({ count: 1 });
       await expect(
@@ -742,6 +747,23 @@ describe('ActivitiesService', () => {
       expect(prisma.activityParticipant.deleteMany).toHaveBeenCalledWith({
         where: { activityId: 'act-1', studentId: 'student-1' },
       });
+    });
+
+    /* The finding: it reported success for an activity and a student that
+       did not exist. */
+    it('refuses an activity that does not exist', async () => {
+      prisma.activity.findUnique.mockResolvedValue(null);
+      await expect(
+        service.removeParticipant('nope', 'student-1'),
+      ).rejects.toThrow('Activity not found');
+      expect(prisma.activityParticipant.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('refuses a student who does not exist', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(
+        service.removeParticipant('act-1', 'nobody'),
+      ).rejects.toThrow('Student not found');
     });
 
     it('says the same when they were never on it', async () => {
