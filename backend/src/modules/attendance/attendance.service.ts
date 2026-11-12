@@ -612,11 +612,43 @@ export class AttendanceService {
   // CHRONIC ABSENTEEISM
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * The classes a teacher has a reason to watch: the ones they teach this
+   * year and the one they lead.
+   */
+  async classesWatchedBy(teacherId: string | null | undefined) {
+    if (!teacherId) return [];
+    const [taught, led] = await Promise.all([
+      this.prisma.teacherSubjectClass.findMany({
+        where: { teacherId, academicYear: { isCurrent: true } },
+        select: { classSectionId: true },
+      }),
+      this.prisma.teacherRole.findMany({
+        where: { teacherId, role: 'CLASS_TEACHER' },
+        select: { classSectionId: true },
+      }),
+    ]);
+    return [
+      ...new Set(
+        [...taught, ...led]
+          .map((r) => r.classSectionId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+  }
+
+  /**
+   * `withinClasses` narrows the list to those classes. It is how a teacher
+   * sees the pupils sliding into absence in their own classes: the list was
+   * the Director of Studies' alone, so the adult who sees the child every
+   * day was the one person not told.
+   */
   async getChronicallyAbsent(
     classSectionId?: string,
     threshold?: number,
     page = 1,
     limit = 20,
+    withinClasses?: string[],
   ) {
     const absenceThreshold = threshold || 20; // Default: 20% absence rate
     const skip = (page - 1) * limit;
@@ -624,6 +656,7 @@ export class AttendanceService {
     // Get all active students
     const studentWhere: any = { status: 'ACTIVE' as any };
     if (classSectionId) studentWhere.classSectionId = classSectionId;
+    else if (withinClasses) studentWhere.classSectionId = { in: withinClasses };
 
     const students = await this.prisma.student.findMany({
       where: studentWhere,

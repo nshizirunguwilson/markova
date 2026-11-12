@@ -145,3 +145,33 @@ describe("a teacher with a very full timetable", () => {
     expect(screen.queryByText(/more$/)).toBeNull();
   });
 });
+
+/* The dashboard said nothing about absence; the list was the Director of
+   Studies' alone. */
+describe("absence in the teacher's own classes", () => {
+  const chronic = {
+    threshold: 20,
+    students: [
+      { studentId: "s-1", name: "Keza Ingabire", class: "Senior 1 A", absentDays: 31, totalDays: 100, absenceRate: 31 },
+    ],
+  };
+
+  it("names a pupil who is absent too often", async () => {
+    mount({ "/attendance/chronic": chronic });
+    expect(await screen.findByText("Keza Ingabire")).toBeInTheDocument();
+    expect(screen.getByText("31%")).toBeInTheDocument();
+  });
+
+  it("leaves the rest of the page standing when that list cannot be read", async () => {
+    mount({
+      "/attendance/chronic": () => {
+        throw { response: { status: 500, data: {} } };
+      },
+    });
+    expect(await screen.findByText("My Assignments")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(h.api.get.mock.calls.some(([url]: any[]) => String(url).includes("/attendance/chronic"))).toBe(true),
+    );
+    expect(screen.queryByText("Absent too often")).toBeNull();
+  });
+});
