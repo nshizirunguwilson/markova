@@ -1219,9 +1219,14 @@ test('turning 18: a parent is told calmly what their adult child keeps private',
   }, [API, adult.accessToken]);
 
   await visit(page, '/parent/health');
+  /* The picker arrives with the list of children, after the page has
+     painted. Looked for at once it is not there yet, and a parent of two is
+     left on whichever child comes first. A parent of one never gets a picker
+     and goes straight to the notice, so wait for either. */
   const picker = page.getByLabel('Child');
-  if (await picker.count()) await picker.selectOption({ label: name });
   const notice = page.getByTestId('kept-private');
+  await picker.or(notice).first().waitFor({ timeout: 20000 });
+  if (await picker.count()) await picker.selectOption({ label: name });
   await notice.waitFor({ timeout: 20000 });
   assert(
     /has chosen to keep their health visits private/.test(await notice.innerText()),
@@ -3102,11 +3107,13 @@ test('photos: a classmate whose family said No shows as initials in the chat', a
   const shown = await page.$$eval('img', (imgs) => imgs.map((i) => i.getAttribute('src') ?? ''));
   assert(!shown.some((src) => src.includes(photoFile)), "The classmate's photo is on student1's screen");
 
-  // The staff still see it.
+  /* The staff still see it. Asked for by address, which is theirs alone: the
+     search returns thirty people, and a first name shared by more than that
+     leaves the classmate off the list in some seeds. */
   const staff = await apiAs(
     page,
     'ADMIN',
-    `/messaging/contacts?search=${encodeURIComponent(classmate.firstName)}`,
+    `/messaging/contacts?search=${encodeURIComponent(classmate.email ?? classmate.lastName)}`,
   );
   assert(JSON.stringify(staff ?? '').includes(photoFile), 'the staff lost the photo too');
   await ctx.close();
