@@ -265,3 +265,60 @@ describe("printing that fails", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(3);
   });
 });
+/** Money and privacy each keep a card back with their own words. */
+describe("a card kept back", () => {
+  const refusal = (data: object) => ({
+    ...routes,
+    "/reports/term/student-1": () => {
+      const e: any = new Error("403");
+      e.response = { status: 403, data };
+      throw e;
+    },
+  });
+
+  it("names the fees when the card is withheld over money", async () => {
+    serve(h.api, refusal({
+      reason: "FEES_OUTSTANDING",
+      message: "The term's fees are not settled.",
+      detail: { balance: 150000 },
+    }));
+    mount();
+    await chooseTerm();
+    expect(
+      await screen.findByText(/held until the school fees are settled/),
+    ).toBeInTheDocument();
+    expect(document.querySelector('a[href="/parent/fees"]')).toBeTruthy();
+  });
+
+  it("says so when the card is not issued yet", async () => {
+    serve(h.api, refusal({ message: "Not issued" }));
+    mount();
+    await chooseTerm();
+    expect(
+      await screen.findByText("This report card has not been issued yet"),
+    ).toBeInTheDocument();
+  });
+
+  it("will not print before a term is chosen", async () => {
+    mount();
+    await screen.findByLabelText("Select Year");
+    const year = screen.getByLabelText("Select Year");
+    await waitFor(() =>
+      expect(
+        Array.from((year as HTMLSelectElement).options).some((o) => o.value),
+      ).toBe(true),
+    );
+    await act(async () => {
+      fireEvent.change(year, { target: { value: academicYear.id } });
+    });
+    const print = screen.queryByRole("button", { name: /Print/ });
+    if (print) {
+      await act(async () => {
+        fireEvent.click(print);
+      });
+    }
+    expect(
+      h.api.get.mock.calls.some((c: unknown[]) => String(c[0]).endsWith("/html")),
+    ).toBe(false);
+  });
+});
