@@ -1452,7 +1452,7 @@ export class ReportsService implements OnModuleDestroy {
   async exportDatasetCsv(
     dataset: string,
   ): Promise<{ filename: string; csv: string }> {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = schoolDay().toISOString().slice(0, 10);
     const filename = `${dataset}_export_${date}.csv`;
 
     const userRow = (u: any) => ({

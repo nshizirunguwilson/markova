@@ -423,6 +423,19 @@ describe('AttendanceService', () => {
       );
     });
 
+    /* 00:30 in Kigali is 22:30 UTC the day before, and toISOString() is
+       always UTC: the scan was filed under yesterday. */
+    it('files a scan just after midnight in Kigali under that day', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-08-19T22:30:00Z'));
+      await service.processQrScan(
+        { qrData: 'STD-2026-001', classSectionId: 'section-1' },
+        'teacher-1',
+      );
+      expect(prisma.attendance.create.mock.calls[0][0].data.date).toEqual(
+        new Date('2026-08-20T00:00:00.000Z'),
+      );
+    });
+
     // A subject register is taken at whatever time that lesson runs, so the
     // daily cutoff has no business being applied to it.
     it('never calls a subject scan late', async () => {
