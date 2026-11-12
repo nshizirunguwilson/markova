@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({
 import { renderWithProviders } from "@/test/harness";
 import { screen, waitFor } from "@testing-library/react";
 import LoginPage from "./page";
+import { useAuthStore } from "@/stores/auth-store";
 
 const tokens = {
   accessToken: "access-token",
@@ -83,6 +84,37 @@ describe("login form", () => {
     await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
     expect(localStorage.getItem("access_token")).toBe("access-token");
     expect(localStorage.getItem("refresh_token")).toBe("refresh-token");
+  });
+
+  /* The sign in answers with the bare record. A student's own pages ask by
+     student id, which only the profile carries: without it somebody who had
+     just signed in saw "No attendance records found" until they reloaded. */
+  it("goes in knowing the student record, not only the login", async () => {
+    h.api.post.mockResolvedValue({
+      data: { ...tokens, user: { ...tokens.user, role: "STUDENT" } },
+    });
+    h.api.get.mockResolvedValue({
+      data: { id: "u-1", role: "STUDENT", studentId: "student-1", classSectionId: "section-1" },
+    });
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("student1@markova.edu", "Password123!");
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/student"));
+    expect(h.api.get).toHaveBeenCalledWith("/auth/profile");
+    expect(useAuthStore.getState().user).toMatchObject({
+      firstName: "Aline",
+      studentId: "student-1",
+      classSectionId: "section-1",
+    });
+  });
+
+  // The profile is a courtesy on the way in, not a second gate.
+  it("still goes in when the profile cannot be read", async () => {
+    h.api.post.mockResolvedValue({ data: tokens });
+    h.api.get.mockRejectedValue(new Error("down"));
+    renderWithProviders(<LoginPage />);
+    await fillAndSubmit("aline.uwase@markova.edu", "Password123!");
+    await waitFor(() => expect(h.router.push).toHaveBeenCalledWith("/teacher"));
+    expect(useAuthStore.getState().user).toMatchObject({ id: "u-1" });
   });
 
   it.each([
