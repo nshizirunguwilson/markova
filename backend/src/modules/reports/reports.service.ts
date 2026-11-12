@@ -2237,7 +2237,10 @@ export class ReportsService implements OnModuleDestroy {
       <div class="foot-note">${
         isALevel
           ? 'Competence follows the practical mark: 70% and above = Competent. All modules are graded on the core scale.'
-          : 'Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded.'
+          : /* The second sentence is the rule the totals actually follow
+               (computeSubjectTotal): mid-term, with no exam yet, 67 and 63
+               print as 65, which the formula alone could not explain. */
+            'Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded. Until every assessment is marked, the total is worked out from those that are, in the same proportions.'
       }</div>
 
       <div class="summary">${summary}</div>
