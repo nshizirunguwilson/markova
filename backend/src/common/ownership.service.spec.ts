@@ -45,6 +45,65 @@ describe('OwnershipService', () => {
       expect(prisma.parentStudent.findFirst).not.toHaveBeenCalled();
     });
 
+    describe('a teacher reading results', () => {
+      const read = () =>
+        service.verifyStudentAccess(
+          mockTeacher.id,
+          'TEACHER',
+          studentId,
+          'results',
+        );
+
+      beforeEach(() => {
+        prisma.student.findUnique.mockResolvedValue({
+          classSectionId: 'section-1',
+        });
+        prisma.teacher.findFirst.mockResolvedValue({ id: 'teacher-1' });
+        prisma.teacherRole.findFirst.mockResolvedValue(null);
+        prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
+      });
+
+      it('reads a pupil in a class they teach', async () => {
+        prisma.teacherSubjectClass.findFirst.mockResolvedValue({ id: 'tsc' });
+        await expect(read()).resolves.toBeUndefined();
+        expect(prisma.teacherSubjectClass.findFirst).toHaveBeenCalledWith({
+          where: { teacherId: 'teacher-1', classSectionId: 'section-1' },
+          select: { id: true },
+        });
+      });
+
+      it('reads a pupil in the class they lead, or any as DOS or HOD', async () => {
+        prisma.teacherRole.findFirst.mockResolvedValue({ id: 'duty' });
+        await expect(read()).resolves.toBeUndefined();
+        expect(prisma.teacherRole.findFirst).toHaveBeenCalledWith({
+          where: {
+            teacherId: 'teacher-1',
+            OR: [
+              { role: { in: ['DOS', 'HOD'] } },
+              { role: 'CLASS_TEACHER', classSectionId: 'section-1' },
+            ],
+          },
+          select: { id: true },
+        });
+      });
+
+      it('is refused a pupil in a class that is not theirs', async () => {
+        await expect(read()).rejects.toThrow(
+          'You can read the results only of pupils in a class you teach',
+        );
+      });
+
+      it('is refused with no teacher record at all', async () => {
+        prisma.teacher.findFirst.mockResolvedValue(null);
+        await expect(read()).rejects.toThrow(ForbiddenException);
+      });
+
+      it('leaves an unknown pupil to the route', async () => {
+        prisma.student.findUnique.mockResolvedValue(null);
+        await expect(read()).resolves.toBeUndefined();
+      });
+    });
+
     it('should allow STUDENT accessing their own studentId', async () => {
       prisma.student.findFirst.mockResolvedValue({ id: studentId });
 
