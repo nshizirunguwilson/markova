@@ -6402,7 +6402,10 @@ async function seedPeopleInSeveralSchools(
     where: {
       schoolId: firstSchoolId,
       role: Role.PARENT,
-      phone: { not: '+250788100000' },
+      /* Not the demo parent, and not the parent of the student of 18: this
+         block gives whoever it picks a new number, and theirs are how the
+         other two demos are found. */
+      phone: { notIn: ['+250788100000', '+250788199999'] },
     },
     orderBy: { code: 'asc' },
     include: { account: true },
