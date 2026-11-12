@@ -66,23 +66,46 @@ describe('AuditLogInterceptor', () => {
       },
     );
 
-    // Only the paths where a change matters to a person's record.
-    it('writes nothing for a path nobody needs a trail of', async () => {
-      await run({
-        method: 'POST',
-        url: '/api/library/books',
-        user: { id: 'u-1' },
-      });
+    /*
+      Every write to a school record leaves a trail. Only marks, attendance,
+      discipline and users used to, so a payment or a clinic visit was a
+      change nobody could trace to a person.
+    */
+    it.each([
+      ['/api/finance/payments', 'finance/payments'],
+      ['/api/clinic/visits', 'clinic/visits'],
+      ['/api/pocket-money/deposit', 'pocket-money/deposit'],
+      ['/api/library/books', 'library/books'],
+      ['/api/marks', 'marks'],
+    ])('writes for a change under %s', async (url, entityType) => {
+      const { entry } = await run({ method: 'POST', url, user: { id: 'u-1' } });
+      expect(entry.entityType).toBe(entityType);
+    });
+
+    // Nobody is signed in yet on the sign-in machinery, the public
+    // admissions form keeps its own event trail, and a read receipt is
+    // somebody looking, not something changing.
+    it.each([
+      '/api/auth/login',
+      '/api/auth/verify-otp',
+      '/api/auth/refresh',
+      '/api/auth/request-reset',
+      '/api/admissions/public/applications',
+      '/api/messaging/read',
+      '/api/notifications/read-all',
+    ])('writes nothing for %s', async (url) => {
+      await run({ method: 'POST', url, user: { id: 'u-1' } });
       expect(create).not.toHaveBeenCalled();
     });
 
-    it.each(['marks', 'attendance', 'discipline', 'users'])(
-      'writes for a change under %s',
-      async (path) => {
-        await run({ method: 'POST', url: `/api/${path}`, user: { id: 'u-1' } });
-        expect(create).toHaveBeenCalled();
-      },
-    );
+    it('still writes for the auth routes a signed-in person uses', async () => {
+      const { entry } = await run({
+        method: 'POST',
+        url: '/api/auth/change-password',
+        user: { id: 'u-1' },
+      });
+      expect(entry.entityType).toBe('auth/change-password');
+    });
 
     it('falls back to the socket address behind a proxy', async () => {
       const { entry } = await run({
@@ -127,16 +150,16 @@ describe('AuditLogInterceptor', () => {
         user: { id: 'u-1' },
         params: { id: 'inc-1' },
       });
-      expect(entry.entityType).toBe('discipline');
+      expect(entry.entityType).toBe('discipline/incidents');
     });
 
-    it('names the last sensitive segment when a path has two', async () => {
+    it('keeps ids out of the name when only the raw url is known', async () => {
       const { entry } = await run({
         method: 'POST',
         url: '/api/users/u-9/attendance',
         user: { id: 'u-1' },
       });
-      expect(entry.entityType).toBe('attendance');
+      expect(entry.entityType).toBe('users/attendance');
     });
   });
 

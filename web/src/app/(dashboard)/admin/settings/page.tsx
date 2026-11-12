@@ -56,16 +56,17 @@ export default function SettingsPage() {
         />
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar tabs */}
-        <div className="w-52 shrink-0">
-          <nav className="space-y-1">
+      <div className="flex flex-col gap-6 md:flex-row">
+        {/* The tabs: a column beside the page from a tablet up, and a strip
+            above it on a phone, where a 208px column left the form 120px. */}
+        <div className="min-w-0 md:w-52 md:shrink-0">
+          <nav className="flex gap-1 overflow-x-auto md:block md:space-y-1">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors md:w-full",
                   activeTab === tab.key
                     ? "bg-accent text-primary"
                     : "text-muted hover:bg-accent-light hover:text-foreground"

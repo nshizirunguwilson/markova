@@ -12,18 +12,25 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  LoadFailed,
 } from "@/components/ui";
 import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToday, daysFromToday } from "@/hooks/use-today";
+import { day } from "@/lib/dates";
 
 export default function StudentLibraryPage() {
   const today = useToday();
   const [tab, setTab] = useState<"loans" | "catalog">("loans");
   const [search, setSearch] = useState("");
   const { data: myLoans, isLoading: loadingLoans } = useMyLoans();
-  const { data: books, isLoading: loadingBooks } = useBooks(
+  const {
+    data: books,
+    isLoading: loadingBooks,
+    isError: booksFailed,
+    refetch: reloadBooks,
+  } = useBooks(
     search ? { search } : undefined,
   );
 
@@ -88,7 +95,7 @@ export default function StudentLibraryPage() {
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-muted">
-                              Due: {new Date(loan.dueDate).toLocaleDateString()}
+                              {loan.copy?.copyNumber ? `Copy ${loan.copy.copyNumber} · ` : ""}Due: {day(loan.dueDate)}
                             </p>
                             {isOverdue ? (
                               <Badge variant="danger">
@@ -136,11 +143,11 @@ export default function StudentLibraryPage() {
                               {loan.book?.title ?? "Unknown book"}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {new Date(loan.checkedOutAt).toLocaleDateString()}
+                              {day(loan.checkedOutAt)}
                             </TableCell>
                             <TableCell className="text-sm">
                               {loan.returnedAt
-                                ? new Date(loan.returnedAt).toLocaleDateString()
+                                ? day(loan.returnedAt)
                                 : "-"}
                             </TableCell>
                             <TableCell>
@@ -186,6 +193,8 @@ export default function StudentLibraryPage() {
             <div className="flex justify-center py-12">
               <Spinner size="lg" />
             </div>
+          ) : booksFailed ? (
+            <LoadFailed what="the books" onRetry={() => reloadBooks()} />
           ) : books?.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book: any) => (

@@ -15,6 +15,7 @@ import {
   VisitQueryDto,
 } from './dto';
 import { assertParentMaySee } from '../../common/parent-sharing';
+import { mustExist } from '../../common/must-exist';
 
 /**
  * The sick bay.
@@ -216,6 +217,9 @@ export class ClinicService {
   }
 
   async findVisits(query: VisitQueryDto) {
+    if (query.studentId) {
+      await mustExist(this.prisma.student, query.studentId, 'Student');
+    }
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -322,6 +326,7 @@ export class ClinicService {
 
   /** Everything given to one student, newest first. */
   async medicationFor(studentId: string, limit = 50) {
+    await mustExist(this.prisma.student, studentId, 'Student');
     return this.prisma.medicationAdministration.findMany({
       where: { studentId },
       include: { givenBy: this.staffBrief },

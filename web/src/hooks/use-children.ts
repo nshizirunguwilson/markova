@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useChildStore } from "@/stores/child-store";
 
 export interface MyChild {
   id: string;
@@ -34,4 +35,20 @@ export function useMyChildren() {
         }));
     },
   });
+}
+
+/**
+ * Which of the parent's children a page shows, and how to change it.
+ *
+ * The choice is shared by every parent page. Until the parent makes one, or
+ * when the one held is not among these children, it falls to the first:
+ * most parents have a single child and the page should be useful at once.
+ */
+export function useChosenChild(
+  children: { id: string }[] | undefined,
+): [string, (id: string) => void] {
+  const held = useChildStore((s) => s.childId);
+  const choose = useChildStore((s) => s.choose);
+  const mine = held && children?.some((c) => c.id === held) ? held : null;
+  return [mine ?? children?.[0]?.id ?? "", choose];
 }

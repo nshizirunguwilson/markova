@@ -35,7 +35,11 @@ describe('ClinicService', () => {
       count: jest.fn(),
     },
     studentHealthRecord: { upsert: jest.fn() },
-    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    student: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }),
+    },
     parentStudent: { findFirst: jest.fn() },
   };
 
@@ -656,7 +660,11 @@ describe('acting on a visit that is gone', () => {
       count: jest.fn(),
     },
     studentHealthRecord: { upsert: jest.fn() },
-    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    student: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }),
+    },
     parentStudent: { findFirst: jest.fn() },
   };
 
@@ -714,7 +722,11 @@ describe('the clinic summary over its default window', () => {
       count: jest.fn(),
     },
     studentHealthRecord: { upsert: jest.fn() },
-    student: { findUnique: jest.fn(), findMany: jest.fn() },
+    student: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }),
+    },
     parentStudent: { findFirst: jest.fn() },
   };
 

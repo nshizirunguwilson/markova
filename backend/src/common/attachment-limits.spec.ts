@@ -97,4 +97,11 @@ describe('why a file was too large', () => {
   it('calls a document a document rather than an application', () => {
     expect(tooLargeMessage('application/pdf', 30 * MB)).toContain('A document');
   });
+
+  // A file that arrives with no type at all is held to the document
+  // ceiling, not waved by.
+  it('treats a missing type as a document', () => {
+    expect(tooLargeMessage('', 30 * MB)).toContain('A document');
+    expect(maxBytesFor('')).toBe(maxBytesFor('application/pdf'));
+  });
 });

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { DATE_LOCALE } from "@/lib/dates";
 
 export default function StudentAttendancePage() {
   const { user } = useAuthStore();
@@ -52,7 +53,7 @@ export default function StudentAttendancePage() {
     return days;
   }, [data, viewDate]);
 
-  const monthName = viewDate.toLocaleString("default", {
+  const monthName = viewDate.toLocaleString(DATE_LOCALE, {
     month: "long",
     year: "numeric",
   });
@@ -92,6 +93,13 @@ export default function StudentAttendancePage() {
               <p className="text-xs text-muted">Absent</p>
               <p className="text-2xl font-bold text-danger">{data.absent}</p>
             </Card>
+            {/* Days the school excused: counted apart, not in the rate. */}
+            {data.excused > 0 && (
+              <Card>
+                <p className="text-xs text-muted">Excused</p>
+                <p className="text-2xl font-bold text-info">{data.excused}</p>
+              </Card>
+            )}
           </div>
 
           {/* Calendar View */}
@@ -133,7 +141,9 @@ export default function StudentAttendancePage() {
                             ? "bg-warning-wash text-warning"
                             : cell.status === "ABSENT"
                               ? "bg-danger-wash text-danger"
-                              : "bg-surface text-muted"
+                              : cell.status === "EXCUSED"
+                                ? "bg-info-wash text-info"
+                                : "bg-surface text-muted"
                     }`}
                   >
                     {cell?.day && (
@@ -161,6 +171,9 @@ export default function StudentAttendancePage() {
               </span>
               <span className="flex items-center gap-1">
                 <div className="h-3 w-3 rounded bg-danger/20" /> Absent
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="h-3 w-3 rounded bg-info/20" /> Excused
               </span>
             </div>
           </Card>

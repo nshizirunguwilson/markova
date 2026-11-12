@@ -8,7 +8,10 @@ import {
   Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { OpenToFormerStudents } from '../../common/decorators';
+import {
+  OpenBeforePasswordChange,
+  OpenToFormerStudents,
+} from '../../common/decorators';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withPlatform } from '../../prisma/request-context';
@@ -45,7 +48,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  /* A few tries per account per address, and an outer cap per address so
+     one place cannot work through every account in the school. */
+  @Throttle({
+    default: { ttl: 60000, limit: 10 },
+    address: { ttl: 60000, limit: 200 },
+  })
   @ApiOperation({ summary: 'Login with email/phone and password' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
@@ -56,7 +64,12 @@ export class AuthController {
   }
 
   @Post('verify-otp')
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  /* A few tries per account per address, and an outer cap per address so
+     one place cannot work through every account in the school. */
+  @Throttle({
+    default: { ttl: 60000, limit: 10 },
+    address: { ttl: 60000, limit: 200 },
+  })
   @ApiOperation({ summary: 'Verify OTP to complete login' })
   async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
     const ipAddress = req.ip || req.socket.remoteAddress;
@@ -81,6 +94,7 @@ export class AuthController {
   }
 
   @Post('change-password')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password (requires current password)' })
@@ -92,7 +106,12 @@ export class AuthController {
   }
 
   @Post('request-reset')
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  /* A few tries per account per address, and an outer cap per address so
+     one place cannot work through every account in the school. */
+  @Throttle({
+    default: { ttl: 60000, limit: 5 },
+    address: { ttl: 60000, limit: 200 },
+  })
   @ApiOperation({ summary: 'Request password reset via email or SMS' })
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
     return withPlatform(() => this.authService.requestPasswordReset(dto));
@@ -105,6 +124,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current session or all sessions' })
@@ -180,6 +200,7 @@ export class AuthController {
   }
 
   @Get('profile')
+  @OpenBeforePasswordChange()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })

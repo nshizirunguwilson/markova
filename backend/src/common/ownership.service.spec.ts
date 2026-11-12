@@ -90,6 +90,28 @@ describe('OwnershipService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('lets the patron reach a boy and the matron a girl', async () => {
+      prisma.student.findFirst.mockResolvedValue({ gender: 'MALE' });
+      await expect(
+        service.verifyStudentAccess('u-1', 'PATRON', studentId, 'conduct'),
+      ).resolves.toBeUndefined();
+      prisma.student.findFirst.mockResolvedValue({ gender: 'FEMALE' });
+      await expect(
+        service.verifyStudentAccess('u-1', 'MATRON', studentId, 'conduct'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('refuses the patron a girl and the matron a boy', async () => {
+      prisma.student.findFirst.mockResolvedValue({ gender: 'FEMALE' });
+      await expect(
+        service.verifyStudentAccess('u-1', 'PATRON', studentId),
+      ).rejects.toThrow(ForbiddenException);
+      prisma.student.findFirst.mockResolvedValue({ gender: 'MALE' });
+      await expect(
+        service.verifyStudentAccess('u-1', 'MATRON', studentId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('should deny unknown role', async () => {
       await expect(
         service.verifyStudentAccess('some-user-id', 'LIBRARIAN', studentId),

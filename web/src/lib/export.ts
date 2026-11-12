@@ -60,7 +60,10 @@ export function exportCSV(options: ExportOptions) {
 
 export async function exportPDF(options: ExportOptions) {
   const { default: jsPDF } = await import("jspdf");
-  await import("jspdf-autotable");
+  /* A function since jspdf-autotable 5. It used to add autoTable to every
+     document as a side effect of the import, and calling it that way threw
+     "doc.autoTable is not a function" on every page with a PDF Table button. */
+  const { autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
@@ -74,7 +77,7 @@ export async function exportPDF(options: ExportOptions) {
     options.columns.map((col) => getValue(row, col.key))
   );
 
-  (doc as any).autoTable({
+  autoTable(doc, {
     head,
     body,
     startY: options.title ? 22 : 14,

@@ -38,6 +38,9 @@ export class HomeworkService {
         dueDate: new Date(dto.dueDate),
         maxMarks: dto.maxMarks,
         lateDeductionPerDay: dto.lateDeductionPerDay || 0,
+        // The sheet the work is set on, when the teacher attached one.
+        fileUrl: dto.fileUrl,
+        fileName: dto.fileName,
       },
       include: {
         subject: { select: { name: true } },
@@ -66,6 +69,11 @@ export class HomeworkService {
         ...(dto.maxMarks !== undefined && { maxMarks: dto.maxMarks }),
         ...(dto.lateDeductionPerDay !== undefined && {
           lateDeductionPerDay: dto.lateDeductionPerDay,
+        }),
+        /* An empty string takes the sheet off; undefined leaves it alone. */
+        ...(dto.fileUrl !== undefined && {
+          fileUrl: dto.fileUrl || null,
+          fileName: dto.fileUrl ? dto.fileName || null : null,
         }),
       },
     });
@@ -290,9 +298,23 @@ export class HomeworkService {
   // STUDENT QUERIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async getStudentHomework(studentId: string, classSectionId: string) {
+  /**
+   * The homework set for this student's own class.
+   *
+   * The class used to come from the request, and a request without one (or
+   * with a student id that matched nobody) had no class to filter on, so it
+   * returned every homework in the school.
+   */
+  async getStudentHomework(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId },
+      select: { classSectionId: true },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    if (!student.classSectionId) return [];
+
     const homeworks = await this.prisma.homework.findMany({
-      where: { classSectionId },
+      where: { classSectionId: student.classSectionId },
       include: {
         subject: { select: { name: true } },
         teacher: {

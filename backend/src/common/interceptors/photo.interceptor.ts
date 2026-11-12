@@ -30,8 +30,7 @@ export class PhotoInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
     const user = context.switchToHttp().getRequest().user as
-      | { id?: string; role?: string; schoolId?: string }
-      | undefined;
+      { id?: string; role?: string; schoolId?: string } | undefined;
     if (!user?.id || !user.schoolId || !heldToInApp(user.role)) {
       return next.handle();
     }

@@ -1,3 +1,4 @@
+import { TeacherDutiesService } from './teacher-duties.service';
 import { Module } from '@nestjs/common';
 import { AcademicController } from './academic.controller';
 import { AcademicService } from './academic.service';
@@ -7,7 +8,7 @@ import { CacheService } from '../../common/cache.service';
 @Module({
   imports: [PrismaModule],
   controllers: [AcademicController],
-  providers: [AcademicService, CacheService],
+  providers: [AcademicService, TeacherDutiesService, CacheService],
   exports: [AcademicService],
 })
 export class AcademicModule {}

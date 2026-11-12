@@ -41,8 +41,8 @@ export class PocketMoneyController {
   @Get('overview')
   @Roles('ADMIN', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Every account, with what the school is holding' })
-  overview(@Query() query: PocketMoneyQueryDto) {
-    return this.service.overview(query);
+  overview(@Query() query: PocketMoneyQueryDto, @CurrentUser() user: any) {
+    return this.service.overview(query, user.role);
   }
 
   @Post('lookup')
@@ -50,8 +50,10 @@ export class PocketMoneyController {
   @ApiOperation({
     summary: 'Find an account from a scanned card or a typed student number',
   })
-  lookup(@Body() dto: LookupDto) {
-    return this.service.findByIdentifier(dto.identifier);
+  async lookup(@Body() dto: LookupDto, @CurrentUser() user: any) {
+    const account = await this.service.findByIdentifier(dto.identifier);
+    await this.service.assertSide(user.role, account.studentId);
+    return account;
   }
 
   @Get('student/:studentId')
@@ -80,7 +82,8 @@ export class PocketMoneyController {
   @Post('deposit')
   @Roles('ADMIN', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Take money in from a parent' })
-  deposit(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+  async deposit(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+    await this.service.assertSide(user.role, dto.studentId);
     return this.service.deposit(
       dto.studentId,
       dto.amount,
@@ -93,14 +96,16 @@ export class PocketMoneyController {
   @Post('withdraw')
   @Roles('ADMIN', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Pay money out to a student at the counter' })
-  withdraw(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+  async withdraw(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+    await this.service.assertSide(user.role, dto.studentId);
     return this.service.withdraw(dto.studentId, dto.amount, dto.note, user.id);
   }
 
   @Post('refund')
   @Roles('ADMIN', 'PATRON', 'MATRON')
   @ApiOperation({ summary: 'Return the remaining balance to the family' })
-  refund(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+  async refund(@Body() dto: MoneyMovementDto, @CurrentUser() user: any) {
+    await this.service.assertSide(user.role, dto.studentId);
     return this.service.refund(dto.studentId, dto.amount, dto.note, user.id);
   }
 
@@ -109,7 +114,8 @@ export class PocketMoneyController {
   @ApiOperation({
     summary: 'Undo an entry with a second entry, leaving the original intact',
   })
-  reverse(@Body() dto: ReverseTransactionDto, @CurrentUser() user: any) {
+  async reverse(@Body() dto: ReverseTransactionDto, @CurrentUser() user: any) {
+    await this.service.assertSideOfEntry(user.role, dto.transactionId);
     return this.service.reverse(dto.transactionId, dto.reason, user.id);
   }
 

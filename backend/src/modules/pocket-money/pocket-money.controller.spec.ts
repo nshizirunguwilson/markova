@@ -28,12 +28,15 @@ describe('PocketMoneyController', () => {
     'refund',
     'reverse',
     'updateLimits',
+    'assertSide',
+    'assertSideOfEntry',
   ]);
 
   let run: (c: RouteCase) => Promise<void>;
 
   beforeEach(async () => {
     clearMocks(service);
+    service.findByIdentifier.mockResolvedValue({ studentId: 'student-1' });
     run = await controllerHarness(PocketMoneyController, [
       { token: PocketMoneyService, name: 'service', mock: service },
     ]);
@@ -48,15 +51,15 @@ describe('PocketMoneyController', () => {
   const cases: RouteCase[] = [
     {
       name: 'the roll of every account',
-      call: (c) => c.overview({ page: 2, limit: 25 }),
+      call: (c) => c.overview({ page: 2, limit: 25 }, admin),
       calls: 'overview',
-      withArgs: [{ page: 2, limit: 25 }],
+      withArgs: [{ page: 2, limit: 25 }, 'ADMIN'],
     },
     {
       // The field is `identifier`, and sending anything else is a 400 on every
       // scan. That is not hypothetical: the phone did exactly that.
       name: 'a card scan resolves to a student',
-      call: (c) => c.lookup({ identifier: 'STD-2025-231419-167' }),
+      call: (c) => c.lookup({ identifier: 'STD-2025-231419-167' }, admin),
       calls: 'findByIdentifier',
       withArgs: ['STD-2025-231419-167'],
     },
@@ -158,5 +161,19 @@ describe('PocketMoneyController', () => {
       ).rejects.toThrow();
       expect(service.getAccount).not.toHaveBeenCalled();
     });
+  });
+
+  /* The patron serves the boys and the matron the girls. The check runs
+     before any money moves, and on the entry's own student for a reversal. */
+  it('checks the boarding side before money moves', async () => {
+    const patron = { ...admin, role: 'PATRON' };
+    const c = () => new PocketMoneyController(service as any);
+    await c().deposit(money, patron);
+    await c().withdraw(money, patron);
+    await c().refund(money, patron);
+    expect(service.assertSide).toHaveBeenCalledTimes(3);
+    expect(service.assertSide).toHaveBeenCalledWith('PATRON', 'student-1');
+    await c().reverse({ transactionId: 't-1', reason: 'Wrong side' }, patron);
+    expect(service.assertSideOfEntry).toHaveBeenCalledWith('PATRON', 't-1');
   });
 });

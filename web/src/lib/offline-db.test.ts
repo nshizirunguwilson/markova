@@ -5,9 +5,12 @@ import { IDBFactory } from "fake-indexeddb";
 import {
   clearPendingMarks,
   deletePendingMark,
+  deletePendingRegister,
   getPendingCount,
   getPendingMarks,
+  getPendingRegisters,
   savePendingMarks,
+  savePendingRegister,
 } from "./offline-db";
 
 /**
@@ -327,5 +330,49 @@ describe("the offline queue on a shared computer", () => {
     );
     sessionStorage.clear();
     expect(await getPendingCount("teacher-1")).toBe(0);
+  });
+});
+
+/* A register taken during a network drop was lost, because only marks were
+   kept on the device. Registers now have a queue of their own. */
+describe("registers taken offline", () => {
+  const register = (studentId: string) => ({
+    classSectionId: "section-1",
+    date: "2026-11-11",
+    type: "daily",
+    records: [{ studentId, status: "PRESENT" }],
+  });
+
+  it("keeps a register and gives it back", async () => {
+    await savePendingRegister(register("student-1"), "user-1");
+    const kept = await getPendingRegisters("user-1");
+    expect(kept).toHaveLength(1);
+    expect(kept[0].records[0].studentId).toBe("student-1");
+  });
+
+  it("keeps registers apart from marks", async () => {
+    await savePendingRegister(register("student-1"));
+    expect(await getPendingCount()).toBe(0);
+  });
+
+  it("shows a register only to the school record that took it", async () => {
+    await savePendingRegister(register("student-1"), "user-1");
+    expect(await getPendingRegisters("user-2")).toHaveLength(0);
+  });
+
+  it("takes one out once it is saved", async () => {
+    await savePendingRegister(register("student-1"));
+    await savePendingRegister(register("student-2"));
+    const [first] = await getPendingRegisters();
+    await deletePendingRegister(first.id);
+    expect(await getPendingRegisters()).toHaveLength(1);
+  });
+
+  it("empties with the marks on signing out of a shared computer", async () => {
+    await savePendingRegister(register("student-1"));
+    await savePendingMarks(marks("student-1", 14));
+    await clearPendingMarks();
+    expect(await getPendingRegisters()).toHaveLength(0);
+    expect(await getPendingCount()).toBe(0);
   });
 });

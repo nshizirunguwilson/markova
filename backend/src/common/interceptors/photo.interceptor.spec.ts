@@ -33,7 +33,9 @@ describe('PhotoInterceptor', () => {
       parentStudent: {
         findMany: jest
           .fn()
-          .mockResolvedValue(children.map((userId) => ({ student: { userId } }))),
+          .mockResolvedValue(
+            children.map((userId) => ({ student: { userId } })),
+          ),
       },
     };
     const context = {
@@ -88,5 +90,31 @@ describe('PhotoInterceptor', () => {
   it('leaves a reply alone for nobody signed in', async () => {
     const { out } = await run(undefined);
     expect(photos(out)[0]).toBe('/kept.jpg');
+  });
+
+  it('leaves socket traffic to the chat gateway', () => {
+    const handle = jest.fn(() => of('x'));
+    const context = { getType: () => 'ws' } as never;
+    new PhotoInterceptor({} as never).intercept(context, { handle });
+    expect(handle).toHaveBeenCalled();
+  });
+
+  it('asks nothing when the only photo is the viewer’s own', async () => {
+    const prisma = { student: { findMany: jest.fn() } };
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => ({
+          user: { id: 'me', role: 'STUDENT', schoolId: 's' },
+        }),
+      }),
+    } as never;
+    const out = await lastValueFrom(
+      new PhotoInterceptor(prisma as never).intercept(context, {
+        handle: () => of({ id: 'me', photoUrl: '/me.jpg' }),
+      }) as never,
+    );
+    expect(out).toEqual({ id: 'me', photoUrl: '/me.jpg' });
+    expect(prisma.student.findMany).not.toHaveBeenCalled();
   });
 });

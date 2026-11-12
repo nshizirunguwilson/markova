@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -77,8 +78,8 @@ export class MarksController {
   @Get()
   @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Query marks with filters' })
-  findAll(@Query() query: QueryMarksDto) {
-    return this.service.findAll(query);
+  findAll(@Query() query: QueryMarksDto, @CurrentUser() user: any) {
+    return this.service.findAll(query, user);
   }
 
   @Get('completion')
@@ -101,8 +102,8 @@ export class MarksController {
   @Get(':id')
   @Roles('HEAD_TEACHER', 'TEACHER')
   @ApiOperation({ summary: 'Get a single mark by ID' })
-  findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.service.findById(id);
+  findById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: any) {
+    return this.service.findById(id, user);
   }
 
   @Put(':id')
@@ -156,6 +157,9 @@ export class MarksController {
       studentId,
       'results',
     );
+    /* After whose student it is, so a family kept out hears that first. The
+       fee check reads one term's invoice, and without a term it crashed. */
+    if (!termId) throw new BadRequestException('Say which term');
     const withheld = await this.feeGate.withholdingFor(
       user.role,
       studentId,
@@ -306,6 +310,7 @@ export class MarksController {
       studentId,
       'results',
     );
+    if (!termId) throw new BadRequestException('Say which term');
     // A student or a parent sees the card only once the school has issued it,
     // which is a separate decision from releasing the marks. Staff always see
     // it: they have to read the thing before issuing it.

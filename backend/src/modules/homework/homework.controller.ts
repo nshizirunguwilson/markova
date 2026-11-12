@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -8,10 +9,32 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import * as fsModule from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import { schoolStorage, uploadUrl } from '../../common/uploads';
+import {
+  fileFilterFor,
+  filenameFor,
+  removeStoredFile,
+  validateUploadedAttachment,
+} from '../../common/file-validation';
+import {
+  MAX_ANY_ATTACHMENT_BYTES,
+  maxBytesFor,
+  tooLargeMessage,
+} from '../../common/attachment-limits';
 import { HomeworkService } from './homework.service';
 import { OwnershipService } from '../../common/ownership.service';
 import {
@@ -25,6 +48,8 @@ import { Roles } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+const SHEET_REFUSAL = 'That kind of file cannot be set as homework';
+
 @ApiTags('Homework')
 @Controller('homework')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -34,6 +59,44 @@ export class HomeworkController {
     private readonly service: HomeworkService,
     private readonly ownership: OwnershipService,
   ) {}
+
+  /**
+   * The sheet a piece of work is set on: a past paper, a worksheet, a
+   * reading. Uploaded first, then named in the create or update. The same
+   * files, caps and checks as a chat attachment; the file lands in the
+   * school's attachments folder either way.
+   */
+  @Post('upload')
+  @Roles('ADMIN', 'TEACHER')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: schoolStorage(
+        'attachments',
+        filenameFor('attachment', uuidv4, SHEET_REFUSAL),
+      ),
+      fileFilter: fileFilterFor('attachment', SHEET_REFUSAL),
+      limits: { fileSize: MAX_ANY_ATTACHMENT_BYTES },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload the sheet a piece of work is set on' })
+  uploadSheet(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('schoolId') schoolId: string,
+  ) {
+    if (!file) throw new BadRequestException('No file was sent');
+    if (file.size > maxBytesFor(file.mimetype)) {
+      removeStoredFile(file.path, fsModule, (p) => p);
+      throw new BadRequestException(tooLargeMessage(file.mimetype, file.size));
+    }
+    // It has to be what it said it was: /uploads serves by extension.
+    validateUploadedAttachment(file.path, file.mimetype);
+    return {
+      fileUrl: uploadUrl(schoolId, 'attachments', file.filename),
+      fileName: file.originalname,
+      size: file.size,
+    };
+  }
 
   @Post()
   @Roles('ADMIN', 'TEACHER')
@@ -105,7 +168,6 @@ export class HomeworkController {
   @ApiOperation({ summary: 'Get homework for a student' })
   async getStudentHomework(
     @Param('studentId', ParseUUIDPipe) studentId: string,
-    @Query('classSectionId') classSectionId: string,
     @CurrentUser() user: any,
   ) {
     await this.ownership.verifyStudentAccess(
@@ -114,6 +176,8 @@ export class HomeworkController {
       studentId,
       'results',
     );
-    return this.service.getStudentHomework(studentId, classSectionId);
+    // The class comes from the student, never from the request. A
+    // classSectionId the screens still send is ignored.
+    return this.service.getStudentHomework(studentId);
   }
 }

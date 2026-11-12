@@ -162,6 +162,9 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
+  /// An absence the school has accepted: sick, a family matter, or leave it
+  /// gave. Counted apart from ABSENT everywhere (src/common/attendance-count.ts).
+  EXCUSED
 }
 
 enum AbsenceReason {
@@ -177,6 +180,15 @@ enum LoanStatus {
   OVERDUE
   LOST
   DAMAGED
+}
+
+/// What has become of one physical copy of a book.
+enum CopyStanding {
+  ON_THE_SHELF
+  LOST
+  DAMAGED
+  /// Taken out of service: worn out, or the school cut the holding down.
+  RETIRED
 }
 
 enum DisciplineAction {
@@ -267,6 +279,7 @@ model School {
   disciplineIncidents       DisciplineIncident[]
   disciplineAppeals         DisciplineAppeal[]
   books                     Book[]
+  bookCopies                 BookCopy[]
   bookLoans                 BookLoan[]
   homeworks                 Homework[]
   homeworkSubmissions       HomeworkSubmission[]
@@ -738,7 +751,10 @@ model Student {
   // back to life when it is found. Revoking destroys the code instead.
   cardSuspendedAt   DateTime?     @map("card_suspended_at")
   status            StudentStatus @default(ACTIVE)
-  disciplinePoints  Int           @default(100) @map("discipline_points")
+  /// Starts on the term's full conduct mark (TERM_CONDUCT_MARK). It was 100,
+  /// from before conduct was marked out of 40, so a student created without
+  /// naming it stood above the full mark.
+  disciplinePoints  Int           @default(40) @map("discipline_points")
   /// From 18 a student decides what their parents see (A8 in
   /// docs/STUDENT-LIFE-DESIGN.md). Everything is shared until they say
   /// otherwise; fees are always shared with whoever pays.
@@ -1226,7 +1242,8 @@ model Book {
   replacementCost Float?  @map("replacement_cost")
   isActive        Boolean @default(true) @map("is_active")
 
-  loans BookLoan[]
+  loans  BookLoan[]
+  copies BookCopy[]
 
   @@unique([schoolId, isbn])
   @@unique([schoolId, barcode])
@@ -1235,11 +1252,34 @@ model Book {
   @@map("books")
 }
 
+/// One physical copy of a title, so the school can say which copy a student
+/// is holding, not just how many are out. Numbered per book: "Copy 3 of
+/// Physics for Rwanda". The book's quantity and availableCount are kept as
+/// counters over these.
+model BookCopy {
+  id         String       @id @default(uuid())
+  schoolId   String       @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  bookId     String       @map("book_id")
+  copyNumber Int          @map("copy_number")
+  standing   CopyStanding @default(ON_THE_SHELF)
+
+  book  Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  loans BookLoan[]
+
+  @@unique([bookId, copyNumber])
+  @@index([schoolId])
+  @@map("book_copies")
+}
+
 model BookLoan {
   id              String     @id @default(uuid())
   schoolId        String     @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
   school          School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   bookId          String     @map("book_id")
+  /// Which physical copy went out. Null only on loans from before copies
+  /// were tracked.
+  copyId          String?    @map("copy_id")
   borrowerUserId  String     @map("borrower_user_id")
   checkedOutAt    DateTime   @default(now()) @map("checked_out_at")
   dueDate         DateTime   @map("due_date")
@@ -1247,8 +1287,9 @@ model BookLoan {
   status          LoanStatus @default(ACTIVE)
   replacementCost Float?     @map("replacement_cost")
 
-  book     Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  borrower User @relation(fields: [borrowerUserId], references: [id], onDelete: Cascade)
+  book     Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  copy     BookCopy? @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  borrower User      @relation(fields: [borrowerUserId], references: [id], onDelete: Cascade)
 
   @@index([bookId])
   @@index([borrowerUserId])
@@ -1286,6 +1327,10 @@ model Homework {
   dueDate             DateTime       @map("due_date")
   maxMarks            Float?         @map("max_marks")
   lateDeductionPerDay Float?         @default(0) @map("late_deduction_per_day")
+  /// The sheet the work is set on: a past paper, a worksheet, a reading.
+  fileUrl             String?        @map("file_url")
+  /// The name the teacher's file had, shown instead of the uuid on disk.
+  fileName            String?        @map("file_name")
   createdAt           DateTime       @default(now()) @map("created_at")
 
   teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -1564,6 +1609,8 @@ model FaqArticle {
   category     String?
   displayOrder Int     @default(0) @map("display_order")
   isPublished  Boolean @default(true) @map("is_published")
+  /// Who the question is for. Empty means everyone.
+  audience     Role[]  @default([])
 
   @@index([category])
   @@index([schoolId])

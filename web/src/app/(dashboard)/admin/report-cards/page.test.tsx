@@ -744,10 +744,14 @@ describe("drafting a comment", () => {
   it("leaves the box usable when a draft cannot be written", async () => {
     await mount("TEACHER");
     await click(button(/^Write$/));
-    h.api.get.mockRejectedValue({
-      isAxiosError: true,
-      response: { status: 500, data: {} },
-    });
+    // Only the draft fails. Failing every request left a background refresh
+    // elsewhere on the page rejecting with nothing to catch it.
+    const answer = h.api.get.getMockImplementation()!;
+    h.api.get.mockImplementation((url: string, ...rest: unknown[]) =>
+      String(url).includes("comment-suggestions")
+        ? Promise.reject({ isAxiosError: true, response: { status: 500, data: {} } })
+        : answer(url, ...rest),
+    );
     await click(button(/Suggest/));
     await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
     expect(button(/^Save$/)).toBeTruthy();

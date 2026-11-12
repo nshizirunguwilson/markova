@@ -22,6 +22,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PocketMoneyModule } from './modules/pocket-money/pocket-money.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SchoolConfigModule } from './modules/school-config/school-config.module';
+import { SchoolsModule } from './modules/schools/schools.module';
 import { UsersModule } from './modules/users/users.module';
 import { JourneyModule } from './modules/journey/journey.module';
 import { SharingModule } from './modules/sharing/sharing.module';
@@ -67,6 +68,7 @@ const FEATURE_MODULES = [
   AnalyticsModule,
   HelpModule,
   HealthModule,
+  SchoolsModule,
 ];
 
 const meta = (module: unknown, key: string): unknown[] =>

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { Input, Button, Badge } from "@/components/ui";
 import { useAcademicYears, useCreateAcademicYear } from "@/hooks/use-academic";
 import { Plus, CheckCircle2 } from "lucide-react";
+import { day } from "@/lib/dates";
 
 export function StepAcademicYear() {
   const { data: years } = useAcademicYears();
@@ -30,7 +31,7 @@ export function StepAcademicYear() {
               <CheckCircle2 className="h-5 w-5 text-success" />
               <span className="font-medium">{y.name}</span>
               <span className="text-sm text-muted">
-                {new Date(y.startDate).toLocaleDateString()} - {new Date(y.endDate).toLocaleDateString()}
+                {day(y.startDate)} - {day(y.endDate)}
               </span>
               {y.isCurrent && <Badge variant="success">Current</Badge>}
             </div>

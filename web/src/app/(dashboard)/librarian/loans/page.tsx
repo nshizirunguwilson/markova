@@ -16,6 +16,7 @@ import { useActiveLoans, useOverdueLoans } from "@/hooks/use-library";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToday, daysFromToday } from "@/hooks/use-today";
+import { day } from "@/lib/dates";
 
 export default function LibrarianLoansPage() {
   const today = useToday();
@@ -67,6 +68,7 @@ export default function LibrarianLoansPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Book</TableHead>
+                <TableHead>Copy</TableHead>
                 <TableHead>Borrower</TableHead>
                 <TableHead>Checked Out</TableHead>
                 <TableHead>Due Date</TableHead>
@@ -83,14 +85,19 @@ export default function LibrarianLoansPage() {
                       <p className="font-medium">{loan.book?.title ?? "Unknown book"}</p>
                       <p className="text-xs text-muted">{loan.book?.author ?? ""}</p>
                     </TableCell>
+                    {/* Which physical copy: a dash on loans from before
+                        copies were tracked. */}
+                    <TableCell className="text-sm">
+                      {loan.copy?.copyNumber ?? "-"}
+                    </TableCell>
                     <TableCell>
                       {loan.borrower?.firstName ?? ""} {loan.borrower?.lastName ?? ""}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {new Date(loan.checkedOutAt).toLocaleDateString()}
+                      {day(loan.checkedOutAt)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {new Date(loan.dueDate).toLocaleDateString()}
+                      {day(loan.dueDate)}
                     </TableCell>
                     <TableCell>
                       {isOverdue ? (

@@ -33,6 +33,7 @@ describe('a student turning 18 (e2e)', () => {
   let parentId: string;
   let studentToken: string;
   let minor: { id: string; userId: string; email: string };
+  let termId: string;
 
   const api = () => request(app.getHttpServer());
 
@@ -106,6 +107,12 @@ describe('a student turning 18 (e2e)', () => {
     const school = await owner.school.findFirstOrThrow({
       where: { slug: 'markova-academy' },
     });
+    termId = (
+      await owner.term.findFirstOrThrow({
+        where: { schoolId: school.id, isCurrent: true },
+        select: { id: true },
+      })
+    ).id;
     const eighteenYearsAgo = new Date(schoolDay());
     eighteenYearsAgo.setUTCFullYear(eighteenYearsAgo.getUTCFullYear() - 18);
     const withParent = {
@@ -190,9 +197,9 @@ describe('a student turning 18 (e2e)', () => {
   });
 
   it('shows the parent everything while nothing is turned off', async () => {
-    await asParent(`/api/marks/term-results/student/${adult.id}`).expect((r) =>
-      expect(r.status).not.toBe(403),
-    );
+    await asParent(
+      `/api/marks/term-results/student/${adult.id}?termId=${termId}`,
+    ).expect(200);
     await asParent(
       `/api/attendance/student-summary?studentId=${adult.id}`,
     ).expect(200);
@@ -210,6 +217,7 @@ describe('a student turning 18 (e2e)', () => {
 
     it.each([
       ['marks', (id: string) => `/api/marks/term-results/student/${id}`],
+      // No term on purpose: a family kept out hears that before anything else.
       ['the report card', (id: string) => `/api/marks/report-card/${id}`],
       ['homework', (id: string) => `/api/homework/student/${id}`],
       [

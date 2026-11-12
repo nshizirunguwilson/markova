@@ -30,16 +30,29 @@ export function createQueryClient() {
   let lastMessage = "";
   let lastAt = 0;
 
-  const announce = (error: unknown, fallback: string) => {
+  const announce = (
+    error: unknown,
+    fallback: string,
+    retry?: () => void,
+  ) => {
     const message = errorMessage(error, fallback);
     const now = Date.now();
     if (message === lastMessage && now - lastAt < REPEAT_WINDOW_MS) return;
     lastMessage = message;
     lastAt = now;
-    toast.error(message);
+    toast.error(
+      message,
+      retry ? { action: { label: "Retry", onClick: retry } } : undefined,
+    );
   };
 
-  return new QueryClient({
+  /* Retry reloads every read that failed, not only the one that raised the
+     toast: one toast stands for a whole burst, and a dropped connection
+     failed all of them. */
+  const retryFailed = () =>
+    client.refetchQueries({ predicate: (q) => q.state.status === "error" });
+
+  const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
         // A query that has data already is refetching in the background. The
@@ -54,7 +67,7 @@ export function createQueryClient() {
         /* Something an adult child keeps from their parents is not a fault:
            the page says so calmly, and a red alert would say the opposite. */
         if (keptPrivate(error)) return;
-        announce(error, "Could not load this. Please try again.");
+        announce(error, "Could not load this. Please try again.", retryFailed);
       },
     }),
     mutationCache: new MutationCache({
@@ -73,6 +86,7 @@ export function createQueryClient() {
       },
     },
   });
+  return client;
 }
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {

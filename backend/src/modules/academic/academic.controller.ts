@@ -40,7 +40,9 @@ import {
   CreateExamScheduleDto,
   UpdateExamScheduleDto,
   BulkExamScheduleDto,
+  AddTeacherDutyDto,
 } from './dto';
+import { TeacherDutiesService } from './teacher-duties.service';
 import { Roles } from '../../common/decorators';
 import { gradingExplained } from '../../common/grading-explained';
 import { RolesGuard } from '../../common/guards';
@@ -76,7 +78,10 @@ const ALL_ROLES = [
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiBearerAuth()
 export class AcademicController {
-  constructor(private readonly service: AcademicService) {}
+  constructor(
+    private readonly service: AcademicService,
+    private readonly duties: TeacherDutiesService,
+  ) {}
 
   /**
    * How a mark becomes a grade.
@@ -543,5 +548,34 @@ export class AcademicController {
   @ApiOperation({ summary: 'Commit staff-reviewed promotion decisions' })
   commitPromotion(@Body() dto: CommitPromotionDto) {
     return this.service.commitPromotion(dto);
+  }
+
+  // ─── Teacher duties ────────────────────────────────────────────────────
+
+  /**
+   * Name a teacher class teacher, head of department or Director of Studies.
+   *
+   * The principal and the Director of Studies both do this: who leads a class
+   * is part of running the academic side, and appointing staff to posts is
+   * the principal's.
+   */
+  @Post('teachers/:teacherId/duties')
+  @Roles('ADMIN', 'HEAD_TEACHER')
+  @ApiOperation({ summary: 'Name a teacher to a duty, handing it over' })
+  addDuty(
+    @Param('teacherId', ParseUUIDPipe) teacherId: string,
+    @Body() dto: AddTeacherDutyDto,
+  ) {
+    return this.duties.add(teacherId, dto);
+  }
+
+  @Delete('teachers/:teacherId/duties/:dutyId')
+  @Roles('ADMIN', 'HEAD_TEACHER')
+  @ApiOperation({ summary: 'End a teacher duty' })
+  removeDuty(
+    @Param('teacherId', ParseUUIDPipe) teacherId: string,
+    @Param('dutyId', ParseUUIDPipe) dutyId: string,
+  ) {
+    return this.duties.remove(teacherId, dutyId);
   }
 }

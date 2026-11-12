@@ -221,7 +221,10 @@ describe('Auth (e2e)', () => {
         .send({ sessionId, otp: '000000' })
         .expect(401)
         .expect((res) => {
-          expect(res.body.message).toBe('Invalid OTP');
+          // One wrong code is a slip: the message says so and counts down.
+          expect(res.body.message).toBe(
+            'That code is not right. You have 4 tries left.',
+          );
         });
     });
 

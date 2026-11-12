@@ -23,6 +23,16 @@ export enum AttendanceStatus {
   PRESENT = 'PRESENT',
   ABSENT = 'ABSENT',
   LATE = 'LATE',
+  /** An absence the school has accepted. See src/common/attendance-count.ts. */
+  EXCUSED = 'EXCUSED',
+}
+
+/** Why a student was not in school. UNEXCUSED is the one that excuses nothing. */
+export enum AbsenceReason {
+  SICK = 'SICK',
+  FAMILY = 'FAMILY',
+  PERMISSION = 'PERMISSION',
+  UNEXCUSED = 'UNEXCUSED',
 }
 
 export class MarkAttendanceDto {
@@ -36,11 +46,10 @@ export class MarkAttendanceDto {
   @ApiProperty({ enum: AttendanceStatus })
   @IsEnum(AttendanceStatus)
   status: AttendanceStatus;
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: AbsenceReason })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  reasonCategory?: string;
+  @IsEnum(AbsenceReason)
+  reasonCategory?: AbsenceReason;
 }
 
 export class QrScanDto {
@@ -75,11 +84,10 @@ export class BulkAttendanceItem {
   @ApiProperty({ enum: AttendanceStatus })
   @IsEnum(AttendanceStatus)
   status: AttendanceStatus;
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: AbsenceReason })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  reasonCategory?: string;
+  @IsEnum(AbsenceReason)
+  reasonCategory?: AbsenceReason;
 }
 
 export class MarkTeacherAttendanceDto {

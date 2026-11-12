@@ -124,6 +124,36 @@ describe("the articles an admin manages", () => {
   });
 });
 
+describe("who each question is shown to", () => {
+  it("says everyone for a question with no audience", async () => {
+    await mount();
+    expect(screen.getAllByText("Everyone").length).toBeGreaterThan(0);
+  });
+
+  it("names the roles a question is written for", async () => {
+    serve(h.api, {
+      ...routes,
+      "/help/faqs/admin": [
+        { ...faqs[0], audience: ["NURSE", "HEAD_TEACHER"] },
+      ],
+    });
+    await mount();
+    expect(screen.getByText("Nurse, Head teacher")).toBeInTheDocument();
+  });
+
+  it("opens an edit with its audience already ticked", async () => {
+    serve(h.api, {
+      ...routes,
+      "/help/faqs/admin": [{ ...faqs[0], audience: ["PARENT"] }],
+    });
+    await mount();
+    await click(screen.getAllByRole("button", { name: /^edit$/i })[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect((within(dialog).getByLabelText("Parent") as HTMLInputElement).checked).toBe(true);
+    expect((within(dialog).getByLabelText("Nurse") as HTMLInputElement).checked).toBe(false);
+  });
+});
+
 describe("writing an article", () => {
   async function openNew() {
     await mount();
@@ -177,6 +207,30 @@ describe("writing an article", () => {
       expect(call).toBeTruthy();
       expect((call![1] as any).title).toBe("How do I mark a register?");
     });
+  });
+
+  // Help was the same three questions for all ten roles.
+  it("sends who the question is for", async () => {
+    const dialog = await openNew();
+    await fill(dialog, "How do I record a clinic visit?", "Open Health, then New visit.");
+    await click(within(dialog).getByLabelText("Nurse"));
+    await click(within(dialog).getByLabelText("Matron"));
+    await click(within(dialog).getByLabelText("Matron"));
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect((h.api.post.mock.calls[0][1] as any).audience).toEqual(["NURSE"]);
+  });
+
+  it("sends nobody for a question everyone should see", async () => {
+    const dialog = await openNew();
+    await fill(dialog, "A question", "An answer.");
+    h.api.post.mockClear();
+    await click(save(dialog));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect((h.api.post.mock.calls[0][1] as any).audience).toEqual([]);
   });
 
   // An empty category is not a category called "".
@@ -438,7 +492,7 @@ describe("the rest of the article form", () => {
       });
     });
 
-    const published = within(dialog).getByRole("checkbox");
+    const published = within(dialog).getByLabelText("Published");
     expect(published).toBeChecked();
     await act(async () => {
       fireEvent.click(published);

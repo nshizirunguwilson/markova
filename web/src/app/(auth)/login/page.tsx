@@ -249,14 +249,27 @@ export default function LoginPage() {
   }
 
   /** Into the school the sign in opened, or first ask which one. */
-  function enter(user: any, ask: boolean) {
+  async function enter(user: any, ask: boolean, whole = false) {
     if (ask) {
       setPendingUser(user);
       setStep("choose-school");
       return;
     }
-    setUser(user);
-    router.push(homeFor(user.role));
+    /* The sign in answers with the bare record; who the person is in the
+       school (their student record, their class, their teacher record) comes
+       with the profile. Without it a student who had just signed in saw "No
+       attendance records found" and no homework until they reloaded the page,
+       because every one of those pages asks by student id. */
+    let person = user;
+    if (!whole) {
+      try {
+        person = { ...user, ...(await api.get("/auth/profile")).data };
+      } catch {
+        // The bare record still opens the app; a reload fills in the rest.
+      }
+    }
+    setUser(person);
+    router.push(homeFor(person.role));
   }
 
   /* The sign in already opened one of the schools. Choosing that one goes
@@ -272,7 +285,7 @@ export default function LoginPage() {
       await switchSchool(m.userId);
       /* The profile carries the school, name and photo of the new record. */
       const { data } = await api.get("/auth/profile");
-      enter(data, false);
+      enter(data, false, true);
     } catch (err: any) {
       toast.error(errorMessage(err, "Could not open that school"));
       setChoosing(null);

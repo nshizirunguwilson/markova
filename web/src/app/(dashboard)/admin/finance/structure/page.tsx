@@ -7,10 +7,13 @@ import {
   Button,
   Card,
   CardTitle,
+  ExportDropdown,
   Input,
   Modal,
   PageSpinner,
 } from "@/components/ui";
+import { exportData } from "@/lib/export";
+import { structureExport, termLabel } from "@/lib/fee-exports";
 import { PageHeader } from "@/components/layout/page-header";
 import { TermPicker } from "@/components/finance/term-picker";
 import { useTerms } from "@/hooks/use-academic";
@@ -105,6 +108,12 @@ export default function FeeStructurePage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <TermPicker value={termId} onChange={setTermId} />
+            <ExportDropdown
+              onExport={(format) =>
+                exportData(format, structureExport(levels ?? [], termLabel(terms, termId)))
+              }
+              disabled={!levels?.some((l) => l.items.length > 0)}
+            />
             <Button variant="secondary" onClick={() => setCopyOpen(true)}>
               <Copy className="mr-2 h-4 w-4" /> Copy from another term
             </Button>

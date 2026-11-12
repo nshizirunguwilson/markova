@@ -1,7 +1,7 @@
 import { accountsFor } from '../../__test__/accounts';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { createMockPrisma } from '../../__test__/prisma-mock';
+import { TEST_SCHOOL_ID, createMockPrisma } from '../../__test__/prisma-mock';
 
 /**
  * Accounts, and the things that make one usable.
@@ -56,6 +56,14 @@ describe('UsersService', () => {
     prisma.student.create.mockResolvedValue({});
     prisma.student.findUnique.mockResolvedValue(null);
     prisma.parentStudent.create.mockResolvedValue({});
+  });
+
+  /* Whoever already holds a login: by default the same person, in this school. */
+  const holder = (p: { firstName: string; lastName: string }) => ({
+    firstName: p.firstName,
+    lastName: p.lastName,
+    nationalId: null,
+    schoolId: TEST_SCHOOL_ID,
   });
 
   const teacher = {
@@ -137,6 +145,7 @@ describe('UsersService', () => {
   describe('identifiers already in use', () => {
     it('joins somebody who already signs in, rather than refusing them', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       await service.create(teacher);
       expect(prisma.user.create.mock.calls[0][0].data.accountId).toBe(
         'acc-existing',
@@ -164,6 +173,7 @@ describe('UsersService', () => {
 
     it('refuses the same person in the same role twice', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       prisma.user.findFirst.mockResolvedValue({
         firstName: 'Aline',
         lastName: 'Uwase',
@@ -177,6 +187,7 @@ describe('UsersService', () => {
     /* A teacher here can also be a parent here: a second record. */
     it('asks only about the role being added', async () => {
       prisma.account.findMany.mockResolvedValue([{ id: 'acc-existing' }]);
+      prisma.user.findMany.mockResolvedValue([holder(teacher)]);
       await service.create(teacher);
       expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
         accountId: 'acc-existing',
@@ -389,6 +400,26 @@ describe('UsersService', () => {
         classSectionId: 'section-1',
       } as never);
       expect(prisma.user.create.mock.calls[0][0].data.code).toBeNull();
+    });
+
+    /* New staff of these five roles got no number, though the seeded one of
+       each has one. */
+    it.each([
+      ['BURSAR', 'BUR'],
+      ['PATRON', 'PAT'],
+      ['MATRON', 'MAT'],
+      ['NURSE', 'NUR'],
+      ['HEAD_TEACHER', 'HTC'],
+    ])('gives a new %s a staff number', async (role, prefix) => {
+      prisma.user.findFirst.mockResolvedValue({ code: `${prefix}-2026-001` });
+      await service.create({
+        ...teacher,
+        role,
+        email: `new.${prefix.toLowerCase()}@markova.edu`,
+      } as never);
+      expect(prisma.user.create.mock.calls[0][0].data.code).toMatch(
+        new RegExp(`^${prefix}-\\d{4}-002$`),
+      );
     });
 
     it('continues the sequence from the last one issued', async () => {
@@ -1243,6 +1274,22 @@ describe('the words the search box understands', () => {
       classSectionId: 'section-1',
       status: 'ACTIVE',
     });
+  });
+
+  // A level with no class picked used to list the whole school.
+  it('narrows to every class of one level', async () => {
+    const where = await whereFor({ classLevelId: 'level-1' });
+    expect(where.student).toEqual({
+      classSection: { classLevelId: 'level-1' },
+    });
+  });
+
+  it('lets one class speak over its level', async () => {
+    const where = await whereFor({
+      classLevelId: 'level-1',
+      classSectionId: 'section-1',
+    });
+    expect(where.student).toEqual({ classSectionId: 'section-1' });
   });
 
   it('adds no student clause when neither was given', async () => {

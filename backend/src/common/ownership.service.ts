@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertOnSide } from './boarding-side';
 import { Sharing, assertParentMaySee, parentKept } from './parent-sharing';
 
 @Injectable()
@@ -53,6 +54,14 @@ export class OwnershipService {
         );
       }
       if (sharing) await assertParentMaySee(this.prisma, studentId, sharing);
+      return;
+    }
+
+    /* The boarding staff see the children on their own side, for the few
+       records they need (conduct standing, pocket money). They were listed
+       on those routes and then refused by this check every time. */
+    if (role === 'PATRON' || role === 'MATRON') {
+      await assertOnSide(this.prisma, role, studentId);
       return;
     }
 

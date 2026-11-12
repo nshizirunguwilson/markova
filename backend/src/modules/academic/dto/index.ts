@@ -8,7 +8,9 @@ import {
   IsEnum,
   IsUUID,
   Min,
+  Max,
   MaxLength,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -338,6 +340,9 @@ export class BulkAssignmentDto {
 
 // ─── TIMETABLE ───────────────────────────────────────────────────────────────
 
+/** A time of day on the 24 hour clock, as the timetable stores it. */
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export class CreateTimetableDto {
   @ApiProperty()
   @IsUUID()
@@ -354,14 +359,17 @@ export class CreateTimetableDto {
   @ApiProperty({ example: 1, description: '1=Monday, 7=Sunday' })
   @IsInt()
   @Min(1)
+  @Max(7)
   dayOfWeek: number;
 
   @ApiProperty({ example: '08:00' })
   @IsString()
+  @Matches(HHMM, { message: 'startTime must be a time like 08:00' })
   startTime: string;
 
   @ApiProperty({ example: '09:00' })
   @IsString()
+  @Matches(HHMM, { message: 'endTime must be a time like 08:00' })
   endTime: string;
 
   @ApiPropertyOptional({ example: 'Room 101' })
@@ -390,16 +398,19 @@ export class UpdateTimetableDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(7)
   dayOfWeek?: number;
 
   @ApiPropertyOptional({ example: '08:00' })
   @IsOptional()
   @IsString()
+  @Matches(HHMM, { message: 'startTime must be a time like 08:00' })
   startTime?: string;
 
   @ApiPropertyOptional({ example: '09:00' })
   @IsOptional()
   @IsString()
+  @Matches(HHMM, { message: 'endTime must be a time like 08:00' })
   endTime?: string;
 
   @ApiPropertyOptional()
@@ -580,4 +591,22 @@ export class CommitPromotionDto {
   @ValidateNested({ each: true })
   @Type(() => PromotionDecisionItemDto)
   decisions: PromotionDecisionItemDto[];
+}
+
+/** Naming a teacher to a duty. See TeacherDutiesService. */
+export class AddTeacherDutyDto {
+  @ApiProperty({ enum: ['DOS', 'HOD', 'CLASS_TEACHER'] })
+  @IsEnum(['DOS', 'HOD', 'CLASS_TEACHER'])
+  role: 'DOS' | 'HOD' | 'CLASS_TEACHER';
+
+  @ApiPropertyOptional({ description: 'The class a class teacher leads' })
+  @IsOptional()
+  @IsUUID()
+  classSectionId?: string;
+
+  @ApiPropertyOptional({ example: 'Sciences' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  department?: string;
 }

@@ -141,6 +141,50 @@ describe('AttendanceService', () => {
       },
     );
 
+    // They asked for the day, or already know why.
+    it('says nothing to the family about a day that was excused', async () => {
+      prisma.parentStudent.findMany.mockResolvedValue([
+        {
+          parentUserId: 'parent-1',
+          parent: { firstName: 'Claudine', phone: '+250788' },
+          student: { user: { firstName: 'Divine', lastName: 'Niyonkuru' } },
+        },
+      ]);
+      await service.markAttendance(
+        { ...mark, status: 'EXCUSED', reasonCategory: 'SICK' } as never,
+        'teacher-1',
+      );
+      expect(notifications.send).not.toHaveBeenCalled();
+      expect(prisma.attendance.create.mock.calls[0][0].data).toMatchObject({
+        status: 'EXCUSED',
+        reasonCategory: 'SICK',
+      });
+    });
+
+    // What the mobile app has always sent.
+    it('files an absence given a reason that excuses it as an excused day', async () => {
+      await service.markAttendance(
+        { ...mark, status: 'ABSENT', reasonCategory: 'FAMILY' } as never,
+        'teacher-1',
+      );
+      expect(prisma.attendance.create.mock.calls[0][0].data).toMatchObject({
+        status: 'EXCUSED',
+        reasonCategory: 'FAMILY',
+      });
+      expect(notifications.send).not.toHaveBeenCalled();
+    });
+
+    it('marks a plain absence as unexcused', async () => {
+      await service.markAttendance(
+        { ...mark, status: 'ABSENT' } as never,
+        'teacher-1',
+      );
+      expect(prisma.attendance.create.mock.calls[0][0].data).toMatchObject({
+        status: 'ABSENT',
+        reasonCategory: 'UNEXCUSED',
+      });
+    });
+
     it('says nothing to the family about a student who turned up', async () => {
       prisma.parentStudent.findMany.mockResolvedValue([
         {
@@ -255,6 +299,36 @@ describe('AttendanceService', () => {
       expect(
         prisma.parentStudent.findMany.mock.calls[0][0].where.studentId,
       ).toBe('s-2');
+    });
+
+    it('does not tell the family of a student who was excused', async () => {
+      prisma.student.findMany.mockResolvedValue([{ id: 's-1' }, { id: 's-2' }]);
+      prisma.student.findUnique.mockResolvedValue(student);
+      await service.bulkMarkAttendance(
+        {
+          classSectionId: 'section-1',
+          date: '2026-08-20',
+          type: 'daily',
+          records: [
+            { studentId: 's-1', status: 'EXCUSED', reasonCategory: 'SICK' },
+            { studentId: 's-2', status: 'EXCUSED' },
+          ],
+        } as never,
+        'teacher-1',
+      );
+      expect(prisma.parentStudent.findMany).not.toHaveBeenCalled();
+      const stored = prisma.attendance.create.mock.calls.map(
+        (c: any[]) => c[0].data,
+      );
+      expect(stored[0]).toMatchObject({
+        status: 'EXCUSED',
+        reasonCategory: 'SICK',
+      });
+      // No reason given: leave the school gave.
+      expect(stored[1]).toMatchObject({
+        status: 'EXCUSED',
+        reasonCategory: 'PERMISSION',
+      });
     });
   });
 
@@ -673,6 +747,28 @@ describe('AttendanceService', () => {
       });
     });
 
+    // Excused is its own count, and is left out of the rate.
+    it('counts an excused student apart from the absent ones', async () => {
+      prisma.student.findMany.mockResolvedValue([
+        inClass('A', 'PRESENT'),
+        inClass('B', 'PRESENT'),
+        inClass('C', 'PRESENT'),
+        inClass('D', 'ABSENT'),
+        inClass('E', 'EXCUSED'),
+      ]);
+      const result = await service.getClassAttendance(
+        'section-1',
+        '2026-08-20',
+      );
+      expect(result).toMatchObject({
+        total: 5,
+        present: 3,
+        absent: 1,
+        excused: 1,
+        rate: 75,
+      });
+    });
+
     it('counts a student nobody ticked as absent', async () => {
       prisma.student.findMany.mockResolvedValue([
         inClass('A', 'PRESENT'),
@@ -723,6 +819,26 @@ describe('AttendanceService', () => {
         late: 1,
         absent: 2,
         attendanceRate: 50,
+      });
+    });
+
+    // A week in hospital and a week of truancy used to read the same.
+    it('counts excused days apart and leaves them out of the rate', async () => {
+      prisma.attendance.findMany.mockResolvedValue([
+        { date: new Date('2026-08-20'), status: 'PRESENT' },
+        { date: new Date('2026-08-21'), status: 'PRESENT' },
+        { date: new Date('2026-08-22'), status: 'PRESENT' },
+        { date: new Date('2026-08-23'), status: 'ABSENT' },
+        { date: new Date('2026-08-24'), status: 'EXCUSED' },
+        { date: new Date('2026-08-25'), status: 'EXCUSED' },
+      ]);
+      const result = await service.getStudentSummary('student-1');
+      expect(result).toMatchObject({
+        total: 6,
+        present: 3,
+        absent: 1,
+        excused: 2,
+        attendanceRate: 75,
       });
     });
 
@@ -895,6 +1011,27 @@ describe('AttendanceService', () => {
         absent: 23,
         rate: 54,
       });
+    });
+
+    it('counts the excused apart, in each class and across the school', async () => {
+      prisma.classSection.findMany.mockResolvedValue([
+        section('section-1', 30),
+      ]);
+      prisma.attendance.groupBy.mockResolvedValue([
+        { classSectionId: 'section-1', status: 'PRESENT', _count: 24 },
+        { classSectionId: 'section-1', status: 'ABSENT', _count: 3 },
+        { classSectionId: 'section-1', status: 'EXCUSED', _count: 3 },
+      ]);
+
+      const result = await service.getDashboardData('2026-08-20');
+      expect(result.sections[0]).toMatchObject({
+        present: 24,
+        absent: 3,
+        excused: 3,
+        // 24 of the 27 who count.
+        rate: 89,
+      });
+      expect(result.overall).toMatchObject({ absent: 3, excused: 3, rate: 89 });
     });
 
     /**
@@ -1416,6 +1553,42 @@ describe('AttendanceService and a student out of school', () => {
     expect(prisma.parentStudent.findMany.mock.calls[0][0].where).toEqual({
       studentId: 's1',
       parent: { isActive: true },
+    });
+  });
+
+  describe('the classes a teacher watches', () => {
+    it('joins the classes taught this year with the one they lead', async () => {
+      prisma.teacherSubjectClass.findMany.mockResolvedValue([
+        { classSectionId: 'class-s1a' },
+        { classSectionId: 'class-s2b' },
+        { classSectionId: 'class-s1a' },
+      ]);
+      prisma.teacherRole.findMany.mockResolvedValue([
+        { classSectionId: 'class-s1a' },
+        { classSectionId: null },
+      ]);
+      await expect(service.classesWatchedBy('tch-aline')).resolves.toEqual([
+        'class-s1a',
+        'class-s2b',
+      ]);
+      expect(
+        prisma.teacherSubjectClass.findMany.mock.calls[0][0].where,
+      ).toEqual({ teacherId: 'tch-aline', academicYear: { isCurrent: true } });
+    });
+
+    it('is nobody for somebody who is not a teacher', async () => {
+      await expect(service.classesWatchedBy(null)).resolves.toEqual([]);
+    });
+
+    it('reads only those classes when narrowed', async () => {
+      prisma.student.findMany.mockResolvedValue([]);
+      prisma.attendance.groupBy.mockResolvedValue([]);
+      await service.getChronicallyAbsent(undefined, undefined, 1, 50, [
+        'class-s1a',
+      ]);
+      expect(
+        prisma.student.findMany.mock.calls.at(-1)[0].where.classSectionId,
+      ).toEqual({ in: ['class-s1a'] });
     });
   });
 });

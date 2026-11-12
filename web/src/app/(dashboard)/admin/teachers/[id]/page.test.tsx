@@ -22,6 +22,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { cellTexts, renderPage, serve } from "@/test/page";
 import { populatedRoutes } from "@/test/fixtures";
 
+import type { Role } from "@/types";
 import TeacherDetailPage, { currentLesson } from "./page";
 
 /**
@@ -125,11 +126,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function mount(user: unknown = teacher) {
+async function mount(user: unknown = teacher, role: Role = "ADMIN") {
   serve(h.api, { ...routes, "/users/u-1": user });
-  renderPage(TeacherDetailPage, { role: "ADMIN" });
+  renderPage(TeacherDetailPage, { role });
   await waitFor(() => expect(document.body.textContent).not.toBe(""));
 }
+
+/* The Director of Studies opens this page to see a teacher's classes. Only
+   the principal edits a person's record, so only they are offered it. */
+describe("who may edit the teacher", () => {
+  it("offers the principal Edit details", async () => {
+    await mount();
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.getByRole("button", { name: /edit details/i })).toBeInTheDocument();
+  });
+
+  it("shows the Director of Studies the page without it", async () => {
+    await mount(teacher, "HEAD_TEACHER");
+    await screen.findByText(/Aline Uwase/);
+    expect(screen.queryByRole("button", { name: /edit details/i })).toBeNull();
+  });
+});
 
 describe("who this teacher is", () => {
   it("names them and their staff number", async () => {
@@ -458,5 +475,43 @@ describe("getting somewhere else from here", () => {
     await waitFor(() =>
       expect(screen.getByText(/teacher not found/i)).toBeInTheDocument(),
     );
+  });
+});
+
+/** A thin file: what the page says where the record has gaps. */
+describe("a teacher whose record has gaps", () => {
+  const sparse = {
+    ...teacher,
+    forcePasswordChange: true,
+    lastLoginAt: null,
+    teacher: {
+      ...teacher.teacher,
+      employmentStatus: null,
+      roles: [{ id: "r-9", role: "SOMETHING_NEW", department: null, classSection: null }],
+      teacherSubjectClasses: [
+        { id: "a-9", subject: null, classSection: null },
+        assignment("a-1", "Mathematics", senior2B),
+      ],
+      timetables: [
+        period("p-1", 3, "08:00", "09:00", "Mathematics", senior2B),
+        period("p-2", 3, "09:00", "10:00", "Physics", senior2B),
+        period("p-9", 9, "08:00", "09:00", "Chemistry", senior2B),
+      ],
+    },
+  };
+
+  it("still reads, saying plainly what is missing", async () => {
+    await mount(sparse);
+    expect(await screen.findByText(/Aline Uwase/)).toBeInTheDocument();
+    const body = document.body.textContent ?? "";
+    expect(body).toMatch(/SOMETHING_NEW/);
+    expect(body).toMatch(/Day 9/);
+    expect(body).toMatch(/Never/);
+    expect(body).toMatch(/Yes/);
+  });
+
+  it("copes with a teacher who has no teacher record at all", async () => {
+    await mount({ ...teacher, teacher: null });
+    expect(await screen.findByText(/Aline Uwase/)).toBeInTheDocument();
   });
 });

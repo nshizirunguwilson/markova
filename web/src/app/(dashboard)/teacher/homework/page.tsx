@@ -24,11 +24,14 @@ import {
   useGradeSubmission,
 } from "@/hooks/use-homework";
 import { useTerms, useAcademicYears } from "@/hooks/use-academic";
-import { Plus, Trash2, Eye, Check } from "lucide-react";
+import { Plus, Trash2, Eye, Check, Paperclip } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect } from "react";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
+import { SheetField, type Sheet } from "@/components/homework/sheet-field";
+import { resolveUploadUrl } from "@/lib/assets";
 
 interface Assignment {
   id: string;
@@ -65,6 +68,8 @@ export default function TeacherHomeworkPage() {
     maxMarks: 100,
     lateDeductionPerDay: 5,
   });
+  /* The sheet the work is set on, already uploaded. */
+  const [sheet, setSheet] = useState<Sheet | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -85,8 +90,13 @@ export default function TeacherHomeworkPage() {
       dueDate: form.dueDate,
       maxMarks: form.maxMarks,
       lateDeductionPerDay: form.lateDeductionPerDay,
+      ...(sheet && { fileUrl: sheet.fileUrl, fileName: sheet.fileName }),
     }, {
-      onSuccess: () => { setShowAddModal(false); setForm({ ...form, title: "", description: "", dueDate: "" }); },
+      onSuccess: () => {
+        setShowAddModal(false);
+        setForm({ ...form, title: "", description: "", dueDate: "" });
+        setSheet(null);
+      },
     });
   };
 
@@ -129,7 +139,7 @@ export default function TeacherHomeworkPage() {
                     <TableCell>{classDisplayName(hw.classSection)}</TableCell>
                     <TableCell>
                       <Badge variant={isPastDue ? "danger" : "default"}>
-                        {new Date(hw.dueDate).toLocaleDateString()}
+                        {day(hw.dueDate)}
                       </Badge>
                     </TableCell>
                     <TableCell>{hw._count?.submissions ?? 0}</TableCell>
@@ -155,11 +165,22 @@ export default function TeacherHomeworkPage() {
 
       {/* View Submissions Modal */}
       <Modal isOpen={!!viewingId} onClose={() => setViewingId(null)} title={viewingHw?.title || "Submissions"}>
+        {viewingHw?.fileUrl && (
+          <a
+            href={resolveUploadUrl(viewingHw.fileUrl) ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            <Paperclip className="h-4 w-4" aria-hidden />
+            {viewingHw.fileName || "The sheet for this work"}
+          </a>
+        )}
         {viewingHw && (
           <div className="space-y-4">
             <p className="text-sm text-muted">{viewingHw.description}</p>
             <p className="text-sm">
-              Due: {new Date(viewingHw.dueDate).toLocaleDateString()} | Max: {viewingHw.maxMarks} |
+              Due: {day(viewingHw.dueDate)} | Max: {viewingHw.maxMarks} |
               Submissions: {viewingHw.submissions?.length || 0}/{viewingHw.totalStudents}
             </p>
             {viewingHw.submissions?.length > 0 ? (
@@ -177,7 +198,7 @@ export default function TeacherHomeworkPage() {
                   {viewingHw.submissions.map((sub: any) => (
                     <TableRow key={sub.id}>
                       <TableCell>{sub.student?.user?.firstName} {sub.student?.user?.lastName}</TableCell>
-                      <TableCell className="text-sm">{new Date(sub.submittedAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm">{day(sub.submittedAt)}</TableCell>
                       <TableCell>{sub.isLate ? <Badge variant="warning">Late</Badge> : <Badge variant="success">On time</Badge>}</TableCell>
                       <TableCell>
                         {sub.marks !== null ? (
@@ -244,6 +265,7 @@ export default function TeacherHomeworkPage() {
             <textarea id="f-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none" />
           </div>
+          <SheetField value={sheet} onChange={setSheet} />
           <div className="grid grid-cols-3 gap-4">
             <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             <Input label="Max Marks" type="number" value={String(form.maxMarks)} onChange={(e) => setForm({ ...form, maxMarks: Number(e.target.value) })} />

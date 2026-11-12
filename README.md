@@ -112,6 +112,11 @@ rather than the menu merely hiding it. See `docs/REPORT-CARD-PIPELINE.md`.
    npm run start:dev
    ```
 
+   This one process also sends the emails and texts and renders the PDFs
+   (sign-in codes, password resets, report cards). That is the default
+   whenever `WORKER` is unset; only the scaled stack splits the work out.
+   In development the mail lands in whatever `SMTP_HOST` points at.
+
 4. **Run the dashboard** (port 3001 - the API owns 3000):
 
    ```bash
@@ -136,7 +141,8 @@ docker compose --profile full up -d --build
 ```
 
 Brings up the API and the dashboard alongside Postgres and Redis, plus the
-nightly backup. Uploaded crests, stamps, signatures and photos live in a named
+nightly backup. The API container does its own background work (mail, texts
+and PDFs), the same as `npm run start:dev`. Uploaded crests, stamps, signatures and photos live in a named
 volume so they survive a rebuild.
 
 For the deployed shape instead, with three API instances behind nginx, see
@@ -148,7 +154,7 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 
 | Role | Sign in with |
 | --- | --- |
-| Admin | `wilsonshizirungu@gmail.com` or `+250788000001` |
+| Admin | `wilsonshizirungu@gmail.com` or `+250788459213` |
 | Head teacher | `headteacher@markova.edu` |
 | Teacher | `aline.uwase@markova.edu` |
 | Bursar | `bursar@markova.edu` |
@@ -157,7 +163,7 @@ Seeded by `npx prisma db seed`. Password for all of them: `Password123!`
 | Matron | `matron@markova.edu` |
 | Nurse | `nurse@markova.edu` |
 | Student | `student1@markova.edu` to `student30@markova.edu` (web only) |
-| Parent | `+250788100000` (phone only, no email) |
+| Parent | `+250785639214` (phone only, no email) |
 
 The seed builds three academic years: 2,478 accounts, 754 students on the roll
 and 525 who have left or graduated, 43 teachers, 28 classes, and a term in
@@ -246,8 +252,8 @@ sees how many API instances there are.
 | Container | What it is |
 | --- | --- |
 | `nginx` | The only door: flood control, caching, sharing traffic |
-| `api-1/2/3` | Three copies of the API, interchangeable |
-| `worker-1/2` | The same image with `WORKER=1`. They render PDFs and serve nobody |
+| `api-1/2/3` | Three copies of the API, interchangeable, with `WORKER=0` so they leave the queue alone |
+| `worker-1/2` | The same image with `WORKER=1`. They send mail and texts, render PDFs and serve nobody |
 | `pgbouncer` | So three instances do not exhaust Postgres's connections |
 | `postgres`, `redis`, `web` | The database, Redis, and the dashboard |
 

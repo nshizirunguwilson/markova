@@ -5,8 +5,11 @@ import {
   IsInt,
   Min,
   IsEnum,
+  IsArray,
+  ArrayUnique,
   MaxLength,
 } from 'class-validator';
+import { Role } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum TicketStatus {
@@ -28,6 +31,13 @@ export class CreateFaqDto {
   category?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isPublished?: boolean;
+  /** Who the question is for. Empty, or left out, means everyone. */
+  @ApiPropertyOptional({ enum: Role, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(Role, { each: true })
+  audience?: Role[];
 }
 
 export class UpdateFaqDto {
@@ -48,6 +58,13 @@ export class UpdateFaqDto {
   category?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isPublished?: boolean;
+  /** Who the question is for. Empty, or left out, means everyone. */
+  @ApiPropertyOptional({ enum: Role, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(Role, { each: true })
+  audience?: Role[];
 }
 
 // ── Support Tickets ─────────────────────────────────────────────────────────────

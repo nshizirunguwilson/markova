@@ -21,6 +21,7 @@ import type {
   GrantWaiverDto,
   RecordPaymentDto,
 } from './dto';
+import { mustExist } from '../../common/must-exist';
 
 /**
  * The school's fee ledger.
@@ -304,6 +305,7 @@ export class FinanceService {
    * holding a report card up.
    */
   async history(studentId: string) {
+    await mustExist(this.prisma.student, studentId, 'Student');
     const invoices = await this.prisma.feeInvoice.findMany({
       where: { studentId },
       include: {

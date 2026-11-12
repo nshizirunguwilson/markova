@@ -331,6 +331,55 @@ describe('ReportsService', () => {
       });
     });
 
+    it('says not valid when the card is gone by the time its school is asked', async () => {
+      prisma.student.findUnique
+        .mockResolvedValueOnce({
+          schoolId: 'school-1',
+          school: { name: 'Markova Academy' },
+        })
+        .mockResolvedValueOnce(null);
+      const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+      expect(result).toMatchObject({
+        valid: false,
+        issuedBy: 'Markova Academy',
+      });
+      expect(result.reason).toMatch(/never issued|reissued/);
+    });
+
+    // Suspended for these days (B8): turned away at the gate, by first name.
+    it('turns away a student suspended today, saying until when', async () => {
+      prisma.student.findUnique.mockResolvedValue({
+        id: 's1',
+        schoolId: 'school-1',
+        school: { name: 'Markova Academy' },
+        studentIdNumber: 'STD-2026-001',
+        status: 'ACTIVE',
+        cardIssuedAt: null,
+        cardSuspendedAt: null,
+        photoForId: 'YES',
+        user: { firstName: 'Divine', photoUrl: '/p.png' },
+        classSection: null,
+      });
+      prisma.studentPause.findMany.mockResolvedValue([
+        {
+          studentId: 's1',
+          kind: 'SUSPENDED',
+          startsOn: new Date('2026-10-01'),
+          endsOn: new Date('2099-10-20'),
+          reason: 'x',
+        },
+      ]);
+      const result = await service.verifyCardByCode('ABCD-EFGH-JKMN');
+      expect(result).toMatchObject({
+        valid: false,
+        suspended: true,
+        student: { name: 'Divine' },
+      });
+      expect(result.reason).toMatch(
+        /suspended until 20 October, and is not to be let in/,
+      );
+    });
+
     it('shows no photo where the family said No to it on cards', async () => {
       prisma.student.findUnique.mockResolvedValue({
         schoolId: 'school-1',
@@ -479,6 +528,84 @@ describe('ReportsService', () => {
       await expect(
         service.verifyReportByCode('1234-5678-9012'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    // Found on the platform pass, then read inside the issuing school.
+    it('shows a genuine card, its sheet, and the school that issued it', async () => {
+      prisma.reportVerification.findUnique
+        .mockResolvedValueOnce({
+          schoolId: 'school-1',
+          school: { name: 'Markova Academy' },
+        })
+        .mockResolvedValueOnce({
+          termResult: { studentId: 's1', termId: 't1' },
+        });
+      const anyService = service as any;
+      jest
+        .spyOn(anyService, 'getTermReportData')
+        .mockResolvedValue({ student: { name: 'Keza' } });
+      jest.spyOn(anyService, 'verificationQr').mockResolvedValue('qr');
+      jest.spyOn(anyService, 'renderTermReportHtml').mockReturnValue('<html/>');
+      const result = await service.verifyReportByCode('1234-5678-9012');
+      expect(result).toMatchObject({
+        html: '<html/>',
+        issuedBy: 'Markova Academy',
+      });
+      expect(anyService.getTermReportData).toHaveBeenCalledWith('s1', 't1');
+    });
+
+    it('refuses a code whose record has gone inside its school', async () => {
+      prisma.reportVerification.findUnique
+        .mockResolvedValueOnce({
+          schoolId: 'school-1',
+          school: { name: 'Markova Academy' },
+        })
+        .mockResolvedValueOnce(null);
+      await expect(
+        service.verifyReportByCode('1234-5678-9012'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // A card is issued once the Director of Studies publishes it.
+  describe('whether a card is issued', () => {
+    it('is only when the term result says published', async () => {
+      prisma.termResult.findFirst.mockResolvedValueOnce({ id: 'r1' });
+      expect(await service.isReportCardIssued('s1', 't1')).toBe(true);
+      expect(prisma.termResult.findFirst.mock.calls[0][0].where).toEqual({
+        studentId: 's1',
+        termId: 't1',
+        reportCardPublished: true,
+      });
+      prisma.termResult.findFirst.mockResolvedValueOnce(null);
+      expect(await service.isReportCardIssued('s1', 't1')).toBe(false);
+    });
+  });
+
+  describe('the PDFs', () => {
+    it('prints the annual report full bleed, like the term card', async () => {
+      const anyService = service as any;
+      jest
+        .spyOn(anyService, 'generateYearReportHtml')
+        .mockResolvedValue('<html/>');
+      jest
+        .spyOn(anyService, 'htmlToPdf')
+        .mockResolvedValue(Buffer.from('%PDF'));
+      await service.generateYearReportPdf('s1', 'y1');
+      expect(anyService.htmlToPdf).toHaveBeenCalledWith('<html/>', 0);
+    });
+
+    it('prints a document with its title', async () => {
+      const anyService = service as any;
+      jest
+        .spyOn(anyService, 'generateDocument')
+        .mockResolvedValue({ html: '<p/>', title: 'Transfer letter' });
+      jest
+        .spyOn(anyService, 'htmlToPdf')
+        .mockResolvedValue(Buffer.from('%PDF'));
+      expect(await service.generateDocumentPdf('s1', 'transfer')).toMatchObject(
+        { title: 'Transfer letter' },
+      );
     });
   });
 

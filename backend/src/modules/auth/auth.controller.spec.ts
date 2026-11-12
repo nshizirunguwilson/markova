@@ -162,3 +162,53 @@ describe('AuthController', () => {
     });
   });
 });
+
+/** One login, many schools (part 3): the switcher and changing how you sign in. */
+describe('AuthController, a login with many schools', () => {
+  const service = mockService([
+    'schools',
+    'switchSchool',
+    'requestLoginChange',
+    'confirmLoginChange',
+  ]);
+  let run: (c: RouteCase) => Promise<void>;
+
+  beforeEach(async () => {
+    clearMocks(service);
+    run = await controllerHarness(AuthController, [
+      { token: AuthService, name: 'service', mock: service },
+    ]);
+  });
+
+  it('lists the schools of the login, marking the one open', () =>
+    run({
+      name: 'schools',
+      call: (c) => c.schools('acc-1', 'user-1'),
+      calls: 'schools',
+      withArgs: ['acc-1', 'user-1'],
+    }));
+
+  it('opens another school of the same login only', () =>
+    run({
+      name: 'switch',
+      call: (c) =>
+        c.switchSchool('acc-1', { userId: 'user-9', refreshToken: 'rt' }),
+      calls: 'switchSchool',
+      withArgs: ['acc-1', 'user-9', 'rt'],
+    }));
+
+  it('starts and finishes changing how you sign in, as yourself', async () => {
+    await run({
+      name: 'request',
+      call: (c) => c.requestLoginChange('user-1', { email: 'new@markova.edu' }),
+      calls: 'requestLoginChange',
+      withArgs: ['user-1', { email: 'new@markova.edu' }],
+    });
+    await run({
+      name: 'confirm',
+      call: (c) => c.confirmLoginChange('user-1', { code: '123456' }),
+      calls: 'confirmLoginChange',
+      withArgs: ['user-1', { code: '123456' }],
+    });
+  });
+});

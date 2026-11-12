@@ -362,6 +362,40 @@ describe("narrowing to one class", () => {
     });
 
     await waitFor(() => expect(lastUserQuery().classSectionId).toBe("section-1"));
+    // The class is narrower than its level, so the level is no longer sent.
+    expect(lastUserQuery().classLevelId).toBeUndefined();
+  });
+
+  // Picking a level used to change only the class picker: the list kept
+  // every level until a class was chosen too.
+  it("asks for the whole level as soon as one is picked", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all levels/i), {
+        target: { value: "level-1" },
+      });
+    });
+
+    await waitFor(() => expect(lastUserQuery().classLevelId).toBe("level-1"));
+    expect(lastUserQuery().classSectionId).toBeUndefined();
+  });
+
+  it("lists every level again once the level is cleared", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all levels/i), {
+        target: { value: "level-1" },
+      });
+    });
+    await waitFor(() => expect(lastUserQuery().classLevelId).toBe("level-1"));
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText(/all levels/i), {
+        target: { value: "" },
+      });
+    });
+
+    await waitFor(() => expect(lastUserQuery().classLevelId).toBeUndefined());
   });
 
   it("goes back to the first page when the level changes", async () => {

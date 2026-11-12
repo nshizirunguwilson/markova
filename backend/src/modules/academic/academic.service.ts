@@ -33,6 +33,7 @@ import {
   UpdateExamScheduleDto,
   BulkExamScheduleDto,
 } from './dto';
+import { mustExist } from '../../common/must-exist';
 
 @Injectable()
 export class AcademicService {
@@ -62,6 +63,7 @@ export class AcademicService {
   }
 
   async createYear(dto: CreateAcademicYearDto) {
+    endsAfterStart('A school year', dto.startDate, dto.endDate);
     if (dto.isCurrent) {
       await this.prisma.academicYear.updateMany({
         where: { isCurrent: true },
@@ -79,7 +81,21 @@ export class AcademicService {
   }
 
   async updateYear(id: string, dto: UpdateAcademicYearDto) {
-    await this.findYearById(id);
+    const year = await this.findYearById(id);
+    if (dto.startDate || dto.endDate) {
+      const start = dto.startDate ? new Date(dto.startDate) : year.startDate;
+      const end = dto.endDate ? new Date(dto.endDate) : year.endDate;
+      endsAfterStart('A school year', start, end);
+      // Moving a year's dates must not leave one of its terms outside it.
+      const outside = (year.terms ?? []).find(
+        (t) => t.startDate < start || t.endDate > end,
+      );
+      if (outside) {
+        throw new BadRequestException(
+          `${outside.name} runs from ${day(outside.startDate)} to ${day(outside.endDate)}, outside the new dates. Move the term first.`,
+        );
+      }
+    }
     if (dto.isCurrent) {
       await this.prisma.academicYear.updateMany({
         where: { isCurrent: true },
@@ -144,6 +160,11 @@ export class AcademicService {
   }
 
   async createTerm(dto: CreateTermDto) {
+    await this.assertTermFits(
+      dto.academicYearId,
+      new Date(dto.startDate),
+      new Date(dto.endDate),
+    );
     if (dto.isCurrent) {
       await this.prisma.term.updateMany({
         where: { isCurrent: true },
@@ -162,7 +183,15 @@ export class AcademicService {
   }
 
   async updateTerm(id: string, dto: UpdateTermDto) {
-    await this.findTermById(id);
+    const term = await this.findTermById(id);
+    if (dto.startDate || dto.endDate) {
+      await this.assertTermFits(
+        term.academicYearId,
+        dto.startDate ? new Date(dto.startDate) : term.startDate,
+        dto.endDate ? new Date(dto.endDate) : term.endDate,
+        id,
+      );
+    }
     if (dto.isCurrent) {
       await this.prisma.term.updateMany({
         where: { isCurrent: true },
@@ -179,6 +208,40 @@ export class AcademicService {
         ...(dto.isClosed !== undefined && { isClosed: dto.isClosed }),
       },
     });
+  }
+
+  /**
+   * A term has to make sense as a stretch of the calendar: it ends after it
+   * starts, it sits inside its school year, and it does not overlap another
+   * term of the same year. Each of these was saved without complaint, and a
+   * mark, a register or a fee invoice then lands in whichever term the date
+   * happens to match first.
+   */
+  private async assertTermFits(
+    academicYearId: string,
+    start: Date,
+    end: Date,
+    exceptTermId?: string,
+  ) {
+    endsAfterStart('A term', start, end);
+    const year = await this.prisma.academicYear.findUnique({
+      where: { id: academicYearId },
+      include: { terms: true },
+    });
+    if (!year) throw new NotFoundException('Academic year not found');
+    if (start < year.startDate || end > year.endDate) {
+      throw new BadRequestException(
+        `A term of ${year.name} has to fall between ${day(year.startDate)} and ${day(year.endDate)}`,
+      );
+    }
+    const clash = (year.terms ?? []).find(
+      (t) => t.id !== exceptTermId && t.startDate <= end && t.endDate >= start,
+    );
+    if (clash) {
+      throw new BadRequestException(
+        `That overlaps ${clash.name}, which runs from ${day(clash.startDate)} to ${day(clash.endDate)}`,
+      );
+    }
   }
 
   async closeTerm(id: string) {
@@ -716,6 +779,7 @@ export class AcademicService {
   }
 
   async findTeacherTimetable(teacherId: string) {
+    await mustExist(this.prisma.teacher, teacherId, 'Teacher');
     return this.prisma.timetable.findMany({
       where: { teacherId },
       include: {
@@ -729,6 +793,7 @@ export class AcademicService {
   }
 
   async createTimetable(dto: CreateTimetableDto) {
+    await this.assertNoClash(dto);
     /* Cleared on write rather than left to expire. Somebody who reorganises a
        timetable looks at the screen straight afterwards, and a five minute
        stale answer would have them do it again. */
@@ -750,6 +815,16 @@ export class AcademicService {
   async updateTimetable(id: string, dto: UpdateTimetableDto) {
     const entry = await this.prisma.timetable.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Timetable entry not found');
+    await this.assertNoClash(
+      {
+        classSectionId: dto.classSectionId ?? entry.classSectionId,
+        teacherId: dto.teacherId ?? entry.teacherId,
+        dayOfWeek: dto.dayOfWeek ?? entry.dayOfWeek,
+        startTime: dto.startTime ?? entry.startTime,
+        endTime: dto.endTime ?? entry.endTime,
+      },
+      id,
+    );
 
     /* Both classes, because a period moved from one to another changes what
        each of them shows. Clearing only the new one would leave the old class
@@ -777,6 +852,61 @@ export class AcademicService {
         },
       },
     });
+  }
+
+  /**
+   * Refuse a lesson that puts a teacher, or a class, in two places at once.
+   *
+   * Both were saved without complaint, and the timetable screen was written
+   * to show the refusal this sends. Two lessons clash when they share a day
+   * and one starts before the other ends; back to back (08:00 to 09:00, then
+   * 09:00 to 10:00) is not a clash.
+   */
+  private async assertNoClash(
+    slot: {
+      classSectionId: string;
+      teacherId: string;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+    },
+    exceptId?: string,
+  ) {
+    if (slot.endTime <= slot.startTime) {
+      throw new BadRequestException('A lesson has to end after it starts');
+    }
+    const clash = await this.prisma.timetable.findFirst({
+      where: {
+        ...(exceptId && { id: { not: exceptId } }),
+        dayOfWeek: slot.dayOfWeek,
+        startTime: { lt: slot.endTime },
+        endTime: { gt: slot.startTime },
+        OR: [
+          { teacherId: slot.teacherId },
+          { classSectionId: slot.classSectionId },
+        ],
+      },
+      include: {
+        subject: { select: { name: true } },
+        teacher: {
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+        classSection: { include: { classLevel: { select: { name: true } } } },
+      },
+    });
+    if (!clash) return;
+
+    const when = `on ${WEEKDAYS[clash.dayOfWeek - 1] ?? 'that day'} from ${clash.startTime} to ${clash.endTime}`;
+    const klass = `${clash.classSection.classLevel.name} ${clash.classSection.name}`;
+    if (clash.teacherId === slot.teacherId) {
+      const who = `${clash.teacher.user.firstName} ${clash.teacher.user.lastName}`;
+      throw new ConflictException(
+        `${who} already teaches ${clash.subject.name} to ${klass} ${when}`,
+      );
+    }
+    throw new ConflictException(
+      `${klass} already has ${clash.subject.name} ${when}`,
+    );
   }
 
   async deleteTimetable(id: string) {
@@ -1134,3 +1264,39 @@ export class AcademicService {
     };
   }
 }
+
+/** A date as a school writes it, 2 February 2026. */
+function day(d: Date): string {
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Africa/Kigali',
+  });
+}
+
+/** Refuse a stretch of time that ends before, or on the day, it starts. */
+function endsAfterStart(
+  what: string,
+  start: Date | string,
+  end: Date | string,
+) {
+  const a = new Date(start);
+  const b = new Date(end);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) {
+    throw new BadRequestException(`${what} needs a start and an end date`);
+  }
+  if (b <= a) {
+    throw new BadRequestException(`${what} has to end after it starts`);
+  }
+}
+
+const WEEKDAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];

@@ -38,6 +38,25 @@ const CREDENTIALS = [
  * actually use.
  */
 const SENSITIVE = [
+  // Clinic visits and the medicine given at them.
+  'complaint',
+  'findings',
+  'medicine',
+  'dose',
+  'regularMedication',
+  'allergies',
+  'conditions',
+  'medicalConditions',
+  'disability',
+  // Support plans.
+  'needs',
+  'needNote',
+  'otherArrangement',
+  // Discipline and a student's journey.
+  'statement',
+  'actionTaken',
+  'reviewNotes',
+  'note',
   'diagnosis',
   'treatment',
   'symptoms',

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { Card, CardTitle, Spinner } from "@/components/ui";
 import { useStudentAttendanceSummary } from "@/hooks/use-attendance";
 import { useAuthStore } from "@/stores/auth-store";
@@ -10,6 +11,7 @@ import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
 import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
 import { keptPrivate } from "@/lib/kept-private";
+import { DATE_LOCALE } from "@/lib/dates";
 
 interface Child {
   id: string;
@@ -20,7 +22,8 @@ interface Child {
 export default function ParentAttendancePage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -36,7 +39,6 @@ export default function ParentAttendancePage() {
             : "",
         }));
         setChildren(mapped);
-        if (mapped.length > 0) setSelectedChild(mapped[0].id);
       })
       .catch(() => {});
   }, [user?.id]);
@@ -65,7 +67,7 @@ export default function ParentAttendancePage() {
     return days;
   }, [data]);
 
-  const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const monthName = new Date().toLocaleString(DATE_LOCALE, { month: "long", year: "numeric" });
 
   return (
     <div className="space-y-6">
@@ -134,6 +136,13 @@ export default function ParentAttendancePage() {
               <p className="text-xs text-muted">Absent</p>
               <p className="text-2xl font-bold text-danger">{data.absent}</p>
             </Card>
+            {/* Days the school excused: counted apart, not in the rate. */}
+            {data.excused > 0 && (
+              <Card>
+                <p className="text-xs text-muted">Excused</p>
+                <p className="text-2xl font-bold text-info">{data.excused}</p>
+              </Card>
+            )}
           </div>
 
           <Card>
@@ -153,6 +162,7 @@ export default function ParentAttendancePage() {
                       cell.status === "PRESENT" ? "bg-success-wash text-success" :
                       cell.status === "LATE" ? "bg-warning-wash text-warning" :
                       cell.status === "ABSENT" ? "bg-danger-wash text-danger" :
+                      cell.status === "EXCUSED" ? "bg-info-wash text-info" :
                       "bg-surface text-muted"
                     }`}
                   >
@@ -172,6 +182,7 @@ export default function ParentAttendancePage() {
               <span className="flex items-center gap-1"><div className="h-3 w-3 rounded bg-success/20" /> Present</span>
               <span className="flex items-center gap-1"><div className="h-3 w-3 rounded bg-warning/20" /> Late</span>
               <span className="flex items-center gap-1"><div className="h-3 w-3 rounded bg-danger/20" /> Absent</span>
+              <span className="flex items-center gap-1"><div className="h-3 w-3 rounded bg-info/20" /> Excused</span>
             </div>
           </Card>
         </>

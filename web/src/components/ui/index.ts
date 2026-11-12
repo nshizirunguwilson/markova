@@ -16,3 +16,4 @@ export { PhotoPicker } from "./photo-picker";
 export { Spinner, PageSpinner } from "./spinner";
 export { ExportDropdown } from "./export-dropdown";
 export { TooltipGuide } from "./tooltip-guide";
+export { LoadFailed } from "./load-failed";

@@ -59,99 +59,9 @@ export class PrismaService
     super();
 
     /*
-      The client as it was before the extension. Every statement this file
-      issues itself goes through here rather than through `this`, because a
-      `set_config` sent through the extension would be a query needing a
-      transaction needing a `set_config`, without end.
-
-      It is also the only honest way to reach `$transaction`. Inside an
-      extension callback `this` is the extension's own context and has no
-      client methods on it at all, which is what the first version of this
-      file got wrong: it threw `$transaction is not a function` on every
-      authenticated request, and only in a deployment, because the tests
-      construct services with a stub client and never run the extension.
+      The client as it was before the extension: see identityExtension.
     */
-    const base = this as PrismaClient;
-
-    /*
-      All four in one statement: one round trip, not four. An unset value goes
-      as an empty string, which every policy reads as "not this": no school
-      means no school's rows, and no bypass means none.
-    */
-    const settings = (ctx: RequestContext) => [
-      ctx.role ?? '',
-      ctx.userId ?? '',
-      ctx.schoolId ?? '',
-      ctx.platform ? 'on' : '',
-    ];
-    const identifyOn = (
-      client: { $executeRaw: PrismaClient['$executeRaw'] },
-      ctx: RequestContext,
-    ) => {
-      const [role, userId, schoolId, bypass] = settings(ctx);
-      return client.$executeRaw`SELECT
-        set_config('app.role', ${role}, TRUE),
-        set_config('app.user_id', ${userId}, TRUE),
-        set_config('app.school_id', ${schoolId}, TRUE),
-        set_config('app.bypass', ${bypass}, TRUE)`;
-    };
-    const identify = (ctx: RequestContext) => [identifyOn(base, ctx)];
-
-    return this.$extends({
-      client: {
-        /*
-          Interactive transactions, taken over so the identity is set once, at
-          the start, on the connection the whole callback will use. Everything
-          inside then runs under `withIdentityApplied` and passes straight
-          through the query extension below.
-        */
-        $transaction(...args: unknown[]) {
-          const ctx = currentRequest();
-          const [first, options] = args;
-
-          /*
-            The list form, `$transaction([a, b])`, is refused while anybody is
-            in context. Its queries are built before the transaction opens, so
-            there is no moment to tell the connection which school they are
-            for: reads would come back empty and writes would fail. The
-            callback form, `$transaction(async (tx) => ...)`, does the same job
-            and carries the school.
-          */
-          if (ctx && typeof first !== 'function') {
-            throw new Error(
-              'Use $transaction(async (tx) => ...) rather than a list of queries: only the callback form can carry the school.',
-            );
-          }
-
-          if (!ctx || typeof first !== 'function') {
-            return (base.$transaction as (...a: unknown[]) => Promise<unknown>)(
-              ...args,
-            );
-          }
-
-          const run = first as (tx: unknown) => Promise<unknown>;
-          return base.$transaction(
-            async (tx) => {
-              await identifyOn(tx, ctx);
-              return withIdentityApplied(() => run(tx));
-            },
-            options as Parameters<typeof base.$transaction>[1],
-          );
-        },
-      },
-      query: {
-        async $allOperations({ args, query }) {
-          const ctx = currentRequest();
-          if (!ctx || identityApplied()) return query(args);
-
-          const [, result] = await base.$transaction([
-            ...identify(ctx),
-            query(args) as Prisma.PrismaPromise<unknown>,
-          ]);
-          return result;
-        },
-      },
-    }) as this;
+    return this.$extends(identityExtension(this)) as this;
   }
 
   /**
@@ -182,4 +92,101 @@ export class PrismaService
   async onModuleDestroy() {
     await this.$disconnect();
   }
+}
+
+/**
+ * The extension that tells the database who is asking, for the client it is
+ * given. A function of its own so a test can drive it with a stand-in client;
+ * the real thing is proven against PostgreSQL in test/wall.e2e-spec.ts.
+ *
+ * Every statement this issues itself goes through `base`, the client as it
+ * was before the extension. A `set_config` sent through the extension would
+ * be a query needing a transaction needing a `set_config`, without end. It is
+ * also the only honest way to reach `$transaction`: inside an extension
+ * callback `this` is the extension's own context and has no client methods
+ * on it at all, which is what the first version of this file got wrong. It
+ * threw `$transaction is not a function` on every authenticated request, and
+ * only in a deployment, because the tests construct services with a stub
+ * client and never ran the extension.
+ */
+export function identityExtension(base: PrismaClient) {
+  /*
+    All four in one statement: one round trip, not four. An unset value goes
+    as an empty string, which every policy reads as "not this": no school
+    means no school's rows, and no bypass means none.
+  */
+  const settings = (ctx: RequestContext) => [
+    ctx.role ?? '',
+    ctx.userId ?? '',
+    ctx.schoolId ?? '',
+    ctx.platform ? 'on' : '',
+  ];
+  const identifyOn = (
+    client: { $executeRaw: PrismaClient['$executeRaw'] },
+    ctx: RequestContext,
+  ) => {
+    const [role, userId, schoolId, bypass] = settings(ctx);
+    return client.$executeRaw`SELECT
+      set_config('app.role', ${role}, TRUE),
+      set_config('app.user_id', ${userId}, TRUE),
+      set_config('app.school_id', ${schoolId}, TRUE),
+      set_config('app.bypass', ${bypass}, TRUE)`;
+  };
+  const identify = (ctx: RequestContext) => [identifyOn(base, ctx)];
+
+  return Prisma.defineExtension({
+    client: {
+      /*
+        Interactive transactions, taken over so the identity is set once, at
+        the start, on the connection the whole callback will use. Everything
+        inside then runs under `withIdentityApplied` and passes straight
+        through the query extension below.
+      */
+      $transaction(...args: unknown[]) {
+        const ctx = currentRequest();
+        const [first, options] = args;
+
+        /*
+          The list form, `$transaction([a, b])`, is refused while anybody is
+          in context. Its queries are built before the transaction opens, so
+          there is no moment to tell the connection which school they are
+          for: reads would come back empty and writes would fail. The
+          callback form, `$transaction(async (tx) => ...)`, does the same job
+          and carries the school.
+        */
+        if (ctx && typeof first !== 'function') {
+          throw new Error(
+            'Use $transaction(async (tx) => ...) rather than a list of queries: only the callback form can carry the school.',
+          );
+        }
+
+        if (!ctx || typeof first !== 'function') {
+          return (base.$transaction as (...a: unknown[]) => Promise<unknown>)(
+            ...args,
+          );
+        }
+
+        const run = first as (tx: unknown) => Promise<unknown>;
+        return base.$transaction(
+          async (tx) => {
+            await identifyOn(tx, ctx);
+            return withIdentityApplied(() => run(tx));
+          },
+          options as Parameters<typeof base.$transaction>[1],
+        );
+      },
+    },
+    query: {
+      async $allOperations({ args, query }) {
+        const ctx = currentRequest();
+        if (!ctx || identityApplied()) return query(args);
+
+        const [, result] = await base.$transaction([
+          ...identify(ctx),
+          query(args) as Prisma.PrismaPromise<unknown>,
+        ]);
+        return result;
+      },
+    },
+  });
 }

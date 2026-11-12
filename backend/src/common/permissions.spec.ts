@@ -14,6 +14,8 @@ describe('who may do what to a particular record', () => {
     teacherRole: { findFirst: jest.fn(), findMany: jest.fn() },
     parentStudent: { findFirst: jest.fn() },
     student: { findFirst: jest.fn() },
+    term: { findFirst: jest.fn() },
+    teacherSubjectClass: { findFirst: jest.fn(), findMany: jest.fn() },
   };
   const permissions = new Permissions(prisma as never);
 
@@ -23,6 +25,9 @@ describe('who may do what to a particular record', () => {
     prisma.teacherRole.findMany.mockResolvedValue([]);
     prisma.parentStudent.findFirst.mockResolvedValue(null);
     prisma.student.findFirst.mockResolvedValue(null);
+    prisma.term.findFirst.mockResolvedValue({ academicYearId: 'year-1' });
+    prisma.teacherSubjectClass.findFirst.mockResolvedValue(null);
+    prisma.teacherSubjectClass.findMany.mockResolvedValue([]);
   });
 
   describe('leading a class', () => {
@@ -108,6 +113,70 @@ describe('who may do what to a particular record', () => {
       expect(permissions.mayWriteHeadTeacherComment({ role: 'TEACHER' })).toBe(
         false,
       );
+    });
+  });
+
+  describe('entering and reading marks', () => {
+    const entry = {
+      subjectId: 'math',
+      classSectionId: 's1-a',
+      termId: 'term-1',
+    };
+
+    it('lets a teacher enter marks for a subject they teach to that class', async () => {
+      prisma.teacherSubjectClass.findFirst.mockResolvedValue({ id: 'tsc-1' });
+      expect(await permissions.mayEnterMarks('t-1', entry)).toBe(true);
+      expect(prisma.teacherSubjectClass.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            teacherId: 't-1',
+            subjectId: 'math',
+            classSectionId: 's1-a',
+            academicYearId: 'year-1',
+          }),
+        }),
+      );
+    });
+
+    it('refuses a subject or class they do not teach', async () => {
+      expect(await permissions.mayEnterMarks('t-1', entry)).toBe(false);
+    });
+
+    it('refuses when the term does not exist', async () => {
+      prisma.term.findFirst.mockResolvedValue(null);
+      expect(await permissions.mayEnterMarks('t-1', entry)).toBe(false);
+    });
+
+    it('lets a teacher who holds the DOS duty enter for any class', async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'dos' });
+      expect(await permissions.mayEnterMarks('t-1', entry)).toBe(true);
+      expect(prisma.teacherSubjectClass.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('refuses somebody with no teacher record', async () => {
+      expect(await permissions.mayEnterMarks(undefined, entry)).toBe(false);
+    });
+
+    it('lets a teacher read what they teach and the whole card of the class they lead', async () => {
+      prisma.teacherSubjectClass.findMany.mockResolvedValue([
+        { subjectId: 'math', classSectionId: 's2-b' },
+      ]);
+      prisma.teacherRole.findMany.mockResolvedValue([
+        { classSectionId: 's1-a' },
+      ]);
+      expect(await permissions.marksReadableBy('t-1')).toEqual([
+        { subjectId: 'math', classSectionId: 's2-b' },
+        { classSectionId: 's1-a' },
+      ]);
+    });
+
+    it('puts no limit on a teacher who holds the DOS duty', async () => {
+      prisma.teacherRole.findFirst.mockResolvedValue({ id: 'dos' });
+      expect(await permissions.marksReadableBy('t-1')).toBeNull();
+    });
+
+    it('gives somebody with no teacher record nothing to read', async () => {
+      expect(await permissions.marksReadableBy(undefined)).toEqual([]);
     });
   });
 

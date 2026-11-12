@@ -41,6 +41,7 @@ import {
   Gavel,
 } from "lucide-react";
 import { toLocalDateString, classDisplayName } from "@/lib/utils";
+import { day } from "@/lib/dates";
 
 const ACTION_LABELS: Record<string, string> = {
   VERBAL_WARNING: "Verbal Warning",
@@ -136,12 +137,12 @@ export default function AdminDisciplinePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Discipline</h1>
           <p className="text-sm text-muted">Manage incidents and appeals</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowMeritModal(true)}>
             <Award className="mr-1 h-4 w-4" /> Recognise a student
           </Button>
@@ -151,8 +152,9 @@ export default function AdminDisciplinePage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-border">
+      {/* Tabs. Five of them are wider than a phone, so the strip scrolls
+          inside itself rather than pushing the whole page sideways. */}
+      <div className="flex gap-2 overflow-x-auto border-b border-border">
         {[
           { key: "incidents", label: "Incidents", icon: AlertTriangle },
           { key: "merits", label: "Merits", icon: Award },
@@ -168,7 +170,7 @@ export default function AdminDisciplinePage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key as any)}
-            className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 ${
               tab === t.key ? "border-primary text-primary" : "border-transparent text-muted hover:text-foreground"
             }`}
           >
@@ -200,7 +202,7 @@ export default function AdminDisciplinePage() {
               <TableBody>
                 {incidents.map((inc: any) => (
                   <TableRow key={inc.id}>
-                    <TableCell className="text-sm">{new Date(inc.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-sm">{day(inc.date)}</TableCell>
                     <TableCell className="font-medium">
                       {inc.student?.user?.firstName ?? "Unknown"} {inc.student?.user?.lastName ?? ""}
                     </TableCell>
@@ -306,7 +308,7 @@ export default function AdminDisciplinePage() {
                   {merits.data.map((m: any) => (
                     <TableRow key={m.id}>
                       <TableCell className="text-sm">
-                        {new Date(m.date).toLocaleDateString()}
+                        {day(m.date)}
                       </TableCell>
                       <TableCell className="font-medium">
                         {m.student?.user?.firstName} {m.student?.user?.lastName}
@@ -430,7 +432,7 @@ export default function AdminDisciplinePage() {
                     </p>
                     <p className="mt-1 text-xs text-muted">
                       By {a.submittedBy?.firstName ?? "someone"} {a.submittedBy?.lastName ?? ""} on{" "}
-                      {new Date(a.createdAt).toLocaleDateString()}
+                      {day(a.createdAt)}
                     </p>
                   </div>
                   <div className="flex gap-2">

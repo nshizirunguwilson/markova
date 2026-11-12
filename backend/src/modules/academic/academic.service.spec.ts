@@ -33,6 +33,7 @@ describe('AcademicService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.teacher.findFirst.mockResolvedValue({ id: 'teacher-1' });
     service = new AcademicService(prisma, cache as never);
   });
 
@@ -154,7 +155,96 @@ describe('AcademicService', () => {
       );
     });
 
+    const year2027 = {
+      id: 'year-1',
+      name: '2027',
+      startDate: new Date('2027-01-01'),
+      endDate: new Date('2027-11-30'),
+      terms: [
+        {
+          id: 'term-2',
+          name: 'Term 2',
+          startDate: new Date('2027-04-20'),
+          endDate: new Date('2027-07-20'),
+        },
+      ],
+    };
+
+    /* Each of these was saved without complaint in the test run: a year
+       ending before it starts, a term ending before it starts, and a 2043
+       term inside the 2040 to 2041 year. */
+    it('refuses a school year that ends before it starts', async () => {
+      await expect(
+        service.createYear({
+          name: '2028',
+          startDate: '2028-11-30',
+          endDate: '2028-01-08',
+        } as any),
+      ).rejects.toThrow('A school year has to end after it starts');
+      expect(prisma.academicYear.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a term that ends before it starts', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 1',
+          startDate: '2027-04-01',
+          endDate: '2027-01-08',
+        }),
+      ).rejects.toThrow('A term has to end after it starts');
+    });
+
+    it('refuses a term outside its school year', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 3',
+          startDate: '2043-09-01',
+          endDate: '2043-11-20',
+        }),
+      ).rejects.toThrow('has to fall between');
+      expect(prisma.term.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a term that overlaps another', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.createTerm({
+          academicYearId: 'year-1',
+          name: 'Term 1',
+          startDate: '2027-01-08',
+          endDate: '2027-05-01',
+        }),
+      ).rejects.toThrow('That overlaps Term 2');
+    });
+
+    it('lets a term be moved without clashing with itself', async () => {
+      prisma.term.findUnique.mockResolvedValue({
+        ...year2027.terms[0],
+        academicYearId: 'year-1',
+      });
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      prisma.term.update.mockResolvedValue({});
+      await service.updateTerm('term-2', { endDate: '2027-07-25' });
+      expect(prisma.term.update).toHaveBeenCalled();
+    });
+
+    it('refuses moving a year away from one of its terms', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue(year2027);
+      await expect(
+        service.updateYear('year-1', { endDate: '2027-06-30' }),
+      ).rejects.toThrow('Term 2 runs from');
+      expect(prisma.academicYear.update).not.toHaveBeenCalled();
+    });
+
     it('stands the previous current term down when a new one is made current', async () => {
+      prisma.academicYear.findUnique.mockResolvedValue({
+        ...year2027,
+        terms: [],
+      });
       prisma.term.create.mockResolvedValue({});
       await service.createTerm({
         academicYearId: 'year-1',
@@ -535,6 +625,89 @@ describe('AcademicService', () => {
       await service.updateTimetable('tt-1', { room: '' });
       expect(prisma.timetable.update.mock.calls[0][0].data).toEqual({
         room: '',
+      });
+    });
+
+    describe('a teacher or a class in two places at once', () => {
+      const lesson = {
+        classSectionId: 'class-s2a',
+        subjectId: 'sub-maths',
+        teacherId: 'tch-aline',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+      };
+      const existing = (over: object = {}) => ({
+        id: 'tt-9',
+        classSectionId: 'class-s3b',
+        teacherId: 'tch-aline',
+        dayOfWeek: 1,
+        startTime: '08:30',
+        endTime: '09:30',
+        subject: { name: 'Physics' },
+        teacher: { user: { firstName: 'Aline', lastName: 'Uwase' } },
+        classSection: { name: 'B', classLevel: { name: 'S3' } },
+        ...over,
+      });
+
+      it('refuses a teacher booked into two classes at once', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(existing());
+        await expect(service.createTimetable(lesson)).rejects.toThrow(
+          'Aline Uwase already teaches Physics to S3 B on Monday from 08:30 to 09:30',
+        );
+        expect(prisma.timetable.create).not.toHaveBeenCalled();
+      });
+
+      it('refuses a class given two lessons at once', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(
+          existing({
+            teacherId: 'tch-other',
+            classSectionId: 'class-s2a',
+            classSection: { name: 'A', classLevel: { name: 'S2' } },
+          }),
+        );
+        await expect(service.createTimetable(lesson)).rejects.toThrow(
+          'S2 A already has Physics on Monday',
+        );
+      });
+
+      it('asks only about overlapping lessons on the same day', async () => {
+        prisma.timetable.findFirst.mockResolvedValue(null);
+        prisma.timetable.create.mockResolvedValue({});
+        await service.createTimetable(lesson);
+        const where = prisma.timetable.findFirst.mock.calls[0][0].where;
+        expect(where).toMatchObject({
+          dayOfWeek: 1,
+          startTime: { lt: '09:00' },
+          endTime: { gt: '08:00' },
+          OR: [{ teacherId: 'tch-aline' }, { classSectionId: 'class-s2a' }],
+        });
+      });
+
+      it('does not count a lesson being moved as clashing with itself', async () => {
+        prisma.timetable.findUnique.mockResolvedValue({
+          id: 'tt-1',
+          ...lesson,
+        });
+        prisma.timetable.findFirst.mockResolvedValue(null);
+        prisma.timetable.update.mockResolvedValue({});
+        await service.updateTimetable('tt-1', {
+          startTime: '08:15',
+          endTime: '09:15',
+        });
+        expect(prisma.timetable.findFirst.mock.calls[0][0].where.id).toEqual({
+          not: 'tt-1',
+        });
+      });
+
+      it('refuses a lesson that ends before it starts', async () => {
+        await expect(
+          service.createTimetable({
+            ...lesson,
+            startTime: '10:00',
+            endTime: '09:00',
+          }),
+        ).rejects.toThrow('A lesson has to end after it starts');
       });
     });
 

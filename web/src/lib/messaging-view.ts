@@ -1,3 +1,4 @@
+import { DATE_LOCALE } from "@/lib/dates";
 /**
  * Turning a flat list of messages into the shape a thread is read in.
  *
@@ -81,9 +82,9 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days > 1 && days < 7) {
-    return date.toLocaleDateString(undefined, { weekday: "long" });
+    return date.toLocaleDateString(DATE_LOCALE, { weekday: "long" });
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(DATE_LOCALE, {
     day: "numeric",
     month: "long",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
@@ -104,7 +105,7 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
 export function clockTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], {
+  return date.toLocaleTimeString(DATE_LOCALE, {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",

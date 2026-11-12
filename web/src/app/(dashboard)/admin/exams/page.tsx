@@ -19,6 +19,7 @@ import {
 import { useCreateExam, useDeleteExam, useExams, useUpdateExam, type ExamEntry } from "@/hooks/use-exams";
 import { classDisplayName } from "@/lib/utils";
 import Link from "next/link";
+import { DATE_LOCALE } from "@/lib/dates";
 
 /**
  * The exam timetable.
@@ -199,7 +200,7 @@ export default function ExamsPage() {
           {byDay.map(([day, list]) => (
             <Card key={day} padding="sm">
               <CardTitle className="mb-3 text-base">
-                {new Date(day).toLocaleDateString(undefined, DAY)}
+                {new Date(day).toLocaleDateString(DATE_LOCALE, DAY)}
               </CardTitle>
               <ul className="divide-y divide-border">
                 {list.map((exam) => (

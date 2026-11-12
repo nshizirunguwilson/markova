@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { afterEach } from "vitest";
+import { useChildStore } from "@/stores/child-store";
 
 /**
  * Node 22 exposes its own experimental `localStorage` global, which shadows the
@@ -81,3 +83,10 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+/**
+ * A parent's chosen child is shared by every parent page, so it would also be
+ * shared by every test in a file: one that picks the second child would leave
+ * the next test looking at them.
+ */
+afterEach(() => useChildStore.getState().forget());

@@ -256,9 +256,7 @@ describe('support plans (e2e)', () => {
 
   it('tells a teacher of another class nothing', async () => {
     await as(otherTeacher).get(url()).expect(403);
-    await as(otherTeacher)
-      .get(`/api/support/class/${sectionId}`)
-      .expect(403);
+    await as(otherTeacher).get(`/api/support/class/${sectionId}`).expect(403);
   });
 
   it('shows the family their child’s plan, to read', async () => {
@@ -296,10 +294,7 @@ describe('support plans (e2e)', () => {
   });
 
   it('lets the Director of Studies remove it', async () => {
-    await api()
-      .delete(url())
-      .set('Authorization', `Bearer ${dos}`)
-      .expect(200);
+    await api().delete(url()).set('Authorization', `Bearer ${dos}`).expect(200);
     const res = await as(dos).get(url()).expect(200);
     expect(res.body.plan).toBeNull();
   });

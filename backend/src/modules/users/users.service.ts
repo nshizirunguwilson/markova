@@ -5,13 +5,13 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { randomInt } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TERM_CONDUCT_MARK } from '../../common/conduct';
 import { buildStudentId, studentIdSecret } from '../../common/student-id';
 import { Role, Prisma, StudentStatus, Gender } from '@prisma/client';
 import { PaginatedResponse } from '../../common/dto';
 import { CreateUserDto, UpdateUserDto, QueryUserDto } from './dto';
+import { generateTempPassword } from '../../common/temp-password';
 import { hashPassword } from '../../common/password';
 import { AccountsService, LoginFor } from '../accounts/accounts.service';
 import { labelForRole } from '../../common/role-labels';
@@ -34,6 +34,7 @@ export class UsersService {
       search,
       isActive,
       classSectionId,
+      classLevelId,
       studentStatus,
       noDateOfBirth,
       searchIn,
@@ -153,9 +154,13 @@ export class UsersService {
       });
     }
 
-    if (classSectionId || studentStatus || noDateOfBirth) {
+    if (classSectionId || classLevelId || studentStatus || noDateOfBirth) {
       where.student = {
         ...(classSectionId && { classSectionId }),
+        // One class is narrower than its level, so the level only speaks
+        // when no class is named.
+        ...(classLevelId &&
+          !classSectionId && { classSection: { classLevelId } }),
         ...(studentStatus && { status: studentStatus }),
         ...(noDateOfBirth && { dateOfBirth: null }),
       };
@@ -447,6 +452,7 @@ export class UsersService {
       either way (see AccountsService).
     */
     const login = await this.accounts.loginFor(dto.email, dto.phone);
+    await this.accounts.refuseSomebodyElse(login, dto);
     await this.refuseSameRoleTwice(login, dto.role);
 
     if (dto.nationalId) {
@@ -829,7 +835,7 @@ export class UsersService {
       }
     }
 
-    const password = this.generateTempPassword();
+    const password = generateTempPassword();
     await this.prisma.$transaction(async (tx) => {
       await tx.account.update({
         where: { id: user.accountId },
@@ -973,7 +979,10 @@ export class UsersService {
       const login = again
         ? { accountId: again.accountId, isNew: false }
         : await this.accounts.loginFor(email, phone);
-      if (!again) await this.refuseSameRoleTwice(login, role, i + 1);
+      if (!again) {
+        await this.accounts.refuseSomebodyElse(login, rows[i], i + 1);
+        await this.refuseSameRoleTwice(login, role, i + 1);
+      }
       if (
         again &&
         logins.some(
@@ -1004,7 +1013,7 @@ export class UsersService {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const login = logins[i];
-        const password = this.generateTempPassword();
+        const password = generateTempPassword();
         const user = await tx.user.create({
           data: {
             accountId: login.accountId,
@@ -1123,24 +1132,6 @@ export class UsersService {
     return headers[role] || headers.STUDENT;
   }
 
-  // Same policy shape as the wizard's generator: 10 chars with an upper, a
-  // lower, a digit and a symbol guaranteed.
-  private generateTempPassword(): string {
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    const symbols = '!@#$%&*';
-    const all = lower + upper + digits + symbols;
-    const pick = (pool: string) => pool[randomInt(pool.length)];
-    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
-    while (chars.length < 10) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join('');
-  }
-
   // ─── HELPERS ────────────────────────────────────────────────────────────────
 
   // NIDA semantic checks beyond the regex: plausible birth year, and the
@@ -1215,7 +1206,7 @@ export class UsersService {
   }
 
   // Role-based registration code for everyone who is not a student:
-  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001.
+  // TCH-2026-012, PAR-2026-0198, LIB-2026-001, ADM-2026-001, NUR-2026-002.
   private async generateUserCode(
     role: Role,
     client: Prisma.TransactionClient,
@@ -1225,6 +1216,14 @@ export class UsersService {
       [Role.PARENT]: 'PAR',
       [Role.LIBRARIAN]: 'LIB',
       [Role.ADMIN]: 'ADM',
+      /* The same prefixes the seed gives its one of each. These five were
+         left out, so the seeded bursar had BUR-2026-001 and the second
+         bursar a school hired had no number at all. */
+      [Role.BURSAR]: 'BUR',
+      [Role.PATRON]: 'PAT',
+      [Role.MATRON]: 'MAT',
+      [Role.NURSE]: 'NUR',
+      [Role.HEAD_TEACHER]: 'HTC',
     };
     const rolePrefix = prefixes[role];
     if (!rolePrefix) return null;

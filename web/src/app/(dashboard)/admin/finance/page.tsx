@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { exportData } from "@/lib/export";
+import { registerExport, termLabel, wholeRegister } from "@/lib/fee-exports";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Avatar,
   Badge,
   Button,
   Card,
+  ExportDropdown,
   PageSpinner,
   Table,
   TableBody,
@@ -19,7 +23,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { classDisplayName } from "@/lib/utils";
 import { TermPicker } from "@/components/finance/term-picker";
 import { FeeBar } from "@/components/finance/fee-bar";
-import { useClassLevels, useSections } from "@/hooks/use-academic";
+import { useClassLevels, useSections, useTerms } from "@/hooks/use-academic";
 import {
   useFeeRegister,
   useFeeSummary,
@@ -89,6 +93,28 @@ export default function FeeRegisterPage() {
     limit,
   });
   const raise = useRaiseInvoices();
+  const { data: terms } = useTerms();
+  const [exporting, setExporting] = useState(false);
+
+  /* Every row for these filters, not the 50 on screen: the board asks for
+     the term's arrears, not page one of them. */
+  const handleExport = async (format: "json" | "csv" | "pdf" | "xlsx") => {
+    if (!termId) return;
+    setExporting(true);
+    try {
+      const all = await wholeRegister({
+        termId,
+        classSectionId: sectionId || undefined,
+        status: status || undefined,
+        search: search || undefined,
+      });
+      await exportData(format, registerExport(all, termLabel(terms, termId)));
+    } catch {
+      toast.error("Could not export the register. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -114,7 +140,15 @@ export default function FeeRegisterPage() {
       <PageHeader
         title="School fees"
         description="What each family has been billed for this term, and what has come in - largest balances first"
-        actions={<TermPicker value={termId} onChange={setTermId} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TermPicker value={termId} onChange={setTermId} />
+            <ExportDropdown
+              onExport={handleExport}
+              disabled={!termId || total === 0 || exporting}
+            />
+          </div>
+        }
       />
 
       {/*

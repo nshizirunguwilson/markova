@@ -1,11 +1,29 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiConsumes } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service';
 import { PublicSchoolService } from '../../prisma/public-school.service';
 import { withSchool } from '../../prisma/request-context';
-import { AnswerOfferDto, StatusLookupDto, SubmitApplicationDto } from './dto';
+import {
+  AnswerOfferDto,
+  FamilyDocumentDto,
+  StatusLookupDto,
+  SubmitApplicationDto,
+} from './dto';
+import { FAMILY_MAX_BYTES } from './admissions.service';
 
 /**
  * What the admissions site and a family can reach without an account.
@@ -84,6 +102,43 @@ export class PublicAdmissionsController {
         dto.dateOfBirth,
         dto.accept,
         dto.reason,
+      ),
+    );
+  }
+
+  /**
+   * A family attaches a birth certificate, a report or another paper.
+   *
+   * Ten a minute from one address, proved by the reference and the date of
+   * birth like the status lookup. Held in memory, not written anywhere, until
+   * that proof passes. See AdmissionsService.attachFromFamily.
+   */
+  @Post('documents')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      // One byte over, so a file at the limit is told so in words rather than
+      // cut off by multer with a bare 413.
+      limits: { fileSize: FAMILY_MAX_BYTES + 1, files: 1 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'A family attaches a document to an application' })
+  async attachDocument(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: FamilyDocumentDto,
+    @Req() req: Request,
+  ) {
+    if (!file) throw new BadRequestException('Choose a file to send');
+    const schoolId = await this.publicSchool.resolve(req);
+    return withSchool(schoolId, () =>
+      this.service.attachFromFamily(
+        dto.reference,
+        dto.dateOfBirth,
+        dto.kind as never,
+        file,
+        schoolId,
       ),
     );
   }

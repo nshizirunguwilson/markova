@@ -36,19 +36,19 @@ describe('HelpService', () => {
   describe('findAllFaqs()', () => {
     it('only ever returns published articles to non-admins', async () => {
       mockPrisma.faqArticle.findMany.mockResolvedValue([]);
-      await service.findAllFaqs();
-      expect(mockPrisma.faqArticle.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { isPublished: true } }),
-      );
+      await service.findAllFaqs(undefined, 'NURSE');
+      expect(
+        mockPrisma.faqArticle.findMany.mock.calls[0][0].where.isPublished,
+      ).toBe(true);
     });
 
     it('searches title and content case-insensitively, still published-only', async () => {
       mockPrisma.faqArticle.findMany.mockResolvedValue([]);
-      await service.findAllFaqs('attendance');
+      await service.findAllFaqs('attendance', 'NURSE');
 
       const where = mockPrisma.faqArticle.findMany.mock.calls[0][0].where;
       expect(where.isPublished).toBe(true);
-      expect(where.OR).toEqual([
+      expect(where.AND[1].OR).toEqual([
         { title: { contains: 'attendance', mode: 'insensitive' } },
         { content: { contains: 'attendance', mode: 'insensitive' } },
       ]);
@@ -146,10 +146,37 @@ describe('HelpService', () => {
   describe('which questions are shown', () => {
     it('shows only published ones to everybody', async () => {
       mockPrisma.faqArticle.findMany.mockResolvedValue([]);
-      await service.findAllFaqs();
+      await service.findAllFaqs(undefined, 'NURSE');
       expect(mockPrisma.faqArticle.findMany.mock.calls[0][0].where).toEqual({
         isPublished: true,
+        AND: [
+          {
+            OR: [
+              { audience: { isEmpty: true } },
+              { audience: { has: 'NURSE' } },
+            ],
+          },
+        ],
       });
+    });
+
+    // The nurse was told how to check her child's marks.
+    it('shows a reader the questions for everyone and the ones for their role', async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqs(undefined, 'PARENT');
+      expect(
+        mockPrisma.faqArticle.findMany.mock.calls[0][0].where.AND[0],
+      ).toEqual({
+        OR: [{ audience: { isEmpty: true } }, { audience: { has: 'PARENT' } }],
+      });
+    });
+
+    it("keeps to the reader's own questions while they search", async () => {
+      mockPrisma.faqArticle.findMany.mockResolvedValue([]);
+      await service.findAllFaqs('marks', 'BURSAR');
+      const and = mockPrisma.faqArticle.findMany.mock.calls[0][0].where.AND;
+      expect(and).toHaveLength(2);
+      expect(and[0].OR[1]).toEqual({ audience: { has: 'BURSAR' } });
     });
 
     it('shows the drafts too on the admin list', async () => {
@@ -162,7 +189,7 @@ describe('HelpService', () => {
 
     it('reads in the order the school arranged them', async () => {
       mockPrisma.faqArticle.findMany.mockResolvedValue([]);
-      await service.findAllFaqs();
+      await service.findAllFaqs(undefined, 'NURSE');
       expect(mockPrisma.faqArticle.findMany.mock.calls[0][0].orderBy).toEqual([
         { displayOrder: 'asc' },
         { title: 'asc' },
@@ -171,9 +198,9 @@ describe('HelpService', () => {
 
     it('searches the question and the answer', async () => {
       mockPrisma.faqArticle.findMany.mockResolvedValue([]);
-      await service.findAllFaqs('password');
+      await service.findAllFaqs('password', 'NURSE');
       const or = JSON.stringify(
-        mockPrisma.faqArticle.findMany.mock.calls[0][0].where.OR,
+        mockPrisma.faqArticle.findMany.mock.calls[0][0].where.AND[1].OR,
       );
       expect(or).toContain('title');
       expect(or).toContain('content');

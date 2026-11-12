@@ -20,6 +20,7 @@ describe('AnalyticsService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
     service = new AnalyticsService(
       prisma,
@@ -417,9 +418,27 @@ describe('AnalyticsService', () => {
 
       const stats = await service.getAttendanceStats();
       expect(stats.byDate).toEqual([
-        { date: '2026-08-20', present: 0, late: 1, absent: 1 },
-        { date: '2026-08-21', present: 1, late: 0, absent: 0 },
+        { date: '2026-08-20', present: 0, late: 1, absent: 1, excused: 0 },
+        { date: '2026-08-21', present: 1, late: 0, absent: 0, excused: 0 },
       ]);
+    });
+
+    // An excused day fell into "absent" on the trend line, because the count
+    // was "anything that is not present or late".
+    it('counts an excused day apart, on the day and in the total', async () => {
+      prisma.attendance.findMany.mockResolvedValue([
+        day('2026-08-20', 'PRESENT'),
+        day('2026-08-20', 'EXCUSED'),
+        day('2026-08-20', 'ABSENT'),
+      ]);
+
+      const stats = await service.getAttendanceStats();
+      expect(stats.byDate).toEqual([
+        { date: '2026-08-20', present: 1, late: 0, absent: 1, excused: 1 },
+      ]);
+      expect(stats).toMatchObject({ absent: 1, excused: 1, totalRecords: 3 });
+      // One on time out of the two days that count.
+      expect(stats.attendanceRate).toBe(50);
     });
 
     it('narrows to the dates a term actually covers', async () => {
@@ -570,6 +589,7 @@ describe('one student’s profile', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -830,6 +850,7 @@ describe('a teacher’s class', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -981,6 +1002,7 @@ describe('a student’s own numbers', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -999,11 +1021,13 @@ describe('a student’s own numbers', () => {
     prisma.termResult.findFirst.mockResolvedValue(null);
   });
 
-  it('answers with nothing for a student who does not exist', async () => {
-    prisma.student.findUnique.mockResolvedValue(null);
+  /* It answered null, which the page drew as a student with no marks yet.
+     A mistyped id is now told apart from an empty record. */
+  it('refuses a student who does not exist', async () => {
+    prisma.student.findFirst.mockResolvedValue(null);
     await expect(
       service.getStudentAnalytics('nobody', 'term-1'),
-    ).resolves.toBeNull();
+    ).rejects.toThrow('Student not found');
   });
 
   it('averages each subject across its marks', async () => {
@@ -1056,6 +1080,7 @@ describe('a parent’s view of the year', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -1108,7 +1133,29 @@ describe('a parent’s view of the year', () => {
       totalDays: 4,
       presentDays: 2,
       absentDays: 2,
+      excusedDays: 0,
       rate: 50,
+    });
+  });
+
+  it('keeps excused days out of the absences and out of the rate', async () => {
+    prisma.term.findMany.mockResolvedValue([]);
+    prisma.attendance.findMany.mockResolvedValue([
+      { status: 'PRESENT' },
+      { status: 'PRESENT' },
+      { status: 'PRESENT' },
+      { status: 'ABSENT' },
+      { status: 'EXCUSED' },
+      { status: 'EXCUSED' },
+    ]);
+
+    const result = await service.getParentChildTrends('student-1', 'year-1');
+    expect(result.attendance).toEqual({
+      totalDays: 6,
+      presentDays: 3,
+      absentDays: 1,
+      excusedDays: 2,
+      rate: 75,
     });
   });
 
@@ -1174,6 +1221,7 @@ describe('a profile assembled from thin records', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({
@@ -1274,6 +1322,7 @@ describe('analytics a student may not see yet', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
+    prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
     service = new AnalyticsService(
       prisma,
       new CacheService({

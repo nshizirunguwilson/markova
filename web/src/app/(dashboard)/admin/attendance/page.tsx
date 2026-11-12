@@ -24,6 +24,7 @@ import { Calendar, AlertTriangle, Users, TrendingDown,
 } from "lucide-react";
 import { toLocalDateString } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { DATE_LOCALE } from "@/lib/dates";
 
 export default function AdminAttendancePage() {
   const [date, setDate] = useState(toLocalDateString(new Date()));
@@ -109,7 +110,7 @@ export default function AdminAttendancePage() {
               {dashboard.isFallback && (
                 <div className="mb-4 rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-foreground-muted">
                   The register has not been taken today yet. This is{" "}
-                  {new Date(dashboard.date).toLocaleDateString(undefined, {
+                  {new Date(dashboard.date).toLocaleDateString(DATE_LOCALE, {
                     weekday: "long",
                     day: "numeric",
                     month: "long",
@@ -119,7 +120,7 @@ export default function AdminAttendancePage() {
               )}
 
               {/* Overall Stats */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                 <Card>
                   <p className="text-xs text-muted">Total Students</p>
                   <p className="text-2xl font-bold text-foreground">{dashboard.overall?.totalStudents ?? 0}</p>
@@ -135,6 +136,10 @@ export default function AdminAttendancePage() {
                 <Card>
                   <p className="text-xs text-muted">Absent</p>
                   <p className="text-2xl font-bold text-danger">{dashboard.overall?.absent ?? 0}</p>
+                </Card>
+                <Card>
+                  <p className="text-xs text-muted">Excused</p>
+                  <p className="text-2xl font-bold text-info">{dashboard.overall?.excused ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-xs text-muted">Attendance Rate</p>
@@ -156,6 +161,7 @@ export default function AdminAttendancePage() {
                         <TableHead>Present</TableHead>
                         <TableHead>Late</TableHead>
                         <TableHead>Absent</TableHead>
+                        <TableHead>Excused</TableHead>
                         <TableHead>Rate</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -168,6 +174,7 @@ export default function AdminAttendancePage() {
                           <TableCell className="text-success">{s.present}</TableCell>
                           <TableCell className="text-warning">{s.late}</TableCell>
                           <TableCell className="text-danger">{s.absent}</TableCell>
+                          <TableCell className="text-info">{s.excused ?? 0}</TableCell>
                           <TableCell>
                             <span className={`font-bold ${s.rate >= 90 ? "text-success" : s.rate >= 75 ? "text-warning" : "text-danger"}`}>
                               {s.rate}%

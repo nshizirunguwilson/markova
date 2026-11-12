@@ -130,6 +130,29 @@ describe('UsersController', () => {
       expect(service.findOne).not.toHaveBeenCalled();
     });
 
+    /* The finding: the Director of Studies had Teachers in the menu and the
+       page said "Teacher not found", because this refused the record. */
+    describe('the Director of Studies opening a teacher', () => {
+      const dos = { ...admin, id: 'dos-1', role: 'HEAD_TEACHER' };
+      const direct = () => new UsersController(service as never);
+
+      it("opens a teacher's record", async () => {
+        service.findOne.mockResolvedValueOnce({ id: 'tch-9', role: 'TEACHER' });
+        await expect(direct().findOne('tch-9', dos)).resolves.toMatchObject({
+          role: 'TEACHER',
+        });
+      });
+
+      it("is still refused a parent's or a student's", async () => {
+        for (const role of ['PARENT', 'STUDENT', 'NURSE']) {
+          service.findOne.mockResolvedValueOnce({ id: 'u-9', role });
+          await expect(direct().findOne('u-9', dos)).rejects.toBeInstanceOf(
+            ForbiddenException,
+          );
+        }
+      });
+    });
+
     it('refuses somebody else’s photo', async () => {
       const run2 = await controllerHarness(UsersController, [
         { token: UsersService, name: 'service', mock: service },
@@ -434,5 +457,100 @@ describe('UsersController and the welfare staff', () => {
     expect(service.findAll).toHaveBeenCalledWith(
       expect.objectContaining({ search: 'Keza' }),
     );
+  });
+});
+
+/** The routes added with many schools, safeguarding and an adult child. */
+describe('UsersController, logins, leads and a parent’s own record', () => {
+  const service = mockService(['findOne', 'resetLogin', 'setSafeguardingLead']);
+  let run: (c: RouteCase) => Promise<void>;
+
+  beforeEach(async () => {
+    clearMocks(service);
+    run = await controllerHarness(UsersController, [
+      { token: UsersService, name: 'service', mock: service },
+    ]);
+  });
+
+  it('resets a login', () =>
+    run({
+      name: 'reset',
+      call: (c) => c.resetLogin('u-9', { email: 'a@markova.edu' }),
+      calls: 'resetLogin',
+      withArgs: ['u-9', { email: 'a@markova.edu' }],
+    }));
+
+  it('names a safeguarding lead, or stops them being one', () =>
+    run({
+      name: 'lead',
+      call: (c) => c.setSafeguardingLead('u-9', { lead: true }),
+      calls: 'setSafeguardingLead',
+      withArgs: ['u-9', true],
+    }));
+
+  /* A8: what an adult child keeps private is left out of the parent's own
+     record, and nothing else is. */
+  it('gives a parent their children without what an adult child keeps private', async () => {
+    const born = new Date();
+    born.setUTCFullYear(born.getUTCFullYear() - 20);
+    service.findOne.mockResolvedValue({
+      id: parent.id,
+      parentStudents: [
+        {
+          student: {
+            id: 'adult',
+            dateOfBirth: born,
+            sharesHealth: false,
+            sharesConduct: false,
+            sharesResults: true,
+            allergies: 'Peanuts',
+            bloodType: 'O+',
+            disciplinePoints: 80,
+          },
+        },
+        {
+          student: {
+            id: 'child',
+            dateOfBirth: new Date('2014-01-01'),
+            sharesHealth: false,
+            sharesConduct: false,
+            allergies: 'Dust',
+            disciplinePoints: 95,
+          },
+        },
+        { student: null },
+      ],
+    });
+    let reply: any;
+    await run({
+      name: 'own',
+      call: async (c) => (reply = await c.findOne(parent.id, parent)),
+      calls: 'findOne',
+    });
+    const [adult, child, none] = reply.parentStudents.map(
+      (l: any) => l.student,
+    );
+    expect(adult).toMatchObject({
+      allergies: null,
+      bloodType: null,
+      healthKeptPrivate: true,
+      disciplinePoints: null,
+      conductKeptPrivate: true,
+    });
+    // Under 18 nothing is kept from the family, whatever the switches say.
+    expect(child).toMatchObject({ allergies: 'Dust', disciplinePoints: 95 });
+    expect(child.healthKeptPrivate).toBeUndefined();
+    expect(none).toBeNull();
+  });
+
+  it('hands anybody else their own record untouched', async () => {
+    service.findOne.mockResolvedValue({ id: admin.id, role: 'ADMIN' });
+    let reply: any;
+    await run({
+      name: 'own',
+      call: async (c) => (reply = await c.findOne(admin.id, admin)),
+      calls: 'findOne',
+    });
+    expect(reply).toEqual({ id: admin.id, role: 'ADMIN' });
   });
 });

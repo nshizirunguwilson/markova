@@ -14,6 +14,7 @@ import {
   extraMinutes,
 } from '../../common/support-words';
 import { SupportPlanDto } from './support.dto';
+import { mustExist } from '../../common/must-exist';
 
 type Viewer = { id: string; role: string };
 
@@ -146,6 +147,7 @@ export class SupportService {
    * exam room: names and what to do, never why.
    */
   async forClass(classSectionId: string, viewer: Viewer) {
+    await mustExist(this.prisma.classSection, classSectionId, 'Class');
     if (
       viewer.role === Role.TEACHER &&
       !(await this.teaches(viewer.id, classSectionId))

@@ -1,3 +1,6 @@
+import { existsSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { HomeworkController } from './homework.controller';
 import { HomeworkService } from './homework.service';
 import { OwnershipService } from '../../common/ownership.service';
@@ -93,14 +96,78 @@ describe('HomeworkController', () => {
     },
     {
       name: 'one student’s work',
-      call: (c) => c.getStudentHomework('student-1', 'section-1', parent),
+      call: (c) => c.getStudentHomework('student-1', parent),
       calls: 'getStudentHomework',
-      withArgs: ['student-1', 'section-1'],
+      withArgs: ['student-1'],
     },
   ];
 
   it.each(cases)('$name', async (c) => {
     await run(c);
+  });
+
+  /**
+   * The sheet upload answers from what multer stored; there is no service
+   * call to assert on, so it is checked directly.
+   */
+  describe('uploading the sheet the work is set on', () => {
+    // The route re-reads the stored file to check it is what it claimed,
+    // so the test writes a real (tiny) PDF for it to read.
+    const onDisk = join(tmpdir(), 'homework-sheet-spec.pdf');
+    beforeAll(() => writeFileSync(onDisk, '%PDF-1.4\n%%EOF\n'));
+    afterAll(() => rmSync(onDisk, { force: true }));
+
+    const stored = {
+      filename: 'abc.pdf',
+      originalname: 'Past paper 2025.pdf',
+      mimetype: 'application/pdf',
+      size: 1024,
+      path: onDisk,
+    } as never;
+
+    it('answers with where the file landed and the name it had', () => {
+      const controller = new HomeworkController(
+        service as never,
+        ownership as never,
+      );
+      const result = controller.uploadSheet(stored, 'school-1');
+      expect(result).toMatchObject({
+        fileUrl: '/uploads/schools/school-1/attachments/abc.pdf',
+        fileName: 'Past paper 2025.pdf',
+      });
+    });
+
+    it('refuses a request with no file in it', () => {
+      const controller = new HomeworkController(
+        service as never,
+        ownership as never,
+      );
+      expect(() =>
+        controller.uploadSheet(undefined as never, 'school-1'),
+      ).toThrow('No file was sent');
+    });
+
+    /* Multer only enforces the one overall cap; the per-kind cap is checked
+       here, and a file over it must not be left sitting on disk. */
+    it('turns away a file over the cap for its kind and removes it', () => {
+      const big = join(tmpdir(), 'homework-sheet-spec-big.pdf');
+      writeFileSync(big, '%PDF-1.4\n%%EOF\n');
+      const controller = new HomeworkController(
+        service as never,
+        ownership as never,
+      );
+      expect(() =>
+        controller.uploadSheet(
+          {
+            ...(stored as object),
+            path: big,
+            size: 500 * 1024 * 1024,
+          } as never,
+          'school-1',
+        ),
+      ).toThrow(/may be up to/);
+      expect(existsSync(big)).toBe(false);
+    });
   });
 
   /**
@@ -121,7 +188,7 @@ describe('HomeworkController', () => {
     it('checks the student belongs to the person asking', async () => {
       await run({
         name: 'checked',
-        call: (c) => c.getStudentHomework('student-1', 'section-1', parent),
+        call: (c) => c.getStudentHomework('student-1', parent),
         on: 'ownership',
         calls: 'verifyStudentAccess',
         withArgs: [parent.id, 'PARENT', 'student-1', 'results'],
@@ -139,7 +206,7 @@ describe('HomeworkController', () => {
       await expect(
         c({
           name: 'blocked',
-          call: (ctl: any) => ctl.getStudentHomework('student-1', 's', parent),
+          call: (ctl: any) => ctl.getStudentHomework('student-1', parent),
           calls: 'getStudentHomework',
         }),
       ).rejects.toThrow();

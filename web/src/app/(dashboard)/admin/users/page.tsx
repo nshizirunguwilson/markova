@@ -32,6 +32,7 @@ import { AddUserWizard } from "./add-user-wizard";
 import { BulkImportModal } from "./bulk-import-modal";
 import { PageHeader } from "@/components/layout/page-header";
 import { ROLE_LABEL, ROLE_ORDER, labelForRole } from "@/types";
+import { day } from "@/lib/dates";
 
 type SortField = "name" | "role" | "status" | "lastLogin";
 type SortDir = "asc" | "desc";
@@ -334,7 +335,7 @@ export default function UsersPage() {
                     <TableCell>
                       <span className="text-sm text-muted">
                         {user.lastLoginAt
-                          ? new Date(user.lastLoginAt).toLocaleDateString()
+                          ? day(user.lastLoginAt)
                           : "Never"}
                       </span>
                     </TableCell>

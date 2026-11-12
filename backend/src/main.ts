@@ -1,3 +1,5 @@
+// First, before anything reads the time. See school-clock.ts.
+import './school-clock';
 import './sentry';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';

@@ -67,6 +67,11 @@ describe('the letterhead on an official document', () => {
     jest.clearAllMocks();
     prisma = createMockPrisma();
     service = new ReportsService(prisma);
+    // Nothing owed, no book out, nothing open: the usual leaver.
+    prisma.feeInvoice.findMany.mockResolvedValue([]);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.disciplineAppeal.count.mockResolvedValue(0);
+    prisma.studentPause.findMany.mockResolvedValue([]);
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.disciplineIncident.findMany.mockResolvedValue([]);
     prisma.termResult.findMany.mockResolvedValue([]);
@@ -125,6 +130,27 @@ describe('the letterhead on an official document', () => {
       );
       expect(doc.html).toMatch(/Aline Uwase/);
       expect(doc.html).toMatch(/Head Teacher, Markova TSS/);
+    });
+
+    /* The finding: the transfer letter was signed in the name typed into the
+       settings while the report card named the holder of the head teacher's
+       account, so two documents issued the same day named two people. */
+    it('signs in the name of whoever holds the post, over a stale setting', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        firstName: 'Speciose',
+        lastName: 'Mukarugwiza',
+        signatureUrl: null,
+      });
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/Speciose Mukarugwiza/);
+      expect(doc.html).not.toMatch(/Aline Uwase/);
+      expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({
+        role: 'HEAD_TEACHER',
+        isActive: true,
+      });
     });
 
     it('prints the registration number on the letterhead', async () => {
@@ -294,7 +320,76 @@ describe('the letterhead on an official document', () => {
       expect(doc.html).toMatch(/STD-2026-001/);
       expect(doc.html).toMatch(/Senior 1 A/);
       expect(doc.html).toMatch(/conduct/i);
-      expect(doc.html).toMatch(/financial obligation to this school/i);
+      expect(doc.html).toMatch(/no school fees remain outstanding/i);
+      expect(doc.html).toMatch(
+        /library books issued to the student have been returned/i,
+      );
+    });
+
+    /*
+      The letter certifies money, property and conduct, so each claim is
+      looked up. It used to say nothing was owed as fixed text, and went out
+      saying so for a child who owed 120,500 RWF.
+    */
+    it('states a debt instead of certifying there is none', async () => {
+      prisma.feeInvoice.findMany.mockResolvedValue([
+        {
+          total: 201000,
+          payments: [{ amount: 80500, voidedAt: null }],
+          waivers: [],
+        },
+      ]);
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(
+        /120,500 RWF<\/strong> in school fees remains outstanding/,
+      );
+      expect(doc.html).not.toMatch(/no school fees remain outstanding/);
+    });
+
+    it('counts the books that never came back, a lost one included', async () => {
+      prisma.bookLoan.count.mockResolvedValue(2);
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(
+        /2 library books issued to the student have not been returned/,
+      );
+      const [call] = prisma.bookLoan.count.mock.calls;
+      expect(call[0].where.status).toEqual({
+        in: ['ACTIVE', 'OVERDUE', 'LOST'],
+      });
+    });
+
+    it('names an appeal still waiting instead of "no matter pending"', async () => {
+      prisma.disciplineAppeal.count.mockResolvedValue(1);
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(
+        /1 appeal against a disciplinary decision has not yet been decided/,
+      );
+      expect(doc.html).not.toMatch(/no disciplinary matter pending/);
+    });
+
+    it('says so when the student is suspended at the time of leaving', async () => {
+      prisma.studentPause.findMany.mockResolvedValue([
+        {
+          studentId: 'student-1',
+          kind: 'SUSPENDED',
+          startsOn: new Date('2020-01-01'),
+          endsOn: null,
+        },
+      ]);
+      const doc = await service.generateDocument(
+        'student-1',
+        'transfer_letter',
+      );
+      expect(doc.html).toMatch(/suspended at the time of leaving/);
     });
 
     it('states the particulars in prose rather than a grid', async () => {

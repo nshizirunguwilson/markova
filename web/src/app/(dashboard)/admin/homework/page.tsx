@@ -44,6 +44,8 @@ import {
 import { toLocalDateString, classDisplayName, sectionLabel } from "@/lib/utils";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
+import { day } from "@/lib/dates";
+import { SheetField, type Sheet } from "@/components/homework/sheet-field";
 
 /**
  * Who an assessment is for is fixed once it exists, so those four controls are
@@ -155,6 +157,8 @@ export default function AdminHomeworkPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   const [modalLevelId, setModalLevelId] = useState("");
+  /* The sheet the work is set on, already uploaded. */
+  const [sheet, setSheet] = useState<Sheet | null>(null);
   const { data: modalSections } = useSections(modalLevelId || undefined);
 
   const {
@@ -173,6 +177,7 @@ export default function AdminHomeworkPage() {
     reset(defaultValues);
     setEditingId(null);
     setModalLevelId("");
+    setSheet(null);
     setShowModal(false);
   };
 
@@ -189,6 +194,7 @@ export default function AdminHomeworkPage() {
       editing: true,
     });
     if (hw.classSection?.classLevelId) setModalLevelId(hw.classSection.classLevelId);
+    setSheet(hw.fileUrl ? { fileUrl: hw.fileUrl, fileName: hw.fileName || "Attached file" } : null);
     setEditingId(hw.id);
     setShowModal(true);
   };
@@ -205,11 +211,21 @@ export default function AdminHomeworkPage() {
           description: data.description,
           dueDate,
           maxMarks: data.maxMarks,
+          // An empty string takes the sheet off; a url replaces it.
+          fileUrl: sheet?.fileUrl ?? "",
+          fileName: sheet?.fileName,
         },
         { onSuccess: resetForm }
       );
     } else {
-      createHomework.mutate({ ...data, dueDate }, { onSuccess: resetForm });
+      createHomework.mutate(
+        {
+          ...data,
+          dueDate,
+          ...(sheet && { fileUrl: sheet.fileUrl, fileName: sheet.fileName }),
+        },
+        { onSuccess: resetForm },
+      );
     }
   };
 
@@ -235,7 +251,7 @@ export default function AdminHomeworkPage() {
         ...hw,
         _class: classDisplayName(hw.classSection),
         _teacher: `${hw.teacher?.firstName || ""} ${hw.teacher?.lastName || ""}`.trim(),
-        _dueDate: hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-",
+        _dueDate: hw.dueDate ? day(hw.dueDate) : "-",
       })),
     });
   };
@@ -349,7 +365,7 @@ export default function AdminHomeworkPage() {
                     {hw.teacher?.firstName} {hw.teacher?.lastName}
                   </TableCell>
                   <TableCell>
-                    {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "-"}
+                    {hw.dueDate ? day(hw.dueDate) : "-"}
                   </TableCell>
                   <TableCell>{hw.maxMarks ?? "-"}</TableCell>
                   <TableCell className="text-right">
@@ -434,6 +450,7 @@ export default function AdminHomeworkPage() {
               {...register("description")}
             />
           </div>
+          <SheetField value={sheet} onChange={setSheet} />
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="f-subject" className="mb-1 block text-sm font-medium">Subject</label>

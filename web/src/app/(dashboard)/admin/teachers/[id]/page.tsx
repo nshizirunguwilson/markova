@@ -29,8 +29,11 @@ import {
   TableRow,
 } from "@/components/ui";
 import { useUser } from "@/hooks/use-users";
+import { TeacherDutiesCard } from "@/components/teachers/teacher-duties-card";
+import { useAuthStore } from "@/stores/auth-store";
 import { classDisplayName } from "@/lib/utils";
 import { formatNid } from "@/lib/person-form";
+import { day, dayAndTime } from "@/lib/dates";
 
 /** Timetable rows carry 1=Monday … 7=Sunday. */
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -80,6 +83,9 @@ export default function TeacherDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const { data: user, isLoading } = useUser(id);
+  /* Only the principal edits a person's record; the Director of Studies opens
+     this page to see what a teacher teaches, and the save would refuse them. */
+  const canEdit = useAuthStore((s) => s.user?.role) === "ADMIN";
 
   const teacher = user?.teacher;
   const assignments = useMemo(
@@ -202,9 +208,11 @@ export default function TeacherDetailPage() {
             </div>
           </div>
         </div>
-        <Button onClick={() => router.push(`/admin/users/${user.id}`)}>
-          <Pencil className="mr-2 h-4 w-4" /> Edit details
-        </Button>
+        {canEdit && (
+          <Button onClick={() => router.push(`/admin/users/${user.id}`)}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit details
+          </Button>
+        )}
       </div>
 
       {/* At a glance */}
@@ -228,6 +236,10 @@ export default function TeacherDetailPage() {
           icon={GraduationCap}
         />
       </div>
+
+      {teacher?.id && (
+        <TeacherDutiesCard teacherId={teacher.id} duties={teacher.roles ?? []} />
+      )}
 
       {/* Right now */}
       <Card>
@@ -376,7 +388,7 @@ export default function TeacherDetailPage() {
                 label="Hired"
                 value={
                   teacher?.hireDate
-                    ? new Date(teacher.hireDate).toLocaleDateString()
+                    ? day(teacher.hireDate)
                     : "-"
                 }
               />
@@ -397,7 +409,7 @@ export default function TeacherDetailPage() {
                 label="Date of birth"
                 value={
                   user.dateOfBirth
-                    ? new Date(user.dateOfBirth).toLocaleDateString()
+                    ? day(user.dateOfBirth)
                     : "-"
                 }
               />
@@ -411,7 +423,7 @@ export default function TeacherDetailPage() {
                 label="Last login"
                 value={
                   user.lastLoginAt
-                    ? new Date(user.lastLoginAt).toLocaleString()
+                    ? dayAndTime(user.lastLoginAt)
                     : "Never"
                 }
               />
@@ -421,7 +433,7 @@ export default function TeacherDetailPage() {
               />
               <Field
                 label="Joined"
-                value={new Date(user.createdAt).toLocaleDateString()}
+                value={day(user.createdAt)}
               />
             </div>
           </Card>

@@ -100,6 +100,16 @@ describe('rendering a report card', () => {
       expect(html).toMatch(/<\/html>/i);
     });
 
+    /* The footnote gave only the full-term formula, which a mid-term card
+       does not follow: with no exam yet, 67 and 63 print as 65. */
+    it('says how a total is worked out before every assessment is in', async () => {
+      const html = await service.generateTermReportHtml('student-1', 'term-1');
+      expect(html).toMatch(/Exam × 0\.6\), rounded\./);
+      expect(html).toMatch(
+        /Until every assessment is marked, the total is worked out from those that are/,
+      );
+    });
+
     it('names the school, the student and the term', async () => {
       const html = await service.generateTermReportHtml('student-1', 'term-1');
       expect(html).toContain('Markova TSS');

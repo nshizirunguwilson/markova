@@ -69,9 +69,22 @@ const overdue = assignment({
   title: "Kinyarwanda reading",
   dueDate: "2020-01-01T00:00:00.000Z",
 });
+const withSheet = assignment({
+  id: "hw-6",
+  title: "Physics past paper",
+  fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+  fileName: "Paper 2 2025.pdf",
+});
+
+const withNamelessSheet = assignment({
+  id: "hw-7",
+  title: "Chemistry worksheet",
+  fileUrl: "/uploads/schools/s-1/attachments/def.pdf",
+  fileName: null,
+});
 
 const routes = {
-  "/homework/student": [todo, submitted, late, graded, overdue],
+  "/homework/student": [todo, submitted, late, graded, overdue, withSheet, withNamelessSheet],
   "/homework/submit": { id: "sub-9" },
 };
 
@@ -96,6 +109,12 @@ function cardFor(title: RegExp) {
 }
 
 describe("the homework list", () => {
+  it("links to a sheet that was stored without a name", async () => {
+    await mount();
+    const link = screen.getByRole("link", { name: /The sheet for this work/ });
+    expect(link.getAttribute("href")).toMatch(/def\.pdf$/);
+  });
+
   it("lists every assignment", async () => {
     await mount();
     expect(screen.getByText(/Essay on Imigani/)).toBeInTheDocument();
@@ -144,6 +163,20 @@ describe("the homework list", () => {
     serveFailure(h.api);
     renderPage(StudentHomeworkPage, asStudent);
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
+  });
+});
+
+describe("the sheet the work is set on", () => {
+  it("links it under the name the teacher's file had", async () => {
+    await mount();
+    const link = screen.getByRole("link", { name: /Paper 2 2025\.pdf/ });
+    // Against the API origin: /uploads is not served by the web app.
+    expect(link.getAttribute("href")).toContain("/uploads/schools/s-1/attachments/abc.pdf");
+  });
+
+  it("offers no link on work set without one", async () => {
+    await mount();
+    expect(cardFor(/Algebra sheet 3/).querySelector("a[href*='/uploads/']")).toBeNull();
   });
 });
 

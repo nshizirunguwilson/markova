@@ -424,14 +424,14 @@ function studentExtras(gender, birthYear, age, joinLevelOrder, joinYearStart) {
     };
 }
 const usedPhones = new Set([
-    '+250788000001',
-    '+250788000010',
-    '+250788000011',
-    '+250788000012',
-    '+250788000013',
-    '+250788000014',
-    '+250788000020',
-    '+250788100000',
+    '+250788459213',
+    '+250788634905',
+    '+250795177286',
+    '+250722808143',
+    '+250788291064',
+    '+250733425871',
+    '+250791536408',
+    '+250785639214',
 ]);
 const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
 function realPhone() {
@@ -564,7 +564,7 @@ async function main() {
         { key: 'borrowing_duration_days', value: '14' },
         { key: 'pass_threshold', value: '50' },
         { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
-        { key: 'school_phone', value: '+250788000000' },
+        { key: 'school_phone', value: '+250788304655' },
         { key: 'school_email', value: 'info@markova.edu' },
         { key: 'school_website', value: 'https://markova.edu' },
         { key: 'head_teacher_name', value: 'Aline Uwase' },
@@ -591,7 +591,7 @@ async function main() {
     const admin = await prisma.user.create({
         data: {
             email: 'wilsonshizirungu@gmail.com',
-            phone: '+250788000001',
+            phone: '+250788459213',
             code: `ADM-${new Date().getFullYear()}-001`,
             gender: client_1.Gender.MALE,
             dateOfBirth: new Date('1988-03-12'),
@@ -609,7 +609,7 @@ async function main() {
     const librarianUser = await prisma.user.create({
         data: {
             email: 'librarian@markova.edu',
-            phone: '+250788000020',
+            phone: '+250791536408',
             code: `LIB-${new Date().getFullYear()}-001`,
             gender: client_1.Gender.FEMALE,
             dateOfBirth: new Date('1992-07-04'),
@@ -627,7 +627,7 @@ async function main() {
     const boardingStaff = [
         {
             email: 'patron@markova.edu',
-            phone: '+250788000021',
+            phone: '+250788076312',
             code: `PAT-${new Date().getFullYear()}-001`,
             role: client_1.Role.PATRON,
             gender: client_1.Gender.MALE,
@@ -637,7 +637,7 @@ async function main() {
         },
         {
             email: 'matron@markova.edu',
-            phone: '+250788000022',
+            phone: '+250729445950',
             code: `MAT-${new Date().getFullYear()}-001`,
             role: client_1.Role.MATRON,
             gender: client_1.Gender.FEMALE,
@@ -647,7 +647,7 @@ async function main() {
         },
         {
             email: 'nurse@markova.edu',
-            phone: '+250788000023',
+            phone: '+250788812739',
             code: `NUR-${new Date().getFullYear()}-001`,
             role: client_1.Role.NURSE,
             gender: client_1.Gender.FEMALE,
@@ -657,7 +657,7 @@ async function main() {
         },
         {
             email: 'bursar@markova.edu',
-            phone: '+250788000024',
+            phone: '+250793628514',
             code: `BUR-${new Date().getFullYear()}-001`,
             role: client_1.Role.BURSAR,
             gender: client_1.Gender.MALE,
@@ -667,7 +667,7 @@ async function main() {
         },
         {
             email: 'headteacher@markova.edu',
-            phone: '+250788000025',
+            phone: '+250722974186',
             code: `HTC-${new Date().getFullYear()}-001`,
             role: client_1.Role.HEAD_TEACHER,
             gender: client_1.Gender.FEMALE,
@@ -1027,11 +1027,11 @@ async function main() {
     }
     const TEACHER_COUNT = specialtyByTeacher.length;
     const fixedTeachers = [
-        { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: client_1.Gender.FEMALE },
-        { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: client_1.Gender.MALE },
-        { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: client_1.Gender.FEMALE },
-        { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: client_1.Gender.MALE },
-        { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: client_1.Gender.FEMALE },
+        { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788634905', gender: client_1.Gender.FEMALE },
+        { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250795177286', gender: client_1.Gender.MALE },
+        { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250722808143', gender: client_1.Gender.FEMALE },
+        { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788291064', gender: client_1.Gender.MALE },
+        { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250733425871', gender: client_1.Gender.FEMALE },
     ];
     const teacherComponents = new Set(fixedTeachers.flatMap((t) => [t.firstName, t.lastName]));
     fixedTeachers.forEach((t) => claimFullName(t.firstName, t.lastName));
@@ -1355,7 +1355,7 @@ async function main() {
         const pBirthYear = yr - (32 + rand(24));
         const user = await prisma.user.create({
             data: {
-                phone: i === 0 ? '+250788100000' : realPhone(),
+                phone: i === 0 ? '+250785639214' : realPhone(),
                 code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
                 gender,
                 dateOfBirth: new Date(Date.UTC(pBirthYear, rand(12), 1 + rand(27))),
@@ -3999,7 +3999,7 @@ async function main() {
     console.log('     Student   student1@markova.edu');
     console.log('     Librarian librarian@markova.edu');
     console.log('     Bursar    bursar@markova.edu');
-    console.log('     Parent    +250788100000 (phone login)');
+    console.log('     Parent    +250785639214 (phone login)');
 }
 main()
     .catch((e) => {

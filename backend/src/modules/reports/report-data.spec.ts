@@ -56,6 +56,11 @@ describe('report card data', () => {
   beforeEach(() => {
     prisma = createMockPrisma();
     service = new ReportsService(prisma);
+    // Nothing owed, no book out, nothing open: the usual leaver.
+    prisma.feeInvoice.findMany.mockResolvedValue([]);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.disciplineAppeal.count.mockResolvedValue(0);
+    prisma.studentPause.findMany.mockResolvedValue([]);
 
     prisma.student.findUnique.mockResolvedValue(student);
     prisma.term.findUnique.mockResolvedValue(term);
@@ -104,11 +109,16 @@ describe('report card data', () => {
     // The report card is the second place the card answer covers (B6).
     it('prints the photo unless the family said No to it on cards', async () => {
       expect(
-        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+        (await service.getTermReportData('student-1', 'term-1')).student
+          .photoUrl,
       ).toBe('/p.jpg');
-      prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+      prisma.student.findUnique.mockResolvedValue({
+        ...student,
+        photoForId: 'NO',
+      });
       expect(
-        (await service.getTermReportData('student-1', 'term-1')).student.photoUrl,
+        (await service.getTermReportData('student-1', 'term-1')).student
+          .photoUrl,
       ).toBeNull();
     });
 
@@ -167,26 +177,43 @@ describe('report card data', () => {
     it('reports both halves of the fraction', async () => {
       prisma.attendance.count
         .mockResolvedValueOnce(60)
-        .mockResolvedValueOnce(57);
+        .mockResolvedValueOnce(57)
+        .mockResolvedValueOnce(0);
       const data = await service.getTermReportData('student-1', 'term-1');
-      expect(data.attendance).toEqual({ present: 57, total: 60 });
+      expect(data.attendance).toEqual({ present: 57, total: 60, excused: 0 });
+    });
+
+    // Two days in hospital are not two days of missing school.
+    it('leaves excused days out of the fraction and prints them apart', async () => {
+      prisma.attendance.count
+        .mockResolvedValueOnce(60)
+        .mockResolvedValueOnce(57)
+        .mockResolvedValueOnce(2);
+      const data = await service.getTermReportData('student-1', 'term-1');
+      expect(data.attendance).toEqual({ present: 57, total: 58, excused: 2 });
+      expect(prisma.attendance.count.mock.calls[2][0].where.status).toBe(
+        'EXCUSED',
+      );
     });
   });
 
   describe('where the student stands in the class', () => {
-    it('averages the class the student is actually in', async () => {
-      prisma.termResult.findMany.mockResolvedValue([
-        { average: 60 },
-        { average: 80 },
-      ]);
+    /*
+      The class's size and average come from the database as two numbers
+      (app_class_term_figures), never as everybody's rows, so a child or a
+      parent reading the card gets the whole class's figures.
+    */
+    it('asks the database for the figures of the class the student is in', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ total: 2, average: 70 }]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.classStats).toMatchObject({
         classAverage: 70,
         totalStudents: 2,
       });
-      expect(prisma.termResult.findMany).toHaveBeenCalledWith({
-        where: { classSectionId: 'section-1', termId: 'term-1' },
-      });
+      const [sql, ...values] = prisma.$queryRaw.mock.calls[0];
+      expect(sql.join('?')).toContain('app_class_term_figures');
+      expect(values).toEqual(['section-1', 'term-1']);
+      expect(prisma.termResult.findMany).not.toHaveBeenCalled();
     });
 
     // A class nobody has been marked in has no average, and printing 0 would
@@ -196,11 +223,10 @@ describe('report card data', () => {
       expect(data.classStats.classAverage).toBeNull();
     });
 
-    it('counts a missing average as zero rather than dropping the student', async () => {
-      prisma.termResult.findMany.mockResolvedValue([
-        { average: 80 },
-        { average: null },
-      ]);
+    // The database counts a missing average as zero (COALESCE in the
+    // function); the card takes its numbers as they come.
+    it('prints the figures the database gives, whatever type they arrive in', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ total: 2, average: '40' }]);
       const data = await service.getTermReportData('student-1', 'term-1');
       expect(data.classStats.classAverage).toBe(40);
       expect(data.classStats.totalStudents).toBe(2);
@@ -387,6 +413,11 @@ describe('documents', () => {
     ]);
     prisma.disciplineIncident.findMany.mockResolvedValue([]);
     prisma.termResult.findMany.mockResolvedValue([]);
+    // Nothing owed, no book out, nothing open: the usual leaver.
+    prisma.feeInvoice.findMany.mockResolvedValue([]);
+    prisma.bookLoan.count.mockResolvedValue(0);
+    prisma.disciplineAppeal.count.mockResolvedValue(0);
+    prisma.studentPause.findMany.mockResolvedValue([]);
   });
 
   it('refuses a student who does not exist', async () => {
@@ -553,7 +584,10 @@ describe('ID card data', () => {
   });
 
   it('carries no face where the family said No to the photo on cards', async () => {
-    prisma.student.findUnique.mockResolvedValue({ ...student, photoForId: 'NO' });
+    prisma.student.findUnique.mockResolvedValue({
+      ...student,
+      photoForId: 'NO',
+    });
     const data = await service.generateIdCardData('student-1');
     expect(data.student.photoUrl).toBeNull();
   });

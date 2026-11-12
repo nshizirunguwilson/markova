@@ -62,6 +62,7 @@ import {
   suggestComments,
   type CommentFacts,
 } from '../../common/report-comments';
+import { feeStanding, formatRwf } from '../../common/fees';
 
 function resolveChromePath(): string {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -241,11 +242,7 @@ export class ReportsService implements OnModuleDestroy {
       what an unsigned card should look like rather than a blank the reader
       cannot account for.
     */
-    const headTeacher = await this.prisma.user.findFirst({
-      where: { role: 'HEAD_TEACHER', isActive: true },
-      select: { firstName: true, lastName: true, signatureUrl: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const headTeacher = await this.headTeacherInPost();
 
     /*
       The family's own signature, where one has been given.
@@ -271,18 +268,24 @@ export class ReportsService implements OnModuleDestroy {
       orderBy: { id: 'asc' },
     });
 
-    const [attendanceTotal, attendancePresent] = await Promise.all([
-      this.prisma.attendance.count({
-        where: { studentId, date: { gte: term.startDate, lte: term.endDate } },
-      }),
-      this.prisma.attendance.count({
-        where: {
-          studentId,
-          date: { gte: term.startDate, lte: term.endDate },
-          status: { in: ['PRESENT', 'LATE'] },
-        },
-      }),
-    ]);
+    /* The days the card counts: every day on the register but the excused
+       ones. "58 of 60" for a child who spent two of them in hospital said
+       they had missed school twice; the excused days are printed apart. */
+    const inTerm = {
+      studentId,
+      date: { gte: term.startDate, lte: term.endDate },
+    };
+    const [attendanceDays, attendancePresent, attendanceExcused] =
+      await Promise.all([
+        this.prisma.attendance.count({ where: inTerm }),
+        this.prisma.attendance.count({
+          where: { ...inTerm, status: { in: ['PRESENT', 'LATE'] } },
+        }),
+        this.prisma.attendance.count({
+          where: { ...inTerm, status: 'EXCUSED' },
+        }),
+      ]);
+    const attendanceTotal = attendanceDays - attendanceExcused;
 
     /*
       Conduct, for this term rather than as a running total across the year.
@@ -319,13 +322,21 @@ export class ReportsService implements OnModuleDestroy {
       section it was computed against, and that is the one to count.
     */
     const classSectionId = termResult?.classSectionId ?? student.classSectionId;
-    const classResults = await this.prisma.termResult.findMany({
-      where: { classSectionId, termId },
-    });
+    /*
+      The size and average of the class, asked of the database as two
+      numbers. Read row by row, a child or parent sees only the child's own
+      result, so the card said "16 of 1" and gave the child's average as the
+      class's (see the class_term_figures migration).
+    */
+    const [figures] = classSectionId
+      ? await this.prisma.$queryRaw<
+          Array<{ total: number; average: number | null }>
+        >`SELECT * FROM app_class_term_figures(${classSectionId}, ${termId})`
+      : [{ total: 0, average: null }];
+    const classSize = Number(figures?.total ?? 0);
     const classAverage =
-      classResults.length > 0
-        ? classResults.reduce((s, r) => s + (r.average || 0), 0) /
-          classResults.length
+      classSize > 0 && figures.average !== null
+        ? Number(figures.average)
         : null;
 
     const school = await this.getSchoolInfo();
@@ -338,7 +349,9 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         // Not where the family said No to the photo on cards (B6).
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         class: classDisplayName(student.classSection),
         stage: classLevel.stage,
         trade: trade
@@ -370,7 +383,11 @@ export class ReportsService implements OnModuleDestroy {
       guardian: guardian
         ? `${guardian.parent.firstName} ${guardian.parent.lastName}`
         : null,
-      attendance: { present: attendancePresent, total: attendanceTotal },
+      attendance: {
+        present: attendancePresent,
+        total: attendanceTotal,
+        excused: attendanceExcused,
+      },
       /*
         This term's conduct, out of forty. `outOf` travels with it so the
         sheet never has to assume the mark: a school that sets a different
@@ -385,7 +402,7 @@ export class ReportsService implements OnModuleDestroy {
       result: termResult,
       classStats: {
         classAverage,
-        totalStudents: classResults.length,
+        totalStudents: classSize,
         rank: termResult?.rank || null,
       },
       verification: verification
@@ -565,7 +582,9 @@ export class ReportsService implements OnModuleDestroy {
       student: {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         stage: student.classSection.classLevel.stage,
         class: [
           student.classSection.classLevel.name,
@@ -645,6 +664,55 @@ export class ReportsService implements OnModuleDestroy {
   // DOCUMENT GENERATION
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * What is still open as a student leaves: fees owed across every term,
+   * library books not back, and any disciplinary matter not yet closed.
+   *
+   * Read for the transfer letter, which certifies these to the next school.
+   * A book counts until it is returned: one marked lost has not come back.
+   */
+  async leavingStanding(
+    studentId: string,
+    userId: string,
+  ): Promise<{ owed: number; booksOut: number; openMatters: string[] }> {
+    const [invoices, booksOut, appeals, pause] = await Promise.all([
+      this.prisma.feeInvoice.findMany({
+        where: { studentId },
+        select: {
+          total: true,
+          payments: { select: { amount: true, voidedAt: true } },
+          waivers: { select: { amount: true, revokedAt: true } },
+        },
+      }),
+      this.prisma.bookLoan.count({
+        where: {
+          borrowerUserId: userId,
+          status: { in: ['ACTIVE', 'OVERDUE', 'LOST'] },
+        },
+      }),
+      this.prisma.disciplineAppeal.count({
+        where: { status: 'PENDING', incident: { studentId } },
+      }),
+      pausesOn(this.prisma, [studentId], schoolDay()).then((m) =>
+        m.get(studentId),
+      ),
+    ]);
+    const owed = invoices.reduce(
+      (sum, i) => sum + feeStanding(i.total, i.payments, i.waivers).balance,
+      0,
+    );
+    const openMatters: string[] = [];
+    if (pause?.kind === 'SUSPENDED') {
+      openMatters.push('the student is suspended at the time of leaving');
+    }
+    if (appeals > 0) {
+      openMatters.push(
+        `${appeals} ${appeals === 1 ? 'appeal against a disciplinary decision has' : 'appeals against disciplinary decisions have'} not yet been decided`,
+      );
+    }
+    return { owed, booksOut, openMatters };
+  }
+
   async generateDocument(
     studentId: string,
     type: string,
@@ -683,23 +751,39 @@ export class ReportsService implements OnModuleDestroy {
         // are, how long they were here, what class they leave from and
         // therefore join, and that they leave in good standing with nothing
         // outstanding. The previous version was one sentence.
+        /*
+          Everything the letter certifies about money, property and conduct
+          is looked up, never assumed. It used to state that nothing was owed
+          and nothing was pending as fixed text, so a letter went out saying
+          no fees remained for a child who owed 120,500 RWF.
+        */
+        const leaving = await this.leavingStanding(student.id, student.userId);
+        const conduct =
+          typeof student.disciplinePoints === 'number'
+            ? ` Their conduct while with us stands at <strong>${student.disciplinePoints}</strong> points out of the school's full mark.`
+            : '';
+        const standing = leaving.openMatters.length
+          ? ` A disciplinary matter is still open: ${leaving.openMatters.join(' and ')}.`
+          : ' They leave in good standing, with no disciplinary matter pending against them.';
+        const property =
+          leaving.booksOut === 0
+            ? 'All library books issued to the student have been returned'
+            : `${leaving.booksOut} library ${leaving.booksOut === 1 ? 'book issued to the student has' : 'books issued to the student have'} not been returned`;
+        const money =
+          leaving.owed === 0
+            ? 'no school fees remain outstanding'
+            : `<strong>${formatRwf(leaving.owed)}</strong> in school fees remains outstanding`;
         const body = `
           <p>This is to certify that ${particulars} was a bona fide student of
           ${school.name}${enrolled ? `, admitted on ${enrolled}` : ''}, and was
           enrolled in <strong>${className}</strong> at the time of leaving.</p>
 
           <p>The student is hereby transferred from this institution with effect
-          from <strong>${today}</strong>.${
-            typeof student.disciplinePoints === 'number'
-              ? ` Their conduct while with us stands at <strong>${student.disciplinePoints}</strong> points out of the school's full mark, and they`
-              : ' They'
-          } leave in good standing with no disciplinary matter pending against
-          them.</p>
+          from <strong>${today}</strong>.${conduct}${standing}</p>
 
-          <p>All school property issued to the student has been returned and no
-          financial obligation to this school remains outstanding. Their
-          academic records for the period of study are available on request and
-          will be released directly to the admitting institution.</p>
+          <p>${property}, and ${money}. Their academic records for the period
+          of study are available on request and will be released directly to
+          the admitting institution.</p>
 
           <p>We kindly request the receiving institution to admit
           ${name} into the class following ${escapeHtml(
@@ -816,7 +900,9 @@ export class ReportsService implements OnModuleDestroy {
         name: `${student.user.firstName} ${student.user.lastName}`,
         studentIdNumber: student.studentIdNumber,
         cardId: student.nfcCardId,
-        photoUrl: photoOnCard(student.photoForId) ? student.user.photoUrl : null,
+        photoUrl: photoOnCard(student.photoForId)
+          ? student.user.photoUrl
+          : null,
         class: classDisplayName(student.classSection),
         qrData: student.nfcCardId || student.studentIdNumber, // QR encodes the card if issued
       },
@@ -1503,8 +1589,28 @@ export class ReportsService implements OnModuleDestroy {
   // HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * Who the head teacher is, for anything the school prints.
+   *
+   * One answer for every document. The report card read the holder of the
+   * head teacher's account and letters read a name typed into the settings,
+   * so a transfer letter and a report card issued the same day named two
+   * different people. The person in the post is the truth; the typed name is
+   * for a school between head teachers, or one that has not made the account.
+   */
+  private headTeacherInPost() {
+    return this.prisma.user.findFirst({
+      where: { role: 'HEAD_TEACHER', isActive: true },
+      select: { firstName: true, lastName: true, signatureUrl: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   private async getSchoolInfo() {
-    const configs = await this.prisma.schoolConfig.findMany();
+    const [configs, inPost] = await Promise.all([
+      this.prisma.schoolConfig.findMany(),
+      this.headTeacherInPost(),
+    ]);
     const map: Record<string, string> = {};
     for (const c of configs) map[c.key] = c.value;
     return {
@@ -1520,7 +1626,11 @@ export class ReportsService implements OnModuleDestroy {
       // Both are printed on every letter: the head teacher signs it, and a
       // receiving school checks the registration number. Optional, because a
       // school that has not filled them in still has to be able to issue one.
-      headTeacher: escapeHtml(map['head_teacher_name'] || ''),
+      headTeacher: escapeHtml(
+        inPost
+          ? `${inPost.firstName} ${inPost.lastName}`
+          : map['head_teacher_name'] || '',
+      ),
       registrationNumber: escapeHtml(map['registration_number'] || ''),
       primaryColor: sanitizeColor(map['primary_color']),
     };
@@ -2137,7 +2247,10 @@ export class ReportsService implements OnModuleDestroy {
       <div class="foot-note">${
         isALevel
           ? 'Competence follows the practical mark: 70% and above = Competent. All modules are graded on the core scale.'
-          : 'Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded.'
+          : /* The second sentence is the rule the totals actually follow
+               (computeSubjectTotal): mid-term, with no exam yet, 67 and 63
+               print as 65, which the formula alone could not explain. */
+            'Total = (CAT 1 × 0.2) + (CAT 2 × 0.2) + (Exam × 0.6), rounded. Until every assessment is marked, the total is worked out from those that are, in the same proportions.'
       }</div>
 
       <div class="summary">${summary}</div>

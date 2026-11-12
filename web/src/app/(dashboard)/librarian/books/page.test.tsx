@@ -380,6 +380,56 @@ describe("lending a book out", () => {
   });
 });
 
+describe("which physical copy", () => {
+  async function fill(el: Element, value: string) {
+    await act(async () => {
+      fireEvent.change(el, { target: { value } });
+    });
+  }
+
+  // The copy number is written inside the cover; naming it hands out or
+  // takes back that very copy. Blank keeps the old behaviour.
+  it("sends the named copy on a checkout", async () => {
+    await mount();
+    await click(button(/checkout/i));
+    const dialog = await screen.findByRole("dialog");
+    await fill(within(dialog).getByLabelText(/book \(barcode/i), "BK-001");
+    await fill(within(dialog).getByLabelText(/student \(id/i), "STD-2026-001");
+    await fill(within(dialog).getByLabelText(/copy number/i), "3");
+    h.api.post.mockClear();
+    await click(within(dialog).getByRole("button", { name: /^checkout$/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect((h.api.post.mock.calls[0][1] as any).copyNumber).toBe(3);
+  });
+
+  it("sends no copy number when the box is left blank", async () => {
+    await mount();
+    await click(button(/checkout/i));
+    const dialog = await screen.findByRole("dialog");
+    await fill(within(dialog).getByLabelText(/book \(barcode/i), "BK-001");
+    await fill(within(dialog).getByLabelText(/student \(id/i), "STD-2026-001");
+    h.api.post.mockClear();
+    await click(within(dialog).getByRole("button", { name: /^checkout$/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect("copyNumber" in (h.api.post.mock.calls[0][1] as any)).toBe(false);
+  });
+
+  it("sends the named copy on a return", async () => {
+    await mount();
+    await click(button(/return/i));
+    const dialog = await screen.findByRole("dialog");
+    await fill(within(dialog).getByLabelText(/book \(barcode/i), "BK-001");
+    await fill(within(dialog).getByLabelText(/copy number/i), "2");
+    h.api.post.mockClear();
+    await click(within(dialog).getByRole("button", { name: /^return$/i }));
+
+    await waitFor(() => expect(h.api.post).toHaveBeenCalled());
+    expect((h.api.post.mock.calls[0][1] as any).copyNumber).toBe(2);
+  });
+});
+
 describe("taking a book back", () => {
   async function openReturn() {
     await mount();

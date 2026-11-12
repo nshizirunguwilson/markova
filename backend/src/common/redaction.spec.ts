@@ -76,6 +76,32 @@ describe('redacting a request body', () => {
     expect(JSON.stringify(redact(deep))).not.toContain('Asthma');
   });
 
+  /* Every write is audited now, so a clinic visit, a dose of medicine and a
+     support plan all pass through here with the words they were sent in. */
+  it('keeps the clinic, medicine and support plan words out', () => {
+    const body = {
+      studentId: 's-1',
+      complaint: 'Headache since morning',
+      findings: 'Temperature 38.4',
+      medicine: 'Paracetamol',
+      dose: '500mg',
+      needNote: 'Reads slowly',
+      statement: 'I was not there',
+    };
+    const out = JSON.stringify(redact(body));
+    for (const word of [
+      'Headache',
+      '38.4',
+      'Paracetamol',
+      '500mg',
+      'slowly',
+      'not there',
+    ]) {
+      expect(out).not.toContain(word);
+    }
+    expect(out).toContain('s-1');
+  });
+
   it('copes with a body that is not an object at all', () => {
     expect(redact(null)).toBeNull();
     expect(redact(undefined)).toBeUndefined();

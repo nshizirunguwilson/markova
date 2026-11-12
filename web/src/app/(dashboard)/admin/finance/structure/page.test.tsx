@@ -11,6 +11,8 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/api", () => ({ default: h.api }));
 vi.mock("sonner", () => ({ toast: h.toast }));
+const ex = vi.hoisted(() => ({ exportData: vi.fn() }));
+vi.mock("@/lib/export", () => ({ exportData: ex.exportData }));
 vi.mock("next/navigation", () => ({
   useRouter: () => h.router,
   usePathname: () => "/admin/finance/structure",
@@ -360,5 +362,20 @@ describe("copying another term's prices", () => {
       .getAllByRole("option")
       .map((o) => (o as HTMLOptionElement).value);
     expect(options).not.toContain("term-1");
+  });
+});
+
+/** The price list leaves the building as a file the board can read. */
+describe("exporting the price list", () => {
+  it("hands the export the levels and the term's name", async () => {
+    ex.exportData.mockReset();
+    ex.exportData.mockResolvedValue(undefined);
+    await mount();
+    await click(button(/export/i));
+    await click(screen.getByRole("button", { name: /csv/i }));
+    await waitFor(() => expect(ex.exportData).toHaveBeenCalled());
+    const [format, payload] = ex.exportData.mock.calls[0];
+    expect(format).toBe("csv");
+    expect(JSON.stringify(payload)).toMatch(/Senior 1/);
   });
 });

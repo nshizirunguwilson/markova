@@ -30,6 +30,7 @@ import {
   SupportNeed,
   SupportArrangement,
 } from '@prisma/client';
+import { starterFaqRows } from '../src/modules/help/starter-faqs';
 import * as bcrypt from 'bcryptjs';
 import { TERM_CONDUCT_MARK, YEAR_CONDUCT_MARK } from '../src/common/conduct';
 import { chargesFor, invoiceTotal, nextReceiptNumber } from '../src/common/fees';
@@ -572,18 +573,18 @@ function studentExtras(
 // subscriber digits, unique across the seed. Documented demo numbers are
 // reserved so they never collide.
 const usedPhones = new Set<string>([
-  '+250788000001',
-  '+250788000010',
-  '+250788000011',
-  '+250788000012',
-  '+250788000013',
-  '+250788000014',
-  '+250788000020',
-  '+250788100000',
+  '+250788459213',
+  '+250788634905',
+  '+250795177286',
+  '+250722808143',
+  '+250788291064',
+  '+250733425871',
+  '+250791536408',
+  '+250785639214',
   // The demo parent with a child at two schools (seedPeopleInSeveralSchools).
-  '+250788100002',
+  '+250726083157',
   // The parent of the demo student of 18 (A8).
-  '+250788199999',
+  '+250798405362',
 ]);
 const PHONE_PREFIXES = ['78', '78', '78', '79', '79', '72', '72', '73'];
 function realPhone(): string {
@@ -771,6 +772,36 @@ function withLogin<
   };
 }
 
+/**
+ * Say which physical copy each open loan put out.
+ *
+ * Loans are seeded in bulk, so the copies are dealt afterwards: each book's
+ * open loans take its lowest-numbered copies in the order they went out,
+ * and a lost loan's copy is marked gone, exactly as the app would have.
+ */
+async function linkLoansToCopies() {
+  await prisma.$executeRawUnsafe(`
+    WITH open_loans AS (
+      SELECT l."id", l."book_id",
+             ROW_NUMBER() OVER (PARTITION BY l."book_id" ORDER BY l."checked_out_at") AS nth
+        FROM "book_loans" l
+       WHERE l."returned_at" IS NULL AND l."copy_id" IS NULL
+    )
+    UPDATE "book_loans" l
+       SET "copy_id" = c."id"
+      FROM open_loans o
+      JOIN "book_copies" c
+        ON c."book_id" = o."book_id" AND c."copy_number" = o."nth"
+     WHERE l."id" = o."id"
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE "book_copies" c
+       SET "standing" = 'LOST'
+      FROM "book_loans" l
+     WHERE l."copy_id" = c."id" AND l."status" = 'LOST'
+  `);
+}
+
 async function main() {
   console.log('🌱 Seeding database (Rwandan TSS structure, realistic names)…');
 
@@ -861,12 +892,14 @@ async function main() {
     { key: 'borrowing_duration_days', value: '14' },
     { key: 'pass_threshold', value: '50' },
     { key: 'school_address', value: 'KG 7 Ave, Kacyiru, Kigali, Rwanda' },
-    { key: 'school_phone', value: '+250788000000' },
+    { key: 'school_phone', value: '+250788304655' },
     { key: 'school_email', value: 'info@markova.edu' },
     { key: 'school_website', value: 'https://markova.edu' },
     // Both are printed on every letter the school issues: the head teacher
     // signs it, and a receiving school checks the registration number.
-    { key: 'head_teacher_name', value: 'Aline Uwase' },
+    // The same person who holds the head teacher's account below. It named
+    // a classroom teacher, so letters and report cards disagreed.
+    { key: 'head_teacher_name', value: 'Speciose Mukarugwiza' },
     { key: 'registration_number', value: 'REB/2015/0142' },
     { key: 'email_provider', value: 'smtp' },
   ];
@@ -898,7 +931,7 @@ async function main() {
   const admin = await prisma.user.create({
     data: withLogin({
       email: 'wilsonshizirungu@gmail.com',
-      phone: '+250788000001',
+      phone: '+250788459213',
       code: `ADM-${new Date().getFullYear()}-001`,
       gender: Gender.MALE,
       dateOfBirth: new Date('1988-03-12'),
@@ -912,13 +945,18 @@ async function main() {
       forcePasswordChange: false, // demo account - log straight into dashboard
     }),
   });
-  console.log('  ✅ Admin user seeded');
+  // The demo's platform owner: the one login that can take schools on.
+  await prisma.account.update({
+    where: { id: admin.accountId },
+    data: { platformRole: 'OWNER' },
+  });
+  console.log('  ✅ Admin user seeded (platform owner)');
 
   // ─── LIBRARIAN ──────────────────────────────────────────────────────────────
   const librarianUser = await prisma.user.create({
     data: withLogin({
       email: 'librarian@markova.edu',
-      phone: '+250788000020',
+      phone: '+250791536408',
       code: `LIB-${new Date().getFullYear()}-001`,
       gender: Gender.FEMALE,
       dateOfBirth: new Date('1992-07-04'),
@@ -956,7 +994,7 @@ async function main() {
   }[] = [
     {
       email: 'patron@markova.edu',
-      phone: '+250788000021',
+      phone: '+250788076312',
       code: `PAT-${new Date().getFullYear()}-001`,
       role: Role.PATRON,
       gender: Gender.MALE,
@@ -966,7 +1004,7 @@ async function main() {
     },
     {
       email: 'matron@markova.edu',
-      phone: '+250788000022',
+      phone: '+250729445950',
       code: `MAT-${new Date().getFullYear()}-001`,
       role: Role.MATRON,
       gender: Gender.FEMALE,
@@ -976,7 +1014,7 @@ async function main() {
     },
     {
       email: 'nurse@markova.edu',
-      phone: '+250788000023',
+      phone: '+250788812739',
       code: `NUR-${new Date().getFullYear()}-001`,
       role: Role.NURSE,
       gender: Gender.FEMALE,
@@ -992,7 +1030,7 @@ async function main() {
     */
     {
       email: 'bursar@markova.edu',
-      phone: '+250788000024',
+      phone: '+250793628514',
       code: `BUR-${new Date().getFullYear()}-001`,
       role: Role.BURSAR,
       gender: Gender.MALE,
@@ -1008,7 +1046,7 @@ async function main() {
     */
     {
       email: 'headteacher@markova.edu',
-      phone: '+250788000025',
+      phone: '+250722974186',
       code: `HTC-${new Date().getFullYear()}-001`,
       role: Role.HEAD_TEACHER,
       gender: Gender.FEMALE,
@@ -1474,11 +1512,11 @@ async function main() {
   // The demo teacher keeps the address documented in CLAUDE.md; the other
   // fixed staff follow the i.name scheme like everyone else.
   const fixedTeachers = [
-    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788000010', gender: Gender.FEMALE },
-    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250788000011', gender: Gender.MALE },
-    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250788000012', gender: Gender.FEMALE },
-    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788000013', gender: Gender.MALE },
-    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250788000014', gender: Gender.FEMALE },
+    { firstName: 'Aline', lastName: 'Uwase', email: 'aline.uwase@markova.edu', phone: '+250788634905', gender: Gender.FEMALE },
+    { firstName: 'Eric', lastName: 'Niyonkuru', email: emailFor('Eric', 'Niyonkuru'), phone: '+250795177286', gender: Gender.MALE },
+    { firstName: 'Diane', lastName: 'Mukamana', email: emailFor('Diane', 'Mukamana'), phone: '+250722808143', gender: Gender.FEMALE },
+    { firstName: 'Patrick', lastName: 'Habimana', email: emailFor('Patrick', 'Habimana'), phone: '+250788291064', gender: Gender.MALE },
+    { firstName: 'Solange', lastName: 'Ingabire', email: emailFor('Solange', 'Ingabire'), phone: '+250733425871', gender: Gender.FEMALE },
   ];
   const teacherComponents = new Set<string>(
     fixedTeachers.flatMap((t) => [t.firstName, t.lastName]),
@@ -1901,7 +1939,7 @@ async function main() {
     const pBirthYear = yr - (32 + rand(24));
     const user = await prisma.user.create({
       data: withLogin({
-        phone: i === 0 ? '+250788100000' : realPhone(),
+        phone: i === 0 ? '+250785639214' : realPhone(),
         code: `PAR-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
         gender,
         dateOfBirth: new Date(Date.UTC(pBirthYear, rand(12), 1 + rand(27))),
@@ -1921,7 +1959,7 @@ async function main() {
     return user;
   };
 
-  // The documented demo parent first: +250788100000.
+  // The documented demo parent first: +250785639214.
   const demoParent = await createParent(Gender.MALE, { demo: true });
 
   // Family pairs for the lineage names.
@@ -2753,6 +2791,16 @@ async function main() {
       } else if (chance(prof.lateP * (dow === 1 ? 1.6 : 1))) {
         status = AttendanceStatus.LATE;
       }
+      /* An absence the school accepted is an excused day, counted apart
+         (src/common/attendance-count.ts). The sick runs above become excused
+         days too, which is what a run of sick days is. */
+      if (
+        status === AttendanceStatus.ABSENT &&
+        reason !== null &&
+        reason !== AbsenceReason.UNEXCUSED
+      ) {
+        status = AttendanceStatus.EXCUSED;
+      }
       // Kigali mornings, stored in UTC (CAT = UTC+2): the gate scan lands
       // 07:40-08:05 local, latecomers 08:05-08:45.
       const scannedAt =
@@ -3244,7 +3292,7 @@ async function main() {
   //
   // From 18 a student decides what their parents see (A8). One adult student
   // signs in as adult@markova.edu and keeps their health visits private; their
-  // parent signs in with +250788199999 and sees a calm notice on the health
+  // parent signs in with +250798405362 and sees a calm notice on the health
   // page, and everything else as before.
   {
     const eighteenYearsAgo = addDays(today, -18 * 366);
@@ -3283,11 +3331,11 @@ async function main() {
       if (parent) {
         await prisma.account.update({
           where: { id: parent.accountId },
-          data: { phone: '+250788199999', forcePasswordChange: false },
+          data: { phone: '+250798405362', forcePasswordChange: false },
         });
         await prisma.user.update({
           where: { id: parent.id },
-          data: { phone: '+250788199999' },
+          data: { phone: '+250798405362' },
         });
       }
     }
@@ -3464,6 +3512,12 @@ async function main() {
           shelfLocation: b.shelf,
           replacementCost: b.cost,
           isActive: true,
+          // One record per physical copy, numbered inside the cover.
+          copies: {
+            create: Array.from({ length: b.qty }, (_, n) => ({
+              copyNumber: n + 1,
+            })),
+          },
         },
       }),
     );
@@ -3552,6 +3606,7 @@ async function main() {
       data: { availableCount: { decrement: out } },
     });
   }
+  await linkLoansToCopies();
   console.log(
     `  ✅ ${books.length} library titles + ${loanRows.length} loans seeded (24 out, 6 overdue, 2 lost)`,
   );
@@ -5271,13 +5326,8 @@ async function main() {
   console.log(`  ✅ ${meritRows.length} merits seeded`);
 
   // ─── FAQ ────────────────────────────────────────────────────────────────────
-  await prisma.faqArticle.createMany({
-    data: [
-      { title: 'How to reset my password?', content: 'Contact the school administrator to reset your password. You will receive an OTP on your registered phone number.', category: 'Account', displayOrder: 1 },
-      { title: "How to check my child's marks?", content: 'Log in to the parent portal, navigate to the Marks section, and select the relevant term.', category: 'Marks', displayOrder: 2 },
-      { title: 'How to report an absence?', content: 'Parents can report an absence through the mobile app or by contacting the class teacher directly.', category: 'Attendance', displayOrder: 3 },
-    ],
-  });
+  // One starter set, written per role: see starter-faqs.ts.
+  await prisma.faqArticle.createMany({ data: starterFaqRows() });
   console.log('  ✅ FAQ articles seeded');
 
   // ─── TIMETABLE (weighted weekly plan) ───────────────────────────────────────
@@ -5468,6 +5518,7 @@ async function main() {
       orderBy: { studentIdNumber: 'asc' },
       select: {
         id: true,
+        userId: true,
         classSectionId: true,
         pauses: { select: { id: true } },
         user: { select: { firstName: true, lastName: true, photoUrl: true, account: { select: { email: true } } } },
@@ -5478,10 +5529,21 @@ async function main() {
       },
     });
     const student1 = everyone.find((s) => s.user.account?.email === 'student1@markova.edu');
+    // Somebody student1 actually shares a chat with, so the initials show.
+    const chatsOfStudent1 = student1
+      ? await prisma.conversationParticipant.findMany({
+          where: { userId: student1.userId },
+          select: { conversation: { select: { participants: { select: { userId: true } } } } },
+        })
+      : [];
+    const sharesAChat = new Set(
+      chatsOfStudent1.flatMap((c) => c.conversation.participants.map((p) => p.userId)),
+    );
     const keptFromApp = everyone.find(
       (s) =>
         s.classSectionId === student1?.classSectionId &&
         s.id !== student1?.id &&
+        sharesAChat.has(s.userId) &&
         !!s.user.photoUrl &&
         s.pauses.length === 0,
     );
@@ -5854,10 +5916,10 @@ async function main() {
   console.log('     Student   student1@markova.edu');
   console.log('     Graduate  graduate@markova.edu (left the school: report cards only)');
   console.log('     Adult     adult@markova.edu (18+, keeps health visits private)');
-  console.log('     Their parent +250788199999 (phone login)');
+  console.log('     Their parent +250798405362 (phone login)');
   console.log('     Librarian librarian@markova.edu');
   console.log('     Bursar    bursar@markova.edu');
-  console.log('     Parent    +250788100000 (phone login)');
+  console.log('     Parent    +250785639214 (phone login)');
   console.log('   Other schools (no forced password change):');
   for (const school of others) {
     console.log(`     ${school.name}: admin ${school.admin}, head teacher ${school.headTeacher}`);
@@ -6129,6 +6191,9 @@ async function seedSchool(
           isBoarder: spec.boarding,
           province: spec.district === 'Musanze' ? 'Northern' : 'Kigali City',
           district: spec.district,
+          // Named, or the student takes the column's default and stands above
+          // the school's own full mark.
+          disciplinePoints: TERM_CONDUCT_MARK,
         },
       });
       students.push({ userId: user.id, studentId: student.id, sectionId: sec.id });
@@ -6239,6 +6304,11 @@ async function seedSchool(
           category: titles[i][1] === 'REB' ? 'Textbook' : 'Literature',
           quantity: 6,
           availableCount: 4,
+          copies: {
+            create: Array.from({ length: 6 }, (_, n) => ({
+              copyNumber: n + 1,
+            })),
+          },
         },
       }),
     );
@@ -6256,6 +6326,7 @@ async function seedSchool(
       },
     });
   }
+  await linkLoansToCopies();
 
   // ── This term's fees ──
   const feeFor = spec.boarding ? 285_000 : 95_000;
@@ -6319,7 +6390,7 @@ async function seedPeopleInSeveralSchools(
 
   // Patrick: a parent at G.S. Umucyo, of the first child in Senior 1 A.
   const patrick = await prisma.account.update({
-    where: { phone: '+250788000013' },
+    where: { phone: '+250788291064' },
     data: { forcePasswordChange: false },
   });
   await inSchool(umucyo.id);
@@ -6352,7 +6423,7 @@ async function seedPeopleInSeveralSchools(
 
   // Eric: a second teaching post, Mathematics at E.S. Ubumwe.
   const eric = await prisma.account.update({
-    where: { phone: '+250788000011' },
+    where: { phone: '+250795177286' },
     data: { forcePasswordChange: false },
   });
   await inSchool(ubumwe.id);
@@ -6390,13 +6461,16 @@ async function seedPeopleInSeveralSchools(
     where: {
       schoolId: firstSchoolId,
       role: Role.PARENT,
-      phone: { not: '+250788100000' },
+      /* Not the demo parent, and not the parent of the student of 18: this
+         block gives whoever it picks a new number, and theirs are how the
+         other two demos are found. */
+      phone: { notIn: ['+250785639214', '+250798405362'] },
     },
     orderBy: { code: 'asc' },
     include: { account: true },
   });
   /* A fixed number, so the demo can be found again after every seed. */
-  const twoSchoolPhone = '+250788100002';
+  const twoSchoolPhone = '+250726083157';
   await prisma.account.update({
     where: { id: parentHere.accountId },
     data: { forcePasswordChange: false, phone: twoSchoolPhone },
@@ -6475,6 +6549,7 @@ async function seedPeopleInSeveralSchools(
       classSectionId: ubumwe.sectionIds[ubumwe.sectionIds.length - 1],
       previousSchool: umucyo.name,
       isBoarder: true,
+      disciplinePoints: TERM_CONDUCT_MARK,
     },
   });
   lines.push(

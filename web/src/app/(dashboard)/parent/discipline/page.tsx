@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useChosenChild } from "@/hooks/use-children";
 import { conductPercentage } from "@/lib/conduct";
 import { classDisplayName } from "@/lib/utils";
 import {
@@ -22,6 +23,7 @@ import api from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
 import { KeptPrivateNotice } from "@/components/parent/kept-private-notice";
 import { keptPrivate } from "@/lib/kept-private";
+import { day } from "@/lib/dates";
 
 interface Child { id: string; name: string; className: string; }
 
@@ -36,7 +38,8 @@ const ACTION_LABELS: Record<string, string> = {
 export default function ParentDisciplinePage() {
   const { user } = useAuthStore();
   const [children, setChildren] = useState<Child[]>([]);
-  const [selectedChild, setSelectedChild] = useState("");
+  // Shared with the other parent pages, so the choice carries between them.
+  const [selectedChild, setSelectedChild] = useChosenChild(children);
   const [appealModal, setAppealModal] = useState<string | null>(null);
   const [appealStatement, setAppealStatement] = useState("");
 
@@ -55,7 +58,6 @@ export default function ParentDisciplinePage() {
           : "",
       }));
       setChildren(mapped);
-      if (mapped.length > 0) setSelectedChild(mapped[0].id);
     }).catch(() => {});
   }, [user?.id]);
 
@@ -151,7 +153,7 @@ export default function ParentDisciplinePage() {
                       <div>
                         <p className="text-sm font-medium text-foreground">{inc.description}</p>
                         <p className="mt-1 text-xs text-muted">
-                          {new Date(inc.date).toLocaleDateString()}
+                          {day(inc.date)}
                           {inc.time && ` at ${inc.time}`}
                           {inc.location && ` - ${inc.location}`}
                         </p>

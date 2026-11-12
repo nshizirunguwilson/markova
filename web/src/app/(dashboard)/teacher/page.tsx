@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { AbsenceWatch } from "@/components/teacher/absence-watch";
+import { TodaysLessons } from "@/components/teacher/todays-lessons";
 
 export default function TeacherDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -52,6 +54,11 @@ export default function TeacherDashboard() {
           title={<>Welcome back, {user?.firstName}</>}
           description="Teacher Dashboard"
         />
+      </div>
+
+      {/* First, because it is the thing that changes every morning. */}
+      <div className="mb-5">
+        <TodaysLessons teacherId={user?.teacherId} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -101,6 +108,10 @@ export default function TeacherDashboard() {
             </div>
           )}
         </Card>
+      </div>
+
+      <div className="mt-5">
+        <AbsenceWatch />
       </div>
 
       <div className="mt-8">

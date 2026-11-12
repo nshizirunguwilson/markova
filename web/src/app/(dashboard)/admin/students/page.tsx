@@ -42,6 +42,8 @@ export default function AdminStudentsPage() {
   const { data, isLoading } = useUsers({
     ...filters,
     classSectionId: sectionId || undefined,
+    // A level alone lists every class in it; a section narrows it further.
+    classLevelId: (!sectionId && levelId) || undefined,
     studentStatus: status || undefined,
   });
   /* Students with no date of birth are treated as under 18, so their

@@ -238,3 +238,28 @@ describe("the month's calendar", () => {
       .toBeInTheDocument();
   });
 });
+
+describe("days the school excused", () => {
+  const kid = parentWith({ id: "student-1", first: "Divine", last: "Niyonkuru" });
+
+  /** The stat card, as distinct from the calendar legend's word. */
+  const excusedCard = () =>
+    screen
+      .queryAllByText("Excused")
+      .find((el) => el.className.includes("text-xs text-muted"));
+
+  // Counted apart: they do not read as missing school.
+  it("shows the excused days when there are any", async () => {
+    mount(kid, { ...summary, excused: 3 });
+    await waitFor(() => expect(excusedCard()).toBeTruthy());
+    expect(excusedCard()!.parentElement!.textContent).toContain("3");
+  });
+
+  it("draws no excused card when there are none", async () => {
+    mount(kid);
+    await waitFor(() =>
+      expect(screen.getByText(String(summary.present))).toBeInTheDocument(),
+    );
+    expect(excusedCard()).toBeUndefined();
+  });
+});

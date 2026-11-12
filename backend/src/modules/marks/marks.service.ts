@@ -33,6 +33,7 @@ import {
   PublishReportCardsDto,
   QueryMarksDto,
 } from './dto';
+import { mustExist } from '../../common/must-exist';
 
 @Injectable()
 export class MarksService {
@@ -64,6 +65,9 @@ export class MarksService {
         `Score ${dto.score} exceeds max ${maxScore}`,
       );
     }
+    await this.assertMayEnter(dto, subject.name, teacherId, role, [
+      dto.studentId,
+    ]);
 
     /* The head teacher has no teacher profile of their own, so a mark they
        enter is credited to whoever teaches that subject to that class. */
@@ -83,7 +87,7 @@ export class MarksService {
     // Upsert on the unique (student, subject, term, assessment) key so
     // re-entering a score updates it instead of throwing a duplicate (matches
     // batch entry; a plain create() here 500'd on the unique constraint).
-    return this.prisma.mark.upsert({
+    const saved = await this.prisma.mark.upsert({
       where: {
         studentId_subjectId_termId_assessmentTypeId: {
           studentId: dto.studentId,
@@ -111,6 +115,8 @@ export class MarksService {
         assessmentType: true,
       },
     });
+    await this.refreshResults(dto.classSectionId, dto.termId);
+    return saved;
   }
 
   async update(
@@ -138,7 +144,7 @@ export class MarksService {
       );
     }
 
-    return this.prisma.mark.update({
+    const saved = await this.prisma.mark.update({
       where: { id },
       data: { score: dto.score, maxScore },
       include: {
@@ -149,6 +155,8 @@ export class MarksService {
         assessmentType: true,
       },
     });
+    await this.refreshResults(mark.classSectionId, mark.termId);
+    return saved;
   }
 
   async delete(id: string, teacherId: string | null, role: string = 'TEACHER') {
@@ -157,11 +165,54 @@ export class MarksService {
       include: { term: true },
     });
     if (!mark) throw new NotFoundException('Mark not found');
-    if (role !== 'ADMIN' && mark.teacherId !== teacherId) {
+    /* The same rule as editing: a subject teacher removes their own marks,
+       and the Director of Studies removes any, because clearing a mistake
+       from the mark book is the post. This checked for ADMIN, which the
+       route never lets in, so nobody above the teacher could remove one. */
+    if (role !== 'HEAD_TEACHER' && mark.teacherId !== teacherId) {
       throw new ForbiddenException('You can only delete your own marks');
     }
     await this.ensureTermOpen(mark.termId);
-    return this.prisma.mark.delete({ where: { id } });
+    const deleted = await this.prisma.mark.delete({ where: { id } });
+    await this.refreshResults(mark.classSectionId, mark.termId);
+    return deleted;
+  }
+
+  /**
+   * Bring a class's results back in line after one of its marks changed.
+   *
+   * The average and position were worked out only when the Director of
+   * Studies pressed calculate, so a corrected mark left the issued card
+   * showing the family the old figures until somebody remembered. Now a
+   * change recalculates, but only once the class has results: before the
+   * first calculation there is nothing on any card to correct, and creating
+   * results the DOS has not asked for would start the term's paperwork early.
+   *
+   * Recalculating changes only the figures and the positions. Comments, the
+   * release, the DOS's confirmation and the issue stand as they were. The
+   * year's results are refreshed the same way when they exist.
+   */
+  private async refreshResults(classSectionId: string, termId: string) {
+    const calculated = await this.prisma.termResult.count({
+      where: { classSectionId, termId },
+    });
+    if (!calculated) return;
+    await this.calculateTermResults({ classSectionId, termId });
+
+    const term = await this.prisma.term.findUnique({
+      where: { id: termId },
+      select: { academicYearId: true },
+    });
+    if (!term) return;
+    const yearCalculated = await this.prisma.yearResult.count({
+      where: { classSectionId, academicYearId: term.academicYearId },
+    });
+    if (yearCalculated) {
+      await this.calculateYearResults({
+        classSectionId,
+        academicYearId: term.academicYearId,
+      });
+    }
   }
 
   async batchEntry(
@@ -175,6 +226,13 @@ export class MarksService {
       where: { id: dto.subjectId },
     });
     if (!subject) throw new NotFoundException('Subject not found');
+    await this.assertMayEnter(
+      dto,
+      subject.name,
+      teacherId,
+      role,
+      dto.marks.map((m) => m.studentId),
+    );
 
     /* The head teacher has no teacher profile of their own, so a mark they
        enter is credited to whoever teaches that subject to that class. */
@@ -228,14 +286,64 @@ export class MarksService {
       results.push(result);
     }
 
+    // One recalculation for the whole sheet, not one per student.
+    await this.refreshResults(dto.classSectionId, dto.termId);
     return { count: results.length, marks: results };
   }
 
-  async findAll(query: QueryMarksDto) {
+  /**
+   * Who may put a mark in this subject for this class, and for whom.
+   *
+   * A teacher only for a subject they teach to that class (the DOS duty
+   * covers every class); the head teacher for any. Whoever enters it, every
+   * student has to be in that class: a mark filed under the wrong class
+   * would sit on one class's sheet while counting towards another child.
+   */
+  private async assertMayEnter(
+    where: { subjectId: string; classSectionId: string; termId: string },
+    subjectName: string,
+    teacherId: string | null,
+    role: string,
+    studentIds: string[],
+  ) {
+    if (
+      role === 'TEACHER' &&
+      !(await this.permissions.mayEnterMarks(teacherId ?? undefined, where))
+    ) {
+      throw new ForbiddenException(
+        `You do not teach ${subjectName} to this class, so you cannot enter its marks`,
+      );
+    }
+    const unique = [...new Set(studentIds)];
+    const inClass = await this.prisma.student.count({
+      where: { id: { in: unique }, classSectionId: where.classSectionId },
+    });
+    if (inClass !== unique.length) {
+      throw new BadRequestException(
+        unique.length === 1
+          ? 'This student is not in that class'
+          : `${unique.length - inClass} of these students are not in that class`,
+      );
+    }
+  }
+
+  async findAll(
+    query: QueryMarksDto,
+    viewer?: { role: string; teacherId?: string | null },
+  ) {
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    /* A teacher reads the marks of what they teach, and the whole card of a
+       class they lead; the DOS duty and the head teacher read everything. */
+    if (viewer?.role === 'TEACHER') {
+      const readable = await this.permissions.marksReadableBy(
+        viewer.teacherId ?? undefined,
+      );
+      if (readable !== null)
+        where.OR = readable.length ? readable : [{ id: '' }];
+    }
     if (query.studentId) where.studentId = query.studentId;
     if (query.subjectId) where.subjectId = query.subjectId;
     if (query.classSectionId) where.classSectionId = query.classSectionId;
@@ -266,7 +374,10 @@ export class MarksService {
     return new PaginatedResponse(data, total, page, limit);
   }
 
-  async findById(id: string) {
+  async findById(
+    id: string,
+    viewer?: { role: string; teacherId?: string | null },
+  ) {
     const mark = await this.prisma.mark.findUnique({
       where: { id },
       include: {
@@ -283,6 +394,20 @@ export class MarksService {
       },
     });
     if (!mark) throw new NotFoundException('Mark not found');
+    // Looked up by id, the same limits as the list: unreadable reads as absent.
+    if (viewer?.role === 'TEACHER') {
+      const readable = await this.permissions.marksReadableBy(
+        viewer.teacherId ?? undefined,
+      );
+      const allowed =
+        readable === null ||
+        readable.some(
+          (r) =>
+            r.classSectionId === mark.classSectionId &&
+            (!r.subjectId || r.subjectId === mark.subjectId),
+        );
+      if (!allowed) throw new NotFoundException('Mark not found');
+    }
     return mark;
   }
 
@@ -897,6 +1022,7 @@ export class MarksService {
   }
 
   async getStudentYearResult(studentId: string, academicYearId: string) {
+    await mustExist(this.prisma.student, studentId, 'Student');
     const result = await this.prisma.yearResult.findFirst({
       where: { studentId, academicYearId },
       include: {

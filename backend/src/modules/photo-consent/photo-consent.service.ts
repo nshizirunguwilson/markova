@@ -99,9 +99,13 @@ export class PhotoConsentService {
         where: { id: viewer.id },
         select: { firstName: true, lastName: true },
       });
-      answeredBy = `${me?.firstName ?? ''} ${me?.lastName ?? ''}`.trim();
-      answeredBy +=
-        viewer.role === Role.PARENT ? ' (parent)' : ' (the student)';
+      const myName = [me?.firstName, me?.lastName].filter(Boolean).join(' ');
+      const parent = viewer.role === Role.PARENT;
+      answeredBy = myName
+        ? `${myName} (${parent ? 'parent' : 'the student'})`
+        : parent
+          ? 'A parent'
+          : 'The student';
     }
 
     await this.prisma.$transaction(async (tx) => {

@@ -112,9 +112,9 @@ describe('MarksController', () => {
     },
     {
       name: 'the list, filtered',
-      call: (c) => c.findAll({ termId: 'term-1' }),
+      call: (c) => c.findAll({ termId: 'term-1' }, withTeacherId),
       calls: 'findAll',
-      withArgs: [{ termId: 'term-1' }],
+      withArgs: [{ termId: 'term-1' }, withTeacherId],
     },
     {
       name: 'how much of a class is still unmarked',
@@ -125,9 +125,9 @@ describe('MarksController', () => {
     },
     {
       name: 'one mark',
-      call: (c) => c.findById('mark-1'),
+      call: (c) => c.findById('mark-1', withTeacherId),
       calls: 'findById',
-      withArgs: ['mark-1'],
+      withArgs: ['mark-1', withTeacherId],
     },
     {
       name: 'a mark corrected by the teacher who entered it',
@@ -530,5 +530,88 @@ describe('marks held over unpaid fees', () => {
       await ctl.getReportCard('student-1', 'term-1', { id: 'u-1', role });
       expect(service.getReportCardData).toHaveBeenCalled();
     });
+  });
+});
+
+/** The Director of Studies' routes: the morning view, and standing behind cards. */
+describe('MarksController, the Director of Studies', () => {
+  const service = mockService(['confirmReportCards', 'publishReportCards']);
+  const dashboard = { overview: jest.fn().mockResolvedValue({ classes: [] }) };
+  let run: (c: RouteCase) => Promise<void>;
+
+  beforeEach(async () => {
+    clearMocks(service, dashboard);
+    run = await controllerHarness(
+      MarksController,
+      wiring({
+        service,
+        ownership: mockService(['verifyStudentAccess']),
+        feeGate: mockService(['assertReleased']),
+        dashboard,
+      }),
+    );
+  });
+
+  it('opens the morning view for a term', () =>
+    run({
+      name: 'overview',
+      call: (c) => c.headTeacherOverview('term-1'),
+      on: 'dashboard',
+      calls: 'overview',
+      withArgs: ['term-1'],
+    }));
+
+  it('confirms a class’s cards as the person confirming', () =>
+    run({
+      name: 'confirm',
+      call: (c) =>
+        c.confirmReportCards({ classSectionId: 'c1' }, { id: 'dos-1' }),
+      calls: 'confirmReportCards',
+      withArgs: [{ classSectionId: 'c1' }, 'dos-1'],
+    }));
+
+  it('issues or withdraws a class’s cards', () =>
+    run({
+      name: 'publish',
+      call: (c) =>
+        c.publishReportCards({ classSectionId: 'c1', publish: true }),
+      calls: 'publishReportCards',
+      withArgs: [{ classSectionId: 'c1', publish: true }],
+    }));
+});
+
+/* A family's results need a term: the fee check reads that term's invoice,
+   and without one it crashed. Whose student it is is still asked first. */
+describe('MarksController, a request with no term', () => {
+  const service = mockService([
+    'getStudentTermResult',
+    'getReportCardData',
+    'isReportCardIssued',
+  ]);
+  const ownership = mockService(['verifyStudentAccess']);
+  const feeGate = mockService(['withholdingFor']);
+  let ctl: MarksController;
+
+  beforeEach(async () => {
+    clearMocks(service, ownership, feeGate);
+    ctl = await buildController(
+      MarksController,
+      wiring({ service, ownership, feeGate }),
+    );
+  });
+
+  it.each([
+    [
+      'the term result',
+      (c: MarksController) => c.getStudentTermResult('s1', '', parent),
+    ],
+    [
+      'the report card',
+      (c: MarksController) => c.getReportCard('s1', '', parent),
+    ],
+  ])('refuses %s, after checking whose student', async (_what, call) => {
+    await expect(call(ctl)).rejects.toThrow('Say which term');
+    expect(ownership.verifyStudentAccess).toHaveBeenCalled();
+    expect(feeGate.withholdingFor).not.toHaveBeenCalled();
   });
 });
