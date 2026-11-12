@@ -24,6 +24,7 @@ describe('ActivitiesService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
     },
@@ -255,6 +256,11 @@ describe('ActivitiesService', () => {
    * has to be answerable.
    */
   describe('a parent answering', () => {
+    beforeEach(() => {
+      prisma.activity.findFirst.mockResolvedValue({ id: 'act-1' });
+      prisma.student.findFirst.mockResolvedValue({ id: 'student-1' });
+    });
+
     it('records the answer against the person who gave it', async () => {
       prisma.parentStudent.findFirst.mockResolvedValue({ id: 'ps-1' });
       prisma.activityParticipant.upsert.mockResolvedValue({});
@@ -327,6 +333,37 @@ describe('ActivitiesService', () => {
           'PARENT' as any,
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // An id from another school is behind the wall, so it is simply not found.
+    it('does not know an activity of another school', async () => {
+      prisma.activity.findFirst.mockResolvedValue(null);
+      await expect(
+        service.recordConsent(
+          'act-elsewhere',
+          'student-1',
+          'GIVEN',
+          undefined,
+          'user-1',
+          'ADMIN',
+        ),
+      ).rejects.toThrow('Activity not found');
+      expect(prisma.activityParticipant.upsert).not.toHaveBeenCalled();
+    });
+
+    it('does not know a student of another school', async () => {
+      prisma.student.findFirst.mockResolvedValue(null);
+      await expect(
+        service.recordConsent(
+          'act-1',
+          'student-elsewhere',
+          'GIVEN',
+          undefined,
+          'user-1',
+          'ADMIN',
+        ),
+      ).rejects.toThrow('Student not found');
+      expect(prisma.activityParticipant.upsert).not.toHaveBeenCalled();
     });
 
     // The office records answers given on paper or over the phone.
