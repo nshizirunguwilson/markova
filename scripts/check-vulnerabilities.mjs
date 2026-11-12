@@ -106,6 +106,24 @@ const ACCEPTED = [
       'anything starts calling @puppeteer/browsers, or a deployment lets ' +
       'puppeteer download its own Chrome instead of setting CHROME_PATH.',
   },
+  {
+    package: 'minimatch',
+    advisory: 'GHSA-g3hv-75wg-m249',
+    since: '2026-11-12',
+    why: [
+      'A pattern written to be slow can keep minimatch busy for a long time.',
+      'Nobody outside the team writes the patterns it is given here: they are',
+      'the globs in our own config, read by the test coverage tooling',
+      '(test-exclude), the linter, the Nest CLI and the module matcher inside',
+      '@sentry/node. No request, upload or setting reaches it. The fix is in',
+      'minimatch 11.0.1 only, and the copies in the tree are pinned to 9 and',
+      '10 by those packages; npm offers nothing short of @sentry/node 11, a',
+      'major upgrade tied to the @opentelemetry set described above.',
+    ].join(' '),
+    urgentIf:
+      'anything starts passing text from a request or a school setting to a ' +
+      'glob matcher, or @sentry/nestjs is upgraded (which clears it).',
+  },
 ];
 
 const projects = ['backend', 'web'];
