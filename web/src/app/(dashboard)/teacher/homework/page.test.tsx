@@ -112,6 +112,36 @@ describe("the submissions for one homework", () => {
     expect(dialog.textContent).toMatch(/Keza Mutesi/);
   });
 
+  // The sheet the work was set on is one tap away from the marking.
+  it("links to the sheet under the name it was uploaded with", async () => {
+    serve(h.api, {
+      ...routes,
+      "/homework/hw-1": {
+        ...homework,
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: "Paper 2 2025.pdf",
+      },
+    });
+    const dialog = await openSubmissions();
+    const link = await within(dialog).findByRole("link", { name: /Paper 2 2025\.pdf/ });
+    expect(link.getAttribute("href")).toMatch(/\/uploads\/schools\/s-1\/attachments\/abc\.pdf$/);
+  });
+
+  it("still links to a sheet that was stored without a name", async () => {
+    serve(h.api, {
+      ...routes,
+      "/homework/hw-1": {
+        ...homework,
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: null,
+      },
+    });
+    const dialog = await openSubmissions();
+    expect(
+      await within(dialog).findByRole("link", { name: /The sheet for this work/ }),
+    ).toBeInTheDocument();
+  });
+
   // Late work is marked down, so which submissions were late has to be plain
   // before any marks are entered.
   it("marks which ones came in late", async () => {
@@ -257,6 +287,53 @@ describe("setting new homework", () => {
       expect((call![1] as any).classSectionId).toBe("section-1");
     });
   });
+
+  // The sheet is uploaded the moment it is picked, and the create then names
+  // where it landed and the name the teacher's file had.
+  it("sends the sheet it was set with", async () => {
+    const dialog = await openForm();
+    const select = within(dialog).getAllByRole("combobox")[0];
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "assign-1" } });
+    });
+    for (const box of within(dialog).getAllByRole("textbox")) {
+      await act(async () => {
+        fireEvent.change(box, { target: { value: "Physics past paper" } });
+      });
+    }
+
+    serve(h.api, {
+      ...routes,
+      "/homework/upload": {
+        fileUrl: "/uploads/schools/s-1/attachments/abc.pdf",
+        fileName: "Paper 2 2025.pdf",
+      },
+    });
+    const file = new File(["%PDF-1.4"], "Paper 2 2025.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.change(within(dialog).getByLabelText("File (optional)"), {
+        target: { files: [file] },
+      });
+    });
+    await within(dialog).findByText("Paper 2 2025.pdf");
+
+    h.api.post.mockClear();
+    serve(h.api, routes);
+    const save = within(dialog)
+      .getAllByRole("button")
+      .find((b) => /^(create|save|add)/i.test((b.textContent ?? "").trim()));
+    if (!save) return;
+    await click(save);
+
+    await waitFor(() => {
+      const call = h.api.post.mock.calls.find(
+        ([url]: any[]) => String(url) === "/homework",
+      );
+      expect(call).toBeTruthy();
+      expect((call![1] as any).fileUrl).toBe("/uploads/schools/s-1/attachments/abc.pdf");
+      expect((call![1] as any).fileName).toBe("Paper 2 2025.pdf");
+    });
+  }, 15000);
 });
 
 describe("removing a homework", () => {

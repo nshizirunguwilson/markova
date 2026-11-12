@@ -36,6 +36,17 @@ export class CreateHomeworkDto {
   @IsNumber()
   @Min(0)
   lateDeductionPerDay?: number;
+  /** The sheet the work is set on, uploaded first via POST /homework/upload. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  fileUrl?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fileName?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() teacherId?: string;
 }
 
@@ -62,6 +73,17 @@ export class UpdateHomeworkDto {
   @IsNumber()
   @Min(0)
   lateDeductionPerDay?: number;
+  /** The sheet the work is set on, uploaded first via POST /homework/upload. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  fileUrl?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fileName?: string;
 }
 
 export class SubmitHomeworkDto {

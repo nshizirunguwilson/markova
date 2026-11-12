@@ -2,8 +2,9 @@
 
 import { Card, Badge, Spinner, Button } from "@/components/ui";
 import { useStudentHomework, useSubmitHomework } from "@/hooks/use-homework";
+import { resolveUploadUrl } from "@/lib/assets";
 import { useAuthStore } from "@/stores/auth-store";
-import { FileText, Upload, Check, AlertCircle } from "lucide-react";
+import { FileText, Upload, Check, AlertCircle, Paperclip } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { day } from "@/lib/dates";
 
@@ -58,6 +59,17 @@ export default function StudentHomeworkPage() {
                       <p className="mt-1 text-sm text-foreground">
                         {hw.description}
                       </p>
+                    )}
+                    {hw.fileUrl && (
+                      <a
+                        href={resolveUploadUrl(hw.fileUrl) ?? undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <Paperclip className="h-4 w-4" aria-hidden />
+                        {hw.fileName || "The sheet for this work"}
+                      </a>
                     )}
                     <div className="mt-2 flex items-center gap-3 text-xs text-muted">
                       <span>
