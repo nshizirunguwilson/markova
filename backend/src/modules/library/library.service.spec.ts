@@ -48,6 +48,15 @@ describe('LibraryService', () => {
     ...over,
   });
 
+  /** A holding of `total` copies, the first `out` of them on open loans. */
+  const holding = (total: number, out: number) =>
+    Array.from({ length: total }, (_, i) => ({
+      id: `copy-${i + 1}`,
+      copyNumber: i + 1,
+      standing: 'ON_THE_SHELF',
+      loans: i < out ? [{ id: `loan-${i + 1}` }] : [],
+    }));
+
   const student = {
     id: 'student-1',
     studentIdNumber: 'STD-2026-001',
@@ -73,17 +82,22 @@ describe('LibraryService', () => {
       prisma.book.findUnique.mockResolvedValue(
         book({ quantity: 5, availableCount: 3 }),
       );
+      prisma.bookCopy.findMany.mockResolvedValue(holding(5, 2));
       await service.updateBook('book-1', { quantity: 8 });
       // Two are out, so eight in stock means six on the shelf.
       expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(6);
     });
 
+    // Five copies, all of them out: the holding cannot be cut to two,
+    // because those books exist whether or not the shelf list admits it.
     it('never lets the shelf count go negative', async () => {
       prisma.book.findUnique.mockResolvedValue(
         book({ quantity: 5, availableCount: 0 }),
       );
-      await service.updateBook('book-1', { quantity: 2 });
-      expect(prisma.book.update.mock.calls[0][0].data.availableCount).toBe(0);
+      prisma.bookCopy.findMany.mockResolvedValue(holding(5, 5));
+      await expect(
+        service.updateBook('book-1', { quantity: 2 }),
+      ).rejects.toThrow(/on the shelf to withdraw/i);
     });
 
     it('leaves the shelf count alone when only the title changed', async () => {
@@ -156,12 +170,94 @@ describe('LibraryService', () => {
   });
 
   /**
+   * One record per physical copy, so the school can say which copy a
+   * student is holding rather than just how many are out.
+   */
+  describe('the copies of a title', () => {
+    it("numbers a new title's copies from one", async () => {
+      prisma.book.create.mockResolvedValue({});
+      await service.createBook({ title: 'X', quantity: 3 } as never);
+      expect(prisma.book.create.mock.calls[0][0].data.copies).toEqual({
+        create: [{ copyNumber: 1 }, { copyNumber: 2 }, { copyNumber: 3 }],
+      });
+    });
+
+    // Numbers are written inside the covers, so a number, once used, never
+    // means a different physical book.
+    it('numbers bought copies after the highest there has ever been', async () => {
+      prisma.book.findUnique.mockResolvedValue(
+        book({ quantity: 3, availableCount: 3 }),
+      );
+      const had = holding(3, 0);
+      had[2].standing = 'RETIRED';
+      prisma.bookCopy.findMany.mockResolvedValue(had);
+      await service.updateBook('book-1', { quantity: 4 });
+      expect(prisma.bookCopy.createMany.mock.calls[0][0].data).toEqual([
+        { bookId: 'book-1', copyNumber: 4 },
+        { bookId: 'book-1', copyNumber: 5 },
+      ]);
+    });
+
+    it('retires spare copies, newest first, when the holding is cut', async () => {
+      prisma.book.findUnique.mockResolvedValue(
+        book({ quantity: 4, availableCount: 3 }),
+      );
+      prisma.bookCopy.findMany.mockResolvedValue(holding(4, 1));
+      await service.updateBook('book-1', { quantity: 2 });
+      expect(prisma.bookCopy.updateMany.mock.calls[0][0]).toEqual({
+        where: { id: { in: ['copy-4', 'copy-3'] } },
+        data: { standing: 'RETIRED' },
+      });
+    });
+
+    it('says where every copy is, and who is holding it', async () => {
+      prisma.book.findUnique.mockResolvedValue({
+        ...book(),
+        loans: [],
+        copies: [
+          {
+            id: 'copy-1',
+            copyNumber: 1,
+            standing: 'ON_THE_SHELF',
+            loans: [
+              {
+                id: 'loan-9',
+                dueDate: new Date('2026-11-20'),
+                borrower: { firstName: 'Divine', lastName: 'Niyonkuru' },
+              },
+            ],
+          },
+          { id: 'copy-2', copyNumber: 2, standing: 'LOST', loans: [] },
+        ],
+      });
+      const result = await service.findById('book-1');
+      expect(result.copies).toEqual([
+        {
+          id: 'copy-1',
+          copyNumber: 1,
+          standing: 'ON_THE_SHELF',
+          heldBy: {
+            loanId: 'loan-9',
+            name: 'Divine Niyonkuru',
+            dueDate: new Date('2026-11-20'),
+          },
+        },
+        { id: 'copy-2', copyNumber: 2, standing: 'LOST', heldBy: null },
+      ]);
+    });
+  });
+
+  /**
    * Lending. The count and the loan move together or the shelf number lies.
    */
   describe('lending a book out', () => {
     beforeEach(() => {
       prisma.book.findFirst.mockResolvedValue(book());
       prisma.student.findFirst.mockResolvedValue(student);
+      prisma.bookCopy.findFirst.mockResolvedValue({
+        id: 'copy-1',
+        copyNumber: 1,
+      });
     });
 
     it('refuses a book nobody has', async () => {
@@ -204,6 +300,42 @@ describe('LibraryService', () => {
       expect(prisma.book.update.mock.calls[0][0].data).toEqual({
         availableCount: { decrement: 1 },
       });
+    });
+
+    it('hands out the lowest-numbered copy on the shelf', async () => {
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+      });
+      const ask = prisma.bookCopy.findFirst.mock.calls[0][0];
+      expect(ask.orderBy).toEqual({ copyNumber: 'asc' });
+      expect(ask.where.standing).toBe('ON_THE_SHELF');
+      expect(prisma.bookLoan.create.mock.calls[0][0].data.copyId).toBe(
+        'copy-1',
+      );
+    });
+
+    // The number written inside the cover of the copy actually handed over.
+    it('hands out the very copy the librarian named', async () => {
+      await service.checkout({
+        bookIdentifier: 'BK-001',
+        studentIdentifier: 'STD-2026-001',
+        copyNumber: 3,
+      });
+      expect(prisma.bookCopy.findFirst.mock.calls[0][0].where.copyNumber).toBe(
+        3,
+      );
+    });
+
+    it('refuses a named copy that is not on the shelf', async () => {
+      prisma.bookCopy.findFirst.mockResolvedValue(null);
+      await expect(
+        service.checkout({
+          bookIdentifier: 'BK-001',
+          studentIdentifier: 'STD-2026-001',
+          copyNumber: 3,
+        }),
+      ).rejects.toThrow('Copy 3 is not on the shelf');
     });
 
     it('refuses a student already at their limit', async () => {
@@ -340,6 +472,22 @@ describe('LibraryService', () => {
         checkedOutAt: 'asc',
       });
     });
+
+    // The number inside the cover says whose loan this actually is.
+    it("closes the named copy's own loan when a copy number is given", async () => {
+      prisma.bookLoan.findFirst.mockResolvedValue({ id: 'loan-2' });
+      await service.returnBook({ bookIdentifier: 'BK-001', copyNumber: 2 });
+      expect(prisma.bookLoan.findFirst.mock.calls[0][0].where.copy).toEqual({
+        copyNumber: 2,
+      });
+    });
+
+    it('says so when the named copy is not out at all', async () => {
+      prisma.bookLoan.findFirst.mockResolvedValue(null);
+      await expect(
+        service.returnBook({ bookIdentifier: 'BK-001', copyNumber: 2 }),
+      ).rejects.toThrow('Copy 2 of this book is not out on loan');
+    });
   });
 
   describe('a book reported lost', () => {
@@ -373,6 +521,34 @@ describe('LibraryService', () => {
       await service.reportLost('loan-1');
       expect(prisma.book.update).not.toHaveBeenCalled();
       expect(prisma.bookLoan.update.mock.calls[0][0].data.status).toBe('LOST');
+    });
+
+    // Which physical copy is gone stays on the record.
+    it('marks the very copy as lost', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue({
+        id: 'loan-1',
+        status: 'ACTIVE',
+        copyId: 'copy-2',
+        book: book(),
+      });
+      prisma.bookLoan.update.mockResolvedValue({});
+      await service.reportLost('loan-1');
+      expect(prisma.bookCopy.update).toHaveBeenCalledWith({
+        where: { id: 'copy-2' },
+        data: { standing: 'LOST' },
+      });
+    });
+
+    it('copes with a loan from before copies were tracked', async () => {
+      prisma.bookLoan.findUnique.mockResolvedValue({
+        id: 'loan-1',
+        status: 'ACTIVE',
+        copyId: null,
+        book: book(),
+      });
+      prisma.bookLoan.update.mockResolvedValue({});
+      await service.reportLost('loan-1');
+      expect(prisma.bookCopy.update).not.toHaveBeenCalled();
     });
 
     it('records what the school is owed for it', async () => {

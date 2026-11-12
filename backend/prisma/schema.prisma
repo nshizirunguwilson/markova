@@ -182,6 +182,15 @@ enum LoanStatus {
   DAMAGED
 }
 
+/// What has become of one physical copy of a book.
+enum CopyStanding {
+  ON_THE_SHELF
+  LOST
+  DAMAGED
+  /// Taken out of service: worn out, or the school cut the holding down.
+  RETIRED
+}
+
 enum DisciplineAction {
   VERBAL_WARNING
   WRITTEN_WARNING
@@ -270,6 +279,7 @@ model School {
   disciplineIncidents       DisciplineIncident[]
   disciplineAppeals         DisciplineAppeal[]
   books                     Book[]
+  bookCopies                 BookCopy[]
   bookLoans                 BookLoan[]
   homeworks                 Homework[]
   homeworkSubmissions       HomeworkSubmission[]
@@ -1232,7 +1242,8 @@ model Book {
   replacementCost Float?  @map("replacement_cost")
   isActive        Boolean @default(true) @map("is_active")
 
-  loans BookLoan[]
+  loans  BookLoan[]
+  copies BookCopy[]
 
   @@unique([schoolId, isbn])
   @@unique([schoolId, barcode])
@@ -1241,11 +1252,34 @@ model Book {
   @@map("books")
 }
 
+/// One physical copy of a title, so the school can say which copy a student
+/// is holding, not just how many are out. Numbered per book: "Copy 3 of
+/// Physics for Rwanda". The book's quantity and availableCount are kept as
+/// counters over these.
+model BookCopy {
+  id         String       @id @default(uuid())
+  schoolId   String       @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  bookId     String       @map("book_id")
+  copyNumber Int          @map("copy_number")
+  standing   CopyStanding @default(ON_THE_SHELF)
+
+  book  Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  loans BookLoan[]
+
+  @@unique([bookId, copyNumber])
+  @@index([schoolId])
+  @@map("book_copies")
+}
+
 model BookLoan {
   id              String     @id @default(uuid())
   schoolId        String     @default(dbgenerated("current_setting('app.school_id'::text)")) @map("school_id")
   school          School     @relation(fields: [schoolId], references: [id], onDelete: Restrict)
   bookId          String     @map("book_id")
+  /// Which physical copy went out. Null only on loans from before copies
+  /// were tracked.
+  copyId          String?    @map("copy_id")
   borrowerUserId  String     @map("borrower_user_id")
   checkedOutAt    DateTime   @default(now()) @map("checked_out_at")
   dueDate         DateTime   @map("due_date")
@@ -1253,8 +1287,9 @@ model BookLoan {
   status          LoanStatus @default(ACTIVE)
   replacementCost Float?     @map("replacement_cost")
 
-  book     Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  borrower User @relation(fields: [borrowerUserId], references: [id], onDelete: Cascade)
+  book     Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  copy     BookCopy? @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  borrower User      @relation(fields: [borrowerUserId], references: [id], onDelete: Cascade)
 
   @@index([bookId])
   @@index([borrowerUserId])

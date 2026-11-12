@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { currentSchoolName } from '../../common/school-name';
 import { PaginatedResponse } from '../../common/dto';
@@ -32,6 +33,9 @@ export class LibraryService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async createBook(dto: CreateBookDto) {
+    /* Each physical copy is a record of its own, numbered from 1, so the
+       school can say which copy a student holds. The quantity stays as a
+       counter over them. */
     return this.prisma.book.create({
       data: {
         title: dto.title,
@@ -43,6 +47,11 @@ export class LibraryService {
         barcode: dto.barcode,
         shelfLocation: dto.shelfLocation,
         replacementCost: dto.replacementCost,
+        copies: {
+          create: Array.from({ length: dto.quantity }, (_, i) => ({
+            copyNumber: i + 1,
+          })),
+        },
       },
     });
   }
@@ -58,9 +67,64 @@ export class LibraryService {
       availableCount = Math.max(0, dto.quantity - checkedOut);
     }
 
-    return this.prisma.book.update({
-      where: { id },
-      data: { ...dto, availableCount },
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.quantity !== undefined && dto.quantity !== book.quantity) {
+        await this.resizeHolding(tx, id, dto.quantity);
+      }
+      return tx.book.update({
+        where: { id },
+        data: { ...dto, availableCount },
+      });
+    });
+  }
+
+  /**
+   * Make the copy records match a new quantity.
+   *
+   * Growing adds copies numbered after the highest there has ever been, so
+   * no number is ever reused for a different physical book. Shrinking
+   * retires copies nobody is holding, newest first, and refuses to go lower
+   * than what is out or gone: those copies exist whether or not the shelf
+   * list admits it.
+   */
+  private async resizeHolding(
+    tx: Prisma.TransactionClient,
+    bookId: string,
+    quantity: number,
+  ) {
+    const copies = await tx.bookCopy.findMany({
+      where: { bookId },
+      include: {
+        loans: {
+          where: { status: { in: ['ACTIVE', 'OVERDUE'] } },
+          select: { id: true },
+        },
+      },
+      orderBy: { copyNumber: 'asc' },
+    });
+    const inService = copies.filter((c) => c.standing !== 'RETIRED');
+    if (quantity > inService.length) {
+      const highest = copies.at(-1)?.copyNumber ?? 0;
+      await tx.bookCopy.createMany({
+        data: Array.from({ length: quantity - inService.length }, (_, i) => ({
+          bookId,
+          copyNumber: highest + i + 1,
+        })),
+      });
+      return;
+    }
+    const spare = inService
+      .filter((c) => c.standing === 'ON_THE_SHELF' && c.loans.length === 0)
+      .reverse();
+    const toDrop = inService.length - quantity;
+    if (toDrop > spare.length) {
+      throw new BadRequestException(
+        `Only ${spare.length} ${spare.length === 1 ? 'copy is' : 'copies are'} on the shelf to withdraw: the rest are out or lost`,
+      );
+    }
+    await tx.bookCopy.updateMany({
+      where: { id: { in: spare.slice(0, toDrop).map((c) => c.id) } },
+      data: { standing: 'RETIRED' },
     });
   }
 
@@ -90,6 +154,11 @@ export class LibraryService {
           barcode: book.barcode,
           shelfLocation: book.shelfLocation,
           replacementCost: book.replacementCost,
+          copies: {
+            create: Array.from({ length: book.quantity }, (_, i) => ({
+              copyNumber: i + 1,
+            })),
+          },
         },
       });
       results.push(created);
@@ -132,14 +201,42 @@ export class LibraryService {
         loans: {
           include: {
             borrower: { select: { firstName: true, lastName: true } },
+            copy: { select: { copyNumber: true } },
           },
           orderBy: { checkedOutAt: 'desc' },
           take: 20,
         },
+        /* Every physical copy, with whoever is holding it: the question a
+           librarian asks of a title is "where are my five copies". */
+        copies: {
+          include: {
+            loans: {
+              where: { status: { in: ['ACTIVE', 'OVERDUE'] } },
+              include: {
+                borrower: { select: { firstName: true, lastName: true } },
+              },
+            },
+          },
+          orderBy: { copyNumber: 'asc' },
+        },
       },
     });
     if (!book) throw new NotFoundException('Book not found');
-    return book;
+    return {
+      ...book,
+      copies: book.copies.map((copy) => ({
+        id: copy.id,
+        copyNumber: copy.copyNumber,
+        standing: copy.standing,
+        heldBy: copy.loans[0]
+          ? {
+              loanId: copy.loans[0].id,
+              name: `${copy.loans[0].borrower.firstName} ${copy.loans[0].borrower.lastName}`,
+              dueDate: copy.loans[0].dueDate,
+            }
+          : null,
+      })),
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -191,10 +288,30 @@ export class LibraryService {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + borrowingDuration);
 
-    const [loan] = await this.prisma.$transaction(async (tx) => [
-      await tx.bookLoan.create({
+    return this.prisma.$transaction(async (tx) => {
+      /* Which physical copy goes out. The librarian may name one (the copy
+         number is written inside the cover); otherwise the lowest-numbered
+         copy on the shelf goes. */
+      const copy = await tx.bookCopy.findFirst({
+        where: {
+          bookId: book.id,
+          standing: 'ON_THE_SHELF',
+          loans: { none: { status: { in: ['ACTIVE', 'OVERDUE'] } } },
+          ...(dto.copyNumber && { copyNumber: dto.copyNumber }),
+        },
+        orderBy: { copyNumber: 'asc' },
+      });
+      if (!copy) {
+        throw new BadRequestException(
+          dto.copyNumber
+            ? `Copy ${dto.copyNumber} is not on the shelf`
+            : 'No copies available',
+        );
+      }
+      const loan = await tx.bookLoan.create({
         data: {
           bookId: book.id,
+          copyId: copy.id,
           borrowerUserId: student.user.id,
           dueDate,
           replacementCost: book.replacementCost,
@@ -202,29 +319,38 @@ export class LibraryService {
         include: {
           book: { select: { title: true, author: true } },
           borrower: { select: { firstName: true, lastName: true } },
+          copy: { select: { copyNumber: true } },
         },
-      }),
+      });
       await tx.book.update({
         where: { id: book.id },
         data: { availableCount: { decrement: 1 } },
-      }),
-    ]);
-
-    return loan;
+      });
+      return loan;
+    });
   }
 
   async returnBook(dto: ReturnDto) {
     const book = await this.findBookByIdentifier(dto.bookIdentifier);
     if (!book) throw new NotFoundException('Book not found');
 
-    // Find active loan
+    /* The copy number inside the cover says whose loan this is. Without it
+       the oldest loan is closed, as before copies were tracked. */
     const loan = await this.prisma.bookLoan.findFirst({
-      where: { bookId: book.id, status: 'ACTIVE' },
+      where: {
+        bookId: book.id,
+        status: 'ACTIVE',
+        ...(dto.copyNumber && { copy: { copyNumber: dto.copyNumber } }),
+      },
       include: { borrower: { select: { firstName: true, lastName: true } } },
       orderBy: { checkedOutAt: 'asc' }, // Return oldest loan first
     });
     if (!loan)
-      throw new NotFoundException('No active loan found for this book');
+      throw new NotFoundException(
+        dto.copyNumber
+          ? `Copy ${dto.copyNumber} of this book is not out on loan`
+          : 'No active loan found for this book',
+      );
 
     const [updatedLoan] = await this.prisma.$transaction(async (tx) => [
       await tx.bookLoan.update({
@@ -233,6 +359,7 @@ export class LibraryService {
         include: {
           book: { select: { title: true, author: true } },
           borrower: { select: { firstName: true, lastName: true } },
+          copy: { select: { copyNumber: true } },
         },
       }),
       await tx.book.update({
@@ -253,16 +380,28 @@ export class LibraryService {
     if (loan.status !== 'ACTIVE')
       throw new BadRequestException('Loan is not active');
 
-    return this.prisma.bookLoan.update({
-      where: { id: loanId },
-      data: {
-        status: 'LOST',
-        replacementCost: loan.book.replacementCost,
-      },
-      include: {
-        book: { select: { title: true, author: true, replacementCost: true } },
-        borrower: { select: { firstName: true, lastName: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // The physical copy is gone, and stays on the record as gone.
+      if (loan.copyId) {
+        await tx.bookCopy.update({
+          where: { id: loan.copyId },
+          data: { standing: 'LOST' },
+        });
+      }
+      return tx.bookLoan.update({
+        where: { id: loanId },
+        data: {
+          status: 'LOST',
+          replacementCost: loan.book.replacementCost,
+        },
+        include: {
+          book: {
+            select: { title: true, author: true, replacementCost: true },
+          },
+          borrower: { select: { firstName: true, lastName: true } },
+          copy: { select: { copyNumber: true } },
+        },
+      });
     });
   }
 
@@ -274,6 +413,7 @@ export class LibraryService {
     return this.prisma.bookLoan.findMany({
       where: { status: 'ACTIVE' },
       include: {
+        copy: { select: { copyNumber: true } },
         book: { select: { title: true, author: true, barcode: true } },
         borrower: { select: { firstName: true, lastName: true } },
       },
@@ -285,6 +425,7 @@ export class LibraryService {
     return this.prisma.bookLoan.findMany({
       where: { status: 'ACTIVE', dueDate: { lt: new Date() } },
       include: {
+        copy: { select: { copyNumber: true } },
         book: { select: { title: true, author: true } },
         borrower: { select: { firstName: true, lastName: true } },
       },
@@ -394,6 +535,7 @@ export class LibraryService {
     return this.prisma.bookLoan.findMany({
       where: { borrowerUserId: userId },
       include: {
+        copy: { select: { copyNumber: true } },
         book: { select: { title: true, author: true, barcode: true } },
       },
       orderBy: { checkedOutAt: 'desc' },

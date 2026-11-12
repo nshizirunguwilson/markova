@@ -96,10 +96,14 @@ export class BulkImportBooksDto {
 export class CheckoutDto {
   @ApiProperty() @IsString() bookIdentifier: string; // barcode or book ID
   @ApiProperty() @IsString() studentIdentifier: string; // student ID number or user ID
+  /** Which physical copy, from the number inside the cover. */
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) copyNumber?: number;
 }
 
 export class ReturnDto {
   @ApiProperty() @IsString() bookIdentifier: string; // barcode or book ID
+  /** Which physical copy came back, from the number inside the cover. */
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) copyNumber?: number;
 }
 
 export class ReportLostDto {

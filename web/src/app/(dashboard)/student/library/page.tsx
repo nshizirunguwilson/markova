@@ -95,7 +95,7 @@ export default function StudentLibraryPage() {
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-muted">
-                              Due: {day(loan.dueDate)}
+                              {loan.copy?.copyNumber ? `Copy ${loan.copy.copyNumber} · ` : ""}Due: {day(loan.dueDate)}
                             </p>
                             {isOverdue ? (
                               <Badge variant="danger">
